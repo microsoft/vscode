@@ -6,7 +6,7 @@
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Action, IAction } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
-import { Queue, raceTimeout, RunOnceScheduler } from 'vs/base/common/async';
+import { raceTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isErrorWithActions } from 'vs/base/common/errorMessage';
 import * as errors from 'vs/base/common/errors';
@@ -85,8 +85,6 @@ export class DebugService implements IDebugService {
 	private activity: IDisposable | undefined;
 	private chosenEnvironments: { [key: string]: string };
 
-	private configResolverQueue = new Queue<IConfig | null | undefined>();
-
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
@@ -96,7 +94,7 @@ export class DebugService implements IDebugService {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -122,16 +120,14 @@ export class DebugService implements IDebugService {
 		this.disposables.add(this.configurationManager);
 		this.debugStorage = this.instantiationService.createInstance(DebugStorage);
 
-		contextKeyService.bufferChangeEvents(() => {
-			this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
-			this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
-			this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
-			this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
-			this.debugUx.set(this.debugStorage.loadDebugUxState());
-			this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
-			// Need to set disassemblyViewFocus here to make it in the same context as the debug event handlers
-			this.disassemblyViewFocus = CONTEXT_DISASSEMBLY_VIEW_FOCUS.bindTo(contextKeyService);
-		});
+		this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
+		this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
+		this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
+		this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
+		this.debugUx.set(this.debugStorage.loadDebugUxState());
+		this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
+		// Need to set disassemblyViewFocus here to make it in the same context as the debug event handlers
+		this.disassemblyViewFocus = CONTEXT_DISASSEMBLY_VIEW_FOCUS.bindTo(contextKeyService);
 		this.chosenEnvironments = this.debugStorage.loadChosenEnvironments();
 
 		this.model = this.instantiationService.createInstance(DebugModel, this.debugStorage);
@@ -187,13 +183,11 @@ export class DebugService implements IDebugService {
 		this.disposables.add(this.model.onDidChangeBreakpoints(() => setBreakpointsExistContext()));
 
 		this.disposables.add(editorService.onDidActiveEditorChange(() => {
-			this.contextKeyService.bufferChangeEvents(() => {
-				if (editorService.activeEditor === DisassemblyViewInput.instance) {
-					this.disassemblyViewFocus.set(true);
-				} else {
-					this.disassemblyViewFocus.reset();
-				}
-			});
+			if (editorService.activeEditor === DisassemblyViewInput.instance) {
+				this.disassemblyViewFocus.set(true);
+			} else {
+				this.disassemblyViewFocus.reset();
+			}
 		}));
 
 		this.disposables.add(this.lifecycleService.onBeforeShutdown(() => {
@@ -277,14 +271,12 @@ export class DebugService implements IDebugService {
 	private onStateChange(): void {
 		const state = this.state;
 		if (this.previousState !== state) {
-			this.contextKeyService.bufferChangeEvents(() => {
-				this.debugState.set(getStateLabel(state));
-				this.inDebugMode.set(state !== State.Inactive);
-				// Only show the simple ux if debug is not yet started and if no launch.json exists
-				const debugUxValue = ((state !== State.Inactive && state !== State.Initializing) || (this.adapterManager.hasEnabledDebuggers() && this.configurationManager.selectedConfiguration.name)) ? 'default' : 'simple';
-				this.debugUx.set(debugUxValue);
-				this.debugStorage.storeDebugUxState(debugUxValue);
-			});
+			this.debugState.set(getStateLabel(state));
+			this.inDebugMode.set(state !== State.Inactive);
+			// Only show the simple ux if debug is not yet started and if no launch.json exists
+			const debugUxValue = ((state !== State.Inactive && state !== State.Initializing) || (this.adapterManager.hasEnabledDebuggers() && this.configurationManager.selectedConfiguration.name)) ? 'default' : 'simple';
+			this.debugUx.set(debugUxValue);
+			this.debugStorage.storeDebugUxState(debugUxValue);
 			this.previousState = state;
 			this._onDidChangeState.fire(state);
 		}
@@ -447,7 +439,7 @@ export class DebugService implements IDebugService {
 		const sessionId = generateUuid();
 		this.sessionCancellationTokens.set(sessionId, initCancellationToken);
 
-		const configByProviders = await this.configResolverQueue.queue(() => this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config!, initCancellationToken.token));
+		const configByProviders = await this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config!, initCancellationToken.token);
 		// a falsy config indicates an aborted launch
 		if (configByProviders && configByProviders.type) {
 			try {
@@ -468,7 +460,7 @@ export class DebugService implements IDebugService {
 					return false;
 				}
 
-				const cfg = await this.configResolverQueue.queue(() => this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, type, resolvedConfig!, initCancellationToken.token));
+				const cfg = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, type, resolvedConfig, initCancellationToken.token);
 				if (!cfg) {
 					if (launch && type && cfg === null && !initCancellationToken.token.isCancellationRequested) {	// show launch.json only for "config" being "null".
 						await launch.openConfigFile({ preserveFocus: true, type }, initCancellationToken.token);
@@ -753,11 +745,11 @@ export class DebugService implements IDebugService {
 		if (launch && needsToSubstitute && unresolved) {
 			const initCancellationToken = new CancellationTokenSource();
 			this.sessionCancellationTokens.set(session.getId(), initCancellationToken);
-			const resolvedByProviders = await this.configResolverQueue.queue(() => this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved!.type, unresolved!, initCancellationToken.token));
+			const resolvedByProviders = await this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved, initCancellationToken.token);
 			if (resolvedByProviders) {
 				resolved = await this.substituteVariables(launch, resolvedByProviders);
 				if (resolved && !initCancellationToken.token.isCancellationRequested) {
-					resolved = await this.configResolverQueue.queue(() => this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, unresolved!.type, resolved!, initCancellationToken.token));
+					resolved = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, unresolved.type, resolved, initCancellationToken.token);
 				}
 			} else {
 				resolved = resolvedByProviders;
@@ -824,7 +816,7 @@ export class DebugService implements IDebugService {
 		return Promise.all(sessions.map(s => disconnect ? s.disconnect(undefined, suspend) : s.terminate()));
 	}
 
-	private async substituteVariables(launch: ILaunch | undefined, config: IConfig): Promise<IConfig | null | undefined> {
+	private async substituteVariables(launch: ILaunch | undefined, config: IConfig): Promise<IConfig | undefined> {
 		const dbg = this.adapterManager.getDebugger(config.type);
 		if (dbg) {
 			let folder: IWorkspaceFolder | undefined = undefined;
@@ -837,7 +829,7 @@ export class DebugService implements IDebugService {
 				}
 			}
 			try {
-				return this.configResolverQueue.queue(() => dbg.substituteVariables(folder, config));
+				return await dbg.substituteVariables(folder, config);
 			} catch (err) {
 				this.showError(err.message, undefined, !!launch?.getConfiguration(config.name));
 				return undefined;	// bail out

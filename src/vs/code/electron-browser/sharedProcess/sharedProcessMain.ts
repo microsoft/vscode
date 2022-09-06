@@ -105,6 +105,7 @@ import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/pol
 import { UserDataProfilesNativeService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfile';
 import { SharedProcessRequestService } from 'vs/platform/request/electron-browser/sharedProcessRequestService';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
+import { UserDataProfilesCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/userDataProfilesCleaner';
 
 class SharedProcessMain extends Disposable {
 
@@ -169,7 +170,8 @@ class SharedProcessMain extends Disposable {
 			instantiationService.createInstance(StorageDataCleaner, this.configuration.backupWorkspacesPath),
 			instantiationService.createInstance(LogsDataCleaner),
 			instantiationService.createInstance(LocalizationsUpdater),
-			instantiationService.createInstance(ExtensionsCleaner)
+			instantiationService.createInstance(ExtensionsCleaner),
+			instantiationService.createInstance(UserDataProfilesCleaner)
 		));
 	}
 
@@ -256,17 +258,17 @@ class SharedProcessMain extends Disposable {
 		services.set(IRequestService, new SharedProcessRequestService(mainProcessService, configurationService, logService));
 
 		// Checksum
-		services.set(IChecksumService, new SyncDescriptor(ChecksumService));
+		services.set(IChecksumService, new SyncDescriptor(ChecksumService, undefined, true));
 
 		// V8 Inspect profiler
-		services.set(IV8InspectProfilingService, new SyncDescriptor(V8InspectProfilingService));
+		services.set(IV8InspectProfilingService, new SyncDescriptor(V8InspectProfilingService, undefined, true));
 
 		// Native Host
 		const nativeHostService = ProxyChannel.toService<INativeHostService>(mainProcessService.getChannel('nativeHost'), { context: this.configuration.windowId });
 		services.set(INativeHostService, nativeHostService);
 
 		// Download
-		services.set(IDownloadService, new SyncDescriptor(DownloadService));
+		services.set(IDownloadService, new SyncDescriptor(DownloadService, undefined, true));
 
 		// Extension recommendations
 		const activeWindowManager = this._register(new ActiveWindowManager(nativeHostService));
@@ -307,35 +309,35 @@ class SharedProcessMain extends Disposable {
 		services.set(ICustomEndpointTelemetryService, customEndpointTelemetryService);
 
 		// Extension Management
-		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
-		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
-		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService, undefined, true));
+		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService, undefined, true));
+		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService, undefined, true));
 
 		// Extension Gallery
-		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService, undefined, true));
 
 		// Extension Tips
-		services.set(IExtensionTipsService, new SyncDescriptor(ExtensionTipsService));
+		services.set(IExtensionTipsService, new SyncDescriptor(ExtensionTipsService /* Eagerly scans and computes exe based recommendations */));
 
 		// Localizations
 		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService));
 
 		// Diagnostics
-		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
+		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService, undefined, true));
 
 		// Settings Sync
-		services.set(IUserDataSyncAccountService, new SyncDescriptor(UserDataSyncAccountService));
-		services.set(IUserDataSyncLogService, new SyncDescriptor(UserDataSyncLogService));
+		services.set(IUserDataSyncAccountService, new SyncDescriptor(UserDataSyncAccountService, undefined, true));
+		services.set(IUserDataSyncLogService, new SyncDescriptor(UserDataSyncLogService, undefined, true));
 		services.set(IUserDataSyncUtilService, new UserDataSyncUtilServiceClient(this.server.getChannel('userDataSyncUtil', client => client.ctx !== 'main')));
-		services.set(IGlobalExtensionEnablementService, new SyncDescriptor(GlobalExtensionEnablementService));
-		services.set(IIgnoredExtensionsManagementService, new SyncDescriptor(IgnoredExtensionsManagementService));
+		services.set(IGlobalExtensionEnablementService, new SyncDescriptor(GlobalExtensionEnablementService /* Eagerly resets installed extensions */));
+		services.set(IIgnoredExtensionsManagementService, new SyncDescriptor(IgnoredExtensionsManagementService, undefined, true));
 		services.set(IExtensionStorageService, new SyncDescriptor(ExtensionStorageService));
-		services.set(IUserDataSyncStoreManagementService, new SyncDescriptor(UserDataSyncStoreManagementService));
-		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService));
-		services.set(IUserDataSyncMachinesService, new SyncDescriptor(UserDataSyncMachinesService));
-		services.set(IUserDataSyncBackupStoreService, new SyncDescriptor(UserDataSyncBackupStoreService));
-		services.set(IUserDataSyncEnablementService, new SyncDescriptor(UserDataSyncEnablementService));
-		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
+		services.set(IUserDataSyncStoreManagementService, new SyncDescriptor(UserDataSyncStoreManagementService, undefined, true));
+		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService, undefined, true));
+		services.set(IUserDataSyncMachinesService, new SyncDescriptor(UserDataSyncMachinesService, undefined, true));
+		services.set(IUserDataSyncBackupStoreService, new SyncDescriptor(UserDataSyncBackupStoreService /* Eagerly cleans up old backups */));
+		services.set(IUserDataSyncEnablementService, new SyncDescriptor(UserDataSyncEnablementService, undefined, true));
+		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService /* Initializes the Sync State */));
 
 		const ptyHostService = new PtyHostService({
 			graceTime: LocalReconnectConstants.GraceTime,
@@ -352,11 +354,11 @@ class SharedProcessMain extends Disposable {
 		services.set(ILocalPtyService, this._register(ptyHostService));
 
 		// Signing
-		services.set(ISignService, new SyncDescriptor(SignService));
+		services.set(ISignService, new SyncDescriptor(SignService, undefined, true));
 
 		// Tunnel
-		services.set(ISharedTunnelsService, new SyncDescriptor(SharedTunnelsService));
-		services.set(ISharedProcessTunnelService, new SyncDescriptor(SharedProcessTunnelService));
+		services.set(ISharedTunnelsService, new SyncDescriptor(SharedTunnelsService, undefined, true));
+		services.set(ISharedProcessTunnelService, new SyncDescriptor(SharedProcessTunnelService, undefined, true));
 
 		return new InstantiationService(services);
 	}

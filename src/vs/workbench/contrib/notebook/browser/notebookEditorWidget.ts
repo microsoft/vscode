@@ -262,7 +262,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._notebookOptions = creationOptions.options ?? new NotebookOptions(this.configurationService, notebookExecutionStateService);
 		this._register(this._notebookOptions);
-		this._viewContext = new ViewContext(this._notebookOptions, new NotebookEventDispatcher());
+		this._viewContext = new ViewContext(
+			this._notebookOptions,
+			new NotebookEventDispatcher(),
+			language => this.getBaseCellEditorOptions(language));
 		this._register(this._viewContext.eventDispatcher.onDidChangeCellState(e => {
 			this._onDidChangeCellState.fire(e);
 		}));

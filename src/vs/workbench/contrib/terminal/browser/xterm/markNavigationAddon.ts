@@ -46,7 +46,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		super();
 	}
 
-	private _getMarkers(): readonly IMarker[] {
+	private _getMarkers(skipEmptyCommands?: boolean): readonly IMarker[] {
 		if (!this._detectionCapability) {
 			return [];
 		}
@@ -60,7 +60,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			markers.push(...partialCommandCapability.commands);
 		}
 
-		if (markCapability) {
+		if (markCapability && !skipEmptyCommands) {
 			let next = markCapability.markers().next()?.value;
 			const arr: IMarker[] = [];
 			while (next) {
@@ -88,7 +88,8 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		this._navigationDecorations = undefined;
 	}
 
-	scrollToPreviousMark(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
+
+	scrollToPreviousMark(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false, skipEmptyCommands?: boolean): void {
 		if (!this._terminal) {
 			return;
 		}
@@ -104,19 +105,23 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		if (typeof this._currentMarker === 'object' ? !this._isMarkerInViewport(this._terminal, this._currentMarker) : currentLineY !== viewportY) {
 			// The user has scrolled, find the line based on the current scroll position. This only
 			// works when not retaining selection
-			const markersBelowViewport = this._getMarkers().filter(e => e.line >= viewportY).length;
+			const markersBelowViewport = this._getMarkers(skipEmptyCommands).filter(e => e.line >= viewportY).length;
 			// -1 will scroll to the top
-			markerIndex = this._getMarkers().length - markersBelowViewport - 1;
+			markerIndex = this._getMarkers(skipEmptyCommands).length - markersBelowViewport - 1;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			markerIndex = this._getMarkers().length - 1;
+			markerIndex = this._getMarkers(skipEmptyCommands).length - 1;
 		} else if (this._currentMarker === Boundary.Top) {
 			markerIndex = -1;
 		} else if (this._isDisposable) {
-			markerIndex = this._findPreviousMark(this._terminal);
+			markerIndex = this._findPreviousMarker(this._terminal, skipEmptyCommands);
 			this._currentMarker.dispose();
 			this._isDisposable = false;
 		} else {
-			markerIndex = this._getMarkers().indexOf(this._currentMarker) - 1;
+			if (skipEmptyCommands && this._isEmptyCommand(this._currentMarker)) {
+				markerIndex = this._findPreviousMarker(this._terminal, true);
+			} else {
+				markerIndex = this._getMarkers(skipEmptyCommands).indexOf(this._currentMarker) - 1;
+			}
 		}
 
 		if (markerIndex < 0) {
@@ -126,11 +131,11 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			return;
 		}
 
-		this._currentMarker = this._getMarkers()[markerIndex];
+		this._currentMarker = this._getMarkers(skipEmptyCommands)[markerIndex];
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
-	scrollToNextMark(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
+	scrollToNextMark(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false, skipEmptyCommands: boolean = true): void {
 		if (!this._terminal) {
 			return;
 		}
@@ -146,29 +151,33 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		if (typeof this._currentMarker === 'object' ? !this._isMarkerInViewport(this._terminal, this._currentMarker) : currentLineY !== viewportY) {
 			// The user has scrolled, find the line based on the current scroll position. This only
 			// works when not retaining selection
-			const markersAboveViewport = this._getMarkers().filter(e => e.line <= viewportY).length;
+			const markersAboveViewport = this._getMarkers(skipEmptyCommands).filter(e => e.line <= viewportY).length;
 			// markers.length will scroll to the bottom
 			markerIndex = markersAboveViewport;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			markerIndex = this._getMarkers().length;
+			markerIndex = this._getMarkers(skipEmptyCommands).length;
 		} else if (this._currentMarker === Boundary.Top) {
 			markerIndex = 0;
 		} else if (this._isDisposable) {
-			markerIndex = this._findNextMark(this._terminal);
+			markerIndex = this._findNextMarker(this._terminal, skipEmptyCommands);
 			this._currentMarker.dispose();
 			this._isDisposable = false;
 		} else {
-			markerIndex = this._getMarkers().indexOf(this._currentMarker) + 1;
+			if (skipEmptyCommands && this._isEmptyCommand(this._currentMarker)) {
+				markerIndex = this._findNextMarker(this._terminal, true);
+			} else {
+				markerIndex = this._getMarkers(skipEmptyCommands).indexOf(this._currentMarker) + 1;
+			}
 		}
 
-		if (markerIndex >= this._getMarkers().length) {
+		if (markerIndex >= this._getMarkers(skipEmptyCommands).length) {
 			this._currentMarker = Boundary.Bottom;
 			this._terminal.scrollToBottom();
 			this._resetNavigationDecoration();
 			return;
 		}
 
-		this._currentMarker = this._getMarkers()[markerIndex];
+		this._currentMarker = this._getMarkers(skipEmptyCommands)[markerIndex];
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
@@ -268,7 +277,11 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		if (this._selectionStart === null) {
 			this._selectionStart = this._currentMarker;
 		}
-		this.scrollToPreviousMark(ScrollPosition.Middle, true);
+		if (this._capabilityStore.has(TerminalCapability.CommandDetection)) {
+			this.scrollToPreviousMark(ScrollPosition.Middle, true, true);
+		} else {
+			this.scrollToPreviousMark(ScrollPosition.Middle, true, false);
+		}
 		selectLines(this._terminal, this._currentMarker, this._selectionStart);
 	}
 
@@ -279,7 +292,11 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		if (this._selectionStart === null) {
 			this._selectionStart = this._currentMarker;
 		}
-		this.scrollToNextMark(ScrollPosition.Middle, true);
+		if (this._capabilityStore.has(TerminalCapability.CommandDetection)) {
+			this.scrollToNextMark(ScrollPosition.Middle, true, true);
+		} else {
+			this.scrollToNextMark(ScrollPosition.Middle, true, false);
+		}
 		selectLines(this._terminal, this._currentMarker, this._selectionStart);
 	}
 
@@ -371,16 +388,16 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		}
 	}
 
-	private _findPreviousMark(xterm: Terminal): number {
+	private _findPreviousMarker(xterm: Terminal, skipEmptyCommands: boolean = false): number {
 		if (this._currentMarker === Boundary.Top) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			return this._getMarkers().length - 1;
+			return this._getMarkers(skipEmptyCommands).length - 1;
 		}
 
 		let i;
-		for (i = this._getMarkers().length - 1; i >= 0; i--) {
-			if (this._getMarkers()[i].line < this._currentMarker.line) {
+		for (i = this._getMarkers(skipEmptyCommands).length - 1; i >= 0; i--) {
+			if (this._getMarkers(skipEmptyCommands)[i].line < this._currentMarker.line) {
 				return i;
 			}
 		}
@@ -388,21 +405,34 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		return -1;
 	}
 
-	private _findNextMark(xterm: Terminal): number {
+	private _findNextMarker(xterm: Terminal, skipEmptyCommands: boolean = false): number {
 		if (this._currentMarker === Boundary.Top) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			return this._getMarkers().length - 1;
+			return this._getMarkers(skipEmptyCommands).length - 1;
 		}
 
 		let i;
-		for (i = 0; i < this._getMarkers().length; i++) {
-			if (this._getMarkers()[i].line > this._currentMarker.line) {
+		for (i = 0; i < this._getMarkers(skipEmptyCommands).length; i++) {
+			if (this._getMarkers(skipEmptyCommands)[i].line > this._currentMarker.line) {
 				return i;
 			}
 		}
 
-		return this._getMarkers().length;
+		return this._getMarkers(skipEmptyCommands).length;
+	}
+
+	private _isEmptyCommand(marker: IMarker | Boundary) {
+
+		if (marker === Boundary.Bottom) {
+			return true;
+		}
+
+		if (marker === Boundary.Top) {
+			return this._getMarkers(true).map(e => e.line).indexOf(0) === -1;
+		}
+
+		return this._getMarkers(true).indexOf(marker) === -1;
 	}
 }
 

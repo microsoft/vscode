@@ -103,7 +103,7 @@ class ResourceLabelFormattersHandler implements IWorkbenchContribution {
 		});
 	}
 }
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ResourceLabelFormattersHandler, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ResourceLabelFormattersHandler, 'ResourceLabelFormattersHandler', LifecyclePhase.Restored);
 
 const FORMATTER_CACHE_SIZE = 50;
 

@@ -13,10 +13,12 @@ import { nextCharLength } from 'vs/base/common/strings';
 import { isString, isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRelativePatternDto } from 'vs/workbench/api/common/extHost.protocol';
 import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
 /**
@@ -737,40 +739,20 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	// --- notebook
 
-	replaceNotebookMetadata(uri: URI, value: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	private replaceNotebookMetadata(uri: URI, value: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.DocumentMetadata, metadata: value }, notebookMetadata: value });
 	}
 
-	replaceNotebookCells(uri: URI, range: vscode.NotebookRange, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void;
-	replaceNotebookCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void;
-	replaceNotebookCells(uri: URI, startOrRange: number | vscode.NotebookRange, endOrCells: number | vscode.NotebookCellData[], cellsOrMetadata?: vscode.NotebookCellData[] | vscode.WorkspaceEditEntryMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		let start: number | undefined;
-		let end: number | undefined;
-		let cellData: vscode.NotebookCellData[] = [];
-		let workspaceEditMetadata: vscode.WorkspaceEditEntryMetadata | undefined;
-
-		if (NotebookRange.isNotebookRange(startOrRange) && NotebookCellData.isNotebookCellDataArray(endOrCells) && !NotebookCellData.isNotebookCellDataArray(cellsOrMetadata)) {
-			start = startOrRange.start;
-			end = startOrRange.end;
-			cellData = endOrCells;
-			workspaceEditMetadata = cellsOrMetadata;
-		} else if (typeof startOrRange === 'number' && typeof endOrCells === 'number' && NotebookCellData.isNotebookCellDataArray(cellsOrMetadata)) {
-			start = startOrRange;
-			end = endOrCells;
-			cellData = cellsOrMetadata;
-			workspaceEditMetadata = metadata;
-		}
-
-		if (start === undefined || end === undefined) {
-			throw new Error('Invalid arguments');
-		}
+	private replaceNotebookCells(uri: URI, startOrRange: vscode.NotebookRange, cellData: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		const start = startOrRange.start;
+		const end = startOrRange.end;
 
 		if (start !== end || cellData.length > 0) {
-			this._edits.push({ _type: FileEditType.CellReplace, uri, index: start, count: end - start, cells: cellData, metadata: workspaceEditMetadata });
+			this._edits.push({ _type: FileEditType.CellReplace, uri, index: start, count: end - start, cells: cellData, metadata });
 		}
 	}
 
-	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	private replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.PartialMetadata, index, metadata: cellMetadata } });
 	}
 
@@ -2433,12 +2415,13 @@ export class TreeItem {
 	command?: vscode.Command;
 	contextValue?: string;
 	tooltip?: string | vscode.MarkdownString;
+	checkboxState?: vscode.TreeItemCheckboxState;
 
-	static isTreeItem(thing: any): thing is TreeItem {
+	static isTreeItem(thing: any, extension: IExtensionDescription): thing is TreeItem {
 		if (thing instanceof TreeItem) {
 			return true;
 		}
-		const treeItemThing = thing as vscode.TreeItem;
+		const treeItemThing = thing as vscode.TreeItem2;
 		if (treeItemThing.label !== undefined && !isString(treeItemThing.label) && !(treeItemThing.label?.label)) {
 			console.log('INVALID tree item, invalid label', treeItemThing.label);
 			return false;
@@ -2482,6 +2465,13 @@ export class TreeItem {
 			console.log('INVALID tree item, invalid accessibilityInformation', treeItemThing.accessibilityInformation);
 			return false;
 		}
+		if (treeItemThing.checkboxState !== undefined) {
+			checkProposedApiEnabled(extension, 'treeItemCheckbox');
+			if (treeItemThing.checkboxState !== TreeItemCheckboxState.Checked && treeItemThing.checkboxState !== TreeItemCheckboxState.Unchecked) {
+				console.log('INVALID tree item, invalid checkboxState', treeItemThing.checkboxState);
+				return false;
+			}
+		}
 
 		return true;
 	}
@@ -2502,6 +2492,11 @@ export enum TreeItemCollapsibleState {
 	None = 0,
 	Collapsed = 1,
 	Expanded = 2
+}
+
+export enum TreeItemCheckboxState {
+	Unchecked = 0,
+	Checked = 1
 }
 
 @es5ClassCompat

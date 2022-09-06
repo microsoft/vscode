@@ -14,7 +14,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { createSyncHeaders, IAuthenticationProvider, IResourceRefHandle, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { createSyncHeaders, IAuthenticationProvider, IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -23,6 +23,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { isWeb } from 'vs/base/common/platform';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
@@ -57,7 +58,6 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		@IRequestService private readonly requestService: IRequestService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
-		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		super();
 
@@ -202,7 +202,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 
 		// If settings sync is already enabled, avoid asking again to authenticate
-		if (this.userDataSyncEnablementService.isEnabled()) {
+		if (this.shouldAttemptEditSessionInit()) {
 			this.logService.info(`Reusing user data sync enablement`);
 			const authenticationSessionInfo = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
 			if (authenticationSessionInfo !== undefined) {
@@ -220,6 +220,10 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 
 		return undefined;
+	}
+
+	private shouldAttemptEditSessionInit(): boolean {
+		return isWeb && this.storageService.isNew(StorageScope.APPLICATION) && this.storageService.isNew(StorageScope.WORKSPACE);
 	}
 
 	/**

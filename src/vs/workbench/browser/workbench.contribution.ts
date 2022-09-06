@@ -18,7 +18,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 (function registerConfiguration(): void {
 
 	// Migration support
-	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ConfigurationMigrationWorkbenchContribution, LifecyclePhase.Eventually);
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ConfigurationMigrationWorkbenchContribution, 'ConfigurationMigrationWorkbenchContribution', LifecyclePhase.Eventually);
 
 	// Workbench
 	registry.registerConfiguration({
@@ -539,6 +539,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'window.commandCenter': {
 				type: 'boolean',
 				default: false,
+				tags: ['experimental'],
 				markdownDescription: localize('window.commandCenter', "Show command launcher together with the window title. This setting only has an effect when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`')
 			},
 			'window.menuBarVisibility': {

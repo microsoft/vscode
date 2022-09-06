@@ -42,6 +42,14 @@ if [[ "$(uname -s)" =~ ^CYGWIN*|MINGW*|MSYS* ]]; then
 	builtin printf "\x1b]633;P;IsWindows=True\x07"
 fi
 
+# Allow verifying $BASH_COMMAND doesn't have aliases resolved via history when the right HISTCONTROL
+# configuration is used
+if [[ "$HISTCONTROL" =~ .*(erasedups|ignoreboth|ignoredups).* ]]; then
+	__vsc_history_verify=0
+else
+	__vsc_history_verify=1
+fi
+
 __vsc_initialized=0
 __vsc_original_PS1="$PS1"
 __vsc_original_PS2="$PS2"
@@ -111,7 +119,13 @@ __vsc_precmd() {
 __vsc_preexec() {
 	__vsc_initialized=1
 	if [[ ! "$BASH_COMMAND" =~ ^__vsc_prompt* ]]; then
-		__vsc_current_command=$BASH_COMMAND
+		# Use history if it's available to verify the command as BASH_COMMAND comes in with aliases
+		# resolved
+		if [ "$__vsc_history_verify" = "1" ]; then
+			__vsc_current_command="$(builtin history 1 | sed -r 's/ *[0-9]+ +//')"
+		else
+			__vsc_current_command=$BASH_COMMAND
+		fi
 	else
 		__vsc_current_command=""
 	fi

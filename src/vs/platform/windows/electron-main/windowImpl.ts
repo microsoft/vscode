@@ -40,9 +40,10 @@ import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electro
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import product from 'vs/platform/product/common/product';
+import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -120,7 +121,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
 
-	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getProfile(this.config.workspace ?? 'empty-window', this.userDataProfilesService.profiles.find(profile => profile.id === this.config?.profiles.profile.id) ?? this.userDataProfilesService.defaultProfile) : undefined; }
+	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getOrSetProfileForWorkspace(this.config.workspace ?? 'empty-window', this.userDataProfilesService.profiles.find(profile => profile.id === this.config?.profiles.profile.id) ?? this.userDataProfilesService.defaultProfile) : undefined; }
 
 	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }
 
@@ -165,7 +166,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfilesMainService private readonly userDataProfilesService: IUserDataProfilesMainService,
 		@IFileService private readonly fileService: IFileService,
 		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
 		@IStorageMainService private readonly storageMainService: IStorageMainService,

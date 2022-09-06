@@ -164,23 +164,23 @@ class CliMain extends Disposable {
 			configurationService.initialize()
 		]);
 
-		userDataProfilesService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
+		userDataProfilesService.setEnablement(productService.quality !== 'stable' || configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
 
 		// URI Identity
 		services.set(IUriIdentityService, new UriIdentityService(fileService));
 
 		// Request
-		services.set(IRequestService, new SyncDescriptor(RequestService));
+		services.set(IRequestService, new SyncDescriptor(RequestService, undefined, true));
 
 		// Download Service
-		services.set(IDownloadService, new SyncDescriptor(DownloadService));
+		services.set(IDownloadService, new SyncDescriptor(DownloadService, undefined, true));
 
 		// Extensions
-		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
-		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
-		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
-		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));
-		services.set(IExtensionManagementCLIService, new SyncDescriptor(ExtensionManagementCLIService));
+		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService, undefined, true));
+		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService, undefined, true));
+		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService, undefined, true));
+		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService, undefined, true));
+		services.set(IExtensionManagementCLIService, new SyncDescriptor(ExtensionManagementCLIService, undefined, true));
 
 		// Localizations
 		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService));

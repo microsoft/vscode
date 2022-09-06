@@ -275,7 +275,7 @@ class ExtensionsScanner extends Disposable {
 		const userScanOptions: ScanOptions = { includeInvalid: true, profileLocation };
 		let scannedExtensions: IScannedExtension[] = [];
 		if (type === null || type === ExtensionType.System) {
-			scannedExtensions.push(...await this.extensionsScannerService.scanAllExtensions({ includeInvalid: true }, userScanOptions));
+			scannedExtensions.push(...await this.extensionsScannerService.scanAllExtensions({ includeInvalid: true }, userScanOptions, false));
 		} else if (type === ExtensionType.User) {
 			scannedExtensions.push(...await this.extensionsScannerService.scanUserExtensions(userScanOptions));
 		}

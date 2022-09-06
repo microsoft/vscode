@@ -103,7 +103,7 @@ class CodeMain {
 
 			// Init services
 			try {
-				await this.initServices(environmentMainService, userDataProfilesMainService, configurationService, stateMainService);
+				await this.initServices(environmentMainService, userDataProfilesMainService, configurationService, stateMainService, productService);
 			} catch (error) {
 
 				// Show a dialog for errors that can be resolved by the user
@@ -201,16 +201,16 @@ class CodeMain {
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService));
 
 		// Request
-		services.set(IRequestService, new SyncDescriptor(RequestMainService));
+		services.set(IRequestService, new SyncDescriptor(RequestMainService, undefined, true));
 
 		// Themes
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
 
 		// Signing
-		services.set(ISignService, new SyncDescriptor(SignService));
+		services.set(ISignService, new SyncDescriptor(SignService, undefined, true));
 
 		// Tunnel
-		services.set(ITunnelService, new SyncDescriptor(TunnelService));
+		services.set(ITunnelService, new SyncDescriptor(TunnelService, undefined, true));
 
 		// Protocol
 		services.set(IProtocolMainService, new SyncDescriptor(ProtocolMainService));
@@ -235,7 +235,7 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private async initServices(environmentMainService: IEnvironmentMainService, userDataProfilesMainService: UserDataProfilesMainService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<void> {
+	private async initServices(environmentMainService: IEnvironmentMainService, userDataProfilesMainService: UserDataProfilesMainService, configurationService: ConfigurationService, stateMainService: StateMainService, productService: IProductService): Promise<void> {
 		await Promises.settled<unknown>([
 
 			// Environment service (paths)
@@ -256,7 +256,7 @@ class CodeMain {
 			configurationService.initialize()
 		]);
 
-		userDataProfilesMainService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
+		userDataProfilesMainService.setEnablement(productService.quality !== 'stable' || configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
 	}
 
 	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {
@@ -346,9 +346,9 @@ class CodeMain {
 			if (environmentMainService.args.status) {
 				return instantiationService.invokeFunction(async () => {
 					const diagnosticsService = new DiagnosticsService(NullTelemetryService, productService);
-					const mainProcessInfo = await otherInstanceLaunchMainService.getMainProcessInfo();
+					const mainDiagnostics = await otherInstanceDiagnosticsMainService.getMainDiagnostics();
 					const remoteDiagnostics = await otherInstanceDiagnosticsMainService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
-					const diagnostics = await diagnosticsService.getDiagnostics(mainProcessInfo, remoteDiagnostics);
+					const diagnostics = await diagnosticsService.getDiagnostics(mainDiagnostics, remoteDiagnostics);
 					console.log(diagnostics);
 
 					throw new ExpectedError();

@@ -103,11 +103,10 @@ suite('ContextKeyService', () => {
 
 		let fired = false;
 		const event = child.onDidChangeContext(e => fired = true);
-		root.bufferChangeEvents(() => {
-			root.setContext('testA', 10);
-			root.setContext('testB', 20);
-			root.setContext('testD', 30);
-		});
+
+		root.setContext('testA', 10);
+		root.setContext('testB', 20);
+		root.setContext('testD', 30);
 
 		assert.strictEqual(fired, false, 'Should not fire event when overridden key is updated in parent');
 		event.dispose();
@@ -139,11 +138,9 @@ suite('ContextKeyService', () => {
 			def.complete(undefined);
 		});
 
-		root.bufferChangeEvents(() => {
-			root.setContext('testA', 10);
-			root.setContext('testB', 20);
-			root.setContext('testC', 30);
-		});
+		root.setContext('testA', 10);
+		root.setContext('testB', 20);
+		root.setContext('testC', 30);
 
 		return def.p;
 	});
