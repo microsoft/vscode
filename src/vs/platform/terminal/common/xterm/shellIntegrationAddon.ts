@@ -377,13 +377,13 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				let hidden = false;
 				let id = undefined;
 				if (args[0]) {
-					if (args[0] === 'Hidden') {
+					if (args[0] === 'true') {
 						hidden = true;
 					} else {
 						// there's an ID
 						const [, _id, _hidden] = args[0].split(new RegExp('Id='));
 						id = _id;
-						hidden = _hidden === 'Hidden';
+						hidden = _hidden === 'true';
 					}
 				}
 				this._createOrGetBufferMarkDetection(this._terminal).addMark({ id, hidden });
