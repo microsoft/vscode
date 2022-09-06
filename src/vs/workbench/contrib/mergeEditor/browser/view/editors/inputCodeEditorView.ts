@@ -115,7 +115,7 @@ export class InputCodeEditorView extends CodeEditorView {
 
 		for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
 			const range = modifiedBaseRange.getInputRange(this.inputNumber);
-			if (!range || !range.isEmpty) {
+			if (!range || range.isEmpty) {
 				continue;
 			}
 
