@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IExtensionTerminalProfile, IProcessPropertyMap, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, ProcessPropertyType, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -486,11 +486,6 @@ export interface ITerminalInstance {
 	 */
 	readonly shouldPersist: boolean;
 
-	/**
-	 * Whether the process communication channel has been disconnected.
-	 */
-	readonly isDisconnected: boolean;
-
 	/*
 	 * Whether this terminal has been disposed of
 	 */
@@ -690,12 +685,6 @@ export interface ITerminalInstance {
 	 */
 	copySelection(asHtml?: boolean, command?: ITerminalCommand): Promise<void>;
 
-
-	/**
-	 * Copies the ouput of the last command
-	 */
-	copyLastCommandOutput(): Promise<void>;
-
 	/**
 	 * Current selection in the terminal.
 	 */
@@ -718,17 +707,18 @@ export interface ITerminalInstance {
 	selectAll(): void;
 
 	/**
-	 * Focuses the terminal instance if it's able to (xterm.js instance exists).
+	 * Focuses the terminal instance if it's able to (the xterm.js instance must exist).
 	 *
-	 * @param focus Force focus even if there is a selection.
+	 * @param force Force focus even if there is a selection.
 	 */
 	focus(force?: boolean): void;
 
 	/**
-	 * Focuses the terminal instance when it's ready (the xterm.js instance is created). Use this
+	 * Focuses the terminal instance when it's ready (the xterm.js instance much exist). This is the
+	 * best focus call when the terminal is being shown for example.
 	 * when the terminal is being shown.
 	 *
-	 * @param focus Force focus even if there is a selection.
+	 * @param force Force focus even if there is a selection.
 	 */
 	focusWhenReady(force?: boolean): Promise<void>;
 
@@ -804,7 +794,7 @@ export interface ITerminalInstance {
 	detachFromElement(): void;
 
 	/**
-	 * Configure the dimensions of the terminal instance.
+	 * Layout the terminal instance.
 	 *
 	 * @param dimension The dimensions of the container.
 	 */
@@ -831,13 +821,6 @@ export interface ITerminalInstance {
 	relaunch(): void;
 
 	/**
-	 * Sets the title and description of the terminal instance's label.
-	 */
-	refreshTabLabels(title: string, eventSource: TitleEventSource): void;
-
-	waitForTitle(): Promise<string>;
-
-	/**
 	 * Sets the terminal instance's dimensions to the values provided via the onDidOverrideDimensions event,
 	 * which allows overriding the the regular dimensions (fit to the size of the panel).
 	 */
@@ -853,16 +836,21 @@ export interface ITerminalInstance {
 	 */
 	toggleSizeToContentWidth(): Promise<void>;
 
-	addDisposable(disposable: IDisposable): void;
-
 	toggleEscapeSequenceLogging(): Promise<boolean>;
 
 	setEscapeSequenceLogging(enable: boolean): void;
 
+	/**
+	 * Gets the initial current working directory, fetching it from the backend if required.
+	 */
 	getInitialCwd(): Promise<string>;
-	getCwd(): Promise<string>;
 
-	refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]>;
+	/**
+	 * Gets the current working directory from cwd detection capabilities if available, otherwise
+	 * from the backend. This will return the initial cwd if cwd detection is not available (ie.
+	 * on Windows when shell integration is disabled).
+	 */
+	getCwd(): Promise<string>;
 
 	/**
 	 * @throws when called before xterm.js is ready.
@@ -870,11 +858,11 @@ export interface ITerminalInstance {
 	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable;
 
 	/**
-	 * Sets the terminal name to the provided title or triggers a quick pick
-	 * to take user input. If no title is provided, will reset based to the value indicated
-	 * user's configration.
+	 * Sets the title of the terminal to the provided string. If no title is provided, it will reset
+	 * to the terminal's title if it was not explicitly set by the user or API.
+	 * @param title The new title.
 	 */
-	rename(title?: string | 'triggerQuickpick'): Promise<void>;
+	rename(title?: string): Promise<void>;
 
 	/**
 	 * Triggers a quick pick to change the icon of this terminal.
