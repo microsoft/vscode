@@ -110,6 +110,7 @@ import { IExtensionsScannerService } from 'vs/platform/extensionManagement/commo
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
 import { UserDataTransientProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataTransientProfilesHandler';
 import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -539,15 +540,13 @@ export class CodeApplication extends Disposable {
 
 		// Ensure profile exists when passed in from CLI
 		const profilePromise = this.userDataProfilesMainService.checkAndCreateProfileFromCli(this.environmentMainService.args);
-		if (profilePromise) {
-			await profilePromise;
-		}
+		const profile = profilePromise ? await profilePromise : undefined;
 
 		// Init Channels
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
 
 		// Open Windows
-		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, mainProcessElectronServer));
+		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, profile, mainProcessElectronServer));
 
 		// Post Open Windows Tasks
 		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor, sharedProcess));
@@ -835,7 +834,7 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel(ipcExtensionHostStarterChannelName, extensionHostStarterChannel);
 	}
 
-	private openFirstWindow(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): ICodeWindow[] {
+	private openFirstWindow(accessor: ServicesAccessor, profile: IUserDataProfile | undefined, mainProcessElectronServer: ElectronIPCServer): ICodeWindow[] {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		const urlService = accessor.get(IURLService);
 		const nativeHostMainService = accessor.get(INativeHostMainService);
@@ -995,31 +994,36 @@ export class CodeApplication extends Disposable {
 			});
 		}
 
-		// new window if "-n"
-		if (args['new-window'] && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return windowsMainService.open({
-				context,
-				cli: args,
-				forceNewWindow: true,
-				forceEmpty: true,
-				noRecentEntry,
-				waitMarkerFileURI,
-				initialStartup: true,
-				remoteAuthority
-			});
-		}
+		// Start without file/folder arguments
+		if (!hasCliArgs && !hasFolderURIs && !hasFileURIs) {
 
-		// mac: open-file event received on startup
-		if (macOpenFiles.length && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return windowsMainService.open({
-				context: OpenContext.DOCK,
-				cli: args,
-				urisToOpen: macOpenFiles.map(file => this.getWindowOpenableFromPathSync(file)),
-				noRecentEntry,
-				waitMarkerFileURI,
-				initialStartup: true,
-				// remoteAuthority: will be determined based on macOpenFiles
-			});
+			// Force new window
+			if (args['new-window'] || profile) {
+				return windowsMainService.open({
+					context,
+					cli: args,
+					forceNewWindow: true,
+					forceEmpty: true,
+					noRecentEntry,
+					waitMarkerFileURI,
+					initialStartup: true,
+					remoteAuthority,
+					profile
+				});
+			}
+
+			// mac: open-file event received on startup
+			if (macOpenFiles.length) {
+				return windowsMainService.open({
+					context: OpenContext.DOCK,
+					cli: args,
+					urisToOpen: macOpenFiles.map(file => this.getWindowOpenableFromPathSync(file)),
+					noRecentEntry,
+					waitMarkerFileURI,
+					initialStartup: true,
+					// remoteAuthority: will be determined based on macOpenFiles
+				});
+			}
 		}
 
 		// default: read paths from cli
@@ -1033,7 +1037,8 @@ export class CodeApplication extends Disposable {
 			waitMarkerFileURI,
 			gotoLineMode: args.goto,
 			initialStartup: true,
-			remoteAuthority
+			remoteAuthority,
+			profile
 		});
 	}
 

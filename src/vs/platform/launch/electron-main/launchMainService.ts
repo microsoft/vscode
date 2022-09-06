@@ -117,16 +117,15 @@ export class LaunchMainService implements ILaunchMainService {
 
 		// Ensure profile exists when passed in from CLI
 		const profilePromise = this.userDataProfilesMainService.checkAndCreateProfileFromCli(args);
-		if (profilePromise) {
-			await profilePromise;
-		}
+		const profile = profilePromise ? await profilePromise : undefined;
 
 		const baseConfig: IOpenConfiguration = {
 			context,
 			cli: args,
 			userEnv,
 			waitMarkerFileURI,
-			remoteAuthority
+			remoteAuthority,
+			profile
 		};
 
 		// Special case extension development
@@ -139,7 +138,7 @@ export class LaunchMainService implements ILaunchMainService {
 			let openNewWindow = false;
 
 			// Force new window
-			if (args['new-window'] || args['unity-launch']) {
+			if (args['new-window'] || args['unity-launch'] || profile) {
 				openNewWindow = true;
 			}
 
