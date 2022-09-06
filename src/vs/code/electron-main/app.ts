@@ -638,58 +638,58 @@ export class CodeApplication extends Disposable {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv]));
 
 		// Dialogs
-		services.set(IDialogMainService, new SyncDescriptor(DialogMainService));
+		services.set(IDialogMainService, new SyncDescriptor(DialogMainService, undefined, true));
 
 		// Launch
-		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
+		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService, undefined, true));
 
 		// Diagnostics
-		services.set(IDiagnosticsMainService, new SyncDescriptor(DiagnosticsMainService));
+		services.set(IDiagnosticsMainService, new SyncDescriptor(DiagnosticsMainService, undefined, true));
 		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
 		// Issues
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
 
 		// Encryption
-		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
+		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId], true));
 
 		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
 
 		// Native Host
-		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, [sharedProcess]));
+		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, [sharedProcess], true));
 
 		// Credentials
-		services.set(ICredentialsMainService, new SyncDescriptor(CredentialsNativeMainService));
+		services.set(ICredentialsMainService, new SyncDescriptor(CredentialsNativeMainService, undefined, true));
 
 		// Webview Manager
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 
 		// Workspaces
-		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesMainService));
-		services.set(IWorkspacesManagementMainService, new SyncDescriptor(WorkspacesManagementMainService));
+		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesMainService, undefined, true));
+		services.set(IWorkspacesManagementMainService, new SyncDescriptor(WorkspacesManagementMainService, undefined, true));
 		services.set(IWorkspacesHistoryMainService, new SyncDescriptor(WorkspacesHistoryMainService));
 
 		// Menubar
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
 
 		// Extension URL Trust
-		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService));
+		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService, undefined, true));
 
 		// Extension Host Starter
 		services.set(IExtensionHostStarter, new SyncDescriptor(ExtensionHostStarter));
 
 		// Storage
 		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
-		services.set(IApplicationStorageMainService, new SyncDescriptor(ApplicationStorageMainService));
+		services.set(IApplicationStorageMainService, new SyncDescriptor(ApplicationStorageMainService, undefined, true));
 
 		// External terminal
 		if (isWindows) {
-			services.set(IExternalTerminalMainService, new SyncDescriptor(WindowsExternalTerminalService));
+			services.set(IExternalTerminalMainService, new SyncDescriptor(WindowsExternalTerminalService, undefined, true));
 		} else if (isMacintosh) {
-			services.set(IExternalTerminalMainService, new SyncDescriptor(MacExternalTerminalService));
+			services.set(IExternalTerminalMainService, new SyncDescriptor(MacExternalTerminalService, undefined, true));
 		} else if (isLinux) {
-			services.set(IExternalTerminalMainService, new SyncDescriptor(LinuxExternalTerminalService));
+			services.set(IExternalTerminalMainService, new SyncDescriptor(LinuxExternalTerminalService, undefined, true));
 		}
 
 		// Backups
@@ -697,7 +697,7 @@ export class CodeApplication extends Disposable {
 		services.set(IBackupMainService, backupMainService);
 
 		// URL handling
-		services.set(IURLService, new SyncDescriptor(NativeURLService));
+		services.set(IURLService, new SyncDescriptor(NativeURLService, undefined, true));
 
 		// Telemetry
 		if (supportsTelemetry(this.productService, this.environmentMainService)) {
