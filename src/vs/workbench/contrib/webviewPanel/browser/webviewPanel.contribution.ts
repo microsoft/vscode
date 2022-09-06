@@ -82,7 +82,7 @@ class WebviewPanelContribution extends Disposable implements IWorkbenchContribut
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(WebviewPanelContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(WebviewPanelContribution, 'WebviewPanelContribution', LifecyclePhase.Starting);
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
 	WebviewEditorInputSerializer.ID,

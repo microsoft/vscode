@@ -109,6 +109,7 @@ import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } fro
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
 import { UserDataTransientProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataTransientProfilesHandler';
+import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -555,9 +556,16 @@ export class CodeApplication extends Disposable {
 		if (this.environmentMainService.args.trace) {
 			appInstantiationService.invokeFunction(accessor => this.stopTracingEventually(accessor, windows));
 		}
+
+		// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
+		const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
+			this._register(runWhenIdle(() => this.lifecycleMainService.phase = LifecycleMainPhase.Eventually, 2500));
+		}, 2500));
+		eventuallyPhaseScheduler.schedule();
 	}
 
 	private setUpHandlers(instantiationService: IInstantiationService): void {
+
 		// Auth Handler
 		this._register(instantiationService.createInstance(ProxyAuthHandler));
 
@@ -1113,15 +1121,59 @@ export class CodeApplication extends Disposable {
 		return { fileUri: URI.file(path) };
 	}
 
-	private async afterWindowOpen(accessor: ServicesAccessor, sharedProcess: SharedProcess): Promise<void> {
+	private afterWindowOpen(accessor: ServicesAccessor, sharedProcess: SharedProcess): void {
+		const telemetryService = accessor.get(ITelemetryService);
+		const updateService = accessor.get(IUpdateService);
 
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
 		// Observe shared process for errors
+		this.handleSharedProcessErrors(telemetryService, sharedProcess);
+
+		// Windows: mutex
+		this.installMutex();
+
+		// Remote Authorities
+		protocol.registerHttpProtocol(Schemas.vscodeRemoteResource, (request, callback) => {
+			callback({
+				url: request.url.replace(/^vscode-remote-resource:/, 'http:'),
+				method: request.method
+			});
+		});
+
+		// Initialize update service
+		if (updateService instanceof Win32UpdateService || updateService instanceof LinuxUpdateService || updateService instanceof DarwinUpdateService) {
+			updateService.initialize();
+		}
+
+		// Start to fetch shell environment (if needed) after window has opened
+		// Since this operation can take a long time, we want to warm it up while
+		// the window is opening.
+		// We also show an error to the user in case this fails.
+		this.resolveShellEnvironment(this.environmentMainService.args, process.env, true);
+
+		// Crash reporter
+		this.updateCrashReporterEnablement();
+	}
+
+	private async installMutex(): Promise<void> {
+		const win32MutexName = this.productService.win32MutexName;
+		if (isWindows && win32MutexName) {
+			try {
+				const WindowsMutex = await import('windows-mutex');
+				const mutex = new WindowsMutex.Mutex(win32MutexName);
+				once(this.lifecycleMainService.onWillShutdown)(() => mutex.release());
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
+	}
+
+	private handleSharedProcessErrors(telemetryService: ITelemetryService, sharedProcess: SharedProcess): void {
 		let willShutdown = false;
 		once(this.lifecycleMainService.onWillShutdown)(() => willShutdown = true);
-		const telemetryService = accessor.get(ITelemetryService);
+
 		this._register(sharedProcess.onDidError(({ type, details }) => {
 
 			// Logging
@@ -1165,67 +1217,6 @@ export class CodeApplication extends Disposable {
 				shuttingdown: willShutdown
 			});
 		}));
-
-		// Windows: install mutex
-		const win32MutexName = this.productService.win32MutexName;
-		if (isWindows && win32MutexName) {
-			try {
-				const WindowsMutex = (require.__$__nodeRequire('windows-mutex') as typeof import('windows-mutex')).Mutex;
-				const mutex = new WindowsMutex(win32MutexName);
-				once(this.lifecycleMainService.onWillShutdown)(() => mutex.release());
-			} catch (error) {
-				this.logService.error(error);
-			}
-		}
-
-		// Remote Authorities
-		protocol.registerHttpProtocol(Schemas.vscodeRemoteResource, (request, callback) => {
-			callback({
-				url: request.url.replace(/^vscode-remote-resource:/, 'http:'),
-				method: request.method
-			});
-		});
-
-		// Initialize update service
-		const updateService = accessor.get(IUpdateService);
-		if (updateService instanceof Win32UpdateService || updateService instanceof LinuxUpdateService || updateService instanceof DarwinUpdateService) {
-			await updateService.initialize();
-		}
-
-		// Start to fetch shell environment (if needed) after window has opened
-		// Since this operation can take a long time, we want to warm it up while
-		// the window is opening.
-		// We also show an error to the user in case this fails.
-		this.resolveShellEnvironment(this.environmentMainService.args, process.env, true);
-
-		// If enable-crash-reporter argv is undefined then this is a fresh start,
-		// based on telemetry.enableCrashreporter settings, generate a UUID which
-		// will be used as crash reporter id and also update the json file.
-		try {
-			const argvContent = await this.fileService.readFile(this.environmentMainService.argvResource);
-			const argvString = argvContent.value.toString();
-			const argvJSON = JSON.parse(stripComments(argvString));
-			if (argvJSON['enable-crash-reporter'] === undefined) {
-				const telemetryLevel = getTelemetryLevel(this.configurationService);
-				const enableCrashReporter = telemetryLevel >= TelemetryLevel.CRASH;
-				const additionalArgvContent = [
-					'',
-					'	// Allows to disable crash reporting.',
-					'	// Should restart the app if the value is changed.',
-					`	"enable-crash-reporter": ${enableCrashReporter},`,
-					'',
-					'	// Unique id used for correlating crash reports sent from this instance.',
-					'	// Do not edit this value.',
-					`	"crash-reporter-id": "${generateUuid()}"`,
-					'}'
-				];
-				const newArgvString = argvString.substring(0, argvString.length - 2).concat(',\n', additionalArgvContent.join('\n'));
-
-				await this.fileService.writeFile(this.environmentMainService.argvResource, VSBuffer.fromString(newArgvString));
-			}
-		} catch (error) {
-			this.logService.error(error);
-		}
 	}
 
 	private async resolveShellEnvironment(args: NativeParsedArgs, env: IProcessEnvironment, notifyOnError: boolean): Promise<typeof process.env> {
@@ -1241,6 +1232,49 @@ export class CodeApplication extends Disposable {
 		}
 
 		return {};
+	}
+
+	private async updateCrashReporterEnablement(): Promise<void> {
+
+		// If enable-crash-reporter argv is undefined then this is a fresh start,
+		// based on `telemetry.enableCrashreporter` settings, generate a UUID which
+		// will be used as crash reporter id and also update the json file.
+
+		try {
+			const argvContent = await this.fileService.readFile(this.environmentMainService.argvResource);
+			const argvString = argvContent.value.toString();
+			const argvJSON = JSON.parse(stripComments(argvString));
+			const telemetryLevel = getTelemetryLevel(this.configurationService);
+			const enableCrashReporter = telemetryLevel >= TelemetryLevel.CRASH;
+
+			// Initial startup
+			if (argvJSON['enable-crash-reporter'] === undefined) {
+				const additionalArgvContent = [
+					'',
+					'	// Allows to disable crash reporting.',
+					'	// Should restart the app if the value is changed.',
+					`	"enable-crash-reporter": ${enableCrashReporter},`,
+					'',
+					'	// Unique id used for correlating crash reports sent from this instance.',
+					'	// Do not edit this value.',
+					`	"crash-reporter-id": "${generateUuid()}"`,
+					'}'
+				];
+				const newArgvString = argvString.substring(0, argvString.length - 2).concat(',\n', additionalArgvContent.join('\n'));
+
+				await this.fileService.writeFile(this.environmentMainService.argvResource, VSBuffer.fromString(newArgvString));
+			}
+
+			// Subsequent startup: update crash reporter value if changed
+			else {
+				const newArgvString = argvString.replace(/"enable-crash-reporter": .*,/, `"enable-crash-reporter": ${enableCrashReporter},`);
+				if (newArgvString !== argvString) {
+					await this.fileService.writeFile(this.environmentMainService.argvResource, VSBuffer.fromString(newArgvString));
+				}
+			}
+		} catch (error) {
+			this.logService.error(error);
+		}
 	}
 
 	private stopTracingEventually(accessor: ServicesAccessor, windows: ICodeWindow[]): void {
@@ -1283,4 +1317,3 @@ export class CodeApplication extends Disposable {
 		});
 	}
 }
-

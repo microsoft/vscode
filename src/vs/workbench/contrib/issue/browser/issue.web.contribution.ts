@@ -100,7 +100,7 @@ class RegisterIssueContribution implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterIssueContribution, LifecyclePhase.Starting);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterIssueContribution, 'RegisterIssueContribution', LifecyclePhase.Starting);
 
 CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
 	return nls.localize('statusUnsupported', "The --status argument is not yet supported in browsers.");

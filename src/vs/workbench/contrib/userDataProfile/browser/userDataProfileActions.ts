@@ -151,10 +151,10 @@ registerAction2(class CreateProfileAction extends Action2 {
 registerAction2(class CreateTransientProfileAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.profiles.actions.createTransientProfile',
+			id: 'workbench.profiles.actions.createTemporaryProfile',
 			title: {
-				value: localize('create transient profile', "Create Transient Settings Profile"),
-				original: 'Create Transient Settings Profile'
+				value: localize('create temporary profile', "Create a Temporary Settings Profile"),
+				original: 'Create a Temporary Settings Profile'
 			},
 			category: PROFILES_CATEGORY,
 			f1: true,

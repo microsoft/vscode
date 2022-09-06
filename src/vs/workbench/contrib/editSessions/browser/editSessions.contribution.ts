@@ -54,8 +54,8 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 
-registerSingleton(IEditSessionsLogService, EditSessionsLogService);
-registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService);
+registerSingleton(IEditSessionsLogService, EditSessionsLogService, false);
+registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, false);
 
 const continueEditSessionCommand: IAction2Options = {
 	id: '_workbench.experimental.editSessions.actions.continueEditSession',
@@ -144,7 +144,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			if (this.environmentService.editSessionId !== undefined) {
 				await this.resumeEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
-			} else if (this.configurationService.getValue('workbench.experimental.editSessions.autoResume') === 'onReload' && this.editSessionsStorageService.isSignedIn) {
+			} else if (
+				this.configurationService.getValue('workbench.experimental.editSessions.enabled') === true &&
+				this.configurationService.getValue('workbench.experimental.editSessions.autoResume') === 'onReload' &&
+				this.editSessionsStorageService.isSignedIn
+			) {
 				// Attempt to resume edit session based on edit workspace identifier
 				// Note: at this point if the user is not signed into edit sessions,
 				// we don't want them to be prompted to sign in and should just return early
@@ -248,25 +252,25 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				};
 				that.telemetryService.publicLog2<ContinueEditSessionEvent, ContinueEditSessionClassification>('editSessions.continue.store');
 
-				// Run the store action to get back a ref
-				const ref = await that.storeEditSession(false);
-
 				let uri = workspaceUri ?? await that.pickContinueEditSessionDestination();
 				if (uri === undefined) { return; }
 
+				// Run the store action to get back a ref
+				const ref = await that.storeEditSession(false);
+
 				// Append the ref to the URI
-				if (ref !== undefined) {
+				if (ref !== undefined && uri !== 'noDestinationUri') {
 					const encodedRef = encodeURIComponent(ref);
 					uri = uri.with({
 						query: uri.query.length > 0 ? (uri + `&${queryParamName}=${encodedRef}`) : `${queryParamName}=${encodedRef}`
 					});
-				} else {
+
+					// Open the URI
+					that.logService.info(`Opening ${uri.toString()}`);
+					await that.openerService.open(uri, { openExternal: true });
+				} else if (ref === undefined) {
 					that.logService.warn(`Failed to store edit session when invoking ${continueEditSessionCommand.id}.`);
 				}
-
-				// Open the URI
-				that.logService.info(`Opening ${uri.toString()}`);
-				await that.openerService.open(uri, { openExternal: true });
 			}
 		}));
 	}
@@ -327,6 +331,12 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	async resumeEditSession(ref?: string, silent?: boolean): Promise<void> {
+		// Edit sessions are not currently supported in empty workspaces
+		// https://github.com/microsoft/vscode/issues/159220
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return;
+		}
+
 		this.logService.info(ref !== undefined ? `Resuming edit session with ref ${ref}...` : 'Resuming edit session...');
 
 		const data = await this.editSessionsStorageService.read(ref);
@@ -577,7 +587,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	private async pickContinueEditSessionDestination(): Promise<URI | undefined> {
+	private async pickContinueEditSessionDestination(): Promise<URI | 'noDestinationUri' | undefined> {
 		const quickPick = this.quickInputService.createQuickPick<ContinueEditSessionItem>();
 
 		const workspaceContext = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER
@@ -607,6 +617,12 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		try {
 			const uri = await this.commandService.executeCommand(command);
+
+			// Some continue on commands do not return a URI
+			// to support extensions which want to be in control
+			// of how the destination is opened
+			if (uri === undefined) { return 'noDestinationUri'; }
+
 			return URI.isUri(uri) ? uri : undefined;
 		} catch (ex) {
 			return undefined;
@@ -672,7 +688,7 @@ const continueEditSessionExtPoint = ExtensionsRegistry.registerExtensionPoint<IC
 //#endregion
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(EditSessionsContribution, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(EditSessionsContribution, 'EditSessionsContribution', LifecyclePhase.Restored);
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
@@ -702,7 +718,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			],
 			'type': 'string',
 			'tags': ['experimental', 'usesOnlineServices'],
-			'default': 'off',
+			'default': 'onReload',
 			'markdownDescription': localize('autoResume', "Controls whether to automatically resume an available edit session for the current workspace."),
 		},
 	}
