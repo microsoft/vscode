@@ -104,6 +104,8 @@
 	"command.api.getRemoteSources": "Get Remote Sources",
 	"command.git.acceptMerge": "Accept Merge",
 	"command.git.openMergeEditor": "Open in Merge Editor",
+	"command.git.runGitMerge": "Compute Conflicts With Git",
+	"command.git.runGitMergeDiff3": "Compute Conflicts With Git (Diff3)",
 	"config.enabled": "Whether git is enabled.",
 	"config.path": "Path and filename of the git executable, e.g. `C:\\Program Files\\Git\\bin\\git.exe` (Windows). This can also be an array of string values containing multiple paths to look up.",
 	"config.autoRepositoryDetection": "Configures when repositories should be automatically detected.",

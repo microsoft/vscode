@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { IReader, observableFromEvent } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
 import { Range } from 'vs/editor/common/core/range';
@@ -55,6 +56,15 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 				c.innerChanges?.map(ic => normalizeRangeMapping(toRangeMapping(ic), textModel1, textModel2)).filter(isDefined)
 			)
 		);
+
+		assertFn(() => {
+			return checkAdjacentItems(changes,
+				(m1, m2) => m2.inputRange.startLineNumber - m1.inputRange.endLineNumberExclusive === m2.outputRange.startLineNumber - m1.outputRange.endLineNumberExclusive &&
+					// There has to be an unchanged line in between (otherwise both diffs should have been joined)
+					m1.inputRange.endLineNumberExclusive < m2.inputRange.startLineNumber &&
+					m1.outputRange.endLineNumberExclusive < m2.outputRange.startLineNumber,
+			);
+		});
 
 		return {
 			diffs: changes

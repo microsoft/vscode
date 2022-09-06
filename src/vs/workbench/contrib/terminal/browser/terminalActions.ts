@@ -1071,7 +1071,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getFindHost().focusFindWidget();
+			accessor.get(ITerminalService).activeInstance?.findWidget.reveal();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1091,7 +1091,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getFindHost().hideFindWidget();
+			accessor.get(ITerminalService).activeInstance?.findWidget.hide();
 		}
 	});
 
@@ -1445,9 +1445,8 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const instanceHost = terminalService.getFindHost();
-			const state = instanceHost.getFindState();
-			state.change({ isRegex: !state.isRegex }, false);
+			const state = terminalService.activeInstance?.findWidget.findState;
+			state?.change({ isRegex: !state.isRegex }, false);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1468,9 +1467,8 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const instanceHost = terminalService.getFindHost();
-			const state = instanceHost.getFindState();
-			state.change({ wholeWord: !state.wholeWord }, false);
+			const state = terminalService.activeInstance?.findWidget.findState;
+			state?.change({ wholeWord: !state.wholeWord }, false);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1491,9 +1489,8 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const instanceHost = terminalService.getFindHost();
-			const state = instanceHost.getFindState();
-			state.change({ matchCase: !state.matchCase }, false);
+			const state = terminalService.activeInstance?.findWidget.findState;
+			state?.change({ matchCase: !state.matchCase }, false);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1520,7 +1517,9 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getFindHost().findNext();
+			const terminalService = accessor.get(ITerminalService);
+			terminalService.activeInstance?.findWidget.show();
+			terminalService.activeInstance?.findWidget.find(false);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1547,7 +1546,9 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getFindHost().findPrevious();
+			const terminalService = accessor.get(ITerminalService);
+			terminalService.activeInstance?.findWidget.show();
+			terminalService.activeInstance?.findWidget.find(true);
 		}
 	});
 	registerAction2(class extends Action2 {

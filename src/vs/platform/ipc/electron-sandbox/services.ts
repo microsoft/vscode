@@ -27,15 +27,11 @@ abstract class RemoteServiceStub<T extends object> {
 	}
 }
 
-export interface IBaseRemoteServiceOptions {
-	readonly supportsDelayedInstantiation?: boolean;
-}
-
-export interface IRemoteServiceWithChannelClientOptions<T> extends IBaseRemoteServiceOptions {
+export interface IRemoteServiceWithChannelClientOptions<T> {
 	readonly channelClientCtor: ChannelClientCtor<T>;
 }
 
-export interface IRemoteServiceWithProxyOptions extends IBaseRemoteServiceOptions {
+export interface IRemoteServiceWithProxyOptions {
 	readonly proxyOptions?: ProxyChannel.ICreateProxyServiceOptions;
 }
 
@@ -62,7 +58,7 @@ class MainProcessRemoteServiceStub<T extends object> extends RemoteServiceStub<T
 }
 
 export function registerMainProcessRemoteService<T>(id: ServiceIdentifier<T>, channelName: string, options?: IRemoteServiceWithChannelClientOptions<T> | IRemoteServiceWithProxyOptions): void {
-	registerSingleton(id, new SyncDescriptor(MainProcessRemoteServiceStub, [channelName, options], options?.supportsDelayedInstantiation));
+	registerSingleton(id, new SyncDescriptor(MainProcessRemoteServiceStub, [channelName, options], true));
 }
 
 //#endregion
@@ -88,7 +84,7 @@ class SharedProcessRemoteServiceStub<T extends object> extends RemoteServiceStub
 }
 
 export function registerSharedProcessRemoteService<T>(id: ServiceIdentifier<T>, channelName: string, options?: IRemoteServiceWithChannelClientOptions<T> | IRemoteServiceWithProxyOptions): void {
-	registerSingleton(id, new SyncDescriptor(SharedProcessRemoteServiceStub, [channelName, options], options?.supportsDelayedInstantiation));
+	registerSingleton(id, new SyncDescriptor(SharedProcessRemoteServiceStub, [channelName, options], true));
 }
 
 //#endregion

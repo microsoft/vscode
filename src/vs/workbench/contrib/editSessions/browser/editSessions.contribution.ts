@@ -259,18 +259,18 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				const ref = await that.storeEditSession(false);
 
 				// Append the ref to the URI
-				if (ref !== undefined) {
+				if (ref !== undefined && uri !== 'noDestinationUri') {
 					const encodedRef = encodeURIComponent(ref);
 					uri = uri.with({
 						query: uri.query.length > 0 ? (uri + `&${queryParamName}=${encodedRef}`) : `${queryParamName}=${encodedRef}`
 					});
-				} else {
+
+					// Open the URI
+					that.logService.info(`Opening ${uri.toString()}`);
+					await that.openerService.open(uri, { openExternal: true });
+				} else if (ref === undefined) {
 					that.logService.warn(`Failed to store edit session when invoking ${continueEditSessionCommand.id}.`);
 				}
-
-				// Open the URI
-				that.logService.info(`Opening ${uri.toString()}`);
-				await that.openerService.open(uri, { openExternal: true });
 			}
 		}));
 	}
@@ -587,7 +587,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	private async pickContinueEditSessionDestination(): Promise<URI | undefined> {
+	private async pickContinueEditSessionDestination(): Promise<URI | 'noDestinationUri' | undefined> {
 		const quickPick = this.quickInputService.createQuickPick<ContinueEditSessionItem>();
 
 		const workspaceContext = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER
@@ -617,6 +617,12 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		try {
 			const uri = await this.commandService.executeCommand(command);
+
+			// Some continue on commands do not return a URI
+			// to support extensions which want to be in control
+			// of how the destination is opened
+			if (uri === undefined) { return 'noDestinationUri'; }
+
 			return URI.isUri(uri) ? uri : undefined;
 		} catch (ex) {
 			return undefined;
