@@ -1008,7 +1008,7 @@ export class CodeApplication extends Disposable {
 					waitMarkerFileURI,
 					initialStartup: true,
 					remoteAuthority,
-					profile,
+					profile
 				});
 			}
 
