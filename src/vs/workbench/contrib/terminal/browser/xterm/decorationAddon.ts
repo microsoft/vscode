@@ -8,7 +8,7 @@ import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal'
 import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 import * as dom from 'vs/base/browser/dom';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { CommandInvalidationReason, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { CommandInvalidationReason, ICommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
@@ -28,6 +28,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { Codicon } from 'vs/base/common/codicons';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
+import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
@@ -50,8 +51,7 @@ interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposa
 export class DecorationAddon extends Disposable implements ITerminalAddon {
 	protected _terminal: Terminal | undefined;
 	private _hoverDelayer: Delayer<void>;
-	private _commandDetectionListeners: IDisposable[] | undefined;
-	private _bufferMarkListeners: IDisposable[] | undefined;
+	private _capabilityDisposables: Map<TerminalCapability, IDisposable[]> = new Map();
 	private _contextMenuVisible: boolean = false;
 	private _decorations: Map<number, IDisposableDecoration> = new Map();
 	private _placeholderDecoration: IDecoration | undefined;
@@ -84,43 +84,42 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			} else if (e.affectsConfiguration('workbench.colorCustomizations')) {
 				this._refreshStyles(true);
 			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
-				if (this._commandDetectionListeners) {
-					dispose(this._commandDetectionListeners);
-					this._commandDetectionListeners = undefined;
-				}
+				this._removeCapabilityDisposables(TerminalCapability.CommandDetection);
+				this._updateDecorationVisibility();
+			} else if (e.affectsConfiguration(TaskSettingId.ShowDecorations)) {
 				this._updateDecorationVisibility();
 			}
 		}));
 		this._register(this._themeService.onDidColorThemeChange(() => this._refreshStyles(true)));
 		this._updateDecorationVisibility();
-		this._register(this._capabilities.onDidAddCapability(c => {
-			if (c === TerminalCapability.CommandDetection) {
-				this._addCommandDetectionListeners();
-			} else if (c === TerminalCapability.BufferMarkDetection) {
-				this._addBufferMarkListeners();
-			}
-		}));
-		this._register(this._capabilities.onDidRemoveCapability(c => {
-			if (c === TerminalCapability.CommandDetection) {
-				if (this._commandDetectionListeners) {
-					dispose(this._commandDetectionListeners);
-					this._commandDetectionListeners = undefined;
-				}
-			}
-		}));
+		this._register(this._capabilities.onDidAddCapability(c => this._createCapabilityDisposables(c)));
+		this._register(this._capabilities.onDidRemoveCapability(c => this._removeCapabilityDisposables(c)));
 		this._register(lifecycleService.onWillShutdown(() => this._disposeAllDecorations()));
 	}
 
-	private _addBufferMarkListeners(): void {
-		if (this._bufferMarkListeners) {
+	private _removeCapabilityDisposables(c: TerminalCapability): void {
+		const disposables = this._capabilityDisposables.get(c);
+		if (disposables) {
+			dispose(disposables);
+		}
+		this._capabilityDisposables.delete(c);
+	}
+
+	private _createCapabilityDisposables(c: TerminalCapability): void {
+		let disposables: IDisposable[] = [];
+		const capability = this._capabilities.get(c);
+		if (!capability || this._capabilityDisposables.has(c)) {
 			return;
 		}
-		const capability = this._capabilities.get(TerminalCapability.BufferMarkDetection);
-		if (!capability) {
-			return;
+		switch (capability.type) {
+			case TerminalCapability.BufferMarkDetection:
+				disposables = [capability.onMarkAdded(mark => this.registerMarkDecoration({ hoverMessage: mark.hoverMessage }))];
+				break;
+			case TerminalCapability.CommandDetection:
+				disposables = this._getCommandDetectionListeners(capability);
+				break;
 		}
-		this._bufferMarkListeners = [];
-		this._bufferMarkListeners.push(capability.onMarkAdded(mark => this.registerMarkDecoration({ hoverMessage: mark.hoverMessage })));
+		this._capabilityDisposables.set(c, disposables);
 	}
 
 	registerMarkDecoration(mark: IMarkProperties): IDecoration | undefined {
@@ -201,8 +200,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	private _dispose(): void {
-		if (this._commandDetectionListeners) {
-			dispose(this._commandDetectionListeners);
+		for (const disposable of this._capabilityDisposables.values()) {
+			dispose(disposable);
 		}
 		this.clearDecorations();
 	}
@@ -221,31 +220,29 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	private _attachToCommandCapability(): void {
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-			this._addCommandDetectionListeners();
+			this._getCommandDetectionListeners(this._capabilities.get(TerminalCapability.CommandDetection)!);
 		}
 	}
 
-	private _addCommandDetectionListeners(): void {
-		if (this._commandDetectionListeners) {
-			return;
+	private _getCommandDetectionListeners(capability: ICommandDetectionCapability): IDisposable[] {
+		if (this._capabilityDisposables.has(TerminalCapability.CommandDetection)) {
+			const disposables = this._capabilityDisposables.get(TerminalCapability.CommandDetection)!;
+			dispose(disposables);
+			this._capabilityDisposables.delete(capability.type);
 		}
-		const capability = this._capabilities.get(TerminalCapability.CommandDetection);
-		if (!capability) {
-			return;
-		}
-		this._commandDetectionListeners = [];
+		const commandDetectionListeners = [];
 		// Command started
 		if (capability.executingCommandObject?.marker) {
 			this.registerCommandDecoration(capability.executingCommandObject, true);
 		}
-		this._commandDetectionListeners.push(capability.onCommandStarted(command => this.registerCommandDecoration(command, true)));
+		commandDetectionListeners.push(capability.onCommandStarted(command => this.registerCommandDecoration(command, true)));
 		// Command finished
 		for (const command of capability.commands) {
 			this.registerCommandDecoration(command);
 		}
-		this._commandDetectionListeners.push(capability.onCommandFinished(command => this.registerCommandDecoration(command)));
+		commandDetectionListeners.push(capability.onCommandFinished(command => this.registerCommandDecoration(command)));
 		// Command invalidated
-		this._commandDetectionListeners.push(capability.onCommandInvalidated(commands => {
+		commandDetectionListeners.push(capability.onCommandInvalidated(commands => {
 			for (const command of commands) {
 				const id = command.marker?.id;
 				if (id) {
@@ -258,7 +255,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			}
 		}));
 		// Current command invalidated
-		this._commandDetectionListeners.push(capability.onCurrentCommandInvalidated((request) => {
+		commandDetectionListeners.push(capability.onCurrentCommandInvalidated((request) => {
 			if (request.reason === CommandInvalidationReason.NoProblemsReported) {
 				const lastDecoration = Array.from(this._decorations.entries())[this._decorations.size - 1];
 				lastDecoration?.[1].decoration.dispose();
@@ -266,6 +263,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._clearPlaceholder();
 			}
 		}));
+		return commandDetectionListeners;
 	}
 
 	activate(terminal: Terminal): void {

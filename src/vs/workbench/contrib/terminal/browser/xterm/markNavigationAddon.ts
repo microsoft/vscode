@@ -40,44 +40,34 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	}
 
 	constructor(
-		store: ITerminalCapabilityStore,
+		private readonly _capabilityStore: ITerminalCapabilityStore,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
-		this._refreshActiveCapability(store);
-		this._register(store.onDidAddCapability(() => this._refreshActiveCapability(store)));
-		this._register(store.onDidRemoveCapability(() => this._refreshActiveCapability(store)));
-	}
-
-	private _refreshActiveCapability(store: ITerminalCapabilityStore) {
-		const activeDetection = store.get(TerminalCapability.BufferMarkDetection) || store.get(TerminalCapability.CommandDetection) || store.get(TerminalCapability.PartialCommandDetection);
-		if (activeDetection !== this._detectionCapability) {
-			this._detectionCapability = activeDetection;
-		}
 	}
 
 	private _getMarkers(): readonly IMarker[] {
 		if (!this._detectionCapability) {
 			return [];
 		}
-		let markers: readonly IMarker[] = [];
-		switch (this._detectionCapability.type) {
-			case TerminalCapability.PartialCommandDetection:
-				markers = this._detectionCapability.commands;
-				break;
-			case TerminalCapability.CommandDetection:
-				markers = coalesce(this._detectionCapability.commands.map(e => e.marker));
-				break;
-			case TerminalCapability.BufferMarkDetection: {
-				let next = this._detectionCapability.markers().next()?.value;
-				const arr: IMarker[] = [];
-				while (next) {
-					arr.push(next);
-					next = this._detectionCapability.markers().next()?.value;
-				}
-				markers = arr;
-				break;
+		const commandCapability = this._capabilityStore.get(TerminalCapability.CommandDetection);
+		const partialCommandCapability = this._capabilityStore.get(TerminalCapability.PartialCommandDetection);
+		const markCapability = this._capabilityStore.get(TerminalCapability.BufferMarkDetection);
+		let markers: IMarker[] = [];
+		if (commandCapability) {
+			markers = coalesce(commandCapability.commands.map(e => e.marker));
+		} else if (partialCommandCapability) {
+			markers.push(...partialCommandCapability.commands);
+		}
+
+		if (markCapability) {
+			let next = markCapability.markers().next()?.value;
+			const arr: IMarker[] = [];
+			while (next) {
+				arr.push(next);
+				next = markCapability.markers().next()?.value;
 			}
+			markers = arr;
 		}
 		return markers;
 	}
