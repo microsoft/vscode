@@ -296,9 +296,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
-		if (!this._isVscodeDev()) {
-			this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
-		}
+		this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
 		this._configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
 			let tasks = await this._getTasksForGroup(TaskGroup.Build);
 			if (tasks.length > 0) {
@@ -369,17 +367,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._tasksReconnected = true;
 			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
 		}
-		if (!this._configurationService.getValue(TaskSettingId.Reconnection) || this._tasksReconnected) {
+		if (!this._configurationService.getValue(TaskSettingId.Reconnection) || this._tasksReconnected || this._isVscodeDev()) {
 			this._tasksReconnected = true;
 			return;
 		}
 		this._getTaskSystem();
 		this._waitForSupportedExecutions.then(() => {
 			this.getWorkspaceTasks().then(async () => {
-				if (this._isVscodeDev()) {
-					this._tasksReconnected = true;
-					return;
-				}
 				this._tasksReconnected = await this._reconnectTasks();
 			});
 		});
@@ -420,6 +414,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _registerCommands(): Promise<void> {
+		if (this._isVscodeDev()) {
+			return;
+		}
 		CommandsRegistry.registerCommand({
 			id: 'workbench.action.tasks.runTask',
 			handler: async (accessor, arg) => {
