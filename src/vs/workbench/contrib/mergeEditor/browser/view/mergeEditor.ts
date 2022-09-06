@@ -6,8 +6,6 @@
 import { $, Dimension, reset } from 'vs/base/browser/dom';
 import { Grid, GridNodeDescriptor, IView, SerializableGrid } from 'vs/base/browser/ui/grid/grid';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
-import { compareBy } from 'vs/base/common/arrays';
-import { assertFn } from 'vs/base/common/assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color } from 'vs/base/common/color';
 import { BugIndicatingError } from 'vs/base/common/errors';
@@ -19,12 +17,8 @@ import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/mergeEditor';
 import { ICodeEditor, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
-import { LengthObj } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -41,12 +35,10 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { readTransientState, writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
-import { DocumentLineRangeMap, RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
-import { ModifiedBaseRange } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
-import { addLength, lengthBetweenPositions, lengthOfRange } from 'vs/workbench/contrib/mergeEditor/browser/model/rangeUtils';
-import { deepMerge, ReentrancyBarrier, thenIfNotDisposed } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { deepMerge, thenIfNotDisposed } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { BaseCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/baseCodeEditorView';
+import { ScrollSynchronizer } from 'vs/workbench/contrib/mergeEditor/browser/view/scrollSynchronizer';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 import { ctxIsMergeEditor, ctxMergeBaseUri, ctxMergeEditorLayout, ctxMergeResultUri, MergeEditorLayoutTypes } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
@@ -56,6 +48,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import './colors';
 import { InputCodeEditorView } from './editors/inputCodeEditorView';
 import { ResultCodeEditorView } from './editors/resultCodeEditorView';
+import { getAlignments } from './lineAlignment';
 
 export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
@@ -112,108 +105,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		this._layoutMode = instantiation.createInstance(MergeEditorLayout);
 		this._ctxUsesColumnLayout.set(this._layoutMode.value);
 
-		const reentrancyBarrier = new ReentrancyBarrier();
-
-		this._store.add(
-			this.input1View.editor.onDidScrollChange(
-				reentrancyBarrier.makeExclusive((c) => {
-					if (c.scrollTopChanged) {
-						const mapping = this.model?.input1ResultMapping.get();
-						synchronizeScrolling(this.input1View.editor, this.inputResultView.editor, mapping);
-						this.input2View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
-
-						this.baseView.get()?.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
-						//const baseMapping = this.model ? new DocumentMapping(this.model.input1LinesDiffs.get(), -1) : undefined;
-						//synchronizeScrolling(this.input1View.editor, this.baseView.editor, baseMapping, MappingDirection.output);
-					}
-					if (c.scrollLeftChanged) {
-						this.baseView.get()?.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
-						this.input2View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
-						this.inputResultView.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
-					}
-				})
-			)
-		);
-		this._store.add(
-			this.input2View.editor.onDidScrollChange(
-				reentrancyBarrier.makeExclusive((c) => {
-					if (c.scrollTopChanged) {
-						const mapping = this.model?.input2ResultMapping.get();
-						synchronizeScrolling(this.input2View.editor, this.inputResultView.editor, mapping);
-						this.input1View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
-
-						this.baseView.get()?.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
-						//const baseMapping = this.model ? new DocumentMapping(this.model.input2LinesDiffs.get(), -1) : undefined;
-						//synchronizeScrolling(this.input2View.editor, this.baseView.editor, baseMapping, MappingDirection.output);
-					}
-					if (c.scrollLeftChanged) {
-						this.baseView.get()?.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
-						this.input1View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
-						this.inputResultView.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
-					}
-				})
-			)
-		);
-		this._store.add(
-			this.inputResultView.editor.onDidScrollChange(
-				reentrancyBarrier.makeExclusive((c) => {
-					if (c.scrollTopChanged) {
-						const mapping1 = this.model?.resultInput1Mapping.get();
-						synchronizeScrolling(this.inputResultView.editor, this.input1View.editor, mapping1);
-						const mapping2 = this.model?.resultInput2Mapping.get();
-						synchronizeScrolling(this.inputResultView.editor, this.input2View.editor, mapping2);
-
-						const baseMapping = this.model?.resultBaseMapping.get();
-						const baseView = this.baseView.get();
-						if (baseView) {
-							synchronizeScrolling(this.inputResultView.editor, baseView.editor, baseMapping);
-						}
-					}
-					if (c.scrollLeftChanged) {
-						this.baseView.get()?.editor?.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
-						this.input1View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
-						this.input2View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
-					}
-				})
-			)
-		);
-
-		this._store.add(
-			autorunWithStore((reader, store) => {
-				const baseView = this.baseView.read(reader);
-				if (baseView) {
-					store.add(autorun('Update base view options', reader => {
-						const options = this.baseViewOptions.read(reader);
-						if (options) {
-							baseView.updateOptions(options);
-						}
-					}));
-
-					store.add(baseView.editor.onDidScrollChange(
-						reentrancyBarrier.makeExclusive((c) => {
-							if (c.scrollTopChanged) {
-								this.input1View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
-								this.input2View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
-
-								// const mapping1 = this.model ? new DocumentMapping(this.model.input1LinesDiffs.get(), -1) : undefined;
-								// synchronizeScrolling(this.baseView.editor, this.input1View.editor, mapping1, MappingDirection.input);
-								// const mapping2 = this.model ? new DocumentMapping(this.model.input2LinesDiffs.get(), -1) : undefined;
-								// synchronizeScrolling(this.baseView.editor, this.input2View.editor, mapping2, MappingDirection.input);
-
-								const baseMapping = this.model?.baseResultMapping.get();
-								synchronizeScrolling(baseView.editor, this.inputResultView.editor, baseMapping);
-							}
-							if (c.scrollLeftChanged) {
-								this.inputResultView.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
-								this.input1View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
-								this.input2View.editor.setScrollLeft(c.scrollLeft, ScrollType.Immediate);
-							}
-						})
-					));
-				}
-			}, 'set baseViewEditor.onDidScrollChange')
-
-		);
+		this._register(new ScrollSynchronizer(this._viewModel, this.input1View, this.input2View, this.baseView, this.inputResultView));
 	}
 
 	override dispose(): void {
@@ -265,7 +157,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 		this.input1View.updateOptions(inputOptions);
 		this.input2View.updateOptions(inputOptions);
-		this.baseViewOptions.set(inputOptions, undefined);
+		this.baseViewOptions.set(this.input2View.editor.getRawOptions(), undefined);
 		this.inputResultView.updateOptions(options);
 	}
 
@@ -284,6 +176,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		await super.setInput(input, options, context, token);
 
 		this._sessionDisposables.clear();
+		this._viewModel.set(undefined, undefined);
 
 		const model = await input.resolve();
 
@@ -298,20 +191,8 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 			this._ctxResultUri.reset();
 		}));
 
-		const viewState = this.loadEditorViewState(input, context);
-		if (viewState) {
-			this._applyViewState(viewState);
-		} else {
-			this._sessionDisposables.add(thenIfNotDisposed(model.onInitialized, () => {
-				const firstConflict = model.modifiedBaseRanges.get().find(r => r.isConflicting);
-				if (!firstConflict) {
-					return;
-				}
-				this.input1View.editor.revealLineInCenter(firstConflict.input1Range.startLineNumber);
-			}));
-		}
-
-
+		// Set the view zones before restoring view state!
+		// Otherwise scrolling will be off
 		this._sessionDisposables.add(autorunWithStore((reader, store) => {
 			const input1ViewZoneIds: string[] = [];
 			const input2ViewZoneIds: string[] = [];
@@ -349,7 +230,21 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 					});
 				}
 			});
+
 		}, 'update alignment view zones'));
+
+		const viewState = this.loadEditorViewState(input, context);
+		if (viewState) {
+			this._applyViewState(viewState);
+		} else {
+			this._sessionDisposables.add(thenIfNotDisposed(model.onInitialized, () => {
+				const firstConflict = model.modifiedBaseRanges.get().find(r => r.isConflicting);
+				if (!firstConflict) {
+					return;
+				}
+				this.input1View.editor.revealLineInCenter(firstConflict.input1Range.startLineNumber);
+			}));
+		}
 
 		// word wrap special case - sync transient state from result model to input[1|2] models
 		const mirrorWordWrapTransientState = () => {
@@ -417,7 +312,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 			for (const m of model.modifiedBaseRanges.read(reader)) {
 				const alignedLines: [number | undefined, number, number | undefined][] =
-					getAlignedLines(m);
+					getAlignments(m);
 
 				for (const [input1Line, baseLine, input2Line] of alignedLines) {
 					if (!baseViewZoneAccessor && (input1Line === undefined || input2Line === undefined)) {
@@ -547,13 +442,28 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		this._onDidChangeSizeConstraints.fire();
 	}
 
+	private readonly baseViewDisposables = this._register(new DisposableStore());
+
 	applyLayout(layout: MergeEditorLayoutTypes): void {
 		const setBaseViewState = (enabled: boolean) => {
 			if (enabled && !this.baseView.get()) {
-				this.baseView.set(this.instantiationService.createInstance(BaseCodeEditorView, this.viewModel), undefined);
+				this.baseViewDisposables.clear();
+				const baseView = this.baseViewDisposables.add(
+					this.instantiationService.createInstance(
+						BaseCodeEditorView,
+						this.viewModel
+					)
+				);
+				this.baseViewDisposables.add(autorun('Update base view options', reader => {
+					const options = this.baseViewOptions.read(reader);
+					if (options) {
+						baseView.updateOptions(options);
+					}
+				}));
+				this.baseView.set(baseView, undefined);
 			} else if (!enabled && this.baseView.get()) {
-				this.baseView.get()!.dispose();
 				this.baseView.set(undefined, undefined);
+				this.baseViewDisposables.clear();
 			}
 		};
 
@@ -775,195 +685,3 @@ type IMergeEditorViewState = ICodeEditorViewState & {
 	readonly input2State?: ICodeEditorViewState;
 	readonly focusIndex: number;
 };
-
-function toEqualRangeMappings(diffs: RangeMapping[], inputRange: Range, outputRange: Range): RangeMapping[] {
-	const result: RangeMapping[] = [];
-
-	let equalRangeInputStart = inputRange.getStartPosition();
-	let equalRangeOutputStart = outputRange.getStartPosition();
-
-	for (const d of diffs) {
-		const equalRangeMapping = new RangeMapping(
-			Range.fromPositions(equalRangeInputStart, d.inputRange.getStartPosition()),
-			Range.fromPositions(equalRangeOutputStart, d.outputRange.getStartPosition())
-		);
-		assertFn(() =>
-			lengthOfRange(equalRangeMapping.inputRange).equals(
-				lengthOfRange(equalRangeMapping.outputRange)
-			)
-		);
-		if (!equalRangeMapping.inputRange.isEmpty()) {
-			result.push(equalRangeMapping);
-		}
-
-		equalRangeInputStart = d.inputRange.getEndPosition();
-		equalRangeOutputStart = d.outputRange.getEndPosition();
-	}
-
-	const equalRangeMapping = new RangeMapping(
-		Range.fromPositions(equalRangeInputStart, inputRange.getEndPosition()),
-		Range.fromPositions(equalRangeOutputStart, outputRange.getEndPosition())
-	);
-	assertFn(() =>
-		lengthOfRange(equalRangeMapping.inputRange).equals(
-			lengthOfRange(equalRangeMapping.outputRange)
-		)
-	);
-	if (!equalRangeMapping.inputRange.isEmpty()) {
-		result.push(equalRangeMapping);
-	}
-
-	return result;
-}
-
-interface CommonRangeMapping {
-	output1Pos: Position | undefined;
-	output2Pos: Position | undefined;
-	inputPos: Position;
-	length: LengthObj;
-}
-
-/**
- * It is `result[i][0].inputRange.equals(result[i][1].inputRange)`.
-*/
-function splitUpCommonEqualRangeMappings(
-	equalRangeMappings1: RangeMapping[],
-	equalRangeMappings2: RangeMapping[]
-): CommonRangeMapping[] {
-	const result: CommonRangeMapping[] = [];
-
-	const events: { input: 0 | 1; start: boolean; inputPos: Position; outputPos: Position }[] = [];
-	for (const [input, rangeMappings] of [[0, equalRangeMappings1], [1, equalRangeMappings2]] as const) {
-		for (const rangeMapping of rangeMappings) {
-			events.push({
-				input: input,
-				start: true,
-				inputPos: rangeMapping.inputRange.getStartPosition(),
-				outputPos: rangeMapping.outputRange.getStartPosition()
-			});
-			events.push({
-				input: input,
-				start: false,
-				inputPos: rangeMapping.inputRange.getEndPosition(),
-				outputPos: rangeMapping.outputRange.getEndPosition()
-			});
-		}
-	}
-
-	events.sort(compareBy((m) => m.inputPos, Position.compare));
-
-	const starts: [Position | undefined, Position | undefined] = [undefined, undefined];
-	let lastInputPos: Position | undefined;
-
-	for (const event of events) {
-		if (lastInputPos && starts.some(s => !!s)) {
-			const length = lengthBetweenPositions(lastInputPos, event.inputPos);
-			if (!length.isZero()) {
-				result.push({
-					inputPos: lastInputPos,
-					length,
-					output1Pos: starts[0],
-					output2Pos: starts[1]
-				});
-				if (starts[0]) {
-					starts[0] = addLength(starts[0], length);
-				}
-				if (starts[1]) {
-					starts[1] = addLength(starts[1], length);
-				}
-			}
-		}
-
-		starts[event.input] = event.start ? event.outputPos : undefined;
-		lastInputPos = event.inputPos;
-	}
-
-	return result;
-}
-
-type LineAlignment = [input1Line: number | undefined, baseLine: number, input2Line: number | undefined];
-
-function getAlignedLines(m: ModifiedBaseRange): LineAlignment[] {
-
-	const equalRanges1 = toEqualRangeMappings(m.input1Diffs.flatMap(d => d.rangeMappings), m.baseRange.toRange(), m.input1Range.toRange());
-	const equalRanges2 = toEqualRangeMappings(m.input2Diffs.flatMap(d => d.rangeMappings), m.baseRange.toRange(), m.input2Range.toRange());
-
-	const commonRanges = splitUpCommonEqualRangeMappings(equalRanges1, equalRanges2);
-
-	let result: LineAlignment[] = [];
-	result.push([m.input1Range.startLineNumber - 1, m.baseRange.startLineNumber - 1, m.input2Range.startLineNumber - 1]);
-
-	function isFullSync(lineAlignment: LineAlignment) {
-		return lineAlignment.every((i) => i !== undefined);
-	}
-
-	// One base line has either up to one full sync or up to two half syncs.
-
-	for (const m of commonRanges) {
-		const lineAlignment: LineAlignment = [m.output1Pos?.lineNumber, m.inputPos.lineNumber, m.output2Pos?.lineNumber];
-		const alignmentIsFullSync = isFullSync(lineAlignment);
-
-		let shouldAdd = true;
-		if (alignmentIsFullSync) {
-			const isNewFullSyncAlignment = !result.some(r => isFullSync(r) && r.some((v, idx) => v !== undefined && v === lineAlignment[idx]));
-			if (isNewFullSyncAlignment) {
-				// Remove half syncs
-				result = result.filter(r => !r.some((v, idx) => v !== undefined && v === lineAlignment[idx]));
-			}
-			shouldAdd = isNewFullSyncAlignment;
-		} else {
-			const isNew = !result.some(r => r.some((v, idx) => v !== undefined && v === lineAlignment[idx]));
-			shouldAdd = isNew;
-		}
-
-		if (shouldAdd) {
-			result.push(lineAlignment);
-		} else {
-			if (m.length.isGreaterThan(new LengthObj(1, 0))) {
-				result.push([
-					m.output1Pos ? m.output1Pos.lineNumber + 1 : undefined,
-					m.inputPos.lineNumber + 1,
-					m.output2Pos ? m.output2Pos.lineNumber + 1 : undefined
-				]);
-			}
-		}
-	}
-
-	result.push([m.input1Range.endLineNumberExclusive, m.baseRange.endLineNumberExclusive, m.input2Range.endLineNumberExclusive]);
-	/*
-		assertFn(() =>
-			checkAdjacentItems(result.map(r => r[0]).filter(isDefined), (a, b) => a < b)
-			&& checkAdjacentItems(result.map(r => r[1]).filter(isDefined), (a, b) => a <= b)
-			&& checkAdjacentItems(result.map(r => r[2]).filter(isDefined), (a, b) => a < b)
-			&& result.every(alignment => alignment.filter(isDefined).length >= 2)
-		);
-	*/
-	return result;
-}
-
-function synchronizeScrolling(scrollingEditor: CodeEditorWidget, targetEditor: CodeEditorWidget, mapping: DocumentLineRangeMap | undefined) {
-	if (!mapping) {
-		return;
-	}
-
-	const visibleRanges = scrollingEditor.getVisibleRanges();
-	if (visibleRanges.length === 0) {
-		return;
-	}
-	const topLineNumber = visibleRanges[0].startLineNumber - 1;
-
-	const result = mapping.project(topLineNumber);
-	const sourceRange = result.inputRange;
-	const targetRange = result.outputRange;
-
-	const resultStartTopPx = targetEditor.getTopForLineNumber(targetRange.startLineNumber);
-	const resultEndPx = targetEditor.getTopForLineNumber(targetRange.endLineNumberExclusive);
-
-	const sourceStartTopPx = scrollingEditor.getTopForLineNumber(sourceRange.startLineNumber);
-	const sourceEndPx = scrollingEditor.getTopForLineNumber(sourceRange.endLineNumberExclusive);
-
-	const factor = Math.min((scrollingEditor.getScrollTop() - sourceStartTopPx) / (sourceEndPx - sourceStartTopPx), 1);
-	const resultScrollPosition = resultStartTopPx + (resultEndPx - resultStartTopPx) * factor;
-
-	targetEditor.setScrollTop(resultScrollPosition, ScrollType.Immediate);
-}
