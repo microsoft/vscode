@@ -249,7 +249,7 @@ steps:
     - script: |
         set -e
         VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-          yarn gulp "transpile-client" "transpile-extensions"
+          yarn gulp "transpile-client-swc" "transpile-extensions"
         yarn gulp compile-extension-media-build
       displayName: Transpile
 
