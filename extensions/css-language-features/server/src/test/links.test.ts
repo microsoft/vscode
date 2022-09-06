@@ -55,7 +55,7 @@ suite('Links', () => {
 	}
 
 	function getTestResource(path: string) {
-		return URI.file(resolve(__dirname, '../../test/linksTestFixtures', path)).toString();
+		return URI.file(resolve(__dirname, '../../test/linksTestFixtures', path)).toString(true);
 	}
 
 	test('url links', async function () {
