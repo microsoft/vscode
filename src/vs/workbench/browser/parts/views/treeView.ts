@@ -284,8 +284,6 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			this.treeViewDnd.controller = this._dragAndDropController;
 		}
 
-		this._register(this.themeService.onDidFileIconThemeChange(() => this.tree?.rerender()));
-		this._register(this.themeService.onDidColorThemeChange(() => this.tree?.rerender()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('explorer.decorations')) {
 				this.doRefresh([this.root]); /** soft refresh **/
@@ -1032,6 +1030,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 	private _actionRunner: MultipleSelectionActionRunner | undefined;
 	private _hoverDelegate: IHoverDelegate;
+	private _renderedElements = new Map<ITreeNode<ITreeItem, FuzzyScore>, ITreeExplorerTemplateData>();
 
 	constructor(
 		private treeViewId: string,
@@ -1052,6 +1051,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			showHover: (options: IHoverDelegateOptions) => this.hoverService.showHover(options),
 			delay: <number>this.configurationService.getValue('workbench.hover.delay')
 		};
+		this._register(this.themeService.onDidFileIconThemeChange(() => this.rerender()));
+		this._register(this.themeService.onDidColorThemeChange(() => this.rerender()));
 	}
 
 	get templateId(): string {
@@ -1204,6 +1205,23 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		this.setAlignment(templateData.container, node);
 		this.treeViewsService.addRenderedTreeItemElement(node, templateData.container);
 		disposableStore.add(toDisposable(() => this.treeViewsService.removeRenderedTreeItemElement(node)));
+
+		// remember rendered element
+		this._renderedElements.set(element, templateData);
+		disposableStore.add({ dispose: () => this._renderedElements.delete(element) });
+	}
+
+	private rerender() {
+		// As we add items to the map during this call we can't directly use the map in the for loop
+		// but have to create a copy of the keys first
+		const keys = new Set(this._renderedElements.keys());
+		for (const key of keys) {
+			const value = this._renderedElements.get(key);
+			if (value) {
+				this.disposeElement(key, 0, value);
+				this.renderElement(key, 0, value);
+			}
+		}
 	}
 
 	private renderCheckbox(node: ITreeItem, templateData: ITreeExplorerTemplateData, disposableStore: DisposableStore) {
@@ -1267,6 +1285,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 	disposeElement(resource: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
 		templateData.elementDisposable.dispose();
+		this._renderedElements.delete(resource);
 	}
 
 	disposeTemplate(templateData: ITreeExplorerTemplateData): void {
