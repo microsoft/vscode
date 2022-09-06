@@ -80,6 +80,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -260,7 +261,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ILogService private readonly _logService: ILogService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService
 	) {
 		super();
 
@@ -294,7 +296,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
-		if (!isWeb) {
+		if (!this._isVscodeDev()) {
 			this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
 		}
 		this._configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
@@ -374,13 +376,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._getTaskSystem();
 		this._waitForSupportedExecutions.then(() => {
 			this.getWorkspaceTasks().then(async () => {
-				if (isWeb && this._providers.values.length === 0) {
+				if (this._isVscodeDev()) {
 					this._tasksReconnected = true;
 					return;
 				}
 				this._tasksReconnected = await this._reconnectTasks();
 			});
 		});
+	}
+
+	private _isVscodeDev(): boolean {
+		return Platform.isWeb && !this._remoteAgentService.getConnection()?.remoteAuthority;
 	}
 
 	private async _reconnectTasks(): Promise<boolean> {
@@ -646,7 +652,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				dispose: () => { }
 			};
 		}
-		if (isWeb) {
+		if (Platform.isWeb) {
 			this._registerCommands();
 		}
 		const handle = AbstractTaskService._nextHandle++;
@@ -2777,6 +2783,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _trust(): Promise<boolean> {
+		if (this._isVscodeDev()) {
+			return false;
+		}
 		await this._workspaceTrustManagementService.workspaceTrustInitialized;
 		if (!this._workspaceTrustManagementService.isWorkspaceTrusted()) {
 			return (await this._workspaceTrustRequestService.requestWorkspaceTrust(
