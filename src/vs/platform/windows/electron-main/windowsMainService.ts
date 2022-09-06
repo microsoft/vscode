@@ -1493,12 +1493,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Register window for backups
 		if (!configuration.extensionDevelopmentPath) {
 			if (isWorkspaceIdentifier(configuration.workspace)) {
-				configuration.backupPath = this.backupMainService.registerWorkspaceBackupSync({ workspace: configuration.workspace, remoteAuthority: configuration.remoteAuthority });
+				configuration.backupPath = this.backupMainService.registerWorkspaceBackup({ workspace: configuration.workspace, remoteAuthority: configuration.remoteAuthority });
 			} else if (isSingleFolderWorkspaceIdentifier(configuration.workspace)) {
-				configuration.backupPath = this.backupMainService.registerFolderBackupSync({ folderUri: configuration.workspace.uri, remoteAuthority: configuration.remoteAuthority });
+				configuration.backupPath = this.backupMainService.registerFolderBackup({ folderUri: configuration.workspace.uri, remoteAuthority: configuration.remoteAuthority });
 			} else {
 				const backupFolder = options.emptyWindowBackupInfo && options.emptyWindowBackupInfo.backupFolder;
-				configuration.backupPath = this.backupMainService.registerEmptyWindowBackupSync(backupFolder, configuration.remoteAuthority);
+				configuration.backupPath = this.backupMainService.registerEmptyWindowBackup(backupFolder, configuration.remoteAuthority);
 			}
 		}
 

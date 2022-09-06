@@ -11,11 +11,13 @@ import { join } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { Promises, RimRafMode, writeFileSync } from 'vs/base/node/pfs';
+import { Promises, RimRafMode } from 'vs/base/node/pfs';
+import { TaskSequentializer } from 'vs/base/common/async';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IBackupWorkspacesFormat, IDeprecatedBackupWorkspacesFormat, IEmptyWindowBackupInfo, isEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { ILifecycleMainService, ShutdownEvent } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { HotExitConfiguration, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
@@ -26,7 +28,11 @@ export class BackupMainService implements IBackupMainService {
 	declare readonly _serviceBrand: undefined;
 
 	protected backupHome: string;
+
 	protected workspacesJsonPath: string;
+	protected readonly workspacesJsonSaveSequentializer = new TaskSequentializer();
+	private lastKnownWorkspacesJsonContents: string | undefined = undefined;
+	private workspacesJsonWriteCounter = 0;
 
 	private workspaces: IWorkspaceBackupInfo[] = [];
 	private folders: IFolderBackupInfo[] = [];
@@ -41,18 +47,40 @@ export class BackupMainService implements IBackupMainService {
 	constructor(
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
 		this.backupHome = environmentMainService.backupHome;
 		this.workspacesJsonPath = environmentMainService.backupWorkspacesPath;
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.lifecycleMainService.onWillShutdown(e => this.onWillShutdown(e));
+	}
+
+	private onWillShutdown(e: ShutdownEvent): void {
+
+		// Prolong shutdown for pending metadata writes
+		e.join(this.workspacesJsonSaveSequentializer.join());
 	}
 
 	async initialize(): Promise<void> {
-		let backups: IBackupWorkspacesFormat & IDeprecatedBackupWorkspacesFormat;
+
+		// typically we have no writes before `initialize`, but conceptually
+		// we have to ensure to await pending writes before reading metadata
+		await this.workspacesJsonSaveSequentializer.join();
+
+		// read workspace metadata
+		let backups: IBackupWorkspacesFormat & IDeprecatedBackupWorkspacesFormat = Object.create(null);
 		try {
-			backups = JSON.parse(await Promises.readFile(this.workspacesJsonPath, 'utf8')); // invalid JSON or permission issue can happen here
+			const workspacesMetadata = await this.readWorkspacesMetadata();
+			if (workspacesMetadata) {
+				backups = JSON.parse(workspacesMetadata);
+			}
 		} catch (error) {
-			backups = Object.create(null);
+			// invalid JSON or permission issue can happen here
 		}
 
 		// validate empty workspaces backups first
@@ -90,7 +118,7 @@ export class BackupMainService implements IBackupMainService {
 		this.folders = await this.validateFolders(workspaceFolders);
 
 		// save again in case some workspaces or folders have been removed
-		await this.save();
+		this.writeWorkspacesMetadata();
 	}
 
 	getWorkspaceBackups(): IWorkspaceBackupInfo[] {
@@ -131,10 +159,10 @@ export class BackupMainService implements IBackupMainService {
 		return this.emptyWindows.slice(0); // return a copy
 	}
 
-	registerWorkspaceBackupSync(workspaceInfo: IWorkspaceBackupInfo, migrateFrom?: string): string {
+	registerWorkspaceBackup(workspaceInfo: IWorkspaceBackupInfo, migrateFrom?: string): string {
 		if (!this.workspaces.some(workspace => workspaceInfo.workspace.id === workspace.workspace.id)) {
 			this.workspaces.push(workspaceInfo);
-			this.saveSync();
+			this.writeWorkspacesMetadata();
 		}
 
 		const backupPath = this.getBackupPath(workspaceInfo.workspace.id);
@@ -163,49 +191,49 @@ export class BackupMainService implements IBackupMainService {
 		}
 	}
 
-	unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void {
+	unregisterWorkspaceBackup(workspace: IWorkspaceIdentifier): void {
 		const id = workspace.id;
 		const index = this.workspaces.findIndex(workspace => workspace.workspace.id === id);
 		if (index !== -1) {
 			this.workspaces.splice(index, 1);
-			this.saveSync();
+			this.writeWorkspacesMetadata();
 		}
 	}
 
-	registerFolderBackupSync(folderInfo: IFolderBackupInfo): string {
+	registerFolderBackup(folderInfo: IFolderBackupInfo): string {
 		if (!this.folders.some(folder => this.backupUriComparer.isEqual(folderInfo.folderUri, folder.folderUri))) {
 			this.folders.push(folderInfo);
-			this.saveSync();
+			this.writeWorkspacesMetadata();
 		}
 
 		return this.getBackupPath(this.getFolderHash(folderInfo));
 	}
 
-	unregisterFolderBackupSync(folderUri: URI): void {
+	unregisterFolderBackup(folderUri: URI): void {
 		const index = this.folders.findIndex(folder => this.backupUriComparer.isEqual(folderUri, folder.folderUri));
 		if (index !== -1) {
 			this.folders.splice(index, 1);
-			this.saveSync();
+			this.writeWorkspacesMetadata();
 		}
 	}
 
-	registerEmptyWindowBackupSync(backupFolderCandidate?: string, remoteAuthority?: string): string {
+	registerEmptyWindowBackup(backupFolderCandidate?: string, remoteAuthority?: string): string {
 
 		// Generate a new folder if this is a new empty workspace
 		const backupFolder = backupFolderCandidate || this.getRandomEmptyWindowId();
 		if (!this.emptyWindows.some(emptyWindow => !!emptyWindow.backupFolder && this.backupPathComparer.isEqual(emptyWindow.backupFolder, backupFolder))) {
 			this.emptyWindows.push({ backupFolder, remoteAuthority });
-			this.saveSync();
+			this.writeWorkspacesMetadata();
 		}
 
 		return this.getBackupPath(backupFolder);
 	}
 
-	unregisterEmptyWindowBackupSync(backupFolder: string): void {
+	unregisterEmptyWindowBackup(backupFolder: string): void {
 		const index = this.emptyWindows.findIndex(emptyWindow => !!emptyWindow.backupFolder && this.backupPathComparer.isEqual(emptyWindow.backupFolder, backupFolder));
 		if (index !== -1) {
 			this.emptyWindows.splice(index, 1);
-			this.saveSync();
+			this.writeWorkspacesMetadata();
 		}
 	}
 
@@ -428,17 +456,38 @@ export class BackupMainService implements IBackupMainService {
 		return false;
 	}
 
-	private saveSync(): void {
+	private async readWorkspacesMetadata(): Promise<string | undefined> {
 		try {
-			writeFileSync(this.workspacesJsonPath, JSON.stringify(this.serializeBackups()));
+			this.lastKnownWorkspacesJsonContents = await Promises.readFile(this.workspacesJsonPath, 'utf8');
 		} catch (error) {
-			this.logService.error(`Backup: Could not save workspaces.json: ${error.toString()}`);
+			if (error.code !== 'ENOENT') {
+				this.logService.error(`Backup: Could not read workspaces.json: ${error.toString()}`);
+			}
+		}
+
+		return this.lastKnownWorkspacesJsonContents;
+	}
+
+	private writeWorkspacesMetadata(): void {
+
+		// No pending save: directly set as pending
+		if (!this.workspacesJsonSaveSequentializer.hasPending()) {
+			this.workspacesJsonSaveSequentializer.setPending(++this.workspacesJsonWriteCounter, this.doWriteWorkspacesMetadata());
+		}
+
+		// Pending task: schedul to run next
+		else {
+			this.workspacesJsonSaveSequentializer.setNext(() => this.doWriteWorkspacesMetadata());
 		}
 	}
 
-	private async save(): Promise<void> {
+	private async doWriteWorkspacesMetadata(): Promise<void> {
 		try {
-			await Promises.writeFile(this.workspacesJsonPath, JSON.stringify(this.serializeBackups()));
+			const newWorkspacesJsonContentsContents = JSON.stringify(this.serializeBackups());
+			if (this.lastKnownWorkspacesJsonContents !== newWorkspacesJsonContentsContents) {
+				await Promises.writeFile(this.workspacesJsonPath, newWorkspacesJsonContentsContents);
+				this.lastKnownWorkspacesJsonContents = newWorkspacesJsonContentsContents;
+			}
 		} catch (error) {
 			this.logService.error(`Backup: Could not save workspaces.json: ${error.toString()}`);
 		}

@@ -20,13 +20,13 @@ export interface IBackupMainService {
 	getFolderBackupPaths(): IFolderBackupInfo[];
 	getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[];
 
-	registerWorkspaceBackupSync(workspace: IWorkspaceBackupInfo, migrateFrom?: string): string;
-	registerFolderBackupSync(folderUri: IFolderBackupInfo): string;
-	registerEmptyWindowBackupSync(backupFolder?: string, remoteAuthority?: string): string;
+	registerWorkspaceBackup(workspace: IWorkspaceBackupInfo, migrateFrom?: string): string;
+	registerFolderBackup(folderUri: IFolderBackupInfo): string;
+	registerEmptyWindowBackup(backupFolder?: string, remoteAuthority?: string): string;
 
-	unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void;
-	unregisterFolderBackupSync(folderUri: URI): void;
-	unregisterEmptyWindowBackupSync(backupFolder: string): void;
+	unregisterWorkspaceBackup(workspace: IWorkspaceIdentifier): void;
+	unregisterFolderBackup(folderUri: URI): void;
+	unregisterEmptyWindowBackup(backupFolder: string): void;
 
 	/**
 	 * All folders or workspaces that are known to have
