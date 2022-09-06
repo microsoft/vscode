@@ -68,9 +68,16 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			case TerminalCapability.CommandDetection:
 				markers = coalesce(this._detectionCapability.commands.map(e => e.marker));
 				break;
-			case TerminalCapability.BufferMarkDetection:
-				markers = this._detectionCapability.markers();
+			case TerminalCapability.BufferMarkDetection: {
+				let next = this._detectionCapability.markers().next()?.value;
+				const arr: IMarker[] = [];
+				while (next) {
+					arr.push(next);
+					next = this._detectionCapability.markers().next()?.value;
+				}
+				markers = arr;
 				break;
+			}
 		}
 		return markers;
 	}
@@ -194,7 +201,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		}
 		if (this._navigationDecorations) {
 			dispose(this._navigationDecorations);
-			this._navigationDecorations = undefined;
+			this._navigationDecorations = [];
 		}
 		const color = this._themeService.getColorTheme().getColor(TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR);
 		const startLine = marker.line;

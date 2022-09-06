@@ -398,7 +398,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		const [command] = data.split(';');
 		switch (command) {
 			case ITermOscPt.SetMark: {
-				this._createOrGetBufferMarkDetection(this._terminal).addMark({});
+				this._createOrGetBufferMarkDetection(this._terminal).addMark();
 			}
 			default: {
 				// Checking for known `<key>=<value>` pairs.

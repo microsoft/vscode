@@ -29,11 +29,18 @@ export class BufferMarkCapability implements IBufferMarkCapability {
 	) {
 	}
 
-	markers(): IMarker[] { return Array.from(this._idToMarkerMap.values()).concat(this._anonymousMarkers); }
+	*markers(): IterableIterator<IMarker> {
+		for (const m of this._idToMarkerMap.values()) {
+			yield m;
+		}
+		for (const m of this._anonymousMarkers) {
+			yield m;
+		}
+	}
 
-	addMark(properties: IMarkProperties): void {
-		const marker = properties.marker || this._terminal.registerMarker();
-		const id = properties.id;
+	addMark(properties?: IMarkProperties): void {
+		const marker = properties?.marker || this._terminal.registerMarker();
+		const id = properties?.id;
 		if (!marker) {
 			return;
 		}
@@ -44,7 +51,7 @@ export class BufferMarkCapability implements IBufferMarkCapability {
 			this._anonymousMarkers.push(marker);
 			marker.onDispose(() => this._anonymousMarkers.filter(m => m !== marker));
 		}
-		this._onMarkAdded.fire({ marker, id, hidden: properties.hidden, hoverMessage: properties.hoverMessage });
+		this._onMarkAdded.fire({ marker, id, hidden: properties?.hidden, hoverMessage: properties?.hoverMessage });
 	}
 
 	getMark(id: string): IMarker | undefined {

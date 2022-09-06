@@ -132,9 +132,9 @@ export interface ICommandInvalidationRequest {
 
 export interface IBufferMarkCapability {
 	type: TerminalCapability.BufferMarkDetection;
-	markers(): IMarker[];
+	markers(): IterableIterator<IMarker>;
 	onMarkAdded: Event<IMarkProperties>;
-	addMark(properties: IMarkProperties): void;
+	addMark(properties?: IMarkProperties): void;
 	getMark(id: string): IMarker | undefined;
 }
 
