@@ -118,7 +118,7 @@ export class BackupMainService implements IBackupMainService {
 		this.writeWorkspacesMetadata();
 	}
 
-	getWorkspaceBackups(): IWorkspaceBackupInfo[] {
+	protected getWorkspaceBackups(): IWorkspaceBackupInfo[] {
 		if (this.isHotExitOnExitAndWindowClose()) {
 			// Only non-folder windows are restored on main process launch when
 			// hot exit is configured as onExitAndWindowClose.
@@ -128,7 +128,7 @@ export class BackupMainService implements IBackupMainService {
 		return this.workspaces.slice(0); // return a copy
 	}
 
-	getFolderBackupPaths(): IFolderBackupInfo[] {
+	protected getFolderBackups(): IFolderBackupInfo[] {
 		if (this.isHotExitOnExitAndWindowClose()) {
 			// Only non-folder windows are restored on main process launch when
 			// hot exit is configured as onExitAndWindowClose.
@@ -152,7 +152,7 @@ export class BackupMainService implements IBackupMainService {
 		return config?.files?.hotExit || HotExitConfiguration.ON_EXIT;
 	}
 
-	getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[] {
+	getEmptyWindowBackups(): IEmptyWindowBackupInfo[] {
 		return this.emptyWindows.slice(0); // return a copy
 	}
 

@@ -12,13 +12,12 @@ import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 export const IBackupMainService = createDecorator<IBackupMainService>('backupMainService');
 
 export interface IBackupMainService {
+
 	readonly _serviceBrand: undefined;
 
 	isHotExitEnabled(): boolean;
 
-	getWorkspaceBackups(): IWorkspaceBackupInfo[];
-	getFolderBackupPaths(): IFolderBackupInfo[];
-	getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[];
+	getEmptyWindowBackups(): IEmptyWindowBackupInfo[];
 
 	registerWorkspaceBackup(workspace: IWorkspaceBackupInfo, migrateFrom?: string): string;
 	registerFolderBackup(folderUri: IFolderBackupInfo): string;

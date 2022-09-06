@@ -52,9 +52,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 		declare readonly _serviceBrand: undefined;
 
 		isHotExitEnabled(): boolean { throw new Error('Method not implemented.'); }
-		getWorkspaceBackups(): IWorkspaceBackupInfo[] { throw new Error('Method not implemented.'); }
-		getFolderBackupPaths(): IFolderBackupInfo[] { throw new Error('Method not implemented.'); }
-		getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[] { throw new Error('Method not implemented.'); }
+		getEmptyWindowBackups(): IEmptyWindowBackupInfo[] { throw new Error('Method not implemented.'); }
 		registerWorkspaceBackup(workspace: IWorkspaceBackupInfo, migrateFrom?: string | undefined): string { throw new Error('Method not implemented.'); }
 		registerFolderBackup(folder: IFolderBackupInfo): string { throw new Error('Method not implemented.'); }
 		registerEmptyWindowBackup(backupFolder?: string | undefined, remoteAuthority?: string | undefined): string { throw new Error('Method not implemented.'); }
