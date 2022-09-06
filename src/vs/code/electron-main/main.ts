@@ -207,10 +207,10 @@ class CodeMain {
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
 
 		// Signing
-		services.set(ISignService, new SyncDescriptor(SignService, undefined, true));
+		services.set(ISignService, new SyncDescriptor(SignService));
 
 		// Tunnel
-		services.set(ITunnelService, new SyncDescriptor(TunnelService, undefined, true));
+		services.set(ITunnelService, new SyncDescriptor(TunnelService));
 
 		// Protocol
 		services.set(IProtocolMainService, new SyncDescriptor(ProtocolMainService));

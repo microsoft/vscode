@@ -76,6 +76,7 @@ interface IOpenBrowserWindowOptions {
 	readonly windowToUse?: ICodeWindow;
 
 	readonly emptyWindowBackupInfo?: IEmptyWindowBackupInfo;
+	readonly profile?: IUserDataProfile;
 }
 
 interface IPathResolveOptions {
@@ -152,11 +153,6 @@ interface IPathToOpen<T = IEditorOptions> extends IPath<T> {
 	 * Optional label for the recent history
 	 */
 	label?: string;
-
-	/**
-	 * profile to use
-	 */
-	profile?: IUserDataProfile;
 }
 
 interface IWorkspacePathToOpen extends IPathToOpen {
@@ -297,8 +293,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					// When run with --add, take the folders that are to be opened as
 					// folders that should be added to the currently active window.
 					foldersToAdd.push(path);
-					// Unset the profile so that it is not associated to the folder
-					path.profile = undefined;
 				} else {
 					foldersToOpen.push(path);
 				}
@@ -313,10 +307,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				emptyWindowsWithBackupsToRestore.push({ backupFolder: basename(path.backupPath), remoteAuthority: path.remoteAuthority });
 			} else {
 				emptyToOpen++;
-			}
-			if (path.profile) {
-				// Set the profile to use for the folder/workspace/empty window to open
-				this.userDataProfilesMainService.setProfileForWorkspaceSync(path.workspace ?? 'empty-window', path.profile);
 			}
 		}
 
@@ -538,7 +528,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					filesToOpen,
 					forceNewWindow: true,
 					remoteAuthority: filesToOpen.remoteAuthority,
-					forceNewTabbedWindow: openConfig.forceNewTabbedWindow
+					forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
+					profile: openConfig.profile
 				}), true);
 			}
 		}
@@ -684,7 +675,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
 			filesToOpen,
 			windowToUse,
-			emptyWindowBackupInfo
+			emptyWindowBackupInfo,
+			profile: openConfig.profile
 		});
 	}
 
@@ -704,7 +696,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			forceNewWindow,
 			forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
 			filesToOpen,
-			windowToUse
+			windowToUse,
+			profile: openConfig.profile
 		});
 	}
 
@@ -731,20 +724,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				pathsToOpen.push(Object.create(null)); // add an empty window if we did not have windows to open from command line
 			}
 
-			// Apply profile if any
-			const profileToUse = openConfig.cli.profile ? this.userDataProfilesMainService.profiles.find(p => p.name === openConfig.cli.profile) : undefined;
-			if (profileToUse) {
-				for (const pathToOpen of pathsToOpen) {
-					pathToOpen.profile = profileToUse;
-				}
-			}
-
 			isCommandLineOrAPICall = true;
-		}
-
-		// Add empty window with passed profile when no files/folders are passed
-		else if (openConfig.cli.profile) {
-			pathsToOpen = [{ profile: this.userDataProfilesMainService.profiles.find(p => p.name === openConfig.cli.profile) }];
 		}
 
 		// Extract paths: from previous session
@@ -1312,11 +1292,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			context: openConfig.context,
 			cli: openConfig.cli,
 			forceNewWindow: true,
-			forceEmpty: !cliArgs.length && !folderUris.length && !fileUris.length && !openConfig.cli.profile,
+			forceEmpty: !cliArgs.length && !folderUris.length && !fileUris.length,
 			userEnv: openConfig.userEnv,
 			noRecentEntry: true,
 			waitMarkerFileURI: openConfig.waitMarkerFileURI,
-			remoteAuthority
+			remoteAuthority,
+			profile: openConfig.profile
 		};
 
 		return this.open(openArgs);
@@ -1350,7 +1331,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			profiles: {
 				all: this.userDataProfilesMainService.profiles,
-				profile: this.userDataProfilesMainService.getOrSetProfileForWorkspace(options.workspace ?? 'empty-window', (options.windowToUse ?? this.getLastActiveWindow())?.profile ?? this.userDataProfilesMainService.defaultProfile)
+				profile: this.resolveProfileForBrowserWindow(options)
 			},
 
 			homeDir: this.environmentMainService.userHome.fsPath,
@@ -1488,6 +1469,22 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Load it
 		window.load(configuration);
+	}
+
+	private resolveProfileForBrowserWindow(options: IOpenBrowserWindowOptions): IUserDataProfile {
+
+		// Use the provided profile if any
+		let profile = options.profile;
+		if (profile) {
+			this.userDataProfilesMainService.setProfileForWorkspaceSync(options.workspace ?? 'empty-window', profile);
+		}
+
+		// Otherwise use associated profile
+		if (!profile) {
+			profile = this.userDataProfilesMainService.getOrSetProfileForWorkspace(options.workspace ?? 'empty-window', (options.windowToUse ?? this.getLastActiveWindow())?.profile ?? this.userDataProfilesMainService.defaultProfile);
+		}
+
+		return profile;
 	}
 
 	private onWindowClosed(window: ICodeWindow): void {

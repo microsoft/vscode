@@ -110,6 +110,7 @@ import { IExtensionsScannerService } from 'vs/platform/extensionManagement/commo
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
 import { UserDataTransientProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataTransientProfilesHandler';
 import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -539,15 +540,13 @@ export class CodeApplication extends Disposable {
 
 		// Ensure profile exists when passed in from CLI
 		const profilePromise = this.userDataProfilesMainService.checkAndCreateProfileFromCli(this.environmentMainService.args);
-		if (profilePromise) {
-			await profilePromise;
-		}
+		const profile = profilePromise ? await profilePromise : undefined;
 
 		// Init Channels
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
 
 		// Open Windows
-		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, mainProcessElectronServer));
+		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, profile, mainProcessElectronServer));
 
 		// Post Open Windows Tasks
 		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor, sharedProcess));
@@ -638,58 +637,58 @@ export class CodeApplication extends Disposable {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv]));
 
 		// Dialogs
-		services.set(IDialogMainService, new SyncDescriptor(DialogMainService, undefined, true));
+		services.set(IDialogMainService, new SyncDescriptor(DialogMainService));
 
 		// Launch
-		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService, undefined, true));
+		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
 
 		// Diagnostics
-		services.set(IDiagnosticsMainService, new SyncDescriptor(DiagnosticsMainService, undefined, true));
+		services.set(IDiagnosticsMainService, new SyncDescriptor(DiagnosticsMainService));
 		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
 		// Issues
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
 
 		// Encryption
-		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId], true));
+		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
 
 		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
 
 		// Native Host
-		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, [sharedProcess], true));
+		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, [sharedProcess]));
 
 		// Credentials
-		services.set(ICredentialsMainService, new SyncDescriptor(CredentialsNativeMainService, undefined, true));
+		services.set(ICredentialsMainService, new SyncDescriptor(CredentialsNativeMainService));
 
 		// Webview Manager
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 
 		// Workspaces
-		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesMainService, undefined, true));
-		services.set(IWorkspacesManagementMainService, new SyncDescriptor(WorkspacesManagementMainService, undefined, true));
+		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesMainService));
+		services.set(IWorkspacesManagementMainService, new SyncDescriptor(WorkspacesManagementMainService));
 		services.set(IWorkspacesHistoryMainService, new SyncDescriptor(WorkspacesHistoryMainService));
 
 		// Menubar
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
 
 		// Extension URL Trust
-		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService, undefined, true));
+		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService));
 
 		// Extension Host Starter
 		services.set(IExtensionHostStarter, new SyncDescriptor(ExtensionHostStarter));
 
 		// Storage
 		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
-		services.set(IApplicationStorageMainService, new SyncDescriptor(ApplicationStorageMainService, undefined, true));
+		services.set(IApplicationStorageMainService, new SyncDescriptor(ApplicationStorageMainService));
 
 		// External terminal
 		if (isWindows) {
-			services.set(IExternalTerminalMainService, new SyncDescriptor(WindowsExternalTerminalService, undefined, true));
+			services.set(IExternalTerminalMainService, new SyncDescriptor(WindowsExternalTerminalService));
 		} else if (isMacintosh) {
-			services.set(IExternalTerminalMainService, new SyncDescriptor(MacExternalTerminalService, undefined, true));
+			services.set(IExternalTerminalMainService, new SyncDescriptor(MacExternalTerminalService));
 		} else if (isLinux) {
-			services.set(IExternalTerminalMainService, new SyncDescriptor(LinuxExternalTerminalService, undefined, true));
+			services.set(IExternalTerminalMainService, new SyncDescriptor(LinuxExternalTerminalService));
 		}
 
 		// Backups
@@ -697,7 +696,7 @@ export class CodeApplication extends Disposable {
 		services.set(IBackupMainService, backupMainService);
 
 		// URL handling
-		services.set(IURLService, new SyncDescriptor(NativeURLService, undefined, true));
+		services.set(IURLService, new SyncDescriptor(NativeURLService));
 
 		// Telemetry
 		if (supportsTelemetry(this.productService, this.environmentMainService)) {
@@ -835,7 +834,7 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel(ipcExtensionHostStarterChannelName, extensionHostStarterChannel);
 	}
 
-	private openFirstWindow(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): ICodeWindow[] {
+	private openFirstWindow(accessor: ServicesAccessor, profile: IUserDataProfile | undefined, mainProcessElectronServer: ElectronIPCServer): ICodeWindow[] {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		const urlService = accessor.get(IURLService);
 		const nativeHostMainService = accessor.get(INativeHostMainService);
@@ -995,31 +994,36 @@ export class CodeApplication extends Disposable {
 			});
 		}
 
-		// new window if "-n"
-		if (args['new-window'] && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return windowsMainService.open({
-				context,
-				cli: args,
-				forceNewWindow: true,
-				forceEmpty: true,
-				noRecentEntry,
-				waitMarkerFileURI,
-				initialStartup: true,
-				remoteAuthority
-			});
-		}
+		// Start without file/folder arguments
+		if (!hasCliArgs && !hasFolderURIs && !hasFileURIs) {
 
-		// mac: open-file event received on startup
-		if (macOpenFiles.length && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return windowsMainService.open({
-				context: OpenContext.DOCK,
-				cli: args,
-				urisToOpen: macOpenFiles.map(file => this.getWindowOpenableFromPathSync(file)),
-				noRecentEntry,
-				waitMarkerFileURI,
-				initialStartup: true,
-				// remoteAuthority: will be determined based on macOpenFiles
-			});
+			// Force new window
+			if (args['new-window'] || profile) {
+				return windowsMainService.open({
+					context,
+					cli: args,
+					forceNewWindow: true,
+					forceEmpty: true,
+					noRecentEntry,
+					waitMarkerFileURI,
+					initialStartup: true,
+					remoteAuthority,
+					profile
+				});
+			}
+
+			// mac: open-file event received on startup
+			if (macOpenFiles.length) {
+				return windowsMainService.open({
+					context: OpenContext.DOCK,
+					cli: args,
+					urisToOpen: macOpenFiles.map(file => this.getWindowOpenableFromPathSync(file)),
+					noRecentEntry,
+					waitMarkerFileURI,
+					initialStartup: true,
+					// remoteAuthority: will be determined based on macOpenFiles
+				});
+			}
 		}
 
 		// default: read paths from cli
@@ -1033,7 +1037,8 @@ export class CodeApplication extends Disposable {
 			waitMarkerFileURI,
 			gotoLineMode: args.goto,
 			initialStartup: true,
-			remoteAuthority
+			remoteAuthority,
+			profile
 		});
 	}
 
