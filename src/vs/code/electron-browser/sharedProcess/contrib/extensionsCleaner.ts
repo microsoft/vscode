@@ -39,7 +39,6 @@ export class ExtensionsCleaner extends Disposable {
 		ExtensionStorageService.removeOutdatedExtensionVersions(extensionManagementService, storageService);
 		this._register(instantiationService.createInstance(ProfileExtensionsCleaner));
 	}
-
 }
 
 class ProfileExtensionsCleaner extends Disposable {
@@ -184,5 +183,4 @@ class ProfileExtensionsCleaner extends Disposable {
 		const [id, version] = getIdAndVersion(key);
 		return version ? { identifier: { id }, version } : undefined;
 	}
-
 }

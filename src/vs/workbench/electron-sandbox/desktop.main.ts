@@ -17,7 +17,7 @@ import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService }
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { NativeWorkbenchStorageService } from 'vs/workbench/services/storage/electron-sandbox/storageService';
-import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier, reviveIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier, reviveIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -32,7 +32,6 @@ import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files'
 import { RemoteFileSystemProviderClient } from 'vs/workbench/services/remote/common/remoteFileSystemProviderClient';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/common/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
-import { basename } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
@@ -310,25 +309,19 @@ export class DesktopMain extends Disposable {
 	}
 
 	private resolveWorkspaceInitializationPayload(environmentService: INativeWorkbenchEnvironmentService): IAnyWorkspaceIdentifier {
-		let workspaceInitializationPayload: IAnyWorkspaceIdentifier | undefined = this.configuration.workspace;
 
-		// Fallback to empty workspace if we have no payload yet.
-		if (!workspaceInitializationPayload) {
-			let id: string;
-			if (this.configuration.backupPath) {
-				// we know the backupPath must be a unique path so we leverage its name as workspace ID
-				id = basename(this.configuration.backupPath);
-			} else if (environmentService.isExtensionDevelopment) {
-				// fallback to a reserved identifier when in extension development where backups are not stored
-				id = 'ext-dev';
-			} else {
-				throw new Error('Unexpected window configuration without backupPath');
-			}
-
-			workspaceInitializationPayload = { id };
+		// Return early for when a folder or multi-root is opened
+		if (this.configuration.workspace) {
+			return this.configuration.workspace;
 		}
 
-		return workspaceInitializationPayload;
+		// Otherwise, workspace is empty, so we derive an identifier
+		const emptyWorkspaceIdentifier = toWorkspaceIdentifier(this.configuration.backupPath, environmentService.isExtensionDevelopment);
+		if (!emptyWorkspaceIdentifier) {
+			throw new Error('Unable to resolve an empty workspace identifier from the environment');
+		}
+
+		return emptyWorkspaceIdentifier;
 	}
 
 	private async createWorkspaceService(
