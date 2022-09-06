@@ -120,6 +120,20 @@
 	padding-left: 3px;
 }
 
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-checkbox {
+	width: 16px;
+	height: 16px;
+	margin: 3px 6px 3px 0px;
+	padding: 0px;
+	border: 1px solid var(--vscode-checkbox-border);
+	opacity: 1;
+	background-color: var(--vscode-checkbox-background);
+}
+
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-checkbox.codicon {
+	font-size: 13px;
+	line-height: 15px;
+}
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .monaco-inputbox {
 	line-height: normal;
 	flex: 1;

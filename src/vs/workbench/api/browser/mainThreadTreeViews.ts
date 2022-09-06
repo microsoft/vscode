@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, CheckboxUpdate } from 'vs/workbench/api/common/extHost.protocol';
 import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge } from 'vs/workbench/common/views';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { distinct } from 'vs/base/common/arrays';
@@ -168,7 +168,13 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this._register(treeView.onDidExpandItem(item => this._proxy.$setExpanded(treeViewId, item.handle, true)));
 		this._register(treeView.onDidCollapseItem(item => this._proxy.$setExpanded(treeViewId, item.handle, false)));
 		this._register(treeView.onDidChangeSelection(items => this._proxy.$setSelection(treeViewId, items.map(({ handle }) => handle))));
+		this._register(treeView.onDidChangeFocus(item => this._proxy.$setFocus(treeViewId, item.handle)));
 		this._register(treeView.onDidChangeVisibility(isVisible => this._proxy.$setVisible(treeViewId, isVisible)));
+		this._register(treeView.onDidChangeCheckboxState(items => {
+			this._proxy.$changeCheckboxState(treeViewId, <CheckboxUpdate[]>items.map(item => {
+				return { treeItemHandle: item.handle, newState: item.checkboxChecked ?? false };
+			}));
+		}));
 	}
 
 	private getTreeView(treeViewId: string): ITreeView | null {

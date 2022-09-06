@@ -201,16 +201,16 @@ class CodeMain {
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService));
 
 		// Request
-		services.set(IRequestService, new SyncDescriptor(RequestMainService));
+		services.set(IRequestService, new SyncDescriptor(RequestMainService, undefined, true));
 
 		// Themes
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
 
 		// Signing
-		services.set(ISignService, new SyncDescriptor(SignService));
+		services.set(ISignService, new SyncDescriptor(SignService, undefined, true));
 
 		// Tunnel
-		services.set(ITunnelService, new SyncDescriptor(TunnelService));
+		services.set(ITunnelService, new SyncDescriptor(TunnelService, undefined, true));
 
 		// Protocol
 		services.set(IProtocolMainService, new SyncDescriptor(ProtocolMainService));
@@ -346,9 +346,9 @@ class CodeMain {
 			if (environmentMainService.args.status) {
 				return instantiationService.invokeFunction(async () => {
 					const diagnosticsService = new DiagnosticsService(NullTelemetryService, productService);
-					const mainProcessInfo = await otherInstanceLaunchMainService.getMainProcessInfo();
+					const mainDiagnostics = await otherInstanceDiagnosticsMainService.getMainDiagnostics();
 					const remoteDiagnostics = await otherInstanceDiagnosticsMainService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
-					const diagnostics = await diagnosticsService.getDiagnostics(mainProcessInfo, remoteDiagnostics);
+					const diagnostics = await diagnosticsService.getDiagnostics(mainDiagnostics, remoteDiagnostics);
 					console.log(diagnostics);
 
 					throw new ExpectedError();

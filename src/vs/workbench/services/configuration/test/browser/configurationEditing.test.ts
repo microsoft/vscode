@@ -14,7 +14,7 @@ import { TestEnvironmentService, TestTextFileService, workbenchInstantiationServ
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { ConfigurationEditingService, ConfigurationEditingErrorCode, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
+import { ConfigurationEditing, ConfigurationEditingErrorCode, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS, FOLDER_SETTINGS_PATH, USER_STANDALONE_CONFIGURATIONS, IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -56,14 +56,14 @@ export class ConfigurationCache implements IConfigurationCache {
 	async remove(): Promise<void> { }
 }
 
-suite('ConfigurationEditingService', () => {
+suite('ConfigurationEditing', () => {
 
 	let instantiationService: TestInstantiationService;
 	let userDataProfileService: IUserDataProfileService;
 	let environmentService: IWorkbenchEnvironmentService;
 	let fileService: IFileService;
 	let workspaceService: WorkspaceService;
-	let testObject: ConfigurationEditingService;
+	let testObject: ConfigurationEditing;
 
 	const disposables = new DisposableStore();
 
@@ -130,7 +130,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
 		instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
 		instantiationService.stub(ICommandService, CommandService);
-		testObject = instantiationService.createInstance(ConfigurationEditingService);
+		testObject = instantiationService.createInstance(ConfigurationEditing, null);
 	});
 
 	teardown(() => disposables.clear());

@@ -638,58 +638,58 @@ export class CodeApplication extends Disposable {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv]));
 
 		// Dialogs
-		services.set(IDialogMainService, new SyncDescriptor(DialogMainService));
+		services.set(IDialogMainService, new SyncDescriptor(DialogMainService, undefined, true));
 
 		// Launch
-		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
+		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService, undefined, true));
 
 		// Diagnostics
-		services.set(IDiagnosticsMainService, new SyncDescriptor(DiagnosticsMainService));
+		services.set(IDiagnosticsMainService, new SyncDescriptor(DiagnosticsMainService, undefined, true));
 		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
 		// Issues
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
 
 		// Encryption
-		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
+		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId], true));
 
 		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
 
 		// Native Host
-		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, [sharedProcess]));
+		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, [sharedProcess], true));
 
 		// Credentials
-		services.set(ICredentialsMainService, new SyncDescriptor(CredentialsNativeMainService));
+		services.set(ICredentialsMainService, new SyncDescriptor(CredentialsNativeMainService, undefined, true));
 
 		// Webview Manager
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 
 		// Workspaces
-		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesMainService));
-		services.set(IWorkspacesManagementMainService, new SyncDescriptor(WorkspacesManagementMainService));
+		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesMainService, undefined, true));
+		services.set(IWorkspacesManagementMainService, new SyncDescriptor(WorkspacesManagementMainService, undefined, true));
 		services.set(IWorkspacesHistoryMainService, new SyncDescriptor(WorkspacesHistoryMainService));
 
 		// Menubar
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
 
 		// Extension URL Trust
-		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService));
+		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService, undefined, true));
 
 		// Extension Host Starter
 		services.set(IExtensionHostStarter, new SyncDescriptor(ExtensionHostStarter));
 
 		// Storage
 		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
-		services.set(IApplicationStorageMainService, new SyncDescriptor(ApplicationStorageMainService));
+		services.set(IApplicationStorageMainService, new SyncDescriptor(ApplicationStorageMainService, undefined, true));
 
 		// External terminal
 		if (isWindows) {
-			services.set(IExternalTerminalMainService, new SyncDescriptor(WindowsExternalTerminalService));
+			services.set(IExternalTerminalMainService, new SyncDescriptor(WindowsExternalTerminalService, undefined, true));
 		} else if (isMacintosh) {
-			services.set(IExternalTerminalMainService, new SyncDescriptor(MacExternalTerminalService));
+			services.set(IExternalTerminalMainService, new SyncDescriptor(MacExternalTerminalService, undefined, true));
 		} else if (isLinux) {
-			services.set(IExternalTerminalMainService, new SyncDescriptor(LinuxExternalTerminalService));
+			services.set(IExternalTerminalMainService, new SyncDescriptor(LinuxExternalTerminalService, undefined, true));
 		}
 
 		// Backups
@@ -697,7 +697,7 @@ export class CodeApplication extends Disposable {
 		services.set(IBackupMainService, backupMainService);
 
 		// URL handling
-		services.set(IURLService, new SyncDescriptor(NativeURLService));
+		services.set(IURLService, new SyncDescriptor(NativeURLService, undefined, true));
 
 		// Telemetry
 		if (supportsTelemetry(this.productService, this.environmentMainService)) {
@@ -714,8 +714,8 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Default Extensions Profile Init
-		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
-		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
+		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService, undefined, true));
+		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService, undefined, true));
 
 		// Init services that require it
 		await backupMainService.initialize();
@@ -1121,15 +1121,59 @@ export class CodeApplication extends Disposable {
 		return { fileUri: URI.file(path) };
 	}
 
-	private async afterWindowOpen(accessor: ServicesAccessor, sharedProcess: SharedProcess): Promise<void> {
+	private afterWindowOpen(accessor: ServicesAccessor, sharedProcess: SharedProcess): void {
+		const telemetryService = accessor.get(ITelemetryService);
+		const updateService = accessor.get(IUpdateService);
 
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
 		// Observe shared process for errors
+		this.handleSharedProcessErrors(telemetryService, sharedProcess);
+
+		// Windows: mutex
+		this.installMutex();
+
+		// Remote Authorities
+		protocol.registerHttpProtocol(Schemas.vscodeRemoteResource, (request, callback) => {
+			callback({
+				url: request.url.replace(/^vscode-remote-resource:/, 'http:'),
+				method: request.method
+			});
+		});
+
+		// Initialize update service
+		if (updateService instanceof Win32UpdateService || updateService instanceof LinuxUpdateService || updateService instanceof DarwinUpdateService) {
+			updateService.initialize();
+		}
+
+		// Start to fetch shell environment (if needed) after window has opened
+		// Since this operation can take a long time, we want to warm it up while
+		// the window is opening.
+		// We also show an error to the user in case this fails.
+		this.resolveShellEnvironment(this.environmentMainService.args, process.env, true);
+
+		// Crash reporter
+		this.updateCrashReporterEnablement();
+	}
+
+	private async installMutex(): Promise<void> {
+		const win32MutexName = this.productService.win32MutexName;
+		if (isWindows && win32MutexName) {
+			try {
+				const WindowsMutex = await import('windows-mutex');
+				const mutex = new WindowsMutex.Mutex(win32MutexName);
+				once(this.lifecycleMainService.onWillShutdown)(() => mutex.release());
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
+	}
+
+	private handleSharedProcessErrors(telemetryService: ITelemetryService, sharedProcess: SharedProcess): void {
 		let willShutdown = false;
 		once(this.lifecycleMainService.onWillShutdown)(() => willShutdown = true);
-		const telemetryService = accessor.get(ITelemetryService);
+
 		this._register(sharedProcess.onDidError(({ type, details }) => {
 
 			// Logging
@@ -1173,71 +1217,6 @@ export class CodeApplication extends Disposable {
 				shuttingdown: willShutdown
 			});
 		}));
-
-		// Windows: install mutex
-		const win32MutexName = this.productService.win32MutexName;
-		if (isWindows && win32MutexName) {
-			try {
-				const WindowsMutex = (require.__$__nodeRequire('windows-mutex') as typeof import('windows-mutex')).Mutex;
-				const mutex = new WindowsMutex(win32MutexName);
-				once(this.lifecycleMainService.onWillShutdown)(() => mutex.release());
-			} catch (error) {
-				this.logService.error(error);
-			}
-		}
-
-		// Remote Authorities
-		protocol.registerHttpProtocol(Schemas.vscodeRemoteResource, (request, callback) => {
-			callback({
-				url: request.url.replace(/^vscode-remote-resource:/, 'http:'),
-				method: request.method
-			});
-		});
-
-		// Initialize update service
-		const updateService = accessor.get(IUpdateService);
-		if (updateService instanceof Win32UpdateService || updateService instanceof LinuxUpdateService || updateService instanceof DarwinUpdateService) {
-			await updateService.initialize();
-		}
-
-		// Start to fetch shell environment (if needed) after window has opened
-		// Since this operation can take a long time, we want to warm it up while
-		// the window is opening.
-		// We also show an error to the user in case this fails.
-		this.resolveShellEnvironment(this.environmentMainService.args, process.env, true);
-
-		// If enable-crash-reporter argv is undefined then this is a fresh start,
-		// based on telemetry.enableCrashreporter settings, generate a UUID which
-		// will be used as crash reporter id and also update the json file.
-		try {
-			const argvContent = await this.fileService.readFile(this.environmentMainService.argvResource);
-			const argvString = argvContent.value.toString();
-			const argvJSON = JSON.parse(stripComments(argvString));
-			const telemetryLevel = getTelemetryLevel(this.configurationService);
-			const enableCrashReporter = telemetryLevel >= TelemetryLevel.CRASH;
-			if (argvJSON['enable-crash-reporter'] === undefined) {
-				const additionalArgvContent = [
-					'',
-					'	// Allows to disable crash reporting.',
-					'	// Should restart the app if the value is changed.',
-					`	"enable-crash-reporter": ${enableCrashReporter},`,
-					'',
-					'	// Unique id used for correlating crash reports sent from this instance.',
-					'	// Do not edit this value.',
-					`	"crash-reporter-id": "${generateUuid()}"`,
-					'}'
-				];
-				const newArgvString = argvString.substring(0, argvString.length - 2).concat(',\n', additionalArgvContent.join('\n'));
-
-				await this.fileService.writeFile(this.environmentMainService.argvResource, VSBuffer.fromString(newArgvString));
-			} else {
-				// Update enable crash reporter value at each startup
-				const newArgvString = argvString.replace(/"enable-crash-reporter": .*,/, `"enable-crash-reporter": ${enableCrashReporter},`);
-				await this.fileService.writeFile(this.environmentMainService.argvResource, VSBuffer.fromString(newArgvString));
-			}
-		} catch (error) {
-			this.logService.error(error);
-		}
 	}
 
 	private async resolveShellEnvironment(args: NativeParsedArgs, env: IProcessEnvironment, notifyOnError: boolean): Promise<typeof process.env> {
@@ -1253,6 +1232,49 @@ export class CodeApplication extends Disposable {
 		}
 
 		return {};
+	}
+
+	private async updateCrashReporterEnablement(): Promise<void> {
+
+		// If enable-crash-reporter argv is undefined then this is a fresh start,
+		// based on `telemetry.enableCrashreporter` settings, generate a UUID which
+		// will be used as crash reporter id and also update the json file.
+
+		try {
+			const argvContent = await this.fileService.readFile(this.environmentMainService.argvResource);
+			const argvString = argvContent.value.toString();
+			const argvJSON = JSON.parse(stripComments(argvString));
+			const telemetryLevel = getTelemetryLevel(this.configurationService);
+			const enableCrashReporter = telemetryLevel >= TelemetryLevel.CRASH;
+
+			// Initial startup
+			if (argvJSON['enable-crash-reporter'] === undefined) {
+				const additionalArgvContent = [
+					'',
+					'	// Allows to disable crash reporting.',
+					'	// Should restart the app if the value is changed.',
+					`	"enable-crash-reporter": ${enableCrashReporter},`,
+					'',
+					'	// Unique id used for correlating crash reports sent from this instance.',
+					'	// Do not edit this value.',
+					`	"crash-reporter-id": "${generateUuid()}"`,
+					'}'
+				];
+				const newArgvString = argvString.substring(0, argvString.length - 2).concat(',\n', additionalArgvContent.join('\n'));
+
+				await this.fileService.writeFile(this.environmentMainService.argvResource, VSBuffer.fromString(newArgvString));
+			}
+
+			// Subsequent startup: update crash reporter value if changed
+			else {
+				const newArgvString = argvString.replace(/"enable-crash-reporter": .*,/, `"enable-crash-reporter": ${enableCrashReporter},`);
+				if (newArgvString !== argvString) {
+					await this.fileService.writeFile(this.environmentMainService.argvResource, VSBuffer.fromString(newArgvString));
+				}
+			}
+		} catch (error) {
+			this.logService.error(error);
+		}
 	}
 
 	private stopTracingEventually(accessor: ServicesAccessor, windows: ICodeWindow[]): void {
@@ -1295,4 +1317,3 @@ export class CodeApplication extends Disposable {
 		});
 	}
 }
-
