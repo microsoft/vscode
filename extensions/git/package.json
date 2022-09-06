@@ -2331,6 +2331,12 @@
           "default": false,
           "description": "%config.rebaseWhenSync%"
         },
+        "git.pullBeforeCheckout": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.pullBeforeCheckout%"
+        },
         "git.fetchOnPull": {
           "type": "boolean",
           "scope": "resource",

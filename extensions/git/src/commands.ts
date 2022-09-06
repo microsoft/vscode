@@ -33,13 +33,19 @@ class CheckoutItem implements QuickPickItem {
 	constructor(protected repository: Repository, protected ref: Ref) { }
 
 	async run(opts?: { detached?: boolean }): Promise<void> {
-		const ref = this.ref.name;
-
-		if (!ref) {
+		if (!this.ref.name) {
 			return;
 		}
 
-		await this.repository.checkout(ref, opts);
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const pullBeforeCheckout = config.get<boolean>('pullBeforeCheckout', false) === true;
+
+		if (pullBeforeCheckout) {
+			const branch = await this.repository.getBranch(this.ref.name);
+			await this.repository.pull(branch);
+		}
+
+		await this.repository.checkout(this.ref.name, opts);
 	}
 }
 
@@ -48,6 +54,14 @@ class CheckoutTagItem extends CheckoutItem {
 	override get label(): string { return `$(tag) ${this.ref.name || this.shortCommit}`; }
 	override get description(): string {
 		return localize('tag at', "Tag at {0}", this.shortCommit);
+	}
+
+	override async run(opts?: { detached?: boolean }): Promise<void> {
+		if (!this.ref.name) {
+			return;
+		}
+
+		await this.repository.checkout(this.ref.name, opts);
 	}
 }
 
