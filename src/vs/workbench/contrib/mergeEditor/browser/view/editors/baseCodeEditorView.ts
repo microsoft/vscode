@@ -3,23 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { derived } from 'vs/base/common/observable';
+import { reset } from 'vs/base/browser/dom';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { autorun, derived, IObservable } from 'vs/base/common/observable';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
+import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { applyObservableDecorations } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
+import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 import { CodeEditorView, createSelectionsAutorun, TitleMenu } from './codeEditorView';
 
 export class BaseCodeEditorView extends CodeEditorView {
 	constructor(
+		viewModel: IObservable<MergeEditorViewModel | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(instantiationService);
-
-		this._register(applyObservableDecorations(this.editor, this.decorations));
+		super(instantiationService, viewModel);
 
 		this._register(
 			createSelectionsAutorun(this, (baseRange, viewModel) => baseRange)
@@ -28,6 +31,19 @@ export class BaseCodeEditorView extends CodeEditorView {
 		this._register(
 			instantiationService.createInstance(TitleMenu, MenuId.MergeBaseToolbar, this.htmlElements.title)
 		);
+
+		this._register(
+			autorun('update labels & text model', (reader) => {
+				const vm = this.viewModel.read(reader);
+				if (!vm) {
+					return;
+				}
+				this.editor.setModel(vm.model.base);
+				reset(this.htmlElements.title, ...renderLabelWithIcons(localize('base', 'Base')));
+			})
+		);
+
+		this._register(applyObservableDecorations(this.editor, this.decorations));
 	}
 
 	private readonly decorations = derived(`base.decorations`, reader => {

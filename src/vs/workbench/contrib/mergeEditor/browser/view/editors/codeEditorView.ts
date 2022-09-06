@@ -3,33 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h, reset } from 'vs/base/browser/dom';
+import { h } from 'vs/base/browser/dom';
 import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { autorun, derived, IObservable, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
+import { autorun, derived, IObservable, observableFromEvent } from 'vs/base/common/observable';
 import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { InputData } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 
 export abstract class CodeEditorView extends Disposable {
-	private readonly _viewModel = observableValue<undefined | MergeEditorViewModel>('viewModel', undefined);
-	readonly viewModel: IObservable<undefined | MergeEditorViewModel> = this._viewModel;
-	readonly model = this._viewModel.map(m => /** @description model */ m?.model);
+	readonly model = this.viewModel.map(m => /** @description model */ m?.model);
 
 	protected readonly htmlElements = h('div.code-view', [
 		h('div.title@header', [
@@ -98,29 +94,14 @@ export abstract class CodeEditorView extends Disposable {
 
 	constructor(
 		@IInstantiationService
-		private readonly instantiationService: IInstantiationService
+		private readonly instantiationService: IInstantiationService,
+		public readonly viewModel: IObservable<undefined | MergeEditorViewModel>,
 	) {
 		super();
 	}
 
 	protected getEditorContributions(): IEditorContributionDescription[] | undefined {
 		return undefined;
-	}
-
-	public setModel(
-		viewModel: MergeEditorViewModel,
-		inputData: InputData
-	): void {
-		this.editor.setModel(inputData.textModel);
-
-		reset(this.htmlElements.title, ...renderLabelWithIcons(inputData.title || ''));
-		reset(this.htmlElements.description, ...(inputData.description ? renderLabelWithIcons(inputData.description) : []));
-		reset(this.htmlElements.detail, ...(inputData.detail ? renderLabelWithIcons(inputData.detail) : []));
-
-		transaction(tx => {
-			/** @description CodeEditorView: Set Model */
-			this._viewModel.set(viewModel, tx);
-		});
 	}
 }
 

@@ -213,18 +213,16 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private onDidRegisterViews(views: { views: IViewDescriptor[]; viewContainer: ViewContainer }[]): void {
-		this.contextKeyService.bufferChangeEvents(() => {
-			views.forEach(({ views, viewContainer }) => {
-				// When views are registered, we need to regroup them based on the customizations
-				const regroupedViews = this.regroupViews(viewContainer.id, views);
+		views.forEach(({ views, viewContainer }) => {
+			// When views are registered, we need to regroup them based on the customizations
+			const regroupedViews = this.regroupViews(viewContainer.id, views);
 
-				// Once they are grouped, try registering them which occurs
-				// if the container has already been registered within this service
-				// or we can generate the container from the source view id
-				this.registerGroupedViews(regroupedViews);
+			// Once they are grouped, try registering them which occurs
+			// if the container has already been registered within this service
+			// or we can generate the container from the source view id
+			this.registerGroupedViews(regroupedViews);
 
-				views.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(!!viewDescriptor.canMoveView));
-			});
+			views.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(!!viewDescriptor.canMoveView));
 		});
 	}
 
@@ -236,9 +234,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		// When views are registered, we need to regroup them based on the customizations
 		const regroupedViews = this.regroupViews(viewContainer.id, views);
 		this.deregisterGroupedViews(regroupedViews);
-		this.contextKeyService.bufferChangeEvents(() => {
-			views.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(false));
-		});
+		views.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(false));
 	}
 
 	private regroupViews(containerId: string, views: IViewDescriptor[]): Map<string, IViewDescriptor[]> {
@@ -706,9 +702,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			const viewsToRegister = this.getViewsByContainer(viewContainer).filter(view => this.getDefaultContainerById(view.id) !== viewContainer);
 			if (viewsToRegister.length) {
 				this.addViews(viewContainer, viewsToRegister);
-				this.contextKeyService.bufferChangeEvents(() => {
-					viewsToRegister.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(!!viewDescriptor.canMoveView));
-				});
+				viewsToRegister.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(!!viewDescriptor.canMoveView));
 			}
 		}
 
@@ -724,17 +718,13 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private onDidChangeActiveViews({ added, removed }: { added: ReadonlyArray<IViewDescriptor>; removed: ReadonlyArray<IViewDescriptor> }): void {
-		this.contextKeyService.bufferChangeEvents(() => {
-			added.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(true));
-			removed.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(false));
-		});
+		added.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(true));
+		removed.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(false));
 	}
 
 	private onDidChangeVisibleViews({ added, removed }: { added: IViewDescriptor[]; removed: IViewDescriptor[] }): void {
-		this.contextKeyService.bufferChangeEvents(() => {
-			added.forEach(viewDescriptor => this.getOrCreateVisibleViewContextKey(viewDescriptor).set(true));
-			removed.forEach(viewDescriptor => this.getOrCreateVisibleViewContextKey(viewDescriptor).set(false));
-		});
+		added.forEach(viewDescriptor => this.getOrCreateVisibleViewContextKey(viewDescriptor).set(true));
+		removed.forEach(viewDescriptor => this.getOrCreateVisibleViewContextKey(viewDescriptor).set(false));
 	}
 
 	private registerViewsVisibilityActions(viewContainerModel: ViewContainerModel): void {
@@ -837,16 +827,14 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private addViews(container: ViewContainer, views: IViewDescriptor[], visibilityState: ViewVisibilityState = ViewVisibilityState.Default): void {
-		this.contextKeyService.bufferChangeEvents(() => {
-			views.forEach(view => {
-				const isDefaultContainer = this.getDefaultContainerById(view.id) === container;
-				this.getOrCreateDefaultViewLocationContextKey(view).set(isDefaultContainer);
-				if (isDefaultContainer) {
-					this.viewDescriptorsCustomLocations.delete(view.id);
-				} else {
-					this.viewDescriptorsCustomLocations.set(view.id, container.id);
-				}
-			});
+		views.forEach(view => {
+			const isDefaultContainer = this.getDefaultContainerById(view.id) === container;
+			this.getOrCreateDefaultViewLocationContextKey(view).set(isDefaultContainer);
+			if (isDefaultContainer) {
+				this.viewDescriptorsCustomLocations.delete(view.id);
+			} else {
+				this.viewDescriptorsCustomLocations.set(view.id, container.id);
+			}
 		});
 
 		this.getViewContainerModel(container).add(views.map(view => {
@@ -860,13 +848,11 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 	private removeViews(container: ViewContainer, views: IViewDescriptor[]): void {
 		// Set view default location keys to false
-		this.contextKeyService.bufferChangeEvents(() => {
-			views.forEach(view => {
-				if (this.viewDescriptorsCustomLocations.get(view.id) === container.id) {
-					this.viewDescriptorsCustomLocations.delete(view.id);
-				}
-				this.getOrCreateDefaultViewLocationContextKey(view).set(false);
-			});
+		views.forEach(view => {
+			if (this.viewDescriptorsCustomLocations.get(view.id) === container.id) {
+				this.viewDescriptorsCustomLocations.delete(view.id);
+			}
+			this.getOrCreateDefaultViewLocationContextKey(view).set(false);
 		});
 
 		// Remove the views

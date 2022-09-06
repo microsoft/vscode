@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, h, reset } from 'vs/base/browser/dom';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
@@ -16,30 +17,27 @@ import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/edi
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
 import { localize } from 'vs/nls';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachToggleStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { InputState, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
+import { InputState, ModifiedBaseRange, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
 import { applyObservableDecorations, setFields } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
+import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 import { EditorGutter, IGutterItemInfo, IGutterItemView } from '../editorGutter';
 import { CodeEditorView, createSelectionsAutorun, TitleMenu } from './codeEditorView';
 
 export class InputCodeEditorView extends CodeEditorView {
 	constructor(
 		public readonly inputNumber: 1 | 2,
+		viewModel: IObservable<MergeEditorViewModel | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(instantiationService);
-
-		this._register(applyObservableDecorations(this.editor, this.decorations));
+		super(instantiationService, viewModel);
 
 		this._register(
 			new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
@@ -63,6 +61,34 @@ export class InputCodeEditorView extends CodeEditorView {
 				this.htmlElements.toolbar
 			)
 		);
+
+		this._register(autorun('input${this.inputNumber}: update labels & text model', reader => {
+			const vm = this.viewModel.read(reader);
+			if (!vm) {
+				return;
+			}
+
+			this.editor.setModel(this.inputNumber === 1 ? vm.model.input1.textModel : vm.model.input2.textModel);
+
+			const title = this.inputNumber === 1
+				? vm.model.input1.title || localize('input1', 'Input 1')
+				: vm.model.input2.title || localize('input2', 'Input 2');
+
+			const description = this.inputNumber === 1
+				? vm.model.input1.description
+				: vm.model.input2.description;
+
+			const detail = this.inputNumber === 1
+				? vm.model.input1.detail
+				: vm.model.input2.detail;
+
+			reset(this.htmlElements.title, ...renderLabelWithIcons(title));
+			reset(this.htmlElements.description, ...(description ? renderLabelWithIcons(description) : []));
+			reset(this.htmlElements.detail, ...(detail ? renderLabelWithIcons(detail) : []));
+		}));
+
+
+		this._register(applyObservableDecorations(this.editor, this.decorations));
 	}
 
 	private readonly modifiedBaseRangeGutterItemInfos = derived(`input${this.inputNumber}.modifiedBaseRangeGutterItemInfos`, reader => {
@@ -73,141 +99,7 @@ export class InputCodeEditorView extends CodeEditorView {
 
 		return model.modifiedBaseRanges.read(reader)
 			.filter((r) => r.getInputDiffs(this.inputNumber).length > 0)
-			.map<ModifiedBaseRangeGutterItemInfo>((baseRange, idx) => ({
-				id: idx.toString(),
-				range: baseRange.getInputRange(this.inputNumber),
-				enabled: model.isUpToDate,
-				toggleState: derived('checkbox is checked', (reader) => {
-					const input = model
-						.getState(baseRange)
-						.read(reader)
-						.getInput(this.inputNumber);
-					return input === InputState.second && !baseRange.isOrderRelevant
-						? InputState.first
-						: input;
-				}
-				),
-				className: derived('checkbox classnames', (reader) => {
-					const classNames = [];
-					const active = viewModel.activeModifiedBaseRange.read(reader);
-					if (!model.hasBaseRange(baseRange)) {
-						return ''; // Invalid state, should only be observed temporarily
-					}
-					const isHandled = model.isHandled(baseRange).read(reader);
-					if (isHandled) {
-						classNames.push('handled');
-					}
-					if (baseRange === active) {
-						classNames.push('focused');
-					}
-					return classNames.join(' ');
-				}),
-				setState: (value, tx) => viewModel.setState(
-					baseRange,
-					model
-						.getState(baseRange)
-						.get()
-						.withInputValue(this.inputNumber, value),
-					tx
-				),
-				toggleBothSides() {
-					transaction(tx => {
-						/** @description Context Menu: toggle both sides */
-						const state = model
-							.getState(baseRange)
-							.get();
-						model.setState(
-							baseRange,
-							state
-								.toggle(inputNumber)
-								.toggle(inputNumber === 1 ? 2 : 1),
-							true,
-							tx
-						);
-					});
-				},
-				getContextMenuActions: () => {
-					const state = model.getState(baseRange).get();
-					const handled = model.isHandled(baseRange).get();
-
-					const update = (newState: ModifiedBaseRangeState) => {
-						transaction(tx => {
-							/** @description Context Menu: Update Base Range State */
-							return viewModel.setState(baseRange, newState, tx);
-						});
-					};
-
-					function action(id: string, label: string, targetState: ModifiedBaseRangeState, checked: boolean) {
-						const action = new Action(id, label, undefined, true, () => {
-							update(targetState);
-						});
-						action.checked = checked;
-						return action;
-					}
-					const both = state.input1 && state.input2;
-
-					return [
-						baseRange.input1Diffs.length > 0
-							? action(
-								'mergeEditor.acceptInput1',
-								localize('mergeEditor.accept', 'Accept {0}', model.input1.title),
-								state.toggle(1),
-								state.input1
-							)
-							: undefined,
-						baseRange.input2Diffs.length > 0
-							? action(
-								'mergeEditor.acceptInput2',
-								localize('mergeEditor.accept', 'Accept {0}', model.input2.title),
-								state.toggle(2),
-								state.input2
-							)
-							: undefined,
-						baseRange.isConflicting
-							? setFields(
-								action(
-									'mergeEditor.acceptBoth',
-									localize(
-										'mergeEditor.acceptBoth',
-										'Accept Both'
-									),
-									state.withInput1(!both).withInput2(!both),
-									both
-								),
-								{ enabled: baseRange.canBeCombined }
-							)
-							: undefined,
-						new Separator(),
-						baseRange.isConflicting
-							? setFields(
-								action(
-									'mergeEditor.swap',
-									localize('mergeEditor.swap', 'Swap'),
-									state.swap(),
-									false
-								),
-								{ enabled: !state.isEmpty && (!both || baseRange.isOrderRelevant) }
-							)
-							: undefined,
-
-						setFields(
-							new Action(
-								'mergeEditor.markAsHandled',
-								localize('mergeEditor.markAsHandled', 'Mark as Handled'),
-								undefined,
-								true,
-								() => {
-									transaction((tx) => {
-										/** @description Context Menu: Mark as handled */
-										model.setHandled(baseRange, !handled, tx);
-									});
-								}
-							),
-							{ checked: handled }
-						),
-					].filter(isDefined);
-				}
-			}));
+			.map((baseRange, idx) => new ModifiedBaseRangeGutterItemModel(idx.toString(), baseRange, inputNumber, viewModel));
 	});
 
 	private readonly decorations = derived(`input${this.inputNumber}.decorations`, reader => {
@@ -222,65 +114,66 @@ export class InputCodeEditorView extends CodeEditorView {
 		const result = new Array<IModelDeltaDecoration>();
 
 		for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
-
 			const range = modifiedBaseRange.getInputRange(this.inputNumber);
-			if (range && !range.isEmpty) {
-				const blockClassNames = ['merge-editor-block'];
-				const isHandled = model.isHandled(modifiedBaseRange).read(reader);
-				if (isHandled) {
-					blockClassNames.push('handled');
-				}
-				if (modifiedBaseRange === activeModifiedBaseRange) {
-					blockClassNames.push('focused');
-				}
-				if (modifiedBaseRange.isConflicting) {
-					blockClassNames.push('conflicting');
-				}
-				const inputClassName = this.inputNumber === 1 ? 'input1' : 'input2';
-				blockClassNames.push(inputClassName);
+			if (!range || !range.isEmpty) {
+				continue;
+			}
 
-				result.push({
-					range: range.toInclusiveRange()!,
-					options: {
-						isWholeLine: true,
-						blockClassName: blockClassNames.join(' '),
-						description: 'Merge Editor',
-						minimap: {
-							position: MinimapPosition.Gutter,
-							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
-						},
-						overviewRuler: modifiedBaseRange.isConflicting ? {
-							position: OverviewRulerLane.Center,
-							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
-						} : undefined
+			const blockClassNames = ['merge-editor-block'];
+			const isHandled = model.isHandled(modifiedBaseRange).read(reader);
+			if (isHandled) {
+				blockClassNames.push('handled');
+			}
+			if (modifiedBaseRange === activeModifiedBaseRange) {
+				blockClassNames.push('focused');
+			}
+			if (modifiedBaseRange.isConflicting) {
+				blockClassNames.push('conflicting');
+			}
+			const inputClassName = this.inputNumber === 1 ? 'input1' : 'input2';
+			blockClassNames.push(inputClassName);
+
+			result.push({
+				range: range.toInclusiveRange()!,
+				options: {
+					isWholeLine: true,
+					blockClassName: blockClassNames.join(' '),
+					description: 'Merge Editor',
+					minimap: {
+						position: MinimapPosition.Gutter,
+						color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
+					},
+					overviewRuler: modifiedBaseRange.isConflicting ? {
+						position: OverviewRulerLane.Center,
+						color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
+					} : undefined
+				}
+			});
+
+			if (modifiedBaseRange.isConflicting || !model.isHandled(modifiedBaseRange).read(reader)) {
+				const inputDiffs = modifiedBaseRange.getInputDiffs(this.inputNumber);
+				for (const diff of inputDiffs) {
+					const range = diff.outputRange.toInclusiveRange();
+					if (range) {
+						result.push({
+							range,
+							options: {
+								className: `merge-editor-diff ${inputClassName}`,
+								description: 'Merge Editor',
+								isWholeLine: true,
+							}
+						});
 					}
-				});
 
-				if (modifiedBaseRange.isConflicting || !model.isHandled(modifiedBaseRange).read(reader)) {
-					const inputDiffs = modifiedBaseRange.getInputDiffs(this.inputNumber);
-					for (const diff of inputDiffs) {
-						const range = diff.outputRange.toInclusiveRange();
-						if (range) {
+					if (diff.rangeMappings) {
+						for (const d of diff.rangeMappings) {
 							result.push({
-								range,
+								range: d.outputRange,
 								options: {
-									className: `merge-editor-diff ${inputClassName}`,
-									description: 'Merge Editor',
-									isWholeLine: true,
+									className: `merge-editor-diff-word ${inputClassName}`,
+									description: 'Merge Editor'
 								}
 							});
-						}
-
-						if (diff.rangeMappings) {
-							for (const d of diff.rangeMappings) {
-								result.push({
-									range: d.outputRange,
-									options: {
-										className: `merge-editor-diff-word ${inputClassName}`,
-										description: 'Merge Editor'
-									}
-								});
-							}
 						}
 					}
 				}
@@ -294,23 +187,159 @@ export class InputCodeEditorView extends CodeEditorView {
 	}
 }
 
-export interface ModifiedBaseRangeGutterItemInfo extends IGutterItemInfo {
-	enabled: IObservable<boolean>;
-	toggleState: IObservable<InputState>;
-	setState(value: boolean, tx: ITransaction): void;
-	toggleBothSides(): void;
-	getContextMenuActions(): readonly IAction[];
-	className: IObservable<string>;
+export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
+	private readonly model = this.viewModel.model;
+	public readonly range = this.baseRange.getInputRange(this.inputNumber);
+
+	constructor(
+		public readonly id: string,
+		private readonly baseRange: ModifiedBaseRange,
+		private readonly inputNumber: 1 | 2,
+		private readonly viewModel: MergeEditorViewModel
+	) {
+	}
+
+	public readonly enabled = this.model.isUpToDate;
+
+	public readonly toggleState: IObservable<InputState> = derived('checkbox is checked', (reader) => {
+		const input = this.model
+			.getState(this.baseRange)
+			.read(reader)
+			.getInput(this.inputNumber);
+		return input === InputState.second && !this.baseRange.isOrderRelevant
+			? InputState.first
+			: input;
+	});
+
+	public readonly state: IObservable<{ handled: boolean; focused: boolean }> = derived('checkbox state', (reader) => {
+		const active = this.viewModel.activeModifiedBaseRange.read(reader);
+		if (!this.model.hasBaseRange(this.baseRange)) {
+			return { handled: false, focused: false }; // Invalid state, should only be observed temporarily
+		}
+		return {
+			handled: this.model.isHandled(this.baseRange).read(reader),
+			focused: this.baseRange === active,
+		};
+	});
+
+	public setState(value: boolean, tx: ITransaction): void {
+		this.viewModel.setState(
+			this.baseRange,
+			this.model
+				.getState(this.baseRange)
+				.get()
+				.withInputValue(this.inputNumber, value),
+			tx
+		);
+	}
+	public toggleBothSides(): void {
+		transaction(tx => {
+			/** @description Context Menu: toggle both sides */
+			const state = this.model
+				.getState(this.baseRange)
+				.get();
+			this.model.setState(
+				this.baseRange,
+				state
+					.toggle(this.inputNumber)
+					.toggle(this.inputNumber === 1 ? 2 : 1),
+				true,
+				tx
+			);
+		});
+	}
+
+	public getContextMenuActions(): readonly IAction[] {
+		const state = this.model.getState(this.baseRange).get();
+		const handled = this.model.isHandled(this.baseRange).get();
+
+		const update = (newState: ModifiedBaseRangeState) => {
+			transaction(tx => {
+				/** @description Context Menu: Update Base Range State */
+				return this.viewModel.setState(this.baseRange, newState, tx);
+			});
+		};
+
+		function action(id: string, label: string, targetState: ModifiedBaseRangeState, checked: boolean) {
+			const action = new Action(id, label, undefined, true, () => {
+				update(targetState);
+			});
+			action.checked = checked;
+			return action;
+		}
+		const both = state.input1 && state.input2;
+
+		return [
+			this.baseRange.input1Diffs.length > 0
+				? action(
+					'mergeEditor.acceptInput1',
+					localize('mergeEditor.accept', 'Accept {0}', this.model.input1.title),
+					state.toggle(1),
+					state.input1
+				)
+				: undefined,
+			this.baseRange.input2Diffs.length > 0
+				? action(
+					'mergeEditor.acceptInput2',
+					localize('mergeEditor.accept', 'Accept {0}', this.model.input2.title),
+					state.toggle(2),
+					state.input2
+				)
+				: undefined,
+			this.baseRange.isConflicting
+				? setFields(
+					action(
+						'mergeEditor.acceptBoth',
+						localize(
+							'mergeEditor.acceptBoth',
+							'Accept Both'
+						),
+						state.withInput1(!both).withInput2(!both),
+						both
+					),
+					{ enabled: this.baseRange.canBeCombined }
+				)
+				: undefined,
+			new Separator(),
+			this.baseRange.isConflicting
+				? setFields(
+					action(
+						'mergeEditor.swap',
+						localize('mergeEditor.swap', 'Swap'),
+						state.swap(),
+						false
+					),
+					{ enabled: !state.isEmpty && (!both || this.baseRange.isOrderRelevant) }
+				)
+				: undefined,
+
+			setFields(
+				new Action(
+					'mergeEditor.markAsHandled',
+					localize('mergeEditor.markAsHandled', 'Mark as Handled'),
+					undefined,
+					true,
+					() => {
+						transaction((tx) => {
+							/** @description Context Menu: Mark as handled */
+							this.model.setHandled(this.baseRange, !handled, tx);
+						});
+					}
+				),
+				{ checked: handled }
+			),
+		].filter(isDefined);
+	}
 }
 
-export class MergeConflictGutterItemView extends Disposable implements IGutterItemView<ModifiedBaseRangeGutterItemInfo> {
-	private readonly item: ISettableObservable<ModifiedBaseRangeGutterItemInfo>;
+export class MergeConflictGutterItemView extends Disposable implements IGutterItemView<ModifiedBaseRangeGutterItemModel> {
+	private readonly item: ISettableObservable<ModifiedBaseRangeGutterItemModel>;
 
 	private readonly checkboxDiv: HTMLDivElement;
 	private readonly isMultiLine = observableValue('isMultiLine', false);
 
 	constructor(
-		item: ModifiedBaseRangeGutterItemInfo,
+		item: ModifiedBaseRangeGutterItemModel,
 		target: HTMLElement,
 		contextMenuService: IContextMenuService,
 		themeService: IThemeService
@@ -324,11 +353,12 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 			title: '',
 			icon: Codicon.check
 		});
+		checkBox.domNode.classList.add('accept-conflict-group');
 
 		this._register(attachToggleStyler(checkBox, themeService));
 
 		this._register(
-			dom.addDisposableListener(checkBox.domNode, dom.EventType.MOUSE_DOWN, (e) => {
+			addDisposableListener(checkBox.domNode, EventType.MOUSE_DOWN, (e) => {
 				const item = this.item.get();
 				if (!item) {
 					return;
@@ -351,8 +381,6 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 				}
 			})
 		);
-
-		checkBox.domNode.classList.add('accept-conflict-group');
 
 		this._register(
 			autorun('Update Checkbox', (reader) => {
@@ -378,14 +406,14 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 		);
 
 		this._register(autorun('Update Checkbox CSS ClassNames', (reader) => {
-			let className = this.item.read(reader).className.read(reader);
-			className += ' merge-accept-gutter-marker';
-			if (this.isMultiLine.read(reader)) {
-				className += ' multi-line';
-			} else {
-				className += ' single-line';
-			}
-			target.className = className;
+			const state = this.item.read(reader).state.read(reader);
+			const classNames = [
+				'merge-accept-gutter-marker',
+				state.handled && 'handled',
+				state.focused && 'focused',
+				this.isMultiLine.read(reader) ? 'multi-line' : 'single-line',
+			];
+			target.className = classNames.filter(c => typeof c === 'string').join(' ');
 		}));
 
 		this._register(checkBox.onChange(() => {
@@ -395,9 +423,9 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 			});
 		}));
 
-		target.appendChild(dom.h('div.background', [noBreakWhitespace]).root);
+		target.appendChild(h('div.background', [noBreakWhitespace]).root);
 		target.appendChild(
-			this.checkboxDiv = dom.h('div.checkbox', [dom.h('div.checkbox-background', [checkBox.domNode])]).root
+			this.checkboxDiv = h('div.checkbox', [h('div.checkbox-background', [checkBox.domNode])]).root
 		);
 	}
 
@@ -432,7 +460,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 		});
 	}
 
-	update(baseRange: ModifiedBaseRangeGutterItemInfo): void {
+	update(baseRange: ModifiedBaseRangeGutterItemModel): void {
 		transaction(tx => {
 			/** @description MergeConflictGutterItemView: Updating new base range */
 			this.item.set(baseRange, tx);

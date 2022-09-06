@@ -27,7 +27,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { Barrier } from 'vs/base/common/async';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { FileAccess } from 'vs/base/common/network';
+import { COI, FileAccess } from 'vs/base/common/network';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { parentOriginHash } from 'vs/workbench/browser/webview';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -86,9 +86,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		if (this._environmentService.debugExtensionHost && this._environmentService.debugRenderer) {
 			suffixSearchParams.set('debugged', '1');
 		}
-		if (globalThis.crossOriginIsolated) {
-			suffixSearchParams.set('vscode-coi', '3' /*COOP+COEP*/);
-		}
+		COI.addSearchParam(suffixSearchParams, true, true);
+
 		const suffix = `?${suffixSearchParams.toString()}`;
 
 		const iframeModulePath = 'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html';

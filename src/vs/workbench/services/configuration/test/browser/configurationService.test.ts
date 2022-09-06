@@ -10,7 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, keyFromOverrideIdentifiers } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditingService';
+import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -271,6 +271,7 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 		await testObject.initialize(getWorkspaceIdentifier(configResource));
 		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
 		instantiationService.stub(ITextModelService, disposables.add(instantiationService.createInstance(TextModelResolverService)));
+		instantiationService.stub(IJSONEditingService, instantiationService.createInstance(JSONEditingService));
 		testObject.acquireInstantiationService(instantiationService);
 	});
 
@@ -1636,10 +1637,11 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
 		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+		jsonEditingServce = instantiationService.createInstance(JSONEditingService);
+		instantiationService.stub(IJSONEditingService, jsonEditingServce);
 		workspaceService.acquireInstantiationService(instantiationService);
 
 		workspaceContextService = workspaceService;
-		jsonEditingServce = instantiationService.createInstance(JSONEditingService);
 		testObject = workspaceService;
 	});
 
@@ -2299,6 +2301,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		await testObject.initialize(convertToWorkspacePayload(folder));
 		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+		instantiationService.stub(IJSONEditingService, instantiationService.createInstance(JSONEditingService));
 		testObject.acquireInstantiationService(instantiationService);
 	}
 
