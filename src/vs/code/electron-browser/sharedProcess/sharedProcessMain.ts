@@ -258,17 +258,17 @@ class SharedProcessMain extends Disposable {
 		services.set(IRequestService, new SharedProcessRequestService(mainProcessService, configurationService, logService));
 
 		// Checksum
-		services.set(IChecksumService, new SyncDescriptor(ChecksumService, undefined, true));
+		services.set(IChecksumService, new SyncDescriptor(ChecksumService));
 
 		// V8 Inspect profiler
-		services.set(IV8InspectProfilingService, new SyncDescriptor(V8InspectProfilingService, undefined, true));
+		services.set(IV8InspectProfilingService, new SyncDescriptor(V8InspectProfilingService));
 
 		// Native Host
 		const nativeHostService = ProxyChannel.toService<INativeHostService>(mainProcessService.getChannel('nativeHost'), { context: this.configuration.windowId });
 		services.set(INativeHostService, nativeHostService);
 
 		// Download
-		services.set(IDownloadService, new SyncDescriptor(DownloadService, undefined, true));
+		services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
 		// Extension recommendations
 		const activeWindowManager = this._register(new ActiveWindowManager(nativeHostService));
@@ -323,7 +323,7 @@ class SharedProcessMain extends Disposable {
 		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService));
 
 		// Diagnostics
-		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService, undefined, true));
+		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 
 		// Settings Sync
 		services.set(IUserDataSyncAccountService, new SyncDescriptor(UserDataSyncAccountService, undefined, true));
@@ -354,11 +354,11 @@ class SharedProcessMain extends Disposable {
 		services.set(ILocalPtyService, this._register(ptyHostService));
 
 		// Signing
-		services.set(ISignService, new SyncDescriptor(SignService, undefined, true));
+		services.set(ISignService, new SyncDescriptor(SignService));
 
 		// Tunnel
-		services.set(ISharedTunnelsService, new SyncDescriptor(SharedTunnelsService, undefined, true));
-		services.set(ISharedProcessTunnelService, new SyncDescriptor(SharedProcessTunnelService, undefined, true));
+		services.set(ISharedTunnelsService, new SyncDescriptor(SharedTunnelsService));
+		services.set(ISharedProcessTunnelService, new SyncDescriptor(SharedProcessTunnelService));
 
 		return new InstantiationService(services);
 	}
