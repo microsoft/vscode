@@ -122,7 +122,7 @@ __vsc_preexec() {
 		# Use history if it's available to verify the command as BASH_COMMAND comes in with aliases
 		# resolved
 		if [ "$__vsc_history_verify" = "1" ]; then
-			__vsc_current_command="$(builtin history 1 | sed -r 's/ *[0-9]+ +//')"
+			__vsc_current_command="$(builtin history 1 | sed 's/ *[0-9]* *//')"
 		else
 			__vsc_current_command=$BASH_COMMAND
 		fi
