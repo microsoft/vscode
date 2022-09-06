@@ -58,7 +58,7 @@ suite('Links', () => {
 		return URI.file(resolve(__dirname, '../../test/linksTestFixtures', path)).toString(true);
 	}
 
-	test('url links', async function () {
+	test.skip('url links', async function () {
 
 		const testUri = getTestResource('about.css');
 		const folders = [{ name: 'x', uri: getTestResource('') }];
@@ -68,7 +68,7 @@ suite('Links', () => {
 		);
 	});
 
-	test('node module resolving', async function () {
+	test.skip('node module resolving', async function () {
 
 		const testUri = getTestResource('about.css');
 		const folders = [{ name: 'x', uri: getTestResource('') }];
@@ -78,7 +78,7 @@ suite('Links', () => {
 		);
 	});
 
-	test('node module subfolder resolving', async function () {
+	test.skip('node module subfolder resolving', async function () {
 
 		const testUri = getTestResource('subdir/about.css');
 		const folders = [{ name: 'x', uri: getTestResource('') }];
