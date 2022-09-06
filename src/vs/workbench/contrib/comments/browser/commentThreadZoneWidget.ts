@@ -25,6 +25,7 @@ import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/comme
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
+import { once } from 'vs/base/common/functional';
 
 export function getCommentThreadWidgetStateColor(thread: languages.CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
 	return getCommentThreadStateColor(thread, theme) ?? theme.getColor(peekViewBorder);
@@ -134,7 +135,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._commentOptions = controller.options;
 		}
 
-		this._isExpanded = _commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded;
+		this._isExpanded = _commentThread.initialCollapsibleState === languages.CommentThreadCollapsibleState.Expanded;
 		this._commentThreadDisposables = [];
 		this.create();
 
@@ -364,6 +365,20 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}));
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeCollapsibleState(state => {
+			if (state === languages.CommentThreadCollapsibleState.Expanded && !this._isExpanded) {
+				const lineNumber = this._commentThread.range.startLineNumber;
+
+				this.show({ lineNumber, column: 1 }, 2);
+				return;
+			}
+
+			if (state === languages.CommentThreadCollapsibleState.Collapsed && this._isExpanded) {
+				this.hide();
+				return;
+			}
+		}));
+
+		this._commentThreadDisposables.push(once(this._commentThread.onDidChangeInitialCollapsibleState)(state => {
 			if (state === languages.CommentThreadCollapsibleState.Expanded && !this._isExpanded) {
 				const lineNumber = this._commentThread.range.startLineNumber;
 
