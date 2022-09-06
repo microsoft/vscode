@@ -297,6 +297,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					// When run with --add, take the folders that are to be opened as
 					// folders that should be added to the currently active window.
 					foldersToAdd.push(path);
+					// Unset the profile so that it is not associated to the folder
+					path.profile = undefined;
 				} else {
 					foldersToOpen.push(path);
 				}
