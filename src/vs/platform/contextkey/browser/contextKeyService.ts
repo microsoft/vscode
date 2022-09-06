@@ -270,8 +270,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 	protected _isDisposed: boolean;
 	protected _myContextId: number;
 
-	protected _onDidChangeContext = new MicrotaskEmitter<IContextKeyChangeEvent>({ merge: input => new CompositeContextKeyChangeEvent(input), _profName: 'onDidChangeContextKey' });
-	// protected _onDidChangeContext = new PauseableEmitter<IContextKeyChangeEvent>({ merge: input => new CompositeContextKeyChangeEvent(input), _profName: 'onDidChangeContextKey' });
+	protected _onDidChangeContext = new MicrotaskEmitter<IContextKeyChangeEvent>({ merge: input => new CompositeContextKeyChangeEvent(input) });
 	readonly onDidChangeContext = this._onDidChangeContext.event;
 
 	constructor(myContextId: number) {
