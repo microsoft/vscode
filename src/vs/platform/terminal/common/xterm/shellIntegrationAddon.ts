@@ -375,19 +375,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				}
 			}
 			case VSCodeOscPt.SetMark: {
-				let hidden = false;
-				let id = undefined;
-				if (args[0]) {
-					if (args[0] === 'true') {
-						hidden = true;
-					} else {
-						// there's an ID
-						const [, _id, _hidden] = args[0].split(new RegExp('Id='));
-						id = _id;
-						hidden = _hidden === 'true';
-					}
+				if (args.length > 2) {
+					return false;
 				}
-				this._createOrGetBufferMarkDetection(this._terminal).addMark({ id, hidden });
+				this._createOrGetBufferMarkDetection(this._terminal).addMark(parseMarkSequence(args));
 				return true;
 			}
 		}
@@ -544,4 +535,19 @@ export function parseKeyValueAssignment(message: string): { key: string; value: 
 		key: deserialized.substring(0, separatorIndex),
 		value: deserialized.substring(1 + separatorIndex)
 	};
+}
+
+
+export function parseMarkSequence(sequence: string[]): { id?: string; hidden?: boolean } {
+	let id = undefined;
+	let hidden = false;
+	for (const property of sequence) {
+		if (property === 'true') {
+			hidden = true;
+		}
+		if (property.startsWith('Id=')) {
+			id = property.substring(3);
+		}
+	}
+	return { id, hidden };
 }

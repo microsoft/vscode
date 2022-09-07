@@ -65,7 +65,7 @@ suite('DecorationAddon', () => {
 		instantiationService.stub(ILogService, NullLogService);
 	});
 
-	suite.only('registerDecoration', async () => {
+	suite('registerDecoration', async () => {
 		test('should throw when command has no marker', async () => {
 			throws(() => decorationAddon.registerCommandDecoration({ command: 'cd src', timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand));
 		});
