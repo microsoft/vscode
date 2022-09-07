@@ -22,7 +22,7 @@ export const ShellExecutionSupportedContext = new RawContextKey<boolean>('shellE
 export const TaskCommandsRegistered = new RawContextKey<boolean>('taskCommandsRegistered', false, nls.localize('tasks.taskCommandsRegistered', "Whether the task commands have been registered yet"));
 export const ProcessExecutionSupportedContext = new RawContextKey<boolean>('processExecutionSupported', false, nls.localize('tasks.processExecutionSupported', "Whether ProcessExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
 export const ServerlessWebContext = new RawContextKey<boolean>('serverlessWebContext', false, nls.localize('tasks.serverlessWebContext', "True when in the web with no remote authority."));
-export const TaskExecutionSupportedContext = ContextKeyExpr.or((ContextKeyExpr.and(ShellExecutionSupportedContext, ProcessExecutionSupportedContext, ServerlessWebContext.toNegated()), (ContextKeyExpr.and(ServerlessWebContext, CustomExecutionSupportedContext))));
+export const TaskExecutionSupportedContext = ContextKeyExpr.or(ContextKeyExpr.and(ShellExecutionSupportedContext, ProcessExecutionSupportedContext), CustomExecutionSupportedContext);
 
 export const ITaskService = createDecorator<ITaskService>('taskService');
 

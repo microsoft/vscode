@@ -2770,7 +2770,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _trust(): Promise<boolean> {
-		if (!TaskExecutionSupportedContext) {
+		if (ServerlessWebContext && !TaskExecutionSupportedContext) {
 			return false;
 		}
 		await this._workspaceTrustManagementService.workspaceTrustInitialized;
