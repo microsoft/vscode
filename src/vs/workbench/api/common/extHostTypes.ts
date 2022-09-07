@@ -683,6 +683,7 @@ export interface IFileOperationOptions {
 	ignoreIfExists?: boolean;
 	ignoreIfNotExists?: boolean;
 	recursive?: boolean;
+	contents?: Uint8Array;
 }
 
 export const enum FileEditType {
@@ -752,7 +753,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		this._edits.push({ _type: FileEditType.File, from, to, options, metadata });
 	}
 
-	createFile(uri: vscode.Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	createFile(uri: vscode.Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean; contents?: Uint8Array }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: undefined, to: uri, options, metadata });
 	}
 
