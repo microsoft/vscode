@@ -50,7 +50,7 @@ export class Task {
 				await this.terminal.assertSingleTab({ color: expected[0].icon.color, icon: expected[0].icon.id || 'tools' });
 			}
 		}
-		await setTimeout(() => this.quickinput.closeQuickInput(), 500);
+		await this.quickinput.closeQuickInput();
 	}
 
 	async configureTask(properties: ITaskConfigurationProperties) {
