@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IMarkProperties, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
 
 interface IEvent<T, U = void> {
 	(listener: (arg1: T, arg2: U) => any): IDisposable;
@@ -229,4 +229,32 @@ export interface IXtermMarker {
 	onDispose: {
 		(listener: () => any): { dispose(): void };
 	};
+}
+
+export interface ISerializedCommand {
+	command: string;
+	cwd: string | undefined;
+	startLine: number | undefined;
+	startX: number | undefined;
+	endLine: number | undefined;
+	executedLine: number | undefined;
+	exitCode: number | undefined;
+	commandStartLineContent: string | undefined;
+	timestamp: number;
+	markProperties: IMarkProperties | undefined;
+}
+export interface IMarkProperties {
+	hoverMessage?: string;
+	disableCommandStorage?: boolean;
+	hidden?: boolean;
+	marker?: IMarker;
+	id?: string;
+}
+export interface ISerializedCommandDetectionCapability {
+	isWindowsPty: boolean;
+	commands: ISerializedCommand[];
+}
+export interface IPtyHostProcessReplayEvent {
+	events: ReplayEntry[];
+	commands: ISerializedCommandDetectionCapability;
 }

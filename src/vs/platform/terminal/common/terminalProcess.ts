@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { UriComponents } from 'vs/base/common/uri';
-import { IMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ISerializableEnvironmentVariableCollection, ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
 import { IFixedTerminalDimensions, IRawTerminalTabLayoutInfo, IReconnectionProperties, ITerminalEnvironment, ITerminalTabLayoutInfoById, TerminalIcon, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 
@@ -74,31 +73,4 @@ export interface ReplayEntry {
 	cols: number;
 	rows: number;
 	data: string;
-}
-export interface ISerializedCommand {
-	command: string;
-	cwd: string | undefined;
-	startLine: number | undefined;
-	startX: number | undefined;
-	endLine: number | undefined;
-	executedLine: number | undefined;
-	exitCode: number | undefined;
-	commandStartLineContent: string | undefined;
-	timestamp: number;
-	markProperties: IMarkProperties | undefined;
-}
-export interface IMarkProperties {
-	hoverMessage?: string;
-	disableCommandStorage?: boolean;
-	hidden?: boolean;
-	marker?: IMarker;
-	id?: string;
-}
-export interface ISerializedCommandDetectionCapability {
-	isWindowsPty: boolean;
-	commands: ISerializedCommand[];
-}
-export interface IPtyHostProcessReplayEvent {
-	events: ReplayEntry[];
-	commands: ISerializedCommandDetectionCapability;
 }
