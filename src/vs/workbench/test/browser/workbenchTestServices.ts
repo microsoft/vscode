@@ -2016,7 +2016,7 @@ export class TestUserDataProfileService implements IUserDataProfileService {
 
 export class TestWebExtensionsScannerService implements IWebExtensionsScannerService {
 	_serviceBrand: undefined;
-	onDidChangeProfileExtensions = Event.None;
+	onDidChangeProfile = Event.None;
 	async scanSystemExtensions(): Promise<IExtension[]> { return []; }
 	async scanUserExtensions(): Promise<IScannedExtension[]> { return []; }
 	async scanExtensionsUnderDevelopment(): Promise<IExtension[]> { return []; }

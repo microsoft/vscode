@@ -94,7 +94,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onDidInstallExtensions: didInstallEvent.event,
 			onUninstallExtension: uninstallEvent.event,
 			onDidUninstallExtension: didUninstallEvent.event,
-			onDidChangeProfileExtensions: Event.None,
+			onDidChangeProfile: Event.None,
 			async getInstalled() { return []; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {} }; },
 			async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata) {
