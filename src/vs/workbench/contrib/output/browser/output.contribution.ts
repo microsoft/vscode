@@ -273,6 +273,42 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: `workbench.action.showOutput`,
+			title: { value: nls.localize('showOutput', "Show Output..."), original: 'Show Output...' },
+			category: CATEGORIES.View,
+			menu: {
+				id: MenuId.CommandPalette,
+			},
+			description: {
+				description: '',
+				args: [{
+					name: 'preserveFocus',
+					schema: {
+						type: 'boolean'
+					}
+				}]
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor, preserveFocus = false): Promise<void> {
+		const outputService = accessor.get(IOutputService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		const entries: IOutputChannelQuickPickItem[] = outputService.getChannelDescriptors()
+			// filter out log outputs as we have commands for them
+			.filter(c => !(c.file && c.log))
+			.map(channel => (<IOutputChannelQuickPickItem>{ id: channel.id, label: channel.label, channel }));
+
+		const entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectOutputChannel', "Select Output Channel") });
+		if (entry) {
+			return outputService.showChannel(entry.channel.id, preserveFocus);
+		}
+	}
+});
+
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'output',
 	order: 30,
