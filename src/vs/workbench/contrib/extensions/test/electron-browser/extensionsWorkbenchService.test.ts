@@ -1479,7 +1479,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onDidInstallExtensions: Event.None,
 			onUninstallExtension: Event.None,
 			onDidUninstallExtension: Event.None,
-			onDidChangeProfileExtensions: Event.None,
+			onDidChangeProfile: Event.None,
 			getInstalled: () => Promise.resolve<ILocalExtension[]>(installed),
 			installFromGallery: (extension: IGalleryExtension) => Promise.reject(new Error('not supported')),
 			updateMetadata: async (local: ILocalExtension, metadata: IGalleryMetadata) => {

@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation, IProfileAwareExtensionManagementService, DidChangeProfileExtensionsEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation, IProfileAwareExtensionManagementService, DidChangeProfileEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
@@ -64,7 +64,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 					onDidInstallExtensions: new Emitter<readonly InstallExtensionResult[]>().event,
 					onUninstallExtension: new Emitter<UninstallExtensionEvent>().event,
 					onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event,
-					onDidChangeProfileExtensions: new Emitter<DidChangeProfileExtensionsEvent>().event,
+					onDidChangeProfile: new Emitter<DidChangeProfileEvent>().event,
 				},
 			}, null, null));
 		const extensionManagementService = instantiationService.createInstance(ExtensionManagementService);
@@ -117,7 +117,7 @@ suite('ExtensionEnablementService Test', () => {
 
 	const didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
 	const didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
-	const didChangeProfileExtensionsEvent = new Emitter<DidChangeProfileExtensionsEvent>();
+	const didChangeProfileExtensionsEvent = new Emitter<DidChangeProfileEvent>();
 	const installed: ILocalExtension[] = [];
 
 	setup(() => {
@@ -130,7 +130,7 @@ suite('ExtensionEnablementService Test', () => {
 			extensionManagementService: <IProfileAwareExtensionManagementService>{
 				onDidInstallExtensions: didInstallEvent.event,
 				onDidUninstallExtension: didUninstallEvent.event,
-				onDidChangeProfileExtensions: didChangeProfileExtensionsEvent.event,
+				onDidChangeProfile: didChangeProfileExtensionsEvent.event,
 				getInstalled: () => Promise.resolve(installed)
 			},
 		}, null, null));
