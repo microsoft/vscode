@@ -40,7 +40,7 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
 import { once } from 'vs/base/common/functional';
-import { VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { IDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
 
 export namespace Command {
 
@@ -1976,7 +1976,7 @@ export namespace DataTransferItem {
 						data: once(() => resolveFileData()),
 					};
 				}
-			}('');
+			}('', item.id);
 		} else {
 			return new types.DataTransferItem(item.asString);
 		}
@@ -1984,9 +1984,9 @@ export namespace DataTransferItem {
 }
 
 export namespace DataTransfer {
-	export function toDataTransfer(value: extHostProtocol.DataTransferDTO, resolveFileData: (dataItemIndex: number) => Promise<Uint8Array>): types.DataTransfer {
-		const init = value.items.map(([type, item], index) => {
-			return [type, DataTransferItem.toDataTransferItem(item, () => resolveFileData(index))] as const;
+	export function toDataTransfer(value: extHostProtocol.DataTransferDTO, resolveFileData: (itemId: string) => Promise<Uint8Array>): types.DataTransfer {
+		const init = value.items.map(([type, item]) => {
+			return [type, DataTransferItem.toDataTransferItem(item, () => resolveFileData(item.id))] as const;
 		});
 		return new types.DataTransfer(init);
 	}
@@ -1995,11 +1995,13 @@ export namespace DataTransfer {
 		const newDTO: extHostProtocol.DataTransferDTO = { items: [] };
 
 		const promises: Promise<any>[] = [];
+
 		value.forEach((value, key) => {
 			promises.push((async () => {
 				const stringValue = await value.asString();
 				const fileValue = value.asFile();
 				newDTO.items.push([key, {
+					id: (value as IDataTransferItem | types.DataTransferItem).id,
 					asString: stringValue,
 					fileData: fileValue ? { name: fileValue.name, uri: fileValue.uri } : undefined,
 				}]);

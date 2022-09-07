@@ -2562,7 +2562,14 @@ export class DataTransferItem {
 		return undefined;
 	}
 
-	constructor(public readonly value: any) { }
+	public readonly id: string;
+
+	constructor(
+		public readonly value: any,
+		id?: string,
+	) {
+		this.id = id ?? generateUuid();
+	}
 }
 
 @es5ClassCompat
