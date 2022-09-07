@@ -370,6 +370,11 @@
         "category": "Git"
       },
       {
+        "command": "git.mergeAbort",
+        "title": "%command.mergeAbort%",
+        "category": "Git"
+      },
+      {
         "command": "git.rebase",
         "title": "%command.rebase%",
         "category": "Git"
@@ -897,6 +902,10 @@
         {
           "command": "git.merge",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.mergeAbort",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && gitMergeInProgress"
         },
         {
           "command": "git.rebase",
