@@ -88,10 +88,12 @@ function renderHTML(outputInfo: OutputItem, container: HTMLElement, hooks: Itera
 }
 
 function renderJavascript(outputInfo: OutputItem, container: HTMLElement): void {
-	const str = outputInfo.text();
-	const scriptVal = `<script type="application/javascript">${str}</script>`;
+	const script = document.createElement('script');
+	script.type = 'module';
+	script.textContent = outputInfo.text();
+
 	const element = document.createElement('div');
-	const trustedHtml = ttPolicy?.createHTML(scriptVal) ?? scriptVal;
+	const trustedHtml = ttPolicy?.createHTML(script.outerHTML) ?? script.outerHTML;
 	element.innerHTML = trustedHtml as string;
 	container.appendChild(element);
 	domEval(element);
