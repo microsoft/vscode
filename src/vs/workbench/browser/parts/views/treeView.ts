@@ -284,8 +284,6 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			this.treeViewDnd.controller = this._dragAndDropController;
 		}
 
-		this._register(this.themeService.onDidFileIconThemeChange(() => this.tree?.rerender()));
-		this._register(this.themeService.onDidColorThemeChange(() => this.tree?.rerender()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('explorer.decorations')) {
 				this.doRefresh([this.root]); /** soft refresh **/
@@ -1032,6 +1030,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 	private _actionRunner: MultipleSelectionActionRunner | undefined;
 	private _hoverDelegate: IHoverDelegate;
+	private _hasCheckbox: boolean = false;
+	private _renderedElements = new Map<ITreeNode<ITreeItem, FuzzyScore>, ITreeExplorerTemplateData>();
 
 	constructor(
 		private treeViewId: string,
@@ -1052,6 +1052,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			showHover: (options: IHoverDelegateOptions) => this.hoverService.showHover(options),
 			delay: <number>this.configurationService.getValue('workbench.hover.delay')
 		};
+		this._register(this.themeService.onDidFileIconThemeChange(() => this.rerender()));
+		this._register(this.themeService.onDidColorThemeChange(() => this.rerender()));
 	}
 
 	get templateId(): string {
@@ -1204,10 +1206,32 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		this.setAlignment(templateData.container, node);
 		this.treeViewsService.addRenderedTreeItemElement(node, templateData.container);
 		disposableStore.add(toDisposable(() => this.treeViewsService.removeRenderedTreeItemElement(node)));
+
+		// remember rendered element
+		this._renderedElements.set(element, templateData);
+		disposableStore.add({ dispose: () => this._renderedElements.delete(element) });
+	}
+
+	private rerender() {
+		// As we add items to the map during this call we can't directly use the map in the for loop
+		// but have to create a copy of the keys first
+		const keys = new Set(this._renderedElements.keys());
+		for (const key of keys) {
+			const value = this._renderedElements.get(key);
+			if (value) {
+				this.disposeElement(key, 0, value);
+				this.renderElement(key, 0, value);
+			}
+		}
 	}
 
 	private renderCheckbox(node: ITreeItem, templateData: ITreeExplorerTemplateData, disposableStore: DisposableStore) {
 		if (node.checkboxChecked !== undefined) {
+			// The first time we find a checkbox we want to rerender the visible tree to adapt the alignment
+			if (!this._hasCheckbox) {
+				this._hasCheckbox = true;
+				this.rerender();
+			}
 			if (!templateData.checkbox) {
 				const checkbox = new TreeItemCheckbox(templateData.checkboxContainer, this.checkboxStateHandler, this.themeService);
 				templateData.checkbox = checkbox;
@@ -1222,7 +1246,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	private setAlignment(container: HTMLElement, treeItem: ITreeItem) {
-		container.parentElement!.classList.toggle('align-icon-with-twisty', this.aligner.alignIconWithTwisty(treeItem));
+		container.parentElement!.classList.toggle('align-icon-with-twisty', !this._hasCheckbox && this.aligner.alignIconWithTwisty(treeItem));
 	}
 
 	private shouldHideResourceLabelIcon(iconUrl: URI | undefined, icon: ThemeIcon | undefined): boolean {
@@ -1267,6 +1291,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 	disposeElement(resource: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
 		templateData.elementDisposable.dispose();
+		this._renderedElements.delete(resource);
 	}
 
 	disposeTemplate(templateData: ITreeExplorerTemplateData): void {
@@ -1278,11 +1303,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 class Aligner extends Disposable {
 	private _tree: WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore> | undefined;
-	private hasCheckboxes: boolean;
 
 	constructor(private themeService: IThemeService) {
 		super();
-		this.hasCheckboxes = false;
 	}
 
 	set tree(tree: WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>) {
@@ -1290,9 +1313,6 @@ class Aligner extends Disposable {
 	}
 
 	public alignIconWithTwisty(treeItem: ITreeItem): boolean {
-		if (this.hasCheckboxes) {
-			return false;
-		}
 		if (treeItem.collapsibleState !== TreeItemCollapsibleState.None) {
 			return false;
 		}
@@ -1301,12 +1321,6 @@ class Aligner extends Disposable {
 		}
 
 		if (this._tree) {
-			if (!this.hasCheckboxes && treeItem.checkboxChecked !== undefined) {
-				this.hasCheckboxes = true;
-				// TODO: rerender already rendered elements
-				this._tree.rerender();
-				return false;
-			}
 			const parent: ITreeItem = this._tree.getParentElement(treeItem) || this._tree.getInput();
 			if (this.hasIcon(parent)) {
 				return !!parent.children && parent.children.some(c => c.collapsibleState !== TreeItemCollapsibleState.None && !this.hasIcon(c));

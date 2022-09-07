@@ -180,8 +180,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _initialCwd: string | undefined = undefined;
 	private _layoutSettingsChanged: boolean = true;
 	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
-	private _titleReadyPromise: Promise<string>;
-	private _titleReadyComplete: ((title: string) => any) | undefined;
 	private _areLinksReady: boolean = false;
 	private _initialDataEvents: string[] | undefined = [];
 	private _containerReadyBarrier: AutoOpenBarrier;
@@ -282,7 +280,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get shellType(): TerminalShellType { return this._shellType; }
 	get os(): OperatingSystem | undefined { return this._processManager.os; }
 	get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
-	get isDisconnected(): boolean { return this._processManager.isDisconnected; }
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
 	get remoteAuthority(): string | undefined { return this._processManager.remoteAuthority; }
 	get hasFocus(): boolean { return this._wrapperElement.contains(document.activeElement) ?? false; }
@@ -394,9 +391,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._isDisposed = false;
 		this._instanceId = TerminalInstance._instanceIdCounter++;
 		this._hasHadInput = false;
-		this._titleReadyPromise = new Promise<string>(c => {
-			this._titleReadyComplete = c;
-		});
 		this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.rows;
 		this._fixedCols = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols;
 
@@ -451,7 +445,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(e => {
 					this._cwd = e;
 					this._xtermOnKey?.dispose();
-					this.refreshTabLabels(this.title, TitleEventSource.Config);
+					this._setTitle(this.title, TitleEventSource.Config);
 					this._scopedInstantiationService.invokeFunction(getDirectoryHistory)?.add(e, { remoteAuthority: this.remoteAuthority });
 				});
 			} else if (e === TerminalCapability.CommandDetection) {
@@ -477,7 +471,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// When a custom pty is used set the name immediately so it gets passed over to the exthost
 		// and is available when Pseudoterminal.open fires.
 		if (this.shellLaunchConfig.customPtyImplementation) {
-			this.refreshTabLabels(this._shellLaunchConfig.name, TitleEventSource.Api);
+			this._setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 		}
 
 		this.statusList = this._scopedInstantiationService.createInstance(TerminalStatusList);
@@ -510,7 +504,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Re-establish the title after reconnect
 			if (this.shellLaunchConfig.attachPersistentProcess) {
 				this._cwd = this.shellLaunchConfig.attachPersistentProcess.cwd;
-				this.refreshTabLabels(this.shellLaunchConfig.attachPersistentProcess.title, this.shellLaunchConfig.attachPersistentProcess.titleSource);
+				this._setTitle(this.shellLaunchConfig.attachPersistentProcess.title, this.shellLaunchConfig.attachPersistentProcess.titleSource);
 				this.setShellType(this.shellType);
 			}
 
@@ -593,10 +587,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return undefined;
 		}
 		return undefined;
-	}
-
-	addDisposable(disposable: IDisposable): void {
-		this._register(disposable);
 	}
 
 	private _initDimensions(): void {
@@ -781,7 +771,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._loadTypeAheadAddon(xterm);
 
-		this.addDisposable(this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.LocalEchoEnabled)) {
 				this._loadTypeAheadAddon(xterm);
 			}
@@ -1099,21 +1089,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	async copyLastCommandOutput(): Promise<void> {
-		const commands = this.capabilities.get(TerminalCapability.CommandDetection)?.commands;
-		if (!commands || commands.length === 0) {
-			return;
-		}
-		const command = commands[commands.length - 1];
-		if (!command?.hasOutput()) {
-			return;
-		}
-		const output = command.getOutput();
-		if (output) {
-			await this._clipboardService.writeText(output);
-		}
-	}
-
 	get selection(): string | undefined {
 		return this.xterm && this.hasSelection() ? this.xterm.raw.getSelection() : undefined;
 	}
@@ -1242,12 +1217,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			return;
 		}
-		const selection = window.getSelection();
-		if (!selection) {
-			return;
-		}
-		const text = selection.toString();
-		if (!text || force) {
+		if (force || !window.getSelection()?.toString()) {
 			this.xterm.raw.focus();
 		}
 	}
@@ -1391,7 +1361,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				});
 			}
 			if (this._shellLaunchConfig.name) {
-				this.refreshTabLabels(this._shellLaunchConfig.name, TitleEventSource.Api);
+				this._setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 			} else {
 				// Listen to xterm.js' sequence title change event, trigger this async to ensure
 				// _xtermReadyPromise is ready constructed since this is called from the ctor
@@ -1400,7 +1370,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						this._messageTitleDisposable = xterm.raw.onTitleChange(e => this._onTitleChange(e));
 					});
 				});
-				this.refreshTabLabels(this._shellLaunchConfig.executable, TitleEventSource.Process);
+				this._setTitle(this._shellLaunchConfig.executable, TitleEventSource.Process);
 			}
 		});
 		processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
@@ -1413,10 +1383,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				case ProcessPropertyType.InitialCwd:
 					this._initialCwd = value;
 					this._cwd = this._initialCwd;
-					this.refreshTabLabels(this.title, TitleEventSource.Config);
+					this._setTitle(this.title, TitleEventSource.Config);
 					break;
 				case ProcessPropertyType.Title:
-					this.refreshTabLabels(value ? value : '', TitleEventSource.Process);
+					this._setTitle(value ?? '', TitleEventSource.Process);
 					break;
 				case ProcessPropertyType.OverrideDimensions:
 					this.setOverrideDimensions(value, true);
@@ -1744,7 +1714,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _onTitleChange(title: string): void {
 		if (this.isTitleSetByProcess) {
-			this.refreshTabLabels(title, TitleEventSource.Sequence);
+			this._setTitle(title, TitleEventSource.Sequence);
 		}
 	}
 
@@ -1778,7 +1748,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		// reset cwd if it has changed, so file based url paths can be resolved
 		try {
-			const cwd = await this.refreshProperty(ProcessPropertyType.Cwd);
+			const cwd = await this._refreshProperty(ProcessPropertyType.Cwd);
 			if (typeof cwd !== 'string') {
 				throw new Error(`cwd is not a string ${cwd}`);
 			}
@@ -1881,7 +1851,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			if (cols !== this.xterm.raw.cols || rows !== this.xterm.raw.rows) {
 				if (this._fixedRows || this._fixedCols) {
-					await this.updateProperty(ProcessPropertyType.FixedDimensions, { cols: this._fixedCols, rows: this._fixedRows });
+					await this._updateProperty(ProcessPropertyType.FixedDimensions, { cols: this._fixedCols, rows: this._fixedRows });
 				}
 				this._onDimensionsChanged.fire();
 			}
@@ -1923,24 +1893,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				label += `\n${nls.localize('terminalNavigationMode', "Use {0} and {1} to navigate the terminal buffer", navigateUpKeybinding, navigateDownKeybinding)}`;
 			}
 			xterm.textarea.setAttribute('aria-label', label);
-		}
-	}
-
-	refreshTabLabels(title: string | undefined, eventSource: TitleEventSource): void {
-		const reset = !title;
-		title = this._updateTitleProperties(title, eventSource);
-		const titleChanged = title !== this._title;
-		this._title = title;
-		this._labelComputer?.refreshLabel(reset);
-		this._setAriaLabel(this.xterm?.raw, this._instanceId, this._title);
-
-		if (this._titleReadyComplete) {
-			this._titleReadyComplete(title);
-			this._titleReadyComplete = undefined;
-		}
-
-		if (titleChanged) {
-			this._onTitleChanged.fire(this);
 		}
 	}
 
@@ -1987,10 +1939,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this._titleSource = eventSource;
 		return title;
-	}
-
-	waitForTitle(): Promise<string> {
-		return this._titleReadyPromise;
 	}
 
 	setOverrideDimensions(dimensions: ITerminalDimensionsOverride | undefined, immediate: boolean = false): void {
@@ -2215,12 +2163,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return await this._processManager.getInitialCwd();
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {
+	private async _refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {
 		await this.processReady;
 		return this._processManager.refreshProperty(type);
 	}
 
-	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
+	private async _updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
 		return this._processManager.updateProperty(type, value);
 	}
 
@@ -2232,14 +2180,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._linkManager.registerExternalLinkProvider(provider.provideLinks.bind(provider, this));
 	}
 
-	async rename(title?: string | 'triggerQuickpick') {
-		if (title === 'triggerQuickpick') {
-			title = await this._quickInputService.input({
-				value: this.title,
-				prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
-			});
+	async rename(title?: string) {
+		this._setTitle(title, TitleEventSource.Api);
+	}
+
+	private _setTitle(title: string | undefined, eventSource: TitleEventSource): void {
+		const reset = !title;
+		title = this._updateTitleProperties(title, eventSource);
+		const titleChanged = title !== this._title;
+		this._title = title;
+		this._labelComputer?.refreshLabel(reset);
+		this._setAriaLabel(this.xterm?.raw, this._instanceId, this._title);
+
+		if (titleChanged) {
+			this._onTitleChanged.fire(this);
 		}
-		this.refreshTabLabels(title, TitleEventSource.Api);
 	}
 
 	async changeIcon() {
@@ -2479,7 +2434,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	}
 });
 
-export interface ITerminalLabelTemplateProperties {
+interface ITerminalLabelTemplateProperties {
 	cwd?: string | null | undefined;
 	cwdFolder?: string | null | undefined;
 	workspaceFolder?: string | null | undefined;
@@ -2500,7 +2455,7 @@ export class TerminalLabelComputer extends Disposable {
 	private _title: string = '';
 	private _description: string = '';
 	get title(): string | undefined { return this._title; }
-	get description(): string | undefined { return this._description; }
+	get description(): string { return this._description; }
 
 	private readonly _onDidChangeLabel = this._register(new Emitter<{ title: string; description: string }>());
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
@@ -2561,30 +2516,9 @@ export class TerminalLabelComputer extends Disposable {
 			}
 		}
 
-		//Remove special characters that could mess with rendering
+		// Remove special characters that could mess with rendering
 		const label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null }).replace(/[\n\r\t]/g, '').trim();
 		return label === '' && labelType === TerminalLabelType.Title ? (this._instance.processName || '') : label;
-	}
-
-	pathsEqual(path1?: string | null, path2?: string) {
-		if (!path1 && !path2) {
-			return true;
-		} else if (!path1 || !path2) {
-			return false;
-		} else if (path1 === path2) {
-			return true;
-		}
-		const split1 = path1.includes('/') ? path1.split('/') : path1.split('\\');
-		const split2 = path2.includes('/') ? path2.split('/') : path2.split('\\');
-		if (split1.length !== split2.length) {
-			return false;
-		}
-		for (let i = 0; i < split1.length; i++) {
-			if (split1[i] !== split2[i]) {
-				return false;
-			}
-		}
-		return true;
 	}
 }
 

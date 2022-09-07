@@ -1788,6 +1788,7 @@ export class TestTerminalEditorService implements ITerminalEditorService {
 	reviveInput(deserializedInput: IDeserializedTerminalEditorInput): TerminalEditorInput { throw new Error('Method not implemented.'); }
 	getInputFromResource(resource: URI): TerminalEditorInput { throw new Error('Method not implemented.'); }
 	setActiveInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	focusActiveInstance(): Promise<void> { throw new Error('Method not implemented.'); }
 	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined { throw new Error('Method not implemented.'); }
 	focusFindWidget(): void { throw new Error('Method not implemented.'); }
 	hideFindWidget(): void { throw new Error('Method not implemented.'); }
@@ -1831,6 +1832,7 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	focusTabs(): void { throw new Error('Method not implemented.'); }
 	showTabs(): void { throw new Error('Method not implemented.'); }
 	setActiveInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	focusActiveInstance(): Promise<void> { throw new Error('Method not implemented.'); }
 	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined { throw new Error('Method not implemented.'); }
 	focusFindWidget(): void { throw new Error('Method not implemented.'); }
 	hideFindWidget(): void { throw new Error('Method not implemented.'); }

@@ -25,7 +25,6 @@ import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/comme
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
-import { once } from 'vs/base/common/functional';
 
 export function getCommentThreadWidgetStateColor(thread: languages.CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
 	return getCommentThreadStateColor(thread, theme) ?? theme.getColor(peekViewBorder);
@@ -98,6 +97,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private readonly _onDidClose = new Emitter<ReviewZoneWidget | undefined>();
 	private readonly _onDidCreateThread = new Emitter<ReviewZoneWidget>();
 	private _isExpanded?: boolean;
+	private _initialCollapsibleState?: languages.CommentThreadCollapsibleState;
 	private _commentGlyph?: CommentGlyphWidget;
 	private readonly _globalToDispose = new DisposableStore();
 	private _commentThreadDisposables: IDisposable[] = [];
@@ -135,6 +135,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._commentOptions = controller.options;
 		}
 
+		this._initialCollapsibleState = _commentThread.initialCollapsibleState;
 		this._isExpanded = _commentThread.initialCollapsibleState === languages.CommentThreadCollapsibleState.Expanded;
 		this._commentThreadDisposables = [];
 		this.create();
@@ -378,19 +379,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 		}));
 
-		this._commentThreadDisposables.push(once(this._commentThread.onDidChangeInitialCollapsibleState)(state => {
-			if (state === languages.CommentThreadCollapsibleState.Expanded && !this._isExpanded) {
-				const lineNumber = this._commentThread.range.startLineNumber;
-
-				this.show({ lineNumber, column: 1 }, 2);
-				return;
-			}
-
-			if (state === languages.CommentThreadCollapsibleState.Collapsed && this._isExpanded) {
-				this.hide();
-				return;
-			}
-		}));
+		if (this._initialCollapsibleState === undefined) {
+			const onDidChangeInitialCollapsibleState = this._commentThread.onDidChangeInitialCollapsibleState(state => {
+				this._initialCollapsibleState = state;
+				this._commentThread.collapsibleState = state;
+				onDidChangeInitialCollapsibleState.dispose();
+			});
+			this._commentThreadDisposables.push(onDidChangeInitialCollapsibleState);
+		}
 
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeState(() => {

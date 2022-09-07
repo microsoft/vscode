@@ -296,7 +296,7 @@ function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean
 }
 
 
-export function findValidPasteFileTarget(explorerService: IExplorerService, targetFolder: ExplorerItem, fileToPaste: { resource: URI; isDirectory?: boolean; allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart'): URI {
+export function findValidPasteFileTarget(explorerService: IExplorerService, targetFolder: ExplorerItem, fileToPaste: { resource: URI; isDirectory?: boolean; allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart' | 'disabled'): URI {
 	let name = resources.basenameOrAuthority(fileToPaste.resource);
 
 	let candidate = resources.joinPath(targetFolder.resource, name);
@@ -305,7 +305,9 @@ export function findValidPasteFileTarget(explorerService: IExplorerService, targ
 			break;
 		}
 
-		name = incrementFileName(name, !!fileToPaste.isDirectory, incrementalNaming);
+		if (incrementalNaming !== 'disabled') {
+			name = incrementFileName(name, !!fileToPaste.isDirectory, incrementalNaming);
+		}
 		candidate = resources.joinPath(targetFolder.resource, name);
 	}
 
@@ -1004,6 +1006,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const context = explorerService.getContext(true);
 	const toPaste = resources.distinctParents(await clipboardService.readResources(), r => r);
 	const element = context.length ? context[0] : explorerService.roots[0];
+	const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
 
 	try {
 		// Check if target is ancestor of pasted folder
@@ -1022,8 +1025,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 				target = element.isDirectory ? element : element.parent!;
 			}
 
-			const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-			const targetFile = findValidPasteFileTarget(explorerService, target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove }, incrementalNaming);
+			const targetFile = findValidPasteFileTarget(explorerService, target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove || incrementalNaming === 'disabled' }, incrementalNaming);
 
 			return { source: fileToPaste, target: targetFile };
 		}));
@@ -1041,7 +1043,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 				};
 				await explorerService.applyBulkEdit(resourceFileEdits, options);
 			} else {
-				const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target, { copy: true }));
+				const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target, { copy: true, overwrite: incrementalNaming === 'disabled' }));
 				const undoLevel = configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo;
 				const options = {
 					confirmBeforeUndo: undoLevel === UndoConfirmLevel.Default || undoLevel === UndoConfirmLevel.Verbose,

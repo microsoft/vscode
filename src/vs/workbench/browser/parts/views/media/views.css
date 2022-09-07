@@ -111,6 +111,7 @@
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item {
 	display: flex;
+	align-items: center;
 	height: 22px;
 	line-height: 22px;
 	flex: 1;
