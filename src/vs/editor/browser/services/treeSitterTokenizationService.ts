@@ -48,6 +48,11 @@ class TreeSitterTokenizationService implements ITreeSitterTokenizationService {
 					this._modelTrees.push(new TreeSitterParseTree(model, this._language));
 				}
 			}));
+			this._disposableStore.add(_modelService.onModelLanguageChanged(({ model, oldLanguageId }) => {
+				if (model.getLanguageId() === 'typescript' && this._language) {
+					this._modelTrees.push(new TreeSitterParseTree(model, this._language));
+				}
+			}))
 			this._disposableStore.add(_modelService.onModelRemoved((model) => {
 				if (model.getLanguageId() === 'typescript') {
 					const treeSitterTreeToDispose = Iterable.find(this._modelTrees, tree => tree.id === model.id);

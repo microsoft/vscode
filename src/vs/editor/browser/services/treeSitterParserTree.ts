@@ -17,6 +17,7 @@ import Parser = require('web-tree-sitter');
 // ! KNOWN COLORIZATION PROBLEMS !
 // 1. for pairs where the value is an arrow function, the key should be yellow not blue
 
+// TODO: take into account the case when we remove instead of adding, be able to detect it (see how newEndPosition can be used for that)
 const mapWordToColor = new Map(Object.entries({
 	'comment': 33686849,
 	'other': 33588289,
@@ -62,8 +63,6 @@ export class TreeSitterParseTree {
 		this.id = this._model.id;
 		this._parser = new Parser();
 		this._parser.setLanguage(this._language);
-		// Note: time out of 10 milliseconds is 10000 microseconds
-		this._parser.setTimeoutMicros(10000);
 
 		this._captures = [];
 		this._matches = [];
@@ -75,24 +74,24 @@ export class TreeSitterParseTree {
 		this._timeoutForRender = 0;
 		this._startPositionRow = 0;
 		this._endPositionRow = this._model.getLineCount() - 1;
-
-		// 10 milliseconds for timeout
 		this.setTimeoutForRender(10);
 
 		// Note: Parse the tree at least once before adding a listener on the model content change event
 		this.parseTree().then((tree) => {
-
+			if (!tree) {
+				return;
+			}
 			this._tree = tree;
 			this.getCaptures();
 			this.setTokens().then(() => {
 				this._disposableStore.add(this._model.onDidChangeContent((e: IModelContentChangedEvent) => {
-					console.log('model content change event : ', e);
 					this._startPositionRow = Infinity;
 					this._endPositionRow = -Infinity;
 
 					const changes = e.changes;
 					for (const change of changes) {
 						const newEndPositionFromModel = this._model.getPositionAt(change.rangeOffset + change.text.length);
+						// TODO: console.log('newEndPositionFromModel : ', newEndPositionFromModel);
 						this._edits.push({
 							startPosition: { row: change.range.startLineNumber - 1, column: change.range.startColumn - 1 },
 							oldEndPosition: { row: change.range.endLineNumber - 1, column: change.range.endColumn - 1 },
@@ -105,16 +104,19 @@ export class TreeSitterParseTree {
 						if (change.range.startLineNumber - 1 < this._startPositionRow) {
 							this._startPositionRow = change.range.startLineNumber - 1;
 							this._beginningCaptureIndex = 0;
-							console.log('this._startPositionRow : ', this._startPositionRow);
+							//TODO: console.log('this._startPositionRow : ', this._startPositionRow);
 						};
 						if (change.range.endLineNumber - 1 > this._endPositionRow) {
 							this._endPositionRow = change.range.endLineNumber - 1;
-							console.log('this._endPositionRow : ', this._endPositionRow);
+							//TODO: console.log('this._endPositionRow : ', this._endPositionRow);
 						};
 					}
 					// Note: currently parsing on ever single content change event. The parse is asynchronous.
 					this.parseTree().then((tree) => {
 						// Note: once parsing is done we need to rerender the tokens
+						if (!tree) {
+							return;
+						}
 						this._tree = tree;
 						this.getCaptures();
 						this.setTokens();
@@ -147,7 +149,8 @@ export class TreeSitterParseTree {
 
 	private runParse(textModel: ITextModel, resolve: (value: Parser.Tree | PromiseLike<Parser.Tree>) => void, tree: Parser.Tree | undefined) {
 		runWhenIdle(
-			() => {
+			(arg) => {
+				this._parser.setTimeoutMicros(arg.timeRemaining() * 1000);
 				let result;
 				try {
 					result = this._parser.parse(
@@ -162,18 +165,36 @@ export class TreeSitterParseTree {
 					resolve(result);
 				}
 			},
-			10
+			1000 // the time after which to actually run the parse, here it is one second
 		);
 	}
 
-	public async parseTree(): Promise<Parser.Tree> {
-		const textModel = createTextModel('');
-		textModel.setValue(this._model.createSnapshot());
-		let that = this;
-		// constant tree during runParse
-		return new Promise(function (resolve, _reject) {
-			that.runParse(textModel, resolve, that.getTree());
-		})
+	public async parseTree(): Promise<Parser.Tree | void> {
+		let tree = this.getTree();
+		// Note: time out of 10 milliseconds is 10000 microseconds
+		this._parser.setTimeoutMicros(10000);
+		let result: Parser.Tree;
+		try {
+			result = this._parser.parse(
+				(startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) =>
+					this._retrieveTextAtPosition(this._model, startIndex, startPoint, endIndex),
+				tree
+			);
+			if (result) {
+				return new Promise(function (resolve, _reject) {
+					resolve(result);
+				})
+			}
+		} catch (error) {
+			this._parser.reset();
+			tree = this.getTree();
+			const textModel = createTextModel('');
+			textModel.setValue(this._model.createSnapshot());
+			let that = this;
+			return new Promise(function (resolve, _reject) {
+				that.runParse(textModel, resolve, tree);
+			})
+		}
 	}
 
 	public getCaptures() {
@@ -184,11 +205,14 @@ export class TreeSitterParseTree {
 		const query = this._language.query(contents);
 		this._captures = query.captures(this._tree.rootNode);
 		this._captureNames = query.captureNames;
+		// const testCaptures = this._captures.groupBy(capture => capture.node.startPosition.row);
+		// console.log('this._captures : ', testCaptures);
 
 		for (const captureName of this._captureNames) {
 			const syntaxNodes: Parser.SyntaxNode[] = this._captures.filter(node => node.name === captureName).map(capture => capture.node);
 			this._captureNameToNodeMap.set(captureName, syntaxNodes);
 		}
+		query.delete();
 	}
 
 	public setTokens(): Promise<boolean> {
@@ -206,7 +230,6 @@ export class TreeSitterParseTree {
 				try {
 					result = this.setTokensWhenIdle();
 				} catch (e) {
-					console.log('Error in runRender : ', e);
 					reject(e);
 					return;
 				}
