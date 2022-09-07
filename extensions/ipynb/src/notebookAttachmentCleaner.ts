@@ -4,74 +4,114 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { DebounceTrigger, objectEquals } from './helper';
 
+interface AttachmentCleanRequest {
+	notebook: vscode.NotebookDocument;
+	document: vscode.TextDocument;
+	cell: vscode.NotebookCell;
+}
 class AttachmentCleaner {
 
 	// FIXME: potentially just turn this into a map
 	attachmentCache:
 		{ [key: string/*uri*/]: { [key: string/*cellFragment*/]: { [key: string/*filename*/]: { [key: string/*mime*/]: string/*b64*/ } } } } = {};
 
+	private _disposables: vscode.Disposable[];
+	constructor() {
+		const debounceTrigger = new DebounceTrigger<AttachmentCleanRequest>({
+			callback: (change: AttachmentCleanRequest) => {
+				this.cleanNotebookAttachments(change);
+			},
+			delay: 500
+		});
+
+		this._disposables = [];
+
+		this._disposables.push(vscode.workspace.onDidChangeNotebookDocument(e => {
+			e.cellChanges.forEach(change => {
+				if (!change.document) {
+					return;
+				}
+
+				if (change.cell.kind !== vscode.NotebookCellKind.Markup) {
+					return;
+				}
+
+				debounceTrigger.trigger({
+					notebook: e.notebook,
+					cell: change.cell,
+					document: change.document
+				});
+			});
+		}));
+
+		this._disposables.push(vscode.workspace.onDidCloseNotebookDocument(e => {
+			this.deleteCacheUri(e);
+		}));
+
+		this._disposables.push(vscode.workspace.onDidRenameFiles(e => {
+			this.renameCacheUri(e);
+		}));
+
+	}
+
 	/**
 	 * take in a NotebookDocumentChangeEvent, and clean the attachment data for the cell(s) that have had their markdown source code changed
 	 * @param e NotebookDocumentChangeEvent from the onDidChangeNotebookDocument listener
 	 */
-	cleanNotebookAttachments(e: vscode.NotebookDocumentChangeEvent) {
+	private cleanNotebookAttachments(e: AttachmentCleanRequest) {
 		if (e.notebook.isClosed) {
 			return;
 		}
+		const document = e.document;
+		const cell = e.cell;
 
-		for (const currentChange of e.cellChanges) {
-			// undefined is a specific case including workspace edit etc
-			if (currentChange.document === undefined || currentChange.document.languageId !== 'markdown') { //document lang ID
-				continue;
-			}
+		const updateMetadata: { [key: string]: any } = { ...cell.metadata };
+		const cellFragment = cell.document.uri.fragment;
+		const notebookUri = e.notebook.uri.toString();
+		const mkdnSource = document?.getText();
 
-			const updateMetadata: { [key: string]: any } = { ...currentChange.cell.metadata };
-			const cellFragment = currentChange.cell.document.uri.fragment;
-			const notebookUri = e.notebook.uri.toString();
-			const mkdnSource = currentChange.document?.getText();
-
-			if (!mkdnSource) { // cell with 0 content
+		if (!mkdnSource) { // cell with 0 content
+			this.cacheAllImages(updateMetadata, notebookUri, cellFragment);
+		} else {
+			const markdownAttachments = this.getAttachmentNames(mkdnSource);
+			if (!markdownAttachments) {
 				this.cacheAllImages(updateMetadata, notebookUri, cellFragment);
-			} else {
-				const markdownAttachments = this.getAttachmentNames(mkdnSource);
-				if (!markdownAttachments) {
-					this.cacheAllImages(updateMetadata, notebookUri, cellFragment);
-				}
+			}
 
-				if (this.checkMetadataAttachments(updateMetadata)) {
-					for (const currFilename of Object.keys(updateMetadata.custom.attachments)) {
-						// means markdown reference is present in the metadata, rendering will work properly
-						// therefore, we don't need to check it in the next loop either
-						if (currFilename in markdownAttachments) {
-							markdownAttachments[currFilename] = true;
-						} else {
-							this.cacheAttachment(notebookUri, cellFragment, currFilename, updateMetadata);
-						}
+			if (this.checkMetadataAttachments(updateMetadata)) {
+				for (const currFilename of Object.keys(updateMetadata.custom.attachments)) {
+					// means markdown reference is present in the metadata, rendering will work properly
+					// therefore, we don't need to check it in the next loop either
+					if (currFilename in markdownAttachments) {
+						markdownAttachments[currFilename] = true;
+					} else {
+						this.cacheAttachment(notebookUri, cellFragment, currFilename, updateMetadata);
 					}
-				}
-
-				for (const currFilename of Object.keys(markdownAttachments)) {
-					// if image is addressed already --> continue, attachment will function as normal
-					if (markdownAttachments[currFilename]) {
-						continue;
-					}
-
-					// if image is referenced in mkdn && image is not in metadata -> check if image IS inside cache
-					if (this.checkCacheValidity(notebookUri, cellFragment) && Object.keys(this.attachmentCache[notebookUri][cellFragment]).includes(currFilename)) {
-						this.addImageToCellMetadata(notebookUri, cellFragment, currFilename, updateMetadata);
-					}
-					//TODO: ELSE: diagnostic squiggle, image not present
 				}
 			}
 
-			if (!this.equals(updateMetadata, currentChange.cell.metadata)) {
-				const metadataEdit = vscode.NotebookEdit.updateCellMetadata(currentChange.cell.index, updateMetadata);
-				const workspaceEdit = new vscode.WorkspaceEdit();
-				workspaceEdit.set(e.notebook.uri, [metadataEdit]);
-				vscode.workspace.applyEdit(workspaceEdit);
+			for (const currFilename of Object.keys(markdownAttachments)) {
+				// if image is addressed already --> continue, attachment will function as normal
+				if (markdownAttachments[currFilename]) {
+					continue;
+				}
+
+				// if image is referenced in mkdn && image is not in metadata -> check if image IS inside cache
+				if (this.checkCacheValidity(notebookUri, cellFragment) && Object.keys(this.attachmentCache[notebookUri][cellFragment]).includes(currFilename)) {
+					this.addImageToCellMetadata(notebookUri, cellFragment, currFilename, updateMetadata);
+				}
+				//TODO: ELSE: diagnostic squiggle, image not present
 			}
-		} // for loop of all changes
+		}
+
+		if (!objectEquals(updateMetadata, cell.metadata)) {
+			const metadataEdit = vscode.NotebookEdit.updateCellMetadata(cell.index, updateMetadata);
+			const workspaceEdit = new vscode.WorkspaceEdit();
+			workspaceEdit.set(e.notebook.uri, [metadataEdit]);
+			vscode.workspace.applyEdit(workspaceEdit);
+		}
 	}
 
 	/**
@@ -204,89 +244,8 @@ class AttachmentCleaner {
 		return filenames;
 	}
 
-	// from https://github.com/microsoft/vscode/blob/43ae27a30e7b5e8711bf6b218ee39872ed2b8ef6/src/vs/base/common/objects.ts#L117
-	private equals(one: any, other: any): boolean {
-		if (one === other) {
-			return true;
-		}
-		if (one === null || one === undefined || other === null || other === undefined) {
-			return false;
-		}
-		if (typeof one !== typeof other) {
-			return false;
-		}
-		if (typeof one !== 'object') {
-			return false;
-		}
-		if ((Array.isArray(one)) !== (Array.isArray(other))) {
-			return false;
-		}
-
-		let i: number;
-		let key: string;
-
-		if (Array.isArray(one)) {
-			if (one.length !== other.length) {
-				return false;
-			}
-			for (i = 0; i < one.length; i++) {
-				if (!this.equals(one[i], other[i])) {
-					return false;
-				}
-			}
-		} else {
-			const oneKeys: string[] = [];
-
-			for (key in one) {
-				oneKeys.push(key);
-			}
-			oneKeys.sort();
-			const otherKeys: string[] = [];
-			for (key in other) {
-				otherKeys.push(key);
-			}
-			otherKeys.sort();
-			if (!this.equals(oneKeys, otherKeys)) {
-				return false;
-			}
-			for (i = 0; i < oneKeys.length; i++) {
-				if (!this.equals(one[oneKeys[i]], other[oneKeys[i]])) {
-					return false;
-				}
-			}
-		}
-		return true;
-	}
-}
-
-class DelayedTrigger implements vscode.Disposable {
-	private timerId: NodeJS.Timeout | undefined;
-
-	/**
-	 * Delay calling the function in callback for a predefined amount of time.
-	 * @param callback : Callback that should be called after some time has passed.
-	 * @param ms : Amount of time after the last trigger that the call to callback
-	 *             should be delayed.
-	 */
-	constructor(
-		private readonly callback: (...args: any[]) => void,
-		private readonly ms: number,
-	) { }
-
-	public trigger(...args: unknown[]): void {
-		if (this.timerId) {
-			clearTimeout(this.timerId);
-		}
-
-		this.timerId = setTimeout(() => {
-			this.callback(...args);
-		}, this.ms);
-	}
-
-	public dispose(): void {
-		if (this.timerId) {
-			clearTimeout(this.timerId);
-		}
+	dispose() {
+		this._disposables.forEach(d => d.dispose());
 	}
 }
 
@@ -298,31 +257,5 @@ export function notebookAttachmentCleanerSetup(context: vscode.ExtensionContext)
 	}
 
 	const cleaner = new AttachmentCleaner();
-	// const changeList: (vscode.NotebookDocumentChangeEvent|vscode.NotebookDocument)[] = [];
-
-	const delayTrigger = new DelayedTrigger(
-		(e) => {
-			cleaner.cleanNotebookAttachments(e);
-			// for(const change in changeList){
-			// 	if ( typeof change === ){
-
-			// 	}
-			// }
-		},
-		500
-	);
-
-	context.subscriptions.push(vscode.workspace.onDidChangeNotebookDocument(e => {
-		// changeList.push(e);
-		delayTrigger.trigger(e);
-	}));
-
-	context.subscriptions.push(vscode.workspace.onDidCloseNotebookDocument(e => {
-		// changeList.push(e);
-		cleaner.deleteCacheUri(e);
-	}));
-
-	context.subscriptions.push(vscode.workspace.onDidRenameFiles(e => {
-		cleaner.renameCacheUri(e);
-	}));
+	context.subscriptions.push(cleaner);
 }
