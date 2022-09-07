@@ -76,7 +76,9 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	}
 
 	private _resetNavigationDecorations() {
-		dispose(this._navigationDecorations);
+		if (this._navigationDecorations) {
+			dispose(this._navigationDecorations);
+		}
 		this._navigationDecorations = [];
 	}
 

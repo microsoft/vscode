@@ -230,14 +230,14 @@ suite('ShellIntegrationAddon', () => {
 			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
 			await writeP(xterm, 'foo');
 			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
-			await writeP(xterm, '\x1b]633;SetMark;;true\x07');
+			await writeP(xterm, '\x1b]633;SetMark;;Hidden\x07');
 			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), true);
 		});
 		test('SetMark - hidden & ID', async () => {
 			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
 			await writeP(xterm, 'foo');
 			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
-			await writeP(xterm, '\x1b]633;SetMark;1;true\x07');
+			await writeP(xterm, '\x1b]633;SetMark;1;Hidden\x07');
 			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), true);
 		});
 		test('SetMark - invalid', async () => {
@@ -255,10 +255,10 @@ suite('ShellIntegrationAddon', () => {
 				deepEqual(parseMarkSequence(['Id=3', '']), { id: "3", hidden: false });
 			});
 			test('hidden', async () => {
-				deepEqual(parseMarkSequence(['', 'true']), { id: undefined, hidden: true });
+				deepEqual(parseMarkSequence(['', 'Hidden']), { id: undefined, hidden: true });
 			});
 			test('ID + hidden', async () => {
-				deepEqual(parseMarkSequence(['Id=4555', 'true']), { id: "4555", hidden: true });
+				deepEqual(parseMarkSequence(['Id=4555', 'Hidden']), { id: "4555", hidden: true });
 			});
 		});
 	});

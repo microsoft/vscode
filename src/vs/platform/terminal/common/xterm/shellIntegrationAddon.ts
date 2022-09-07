@@ -540,7 +540,7 @@ export function parseMarkSequence(sequence: string[]): { id?: string; hidden?: b
 	let id = undefined;
 	let hidden = false;
 	for (const property of sequence) {
-		if (property === 'true') {
+		if (property === 'Hidden') {
 			hidden = true;
 		}
 		if (property.startsWith('Id=')) {
