@@ -24,10 +24,13 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { isWeb } from 'vs/base/common/platform';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Codicon } from 'vs/base/common/codicons';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
 
+const configureContinueOnPreference = { iconClass: Codicon.settingsGear.classNames, tooltip: localize('configure continue on', 'Configure this preference in settings') };
 export class EditSessionsWorkbenchService extends Disposable implements IEditSessionsStorageService {
 
 	_serviceBrand = undefined;
@@ -58,6 +61,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		@IRequestService private readonly requestService: IRequestService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 
@@ -253,6 +257,12 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 				quickpick.hide();
 			});
 
+			quickpick.onDidTriggerItemButton(async (e) => {
+				if (e.button.tooltip === configureContinueOnPreference.tooltip) {
+					await this.commandService.executeCommand('workbench.action.openSettings', 'workbench.experimental.editSessions.continueOn');
+				}
+			});
+
 			quickpick.show();
 		});
 	}
@@ -276,7 +286,11 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 
 		if (fromContinueOn) {
-			return options.concat([{ type: 'separator' }, { label: localize('continue without', 'Continue without my working changes'), canceledAuthentication: true }]);
+			return options.concat([{ type: 'separator' }, {
+				label: localize('continue without', 'Continue without my working changes'),
+				canceledAuthentication: true,
+				buttons: [configureContinueOnPreference]
+			}]);
 		}
 
 		return options;
