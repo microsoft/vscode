@@ -4,9 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Token = require('markdown-it/lib/token');
+import * as vscode from 'vscode';
 import { RequestType } from 'vscode-languageclient';
 import type * as lsp from 'vscode-languageserver-types';
 import type * as md from 'vscode-markdown-languageservice';
+
+
+export type ResolvedDocumentLinkTarget =
+	| { readonly kind: 'file'; readonly uri: vscode.Uri; position?: lsp.Position; fragment?: string }
+	| { readonly kind: 'folder'; readonly uri: vscode.Uri }
+	| { readonly kind: 'external'; readonly uri: vscode.Uri };
 
 //#region From server
 export const parse = new RequestType<{ uri: string }, Token[], any>('markdown/parse');
@@ -26,4 +33,6 @@ export const getReferencesToFileInWorkspace = new RequestType<{ uri: string }, l
 export const getEditForFileRenames = new RequestType<Array<{ oldUri: string; newUri: string }>, lsp.WorkspaceEdit, any>('markdown/getEditForFileRenames');
 
 export const fs_watcher_onChange = new RequestType<{ id: number; uri: string; kind: 'create' | 'change' | 'delete' }, void, any>('markdown/fs/watcher/onChange');
+
+export const resolveLinkTarget = new RequestType<{ linkText: string; uri: string }, ResolvedDocumentLinkTarget, any>('markdown/resolveLinkTarget');
 //#endregion

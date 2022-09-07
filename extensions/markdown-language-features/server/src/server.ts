@@ -207,6 +207,10 @@ export async function startServer(connection: Connection) {
 		return mdLs!.getRenameFilesInWorkspaceEdit(params.map(x => ({ oldUri: URI.parse(x.oldUri), newUri: URI.parse(x.newUri) })), token);
 	}));
 
+	connection.onRequest(protocol.resolveLinkTarget, (async (params, token: CancellationToken) => {
+		return mdLs!.resolveLinkTarget(params.linkText, URI.parse(params.uri), token);
+	}));
+
 	documents.listen(connection);
 	notebooks.listen(connection);
 	connection.listen();
