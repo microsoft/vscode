@@ -55,38 +55,40 @@ export class BaseCodeEditorView extends CodeEditorView {
 
 		const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
 
-		const result = new Array<IModelDeltaDecoration>();
+		const result: IModelDeltaDecoration[] = [];
 		for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
 
 			const range = modifiedBaseRange.baseRange;
-			if (range && !range.isEmpty) {
-				const blockClassNames = ['merge-editor-block'];
-				const isHandled = model.isHandled(modifiedBaseRange).read(reader);
-				if (isHandled) {
-					blockClassNames.push('handled');
-				}
-				if (modifiedBaseRange === activeModifiedBaseRange) {
-					blockClassNames.push('focused');
-				}
-				blockClassNames.push('base');
-
-				result.push({
-					range: range.toInclusiveRange()!,
-					options: {
-						isWholeLine: true,
-						blockClassName: blockClassNames.join(' '),
-						description: 'Merge Editor',
-						minimap: {
-							position: MinimapPosition.Gutter,
-							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
-						},
-						overviewRuler: modifiedBaseRange.isConflicting ? {
-							position: OverviewRulerLane.Center,
-							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
-						} : undefined
-					}
-				});
+			if (!range) {
+				continue;
 			}
+
+			const blockClassNames = ['merge-editor-block'];
+			const isHandled = model.isHandled(modifiedBaseRange).read(reader);
+			if (isHandled) {
+				blockClassNames.push('handled');
+			}
+			if (modifiedBaseRange === activeModifiedBaseRange) {
+				blockClassNames.push('focused');
+			}
+			blockClassNames.push('base');
+
+			result.push({
+				range: range.toInclusiveRangeOrEmpty(),
+				options: {
+					showIfCollapsed: true,
+					blockClassName: blockClassNames.join(' '),
+					description: 'Merge Editor',
+					minimap: {
+						position: MinimapPosition.Gutter,
+						color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
+					},
+					overviewRuler: modifiedBaseRange.isConflicting ? {
+						position: OverviewRulerLane.Center,
+						color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
+					} : undefined
+				}
+			});
 		}
 		return result;
 	});
