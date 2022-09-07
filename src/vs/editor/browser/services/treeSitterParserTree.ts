@@ -13,10 +13,10 @@ import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import Parser = require('web-tree-sitter');
+import { FileAccess } from 'vs/base/common/network';
 
 // ! KNOWN COLORIZATION PROBLEMS !
 // 1. for pairs where the value is an arrow function, the key should be yellow not blue
-
 // TODO: take into account the case when we remove instead of adding, be able to detect it (see how newEndPosition can be used for that)
 const mapWordToColor = new Map(Object.entries({
 	'comment': 33686849,
@@ -38,7 +38,6 @@ const exceptions = {
 }
 
 export class TreeSitterParseTree {
-
 	private readonly _parser: Parser;
 	private _tree: Parser.Tree | undefined;
 	private readonly _disposableStore: DisposableStore = new DisposableStore();
@@ -131,12 +130,17 @@ export class TreeSitterParseTree {
 	}
 
 	public getMatches() {
-		if (!this._tree) {
-			return;
-		}
-		const contents = readFileSync(__dirname + '\\..\\..\\..\\..\\..\\src\\vs\\editor\\browser\\services\\tokens.scm', { encoding: 'utf8' });
-		const query = this._language.query(contents);
-		this._matches = query.matches(this._tree.rootNode);
+		const uriString = FileAccess.asBrowserUri(`./tokens.scm`, require).toString(true);
+		fetch(uriString).then((response) => {
+			response.text().then((content) => {
+				if (!this._tree) {
+					return;
+				}
+				const query = this._language.query(content);
+				this._matches = query.matches(this._tree.rootNode);
+				query.delete();
+			})
+		})
 	}
 
 	public getTree() {
@@ -198,21 +202,23 @@ export class TreeSitterParseTree {
 	}
 
 	public getCaptures() {
-		if (!this._tree) {
-			return;
-		}
-		const contents = readFileSync(__dirname + '\\..\\..\\..\\..\\..\\src\\vs\\editor\\browser\\services\\tokens.scm', { encoding: 'utf8' });
-		const query = this._language.query(contents);
-		this._captures = query.captures(this._tree.rootNode);
-		this._captureNames = query.captureNames;
-		// const testCaptures = this._captures.groupBy(capture => capture.node.startPosition.row);
-		// console.log('this._captures : ', testCaptures);
+		const uriString = FileAccess.asBrowserUri(`./tokens.scm`, require).toString(true);
+		fetch(uriString).then((response) => {
+			response.text().then((content) => {
+				if (!this._tree) {
+					return;
+				}
+				const query = this._language.query(content);
+				this._captures = query.captures(this._tree.rootNode);
+				this._captureNames = query.captureNames;
 
-		for (const captureName of this._captureNames) {
-			const syntaxNodes: Parser.SyntaxNode[] = this._captures.filter(node => node.name === captureName).map(capture => capture.node);
-			this._captureNameToNodeMap.set(captureName, syntaxNodes);
-		}
-		query.delete();
+				for (const captureName of this._captureNames) {
+					const syntaxNodes: Parser.SyntaxNode[] = this._captures.filter(node => node.name === captureName).map(capture => capture.node);
+					this._captureNameToNodeMap.set(captureName, syntaxNodes);
+				}
+				query.delete();
+			})
+		})
 	}
 
 	public setTokens(): Promise<boolean> {
