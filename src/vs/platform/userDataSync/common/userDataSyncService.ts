@@ -19,6 +19,7 @@ import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensionsSync';
 import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
 import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
@@ -71,7 +72,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _onDidResetRemote = this._register(new Emitter<void>());
 	readonly onDidResetRemote = this._onDidResetRemote.event;
 
-	private readonly synchronizers = this._register(new MutableDisposable<Synchronizers>());
+	private readonly defaultProfileSynchronizer = this._register(new MutableDisposable<ProfileSynchronizer>());
 
 	constructor(
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
@@ -371,8 +372,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	async resetLocal(): Promise<void> {
 		this.checkEnablement();
 		this.storageService.remove(LAST_SYNC_TIME_KEY, StorageScope.APPLICATION);
-		if (this.synchronizers.value) {
-			for (const synchroniser of this.synchronizers.value.enabled) {
+		if (this.defaultProfileSynchronizer.value) {
+			for (const synchroniser of this.defaultProfileSynchronizer.value.enabled) {
 				try {
 					await synchroniser.resetLocal();
 				} catch (e) {
@@ -380,7 +381,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 					this.logService.error(e);
 				}
 			}
-			this.synchronizers.value = undefined;
+			this.defaultProfileSynchronizer.value = undefined;
 		}
 		this._onDidResetLocal.fire();
 		this.logService.info('Did reset the local sync state.');
@@ -389,8 +390,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private async performSynchronizerAction<T>(action: (synchroniser: IUserDataSynchroniser) => Promise<T | undefined>): Promise<T | null> {
 		const disposables = new DisposableStore();
 		try {
-			const synchronizers = this.synchronizers.value || disposables.add(this.instantiationService.createInstance(Synchronizers, () => { }, () => { }, () => { }));
-			const allSynchronizers = [...synchronizers.enabled, ...synchronizers.disabled.map(syncResource => disposables.add(synchronizers.createSynchronizer(syncResource)))];
+			const defaultProfileSynchronizer = this.defaultProfileSynchronizer.value || disposables.add(this.instantiationService.createInstance(DefaultProfileSynchronizer, () => { }, () => { }, () => { }));
+			const allSynchronizers = [...defaultProfileSynchronizer.enabled, ...defaultProfileSynchronizer.disabled.map(syncResource => disposables.add(defaultProfileSynchronizer.createSynchronizer(syncResource)))];
 			for (const synchronizer of allSynchronizers) {
 				const result = await action(synchronizer);
 				if (!isUndefined(result)) {
@@ -467,10 +468,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	getEnabledSynchronizers(): IUserDataSynchroniser[] {
-		if (!this.synchronizers.value) {
-			this.synchronizers.value = this.instantiationService.createInstance(Synchronizers, synchronizers => this.updateStatus(synchronizers), synchronizers => this.updateConflicts(synchronizers), syncResource => this._onDidChangeLocal.fire(syncResource));
+		if (!this.defaultProfileSynchronizer.value) {
+			this.defaultProfileSynchronizer.value = this.instantiationService.createInstance(DefaultProfileSynchronizer, synchronizers => this.updateStatus(synchronizers), synchronizers => this.updateConflicts(synchronizers), syncResource => this._onDidChangeLocal.fire(syncResource));
 		}
-		return this.synchronizers.value.enabled;
+		return this.defaultProfileSynchronizer.value.enabled;
 	}
 
 	private checkEnablement(): void {
@@ -812,7 +813,7 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 
 }
 
-class Synchronizers extends Disposable {
+class ProfileSynchronizer extends Disposable {
 
 	private _enabled: [IUserDataSynchroniser, number, IDisposable][] = [];
 	get enabled(): IUserDataSynchroniser[] { return this._enabled.sort((a, b) => a[1] - b[1]).map(([synchronizer]) => synchronizer); }
@@ -820,6 +821,7 @@ class Synchronizers extends Disposable {
 	get disabled(): SyncResource[] { return ALL_SYNC_RESOURCES.filter(syncResource => !this.userDataSyncEnablementService.isResourceEnabled(syncResource)); }
 
 	constructor(
+		protected profile: IUserDataProfile,
 		private onDidChangeStatus: (synchronizers: IUserDataSynchroniser[]) => void,
 		private onDidChangeConflicts: (synchronizers: IUserDataSynchroniser[]) => void,
 		private onDidChangeLocal: (syncResource: SyncResource) => void,
@@ -846,7 +848,7 @@ class Synchronizers extends Disposable {
 		}
 	}
 
-	private registerSynchronizer(syncResource: SyncResource): void {
+	protected registerSynchronizer(syncResource: SyncResource): void {
 		if (this._enabled.some(([synchronizer]) => synchronizer.resource === syncResource)) {
 			return;
 		}
@@ -863,7 +865,7 @@ class Synchronizers extends Disposable {
 		this._enabled.push([synchronizer, order, disposables]);
 	}
 
-	private deRegisterSynchronizer(syncResource: SyncResource): void {
+	protected deRegisterSynchronizer(syncResource: SyncResource): void {
 		const index = this._enabled.findIndex(([synchronizer]) => synchronizer.resource === syncResource);
 		if (index !== -1) {
 			const removed = this._enabled.splice(index, 1);
@@ -883,12 +885,12 @@ class Synchronizers extends Disposable {
 
 	createSynchronizer(syncResource: SyncResource): IUserDataSynchroniser & IDisposable {
 		switch (syncResource) {
-			case SyncResource.Settings: return this.instantiationService.createInstance(SettingsSynchroniser);
-			case SyncResource.Keybindings: return this.instantiationService.createInstance(KeybindingsSynchroniser);
-			case SyncResource.Snippets: return this.instantiationService.createInstance(SnippetsSynchroniser);
-			case SyncResource.Tasks: return this.instantiationService.createInstance(TasksSynchroniser);
+			case SyncResource.Settings: return this.instantiationService.createInstance(SettingsSynchroniser, this.profile.settingsResource);
+			case SyncResource.Keybindings: return this.instantiationService.createInstance(KeybindingsSynchroniser, this.profile.keybindingsResource);
+			case SyncResource.Snippets: return this.instantiationService.createInstance(SnippetsSynchroniser, this.profile.snippetsHome);
+			case SyncResource.Tasks: return this.instantiationService.createInstance(TasksSynchroniser, this.profile.tasksResource);
 			case SyncResource.GlobalState: return this.instantiationService.createInstance(GlobalStateSynchroniser);
-			case SyncResource.Extensions: return this.instantiationService.createInstance(ExtensionsSynchroniser);
+			case SyncResource.Extensions: return this.instantiationService.createInstance(ExtensionsSynchroniser, this.profile.extensionsResource);
 		}
 	}
 
@@ -901,6 +903,31 @@ class Synchronizers extends Disposable {
 			case SyncResource.GlobalState: return 4;
 			case SyncResource.Extensions: return 5;
 		}
+	}
+
+}
+
+class DefaultProfileSynchronizer extends ProfileSynchronizer {
+
+	constructor(
+		onDidChangeStatus: (synchronizers: IUserDataSynchroniser[]) => void,
+		onDidChangeConflicts: (synchronizers: IUserDataSynchroniser[]) => void,
+		onDidChangeLocal: (syncResource: SyncResource) => void,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
+		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+	) {
+		super(userDataProfilesService.defaultProfile, onDidChangeStatus, onDidChangeConflicts, onDidChangeLocal, userDataSyncEnablementService, instantiationService, extensionGalleryService, logService);
+		this._register(userDataProfilesService.onDidChangeProfiles(() => {
+			if ((userDataProfilesService.defaultProfile.extensionsResource && !this.profile.extensionsResource) ||
+				(!userDataProfilesService.defaultProfile.extensionsResource && this.profile.extensionsResource)) {
+				this.deRegisterSynchronizer(SyncResource.Extensions);
+				this.profile = userDataProfilesService.defaultProfile;
+				this.registerSynchronizer(SyncResource.Extensions);
+			}
+		}));
 	}
 
 }
