@@ -177,15 +177,10 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		});
 
 		type CreateRepositoryResponseData = Awaited<ReturnType<typeof octokit.repos.createForAuthenticatedUser>>['data'];
-
-		let createdGithubRepository: CreateRepositoryResponseData;
+		let createdGithubRepository: CreateRepositoryResponseData | undefined = undefined;
 
 		if (isInCodespaces()) {
 			createdGithubRepository = await vscode.commands.executeCommand<CreateRepositoryResponseData>('github.codespaces.publish', { name: repo!, isPrivate });
-
-			if (!createdGithubRepository) {
-				// TODO@lszomoru - show a notification that the codespace has already been published.
-			}
 		} else {
 			const res = await octokit.repos.createForAuthenticatedUser({
 				name: repo!,
