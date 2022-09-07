@@ -117,12 +117,12 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		}
 	}
 
-	$resolveDropFileData(destinationViewId: string, requestId: number, dataItemIndex: number): Promise<VSBuffer> {
+	$resolveDropFileData(destinationViewId: string, requestId: number, dataItemId: string): Promise<VSBuffer> {
 		const controller = this._dndControllers.get(destinationViewId);
 		if (!controller) {
 			throw new Error('Unknown tree');
 		}
-		return controller.resolveDropFileData(requestId, dataItemIndex);
+		return controller.resolveDropFileData(requestId, dataItemId);
 	}
 
 	private async reveal(treeView: ITreeView, dataProvider: TreeViewDataProvider, itemIn: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
@@ -235,8 +235,8 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 		return additionalDataTransfer;
 	}
 
-	public resolveDropFileData(requestId: number, dataItemIndex: number): Promise<VSBuffer> {
-		return this.dataTransfersCache.resolveDropFileData(requestId, dataItemIndex);
+	public resolveDropFileData(requestId: number, dataItemId: string): Promise<VSBuffer> {
+		return this.dataTransfersCache.resolveDropFileData(requestId, dataItemId);
 	}
 }
 
