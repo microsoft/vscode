@@ -36,6 +36,8 @@
 (member_expression object: (this) @keywords1)
 (call_expression function: (super) @keywords1)
 (undefined) @keywords1
+(function_declaration) @function_declaration
+(method_definition) @method_definition
 
 [
 	"import"
@@ -47,6 +49,8 @@
 	"for"
 	"return"
 ] @keywords2
+(await_expression) @await_expression
+(as_expression) @as_expression
 
 (import_specifier name : (identifier) @variable)
 (public_field_definition name: (property_identifier) @variable)
@@ -74,6 +78,10 @@
 (pair key: (property_identifier) @variable value: (identifier) @variable)
 (for_in_statement left: (identifier) @variable)
 (subscript_expression object: (identifier) @variable)
+(augmented_assignment_expression left: (identifier) @variable)
+(pair key: (property_identifier) @variable)
+(object (shorthand_property_identifier) @variable)
+(enum_body (property_identifier) @variable)
 
 (type_annotation (predefined_type) @type)
 (type_identifier) @type

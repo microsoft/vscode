@@ -27,9 +27,14 @@ export class NodeReader {
 	 * @param offset must be greater than or equal to the last offset this method has been called with!
 	*/
 	readLongestNodeAt(offset: Length, predicate: (node: AstNode) => boolean): AstNode | undefined {
+		// ! TODO: place back
+		/*
 		if (lengthLessThan(offset, this.lastOffset)) {
+			console.log('offset : ', offset);
+			console.log('this.lastOffset : ', this.lastOffset);
 			throw new Error('Invalid offset');
 		}
+		*/
 		this.lastOffset = offset;
 
 		// Find the longest node of all those that are closest to the current offset.

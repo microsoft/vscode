@@ -3,16 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Tree, QueryCapture, Language, Point, SyntaxNode, Edit } from 'web-tree-sitter';
 import { readFileSync } from 'fs';
-
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
-import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
 import Parser = require('web-tree-sitter');
+import { runWhenIdle } from 'vs/base/common/async';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
+// ! KNOWN COLORIZATION PROBLEMS
+// for pairs where the value is an arrow function, the key should be yellow
+
+// vscode-file://vscode-app/c:/Users/t-aidaym/work/vscode/out/vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/parser.js
 const mapWordToColor = new Map(Object.entries({
 	'comment': 33686849,
 	'other': 33588289,
@@ -27,7 +32,9 @@ const mapWordToColor = new Map(Object.entries({
 
 const exceptions = {
 	FUNCTION_DECLARATION: 'function_declaration',
-	METHOD_DEFINITION: 'method_definition'
+	METHOD_DEFINITION: 'method_definition',
+	AWAIT_EXPRESSION: 'await_expression',
+	AS_EXPRESSION: 'as_expression'
 }
 
 export class TreeSitterParseTree {
@@ -40,9 +47,18 @@ export class TreeSitterParseTree {
 	private _matches: Parser.QueryMatch[];
 	private _captureNames: string[];
 	private _captureNameToNodeMap: Map<string, Parser.SyntaxNode[]>;
+	private _edits: Parser.Edit[];
 	public readonly id: string;
 
-	// Every single model has it's own tree and its own parser
+	// TODO: asynchronous color rendering
+	private _contiguousMultilineToken: ContiguousMultilineTokens[];
+	private _i: number;
+	private _beginningCaptureIndex: number;
+	private _timeoutForRender: number;
+
+	// * probably no longer needed
+	// private _ret: string;
+
 	constructor(
 		private readonly _model: ITextModel,
 		private readonly _language: Parser.Language
@@ -51,19 +67,38 @@ export class TreeSitterParseTree {
 		this._needsParsing = true;
 		this._parser = new Parser();
 		this._parser.setLanguage(this._language);
+		// Note: time out of 10 milliseconds is 10000 microseconds
+		this._parser.setTimeoutMicros(10000);
+
 		this._captures = [];
 		this._matches = [];
 		this._captureNames = [];
 		this._captureNameToNodeMap = new Map<string, Parser.SyntaxNode[]>();
-		this._tree = this._parser.parse((startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) => this._retrieveTextAtPosition(startIndex, startPoint, endIndex));
+		this._edits = [];
 
-		this._disposableStore.add(this._model.onDidChangeContent((e: IModelContentChangedEvent) => {
-			const changes = e.changes;
-			this._needsParsing = true;
-			if (this._tree) {
+		// TODO: asynchronous color rendering
+		this._contiguousMultilineToken = [];
+		this._i = 0;
+		this._beginningCaptureIndex = 0;
+		this._timeoutForRender = 0;
+
+		// 10 milliseconds for timeout
+		this.setTimeoutForRender(10);
+
+		// Note: Parse the tree at least once before adding a listener on the model content change event
+		this.parseTree().then((tree) => {
+
+			this._tree = tree;
+			this.getCaptures();
+			this.renderTokenColors();
+
+			this._disposableStore.add(this._model.onDidChangeContent((e: IModelContentChangedEvent) => {
+
+				const changes = e.changes;
+				this._needsParsing = true;
 				for (const change of changes) {
 					const newEndPositionFromModel = this._model.getPositionAt(change.rangeOffset + change.text.length);
-					this._tree.edit({
+					this._edits.push({
 						startPosition: { row: change.range.startLineNumber - 1, column: change.range.startColumn - 1 },
 						oldEndPosition: { row: change.range.endLineNumber - 1, column: change.range.endColumn - 1 },
 						newEndPosition: { row: newEndPositionFromModel.lineNumber - 1, column: newEndPositionFromModel.column - 1 },
@@ -72,15 +107,24 @@ export class TreeSitterParseTree {
 						newEndIndex: change.rangeOffset + change.text.length
 					} as Parser.Edit);
 				}
-				this._tree = this._parser.parse((startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) => this._retrieveTextAtPosition(startIndex, startPoint, endIndex));
-			} else {
-				this._tree = this._parser.parse((startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) => this._retrieveTextAtPosition(startIndex, startPoint, endIndex));
-			}
-			this.getCaptures();
-			// this.getMatches();
-			// TODO: just to investigate the contents of the tokens
-			this.renderTokenColors();
-		}));
+				// Note: currently parsing on ever single content change event. The parse is asynchronous.
+				this.parseTree().then((tree) => {
+					// Note: once parsing is done we need to rerender the tokens
+					this._tree = tree;
+					this.getCaptures();
+					this.renderTokenColors().then(function (result) {
+						console.log('Finished rendering!');
+					}).catch(function (error) {
+						console.log('Error from renderTokenColors : ', error);
+					})
+				})
+
+			}));
+		})
+	}
+
+	public setTimeoutForRender(timeoutInMs: number) {
+		this._timeoutForRender = timeoutInMs;
 	}
 
 	public getMatches() {
@@ -92,160 +136,224 @@ export class TreeSitterParseTree {
 		this._matches = query.matches(this._tree.rootNode);
 	}
 
+	public getTree() {
+		for (const edit of this._edits) {
+			this._tree!.edit(edit);
+		}
+		this._edits.length = 0;
+		return this._tree;
+	}
+
+	private runParse(textModel: ITextModel, resolve: (value: Parser.Tree | PromiseLike<Parser.Tree>) => void) {
+		console.log('Inside of runParse');
+		// second parameter in terms of milliseconds
+		runWhenIdle(
+			() => {
+				let result;
+				try {
+					result = this._parser.parse(
+						(startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) =>
+							this._retrieveTextAtPosition(textModel, startIndex, startPoint, endIndex),
+						this.getTree()
+					);
+				} catch (error) {
+					console.log('Error in runParse : ', error);
+				}
+				if (!result) {
+					return this.runParse(textModel, resolve);
+				} else {
+					resolve(result);
+				}
+			},
+			10
+		);
+	}
+
+	public async parseTree(): Promise<Parser.Tree> {
+		const textModel = createTextModel('');
+		textModel.setValue(this._model.createSnapshot());
+		let that = this;
+		return new Promise(function (resolve, _reject) {
+			that.runParse(textModel, resolve);
+		})
+	}
+
 	public getCaptures() {
 		if (!this._tree) {
 			return;
 		}
-		/*
-		TODO: to add still but bad syntax thrown
-		(literal_type (undefined) @type)
-		*/
-
-		/*
-		TODO: Take into account the delimeters too at some point
-		[
-		"."
-		","
-		"="
-		"+"
-		"?"
-		"!"
-		"¦"
-		";"
-		":"
-		] @keywords3
-		*/
-
-		// TODO: not possible to query to find the new changes only?
 		const contents = readFileSync(__dirname + '\\..\\..\\..\\..\\..\\src\\vs\\editor\\browser\\services\\tokens.scm', { encoding: 'utf8' });
 		const query = this._language.query(contents);
 		this._captures = query.captures(this._tree.rootNode);
-		console.log('this._captures : ', this._captures);
 		this._captureNames = query.captureNames;
-	}
 
-	public renderTokenColors() {
 		for (const captureName of this._captureNames) {
 			const syntaxNodes: Parser.SyntaxNode[] = this._captures.filter(node => node.name === captureName).map(capture => capture.node);
 			this._captureNameToNodeMap.set(captureName, syntaxNodes);
 		}
-		const contiguousMultilineToken: ContiguousMultilineTokens[] = [];
-		let j = 0;
+	}
+
+	public renderTokenColors(): Promise<boolean> {
+		let that = this;
+		return new Promise(function (resolve, reject) {
+			that.runRender(resolve, reject);
+		})
+	}
+
+	public runRender(resolve: (value: boolean | PromiseLike<boolean>) => void, reject: (reason?: any) => void): void {
+
+		// for the moment running for 10 milliseconds
+		runWhenIdle(
+			() => {
+				let result;
+				try {
+					result = this.renderTokensWhenIdle();
+				} catch (e) {
+					console.log('Error in runRender : ', e);
+					reject(e);
+					return;
+				}
+				if (!result) {
+					return this.runRender(resolve, resolve);
+				} else {
+					resolve(result);
+					return;
+				}
+			},
+			10
+		)
+	}
+
+	private renderTokensWhenIdle(): boolean | undefined {
+		let time1 = performance.now();
+		console.log('Entered into renderTokensWhenIdle');
+
+		// TODO
+		// const contiguousMultilineToken: ContiguousMultilineTokens[] = [];
 		let numberCaptures = this._captures.length;
 
-		let beginningIndex = 0;
-		let newBeginningIndexFound = true;
+		// TODO:
+		// let beginningIndex = 0;
 
-		for (let i = 0; i < this._model.getLineCount(); i++) {
+		let beginningCaptureIndex = this._beginningCaptureIndex;
+		let newBeginningIndexFound = true;
+		// * let queueOfTokens = [];
+
+		// TODO
+		// for (let i = 0; i < this._model.getLineCount(); i++) {
+		for (let i = this._i; i < this._model.getLineCount(); i++) {
 			const array: Uint32Array[] = [];
 			const arrayOfTokens: number[] = [];
+			const line = this._model.getLineContent(i + 1);
+			let j = beginningCaptureIndex;
 
-			let j = beginningIndex;
+			// * let asExpressionFound = false;
 			while (j < numberCaptures && this._captures[j].node.startPosition.row <= i) {
-				// array.push(new Uint32Array([4, 33719361, 5, 33588289, 11, 34079809, 16, 33588289]));
 				if (this._captures[j].node.startPosition.row <= i && i <= this._captures[j].node.endPosition.row) {
+
 					if (!newBeginningIndexFound) {
 						newBeginningIndexFound = true;
-						beginningIndex = this._captures[j].node.startPosition.row;
+						beginningCaptureIndex = this._captures[j].node.startPosition.row;
 					}
-					let color;
-					if (mapWordToColor.has(this._captures[j].name)) {
-						color = mapWordToColor.get(this._captures[j].name);
-					} else {
-						color = mapWordToColor.get('other');
-					}
-					arrayOfTokens.push(this._captures[j].node.startPosition.column, mapWordToColor.get('other') as number);
+
+					// TODO: needed in order to render correctly the white words
+					// arrayOfTokens.push(this._captures[j].node.startPosition.column, mapWordToColor.get('other') as number);
+
+					/*
+					* if (queueOfTokens.length !== 0 && queueOfTokens[0].line >= this._captures[j].node.endPosition.row && queueOfTokens[0].column >= this._captures[j].node.endPosition.column) {
+					*	console.log('queueOfTokens : ', queueOfTokens);
+					*	asExpressionFound = true;
+					*	arrayOfTokens.push(queueOfTokens[0].column, queueOfTokens[0].color);
+					*	queueOfTokens.shift();
+					* }
+					*/
 
 					let endColumn;
-					const line = this._model.getLineContent(this._captures[j].node.startPosition.row + 1);
-					console.log('this._captures[j].name : ', this._captures[j].name);
 					switch (this._captures[j].name) {
-						/*
+
 						case exceptions.FUNCTION_DECLARATION:
-							console.log('inside function declaration');
 							endColumn = line.indexOf('function') + ('function').length + 1;
 							arrayOfTokens.push(endColumn, mapWordToColor.get('keywords1') as number);
 							break;
-						*/
-						/*
 						case exceptions.METHOD_DEFINITION:
-							console.log('inside method definition');
 							endColumn = line.indexOf('async');
-							console.log('endColumn : ', endColumn, ' for line number : ', i + 1);
 							if (endColumn > 0) {
-								console.log('inside of if loop');
 								endColumn += ('async').length + 1;
 								arrayOfTokens.push(endColumn, mapWordToColor.get('keywords1') as number);
 							}
 							break;
-						*/
+						case exceptions.AWAIT_EXPRESSION:
+							endColumn = line.indexOf('await');
+							if (endColumn > 0) {
+								endColumn += ('await').length + 1;
+								arrayOfTokens.push(endColumn, mapWordToColor.get('keywords2') as number);
+							}
+							break;
+						case exceptions.AS_EXPRESSION:
+							/*
+							* endColumn = line.indexOf('as');
+							* if (endColumn > 0) {
+							*	endColumn += ('as').length + 1;
+							*	queueOfTokens.push({ line: i + 1, column: endColumn, color: mapWordToColor.get('keywords2') as number })
+							* }
+							*/
+							break;
 						default:
+							let color;
+							if (mapWordToColor.has(this._captures[j].name)) {
+								color = mapWordToColor.get(this._captures[j].name);
+							} else {
+								color = mapWordToColor.get('other');
+							}
 							endColumn = this._captures[j].node.endPosition.column;
 							arrayOfTokens.push(endColumn, color as number);
 							break;
 					}
 				}
-
-				/*
-				(function_declaration) @function_declaration
-				(method_definition) @method_definition
-				*/
-
-				// need to add one last token for the end
-				// Find later why the the following does not work, after transformation of contiguousMultilineTokens later when set as tokens
-				// arrayOfTokens.push(this._model.getLineLength(i + 1), mapWordToColor.get('other') as number);
+				//* when past timeout, return early
+				let time2 = performance.now();
+				if (time2 - time1 > this._timeoutForRender) {
+					return;
+				}
 				j++;
 			}
-
+			/*
+			* if (asExpressionFound) {
+			* 	console.log('arrayOfTokens when asExpressionFound : ', arrayOfTokens);
+			* }
+			*/
 			newBeginningIndexFound = false;
 			array.push(new Uint32Array(arrayOfTokens));
-			contiguousMultilineToken.push(new ContiguousMultilineTokens(i + 1, array));
+			// TODO
+			// contiguousMultilineToken.push(new ContiguousMultilineTokens(i + 1, array));
+			this._contiguousMultilineToken.push(new ContiguousMultilineTokens(i + 1, array));
+			//* setting the tokens as they come in
+			this._model.tokenization.setTokens(this._contiguousMultilineToken);
+
+			this._i = i + 1;
+			this._beginningCaptureIndex = beginningCaptureIndex;
 		}
 
-		this._model.tokenization.setTokens(contiguousMultilineToken);
+		// TODO
+		// this._model.tokenization.setTokens(contiguousMultilineToken);
+		this._model.tokenization.setTokens(this._contiguousMultilineToken);
+
+		//* once the tokens are set
+		this._contiguousMultilineToken = [];
+		this._i = 0;
+		this._beginningCaptureIndex = 0;
+
+		return true;
 	}
 
-	private _retrieveTextAtPosition(startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) {
-
-		if (startIndex !== undefined && endIndex !== undefined) {
-			const startPosition = this._model.getPositionAt(startIndex);
-			const endPosition = this._model.getPositionAt(endIndex);
-			const line = this._model.getLineContent(startPosition.lineNumber);
-
-			if (startPosition.lineNumber === endPosition.lineNumber) {
-				return line.slice(startPosition.column, endPosition.column - 1) + ' \n';
-			} else {
-				let result = line.slice(startPosition.column - 1) + '\n';
-				for (let i = startPosition.lineNumber + 1; i <= endPosition.lineNumber - 1; i++) {
-					result += this._model.getLineContent(i) + ' \n';
-				}
-				result += this._model.getLineContent(endPosition.lineNumber).slice(0, endPosition.column) + ' \n';
-				return result;
-			}
-		} else if (startPoint) {
-			if (startPoint.row >= this._model.getLineCount()) {
-				return null;
-			}
-			const line = this._model.getLineContent(startPoint.row + 1);
-			const result = line.slice(startPoint.column) + ' \n';
-			return result;
+	private _retrieveTextAtPosition(model: ITextModel, startIndex: number, _startPoint: Parser.Point | undefined, endIndex: number | undefined) {
+		const startPosition: Position = model.getPositionAt(startIndex);
+		let endPosition: Position;
+		if (typeof endIndex !== 'number') {
+			endIndex = startIndex + 5000;
 		}
-		return null;
-	}
-
-	private _parse() {
-		this._tree = this._parser.parse((startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) => this._retrieveTextAtPosition(startIndex, startPoint, endIndex));
-		this._needsParsing = false;
-	}
-
-	public getParseTree(): Parser.Tree | void {
-		if (!this._tree) {
-			return;
-		}
-		if (this._needsParsing) {
-			this._parse();
-		}
-		return this._tree;
+		endPosition = model.getPositionAt(endIndex);
+		return model.getValueInRange(Range.fromPositions(startPosition, endPosition));
 	}
 
 	public dispose() {
