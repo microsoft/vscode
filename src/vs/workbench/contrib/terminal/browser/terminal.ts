@@ -10,9 +10,8 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IMarkProperties, ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
-import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
@@ -83,14 +82,15 @@ export interface IQuickPickTerminalObject {
 	keyMods: IKeyMods | undefined;
 }
 
-export interface ICommandTracker {
-	scrollToPreviousCommand(): void;
-	scrollToNextCommand(): void;
-	selectToPreviousCommand(): void;
-	selectToNextCommand(): void;
+export interface IMarkTracker {
+	scrollToPreviousMark(): void;
+	scrollToNextMark(): void;
+	selectToPreviousMark(): void;
+	selectToNextMark(): void;
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
 	clearMarker(): void;
+	scrollToClosestMarker(startMarkerId: string, endMarkerId?: string, highlight?: boolean | undefined): void;
 }
 
 export interface ITerminalGroup {
@@ -659,10 +659,18 @@ export interface ITerminalInstance {
 	registerMarker(): IMarker | undefined;
 
 	/**
-	 * Adds a decoration to the buffer at the @param marker with
-	 * @param genericMarkProperties
+	 * Adds a marker to the buffer, mapping it to an ID if provided.
 	 */
-	addGenericMark(marker: IMarker, genericMarkProperties: IGenericMarkProperties): void;
+	addBufferMarker(properties: IMarkProperties): void;
+
+	/**
+	 *
+	 * @param startMarkId The ID for the start marker
+	 * @param endMarkId The ID for the end marker
+	 * @param highlight Whether the buffer from startMarker to endMarker
+	 * should be highlighted
+	 */
+	scrollToMark(startMarkId: string, endMarkId?: string, highlight?: boolean): void;
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
@@ -902,7 +910,7 @@ export interface IXtermTerminal {
 	 * An object that tracks when commands are run and enables navigating and selecting between
 	 * them.
 	 */
-	readonly commandTracker: ICommandTracker;
+	readonly markTracker: IMarkTracker;
 
 	/**
 	 * Reports the status of shell integration and fires events relating to it.
@@ -960,12 +968,6 @@ export interface IXtermTerminal {
 	 * Clears the active search result decorations
 	 */
 	clearActiveSearchDecoration(): void;
-
-	/**
-	 * Adds a decoration at the @param marker with the given properties
-	 * @param properties
-	 */
-	addDecoration(marker: IMarker, properties: IGenericMarkProperties): void;
 
 	/**
 	 * Returns a reverse iterator of buffer lines as strings
