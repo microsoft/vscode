@@ -10,7 +10,7 @@ import { basename } from 'vs/base/common/resources';
 import { gt } from 'vs/base/common/semver/semver';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { CLIOutput, IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { CLIOutput, IExtensionGalleryService, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, getGalleryExtensionId, getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
@@ -30,9 +30,7 @@ function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
 type InstallExtensionInfo = { id: string; version?: string; installOptions: InstallOptions };
 
 
-export class ExtensionManagementCLIService implements IExtensionManagementCLIService {
-
-	_serviceBrand: any;
+export class ExtensionManagementCLI {
 
 	constructor(
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
@@ -43,8 +41,8 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		return undefined;
 	}
 
-	public async listExtensions(showVersions: boolean, category?: string, output: CLIOutput = console): Promise<void> {
-		let extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
+	public async listExtensions(showVersions: boolean, category?: string, profileLocation?: URI, output: CLIOutput = console): Promise<void> {
+		let extensions = await this.extensionManagementService.getInstalled(ExtensionType.User, profileLocation);
 		const categories = EXTENSION_CATEGORIES.map(c => c.toLowerCase());
 		if (category && category !== '') {
 			if (categories.indexOf(category.toLowerCase()) < 0) {
@@ -86,7 +84,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 			output.log(this.location ? localize('installingExtensionsOnLocation', "Installing extensions on {0}...", this.location) : localize('installingExtensions', "Installing extensions..."));
 		}
 
-		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User, installOptions.profileLocation);
 		const checkIfNotInstalled = (id: string, version?: string): boolean => {
 			const installedExtension = installed.find(i => areSameExtensions(i.identifier, { id }));
 			if (installedExtension) {
@@ -173,7 +171,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 			throw new Error('Invalid vsix');
 		}
 
-		const valid = await this.validateVSIX(manifest, force, output);
+		const valid = await this.validateVSIX(manifest, force, installOptions.profileLocation, output);
 		if (valid) {
 			try {
 				await this.extensionManagementService.install(vsix, installOptions);
@@ -240,9 +238,9 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		return true;
 	}
 
-	private async validateVSIX(manifest: IExtensionManifest, force: boolean, output: CLIOutput): Promise<boolean> {
+	private async validateVSIX(manifest: IExtensionManifest, force: boolean, profileLocation: URI | undefined, output: CLIOutput): Promise<boolean> {
 		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
-		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User, profileLocation);
 		const newer = installedExtensions.find(local => areSameExtensions(extensionIdentifier, local.identifier) && gt(local.manifest.version, manifest.version));
 
 		if (newer && !force) {
@@ -253,7 +251,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		return this.validateExtensionKind(manifest, output);
 	}
 
-	public async uninstallExtensions(extensions: (string | URI)[], force: boolean, output: CLIOutput = console): Promise<void> {
+	public async uninstallExtensions(extensions: (string | URI)[], force: boolean, profileLocation?: URI, output: CLIOutput = console): Promise<void> {
 		const getExtensionId = async (extensionDescription: string | URI): Promise<string> => {
 			if (extensionDescription instanceof URI) {
 				const manifest = await this.extensionManagementService.getManifest(extensionDescription);
@@ -265,7 +263,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		const uninstalledExtensions: ILocalExtension[] = [];
 		for (const extension of extensions) {
 			const id = await getExtensionId(extension);
-			const installed = await this.extensionManagementService.getInstalled();
+			const installed = await this.extensionManagementService.getInstalled(undefined, profileLocation);
 			const extensionsToUninstall = installed.filter(e => areSameExtensions(e.identifier, { id }));
 			if (!extensionsToUninstall.length) {
 				throw new Error(`${this.notInstalled(id)}\n${useId}`);
@@ -280,7 +278,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 			}
 			output.log(localize('uninstalling', "Uninstalling {0}...", id));
 			for (const extensionToUninstall of extensionsToUninstall) {
-				await this.extensionManagementService.uninstall(extensionToUninstall);
+				await this.extensionManagementService.uninstall(extensionToUninstall, { profileLocation });
 				uninstalledExtensions.push(extensionToUninstall);
 			}
 
