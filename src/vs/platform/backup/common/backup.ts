@@ -6,14 +6,16 @@
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
-export interface IWorkspaceBackupInfo {
-	readonly workspace: IWorkspaceIdentifier;
+export interface IBaseBackupInfo {
 	readonly remoteAuthority?: string;
 }
 
-export interface IFolderBackupInfo {
+export interface IWorkspaceBackupInfo extends IBaseBackupInfo {
+	readonly workspace: IWorkspaceIdentifier;
+}
+
+export interface IFolderBackupInfo extends IBaseBackupInfo {
 	readonly folderUri: URI;
-	readonly remoteAuthority?: string;
 }
 
 export function isFolderBackupInfo(curr: IWorkspaceBackupInfo | IFolderBackupInfo): curr is IFolderBackupInfo {

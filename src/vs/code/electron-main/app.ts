@@ -692,7 +692,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Backups
-		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService);
+		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService, this.lifecycleMainService);
 		services.set(IBackupMainService, backupMainService);
 
 		// URL handling

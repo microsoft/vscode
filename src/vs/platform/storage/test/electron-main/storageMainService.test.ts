@@ -4,17 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { notStrictEqual, strictEqual } from 'assert';
-import { Promises } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { FileService } from 'vs/platform/files/common/fileService';
-import { ILifecycleMainService, LifecycleMainPhase, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -26,7 +23,7 @@ import { currentSessionDateStorageKey, firstSessionDateStorageKey } from 'vs/pla
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { ICodeWindow, UnloadReason } from 'vs/platform/window/electron-main/window';
+import { TestLifecycleMainService } from 'vs/platform/test/electron-main/workbenchTestServices';
 
 suite('StorageMainService', function () {
 
@@ -53,45 +50,6 @@ suite('StorageMainService', function () {
 				useInMemoryStorage: true
 			};
 		}
-	}
-
-	class StorageTestLifecycleMainService implements ILifecycleMainService {
-
-		_serviceBrand: undefined;
-
-		onBeforeShutdown = Event.None;
-
-		private readonly _onWillShutdown = new Emitter<ShutdownEvent>();
-		readonly onWillShutdown = this._onWillShutdown.event;
-
-		async fireOnWillShutdown(): Promise<void> {
-			const joiners: Promise<void>[] = [];
-
-			this._onWillShutdown.fire({
-				reason: ShutdownReason.QUIT,
-				join(promise) {
-					joiners.push(promise);
-				}
-			});
-
-			await Promises.settled(joiners);
-		}
-
-		onWillLoadWindow = Event.None;
-		onBeforeCloseWindow = Event.None;
-
-		wasRestarted = false;
-		quitRequested = false;
-
-		phase = LifecycleMainPhase.Ready;
-
-		registerWindow(window: ICodeWindow): void { }
-		async reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void> { }
-		async unload(window: ICodeWindow, reason: UnloadReason): Promise<boolean> { return true; }
-		async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined }): Promise<void> { }
-		async quit(willRestart?: boolean): Promise<boolean> { return true; }
-		async kill(code?: number): Promise<void> { }
-		async when(phase: LifecycleMainPhase): Promise<void> { }
 	}
 
 	async function testStorage(storage: IStorageMain, scope: StorageScope): Promise<void> {
@@ -145,7 +103,7 @@ suite('StorageMainService', function () {
 		storageCloseListener.dispose();
 	}
 
-	function createStorageService(lifecycleMainService: ILifecycleMainService = new StorageTestLifecycleMainService()): TestStorageMainService {
+	function createStorageService(lifecycleMainService: ILifecycleMainService = new TestLifecycleMainService()): TestStorageMainService {
 		const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
 		const fileService = new FileService(new NullLogService());
 		return new TestStorageMainService(new NullLogService(), environmentService, new UserDataProfilesMainService(new StateMainService(environmentService, new NullLogService(), fileService), new UriIdentityService(fileService), environmentService, fileService, new NullLogService()), lifecycleMainService, fileService);
@@ -172,7 +130,7 @@ suite('StorageMainService', function () {
 	});
 
 	test('storage closed onWillShutdown', async function () {
-		const lifecycleMainService = new StorageTestLifecycleMainService();
+		const lifecycleMainService = new TestLifecycleMainService();
 		const storageMainService = createStorageService(lifecycleMainService);
 
 		const profile = inMemoryProfile;

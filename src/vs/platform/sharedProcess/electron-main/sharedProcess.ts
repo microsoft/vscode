@@ -241,7 +241,6 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			windowId: this.window.id,
 			appRoot: this.environmentMainService.appRoot,
 			codeCachePath: this.environmentMainService.codeCachePath,
-			backupWorkspacesPath: this.environmentMainService.backupWorkspacesPath,
 			profiles: this.userDataProfilesService.profiles,
 			userEnv: this.userEnv,
 			args: this.environmentMainService.args,
