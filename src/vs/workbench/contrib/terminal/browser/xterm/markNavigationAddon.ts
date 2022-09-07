@@ -6,7 +6,7 @@
 import { coalesce } from 'vs/base/common/arrays';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IMarkTracker } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IBufferMarkCapability, ICommandDetectionCapability, IPartialCommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import type { Terminal, IMarker, ITerminalAddon, IDecoration } from 'xterm';
 import { timeout } from 'vs/base/common/async';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -30,8 +30,6 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	protected _terminal: Terminal | undefined;
 	private _navigationDecorations: IDecoration[] | undefined;
 
-	private _detectionCapability?: ICommandDetectionCapability | IPartialCommandDetectionCapability | IBufferMarkCapability;
-
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
 		this._register(this._terminal.onData(() => {
@@ -47,9 +45,6 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	}
 
 	private _getMarkers(skipEmptyCommands?: boolean): readonly IMarker[] {
-		if (!this._detectionCapability) {
-			return [];
-		}
 		const commandCapability = this._capabilityStore.get(TerminalCapability.CommandDetection);
 		const partialCommandCapability = this._capabilityStore.get(TerminalCapability.PartialCommandDetection);
 		const markCapability = this._capabilityStore.get(TerminalCapability.BufferMarkDetection);
@@ -259,14 +254,15 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	}
 
 	scrollToClosestMarker(startMarkerId: string, endMarkerId?: string, highlight?: boolean | undefined): void {
-		if (this._detectionCapability?.type !== TerminalCapability.BufferMarkDetection) {
+		const detectionCapability = this._capabilityStore.get(TerminalCapability.BufferMarkDetection);
+		if (!detectionCapability) {
 			return;
 		}
-		const startMarker = this._detectionCapability.getMark(startMarkerId);
+		const startMarker = detectionCapability.getMark(startMarkerId);
 		if (!startMarker) {
 			return;
 		}
-		const endMarker = endMarkerId ? this._detectionCapability.getMark(endMarkerId) : startMarker;
+		const endMarker = endMarkerId ? detectionCapability.getMark(endMarkerId) : startMarker;
 		this._scrollToMarker(startMarker, ScrollPosition.Top, endMarker, !highlight);
 	}
 
