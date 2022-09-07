@@ -90,7 +90,7 @@ export class TreeSitterParseTree {
 
 			this._tree = tree;
 			this.getCaptures();
-			this.renderTokenColors();
+			this.setTokens();
 
 			this._disposableStore.add(this._model.onDidChangeContent((e: IModelContentChangedEvent) => {
 
@@ -112,7 +112,7 @@ export class TreeSitterParseTree {
 					// Note: once parsing is done we need to rerender the tokens
 					this._tree = tree;
 					this.getCaptures();
-					this.renderTokenColors().then(function (result) {
+					this.setTokens().then(function (result) {
 						console.log('Finished rendering!');
 					}).catch(function (error) {
 						console.log('Error from renderTokenColors : ', error);
@@ -193,28 +193,28 @@ export class TreeSitterParseTree {
 		}
 	}
 
-	public renderTokenColors(): Promise<boolean> {
+	public setTokens(): Promise<boolean> {
 		let that = this;
 		return new Promise(function (resolve, reject) {
-			that.runRender(resolve, reject);
+			that.runSetTokens(resolve, reject);
 		})
 	}
 
-	public runRender(resolve: (value: boolean | PromiseLike<boolean>) => void, reject: (reason?: any) => void): void {
+	public runSetTokens(resolve: (value: boolean | PromiseLike<boolean>) => void, reject: (reason?: any) => void): void {
 
 		// for the moment running for 10 milliseconds
 		runWhenIdle(
 			() => {
 				let result;
 				try {
-					result = this.renderTokensWhenIdle();
+					result = this.setTokensWhenIdle();
 				} catch (e) {
 					console.log('Error in runRender : ', e);
 					reject(e);
 					return;
 				}
 				if (!result) {
-					return this.runRender(resolve, resolve);
+					return this.runSetTokens(resolve, resolve);
 				} else {
 					resolve(result);
 					return;
@@ -224,7 +224,7 @@ export class TreeSitterParseTree {
 		)
 	}
 
-	private renderTokensWhenIdle(): boolean | undefined {
+	private setTokensWhenIdle(): boolean | undefined {
 		let time1 = performance.now();
 		console.log('Entered into renderTokensWhenIdle');
 
