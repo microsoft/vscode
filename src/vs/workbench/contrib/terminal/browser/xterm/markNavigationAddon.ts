@@ -199,6 +199,19 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		}
 	}
 
+	private _createMarkerForOffset(marker: IMarker, offset: number): IMarker {
+		if (offset === 0) {
+			return marker;
+		} else {
+			const offsetMarker = this._terminal?.registerMarker(-this._terminal.buffer.active.cursorY + marker.line - this._terminal.buffer.active.baseY + offset);
+			if (offsetMarker) {
+				return offsetMarker;
+			} else {
+				throw new Error(`Could not register marker with offset ${marker.line}, ${offset}`);
+			}
+		}
+	}
+
 	private _registerTemporaryDecoration(marker: IMarker, endMarker?: IMarker): void {
 		if (!this._terminal) {
 			return;
@@ -210,7 +223,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 
 		for (let i = 0; i < decorationCount; i++) {
 			const decoration = this._terminal.registerDecoration({
-				marker,
+				marker: this._createMarkerForOffset(marker, i),
 				width: this._terminal.cols,
 				overviewRulerOptions: {
 					color: color?.toString() || '#a0a0a0cc'
@@ -223,7 +236,11 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 				decoration.onRender(element => {
 					if (!renderedElement) {
 						renderedElement = element;
-						element.classList.add('terminal-scroll-highlight', 'terminal-scroll-highlight-outline');
+						if (decorationCount > 1) {
+							element.classList.add('terminal-scroll-highlight');
+						} else {
+							element.classList.add('terminal-scroll-highlight', 'terminal-scroll-highlight-outline');
+						}
 						if (this._terminal?.element) {
 							element.style.marginLeft = `-${getComputedStyle(this._terminal.element).paddingLeft}`;
 						}
@@ -236,6 +253,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 						renderedElement.classList.remove('terminal-scroll-highlight-outline');
 					}
 				});
+				console.log('navigation decorations', this._navigationDecorations);
 			}
 		}
 	}
