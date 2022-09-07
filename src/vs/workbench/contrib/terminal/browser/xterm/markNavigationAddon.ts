@@ -71,18 +71,28 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		// Clear the current marker so successive focus/selection actions are performed from the
 		// bottom of the buffer
 		this._currentMarker = Boundary.Bottom;
-		this._resetNavigationDecoration();
+		this._resetNavigationDecorations();
 		this._selectionStart = null;
 	}
 
-	private _resetNavigationDecoration() {
-		if (!this._navigationDecorations) {
-			return;
+	private _resetNavigationDecorations() {
+		if (this._navigationDecorations) {
+			dispose(this._navigationDecorations);
 		}
-		dispose(this._navigationDecorations);
-		this._navigationDecorations = undefined;
+		this._navigationDecorations = [];
 	}
 
+	private _isEmptyCommand(marker: IMarker | Boundary) {
+		if (marker === Boundary.Bottom) {
+			return true;
+		}
+
+		if (marker === Boundary.Top) {
+			return this._getMarkers(true).map(e => e.line).indexOf(0) === -1;
+		}
+
+		return this._getMarkers(true).indexOf(marker) === -1;
+	}
 
 	scrollToPreviousMark(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false, skipEmptyCommands?: boolean): void {
 		if (!this._terminal) {
@@ -122,7 +132,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		if (markerIndex < 0) {
 			this._currentMarker = Boundary.Top;
 			this._terminal.scrollToTop();
-			this._resetNavigationDecoration();
+			this._resetNavigationDecorations();
 			return;
 		}
 
@@ -168,7 +178,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		if (markerIndex >= this._getMarkers(skipEmptyCommands).length) {
 			this._currentMarker = Boundary.Bottom;
 			this._terminal.scrollToBottom();
-			this._resetNavigationDecoration();
+			this._resetNavigationDecorations();
 			return;
 		}
 
@@ -193,16 +203,12 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		if (!this._terminal) {
 			return;
 		}
-		if (this._navigationDecorations) {
-			dispose(this._navigationDecorations);
-			this._navigationDecorations = [];
-		}
+		this._resetNavigationDecorations();
 		const color = this._themeService.getColorTheme().getColor(TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR);
 		const startLine = marker.line;
 		const decorationCount = endMarker ? endMarker.line - startLine + 1 : 1;
 
 		for (let i = 0; i < decorationCount; i++) {
-
 			const decoration = this._terminal.registerDecoration({
 				marker,
 				width: this._terminal.cols,
@@ -210,7 +216,6 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 					color: color?.toString() || '#a0a0a0cc'
 				}
 			});
-			const navigationDecoration = decoration;
 			if (decoration) {
 				this._navigationDecorations?.push(decoration);
 				let renderedElement: HTMLElement | undefined;
@@ -224,11 +229,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 						}
 					}
 				});
-				decoration.onDispose(() => {
-					if (decoration === navigationDecoration) {
-						this._navigationDecorations = this._navigationDecorations?.filter(d => d !== decoration);
-					}
-				});
+				decoration.onDispose(() => { this._navigationDecorations = this._navigationDecorations?.filter(d => d !== decoration); });
 				// Number picked to align with symbol highlight in the editor
 				timeout(350).then(() => {
 					if (renderedElement) {
@@ -416,19 +417,6 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		}
 
 		return this._getMarkers(skipEmptyCommands).length;
-	}
-
-	private _isEmptyCommand(marker: IMarker | Boundary) {
-
-		if (marker === Boundary.Bottom) {
-			return true;
-		}
-
-		if (marker === Boundary.Top) {
-			return this._getMarkers(true).map(e => e.line).indexOf(0) === -1;
-		}
-
-		return this._getMarkers(true).indexOf(marker) === -1;
 	}
 }
 
