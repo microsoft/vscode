@@ -1177,7 +1177,7 @@ suite('vscode API - workspace', () => {
 		const data = Buffer.from('Hello Binary Files');
 
 		const ws = new vscode.WorkspaceEdit();
-		ws.createFile(fileUri, <any>{ contents: data, ignoreIfExists: false, overwrite: false });
+		ws.createFile(fileUri, { contents: data, ignoreIfExists: false, overwrite: false });
 
 		const success = await vscode.workspace.applyEdit(ws);
 		assert.ok(success);
