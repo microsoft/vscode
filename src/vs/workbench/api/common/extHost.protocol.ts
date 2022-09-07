@@ -264,7 +264,7 @@ export interface MainThreadTreeViewsShape extends IDisposable {
 	$setMessage(treeViewId: string, message: string): void;
 	$setTitle(treeViewId: string, title: string, description: string | undefined): void;
 	$setBadge(treeViewId: string, badge: IViewBadge | undefined): void;
-	$resolveDropFileData(destinationViewId: string, requestId: number, dataItemIndex: number): Promise<VSBuffer>;
+	$resolveDropFileData(destinationViewId: string, requestId: number, dataItemId: string): Promise<VSBuffer>;
 }
 
 export interface MainThreadDownloadServiceShape extends IDisposable {
@@ -394,8 +394,8 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerTypeHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[]): void;
-	$resolvePasteFileData(handle: number, requestId: number, dataIndex: number): Promise<VSBuffer>;
-	$resolveDocumentOnDropFileData(handle: number, requestId: number, dataIndex: number): Promise<VSBuffer>;
+	$resolvePasteFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
+	$resolveDocumentOnDropFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
 }
 
@@ -1390,6 +1390,7 @@ export interface IDataTransferFileDTO {
 }
 
 export interface DataTransferItemDTO {
+	readonly id: string;
 	readonly asString: string;
 	readonly fileData: IDataTransferFileDTO | undefined;
 }

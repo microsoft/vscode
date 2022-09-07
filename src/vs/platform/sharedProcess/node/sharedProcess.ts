@@ -27,8 +27,6 @@ export interface ISharedProcessConfiguration extends ISandboxConfiguration {
 
 	readonly logLevel: LogLevel;
 
-	readonly backupWorkspacesPath: string;
-
 	readonly profiles: readonly UriDto<IUserDataProfile>[];
 
 	readonly policiesData?: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>;

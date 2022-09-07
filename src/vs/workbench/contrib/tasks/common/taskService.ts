@@ -13,14 +13,16 @@ import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/works
 import { Task, ContributedTask, CustomTask, ITaskSet, TaskSorter, ITaskEvent, ITaskIdentifier, ConfiguringTask, TaskRunSource } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskSummary, ITaskTerminateResponse, ITaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export { ITaskSummary, Task, ITaskTerminateResponse as TaskTerminateResponse };
 
-export const CustomExecutionSupportedContext = new RawContextKey<boolean>('customExecutionSupported', true, nls.localize('tasks.customExecutionSupported', "Whether CustomExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
+export const CustomExecutionSupportedContext = new RawContextKey<boolean>('customExecutionSupported', false, nls.localize('tasks.customExecutionSupported', "Whether CustomExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
 export const ShellExecutionSupportedContext = new RawContextKey<boolean>('shellExecutionSupported', false, nls.localize('tasks.shellExecutionSupported', "Whether ShellExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
 export const TaskCommandsRegistered = new RawContextKey<boolean>('taskCommandsRegistered', false, nls.localize('tasks.taskCommandsRegistered', "Whether the task commands have been registered yet"));
 export const ProcessExecutionSupportedContext = new RawContextKey<boolean>('processExecutionSupported', false, nls.localize('tasks.processExecutionSupported', "Whether ProcessExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
+export const ServerlessWebContext = new RawContextKey<boolean>('serverlessWebContext', false, nls.localize('tasks.serverlessWebContext', "True when in the web with no remote authority."));
+export const TaskExecutionSupportedContext = ContextKeyExpr.or(ContextKeyExpr.and(ShellExecutionSupportedContext, ProcessExecutionSupportedContext), CustomExecutionSupportedContext);
 
 export const ITaskService = createDecorator<ITaskService>('taskService');
 

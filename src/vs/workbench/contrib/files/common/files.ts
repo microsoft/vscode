@@ -99,7 +99,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 			colors: boolean;
 			badges: boolean;
 		};
-		incrementalNaming: 'simple' | 'smart';
+		incrementalNaming: 'simple' | 'smart' | 'disabled';
 		excludeGitIgnore: boolean;
 		fileNesting: {
 			enabled: boolean;

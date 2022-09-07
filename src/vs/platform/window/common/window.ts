@@ -17,7 +17,7 @@ import { LogLevel } from 'vs/platform/log/common/log';
 import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const WindowMinimumSize = {
 	WIDTH: 400,
@@ -63,7 +63,7 @@ export interface IAddFoldersRequest {
 
 export interface IOpenedWindow {
 	readonly id: number;
-	readonly workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
+	readonly workspace?: IAnyWorkspaceIdentifier;
 	readonly title: string;
 	readonly filename?: string;
 	readonly dirty: boolean;

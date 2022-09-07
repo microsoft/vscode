@@ -316,7 +316,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		// Register window for backups and migrate current backups over
 		let backupPath: string | undefined;
 		if (!window.config.extensionDevelopmentPath) {
-			backupPath = this.backupMainService.registerWorkspaceBackupSync({ workspace, remoteAuthority: window.remoteAuthority }, window.config.backupPath);
+			backupPath = this.backupMainService.registerWorkspaceBackup({ workspace, remoteAuthority: window.remoteAuthority }, window.config.backupPath);
 		}
 
 		// if the window was opened on an untitled workspace, delete it.

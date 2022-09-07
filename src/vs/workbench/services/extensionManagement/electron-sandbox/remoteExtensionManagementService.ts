@@ -27,7 +27,11 @@ import { IFileService } from 'vs/platform/files/common/files';
 
 export class NativeRemoteExtensionManagementService extends ExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
 
-	readonly onDidChangeProfileExtensions = Event.None;
+	readonly onDidChangeProfile = Event.None;
+	get onProfileAwareInstallExtension() { return super.onInstallExtension; }
+	get onProfileAwareDidInstallExtensions() { return super.onDidInstallExtensions; }
+	get onProfileAwareUninstallExtension() { return super.onUninstallExtension; }
+	get onProfileAwareDidUninstallExtension() { return super.onDidUninstallExtension; }
 
 	constructor(
 		channel: IChannel,

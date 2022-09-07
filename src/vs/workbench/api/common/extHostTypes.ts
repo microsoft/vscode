@@ -655,11 +655,43 @@ export class NotebookEdit implements vscode.NotebookEdit {
 	}
 }
 
+export class SnippetTextEdit implements vscode.SnippetTextEdit {
+
+	static isSnippetTextEdit(thing: any): thing is SnippetTextEdit {
+		if (thing instanceof SnippetTextEdit) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return Range.isRange((<SnippetTextEdit>thing).range)
+			&& SnippetString.isSnippetString((<SnippetTextEdit>thing).snippet);
+	}
+
+	static replace(range: Range, snippet: SnippetString): SnippetTextEdit {
+		return new SnippetTextEdit(range, snippet);
+	}
+
+	static insert(position: Position, snippet: SnippetString): SnippetTextEdit {
+		return SnippetTextEdit.replace(new Range(position, position), snippet);
+	}
+
+	range: Range;
+
+	snippet: SnippetString;
+
+	constructor(range: Range, snippet: SnippetString) {
+		this.range = range;
+		this.snippet = snippet;
+	}
+}
+
 export interface IFileOperationOptions {
 	overwrite?: boolean;
 	ignoreIfExists?: boolean;
 	ignoreIfNotExists?: boolean;
 	recursive?: boolean;
+	contents?: Uint8Array;
 }
 
 export const enum FileEditType {
@@ -729,7 +761,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		this._edits.push({ _type: FileEditType.File, from, to, options, metadata });
 	}
 
-	createFile(uri: vscode.Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	createFile(uri: vscode.Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean; contents?: Uint8Array }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: undefined, to: uri, options, metadata });
 	}
 
@@ -758,12 +790,8 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	// --- text
 
-	replace(uri: URI, range: Range, newText: string | vscode.SnippetString, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		if (typeof newText === 'string') {
-			this._edits.push({ _type: FileEditType.Text, uri, edit: new TextEdit(range, newText), metadata });
-		} else {
-			this._edits.push({ _type: FileEditType.Snippet, uri, range, edit: newText, metadata });
-		}
+	replace(uri: URI, range: Range, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({ _type: FileEditType.Text, uri, edit: new TextEdit(range, newText), metadata });
 	}
 
 	insert(resource: URI, position: Position, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -780,31 +808,55 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		return this._edits.some(edit => edit._type === FileEditType.Text && edit.uri.toString() === uri.toString());
 	}
 
-	set(uri: URI, edits: TextEdit[] | unknown): void {
+	set(uri: URI, edits: (TextEdit | SnippetTextEdit)[]): void;
+	set(uri: URI, edits: [TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata][]): void;
+	set(uri: URI, edits: NotebookEdit[]): void;
+	set(uri: URI, edits: [NotebookEdit, vscode.WorkspaceEditEntryMetadata][]): void;
+
+	set(uri: URI, edits: null | undefined | (TextEdit | SnippetTextEdit | NotebookEdit | [NotebookEdit, vscode.WorkspaceEditEntryMetadata] | [TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata])[]): void {
 		if (!edits) {
-			// remove all text edits for `uri`
+			// remove all text, snippet, or notebook edits for `uri`
 			for (let i = 0; i < this._edits.length; i++) {
 				const element = this._edits[i];
-				if (element._type === FileEditType.Text && element.uri.toString() === uri.toString()) {
-					this._edits[i] = undefined!; // will be coalesced down below
+				switch (element._type) {
+					case FileEditType.Text:
+					case FileEditType.Snippet:
+					case FileEditType.Cell:
+					case FileEditType.CellReplace:
+						if (element.uri.toString() === uri.toString()) {
+							this._edits[i] = undefined!; // will be coalesced down below
+						}
+						break;
 				}
 			}
 			coalesceInPlace(this._edits);
 		} else {
 			// append edit to the end
-			for (const edit of edits as TextEdit[] | NotebookEdit[]) {
-				if (edit) {
-					if (NotebookEdit.isNotebookCellEdit(edit)) {
-						if (edit.newCellMetadata) {
-							this.replaceNotebookCellMetadata(uri, edit.range.start, edit.newCellMetadata);
-						} else if (edit.newNotebookMetadata) {
-							this.replaceNotebookMetadata(uri, edit.newNotebookMetadata);
-						} else {
-							this.replaceNotebookCells(uri, edit.range, edit.newCells);
-						}
+			for (const editOrTuple of edits) {
+				if (!editOrTuple) {
+					continue;
+				}
+				let edit: TextEdit | SnippetTextEdit | NotebookEdit;
+				let metadata: vscode.WorkspaceEditEntryMetadata | undefined;
+				if (Array.isArray(editOrTuple)) {
+					edit = editOrTuple[0];
+					metadata = editOrTuple[1];
+				} else {
+					edit = editOrTuple;
+				}
+				if (NotebookEdit.isNotebookCellEdit(edit)) {
+					if (edit.newCellMetadata) {
+						this.replaceNotebookCellMetadata(uri, edit.range.start, edit.newCellMetadata, metadata);
+					} else if (edit.newNotebookMetadata) {
+						this.replaceNotebookMetadata(uri, edit.newNotebookMetadata, metadata);
 					} else {
-						this._edits.push({ _type: FileEditType.Text, uri, edit });
+						this.replaceNotebookCells(uri, edit.range, edit.newCells, metadata);
 					}
+				} else if (SnippetTextEdit.isSnippetTextEdit(edit)) {
+					this._edits.push({ _type: FileEditType.Snippet, uri, range: edit.range, edit: edit.snippet, metadata });
+
+				} else {
+					this._edits.push({ _type: FileEditType.Text, uri, edit, metadata });
 				}
 			}
 		}
@@ -2510,7 +2562,14 @@ export class DataTransferItem {
 		return undefined;
 	}
 
-	constructor(public readonly value: any) { }
+	public readonly id: string;
+
+	constructor(
+		public readonly value: any,
+		id?: string,
+	) {
+		this.id = id ?? generateUuid();
+	}
 }
 
 @es5ClassCompat

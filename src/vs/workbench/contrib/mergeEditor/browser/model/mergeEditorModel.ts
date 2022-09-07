@@ -201,6 +201,11 @@ export class MergeEditorModel extends EditorModel {
 		return map.projectRange(range).outputRange;
 	}
 
+	public findModifiedBaseRangesInRange(rangeInBase: LineRange): ModifiedBaseRange[] {
+		// TODO use binary search
+		return this.modifiedBaseRanges.get().filter(r => r.baseRange.intersects(rangeInBase));
+	}
+
 	public readonly diffComputingState = derived('diffComputingState', reader => {
 		const states = [
 			this.input1TextModelDiffs,
