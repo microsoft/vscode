@@ -30,6 +30,7 @@ import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 // --- VIEW MODEL
 
@@ -246,7 +247,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 					edit,
 					textModel.getValueInRange(new Range(range.startLineNumber, range.startColumn - prefixLen, range.startLineNumber, range.startColumn)),
 					textModel.getValueInRange(range),
-					edit.textEdit.textEdit.text,
+					!edit.textEdit.textEdit.insertAsSnippet ? edit.textEdit.textEdit.text : SnippetParser.asInsertText(edit.textEdit.textEdit.text),
 					textModel.getValueInRange(new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn + suffixLen))
 				);
 			});

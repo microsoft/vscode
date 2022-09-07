@@ -24,9 +24,8 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, IUninstallExtensionTask, joinErrors } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import {
-	ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IExtensionIdentifier, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation,
-	IServerExtensionManagementService,
-	Metadata, ServerInstallOptions, ServerInstallVSIXOptions, ServerUninstallOptions
+	ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation,
+	Metadata, InstallOptions, InstallVSIXOptions, UninstallOptions
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
@@ -52,8 +51,8 @@ interface InstallableExtension {
 	metadata?: Metadata;
 }
 
-export const INativeServerExtensionManagementService = refineServiceDecorator<IServerExtensionManagementService, INativeServerExtensionManagementService>(IServerExtensionManagementService);
-export interface INativeServerExtensionManagementService extends IServerExtensionManagementService {
+export const INativeServerExtensionManagementService = refineServiceDecorator<IExtensionManagementService, INativeServerExtensionManagementService>(IExtensionManagementService);
+export interface INativeServerExtensionManagementService extends IExtensionManagementService {
 	readonly _serviceBrand: undefined;
 	removeUninstalledExtensions(removeOutdated: boolean): Promise<void>;
 	getAllUserInstalled(): Promise<ILocalExtension[]>;
@@ -135,7 +134,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return this.extensionsScanner.scanUserExtensions(false);
 	}
 
-	async install(vsix: URI, options: ServerInstallVSIXOptions = {}): Promise<ILocalExtension> {
+	async install(vsix: URI, options: InstallVSIXOptions = {}): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#install', vsix.toString());
 
 		const { location, cleanup } = await this.downloadVsix(vsix);
@@ -196,7 +195,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return { location, cleanup };
 	}
 
-	protected doCreateInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: ServerInstallOptions & ServerInstallVSIXOptions): IInstallExtensionTask {
+	protected doCreateInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions & InstallVSIXOptions): IInstallExtensionTask {
 		let installExtensionTask: IInstallExtensionTask | undefined;
 		if (URI.isUri(extension)) {
 			installExtensionTask = new InstallVSIXTask(manifest, extension, options, this.galleryService, this.extensionsScanner, this.logService);
@@ -214,7 +213,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return installExtensionTask;
 	}
 
-	protected doCreateUninstallExtensionTask(extension: ILocalExtension, options: ServerUninstallOptions): IUninstallExtensionTask {
+	protected doCreateUninstallExtensionTask(extension: ILocalExtension, options: UninstallOptions): IUninstallExtensionTask {
 		if (options.profileLocation) {
 			return new UninstallExtensionFromProfileTask(extension, options.profileLocation, this.extensionsProfileScannerService);
 		}
@@ -536,7 +535,7 @@ abstract class InstallExtensionTask extends AbstractExtensionTask<{ local: ILoca
 	constructor(
 		readonly identifier: IExtensionIdentifier,
 		readonly source: URI | IGalleryExtension,
-		protected readonly options: ServerInstallOptions,
+		protected readonly options: InstallOptions,
 		protected readonly extensionsScanner: ExtensionsScanner,
 		protected readonly logService: ILogService,
 	) {
@@ -591,7 +590,7 @@ class InstallGalleryExtensionTask extends InstallExtensionTask {
 	constructor(
 		private readonly manifest: IExtensionManifest,
 		private readonly gallery: IGalleryExtension,
-		options: ServerInstallOptions,
+		options: InstallOptions,
 		private readonly extensionsDownloader: ExtensionsDownloader,
 		extensionsScanner: ExtensionsScanner,
 		logService: ILogService,
@@ -676,7 +675,7 @@ class InstallVSIXTask extends InstallExtensionTask {
 	constructor(
 		private readonly manifest: IExtensionManifest,
 		private readonly location: URI,
-		options: ServerInstallOptions,
+		options: InstallOptions,
 		private readonly galleryService: IExtensionGalleryService,
 		extensionsScanner: ExtensionsScanner,
 		logService: ILogService,
@@ -783,7 +782,7 @@ class UninstallExtensionTask extends AbstractExtensionTask<void> implements IUni
 
 	constructor(
 		readonly extension: ILocalExtension,
-		private readonly options: ServerUninstallOptions,
+		private readonly options: UninstallOptions,
 		private readonly extensionsScanner: ExtensionsScanner,
 	) {
 		super();

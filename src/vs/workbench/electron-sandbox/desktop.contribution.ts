@@ -206,7 +206,7 @@ import product from 'vs/platform/product/common/product';
 			},
 			'window.experimental.windowControlsOverlay.enabled': {
 				'type': 'boolean',
-				'default': true,
+				'default': false,
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('windowControlsOverlay', "Use window controls provided by the platform instead of our HTML-based window controls. Changes require a full restart to apply."),
 				'included': isWindows

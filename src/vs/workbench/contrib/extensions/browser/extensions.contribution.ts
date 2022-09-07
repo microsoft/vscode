@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuRegistry, MenuId, registerAction2, Action2, ISubmenuItem, IMenuItem, IAction2Options } from 'vs/platform/actions/common/actions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionsLabel, ExtensionsLocalizedLabel, ExtensionsChannelId, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, InstallOperation, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
@@ -80,9 +80,9 @@ import product from 'vs/platform/product/common/product';
 import { IStringDictionary } from 'vs/base/common/collections';
 
 // Singletons
-registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, false);
+registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
 registerSingleton(IExtensionRecommendationNotificationService, ExtensionRecommendationNotificationService, true);
-registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsService, false);
+registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsService, InstantiationType.Eager /* Prompts recommendations in the background */);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel({ id: ExtensionsChannelId, label: ExtensionsLabel, log: false });
@@ -1598,11 +1598,11 @@ class ExtensionStorageCleaner implements IWorkbenchContribution {
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, 'ExtensionsContributions', LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, 'ExtensionsContributions', LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(StatusUpdater, 'StatusUpdater', LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(MaliciousExtensionChecker, 'MaliciousExtensionChecker', LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, 'KeymapExtensions', LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, 'ExtensionsViewletViewsContribution', LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, 'ExtensionsViewletViewsContribution', LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, 'ExtensionActivationProgress', LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, 'ExtensionDependencyChecker', LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrustTransitionParticipant, 'ExtensionEnablementWorkspaceTrustTransitionParticipant', LifecyclePhase.Restored);

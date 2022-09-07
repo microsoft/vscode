@@ -75,7 +75,7 @@
 		"name": "*caused-by-extension",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue is caused by an extension, please file it with the repository (or contact) the extension has linked in its overview in VS Code or the [marketplace](https://aka.ms/vscodemarketplace) for VS Code. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
+		"comment": "This issue is caused by an extension, please file it with the repository (or contact) the extension has linked in its overview in VS Code or the [marketplace](https://aka.ms/vscodemarketplace) for VS Code. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). If you don't know which extension is causing the problem, you can run `Help: Start extension bisect` from the command palette (F1) to help identify the problem extension.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",

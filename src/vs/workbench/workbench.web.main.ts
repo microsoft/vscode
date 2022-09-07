@@ -64,7 +64,7 @@ import 'vs/workbench/services/workingCopy/browser/workingCopyHistoryService';
 import 'vs/workbench/services/userDataSync/browser/webUserDataSyncEnablementService';
 import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
@@ -93,17 +93,17 @@ import { WebLanguagePacksService } from 'vs/platform/languagePacks/browser/langu
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, true);
 registerSingleton(IAccessibilityService, AccessibilityService, true);
-registerSingleton(IContextMenuService, ContextMenuService, false);
+registerSingleton(IContextMenuService, ContextMenuService, true);
 registerSingleton(ILoggerService, FileLoggerService, true);
 registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService, true);
 registerSingleton(IUserDataSyncMachinesService, UserDataSyncMachinesService, true);
 registerSingleton(IUserDataSyncBackupStoreService, UserDataSyncBackupStoreService, true);
 registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService, true);
 registerSingleton(IUserDataSyncService, UserDataSyncService, true);
-registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, false);
-registerSingleton(ITitleService, TitlebarPart, false);
+registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, InstantiationType.Eager /* Eager to start auto sync */);
+registerSingleton(ITitleService, TitlebarPart, InstantiationType.Eager);
 registerSingleton(IExtensionTipsService, ExtensionTipsService, true);
-registerSingleton(ITimerService, TimerService, false);
+registerSingleton(ITimerService, TimerService, true);
 registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService, true);
 registerSingleton(IDiagnosticsService, NullDiagnosticsService, true);
 registerSingleton(ILanguagePackService, WebLanguagePacksService, true);

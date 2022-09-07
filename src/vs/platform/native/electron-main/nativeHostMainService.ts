@@ -37,7 +37,7 @@ import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainServ
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { VSBuffer } from 'vs/base/common/buffer';
 
@@ -113,7 +113,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		return windows.map(window => ({
 			id: window.id,
-			workspace: window.openedWorkspace,
+			workspace: window.openedWorkspace ?? toWorkspaceIdentifier(window.backupPath, window.isExtensionDevelopmentHost),
 			title: window.win?.getTitle() ?? '',
 			filename: window.getRepresentedFilename(),
 			dirty: window.isDocumentEdited()

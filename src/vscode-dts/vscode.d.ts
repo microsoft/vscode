@@ -3589,14 +3589,15 @@ declare module 'vscode' {
 		/**
 		 * Create a regular file.
 		 *
-		 * @param uri Uri of the new file..
+		 * @param uri Uri of the new file.
 		 * @param options Defines if an existing file should be overwritten or be
-		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
+		 * ignored. When `overwrite` and `ignoreIfExists` are both set `overwrite` wins.
 		 * When both are unset and when the file already exists then the edit cannot
-		 * be applied successfully.
+		 * be applied successfully. The `content`-property allows to set the initial contents
+		 * the file is being created with.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		createFile(uri: Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
+		createFile(uri: Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean; contents?: Uint8Array }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Delete a file or folder.

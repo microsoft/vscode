@@ -18,7 +18,6 @@ import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMain
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICommonIssueService, IssueReporterData, IssueReporterWindowConfiguration, ProcessExplorerData, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
-import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import product from 'vs/platform/product/common/product';
@@ -53,7 +52,6 @@ export class IssueMainService implements ICommonIssueService {
 	constructor(
 		private userEnv: IProcessEnvironment,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
-		@ILaunchMainService private readonly launchMainService: ILaunchMainService,
 		@ILogService private readonly logService: ILogService,
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
 		@IDiagnosticsMainService private readonly diagnosticsMainService: IDiagnosticsMainService,
@@ -67,7 +65,7 @@ export class IssueMainService implements ICommonIssueService {
 
 	private registerListeners(): void {
 		validatedIpcMain.on('vscode:issueSystemInfoRequest', async event => {
-			const [info, remoteData] = await Promise.all([this.launchMainService.getMainProcessInfo(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })]);
+			const [info, remoteData] = await Promise.all([this.diagnosticsMainService.getMainDiagnostics(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })]);
 			const msg = await this.diagnosticsService.getSystemInfo(info, remoteData);
 
 			this.safeSend(event, 'vscode:issueSystemInfoResponse', msg);
@@ -77,8 +75,7 @@ export class IssueMainService implements ICommonIssueService {
 			const processes = [];
 
 			try {
-				const mainPid = await this.launchMainService.getMainProcessId();
-				processes.push({ name: localize('local', "Local"), rootProcess: await listProcesses(mainPid) });
+				processes.push({ name: localize('local', "Local"), rootProcess: await listProcesses(process.pid) });
 
 				const remoteDiagnostics = await this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: true });
 				remoteDiagnostics.forEach(data => {
@@ -184,7 +181,7 @@ export class IssueMainService implements ICommonIssueService {
 		});
 
 		validatedIpcMain.on('vscode:windowsInfoRequest', async event => {
-			const mainProcessInfo = await this.launchMainService.getMainProcessInfo();
+			const mainProcessInfo = await this.diagnosticsMainService.getMainDiagnostics();
 			this.safeSend(event, 'vscode:windowsInfoResponse', mainProcessInfo.windows);
 		});
 	}
@@ -343,7 +340,7 @@ export class IssueMainService implements ICommonIssueService {
 	}
 
 	async getSystemStatus(): Promise<string> {
-		const [info, remoteData] = await Promise.all([this.launchMainService.getMainProcessInfo(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })]);
+		const [info, remoteData] = await Promise.all([this.diagnosticsMainService.getMainDiagnostics(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })]);
 
 		return this.diagnosticsService.getDiagnostics(info, remoteData);
 	}
@@ -419,7 +416,7 @@ export class IssueMainService implements ICommonIssueService {
 
 	private async getPerformanceInfo(): Promise<PerformanceInfo> {
 		try {
-			const [info, remoteData] = await Promise.all([this.launchMainService.getMainProcessInfo(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true })]);
+			const [info, remoteData] = await Promise.all([this.diagnosticsMainService.getMainDiagnostics(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true })]);
 			return await this.diagnosticsService.getPerformanceInfo(info, remoteData);
 		} catch (error) {
 			this.logService.warn('issueService#getPerformanceInfo ', error.message);

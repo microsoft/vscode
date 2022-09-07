@@ -341,7 +341,7 @@ class MergeModelInterface extends Disposable {
 		applyRanges(
 			resultTextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
-				range: this.mergeModel.getRangeInResult(r.baseRange).toRange(),
+				range: this.mergeModel.getLineRangeInResult(r.baseRange).toRange(),
 				label: `{${this.mergeModel.getState(r).get()}}${toSmallNumbersDec(idx)}`,
 			}))
 		);

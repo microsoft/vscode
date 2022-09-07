@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { ExtensionInstallLocation, IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ExtensionInstallLocation, IExtensionManagementServer, IExtensionManagementServerService, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Schemas } from 'vs/base/common/network';
 import { Event } from 'vs/base/common/event';
@@ -32,8 +32,12 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 	) {
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const extensionManagementService = new class extends ExtensionManagementChannelClient {
-				readonly onDidChangeProfileExtensions = Event.None;
+			const extensionManagementService = new class extends ExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
+				get onProfileAwareInstallExtension() { return super.onInstallExtension; }
+				get onProfileAwareDidInstallExtensions() { return super.onDidInstallExtensions; }
+				get onProfileAwareUninstallExtension() { return super.onUninstallExtension; }
+				get onProfileAwareDidUninstallExtension() { return super.onDidUninstallExtension; }
+				readonly onDidChangeProfile = Event.None;
 			}(remoteAgentConnection.getChannel<IChannel>('extensions'));
 			this.remoteExtensionManagementServer = {
 				id: 'remote',

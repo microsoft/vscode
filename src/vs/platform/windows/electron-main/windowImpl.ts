@@ -119,8 +119,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get backupPath(): string | undefined { return this._config?.backupPath; }
 
-	private _previousWorkspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
-	get previousWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._previousWorkspace; }
 	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
 
 	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getOrSetProfileForWorkspace(this.config.workspace ?? 'empty-window', this.userDataProfilesService.profiles.find(profile => profile.id === this.config?.profiles.profile.id) ?? this.userDataProfilesService.defaultProfile) : undefined; }
@@ -853,8 +851,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			this._win.setTitle(this.productService.nameLong);
 		}
-
-		this._previousWorkspace = this.openedWorkspace;
 
 		// Update configuration values based on our window context
 		// and set it into the config object URL for usage.
