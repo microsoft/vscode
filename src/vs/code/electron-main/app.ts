@@ -634,16 +634,16 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Windows
-		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv]));
+		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv], false));
 
 		// Dialogs
-		services.set(IDialogMainService, new SyncDescriptor(DialogMainService));
+		services.set(IDialogMainService, new SyncDescriptor(DialogMainService, undefined, true));
 
 		// Launch
-		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
+		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService, undefined, false /* proxied to other processes */));
 
 		// Diagnostics
-		services.set(IDiagnosticsMainService, new SyncDescriptor(DiagnosticsMainService));
+		services.set(IDiagnosticsMainService, new SyncDescriptor(DiagnosticsMainService, undefined, false /* proxied to other processes */));
 		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
 		// Issues
@@ -656,7 +656,7 @@ export class CodeApplication extends Disposable {
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
 
 		// Native Host
-		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, [sharedProcess]));
+		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, [sharedProcess], false /* proxied to other processes */));
 
 		// Credentials
 		services.set(ICredentialsMainService, new SyncDescriptor(CredentialsNativeMainService));
@@ -665,9 +665,9 @@ export class CodeApplication extends Disposable {
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 
 		// Workspaces
-		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesMainService));
-		services.set(IWorkspacesManagementMainService, new SyncDescriptor(WorkspacesManagementMainService));
-		services.set(IWorkspacesHistoryMainService, new SyncDescriptor(WorkspacesHistoryMainService));
+		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesMainService, undefined, false /* proxied to other processes */));
+		services.set(IWorkspacesManagementMainService, new SyncDescriptor(WorkspacesManagementMainService, undefined, true));
+		services.set(IWorkspacesHistoryMainService, new SyncDescriptor(WorkspacesHistoryMainService, undefined, false));
 
 		// Menubar
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
@@ -696,7 +696,7 @@ export class CodeApplication extends Disposable {
 		services.set(IBackupMainService, backupMainService);
 
 		// URL handling
-		services.set(IURLService, new SyncDescriptor(NativeURLService));
+		services.set(IURLService, new SyncDescriptor(NativeURLService, undefined, false /* proxied to other processes */));
 
 		// Telemetry
 		if (supportsTelemetry(this.productService, this.environmentMainService)) {
@@ -707,7 +707,7 @@ export class CodeApplication extends Disposable {
 			const piiPaths = getPiiPathsFromEnvironment(this.environmentMainService);
 			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
 
-			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
+			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config], false));
 		} else {
 			services.set(ITelemetryService, NullTelemetryService);
 		}

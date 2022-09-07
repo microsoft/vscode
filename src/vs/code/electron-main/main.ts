@@ -198,7 +198,7 @@ class CodeMain {
 		services.set(IConfigurationService, configurationService);
 
 		// Lifecycle
-		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService));
+		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService, undefined, false));
 
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestMainService, undefined, true));
@@ -207,13 +207,13 @@ class CodeMain {
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
 
 		// Signing
-		services.set(ISignService, new SyncDescriptor(SignService));
+		services.set(ISignService, new SyncDescriptor(SignService, undefined, false /* proxied to other processes */));
 
 		// Tunnel
 		services.set(ITunnelService, new SyncDescriptor(TunnelService));
 
-		// Protocol
-		services.set(IProtocolMainService, new SyncDescriptor(ProtocolMainService));
+		// Protocol (instantiated early and not using sync descriptor for security reasons)
+		services.set(IProtocolMainService, new ProtocolMainService(environmentMainService, userDataProfilesMainService, logService));
 
 		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService, userDataProfilesMainService];
 	}
