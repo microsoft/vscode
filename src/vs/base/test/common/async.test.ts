@@ -741,6 +741,7 @@ suite('Async', () => {
 
 			await sequentializer.join();
 			assert.ok(pendingDone);
+			assert.ok(!sequentializer.hasPending());
 		});
 
 		test('join (with next and pending)', async function () {
@@ -756,6 +757,7 @@ suite('Async', () => {
 			await sequentializer.join();
 			assert.ok(pendingDone);
 			assert.ok(nextDone);
+			assert.ok(!sequentializer.hasPending());
 			assert.ok(!sequentializer.hasNext());
 		});
 

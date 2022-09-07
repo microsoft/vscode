@@ -11,7 +11,7 @@ import { Promises } from 'vs/base/node/pfs';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { EXTENSION_DEVELOPMENT_EMPTY_WINDOW_ID } from 'vs/platform/workspace/common/workspace';
+import { EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/workspace/common/workspace';
 
 export class UnusedWorkspaceStorageDataCleaner extends Disposable {
 
@@ -42,7 +42,7 @@ export class UnusedWorkspaceStorageDataCleaner extends Disposable {
 					return; // keep workspace storage for folders/workspaces that can be accessed still
 				}
 
-				if (workspaceStorageFolder === EXTENSION_DEVELOPMENT_EMPTY_WINDOW_ID.id) {
+				if (workspaceStorageFolder === EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE.id) {
 					return; // keep workspace storage for empty extension development workspaces
 				}
 
@@ -51,7 +51,7 @@ export class UnusedWorkspaceStorageDataCleaner extends Disposable {
 					return; // keep workspace storage for empty workspaces opened as window
 				}
 
-				this.logService.trace(`[storage cleanup]: Deleting workspace storage folder ${workspaceStorageFolder}.`);
+				this.logService.trace(`[storage cleanup]: Deleting workspace storage folder ${workspaceStorageFolder} as it seems to be an unused empty workspace.`);
 
 				await Promises.rm(join(this.environmentService.workspaceStorageHome.fsPath, workspaceStorageFolder));
 			}));

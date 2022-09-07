@@ -445,7 +445,7 @@ export class BackupMainService implements IBackupMainService {
 			this.workspacesJsonSaveSequentializer.setPending(++this.workspacesJsonWriteCounter, this.doWriteWorkspacesMetadata());
 		}
 
-		// Pending task: schedul to run next
+		// Pending task: schedule to run next
 		else {
 			this.workspacesJsonSaveSequentializer.setNext(() => this.doWriteWorkspacesMetadata());
 		}

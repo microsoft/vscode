@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
-import { ISerializedBackupWorkspaces, ISerializedWorkspace } from 'vs/platform/backup/node/backup';
+import { ISerializedBackupWorkspaces, ISerializedWorkspaceBackupInfo } from 'vs/platform/backup/node/backup';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
@@ -54,7 +54,7 @@ flakySuite('BackupMainService', () => {
 		return { folderUri: uri, remoteAuthority };
 	}
 
-	function toSerializedWorkspace(ws: IWorkspaceIdentifier): ISerializedWorkspace {
+	function toSerializedWorkspace(ws: IWorkspaceIdentifier): ISerializedWorkspaceBackupInfo {
 		return {
 			id: ws.id,
 			configURIPath: ws.configPath.toString()

@@ -67,7 +67,7 @@ async function rimrafMove(path: string): Promise<void> {
 			await fs.promises.rename(path, pathInTemp);
 		} catch (error) {
 			if (error.code === 'ENOENT') {
-				return; // path did not exist
+				return; // ignore - path to delete did not exist
 			}
 
 			return rimrafUnlink(path); // otherwise fallback to unlink

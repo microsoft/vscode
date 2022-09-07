@@ -16,7 +16,7 @@ export function isEmptyWindowBackupInfo(obj: unknown): obj is IEmptyWindowBackup
 	return typeof candidate?.backupFolder === 'string';
 }
 
-export interface ISerializedWorkspace {
+export interface ISerializedWorkspaceBackupInfo {
 	readonly id: string;
 	readonly configURIPath: string;
 	readonly remoteAuthority?: string;
@@ -43,7 +43,7 @@ export function deserializeWorkspaceInfos(serializedBackupWorkspaces: ISerialize
 	return workspaceBackupInfos;
 }
 
-export interface ISerializedFolder {
+export interface ISerializedFolderBackupInfo {
 	readonly folderUri: string;
 	readonly remoteAuthority?: string;
 }
@@ -66,10 +66,10 @@ export function deserializeFolderInfos(serializedBackupWorkspaces: ISerializedBa
 	return folderBackupInfos;
 }
 
-export interface ISerializedEmptyWindow extends IEmptyWindowBackupInfo { }
+export interface ISerializedEmptyWindowBackupInfo extends IEmptyWindowBackupInfo { }
 
 export interface ISerializedBackupWorkspaces {
-	readonly rootURIWorkspaces: ISerializedWorkspace[];
-	readonly folderWorkspaceInfos: ISerializedFolder[];
-	readonly emptyWorkspaceInfos: ISerializedEmptyWindow[];
+	readonly rootURIWorkspaces: ISerializedWorkspaceBackupInfo[];
+	readonly folderWorkspaceInfos: ISerializedFolderBackupInfo[];
+	readonly emptyWorkspaceInfos: ISerializedEmptyWindowBackupInfo[];
 }

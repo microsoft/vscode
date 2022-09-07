@@ -140,7 +140,7 @@ export function isSingleFolderWorkspaceIdentifier(obj: unknown): obj is ISingleF
 	return typeof singleFolderIdentifier?.id === 'string' && URI.isUri(singleFolderIdentifier.uri);
 }
 
-export const EXTENSION_DEVELOPMENT_EMPTY_WINDOW_ID: IEmptyWorkspaceIdentifier = { id: 'ext-dev' };
+export const EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE: IEmptyWorkspaceIdentifier = { id: 'ext-dev' };
 
 export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
 export function toWorkspaceIdentifier(backupPath: string | undefined, isExtensionDevelopment: boolean): IEmptyWorkspaceIdentifier;
@@ -149,7 +149,7 @@ export function toWorkspaceIdentifier(arg0: IWorkspace | string | undefined, isE
 	// Empty workspace
 	if (typeof arg0 === 'string' || typeof arg0 === 'undefined') {
 
-		// With a backupPath, the name is the empty workspace identifier
+		// With a backupPath, the basename is the empty workspace identifier
 		if (typeof arg0 === 'string') {
 			return {
 				id: basename(arg0)
@@ -160,7 +160,7 @@ export function toWorkspaceIdentifier(arg0: IWorkspace | string | undefined, isE
 		// so we return a constant workspace identifier for extension
 		// authors to allow to restore their workspace state even then.
 		if (isExtensionDevelopment) {
-			return EXTENSION_DEVELOPMENT_EMPTY_WINDOW_ID;
+			return EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE;
 		}
 
 		return undefined;

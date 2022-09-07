@@ -253,9 +253,9 @@ export class DesktopMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// Create services that require resolving in parallel
-		const payload = this.resolveWorkspaceInitializationPayload(environmentService);
+		const workspace = this.resolveWorkspaceIdentifier(environmentService);
 		const [configurationService, storageService] = await Promise.all([
-			this.createWorkspaceService(payload, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService).then(service => {
+			this.createWorkspaceService(workspace, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -266,7 +266,7 @@ export class DesktopMain extends Disposable {
 				return service;
 			}),
 
-			this.createStorageService(payload, environmentService, userDataProfileService, userDataProfilesService, mainProcessService).then(service => {
+			this.createStorageService(workspace, environmentService, userDataProfileService, userDataProfilesService, mainProcessService).then(service => {
 
 				// Storage
 				serviceCollection.set(IStorageService, service);
@@ -308,7 +308,7 @@ export class DesktopMain extends Disposable {
 		return { serviceCollection, logService, storageService };
 	}
 
-	private resolveWorkspaceInitializationPayload(environmentService: INativeWorkbenchEnvironmentService): IAnyWorkspaceIdentifier {
+	private resolveWorkspaceIdentifier(environmentService: INativeWorkbenchEnvironmentService): IAnyWorkspaceIdentifier {
 
 		// Return early for when a folder or multi-root is opened
 		if (this.configuration.workspace) {
@@ -325,7 +325,7 @@ export class DesktopMain extends Disposable {
 	}
 
 	private async createWorkspaceService(
-		payload: IAnyWorkspaceIdentifier,
+		workspace: IAnyWorkspaceIdentifier,
 		environmentService: INativeWorkbenchEnvironmentService,
 		userDataProfileService: IUserDataProfileService,
 		userDataProfilesService: IUserDataProfilesService,
@@ -339,7 +339,7 @@ export class DesktopMain extends Disposable {
 		const workspaceService = new WorkspaceService({ remoteAuthority: environmentService.remoteAuthority, configurationCache }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService);
 
 		try {
-			await workspaceService.initialize(payload);
+			await workspaceService.initialize(workspace);
 
 			return workspaceService;
 		} catch (error) {
@@ -349,8 +349,8 @@ export class DesktopMain extends Disposable {
 		}
 	}
 
-	private async createStorageService(payload: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService, userDataProfilesService: IUserDataProfilesService, mainProcessService: IMainProcessService): Promise<NativeWorkbenchStorageService> {
-		const storageService = new NativeWorkbenchStorageService(payload, userDataProfileService, userDataProfilesService, mainProcessService, environmentService);
+	private async createStorageService(workspace: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService, userDataProfilesService: IUserDataProfilesService, mainProcessService: IMainProcessService): Promise<NativeWorkbenchStorageService> {
+		const storageService = new NativeWorkbenchStorageService(workspace, userDataProfileService, userDataProfilesService, mainProcessService, environmentService);
 
 		try {
 			await storageService.initialize();

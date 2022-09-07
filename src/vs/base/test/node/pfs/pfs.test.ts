@@ -91,9 +91,13 @@ flakySuite('PFS', function () {
 	});
 
 	test('rimraf - path does not exist - move', async () => {
-		const nonExistingDir = join(testDir, 'unknown');
+		const nonExistingDir = join(testDir, 'unknown-move');
 		await Promises.rm(nonExistingDir, RimRafMode.MOVE);
-		assert.ok(!fs.existsSync(nonExistingDir));
+	});
+
+	test('rimraf - path does not exist - unlink', async () => {
+		const nonExistingDir = join(testDir, 'unknown-unlink');
+		await Promises.rm(nonExistingDir, RimRafMode.UNLINK);
 	});
 
 	test('rimraf - recursive folder structure - unlink', async () => {

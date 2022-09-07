@@ -1232,12 +1232,10 @@ interface IPendingTask {
 	readonly promise: Promise<void>;
 }
 
-interface IScheduledTask {
-
+interface INextTask {
 	readonly promise: Promise<void>;
 	readonly promiseResolve: () => void;
 	readonly promiseReject: (error: Error) => void;
-
 	run: () => Promise<void>;
 }
 
@@ -1246,13 +1244,13 @@ export interface ITaskSequentializerWithPendingTask {
 }
 
 export interface ITaskSequentializerWithNextTask {
-	readonly next: Promise<void>;
+	readonly next: INextTask;
 }
 
 export class TaskSequentializer {
 
 	private _pending?: IPendingTask;
-	private _next?: IScheduledTask;
+	private _next?: INextTask;
 
 	hasPending(taskId?: number): this is ITaskSequentializerWithPendingTask {
 		if (!this._pending) {
