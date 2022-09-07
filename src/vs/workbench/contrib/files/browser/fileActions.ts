@@ -433,6 +433,23 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 	return `${name}.1`;
 }
 
+/**
+ * Checks to see if the resource already exists, if so prompts the user if they would be ok with it being overwritten
+ * @param fileService The file service
+ * @param dialogService The dialog service
+ * @param targetResource The resource to be overwritten
+ * @return A boolean indicating if the user is ok with resource being overwritten, if the resource does not exist it returns true.
+ */
+async function askForOverwrite(fileService: IFileService, dialogService: IDialogService, targetResource: URI): Promise<boolean> {
+	const exists = await fileService.exists(targetResource);
+	if (!exists) {
+		return true;
+	}
+	// Ask for overwrite confirmation
+	const result = await dialogService.show(Severity.Warning, nls.localize('confirmOverwrite', "A file or folder with the name '{0}' already exists in the destination folder. Do you want to replace it?", basename(targetResource.path)), [nls.localize('replaceButtonLabel', "Replace"), nls.localize('cancel', "Cancel")], { cancelId: 1 });
+	return result.choice === 0;
+}
+
 // Global Compare with
 export class GlobalCompareResourcesAction extends Action {
 
@@ -1002,6 +1019,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
 	const configurationService = accessor.get(IConfigurationService);
 	const uriIdentityService = accessor.get(IUriIdentityService);
+	const dialogService = accessor.get(IDialogService);
 
 	const context = explorerService.getContext(true);
 	const toPaste = resources.distinctParents(await clipboardService.readResources(), r => r);
@@ -1010,7 +1028,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 
 	try {
 		// Check if target is ancestor of pasted folder
-		const sourceTargetPairs = await Promise.all(toPaste.map(async fileToPaste => {
+		const sourceTargetPairs = coalesce(await Promise.all(toPaste.map(async fileToPaste => {
 
 			if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
 				throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
@@ -1027,8 +1045,15 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 
 			const targetFile = findValidPasteFileTarget(explorerService, target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove || incrementalNaming === 'disabled' }, incrementalNaming);
 
+			if (incrementalNaming === 'disabled') {
+				const canOverwrite = await askForOverwrite(fileService, dialogService, targetFile);
+				if (!canOverwrite) {
+					return;
+				}
+			}
+
 			return { source: fileToPaste, target: targetFile };
-		}));
+		})));
 
 		if (sourceTargetPairs.length >= 1) {
 			// Move/Copy File
