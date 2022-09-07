@@ -183,7 +183,7 @@ class CliMain extends Disposable {
 		services.set(IExtensionManagementCLIService, new SyncDescriptor(ExtensionManagementCLIService, undefined, true));
 
 		// Localizations
-		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService));
+		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService, undefined, false));
 
 		// Telemetry
 		const appenders: OneDataSystemAppender[] = [];
@@ -214,7 +214,7 @@ class CliMain extends Disposable {
 				piiPaths: getPiiPathsFromEnvironment(environmentService)
 			};
 
-			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
+			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config], false));
 
 		} else {
 			services.set(ITelemetryService, NullTelemetryService);
