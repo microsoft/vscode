@@ -59,8 +59,7 @@ registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, fal
 
 const continueEditSessionCommand: IAction2Options = {
 	id: '_workbench.experimental.editSessions.actions.continueEditSession',
-	title: { value: localize('continue edit session', "Continue Edit Session..."), original: 'Continue Edit Session...' },
-	category: EDIT_SESSION_SYNC_CATEGORY,
+	title: { value: localize('continue working on', "Continue Working On..."), original: 'Continue Working On...' },
 	precondition: WorkspaceFolderCountContext.notEqualsTo('0'),
 	f1: true
 };
