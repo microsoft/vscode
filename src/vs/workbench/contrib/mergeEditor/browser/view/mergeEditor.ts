@@ -182,6 +182,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 		const viewModel = new MergeEditorViewModel(model, this.input1View, this.input2View, this.inputResultView, this.baseView);
 		this._viewModel.set(viewModel, undefined);
+		this._sessionDisposables.add(viewModel);
 
 		// Set/unset context keys based on input
 		this._ctxResultUri.set(model.resultTextModel.uri.toString());
