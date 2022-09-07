@@ -46,6 +46,7 @@ export interface ICustomizationProperties {
 export interface ITaskFilter {
 	version?: string;
 	type?: string;
+	task?: string;
 }
 
 interface IWorkspaceTaskResult {
