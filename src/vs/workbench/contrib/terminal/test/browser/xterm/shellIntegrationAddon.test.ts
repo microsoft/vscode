@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Terminal } from 'xterm';
-import { strictEqual, deepStrictEqual } from 'assert';
+import { strictEqual, deepStrictEqual, deepEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
 import * as sinon from 'sinon';
-import { parseKeyValueAssignment, ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
+import { parseKeyValueAssignment, parseMarkSequence, ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
@@ -209,6 +209,57 @@ suite('ShellIntegrationAddon', () => {
 			mock.expects('setCwd').once().withExactArgs('/foo');
 			await writeP(xterm, '\x1b]633;P;Cwd=/foo\x07');
 			mock.verify();
+		});
+	});
+	suite('BufferMarkCapability', async () => {
+		test('SetMark', async () => {
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
+			await writeP(xterm, 'foo');
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
+			await writeP(xterm, '\x1b]633;SetMark;\x07');
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), true);
+		});
+		test('SetMark - ID', async () => {
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
+			await writeP(xterm, 'foo');
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
+			await writeP(xterm, '\x1b]633;SetMark;1;\x07');
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), true);
+		});
+		test('SetMark - hidden', async () => {
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
+			await writeP(xterm, 'foo');
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
+			await writeP(xterm, '\x1b]633;SetMark;;Hidden\x07');
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), true);
+		});
+		test('SetMark - hidden & ID', async () => {
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
+			await writeP(xterm, 'foo');
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
+			await writeP(xterm, '\x1b]633;SetMark;1;Hidden\x07');
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), true);
+		});
+		test('SetMark - invalid', async () => {
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
+			await writeP(xterm, 'foo');
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
+			await writeP(xterm, '\x1b]633;SetMark;;;\x07');
+			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
+		});
+		suite('parseMarkSequence', () => {
+			test('basic', async () => {
+				deepEqual(parseMarkSequence(['', '']), { id: undefined, hidden: false });
+			});
+			test('ID', async () => {
+				deepEqual(parseMarkSequence(['Id=3', '']), { id: "3", hidden: false });
+			});
+			test('hidden', async () => {
+				deepEqual(parseMarkSequence(['', 'Hidden']), { id: undefined, hidden: true });
+			});
+			test('ID + hidden', async () => {
+				deepEqual(parseMarkSequence(['Id=4555', 'Hidden']), { id: "4555", hidden: true });
+			});
 		});
 	});
 });

@@ -8,15 +8,17 @@ import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/l
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { CwdDetectionCapability } from 'vs/platform/terminal/common/capabilities/cwdDetectionCapability';
-import { ICommandDetectionCapability, ICwdDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, ISerializedCommandDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
 import { ILogService } from 'vs/platform/log/common/log';
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
-import type { ITerminalAddon, Terminal } from 'xterm-headless';
-import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Emitter } from 'vs/base/common/event';
+import { BufferMarkCapability } from 'vs/platform/terminal/common/capabilities/bufferMarkCapability';
+// Importing types is safe in any layer
+// eslint-disable-next-line local/code-import-patterns
+import type { ITerminalAddon, Terminal } from 'xterm-headless';
 import { URI } from 'vs/base/common/uri';
 
 
@@ -152,7 +154,16 @@ const enum VSCodeOscPt {
 	 *
 	 * WARNING: Any other properties may be changed and are not guaranteed to work in the future.
 	 */
-	Property = 'P'
+	Property = 'P',
+
+	/**
+	 * Sets a mark/point-of-interest in the buffer. `OSC 633 ; SetMark [; Id=<string>] [; Hidden]`
+	 * `Id` - The identifier of the mark that can be used to reference it
+	 * `Hidden` - When set, the mark will be available to reference internally but will not visible
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
+	 */
+	SetMark = 'SetMark',
 }
 
 /**
@@ -355,9 +366,18 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						return true;
 					}
 					case 'Task': {
+						this._createOrGetBufferMarkDetection(this._terminal);
 						this.capabilities.get(TerminalCapability.CommandDetection)?.setIsCommandStorageDisabled();
+						return true;
 					}
 				}
+			}
+			case VSCodeOscPt.SetMark: {
+				if (args.length > 2) {
+					return false;
+				}
+				this._createOrGetBufferMarkDetection(this._terminal).addMark(parseMarkSequence(args));
+				return true;
 			}
 		}
 
@@ -379,7 +399,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		const [command] = data.split(';');
 		switch (command) {
 			case ITermOscPt.SetMark: {
-				this._createOrGetCommandDetection(this._terminal).handleGenericCommand({ genericMarkProperties: { disableCommandStorage: true } });
+				this._createOrGetBufferMarkDetection(this._terminal).addMark();
 			}
 			default: {
 				// Checking for known `<key>=<value>` pairs.
@@ -479,6 +499,15 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 		return commandDetection;
 	}
+
+	protected _createOrGetBufferMarkDetection(terminal: Terminal): IBufferMarkCapability {
+		let bufferMarkDetection = this.capabilities.get(TerminalCapability.BufferMarkDetection);
+		if (!bufferMarkDetection) {
+			bufferMarkDetection = new BufferMarkCapability(terminal);
+			this.capabilities.add(TerminalCapability.BufferMarkDetection, bufferMarkDetection);
+		}
+		return bufferMarkDetection;
+	}
 }
 
 export function deserializeMessage(message: string): string {
@@ -504,4 +533,19 @@ export function parseKeyValueAssignment(message: string): { key: string; value: 
 		key: deserialized.substring(0, separatorIndex),
 		value: deserialized.substring(1 + separatorIndex)
 	};
+}
+
+
+export function parseMarkSequence(sequence: string[]): { id?: string; hidden?: boolean } {
+	let id = undefined;
+	let hidden = false;
+	for (const property of sequence) {
+		if (property === 'Hidden') {
+			hidden = true;
+		}
+		if (property.startsWith('Id=')) {
+			id = property.substring(3);
+		}
+	}
+	return { id, hidden };
 }
