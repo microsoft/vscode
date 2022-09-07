@@ -48,7 +48,7 @@ import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/te
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 
 import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TaskDefinition, TaskEventKind, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, TASK_RUNNING_STATE, USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/tasks';
-import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ShellExecutionSupportedContext, TaskCommandsRegistered } from 'vs/workbench/contrib/tasks/common/taskService';
+import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
@@ -80,6 +80,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -260,7 +261,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ILogService private readonly _logService: ILogService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
 		super();
 
@@ -295,6 +297,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
 		this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
+		ServerlessWebContext.bindTo(this._contextKeyService).set(Platform.isWeb && !remoteAgentService.getConnection()?.remoteAuthority);
 		this._configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
 			let tasks = await this._getTasksForGroup(TaskGroup.Build);
 			if (tasks.length > 0) {
@@ -2767,6 +2770,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _trust(): Promise<boolean> {
+		if (ServerlessWebContext && !TaskExecutionSupportedContext) {
+			return false;
+		}
 		await this._workspaceTrustManagementService.workspaceTrustInitialized;
 		if (!this._workspaceTrustManagementService.isWorkspaceTrusted()) {
 			return (await this._workspaceTrustRequestService.requestWorkspaceTrust(
