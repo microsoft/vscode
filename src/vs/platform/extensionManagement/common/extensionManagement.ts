@@ -11,7 +11,7 @@ import { Platform } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
@@ -344,8 +344,10 @@ export interface IExtensionGalleryService {
 }
 
 export interface InstallExtensionEvent {
-	identifier: IExtensionIdentifier;
-	source: URI | IGalleryExtension;
+	readonly identifier: IExtensionIdentifier;
+	readonly source: URI | IGalleryExtension;
+	readonly profileLocation?: URI;
+	readonly applicationScoped?: boolean;
 }
 
 export interface InstallExtensionResult {
@@ -354,16 +356,22 @@ export interface InstallExtensionResult {
 	readonly source?: URI | IGalleryExtension;
 	readonly local?: ILocalExtension;
 	readonly context?: IStringDictionary<any>;
+	readonly profileLocation?: URI;
+	readonly applicationScoped?: boolean;
 }
 
 export interface UninstallExtensionEvent {
-	identifier: IExtensionIdentifier;
+	readonly identifier: IExtensionIdentifier;
+	readonly profileLocation?: URI;
+	readonly applicationScoped?: boolean;
 }
 
 export interface DidUninstallExtensionEvent {
 	readonly identifier: IExtensionIdentifier;
 	readonly version?: string;
 	readonly error?: string;
+	readonly profileLocation?: URI;
+	readonly applicationScoped?: boolean;
 }
 
 export enum ExtensionManagementErrorCode {
@@ -402,9 +410,10 @@ export type InstallOptions = {
 	 * Context passed through to InstallExtensionResult
 	 */
 	context?: IStringDictionary<any>;
+	profileLocation?: URI;
 };
 export type InstallVSIXOptions = Omit<InstallOptions, 'installGivenVersion'> & { installOnlyNewlyAddedFromExtensionPack?: boolean };
-export type UninstallOptions = { readonly donotIncludePack?: boolean; readonly donotCheckDependents?: boolean; readonly versionOnly?: boolean; readonly remove?: boolean };
+export type UninstallOptions = { readonly donotIncludePack?: boolean; readonly donotCheckDependents?: boolean; readonly versionOnly?: boolean; readonly remove?: boolean; readonly profileLocation?: URI };
 
 export interface IExtensionManagementParticipant {
 	postInstall(local: ILocalExtension, source: URI | IGalleryExtension, options: InstallOptions | InstallVSIXOptions, token: CancellationToken): Promise<void>;
@@ -428,7 +437,7 @@ export interface IExtensionManagementService {
 	installFromGallery(extension: IGalleryExtension, options?: InstallOptions): Promise<ILocalExtension>;
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
 	reinstallFromGallery(extension: ILocalExtension): Promise<void>;
-	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]>;
+	getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
 
 	getMetadata(extension: ILocalExtension): Promise<Metadata | undefined>;
@@ -437,28 +446,6 @@ export interface IExtensionManagementService {
 
 	registerParticipant(pariticipant: IExtensionManagementParticipant): void;
 	getTargetPlatform(): Promise<TargetPlatform>;
-}
-
-export type ServerInstallExtensionEvent = InstallExtensionEvent & { profileLocation?: URI; applicationScoped?: boolean };
-export type ServerInstallExtensionResult = InstallExtensionResult & { profileLocation?: URI; applicationScoped?: boolean };
-export type ServerUninstallExtensionEvent = UninstallExtensionEvent & { profileLocation?: URI; applicationScoped?: boolean };
-export type ServerDidUninstallExtensionEvent = DidUninstallExtensionEvent & { profileLocation?: URI; applicationScoped?: boolean };
-
-export type ServerInstallOptions = InstallOptions & { profileLocation?: URI };
-export type ServerInstallVSIXOptions = InstallVSIXOptions & { profileLocation?: URI };
-export type ServerUninstallOptions = UninstallOptions & { profileLocation?: URI };
-
-export const IServerExtensionManagementService = refineServiceDecorator<IExtensionManagementService, IServerExtensionManagementService>(IExtensionManagementService);
-export interface IServerExtensionManagementService extends IExtensionManagementService {
-	readonly _serviceBrand: undefined;
-	onInstallExtension: Event<ServerInstallExtensionEvent>;
-	onDidInstallExtensions: Event<readonly ServerInstallExtensionResult[]>;
-	onUninstallExtension: Event<ServerUninstallExtensionEvent>;
-	onDidUninstallExtension: Event<ServerDidUninstallExtensionEvent>;
-	getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
-	install(vsix: URI, options?: ServerInstallVSIXOptions): Promise<ILocalExtension>;
-	installFromGallery(extension: IGalleryExtension, options?: ServerInstallOptions): Promise<ILocalExtension>;
-	uninstall(extension: ILocalExtension, options?: ServerUninstallOptions): Promise<void>;
 }
 
 export const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/disabled';

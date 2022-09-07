@@ -1953,7 +1953,11 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	onDidInstallExtensions = Event.None;
 	onUninstallExtension = Event.None;
 	onDidUninstallExtension = Event.None;
-	onDidChangeProfileExtensions = Event.None;
+	onProfileAwareInstallExtension = Event.None;
+	onProfileAwareDidInstallExtensions = Event.None;
+	onProfileAwareUninstallExtension = Event.None;
+	onProfileAwareDidUninstallExtension = Event.None;
+	onDidChangeProfile = Event.None;
 	installVSIX(location: URI, manifest: Readonly<IRelaxedExtensionManifest>, installOptions?: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
@@ -2012,7 +2016,7 @@ export class TestUserDataProfileService implements IUserDataProfileService {
 
 export class TestWebExtensionsScannerService implements IWebExtensionsScannerService {
 	_serviceBrand: undefined;
-	onDidChangeProfileExtensions = Event.None;
+	onDidChangeProfile = Event.None;
 	async scanSystemExtensions(): Promise<IExtension[]> { return []; }
 	async scanUserExtensions(): Promise<IScannedExtension[]> { return []; }
 	async scanExtensionsUnderDevelopment(): Promise<IExtension[]> { return []; }
