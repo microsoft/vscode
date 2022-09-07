@@ -241,21 +241,19 @@ export abstract class TitleControl extends Themable {
 		this.editorToolBarMenuDisposables.clear();
 
 		// Update contexts
-		this.contextKeyService.bufferChangeEvents(() => {
-			const activeEditor = this.group.activeEditor;
+		const activeEditor = this.group.activeEditor;
 
-			this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })));
+		this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })));
 
-			this.editorPinnedContext.set(activeEditor ? this.group.isPinned(activeEditor) : false);
-			this.editorIsFirstContext.set(activeEditor ? this.group.isFirst(activeEditor) : false);
-			this.editorIsLastContext.set(activeEditor ? this.group.isLast(activeEditor) : false);
-			this.editorStickyContext.set(activeEditor ? this.group.isSticky(activeEditor) : false);
+		this.editorPinnedContext.set(activeEditor ? this.group.isPinned(activeEditor) : false);
+		this.editorIsFirstContext.set(activeEditor ? this.group.isFirst(activeEditor) : false);
+		this.editorIsLastContext.set(activeEditor ? this.group.isLast(activeEditor) : false);
+		this.editorStickyContext.set(activeEditor ? this.group.isSticky(activeEditor) : false);
 
-			this.editorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
-			this.sideBySideEditorContext.set(activeEditor?.typeId === SideBySideEditorInput.ID);
+		this.editorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
+		this.sideBySideEditorContext.set(activeEditor?.typeId === SideBySideEditorInput.ID);
 
-			this.groupLockedContext.set(this.group.isLocked);
-		});
+		this.groupLockedContext.set(this.group.isLocked);
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeEditorPane = this.group.activeEditorPane;

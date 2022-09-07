@@ -75,8 +75,8 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 	private generation = 0;
 	private readonly changeEmitter = new Emitter<void>();
 	private readonly decorationCache = new ResourceMap<{
-		/** Whether tests in the resource have been updated, requiring rerendering */
-		testRangesUpdated: boolean;
+		/** The document version at which ranges have been updated, requiring rerendering */
+		rangeUpdateVersionId?: number;
 		/** Counter for the results rendered in the document */
 		generation: number;
 		value: TestDecorations<ITestDecoration>;
@@ -115,16 +115,14 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		// is up to date. This prevents issues, as in #138632, #138835, #138922.
 		this._register(this.testService.onWillProcessDiff(diff => {
 			for (const entry of diff) {
-				let uri: URI | undefined | null;
-				if (entry.op === TestDiffOpType.Add || entry.op === TestDiffOpType.Update) {
-					uri = entry.item.item?.uri;
-				} else if (entry.op === TestDiffOpType.Remove) {
-					uri = this.testService.collection.getNodeById(entry.itemId)?.item.uri;
+				if (entry.op !== TestDiffOpType.Update || entry.item.docv === undefined || entry.item.item?.range === undefined) {
+					continue;
 				}
 
+				const uri = this.testService.collection.getNodeById(entry.item.extId)?.item.uri;
 				const rec = uri && this.decorationCache.get(uri);
 				if (rec) {
-					rec.testRangesUpdated = true;
+					rec.rangeUpdateVersionId = entry.item.docv;
 				}
 			}
 
@@ -160,7 +158,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		}
 
 		const cached = this.decorationCache.get(resource);
-		if (cached && cached.generation === this.generation && !cached.testRangesUpdated) {
+		if (cached && cached.generation === this.generation && (cached.rangeUpdateVersionId === undefined || cached.rangeUpdateVersionId !== model.getVersionId())) {
 			return cached.value;
 		}
 
@@ -194,7 +192,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		const gutterEnabled = getTestingConfiguration(this.configurationService, TestingConfigKeys.GutterEnabled);
 		const uriStr = model.uri.toString();
 		const cached = this.decorationCache.get(model.uri);
-		const testRangesUpdated = cached?.testRangesUpdated;
+		const testRangesUpdated = cached?.rangeUpdateVersionId === model.getVersionId();
 		const lastDecorations = cached?.value ?? new TestDecorations();
 		const newDecorations = new TestDecorations<ITestDecoration>();
 
@@ -298,7 +296,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 
 			this.decorationCache.set(model.uri, {
 				generation: this.generation,
-				testRangesUpdated: false,
+				rangeUpdateVersionId: cached?.rangeUpdateVersionId,
 				value: newDecorations,
 			});
 		});

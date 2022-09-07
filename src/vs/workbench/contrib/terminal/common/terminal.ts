@@ -380,7 +380,6 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	readonly persistentProcessId: number | undefined;
 	readonly shouldPersist: boolean;
-	readonly isDisconnected: boolean;
 	readonly hasWrittenData: boolean;
 	readonly hasChildProcesses: boolean;
 	readonly backend: ITerminalBackend | undefined;
@@ -636,6 +635,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'editor.action.toggleTabFocusMode',
 	'notifications.hideList',
 	'notifications.hideToasts',
+	'workbench.action.closeQuickOpen',
 	'workbench.action.quickOpen',
 	'workbench.action.quickOpenPreviousEditor',
 	'workbench.action.showCommands',

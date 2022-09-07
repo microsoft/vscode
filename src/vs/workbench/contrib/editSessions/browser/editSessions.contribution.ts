@@ -252,25 +252,25 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				};
 				that.telemetryService.publicLog2<ContinueEditSessionEvent, ContinueEditSessionClassification>('editSessions.continue.store');
 
-				// Run the store action to get back a ref
-				const ref = await that.storeEditSession(false);
-
 				let uri = workspaceUri ?? await that.pickContinueEditSessionDestination();
 				if (uri === undefined) { return; }
 
+				// Run the store action to get back a ref
+				const ref = await that.storeEditSession(false);
+
 				// Append the ref to the URI
-				if (ref !== undefined) {
+				if (ref !== undefined && uri !== 'noDestinationUri') {
 					const encodedRef = encodeURIComponent(ref);
 					uri = uri.with({
 						query: uri.query.length > 0 ? (uri + `&${queryParamName}=${encodedRef}`) : `${queryParamName}=${encodedRef}`
 					});
-				} else {
+
+					// Open the URI
+					that.logService.info(`Opening ${uri.toString()}`);
+					await that.openerService.open(uri, { openExternal: true });
+				} else if (ref === undefined) {
 					that.logService.warn(`Failed to store edit session when invoking ${continueEditSessionCommand.id}.`);
 				}
-
-				// Open the URI
-				that.logService.info(`Opening ${uri.toString()}`);
-				await that.openerService.open(uri, { openExternal: true });
 			}
 		}));
 	}
@@ -331,6 +331,12 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	async resumeEditSession(ref?: string, silent?: boolean): Promise<void> {
+		// Edit sessions are not currently supported in empty workspaces
+		// https://github.com/microsoft/vscode/issues/159220
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return;
+		}
+
 		this.logService.info(ref !== undefined ? `Resuming edit session with ref ${ref}...` : 'Resuming edit session...');
 
 		const data = await this.editSessionsStorageService.read(ref);
@@ -581,7 +587,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	private async pickContinueEditSessionDestination(): Promise<URI | undefined> {
+	private async pickContinueEditSessionDestination(): Promise<URI | 'noDestinationUri' | undefined> {
 		const quickPick = this.quickInputService.createQuickPick<ContinueEditSessionItem>();
 
 		const workspaceContext = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER
@@ -611,6 +617,12 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		try {
 			const uri = await this.commandService.executeCommand(command);
+
+			// Some continue on commands do not return a URI
+			// to support extensions which want to be in control
+			// of how the destination is opened
+			if (uri === undefined) { return 'noDestinationUri'; }
+
 			return URI.isUri(uri) ? uri : undefined;
 		} catch (ex) {
 			return undefined;
@@ -676,7 +688,7 @@ const continueEditSessionExtPoint = ExtensionsRegistry.registerExtensionPoint<IC
 //#endregion
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(EditSessionsContribution, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(EditSessionsContribution, 'EditSessionsContribution', LifecyclePhase.Restored);
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
@@ -695,7 +707,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		'workbench.experimental.editSessions.enabled': {
 			'type': 'boolean',
 			'tags': ['experimental', 'usesOnlineServices'],
-			'default': false,
+			'default': true,
 			'markdownDescription': localize('editSessionsEnabled', "Controls whether to display cloud-enabled actions to store and resume uncommitted changes when switching between web, desktop, or devices."),
 		},
 		'workbench.experimental.editSessions.autoResume': {

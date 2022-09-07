@@ -38,13 +38,12 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 
 		// Ensure profile exists when passed in from args
 		const profilePromise = this.userDataProfilesMainService.checkAndCreateProfileFromCli(pargs);
-		if (profilePromise) {
-			await profilePromise;
-		}
+		const profile = profilePromise ? await profilePromise : undefined;
 
 		const [codeWindow] = this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
 			context: OpenContext.API,
 			cli: pargs,
+			profile
 		});
 
 		if (!debugRenderer) {

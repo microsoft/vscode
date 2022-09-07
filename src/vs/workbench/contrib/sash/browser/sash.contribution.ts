@@ -16,7 +16,7 @@ import { isIOS } from 'vs/base/common/platform';
 
 // Sash size contribution
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(SashSettingsController, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(SashSettingsController, 'SashSettingsController', LifecyclePhase.Restored);
 
 // Sash size configuration contribution
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)

@@ -61,8 +61,12 @@ export class LineRange {
 		);
 	}
 
-	public isAfter(modifiedRange: LineRange): boolean {
-		return this.startLineNumber >= modifiedRange.endLineNumberExclusive;
+	public isAfter(range: LineRange): boolean {
+		return this.startLineNumber >= range.endLineNumberExclusive;
+	}
+
+	public isBefore(range: LineRange): boolean {
+		return range.startLineNumber >= this.endLineNumberExclusive;
 	}
 
 	public delta(lineDelta: number): LineRange {

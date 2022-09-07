@@ -42,6 +42,7 @@
     "textSearchProvider",
     "timeline",
     "tokenInformation",
+    "treeItemCheckbox",
     "treeViewReveal",
     "workspaceTrust",
     "telemetry"

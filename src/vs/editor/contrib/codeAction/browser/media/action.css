@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.codeActionMenuWidget .monaco-list:not(.element-focused):focus:before {
+.codeActionWidget .monaco-list:not(.element-focused):focus:before {
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -12,77 +12,67 @@
 	z-index: 5; /* make sure we are on top of the tree items */
 	content: "";
 	pointer-events: none; /* enable click through */
-	outline: 0px solid !important; /* we still need to handle the empty tree or no focus item case */
-	outline-width: 0px !important;
+	outline: 0 solid !important; /* we still need to handle the empty tree or no focus item case */
+	outline-width: 0 !important;
 	outline-style: none;
-	outline-offset: 0px;
+	outline-offset: 0;
 }
 
-.codeActionMenuWidget {
-	padding: 0px 0px 3px 0px;
-	overflow: auto;
+.codeActionWidget {
 	font-size: 13px;
-	border-radius: 0px;
+	border-radius: 0;
 	min-width: 160px;
 	z-index: 40;
 	display: block;
-	/* flex-direction: column;
-	flex: 0 1 auto; */
 	width: 100%;
 	border: 1px solid var(--vscode-menu-separatorBackground) !important;
 	border-color: none;
 	background-color: var(--vscode-menu-background);
 	color: var(--vscode-menu-foreground);
-	box-shadow: rgb(0,0,0, 16%) 0px 2px 8px;
+	box-shadow: rgb(0,0,0, 16%) 0 2px 8px;
 }
 
-
-.codeActionMenuWidget .monaco-list {
+.codeActionWidget .monaco-list {
 	user-select: none;
 	-webkit-user-select: none;
-	-ms-user-select: none;
 	border: none !important;
-	border-width: 0px !important;
+	border-width: 0 !important;
 }
 
-.codeActionMenuWidget .monaco-list .monaco-scrollable-element .monaco-list-rows {
+.codeActionWidget .monaco-list .monaco-scrollable-element .monaco-list-rows {
 	height: 100% !important;
 }
 
-.codeActionMenuWidget .monaco-list .monaco-scrollable-element {
+.codeActionWidget .monaco-list .monaco-scrollable-element {
 	overflow: visible;
 }
-/** Styles for each row in the list element **/
 
-.codeActionMenuWidget .monaco-list .monaco-list-row:not(.separator) {
+/** Styles for each row in the list element **/
+.codeActionWidget .monaco-list .monaco-list-row:not(.separator) {
 	display: flex;
-	-mox-box-sizing: border-box;
 	box-sizing: border-box;
-	padding: 0px 26px 0px 10px;
-	background-repeat: no-repeat;
-	background-position: 2px 2px;
+	padding: 0 10px;
 	white-space: nowrap;
 	cursor: pointer;
 	touch-action: none;
 	width: 100%;
 }
 
-
-.codeActionMenuWidget .monaco-list .monaco-list-row:hover:not(.option-disabled),
-.codeActionMenuWidget .monaco-list .monaco-list-row.focused:not(.option-disabled) {
+.codeActionWidget .monaco-list .monaco-list-row:hover:not(.option-disabled),
+.codeActionWidget .monaco-list .monaco-list-row.focused:not(.option-disabled) {
 	background-color: var(--vscode-list-hoverBackground) !important;
 	color: var(--vscode-list-activeSelectionForeground) !important;
 }
 
-.codeActionMenuWidget .monaco-list .monaco-list-row.focused:not(.option-disabled)  {
-	outline: 0px solid !important;
+.codeActionWidget .monaco-list .monaco-list-row.focused:not(.option-disabled)  {
+	outline: 0 solid !important;
 	background-color: var(--vscode-menu-selectionBackground) !important;
 }
 
-.codeActionMenuWidget .monaco-list .option-disabled,
-.codeActionMenuWidget .monaco-list .option-disabled:before,
-.codeActionMenuWidget .monaco-list .option-disabled .focused,
-.codeActionMenuWidget .monaco-list .option-disabled .focused:before {
+.codeActionWidget .monaco-list .option-disabled,
+.codeActionWidget .monaco-list .option-disabled:before,
+.codeActionWidget .monaco-list .option-disabled .focused,
+.codeActionWidget .monaco-list .option-disabled .focused:before {
 	cursor: default !important;
 	-webkit-touch-callout: none;
 	-webkit-user-select: none;
@@ -92,51 +82,41 @@
 	user-select: none;
 	background-color: var(--vscode-menu-background) !important;
 	color: var(--vscode-disabledForeground) !important;
-	outline: 0px solid !important;
+	outline: 0 solid !important;
 }
 
-.codeActionMenuWidget .monaco-list .monaco-list-row.group-header {
-	padding: 3px 10px 0px 10px;
-}
-
-.codeActionMenuWidget .monaco-list .monaco-list-row.documentation {
-	padding: 0px 10px 0px 10px;
-}
-
-
-.codeActionMenuWidget .monaco-list .group-header.option-disabled {
+.codeActionWidget .monaco-list .group-header.option-disabled {
 	color: var(--vscode-textLink-activeForeground) !important;
 	font-weight: bold;
-
 }
 
-.codeActionMenuWidget .monaco-list .separator {
-	border-bottom: 1px solid var(--vscode-menu-separatorBackground);
-	padding-top: 0px !important;
-	/* padding: 30px; */
-	width: 100%;
-	height: 0px !important;
-	opacity: 1;
-	font-size: inherit;
-	margin: 5px 0 !important;
-	border-radius: 0;
-	display: flex;
-	-mox-box-sizing: border-box;
-	box-sizing: border-box;
-	background-repeat: no-repeat;
-	background-position: 2px 2px;
-	white-space: nowrap;
-	cursor: pointer;
-	touch-action: none;
-}
-
-.codeActionMenuWidget .monaco-list-row:not(.group-header):not(.documentation) .icon-container {
+.codeActionWidget .monaco-list-row:not(.group-header) .icon-container {
 	margin-top: 3px;
 	margin-right: 10px;
 	width: 13px;
 	height: 13px;
 	flex-shrink: 0;
 	color: var(--vscode-editorLightBulb-foreground);
+}
+
+
+/* Action bar */
+
+.codeActionWidget .codeActionWidget-action-bar {
+	margin-top: 4px;
+	margin-bottom: 4px;
+}
+
+.codeActionWidget .codeActionWidget-action-bar::before {
+	display: block;
+	content: "";
+	width: 100%;
+	margin-bottom: 4px;
+	border-bottom: 1px solid var(--vscode-menu-separatorBackground);
+}
+
+.codeActionWidget .codeActionWidget-action-bar .actions-container {
+	padding: 0 10px;
 }
 
 .codeActionWidget-action-bar .action-label {

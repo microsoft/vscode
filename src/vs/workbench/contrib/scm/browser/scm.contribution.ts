@@ -39,7 +39,7 @@ ModesRegistry.registerLanguage({
 });
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(DirtyDiffWorkbenchController, 'DirtyDiffWorkbenchController', LifecyclePhase.Restored);
 
 const sourceControlViewIcon = registerIcon('source-control-view-icon', Codicon.sourceControl, localize('sourceControlViewIcon', 'View icon of the Source Control view.'));
 
@@ -108,10 +108,10 @@ viewsRegistry.registerViews([{
 }], viewContainer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(SCMActiveResourceContextKeyController, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(SCMActiveResourceContextKeyController, 'SCMActiveResourceContextKeyController', LifecyclePhase.Restored);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(SCMStatusController, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(SCMStatusController, 'SCMStatusController', LifecyclePhase.Restored);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'scm',
