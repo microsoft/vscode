@@ -15,8 +15,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 // eslint-disable-next-line local/code-import-patterns
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Emitter } from 'vs/base/common/event';
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
 import { BufferMarkCapability } from 'vs/platform/terminal/common/capabilities/bufferMarkCapability';
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
