@@ -12,12 +12,14 @@ import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapabi
 import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
 import { ILogService } from 'vs/platform/log/common/log';
 // Importing types is safe in any layer
-// eslint-disable-next-line code-import-patterns
+// eslint-disable-next-line local/code-import-patterns
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Emitter } from 'vs/base/common/event';
+// Importing types is safe in any layer
+// eslint-disable-next-line local/code-import-patterns
 import { BufferMarkCapability } from 'vs/platform/terminal/common/capabilities/bufferMarkCapability';
 // Importing types is safe in any layer
-// eslint-disable-next-line code-import-patterns
+// eslint-disable-next-line local/code-import-patterns
 import type { ITerminalAddon, Terminal } from 'xterm-headless';
 import { URI } from 'vs/base/common/uri';
 
