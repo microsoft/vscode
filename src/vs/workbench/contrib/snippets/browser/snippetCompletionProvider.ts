@@ -61,7 +61,7 @@ export class SnippetCompletion implements CompletionItem {
 	}
 
 	resolve(): this {
-		this.documentation = new MarkdownString().appendCodeblock('', new SnippetParser().text(this.snippet.codeSnippet));
+		this.documentation = new MarkdownString().appendCodeblock('', SnippetParser.asInsertText(this.snippet.codeSnippet));
 		return this;
 	}
 
