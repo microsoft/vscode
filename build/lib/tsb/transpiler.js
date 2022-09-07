@@ -245,9 +245,23 @@ class SwcTranspiler {
             return;
         }
         const tsSrc = String(file.contents);
-        const isAmd = /\n(import|export)/m.test(tsSrc);
         const t1 = Date.now();
-        this._jobs.push(swc.transform(tsSrc, isAmd ? SwcTranspiler._swcrcAmd : SwcTranspiler._swcrcEsm).then(output => {
+        let options = SwcTranspiler._swcrcEsm;
+        if (this._cmdLine.options.module === ts.ModuleKind.AMD) {
+            const isAmd = /\n(import|export)/m.test(tsSrc);
+            if (isAmd) {
+                options = SwcTranspiler._swcrcAmd;
+            }
+        }
+        else if (this._cmdLine.options.module === ts.ModuleKind.CommonJS) {
+            options = SwcTranspiler._swcrcCommonJS;
+        }
+        this._jobs.push(swc.transform(tsSrc, options).then(output => {
+            // check if output of a DTS-files isn't just "empty" and iff so
+            // skip this file
+            if (file.path.endsWith('.d.ts') && _isDefaultEmpty(output.code)) {
+                return;
+            }
             const outBase = this._cmdLine.options.outDir ?? file.base;
             const outPath = this._outputFileNames.getOutputFileName(file.path);
             this.onOutfile(new Vinyl({
@@ -284,6 +298,13 @@ SwcTranspiler._swcrcAmd = {
         noInterop: true
     },
     minify: false,
+};
+SwcTranspiler._swcrcCommonJS = {
+    ..._a._swcrcAmd,
+    module: {
+        type: 'commonjs',
+        importInterop: 'none'
+    }
 };
 SwcTranspiler._swcrcEsm = {
     ..._a._swcrcAmd,
