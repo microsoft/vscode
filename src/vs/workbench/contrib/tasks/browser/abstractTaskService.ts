@@ -464,25 +464,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 		CommandsRegistry.registerCommand('workbench.action.tasks.showLog', () => {
-			if (!this._canRunCommand()) {
-				return;
-			}
 			this._showOutput();
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.build', async () => {
-			if (!this._canRunCommand()) {
-				return;
-			}
 			if (await this._trust()) {
 				this._runBuildCommand();
 			}
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.test', async () => {
-			if (!this._canRunCommand()) {
-				return;
-			}
 			if (await this._trust()) {
 				this._runTestCommand();
 			}
@@ -2555,10 +2546,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private _canRunCommand(): boolean {
-		return true;
-	}
-
 	private _showDetail(): boolean {
 		return this._configurationService.getValue<boolean>(QUICKOPEN_DETAIL_CONFIG);
 	}
@@ -2789,10 +2776,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _runTaskCommand(arg?: any): void {
-		if (!this._canRunCommand()) {
-			return;
-		}
-
 		const identifier = this._getTaskIdentifier(arg);
 		const type = arg && typeof arg !== 'string' && 'type' in arg ? arg.type : undefined;
 		const task = arg && typeof arg !== 'string' && 'task' in arg ? arg.task : arg === 'string' ? arg : undefined;
@@ -2822,10 +2805,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 				// if task is defined, will be used as a filter
 				this._doRunTaskCommand(grouped.all(), type, task);
-			}, () => {
-				this._doRunTaskCommand();
 			});
 		}
+		this._doRunTaskCommand();
 	}
 
 	private _tasksAndGroupedTasks(filter?: ITaskFilter): { tasks: Promise<Task[]>; grouped: Promise<TaskMap> } {
@@ -2902,9 +2884,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _reRunTaskCommand(): void {
-		if (!this._canRunCommand()) {
-			return;
-		}
 
 		ProblemMatcherRegistry.onReady().then(() => {
 			return this._editorService.saveAll({ reason: SaveReason.AUTO }).then(() => { // make sure all dirty editors are saved
@@ -2947,9 +2926,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		select: string;
 		notFoundConfigure: string;
 	}, configure: () => void, legacyCommand: () => void): void {
-		if (!this._canRunCommand()) {
-			return;
-		}
 		if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
 			legacyCommand();
 			return;
@@ -3081,9 +3057,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _runTerminateCommand(arg?: any): void {
-		if (!this._canRunCommand()) {
-			return;
-		}
 		if (arg === 'terminateAll') {
 			this._terminateAll();
 			return;
@@ -3151,9 +3124,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _runRestartTaskCommand(arg?: any): void {
-		if (!this._canRunCommand()) {
-			return;
-		}
 		const runQuickPick = (promise?: Promise<Task[]>) => {
 			this._showQuickPick(promise || this.getActiveTasks(),
 				nls.localize('TaskService.taskToRestart', 'Select the task to restart'),
@@ -3321,9 +3291,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 
-		if (!this._canRunCommand()) {
-			return undefined;
-		}
 		let taskPromise: Promise<TaskMap>;
 		if (this.schemaVersion === JsonSchemaVersion.V2_0_0) {
 			taskPromise = this._getGroupedTasks();
@@ -3408,9 +3375,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _runConfigureDefaultBuildTask(): void {
-		if (!this._canRunCommand()) {
-			return;
-		}
 		if (this.schemaVersion === JsonSchemaVersion.V2_0_0) {
 			this.tasks().then((tasks => {
 				if (tasks.length === 0) {
@@ -3491,9 +3455,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _runConfigureDefaultTestTask(): void {
-		if (!this._canRunCommand()) {
-			return;
-		}
 		if (this.schemaVersion === JsonSchemaVersion.V2_0_0) {
 			this.tasks().then((tasks => {
 				if (tasks.length === 0) {
@@ -3544,9 +3505,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	public async runShowTasks(): Promise<void> {
-		if (!this._canRunCommand()) {
-			return;
-		}
 		const activeTasksPromise: Promise<Task[]> = this.getActiveTasks();
 		const activeTasks: Task[] = await activeTasksPromise;
 		let group: string | undefined;
