@@ -416,7 +416,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.resetAuth',
-					title: localize('reset auth.v2', 'Sign Out of Edit Sessions'),
+					title: localize('reset auth.v3', 'Turn off Edit Sessions...'),
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, true),
 					menu: [{
@@ -433,8 +433,8 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			async run() {
 				const result = await that.dialogService.confirm({
 					type: 'info',
-					message: localize('sign out of edit sessions clear data prompt', 'Do you want to sign out of edit sessions?'),
-					checkbox: { label: localize('delete all edit sessions', 'Delete all stored edit sessions from the cloud.') },
+					message: localize('sign out of edit sessions clear data prompt.v2', 'Do you want to turn off Edit Sessions?'),
+					checkbox: { label: localize('delete all edit sessions.v2', 'Delete all stored data from the cloud.') },
 					primaryButton: localize('clear data confirm', 'Yes'),
 				});
 				if (result.confirmed) {
