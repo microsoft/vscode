@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { DebounceTrigger, objectEquals } from './helper';
+import { DebounceTrigger, deepClone, objectEquals } from './helper';
 
 interface AttachmentCleanRequest {
 	notebook: vscode.NotebookDocument;
@@ -67,7 +67,7 @@ class AttachmentCleaner {
 		const document = e.document;
 		const cell = e.cell;
 
-		const updateMetadata: { [key: string]: any } = { ...cell.metadata };
+		const updateMetadata: { [key: string]: any } = deepClone(cell.metadata);
 		const cellFragment = cell.document.uri.fragment;
 		const notebookUri = e.notebook.uri.toString();
 		const mkdnSource = document?.getText();
