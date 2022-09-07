@@ -100,7 +100,7 @@ registerSingleton(IUserDataSyncMachinesService, UserDataSyncMachinesService, tru
 registerSingleton(IUserDataSyncBackupStoreService, UserDataSyncBackupStoreService, true);
 registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService, true);
 registerSingleton(IUserDataSyncService, UserDataSyncService, true);
-registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, false);
+registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, InstantiationType.Eager /* Eager to start auto sync */);
 registerSingleton(ITitleService, TitlebarPart, InstantiationType.Eager);
 registerSingleton(IExtensionTipsService, ExtensionTipsService, true);
 registerSingleton(ITimerService, TimerService, true);

@@ -106,7 +106,7 @@
 		}
 
 		/**
-		 * @param {string} commit
+		 * @param {string | undefined} commit
 		 * @param {string} userDataPath
 		 * @param {string} metaDataFile
 		 * @param {string | undefined} locale

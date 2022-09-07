@@ -1544,6 +1544,8 @@ export interface CommentThread<T = IRange> {
 	comments: Comment[] | undefined;
 	onDidChangeComments: Event<Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
+	initialCollapsibleState?: CommentThreadCollapsibleState;
+	onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	state?: CommentThreadState;
 	canReply: boolean;
 	input?: CommentInput;

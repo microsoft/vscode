@@ -113,8 +113,20 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		this._onDidChangeCollapsibleState.fire(this._collapsibleState);
 	}
 
+	private _initialCollapsibleState: languages.CommentThreadCollapsibleState | undefined;
+	get initialCollapsibleState() {
+		return this._initialCollapsibleState;
+	}
+
+	private set initialCollapsibleState(initialCollapsibleState: languages.CommentThreadCollapsibleState | undefined) {
+		this._initialCollapsibleState = initialCollapsibleState;
+		this._onDidChangeInitialCollapsibleState.fire(initialCollapsibleState);
+	}
+
 	private readonly _onDidChangeCollapsibleState = new Emitter<languages.CommentThreadCollapsibleState | undefined>();
 	public onDidChangeCollapsibleState = this._onDidChangeCollapsibleState.event;
+	private readonly _onDidChangeInitialCollapsibleState = new Emitter<languages.CommentThreadCollapsibleState | undefined>();
+	public onDidChangeInitialCollapsibleState = this._onDidChangeInitialCollapsibleState.event;
 
 	private _isDisposed: boolean;
 
@@ -164,7 +176,7 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		if (modified('label')) { this._label = changes.label; }
 		if (modified('contextValue')) { this._contextValue = changes.contextValue === null ? undefined : changes.contextValue; }
 		if (modified('comments')) { this._comments = changes.comments; }
-		if (modified('collapseState')) { this._collapsibleState = changes.collapseState; }
+		if (modified('collapseState')) { this.initialCollapsibleState = changes.collapseState; }
 		if (modified('canReply')) { this.canReply = changes.canReply!; }
 		if (modified('state')) { this.state = changes.state!; }
 		if (modified('isTemplate')) { this._isTemplate = changes.isTemplate!; }

@@ -1159,7 +1159,7 @@ suite('vscode API - workspace', () => {
 		assert.ok(edt === vscode.window.activeTextEditor);
 
 		const we = new vscode.WorkspaceEdit();
-		we.replace(document.uri, new vscode.Range(0, 0, 0, 0), new vscode.SnippetString('${1:foo}${2:bar}'));
+		we.set(document.uri, [new vscode.SnippetTextEdit(new vscode.Range(0, 0, 0, 0), new vscode.SnippetString('${1:foo}${2:bar}'))]);
 		const success = await vscode.workspace.applyEdit(we);
 		if (edt !== vscode.window.activeTextEditor) {
 			return this.skip();

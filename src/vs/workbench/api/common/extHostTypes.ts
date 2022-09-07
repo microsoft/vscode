@@ -13,10 +13,12 @@ import { nextCharLength } from 'vs/base/common/strings';
 import { isString, isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRelativePatternDto } from 'vs/workbench/api/common/extHost.protocol';
 import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
 /**
@@ -653,6 +655,29 @@ export class NotebookEdit implements vscode.NotebookEdit {
 	}
 }
 
+export class SnippetTextEdit implements vscode.SnippetTextEdit {
+
+	static isSnippetTextEdit(thing: any): thing is SnippetTextEdit {
+		if (thing instanceof SnippetTextEdit) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return Range.isRange((<SnippetTextEdit>thing).range)
+			&& SnippetString.isSnippetString((<SnippetTextEdit>thing).snippet);
+	}
+
+	range: Range;
+
+	snippet: SnippetString;
+
+	constructor(range: Range, snippet: SnippetString) {
+		this.range = range;
+		this.snippet = snippet;
+	}
+}
+
 export interface IFileOperationOptions {
 	overwrite?: boolean;
 	ignoreIfExists?: boolean;
@@ -756,12 +781,8 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	// --- text
 
-	replace(uri: URI, range: Range, newText: string | vscode.SnippetString, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		if (typeof newText === 'string') {
-			this._edits.push({ _type: FileEditType.Text, uri, edit: new TextEdit(range, newText), metadata });
-		} else {
-			this._edits.push({ _type: FileEditType.Snippet, uri, range, edit: newText, metadata });
-		}
+	replace(uri: URI, range: Range, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({ _type: FileEditType.Text, uri, edit: new TextEdit(range, newText), metadata });
 	}
 
 	insert(resource: URI, position: Position, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -790,7 +811,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 			coalesceInPlace(this._edits);
 		} else {
 			// append edit to the end
-			for (const edit of edits as TextEdit[] | NotebookEdit[]) {
+			for (const edit of edits as TextEdit[] | NotebookEdit[] | SnippetTextEdit[]) {
 				if (edit) {
 					if (NotebookEdit.isNotebookCellEdit(edit)) {
 						if (edit.newCellMetadata) {
@@ -800,6 +821,9 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 						} else {
 							this.replaceNotebookCells(uri, edit.range, edit.newCells);
 						}
+					} else if (SnippetTextEdit.isSnippetTextEdit(edit)) {
+						this._edits.push({ _type: FileEditType.Snippet, uri, range: edit.range, edit: edit.snippet });
+
 					} else {
 						this._edits.push({ _type: FileEditType.Text, uri, edit });
 					}
@@ -2413,12 +2437,13 @@ export class TreeItem {
 	command?: vscode.Command;
 	contextValue?: string;
 	tooltip?: string | vscode.MarkdownString;
+	checkboxState?: vscode.TreeItemCheckboxState;
 
-	static isTreeItem(thing: any): thing is TreeItem {
+	static isTreeItem(thing: any, extension: IExtensionDescription): thing is TreeItem {
 		if (thing instanceof TreeItem) {
 			return true;
 		}
-		const treeItemThing = thing as vscode.TreeItem;
+		const treeItemThing = thing as vscode.TreeItem2;
 		if (treeItemThing.label !== undefined && !isString(treeItemThing.label) && !(treeItemThing.label?.label)) {
 			console.log('INVALID tree item, invalid label', treeItemThing.label);
 			return false;
@@ -2462,6 +2487,13 @@ export class TreeItem {
 			console.log('INVALID tree item, invalid accessibilityInformation', treeItemThing.accessibilityInformation);
 			return false;
 		}
+		if (treeItemThing.checkboxState !== undefined) {
+			checkProposedApiEnabled(extension, 'treeItemCheckbox');
+			if (treeItemThing.checkboxState !== TreeItemCheckboxState.Checked && treeItemThing.checkboxState !== TreeItemCheckboxState.Unchecked) {
+				console.log('INVALID tree item, invalid checkboxState', treeItemThing.checkboxState);
+				return false;
+			}
+		}
 
 		return true;
 	}
@@ -2482,6 +2514,11 @@ export enum TreeItemCollapsibleState {
 	None = 0,
 	Collapsed = 1,
 	Expanded = 2
+}
+
+export enum TreeItemCheckboxState {
+	Unchecked = 0,
+	Checked = 1
 }
 
 @es5ClassCompat

@@ -115,7 +115,7 @@ export class InputCodeEditorView extends CodeEditorView {
 
 		for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
 			const range = modifiedBaseRange.getInputRange(this.inputNumber);
-			if (!range || !range.isEmpty) {
+			if (!range || range.isEmpty) {
 				continue;
 			}
 
@@ -370,7 +370,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 
 					contextMenuService.showContextMenu({
 						getAnchor: () => checkBox.domNode,
-						getActions: item.getContextMenuActions,
+						getActions: () => item.getContextMenuActions(),
 					});
 
 				} else if (e.button === /* Middle */ 1) {
