@@ -74,7 +74,12 @@ export interface ICommonNativeHostService {
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
 
-	updateTitleBarOverlay(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
+	/**
+	 * Only supported on Windows and macOS. Updates the window controls to match the title bar size.
+	 *
+	 * @param options `backgroundColor` and `foregroundColor` are only supported on Windows
+	 */
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
 
 	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 

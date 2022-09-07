@@ -396,9 +396,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		}
 	}
 
-	private updateImageWatchers(containingImages: { src: string }[]) {
-		const srcs = new Set(containingImages.map(img => img.src));
-
+	private updateImageWatchers(srcs: Set<string>) {
 		// Delete stale file watchers.
 		for (const [src, watcher] of this._fileWatchersBySrc) {
 			if (!srcs.has(src)) {

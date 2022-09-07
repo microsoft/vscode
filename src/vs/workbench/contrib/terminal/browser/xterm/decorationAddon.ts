@@ -9,7 +9,7 @@ import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 import * as dom from 'vs/base/browser/dom';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { CommandInvalidationReason, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IAction, Separator } from 'vs/base/common/actions';
@@ -26,7 +26,8 @@ import { Color } from 'vs/base/common/color';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { Codicon } from 'vs/base/common/codicons';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationMark, terminalDecorationSuccess } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
@@ -36,7 +37,6 @@ const enum DecorationSelector {
 	Default = 'default',
 	Codicon = 'codicon',
 	XtermDecoration = 'xterm-decoration',
-	GenericMarkerIcon = 'codicon-circle-small-filled',
 	OverviewRuler = '.xterm-decoration-overview-ruler'
 }
 
@@ -68,7 +68,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		super();
 		this._register(toDisposable(() => this._dispose()));
@@ -76,12 +77,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._register(this._contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
 
-		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIcon) ||
-				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconSuccess) ||
-				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconError)) {
-				this._refreshStyles();
-			} else if (e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight)) {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight)) {
 				this.refreshLayouts();
 			} else if (e.affectsConfiguration('workbench.colorCustomizations')) {
 				this._refreshStyles(true);
@@ -92,8 +89,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				}
 				this._updateDecorationVisibility();
 			}
-		});
-		this._themeService.onDidColorThemeChange(() => this._refreshStyles(true));
+		}));
+		this._register(this._themeService.onDidColorThemeChange(() => this._refreshStyles(true)));
 		this._updateDecorationVisibility();
 		this._register(this._capabilities.onDidAddCapability(c => {
 			if (c === TerminalCapability.CommandDetection) {
@@ -108,6 +105,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				}
 			}
 		}));
+		this._register(lifecycleService.onWillShutdown(() => this._disposeAllDecorations()));
 	}
 
 	private _updateDecorationVisibility(): void {
@@ -335,7 +333,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
 
 		if (genericMarkProperties) {
-			element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.GenericMarkerIcon);
+			element.classList.add(DecorationSelector.DefaultColor, ...ThemeIcon.asClassNameArray(terminalDecorationMark));
 			if (!genericMarkProperties.hoverMessage) {
 				//disable the mouse pointer
 				element.classList.add(DecorationSelector.Default);
@@ -345,12 +343,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			this._updateCommandDecorationVisibility(element);
 			if (exitCode === undefined) {
 				element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
-				element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);
+				element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationIncomplete));
 			} else if (exitCode) {
 				element.classList.add(DecorationSelector.ErrorColor);
-				element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIconError)}`);
+				element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationError));
 			} else {
-				element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIconSuccess)}`);
+				element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationSuccess));
 			}
 		}
 	}
@@ -407,12 +405,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (command.command !== '') {
 			const labelRun = localize("terminal.rerunCommand", 'Rerun Command');
 			actions.push({
-				class: undefined, tooltip: labelRun, dispose: () => { }, id: 'terminal.rerunCommand', label: labelRun, enabled: true,
+				class: undefined, tooltip: labelRun, id: 'terminal.rerunCommand', label: labelRun, enabled: true,
 				run: () => this._onDidRequestRunCommand.fire({ command })
 			});
 			const labelCopy = localize("terminal.copyCommand", 'Copy Command');
 			actions.push({
-				class: undefined, tooltip: labelCopy, dispose: () => { }, id: 'terminal.copyCommand', label: labelCopy, enabled: true,
+				class: undefined, tooltip: labelCopy, id: 'terminal.copyCommand', label: labelCopy, enabled: true,
 				run: () => this._clipboardService.writeText(command.command)
 			});
 		}
@@ -422,12 +420,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			}
 			const labelText = localize("terminal.copyOutput", 'Copy Output');
 			actions.push({
-				class: undefined, tooltip: labelText, dispose: () => { }, id: 'terminal.copyOutput', label: labelText, enabled: true,
+				class: undefined, tooltip: labelText, id: 'terminal.copyOutput', label: labelText, enabled: true,
 				run: () => this._clipboardService.writeText(command.getOutput()!)
 			});
 			const labelHtml = localize("terminal.copyOutputAsHtml", 'Copy Output as HTML');
 			actions.push({
-				class: undefined, tooltip: labelHtml, dispose: () => { }, id: 'terminal.copyOutputAsHtml', label: labelHtml, enabled: true,
+				class: undefined, tooltip: labelHtml, id: 'terminal.copyOutputAsHtml', label: labelHtml, enabled: true,
 				run: () => this._onDidRequestRunCommand.fire({ command, copyAsHtml: true })
 			});
 		}
@@ -436,13 +434,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		const labelConfigure = localize("terminal.configureCommandDecorations", 'Configure Command Decorations');
 		actions.push({
-			class: undefined, tooltip: labelConfigure, dispose: () => { }, id: 'terminal.configureCommandDecorations', label: labelConfigure, enabled: true,
+			class: undefined, tooltip: labelConfigure, id: 'terminal.configureCommandDecorations', label: labelConfigure, enabled: true,
 			run: () => this._showConfigureCommandDecorationsQuickPick()
 		});
 		const labelAbout = localize("terminal.learnShellIntegration", 'Learn About Shell Integration');
 		actions.push({
-			class: undefined, tooltip: labelAbout, dispose: () => { }, id: 'terminal.learnShellIntegration', label: labelAbout, enabled: true,
-			run: () => this._openerService.open('https://code.visualstudio.com/docs/editor/integrated-terminal#_shell-integration')
+			class: undefined, tooltip: labelAbout, id: 'terminal.learnShellIntegration', label: labelAbout, enabled: true,
+			run: () => this._openerService.open('https://code.visualstudio.com/docs/terminal/shell-integration')
 		});
 		return actions;
 	}
@@ -450,43 +448,17 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private async _showConfigureCommandDecorationsQuickPick() {
 		const quickPick = this._quickInputService.createQuickPick();
 		quickPick.items = [
-			{ id: 'a', label: localize('changeDefaultIcon', 'Change default icon') },
-			{ id: 'b', label: localize('changeSuccessIcon', 'Change success icon') },
-			{ id: 'c', label: localize('changeErrorIcon', 'Change error icon') },
-			{ type: 'separator' },
-			{ id: 'd', label: localize('toggleVisibility', 'Toggle visibility') },
+			{ id: 'a', label: localize('toggleVisibility', 'Toggle visibility') },
 		];
 		quickPick.canSelectMany = false;
 		quickPick.onDidAccept(async e => {
 			quickPick.hide();
 			const result = quickPick.activeItems[0];
-			let iconSetting: string | undefined;
 			switch (result.id) {
-				case 'a': iconSetting = TerminalSettingId.ShellIntegrationDecorationIcon; break;
-				case 'b': iconSetting = TerminalSettingId.ShellIntegrationDecorationIconSuccess; break;
-				case 'c': iconSetting = TerminalSettingId.ShellIntegrationDecorationIconError; break;
-				case 'd': this._showToggleVisibilityQuickPick(); break;
-			}
-			if (iconSetting) {
-				this._showChangeIconQuickPick(iconSetting);
+				case 'a': this._showToggleVisibilityQuickPick(); break;
 			}
 		});
 		quickPick.show();
-	}
-
-	private async _showChangeIconQuickPick(iconSetting: string) {
-		type Item = IQuickPickItem & { icon: Codicon };
-		const items: Item[] = [];
-		for (const icon of Codicon.getAll()) {
-			items.push({ label: `$(${icon.id})`, description: `${icon.id}`, icon });
-		}
-		const result = await this._quickInputService.pick(items, {
-			matchOnDescription: true
-		});
-		if (result) {
-			this._configurationService.updateValue(iconSetting, result.icon.id);
-			this._showConfigureCommandDecorationsQuickPick();
-		}
 	}
 
 	private _showToggleVisibilityQuickPick() {

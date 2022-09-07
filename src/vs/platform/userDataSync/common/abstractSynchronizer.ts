@@ -622,7 +622,9 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 			}
 
 		} catch (error) {
-			if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
+			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+				this.logService.info(`${this.syncResourceLogLabel}: Not synced yet. Last sync resource does not exist.`);
+			} else {
 				// log error always except when file does not exist
 				this.logService.error(error);
 			}
@@ -667,14 +669,14 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 			return { ref: refOrLastSyncData, content };
 		} else {
 			const lastSyncUserData: IUserData | null = refOrLastSyncData ? { ref: refOrLastSyncData.ref, content: refOrLastSyncData.syncData ? JSON.stringify(refOrLastSyncData.syncData) : null } : null;
-			return this.userDataSyncStoreService.read(this.resource, lastSyncUserData, this.syncHeaders);
+			return this.userDataSyncStoreService.read(this.resource, lastSyncUserData, undefined, this.syncHeaders);
 		}
 	}
 
 	protected async updateRemoteUserData(content: string, ref: string | null): Promise<IRemoteUserData> {
 		const machineId = await this.currentMachineIdPromise;
 		const syncData: ISyncData = { version: this.version, machineId, content };
-		ref = await this.userDataSyncStoreService.write(this.resource, JSON.stringify(syncData), ref, this.syncHeaders);
+		ref = await this.userDataSyncStoreService.write(this.resource, JSON.stringify(syncData), ref, undefined, this.syncHeaders);
 		return { ref, syncData };
 	}
 

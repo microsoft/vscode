@@ -24,7 +24,9 @@ export const EmptyWorkspaceSupportContext = new RawContextKey<boolean>('emptyWor
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false, localize('dirtyWorkingCopies', "Whether there are any working copies with unsaved changes"));
 
 export const RemoteNameContext = new RawContextKey<string>('remoteName', '', localize('remoteName', "The name of the remote the window is connected to or an empty string if not connected to any remote"));
-export const VirtualWorkspaceContext = new RawContextKey<string>('virtualWorkspace', '', localize('virtualWorkspace', "The scheme of the current workspace if is from a virtual file system or an empty string."));
+
+export const VirtualWorkspaceContext = new RawContextKey<string>('virtualWorkspace', '', localize('virtualWorkspace', "The scheme of the current workspace is from a virtual file system or an empty string."));
+export const TemporaryWorkspaceContext = new RawContextKey<boolean>('temporaryWorkspace', false, localize('temporaryWorkspace', "The scheme of the current workspace is from a temporary file system."));
 
 export const IsFullscreenContext = new RawContextKey<boolean>('isFullscreen', false, localize('isFullscreen', "Whether the window is in fullscreen mode"));
 
@@ -218,32 +220,28 @@ export class ResourceContextKey {
 			return;
 		}
 		this._value = value;
-		this._contextKeyService.bufferChangeEvents(() => {
-			this._resourceKey.set(value ? value.toString() : null);
-			this._schemeKey.set(value ? value.scheme : null);
-			this._filenameKey.set(value ? basename(value) : null);
-			this._dirnameKey.set(value ? dirname(value).fsPath : null);
-			this._pathKey.set(value ? value.fsPath : null);
-			this._setLangId();
-			this._extensionKey.set(value ? extname(value) : null);
-			this._hasResource.set(Boolean(value));
-			this._isFileSystemResource.set(value ? this._fileService.hasProvider(value) : false);
-		});
+		this._resourceKey.set(value ? value.toString() : null);
+		this._schemeKey.set(value ? value.scheme : null);
+		this._filenameKey.set(value ? basename(value) : null);
+		this._dirnameKey.set(value ? dirname(value).fsPath : null);
+		this._pathKey.set(value ? value.fsPath : null);
+		this._setLangId();
+		this._extensionKey.set(value ? extname(value) : null);
+		this._hasResource.set(Boolean(value));
+		this._isFileSystemResource.set(value ? this._fileService.hasProvider(value) : false);
 	}
 
 	reset(): void {
 		this._value = undefined;
-		this._contextKeyService.bufferChangeEvents(() => {
-			this._resourceKey.reset();
-			this._schemeKey.reset();
-			this._filenameKey.reset();
-			this._dirnameKey.reset();
-			this._pathKey.reset();
-			this._langIdKey.reset();
-			this._extensionKey.reset();
-			this._hasResource.reset();
-			this._isFileSystemResource.reset();
-		});
+		this._resourceKey.reset();
+		this._schemeKey.reset();
+		this._filenameKey.reset();
+		this._dirnameKey.reset();
+		this._pathKey.reset();
+		this._langIdKey.reset();
+		this._extensionKey.reset();
+		this._hasResource.reset();
+		this._isFileSystemResource.reset();
 	}
 
 	get(): URI | undefined {

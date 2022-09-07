@@ -44,12 +44,8 @@ import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextMod
 import { IColorTheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
 
-function createTextBufferBuilder() {
-	return new PieceTreeTextBufferBuilder();
-}
-
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
-	const builder = createTextBufferBuilder();
+	const builder = new PieceTreeTextBufferBuilder();
 	builder.acceptChunk(text);
 	return builder.finish();
 }
@@ -65,7 +61,7 @@ export function createTextBufferFactoryFromStream(stream: ITextStream): Promise<
 export function createTextBufferFactoryFromStream(stream: VSBufferReadableStream): Promise<model.ITextBufferFactory>;
 export function createTextBufferFactoryFromStream(stream: ITextStream | VSBufferReadableStream): Promise<model.ITextBufferFactory> {
 	return new Promise<model.ITextBufferFactory>((resolve, reject) => {
-		const builder = createTextBufferBuilder();
+		const builder = new PieceTreeTextBufferBuilder();
 
 		let done = false;
 
@@ -90,7 +86,7 @@ export function createTextBufferFactoryFromStream(stream: ITextStream | VSBuffer
 }
 
 export function createTextBufferFactoryFromSnapshot(snapshot: model.ITextSnapshot): model.ITextBufferFactory {
-	const builder = createTextBufferBuilder();
+	const builder = new PieceTreeTextBufferBuilder();
 
 	let chunk: string | null;
 	while (typeof (chunk = snapshot.read()) === 'string') {
@@ -100,8 +96,15 @@ export function createTextBufferFactoryFromSnapshot(snapshot: model.ITextSnapsho
 	return builder.finish();
 }
 
-export function createTextBuffer(value: string | model.ITextBufferFactory, defaultEOL: model.DefaultEndOfLine): { textBuffer: model.ITextBuffer; disposable: IDisposable } {
-	const factory = (typeof value === 'string' ? createTextBufferFactory(value) : value);
+export function createTextBuffer(value: string | model.ITextBufferFactory | model.ITextSnapshot, defaultEOL: model.DefaultEndOfLine): { textBuffer: model.ITextBuffer; disposable: IDisposable } {
+	let factory: model.ITextBufferFactory;
+	if (typeof value === 'string') {
+		factory = createTextBufferFactory(value);
+	} else if (model.isITextSnapshot(value)) {
+		factory = createTextBufferFactoryFromSnapshot(value);
+	} else {
+		factory = value;
+	}
 	return factory.create(defaultEOL);
 }
 
@@ -424,7 +427,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._eventEmitter.fire(new InternalModelContentChangeEvent(rawChange, change));
 	}
 
-	public setValue(value: string): void {
+	public setValue(value: string | model.ITextSnapshot): void {
 		this._assertNotDisposed();
 		if (value === null) {
 			// There's nothing to do
@@ -1711,11 +1714,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return decorations;
 	}
 
-	public getDecorationsInRange(range: IRange, ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
+	public getDecorationsInRange(range: IRange, ownerId: number = 0, filterOutValidation: boolean = false, onlyMinimapDecorations: boolean = false): model.IModelDecoration[] {
 		const validatedRange = this.validateRange(range);
 
 		const decorations = this._getDecorationsInRange(validatedRange, ownerId, filterOutValidation);
-		pushMany(decorations, this._decorationProvider.getDecorationsInRange(validatedRange, ownerId, filterOutValidation));
+		pushMany(decorations, this._decorationProvider.getDecorationsInRange(validatedRange, ownerId, filterOutValidation, onlyMinimapDecorations));
 		return decorations;
 	}
 

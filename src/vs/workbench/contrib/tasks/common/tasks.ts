@@ -16,6 +16,8 @@ import { RawContextKey, ContextKeyExpression } from 'vs/platform/contextkey/comm
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
+
 
 
 export const USER_TASKS_GROUP_KEY = 'settings';
@@ -1125,6 +1127,7 @@ export interface ITaskEvent {
 	terminalId?: number;
 	__task?: Task;
 	resolvedVariables?: Map<string, string>;
+	exitReason?: TerminalExitReason;
 }
 
 export const enum TaskRunSource {
@@ -1138,9 +1141,9 @@ export const enum TaskRunSource {
 export namespace TaskEvent {
 	export function create(kind: TaskEventKind.ProcessStarted | TaskEventKind.ProcessEnded, task: Task, processIdOrExitCode?: number): ITaskEvent;
 	export function create(kind: TaskEventKind.Start, task: Task, terminalId?: number, resolvedVariables?: Map<string, string>): ITaskEvent;
-	export function create(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Start | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task): ITaskEvent;
+	export function create(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Start | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task, exitReason?: TerminalExitReason): ITaskEvent;
 	export function create(kind: TaskEventKind.Changed): ITaskEvent;
-	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCodeOrTerminalId?: number, resolvedVariables?: Map<string, string>): ITaskEvent {
+	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCodeOrTerminalId?: number, resolvedVariables?: Map<string, string>, exitReason?: TerminalExitReason): ITaskEvent {
 		if (task) {
 			const result: ITaskEvent = {
 				kind: kind,
@@ -1151,7 +1154,7 @@ export namespace TaskEvent {
 				processId: undefined as number | undefined,
 				exitCode: undefined as number | undefined,
 				terminalId: undefined as number | undefined,
-				__task: task,
+				__task: task
 			};
 			if (kind === TaskEventKind.Start) {
 				result.terminalId = processIdOrExitCodeOrTerminalId;
@@ -1201,7 +1204,8 @@ export const enum TaskSettingId {
 	QuickOpenDetail = 'task.quickOpen.detail',
 	QuickOpenSkip = 'task.quickOpen.skip',
 	QuickOpenShowAll = 'task.quickOpen.showAll',
-	AllowAutomaticTasks = 'task.allowAutomaticTasks'
+	AllowAutomaticTasks = 'task.allowAutomaticTasks',
+	Reconnection = 'task.reconnection'
 }
 
 export const enum TasksSchemaProperties {

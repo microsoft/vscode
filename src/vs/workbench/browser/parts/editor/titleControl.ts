@@ -241,26 +241,24 @@ export abstract class TitleControl extends Themable {
 		this.editorToolBarMenuDisposables.clear();
 
 		// Update contexts
-		this.contextKeyService.bufferChangeEvents(() => {
-			const activeEditor = this.group.activeEditor;
+		const activeEditor = this.group.activeEditor;
 
-			this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })));
+		this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })));
 
-			this.editorPinnedContext.set(activeEditor ? this.group.isPinned(activeEditor) : false);
-			this.editorIsFirstContext.set(activeEditor ? this.group.isFirst(activeEditor) : false);
-			this.editorIsLastContext.set(activeEditor ? this.group.isLast(activeEditor) : false);
-			this.editorStickyContext.set(activeEditor ? this.group.isSticky(activeEditor) : false);
+		this.editorPinnedContext.set(activeEditor ? this.group.isPinned(activeEditor) : false);
+		this.editorIsFirstContext.set(activeEditor ? this.group.isFirst(activeEditor) : false);
+		this.editorIsLastContext.set(activeEditor ? this.group.isLast(activeEditor) : false);
+		this.editorStickyContext.set(activeEditor ? this.group.isSticky(activeEditor) : false);
 
-			this.editorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
-			this.sideBySideEditorContext.set(activeEditor?.typeId === SideBySideEditorInput.ID);
+		this.editorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
+		this.sideBySideEditorContext.set(activeEditor?.typeId === SideBySideEditorInput.ID);
 
-			this.groupLockedContext.set(this.group.isLocked);
-		});
+		this.groupLockedContext.set(this.group.isLocked);
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeEditorPane = this.group.activeEditorPane;
 		if (activeEditorPane instanceof EditorPane) {
-			const scopedContextKeyService = activeEditorPane.scopedContextKeyService ?? this.contextKeyService;
+			const scopedContextKeyService = this.getEditorPaneAwareContextKeyService();
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 });
 			this.editorToolBarMenuDisposables.add(titleBarMenu);
 			this.editorToolBarMenuDisposables.add(titleBarMenu.onDidChange(() => {
@@ -269,17 +267,21 @@ export abstract class TitleControl extends Themable {
 
 			const shouldInlineGroup = (action: SubmenuAction, group: string) => group === 'navigation' && action.actions.length <= 1;
 
-			this.editorToolBarMenuDisposables.add(createAndFillInActionBarActions(
+			createAndFillInActionBarActions(
 				titleBarMenu,
 				{ arg: this.resourceContext.get(), shouldForwardArgs: true },
 				{ primary, secondary },
 				'navigation',
 				9,
 				shouldInlineGroup
-			));
+			);
 		}
 
 		return { primary, secondary };
+	}
+
+	private getEditorPaneAwareContextKeyService(): IContextKeyService {
+		return this.group.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
 	}
 
 	protected clearEditorActionsToolbar(): void {
@@ -374,7 +376,7 @@ export abstract class TitleControl extends Themable {
 
 		// Fill in contributed actions
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true, arg: this.resourceContext.get() }, actions);
+		createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true, arg: this.resourceContext.get() }, actions);
 
 		// Show it
 		this.contextMenuService.showContextMenu({
@@ -396,15 +398,12 @@ export abstract class TitleControl extends Themable {
 
 				// restore focus to active group
 				this.accessor.activeGroup.focus();
-
-				// Cleanup
-				dispose(actionsDisposable);
 			}
 		});
 	}
 
 	private getKeybinding(action: IAction): ResolvedKeybinding | undefined {
-		return this.keybindingService.lookupKeybinding(action.id);
+		return this.keybindingService.lookupKeybinding(action.id, this.getEditorPaneAwareContextKeyService());
 	}
 
 	protected getKeybindingLabel(action: IAction): string | undefined {

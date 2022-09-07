@@ -8,7 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, SafeDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
-import { IObservable, IObserver } from 'vs/base/common/observableImpl/base';
+import { IObservable, IObserver } from 'vs/base/common/observable';
 import { StopWatch } from 'vs/base/common/stopwatch';
 
 
@@ -792,7 +792,7 @@ export class Emitter<T> {
 		if (!this._listeners) {
 			return false;
 		}
-		return (!this._listeners.isEmpty());
+		return !this._listeners.isEmpty();
 	}
 }
 
@@ -994,6 +994,11 @@ export class MicrotaskEmitter<T> extends Emitter<T> {
 		this._mergeFn = options?.merge;
 	}
 	override fire(event: T): void {
+
+		if (!this.hasListeners()) {
+			return;
+		}
+
 		this._queuedEvents.push(event);
 		if (this._queuedEvents.length === 1) {
 			queueMicrotask(() => {

@@ -43,7 +43,7 @@ import { isString } from 'vs/base/common/types';
 const SHOW_TASKS_COMMANDS_CONTEXT = ContextKeyExpr.and(ShellExecutionSupportedContext, ProcessExecutionSupportedContext);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, 'RunAutomaticTasks', LifecyclePhase.Eventually);
 
 registerAction2(ManageAutomaticTaskRunning);
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
@@ -163,7 +163,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 	}
 }
 
-workbenchRegistry.registerWorkbenchContribution(TaskStatusBarContributions, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(TaskStatusBarContributions, 'TaskStatusBarContributions', LifecyclePhase.Restored);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 	group: TerminalMenuBarGroup.Run,
@@ -500,17 +500,22 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['on', 'auto', 'off'],
 			enumDescriptions: [
-				nls.localize('ttask.allowAutomaticTasks.on', "Always"),
+				nls.localize('task.allowAutomaticTasks.on', "Always"),
 				nls.localize('task.allowAutomaticTasks.auto', "Prompt for permission for each folder"),
 				nls.localize('task.allowAutomaticTasks.off', "Never"),
 			],
-			description: nls.localize('task.allowAutomaticTasks', "Enable automatic tasks in the folder."),
+			description: nls.localize('task.allowAutomaticTasks', "Enable automatic tasks in the folder - note that tasks won't run in an untrusted workspace."),
 			default: 'auto',
 			restricted: true
 		},
 		[TaskSettingId.ShowDecorations]: {
 			type: 'boolean',
-			description: nls.localize('task.showDecorations', "Shows decorations at points of interest in the terminal buffer such as the first problem found via a watch task. Note that this will only take effect for future tasks."),
+			markdownDescription: nls.localize('task.showDecorations', "Shows decorations at points of interest in the terminal buffer such as the first problem found via a watch task. Note that this will only take effect for future tasks. {0} will take precedence over this setting", '`#terminal.integrated.shellIntegration.decorationsEnabled#`'),
+			default: true
+		},
+		[TaskSettingId.Reconnection]: {
+			type: 'boolean',
+			description: nls.localize('task.reconnection', "On window reload, reconnect to tasks that have problem matchers."),
 			default: true
 		},
 		[TaskSettingId.SaveBeforeRun]: {

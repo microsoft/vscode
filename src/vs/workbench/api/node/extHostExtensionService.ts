@@ -12,7 +12,7 @@ import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHost
 import { ExtHostDownloadService } from 'vs/workbench/api/node/extHostDownloadService';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
 import { realpathSync } from 'vs/base/node/extpath';
@@ -89,7 +89,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		return extensionDescription.main;
 	}
 
-	protected _loadCommonJSModule<T>(extensionId: ExtensionIdentifier | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+	protected _loadCommonJSModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
 		if (module.scheme !== Schemas.file) {
 			throw new Error(`Cannot load URI: '${module}', must be of file-scheme`);
 		}
@@ -97,16 +97,17 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		activationTimesBuilder.codeLoadingStart();
 		this._logService.trace(`ExtensionService#loadCommonJSModule ${module.toString(true)}`);
 		this._logService.flush();
+		const extensionId = extension?.identifier.value;
 		try {
 			if (extensionId) {
-				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId.value}`);
+				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
 			}
 			r = require.__$__nodeRequire<T>(module.fsPath);
 		} catch (e) {
 			return Promise.reject(e);
 		} finally {
 			if (extensionId) {
-				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId.value}`);
+				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId}`);
 			}
 			activationTimesBuilder.codeLoadingStop();
 		}

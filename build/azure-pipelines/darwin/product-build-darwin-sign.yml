@@ -38,6 +38,7 @@ steps:
   - script: |
       mkdir -p .build
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js x64 $ENABLE_TERRAPIN > .build/yarnlockhash
+      node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
     displayName: Prepare yarn cache flags
 
   - task: Cache@2
@@ -46,6 +47,12 @@ steps:
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
+
+  - task: Cache@2
+    inputs:
+      key: '"builtInDeps" | .build/builtindepshash'
+      path: .build/builtInExtensions
+    displayName: Restore built-in extensions
 
   - script: |
       set -e
@@ -90,6 +97,13 @@ steps:
 
   - script: |
       set -e
+      node build/lib/builtInExtensions.js
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Download missing built-in extensions
+
+  - script: |
+      set -e
       node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
       mkdir -p .build/node_modules_cache
       tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
@@ -100,12 +114,6 @@ steps:
     artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
     displayName: Download $(VSCODE_ARCH) artifact
 
-  - script: |
-      set -e
-      unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-      mv $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
-    displayName: Unzip & move
-
   - task: UseDotNet@2
     inputs:
       version: 2.x
@@ -115,20 +123,38 @@ steps:
 
   - script: |
       set -e
-      node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" darwin-sign $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(agent.builddirectory) VSCode-darwin-$(VSCODE_ARCH).zip
+      node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" darwin-sign $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Codesign
 
   - script: |
       set -e
-      node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" darwin-notarize $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(agent.builddirectory) VSCode-darwin-$(VSCODE_ARCH).zip
+      node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" darwin-notarize $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Notarize
 
   - script: |
       set -e
-      APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+    displayName: Extract signed app
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - script: |
+      set -e
+      APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
       APP_NAME="`ls $APP_ROOT | head -n 1`"
-      "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --export-default-configuration=.build
-    displayName: Verify start after signing (export configuration)
+      echo "##vso[task.setvariable variable=APP_PATH]$APP_ROOT/$APP_NAME"
+    displayName: Find application path
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - script: |
+      set -e
+      codesign -dv --deep --verbose=4 "$(APP_PATH)"
+    displayName: Verify signature
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - script: |
+      set -e
+      "$(APP_PATH)/Contents/Resources/app/bin/code" --export-default-configuration=.build
+    displayName: Verify signed application starts OK
     condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - script: |
@@ -141,9 +167,9 @@ steps:
       echo "##vso[task.setvariable variable=ASSET_ID]$ASSET_ID"
     displayName: Set asset id variable
 
-  - script: mv $(agent.builddirectory)/VSCode-darwin-x64.zip $(agent.builddirectory)/VSCode-darwin.zip
-    displayName: Rename x64 build to it's legacy name
+  - script: mv $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-x64.zip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
+    displayName: Rename x64 build to its legacy name
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
-  - publish: $(Agent.BuildDirectory)/VSCode-$(ASSET_ID).zip
+  - publish: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-$(ASSET_ID).zip
     artifact: vscode_client_darwin_$(VSCODE_ARCH)_archive

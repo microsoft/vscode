@@ -504,7 +504,7 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 			id: 'breadcrumbs.toggle',
 			title: {
 				value: localize('cmd.toggle', "Toggle Breadcrumbs"),
-				mnemonicTitle: localize('miShowBreadcrumbs', "Show &&Breadcrumbs"),
+				mnemonicTitle: localize('miBreadcrumbs', "&&Breadcrumbs"),
 				original: 'Toggle Breadcrumbs',
 			},
 			category: CATEGORIES.View,
@@ -711,9 +711,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 		widget.setFocused(undefined);
 		widget.setSelection(undefined);
-		if (groups.activeGroup.activeEditorPane) {
-			groups.activeGroup.activeEditorPane.focus();
-		}
+		groups.activeGroup.activeEditorPane?.focus();
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({

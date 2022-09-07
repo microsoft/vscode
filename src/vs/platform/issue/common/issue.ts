@@ -60,6 +60,7 @@ export interface IssueReporterData extends WindowData {
 	experiments?: string;
 	restrictedMode: boolean;
 	isUnsupported: boolean;
+	isSandboxed: boolean; // TODO@bpasero remove me once sandbox is final
 	githubAccessToken: string;
 	readonly issueTitle?: string;
 	readonly issueBody?: string;
@@ -80,6 +81,10 @@ export interface ProcessExplorerStyles extends WindowStyles {
 	listActiveSelectionBackground?: string;
 	listActiveSelectionForeground?: string;
 	listHoverOutline?: string;
+	scrollbarShadowColor?: string;
+	scrollbarSliderBackgroundColor?: string;
+	scrollbarSliderHoverBackgroundColor?: string;
+	scrollbarSliderActiveBackgroundColor?: string;
 }
 
 export interface ProcessExplorerData extends WindowData {

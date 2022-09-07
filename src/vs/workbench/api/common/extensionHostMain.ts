@@ -120,7 +120,14 @@ export class ExtensionHostMain {
 	}
 
 	private static _transform(initData: IExtensionHostInitData, rpcProtocol: RPCProtocol): IExtensionHostInitData {
-		initData.allExtensions.forEach((ext) => (<any>ext).extensionLocation = URI.revive(rpcProtocol.transformIncomingURIs(ext.extensionLocation)));
+		initData.allExtensions.forEach((ext) => {
+			(<any>ext).extensionLocation = URI.revive(rpcProtocol.transformIncomingURIs(ext.extensionLocation));
+			const browserNlsBundleUris: { [language: string]: URI } = {};
+			if (ext.browserNlsBundleUris) {
+				Object.keys(ext.browserNlsBundleUris).forEach(lang => browserNlsBundleUris[lang] = URI.revive(rpcProtocol.transformIncomingURIs(ext.browserNlsBundleUris![lang])));
+				(<any>ext).browserNlsBundleUris = browserNlsBundleUris;
+			}
+		});
 		initData.environment.appRoot = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appRoot));
 		const extDevLocs = initData.environment.extensionDevelopmentLocationURI;
 		if (extDevLocs) {

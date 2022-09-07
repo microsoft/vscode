@@ -13,11 +13,11 @@ import { RemoteStatusIndicator } from 'vs/workbench/contrib/remote/browser/remot
 import { AutomaticPortForwarding, ForwardedPortsView, PortRestore } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(ShowCandidateContribution, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(TunnelFactoryContribution, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteStatusIndicator, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(ForwardedPortsView, LifecyclePhase.Restored);
-workbenchContributionsRegistry.registerWorkbenchContribution(PortRestore, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(AutomaticPortForwarding, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteMarkers, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(ShowCandidateContribution, 'ShowCandidateContribution', LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(TunnelFactoryContribution, 'TunnelFactoryContribution', LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, 'RemoteAgentConnectionStatusListener', LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteStatusIndicator, 'RemoteStatusIndicator', LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(ForwardedPortsView, 'ForwardedPortsView', LifecyclePhase.Restored);
+workbenchContributionsRegistry.registerWorkbenchContribution(PortRestore, 'PortRestore', LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(AutomaticPortForwarding, 'AutomaticPortForwarding', LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteMarkers, 'RemoteMarkers', LifecyclePhase.Eventually);

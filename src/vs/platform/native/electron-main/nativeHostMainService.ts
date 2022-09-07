@@ -37,7 +37,7 @@ import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainServ
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { VSBuffer } from 'vs/base/common/buffer';
 
@@ -113,7 +113,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		return windows.map(window => ({
 			id: window.id,
-			workspace: window.openedWorkspace,
+			workspace: window.openedWorkspace ?? toWorkspaceIdentifier(window.backupPath, window.isExtensionDevelopmentHost),
 			title: window.win?.getTitle() ?? '',
 			filename: window.getRepresentedFilename(),
 			dirty: window.isDocumentEdited()
@@ -173,16 +173,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async toggleFullScreen(windowId: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
-			window.toggleFullScreen();
-		}
+		window?.toggleFullScreen();
 	}
 
 	async handleTitleDoubleClick(windowId: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
-			window.handleTitleDoubleClick();
-		}
+		window?.handleTitleDoubleClick();
 	}
 
 	async isMaximized(windowId: number | undefined): Promise<boolean> {
@@ -215,14 +211,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async updateTitleBarOverlay(windowId: number | undefined, options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> {
+	async updateWindowControls(windowId: number | undefined, options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window?.win) {
-			window.win.setTitleBarOverlay({
-				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
-				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
-				height: options.height ? options.height - 1 : undefined // account for window border
-			});
+		if (window) {
+			window.updateWindowControls(options);
 		}
 	}
 
@@ -665,9 +657,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async notifyReady(windowId: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
-			window.setReady();
-		}
+		window?.setReady();
 	}
 
 	async relaunch(windowId: number | undefined, options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void> {
