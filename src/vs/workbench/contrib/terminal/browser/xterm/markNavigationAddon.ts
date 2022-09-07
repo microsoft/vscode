@@ -38,16 +38,16 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	}
 
 	constructor(
-		private readonly _capabilityStore: ITerminalCapabilityStore,
+		private readonly _capabilities: ITerminalCapabilityStore,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
 	}
 
 	private _getMarkers(skipEmptyCommands?: boolean): readonly IMarker[] {
-		const commandCapability = this._capabilityStore.get(TerminalCapability.CommandDetection);
-		const partialCommandCapability = this._capabilityStore.get(TerminalCapability.PartialCommandDetection);
-		const markCapability = this._capabilityStore.get(TerminalCapability.BufferMarkDetection);
+		const commandCapability = this._capabilities.get(TerminalCapability.CommandDetection);
+		const partialCommandCapability = this._capabilities.get(TerminalCapability.PartialCommandDetection);
+		const markCapability = this._capabilities.get(TerminalCapability.BufferMarkDetection);
 		let markers: IMarker[] = [];
 		if (commandCapability) {
 			markers = coalesce(commandCapability.commands.map(e => e.marker));
@@ -253,7 +253,6 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 						renderedElement.classList.remove('terminal-scroll-highlight-outline');
 					}
 				});
-				console.log('navigation decorations', this._navigationDecorations);
 			}
 		}
 	}
@@ -273,7 +272,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	}
 
 	scrollToClosestMarker(startMarkerId: string, endMarkerId?: string, highlight?: boolean | undefined): void {
-		const detectionCapability = this._capabilityStore.get(TerminalCapability.BufferMarkDetection);
+		const detectionCapability = this._capabilities.get(TerminalCapability.BufferMarkDetection);
 		if (!detectionCapability) {
 			return;
 		}
@@ -292,7 +291,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		if (this._selectionStart === null) {
 			this._selectionStart = this._currentMarker;
 		}
-		if (this._capabilityStore.has(TerminalCapability.CommandDetection)) {
+		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
 			this.scrollToPreviousMark(ScrollPosition.Middle, true, true);
 		} else {
 			this.scrollToPreviousMark(ScrollPosition.Middle, true, false);
@@ -307,7 +306,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		if (this._selectionStart === null) {
 			this._selectionStart = this._currentMarker;
 		}
-		if (this._capabilityStore.has(TerminalCapability.CommandDetection)) {
+		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
 			this.scrollToNextMark(ScrollPosition.Middle, true, true);
 		} else {
 			this.scrollToNextMark(ScrollPosition.Middle, true, false);

@@ -660,7 +660,6 @@ export interface ITerminalInstance {
 
 	/**
 	 * Adds a marker to the buffer, mapping it to an ID if provided.
-	 * When not @param hidden, adds a decoration to the buffer
 	 */
 	addBufferMarker(properties: IMarkProperties): void;
 
