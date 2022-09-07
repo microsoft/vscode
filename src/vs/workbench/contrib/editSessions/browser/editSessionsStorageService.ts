@@ -80,7 +80,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 * @returns The ref of the stored edit session state.
 	 */
 	async write(editSession: EditSession): Promise<string> {
-		await this.initialize();
+		await this.initialize(false);
 		if (!this.initialized) {
 			throw new Error('Please sign in to store your edit session.');
 		}
@@ -95,7 +95,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 * @returns An object representing the requested or latest edit session state, if any.
 	 */
 	async read(ref: string | undefined): Promise<{ ref: string; editSession: EditSession } | undefined> {
-		await this.initialize();
+		await this.initialize(false);
 		if (!this.initialized) {
 			throw new Error('Please sign in to apply your latest edit session.');
 		}
@@ -119,7 +119,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	}
 
 	async delete(ref: string | null) {
-		await this.initialize();
+		await this.initialize(false);
 		if (!this.initialized) {
 			throw new Error(`Unable to delete edit session with ref ${ref}.`);
 		}
@@ -132,7 +132,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	}
 
 	async list(): Promise<IResourceRefHandle[]> {
-		await this.initialize();
+		await this.initialize(false);
 		if (!this.initialized) {
 			throw new Error(`Unable to list edit sessions.`);
 		}
@@ -146,12 +146,14 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return [];
 	}
 
-	private async initialize() {
+	public async initialize(fromContinueOn: boolean) {
 		if (this.initialized) {
-			return;
+			return true;
 		}
-		this.initialized = await this.doInitialize();
+		this.initialized = await this.doInitialize(fromContinueOn);
 		this.signedInContext.set(this.initialized);
+		return this.initialized;
+
 	}
 
 	/**
@@ -160,7 +162,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 * meaning that authentication is configured and it
 	 * can be used to communicate with the remote storage service
 	 */
-	private async doInitialize(): Promise<boolean> {
+	private async doInitialize(fromContinueOn: boolean): Promise<boolean> {
 		// Wait for authentication extensions to be registered
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
@@ -181,7 +183,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			return true;
 		}
 
-		const authenticationSession = await this.getAuthenticationSession();
+		const authenticationSession = await this.getAuthenticationSession(fromContinueOn);
 		if (authenticationSession !== undefined) {
 			this.#authenticationInfo = authenticationSession;
 			this.storeClient.setAuthToken(authenticationSession.token, authenticationSession.providerId);
@@ -190,7 +192,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return authenticationSession !== undefined;
 	}
 
-	private async getAuthenticationSession() {
+	private async getAuthenticationSession(fromContinueOn: boolean) {
 		// If the user signed in previously and the session is still available, reuse that without prompting the user again
 		if (this.existingSessionId) {
 			this.logService.info(`Searching for existing authentication session with ID ${this.existingSessionId}`);
@@ -213,7 +215,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 
 		// Ask the user to pick a preferred account
-		const authenticationSession = await this.getAccountPreference();
+		const authenticationSession = await this.getAccountPreference(fromContinueOn);
 		if (authenticationSession !== undefined) {
 			this.existingSessionId = authenticationSession.id;
 			return { sessionId: authenticationSession.id, token: authenticationSession.idToken ?? authenticationSession.accessToken, providerId: authenticationSession.providerId };
@@ -230,13 +232,13 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 *
 	 * Prompts the user to pick an authentication option for storing and getting edit sessions.
 	 */
-	private async getAccountPreference(): Promise<AuthenticationSession & { providerId: string } | undefined> {
-		const quickpick = this.quickInputService.createQuickPick<ExistingSession | AuthenticationProviderOption>();
-		quickpick.title = localize('account preference', 'Sign In to Use Edit Sessions');
+	private async getAccountPreference(fromContinueOn: boolean): Promise<AuthenticationSession & { providerId: string } | undefined> {
+		const quickpick = this.quickInputService.createQuickPick<ExistingSession | AuthenticationProviderOption | IQuickPickItem>();
+		quickpick.title = localize('account preference', 'Turn on Edit Sessions to bring your working changes with you');
 		quickpick.ok = false;
 		quickpick.placeholder = localize('choose account placeholder', "Select an account to sign in");
 		quickpick.ignoreFocusOut = true;
-		quickpick.items = await this.createQuickpickItems();
+		quickpick.items = await this.createQuickpickItems(fromContinueOn);
 
 		return new Promise((resolve, reject) => {
 			quickpick.onDidHide((e) => {
@@ -246,7 +248,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 
 			quickpick.onDidAccept(async (e) => {
 				const selection = quickpick.selectedItems[0];
-				const session = 'provider' in selection ? { ...await this.authenticationService.createSession(selection.provider.id, selection.provider.scopes), providerId: selection.provider.id } : selection.session;
+				const session = 'provider' in selection ? { ...await this.authenticationService.createSession(selection.provider.id, selection.provider.scopes), providerId: selection.provider.id } : ('session' in selection ? selection.session : undefined);
 				resolve(session);
 				quickpick.hide();
 			});
@@ -255,8 +257,8 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		});
 	}
 
-	private async createQuickpickItems(): Promise<(ExistingSession | AuthenticationProviderOption | IQuickPickSeparator)[]> {
-		const options: (ExistingSession | AuthenticationProviderOption | IQuickPickSeparator)[] = [];
+	private async createQuickpickItems(fromContinueOn: boolean): Promise<(ExistingSession | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[]> {
+		const options: (ExistingSession | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[] = [];
 
 		options.push({ type: 'separator', label: localize('signed in', "Signed In") });
 
@@ -271,6 +273,10 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 				const providerName = this.authenticationService.getLabel(authenticationProvider.id);
 				options.push({ label: localize('sign in using account', "Sign in with {0}", providerName), provider: authenticationProvider });
 			}
+		}
+
+		if (fromContinueOn) {
+			return options.concat([{ type: 'separator' }, { label: localize('continue without', 'Continue without my working changes'), canceledAuthentication: true }]);
 		}
 
 		return options;
@@ -399,7 +405,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			}
 
 			async run() {
-				await that.initialize();
+				return await that.initialize(false);
 			}
 		}));
 	}
