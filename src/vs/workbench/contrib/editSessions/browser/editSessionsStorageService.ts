@@ -384,11 +384,16 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.signIn',
-					title: localize('sign in', 'Sign In'),
+					title: localize('sign in', 'Turn on Edit Sessions...'),
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false),
 					menu: [{
 						id: MenuId.CommandPalette,
+					},
+					{
+						id: MenuId.AccountsContext,
+						group: '2_editSessions',
+						when: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false),
 					}]
 				});
 			}
