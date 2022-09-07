@@ -12,6 +12,24 @@ declare module 'vscode' {
 	export class SnippetTextEdit {
 
 		/**
+		 * Utility to create an replace snippet edit.
+		 *
+		 * @param range A range.
+		 * @param snippet A snippet string.
+		 * @return A new snippet edit object.
+		 */
+		static replace(range: Range, snippet: SnippetString): SnippetTextEdit;
+
+		/**
+		 * Utility to create an insert snippet edit.
+		 *
+		 * @param position A position, will become an empty range.
+		 * @param snippet A snippet string.
+		 * @return A new snippet edit object.
+		 */
+		static insert(position: Position, snippet: SnippetString): SnippetTextEdit;
+
+		/**
 		 * The range this edit applies to.
 		 */
 		range: Range;
@@ -33,12 +51,35 @@ declare module 'vscode' {
 	interface WorkspaceEdit {
 
 		/**
-		 * Set (and replace) edits for a resource.
+		 * Set (and replace) notebook edits for a resource.
 		 *
 		 * @param uri A resource identifier.
 		 * @param edits An array of edits.
 		 */
-		// TODO@API we support mixed edits of TextEdit and SnippetTextEdit
-		set(uri: Uri, edits: TextEdit[] | SnippetTextEdit[] | NotebookEdit[]): void;
+		set(uri: Uri, edits: NotebookEdit[]): void;
+
+		/**
+		 * Set (and replace) notebook edits with metadata for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: [NotebookEdit, WorkspaceEditEntryMetadata][]): void;
+
+		/**
+		 * Set (and replace) text edits or snippet edits for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: (TextEdit | SnippetTextEdit)[]): void;
+
+		/**
+		 * Set (and replace) text edits or snippet edits with metadata for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: [TextEdit | SnippetTextEdit, WorkspaceEditEntryMetadata][]): void;
 	}
 }
