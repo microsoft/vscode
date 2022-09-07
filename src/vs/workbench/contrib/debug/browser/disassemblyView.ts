@@ -783,9 +783,7 @@ export class DisassemblyViewContribution implements IWorkbenchContribution {
 		@IDebugService debugService: IDebugService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		contextKeyService.bufferChangeEvents(() => {
-			this._languageSupportsDisassemleRequest = CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST.bindTo(contextKeyService);
-		});
+		this._languageSupportsDisassemleRequest = CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST.bindTo(contextKeyService);
 
 		const onDidActiveEditorChangeListener = () => {
 			if (this._onDidChangeModelLanguage) {

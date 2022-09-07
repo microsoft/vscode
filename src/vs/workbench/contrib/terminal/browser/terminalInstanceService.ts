@@ -20,12 +20,8 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	declare _serviceBrand: undefined;
-	private _terminalFocusContextKey: IContextKey<boolean>;
-	private _terminalHasFixedWidth: IContextKey<boolean>;
 	private _terminalShellTypeContextKey: IContextKey<string>;
-	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
 	private _terminalInRunCommandPicker: IContextKey<boolean>;
-	private _terminalShellIntegrationEnabled: IContextKey<boolean>;
 	private _configHelper: TerminalConfigHelper;
 
 	private readonly _onDidCreateInstance = new Emitter<ITerminalInstance>();
@@ -37,12 +33,8 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService
 	) {
 		super();
-		this._terminalFocusContextKey = TerminalContextKeys.focus.bindTo(this._contextKeyService);
-		this._terminalHasFixedWidth = TerminalContextKeys.terminalHasFixedWidth.bindTo(this._contextKeyService);
 		this._terminalShellTypeContextKey = TerminalContextKeys.shellType.bindTo(this._contextKeyService);
-		this._terminalAltBufferActiveContextKey = TerminalContextKeys.altBufferActive.bindTo(this._contextKeyService);
 		this._terminalInRunCommandPicker = TerminalContextKeys.inTerminalRunCommandPicker.bindTo(this._contextKeyService);
-		this._terminalShellIntegrationEnabled = TerminalContextKeys.terminalShellIntegrationEnabled.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
 	}
 
@@ -51,12 +43,8 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	createInstance(config: IShellLaunchConfig | ITerminalProfile, target?: TerminalLocation, resource?: URI): ITerminalInstance {
 		const shellLaunchConfig = this.convertProfileToShellLaunchConfig(config);
 		const instance = this._instantiationService.createInstance(TerminalInstance,
-			this._terminalFocusContextKey,
-			this._terminalHasFixedWidth,
 			this._terminalShellTypeContextKey,
-			this._terminalAltBufferActiveContextKey,
 			this._terminalInRunCommandPicker,
-			this._terminalShellIntegrationEnabled,
 			this._configHelper,
 			shellLaunchConfig,
 			resource

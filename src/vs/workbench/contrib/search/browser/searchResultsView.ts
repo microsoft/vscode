@@ -156,7 +156,8 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 		private labels: ResourceLabels,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 	}
@@ -184,7 +185,9 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 	renderElement(node: ITreeNode<FileMatch, any>, index: number, templateData: IFileMatchTemplate): void {
 		const fileMatch = node.element;
 		templateData.el.setAttribute('data-resource', fileMatch.resource.toString());
-		templateData.label.setFile(fileMatch.resource, { hideIcon: false, fileDecorations: { colors: true, badges: true } });
+
+		const decorationConfig = this.configurationService.getValue<ISearchConfigurationProperties>('search').decorations;
+		templateData.label.setFile(fileMatch.resource, { hideIcon: false, fileDecorations: { colors: decorationConfig.colors, badges: decorationConfig.badges } });
 		const count = fileMatch.count();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));

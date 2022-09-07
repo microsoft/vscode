@@ -131,16 +131,16 @@ suite('vscode API - workspace', () => {
 			assert.strictEqual(doc.uri.scheme, 'untitled');
 			assert.ok(doc.isDirty);
 
-			let closed: vscode.TextDocument;
-			const d0 = vscode.workspace.onDidCloseTextDocument(e => closed = e);
+			const closedDocuments: vscode.TextDocument[] = [];
+			const d0 = vscode.workspace.onDidCloseTextDocument(e => closedDocuments.push(e));
 
 			return vscode.window.showTextDocument(doc).then(() => {
 				return doc.save().then((didSave: boolean) => {
 
 					assert.strictEqual(didSave, true, `FAILED to save${doc.uri.toString()}`);
 
+					const closed = closedDocuments.filter(close => close.uri.toString() === doc.uri.toString())[0];
 					assert.ok(closed);
-					assert.ok(closed.uri.toString() === doc.uri.toString(), `closed.uri = ${closed.uri.toString()} but doc.uri = ${doc.uri.toString()}`);
 					assert.ok(closed === doc);
 					assert.ok(!doc.isDirty);
 					assert.ok(fs.existsSync(path));
@@ -1159,7 +1159,7 @@ suite('vscode API - workspace', () => {
 		assert.ok(edt === vscode.window.activeTextEditor);
 
 		const we = new vscode.WorkspaceEdit();
-		we.replace(document.uri, new vscode.Range(0, 0, 0, 0), new vscode.SnippetString('${1:foo}${2:bar}'));
+		we.set(document.uri, [new vscode.SnippetTextEdit(new vscode.Range(0, 0, 0, 0), new vscode.SnippetString('${1:foo}${2:bar}'))]);
 		const success = await vscode.workspace.applyEdit(we);
 		if (edt !== vscode.window.activeTextEditor) {
 			return this.skip();
@@ -1168,5 +1168,22 @@ suite('vscode API - workspace', () => {
 		assert.ok(success);
 		assert.strictEqual(document.getText(), 'foobarhello\nworld');
 		assert.deepStrictEqual(edt.selections, [new vscode.Selection(0, 0, 0, 3)]);
+	});
+
+
+	test('Support creating binary files in a WorkspaceEdit', async function (): Promise<any> {
+
+		const fileUri = vscode.Uri.parse(`${testFs.scheme}:/${rndName()}`);
+		const data = Buffer.from('Hello Binary Files');
+
+		const ws = new vscode.WorkspaceEdit();
+		ws.createFile(fileUri, { contents: data, ignoreIfExists: false, overwrite: false });
+
+		const success = await vscode.workspace.applyEdit(ws);
+		assert.ok(success);
+
+		const actual = await vscode.workspace.fs.readFile(fileUri);
+
+		assert.deepStrictEqual(actual, data);
 	});
 });

@@ -76,12 +76,7 @@ interface IOpenBrowserWindowOptions {
 	readonly windowToUse?: ICodeWindow;
 
 	readonly emptyWindowBackupInfo?: IEmptyWindowBackupInfo;
-
-	readonly userDataProfileInfo?: IUserDataProfileInfo;
-}
-
-interface IUserDataProfileInfo {
-	readonly name?: string;
+	readonly profile?: IUserDataProfile;
 }
 
 interface IPathResolveOptions {
@@ -158,11 +153,6 @@ interface IPathToOpen<T = IEditorOptions> extends IPath<T> {
 	 * Optional label for the recent history
 	 */
 	label?: string;
-
-	/**
-	 * Info of the profile to use
-	 */
-	userDataProfileInfo?: IUserDataProfileInfo;
 }
 
 interface IWorkspacePathToOpen extends IPathToOpen {
@@ -346,7 +336,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			workspacesToOpen.push(...untitledWorkspacesToRestore);
 
 			// Empty windows with backups are always restored
-			emptyWindowsWithBackupsToRestore.push(...this.backupMainService.getEmptyWindowBackupPaths());
+			emptyWindowsWithBackupsToRestore.push(...this.backupMainService.getEmptyWindowBackups());
 		} else {
 			emptyWindowsWithBackupsToRestore.length = 0;
 		}
@@ -538,7 +528,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					filesToOpen,
 					forceNewWindow: true,
 					remoteAuthority: filesToOpen.remoteAuthority,
-					forceNewTabbedWindow: openConfig.forceNewTabbedWindow
+					forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
+					profile: openConfig.profile
 				}), true);
 			}
 		}
@@ -684,7 +675,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
 			filesToOpen,
 			windowToUse,
-			emptyWindowBackupInfo
+			emptyWindowBackupInfo,
+			profile: openConfig.profile
 		});
 	}
 
@@ -705,7 +697,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
 			filesToOpen,
 			windowToUse,
-			userDataProfileInfo: folderOrWorkspace.userDataProfileInfo
+			profile: openConfig.profile
 		});
 	}
 
@@ -858,13 +850,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const path = pathResolveOptions.remoteAuthority ? this.doResolvePathRemote(cliPath, pathResolveOptions) : this.doResolveFilePath(cliPath, pathResolveOptions);
 			if (path) {
 				pathsToOpen.push(path);
-			}
-		}
-
-		// Apply profile if any
-		if (cli.profile) {
-			for (const path of pathsToOpen) {
-				path.userDataProfileInfo = { name: cli.profile };
 			}
 		}
 
@@ -1302,18 +1287,17 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		openConfig.cli['folder-uri'] = folderUris;
 		openConfig.cli['file-uri'] = fileUris;
 
-		const noFilesOrFolders = !cliArgs.length && !folderUris.length && !fileUris.length;
-
 		// Open it
 		const openArgs: IOpenConfiguration = {
 			context: openConfig.context,
 			cli: openConfig.cli,
 			forceNewWindow: true,
-			forceEmpty: noFilesOrFolders,
+			forceEmpty: !cliArgs.length && !folderUris.length && !fileUris.length,
 			userEnv: openConfig.userEnv,
 			noRecentEntry: true,
 			waitMarkerFileURI: openConfig.waitMarkerFileURI,
-			remoteAuthority
+			remoteAuthority,
+			profile: openConfig.profile
 		};
 
 		return this.open(openArgs);
@@ -1469,15 +1453,30 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return window;
 	}
 
-	private resolveProfileForBrowserWindow(options: IOpenBrowserWindowOptions) {
+	private doOpenInBrowserWindow(window: ICodeWindow, configuration: INativeWindowConfiguration, options: IOpenBrowserWindowOptions): void {
 
-		// Resolve profile by name if provided
-		let profile: IUserDataProfile | undefined;
-		if (options.userDataProfileInfo) {
-			profile = this.userDataProfilesMainService.profiles.find(profile => profile.name === options.userDataProfileInfo!.name);
-			if (profile) {
-				this.userDataProfilesMainService.setProfileForWorkspaceSync(options.workspace ?? 'empty-window', profile);
+		// Register window for backups
+		if (!configuration.extensionDevelopmentPath) {
+			if (isWorkspaceIdentifier(configuration.workspace)) {
+				configuration.backupPath = this.backupMainService.registerWorkspaceBackup({ workspace: configuration.workspace, remoteAuthority: configuration.remoteAuthority });
+			} else if (isSingleFolderWorkspaceIdentifier(configuration.workspace)) {
+				configuration.backupPath = this.backupMainService.registerFolderBackup({ folderUri: configuration.workspace.uri, remoteAuthority: configuration.remoteAuthority });
+			} else {
+				const backupFolder = options.emptyWindowBackupInfo && options.emptyWindowBackupInfo.backupFolder;
+				configuration.backupPath = this.backupMainService.registerEmptyWindowBackup(backupFolder, configuration.remoteAuthority);
 			}
+		}
+
+		// Load it
+		window.load(configuration);
+	}
+
+	private resolveProfileForBrowserWindow(options: IOpenBrowserWindowOptions): IUserDataProfile {
+
+		// Use the provided profile if any
+		let profile = options.profile;
+		if (profile) {
+			this.userDataProfilesMainService.setProfileForWorkspaceSync(options.workspace ?? 'empty-window', profile);
 		}
 
 		// Otherwise use associated profile
@@ -1486,24 +1485,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		return profile;
-	}
-
-	private doOpenInBrowserWindow(window: ICodeWindow, configuration: INativeWindowConfiguration, options: IOpenBrowserWindowOptions): void {
-
-		// Register window for backups
-		if (!configuration.extensionDevelopmentPath) {
-			if (isWorkspaceIdentifier(configuration.workspace)) {
-				configuration.backupPath = this.backupMainService.registerWorkspaceBackupSync({ workspace: configuration.workspace, remoteAuthority: configuration.remoteAuthority });
-			} else if (isSingleFolderWorkspaceIdentifier(configuration.workspace)) {
-				configuration.backupPath = this.backupMainService.registerFolderBackupSync({ folderUri: configuration.workspace.uri, remoteAuthority: configuration.remoteAuthority });
-			} else {
-				const backupFolder = options.emptyWindowBackupInfo && options.emptyWindowBackupInfo.backupFolder;
-				configuration.backupPath = this.backupMainService.registerEmptyWindowBackupSync(backupFolder, configuration.remoteAuthority);
-			}
-		}
-
-		// Load it
-		window.load(configuration);
 	}
 
 	private onWindowClosed(window: ICodeWindow): void {

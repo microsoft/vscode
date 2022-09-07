@@ -162,4 +162,4 @@ function getColor(theme: IColorTheme, key: string): string | undefined {
 	return color ? color.toString() : undefined;
 }
 
-registerMainProcessRemoteService(IIssueService, 'issue', { supportsDelayedInstantiation: true });
+registerMainProcessRemoteService(IIssueService, 'issue');

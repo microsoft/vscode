@@ -23,7 +23,7 @@ import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, remove } from 'vs/base/common/arrays';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
@@ -263,22 +263,20 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private readonly canReopenClosedEditorContextKey = (new RawContextKey<boolean>('canReopenClosedEditor', false, localize('canReopenClosedEditor', "Whether it is possible to reopen the last closed editor"))).bindTo(this.contextKeyService);
 
 	updateContextKeys(): void {
-		this.contextKeyService.bufferChangeEvents(() => {
-			const activeStack = this.getStack();
+		const activeStack = this.getStack();
 
-			this.canNavigateBackContextKey.set(activeStack.canGoBack(GoFilter.NONE));
-			this.canNavigateForwardContextKey.set(activeStack.canGoForward(GoFilter.NONE));
+		this.canNavigateBackContextKey.set(activeStack.canGoBack(GoFilter.NONE));
+		this.canNavigateForwardContextKey.set(activeStack.canGoForward(GoFilter.NONE));
 
-			this.canNavigateBackInNavigationsContextKey.set(activeStack.canGoBack(GoFilter.NAVIGATION));
-			this.canNavigateForwardInNavigationsContextKey.set(activeStack.canGoForward(GoFilter.NAVIGATION));
-			this.canNavigateToLastNavigationLocationContextKey.set(activeStack.canGoLast(GoFilter.NAVIGATION));
+		this.canNavigateBackInNavigationsContextKey.set(activeStack.canGoBack(GoFilter.NAVIGATION));
+		this.canNavigateForwardInNavigationsContextKey.set(activeStack.canGoForward(GoFilter.NAVIGATION));
+		this.canNavigateToLastNavigationLocationContextKey.set(activeStack.canGoLast(GoFilter.NAVIGATION));
 
-			this.canNavigateBackInEditsContextKey.set(activeStack.canGoBack(GoFilter.EDITS));
-			this.canNavigateForwardInEditsContextKey.set(activeStack.canGoForward(GoFilter.EDITS));
-			this.canNavigateToLastEditLocationContextKey.set(activeStack.canGoLast(GoFilter.EDITS));
+		this.canNavigateBackInEditsContextKey.set(activeStack.canGoBack(GoFilter.EDITS));
+		this.canNavigateForwardInEditsContextKey.set(activeStack.canGoForward(GoFilter.EDITS));
+		this.canNavigateToLastEditLocationContextKey.set(activeStack.canGoLast(GoFilter.EDITS));
 
-			this.canReopenClosedEditorContextKey.set(this.recentlyClosedEditors.length > 0);
-		});
+		this.canReopenClosedEditorContextKey.set(this.recentlyClosedEditors.length > 0);
 	}
 
 	//#endregion
@@ -1107,7 +1105,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	//#endregion
 }
 
-registerSingleton(IHistoryService, HistoryService, false);
+registerSingleton(IHistoryService, HistoryService, InstantiationType.Eager);
 
 class EditorSelectionState {
 

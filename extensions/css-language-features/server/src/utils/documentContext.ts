@@ -27,11 +27,11 @@ export function getDocumentContext(documentUri: string, workspaceFolders: Worksp
 			if (ref[0] === '/') { // resolve absolute path against the current workspace folder
 				const folderUri = getRootFolder();
 				if (folderUri) {
-					return folderUri + ref.substr(1);
+					return folderUri + ref.substring(1);
 				}
 			}
-			base = base.substr(0, base.lastIndexOf('/') + 1);
-			return Utils.resolvePath(URI.parse(base), ref).toString();
+			base = base.substring(0, base.lastIndexOf('/') + 1);
+			return Utils.resolvePath(URI.parse(base), ref).toString(true);
 		},
 	};
 }
