@@ -119,10 +119,9 @@ class AttachmentCleaner {
 	 * @param e NotebookDocument that was closed
 	 */
 	deleteCacheUri(e: vscode.NotebookDocument) {
-		for (const entry of Object.keys(this.attachmentCache)) {
-			if (entry === e.uri.toString()) {
-				delete this.attachmentCache[entry];
-			}
+		const key = e.uri.toString();
+		if (key in this.attachmentCache) {
+			delete this.attachmentCache[key];
 		}
 	}
 
