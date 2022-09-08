@@ -244,7 +244,7 @@ export class BulkEditService implements IBulkEditService {
 
 			// when enabled (option AND setting) loop over all dirty working copies and trigger save
 			// for those that were involved in this bulk edit operation.
-			if (options?.respectAutoSaveConfig && this._configService.getValue(autoSaveSetting) === true && resources.length > (options?.minResourcesToAutosave ?? 1)) {
+			if (options?.respectAutoSaveConfig && this._configService.getValue(autoSaveSetting) === true && resources.length > 1) {
 				await this._saveAll(resources);
 			}
 

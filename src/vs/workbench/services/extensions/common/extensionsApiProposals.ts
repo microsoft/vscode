@@ -6,7 +6,6 @@
 // THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.
 
 export const allApiProposals = Object.freeze({
-	applyEditAutoSave: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.applyEditAutoSave.d.ts',
 	authSession: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.authSession.d.ts',
 	commentsResolvedState: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.commentsResolvedState.d.ts',
 	contribCommentPeekContext: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribCommentPeekContext.d.ts',
@@ -69,6 +68,7 @@ export const allApiProposals = Object.freeze({
 	treeItemCheckbox: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.treeItemCheckbox.d.ts',
 	treeViewReveal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.treeViewReveal.d.ts',
 	tunnels: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.tunnels.d.ts',
+	workspaceEditIsRefactoring: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.workspaceEditIsRefactoring.d.ts',
 	workspaceTrust: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.workspaceTrust.d.ts'
 });
 export type ApiProposalName = keyof typeof allApiProposals;
