@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -24,9 +24,16 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { isWeb } from 'vs/base/common/platform';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Codicon } from 'vs/base/common/codicons';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
+
+const configureContinueOnPreference = { iconClass: Codicon.settingsGear.classNames, tooltip: localize('configure continue on', 'Configure this preference in settings') };
+const turnOnEditSessionsTitle = localize('sign in', 'Turn on Edit Sessions...');
 
 export class EditSessionsWorkbenchService extends Disposable implements IEditSessionsStorageService {
 
@@ -45,6 +52,8 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return this.existingSessionId !== undefined;
 	}
 
+	private globalActivityBadgeDisposable = this._register(new MutableDisposable());
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -58,6 +67,8 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		@IRequestService private readonly requestService: IRequestService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IActivityService private readonly activityService: IActivityService,
 	) {
 		super();
 
@@ -67,11 +78,13 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		// If another window changes the preferred session storage, reset our cached auth state in memory
 		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
 
-		this.registerSignInAction();
+		this.registerTurnOnAction();
 		this.registerResetAuthenticationAction();
 
 		this.signedInContext = EDIT_SESSIONS_SIGNED_IN.bindTo(this.contextKeyService);
 		this.signedInContext.set(this.existingSessionId !== undefined);
+
+		this.updateGlobalActivityBadge();
 	}
 
 	/**
@@ -80,7 +93,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 * @returns The ref of the stored edit session state.
 	 */
 	async write(editSession: EditSession): Promise<string> {
-		await this.initialize();
+		await this.initialize(false);
 		if (!this.initialized) {
 			throw new Error('Please sign in to store your edit session.');
 		}
@@ -95,7 +108,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 * @returns An object representing the requested or latest edit session state, if any.
 	 */
 	async read(ref: string | undefined): Promise<{ ref: string; editSession: EditSession } | undefined> {
-		await this.initialize();
+		await this.initialize(false);
 		if (!this.initialized) {
 			throw new Error('Please sign in to apply your latest edit session.');
 		}
@@ -119,7 +132,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	}
 
 	async delete(ref: string | null) {
-		await this.initialize();
+		await this.initialize(false);
 		if (!this.initialized) {
 			throw new Error(`Unable to delete edit session with ref ${ref}.`);
 		}
@@ -132,7 +145,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	}
 
 	async list(): Promise<IResourceRefHandle[]> {
-		await this.initialize();
+		await this.initialize(false);
 		if (!this.initialized) {
 			throw new Error(`Unable to list edit sessions.`);
 		}
@@ -146,12 +159,15 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return [];
 	}
 
-	private async initialize() {
+	public async initialize(fromContinueOn: boolean) {
 		if (this.initialized) {
-			return;
+			return true;
 		}
-		this.initialized = await this.doInitialize();
+		this.initialized = await this.doInitialize(fromContinueOn);
 		this.signedInContext.set(this.initialized);
+		this.updateGlobalActivityBadge();
+		return this.initialized;
+
 	}
 
 	/**
@@ -160,7 +176,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 * meaning that authentication is configured and it
 	 * can be used to communicate with the remote storage service
 	 */
-	private async doInitialize(): Promise<boolean> {
+	private async doInitialize(fromContinueOn: boolean): Promise<boolean> {
 		// Wait for authentication extensions to be registered
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
@@ -181,7 +197,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			return true;
 		}
 
-		const authenticationSession = await this.getAuthenticationSession();
+		const authenticationSession = await this.getAuthenticationSession(fromContinueOn);
 		if (authenticationSession !== undefined) {
 			this.#authenticationInfo = authenticationSession;
 			this.storeClient.setAuthToken(authenticationSession.token, authenticationSession.providerId);
@@ -190,7 +206,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return authenticationSession !== undefined;
 	}
 
-	private async getAuthenticationSession() {
+	private async getAuthenticationSession(fromContinueOn: boolean) {
 		// If the user signed in previously and the session is still available, reuse that without prompting the user again
 		if (this.existingSessionId) {
 			this.logService.info(`Searching for existing authentication session with ID ${this.existingSessionId}`);
@@ -213,7 +229,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 
 		// Ask the user to pick a preferred account
-		const authenticationSession = await this.getAccountPreference();
+		const authenticationSession = await this.getAccountPreference(fromContinueOn);
 		if (authenticationSession !== undefined) {
 			this.existingSessionId = authenticationSession.id;
 			return { sessionId: authenticationSession.id, token: authenticationSession.idToken ?? authenticationSession.accessToken, providerId: authenticationSession.providerId };
@@ -230,13 +246,13 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 *
 	 * Prompts the user to pick an authentication option for storing and getting edit sessions.
 	 */
-	private async getAccountPreference(): Promise<AuthenticationSession & { providerId: string } | undefined> {
-		const quickpick = this.quickInputService.createQuickPick<ExistingSession | AuthenticationProviderOption>();
-		quickpick.title = localize('account preference', 'Sign In to Use Edit Sessions');
+	private async getAccountPreference(fromContinueOn: boolean): Promise<AuthenticationSession & { providerId: string } | undefined> {
+		const quickpick = this.quickInputService.createQuickPick<ExistingSession | AuthenticationProviderOption | IQuickPickItem>();
+		quickpick.title = localize('account preference', 'Turn on Edit Sessions to bring your working changes with you');
 		quickpick.ok = false;
 		quickpick.placeholder = localize('choose account placeholder', "Select an account to sign in");
 		quickpick.ignoreFocusOut = true;
-		quickpick.items = await this.createQuickpickItems();
+		quickpick.items = await this.createQuickpickItems(fromContinueOn);
 
 		return new Promise((resolve, reject) => {
 			quickpick.onDidHide((e) => {
@@ -246,17 +262,23 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 
 			quickpick.onDidAccept(async (e) => {
 				const selection = quickpick.selectedItems[0];
-				const session = 'provider' in selection ? { ...await this.authenticationService.createSession(selection.provider.id, selection.provider.scopes), providerId: selection.provider.id } : selection.session;
+				const session = 'provider' in selection ? { ...await this.authenticationService.createSession(selection.provider.id, selection.provider.scopes), providerId: selection.provider.id } : ('session' in selection ? selection.session : undefined);
 				resolve(session);
 				quickpick.hide();
+			});
+
+			quickpick.onDidTriggerItemButton(async (e) => {
+				if (e.button.tooltip === configureContinueOnPreference.tooltip) {
+					await this.commandService.executeCommand('workbench.action.openSettings', 'workbench.experimental.editSessions.continueOn');
+				}
 			});
 
 			quickpick.show();
 		});
 	}
 
-	private async createQuickpickItems(): Promise<(ExistingSession | AuthenticationProviderOption | IQuickPickSeparator)[]> {
-		const options: (ExistingSession | AuthenticationProviderOption | IQuickPickSeparator)[] = [];
+	private async createQuickpickItems(fromContinueOn: boolean): Promise<(ExistingSession | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[]> {
+		const options: (ExistingSession | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[] = [];
 
 		options.push({ type: 'separator', label: localize('signed in', "Signed In") });
 
@@ -271,6 +293,14 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 				const providerName = this.authenticationService.getLabel(authenticationProvider.id);
 				options.push({ label: localize('sign in using account', "Sign in with {0}", providerName), provider: authenticationProvider });
 			}
+		}
+
+		if (fromContinueOn) {
+			return options.concat([{ type: 'separator' }, {
+				label: localize('continue without', 'Continue without my working changes'),
+				canceledAuthentication: true,
+				buttons: [configureContinueOnPreference]
+			}]);
 		}
 
 		return options;
@@ -378,23 +408,51 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 	}
 
-	private registerSignInAction() {
+	private registerTurnOnAction() {
 		const that = this;
-		this._register(registerAction2(class ResetEditSessionAuthenticationAction extends Action2 {
+		const when = ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false);
+		this._register(registerAction2(class TurnOnEditSessionsAction extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.signIn',
-					title: localize('sign in', 'Sign In'),
+					title: turnOnEditSessionsTitle,
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false),
 					menu: [{
 						id: MenuId.CommandPalette,
+					},
+					{
+						id: MenuId.AccountsContext,
+						group: '2_editSessions',
+						when,
 					}]
 				});
 			}
 
 			async run() {
-				await that.initialize();
+				return await that.initialize(false);
+			}
+		}));
+
+		this._register(registerAction2(class TurnOnEditSessionsAndResumeAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.editSessions.actions.turnOnAndResume',
+					title: turnOnEditSessionsTitle,
+					menu: {
+						group: '6_editSessions',
+						id: MenuId.GlobalActivity,
+						// Do not push for edit sessions when there are no workspace folders open
+						when: ContextKeyExpr.and(when, WorkspaceFolderCountContext.notEqualsTo(0)),
+						order: 2
+					}
+				});
+			}
+
+			async run() {
+				if (await that.initialize(false)) {
+					await that.commandService.executeCommand('workbench.experimental.editSessions.actions.resumeLatest', undefined, true);
+				}
 			}
 		}));
 	}
@@ -405,7 +463,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.resetAuth',
-					title: localize('reset auth.v2', 'Sign Out of Edit Sessions'),
+					title: localize('reset auth.v3', 'Turn off Edit Sessions...'),
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, true),
 					menu: [{
@@ -422,8 +480,8 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			async run() {
 				const result = await that.dialogService.confirm({
 					type: 'info',
-					message: localize('sign out of edit sessions clear data prompt', 'Do you want to sign out of edit sessions?'),
-					checkbox: { label: localize('delete all edit sessions', 'Delete all stored edit sessions from the cloud.') },
+					message: localize('sign out of edit sessions clear data prompt.v2', 'Do you want to turn off Edit Sessions?'),
+					checkbox: { label: localize('delete all edit sessions.v2', 'Delete all stored data from the cloud.') },
 					primaryButton: localize('clear data confirm', 'Yes'),
 				});
 				if (result.confirmed) {
@@ -434,5 +492,14 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 				}
 			}
 		}));
+	}
+
+	private updateGlobalActivityBadge() {
+		if (this.initialized) {
+			return this.globalActivityBadgeDisposable.clear();
+		}
+
+		const badge = new NumberBadge(1, () => turnOnEditSessionsTitle);
+		this.globalActivityBadgeDisposable.value = this.activityService.showGlobalActivity({ badge, priority: 1 });
 	}
 }
