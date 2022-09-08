@@ -34,7 +34,7 @@ declare module 'vscode' {
 		 * @param exception The error object which contains the stack trace cleaned of PII
 		 * @param data Additional data to log alongside the stack trace
 		 */
-		logException(exception: Error, data?: Record<string, string | number | boolean>): void;
+		logError(exception: Error, data?: Record<string, string | number | boolean>): void;
 
 		dispose(): void;
 	}
@@ -43,7 +43,7 @@ declare module 'vscode' {
 		/**
 		 * Whether or not you want to avoid having the built-in common properties such as os, extension name, etc injected into the data object.
 		 */
-		readonly ignorBuiltInCommonProperties: boolean;
+		readonly ignoreBuiltInCommonProperties: boolean;
 
 		/**
 		 * Any additional common properties which should be injected into the data object.

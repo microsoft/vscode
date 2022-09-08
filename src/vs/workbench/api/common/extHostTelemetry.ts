@@ -40,7 +40,8 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 	}
 
 	instantiateLogger(extensionId: string, appender: vscode.TelemetryAppender) {
-		const logger = new ExtHostTelemetryLogger(appender);
+		const telemetryDetails = this.getTelemetryDetails();
+		const logger = new ExtHostTelemetryLogger(appender, { isUsageEnabled: telemetryDetails.isUsageEnabled, isErrorsEnabled: telemetryDetails.isErrorsEnabled });
 		this._telemetryLoggers.set(extensionId, logger);
 		return logger.apiTelemetryLogger;
 	}
@@ -63,18 +64,30 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 export class ExtHostTelemetryLogger {
 	private _appender: vscode.TelemetryAppender;
 	private readonly _onDidChangeEnableStates = new Emitter<vscode.TelemetryLogger>();
+	private _telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean };
 	private _apiObject: vscode.TelemetryLogger | undefined;
-	constructor(appender: vscode.TelemetryAppender) {
+	constructor(appender: vscode.TelemetryAppender, telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean }) {
 		this._appender = appender;
+		this._telemetryEnablements = { isUsageEnabled: telemetryEnablements.isUsageEnabled, isErrorsEnabled: telemetryEnablements.isErrorsEnabled };
 	}
 
+	updateTelemetryEnablements(isUsageEnabled: boolean, isErrorsEnabled: boolean): void {
+		if (this._apiObject) {
+			this._telemetryEnablements = { isUsageEnabled, isErrorsEnabled };
+			this._onDidChangeEnableStates.fire(this._apiObject);
+		}
+	}
 
 	logUsage(eventName: string, data?: Record<string, string | number | boolean>): void {
 		this._appender.logEvent(eventName, data);
 	}
 
-	logException(exception: Error, data?: Record<string, string | number | boolean>): void {
-		this._appender.logException(exception, data);
+	logError(eventNameOrException: Error | string, data?: Record<string, string | number | boolean>): void {
+		if (typeof eventNameOrException === 'string') {
+			this._appender.logEvent(eventNameOrException, data);
+		} else {
+			this._appender.logException(eventNameOrException, data);
+		}
 	}
 
 	get apiTelemetryLogger(): vscode.TelemetryLogger {
@@ -82,11 +95,14 @@ export class ExtHostTelemetryLogger {
 			const that = this;
 			const obj: vscode.TelemetryLogger = {
 				logUsage: that.logUsage,
-				isErrorsEnabled: true,
-				isUsageEnabled: true,
-				logError: that.logUsage,
+				get isUsageEnabled() {
+					return that._telemetryEnablements.isUsageEnabled;
+				},
+				get isErrorsEnabled() {
+					return that._telemetryEnablements.isErrorsEnabled;
+				},
+				logError: that.logError,
 				dispose: that.dispose,
-				logException: that.logException,
 				onDidChangeEnableStates: that._onDidChangeEnableStates.event
 			};
 			this._apiObject = Object.freeze(obj);
