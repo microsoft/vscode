@@ -35,7 +35,9 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@INotificationService private readonly _notificationService: INotificationService) {
 		super();
-		this._tryRunTasks();
+		if (this._workspaceTrustManagementService.isWorkspaceTrusted()) {
+			this._tryRunTasks();
+		}
 		this._register(this._workspaceTrustManagementService.onDidChangeTrust(async trusted => {
 			if (trusted) {
 				await this._tryRunTasks();
