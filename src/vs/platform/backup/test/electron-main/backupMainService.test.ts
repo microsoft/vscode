@@ -568,63 +568,6 @@ flakySuite('BackupMainService', () => {
 		assert.deepStrictEqual(json.rootURIWorkspaces.map(b => b.configURIPath), [URI.file(upperFooPath).toString()]);
 	});
 
-	suite('removeBackupPathSync', () => {
-		test('should remove folder workspaces from workspaces.json (folder workspace)', async () => {
-			service.registerFolderBackup(toFolderBackupInfo(fooFile));
-			service.registerFolderBackup(toFolderBackupInfo(barFile));
-			service.unregisterFolderBackup(fooFile);
-
-			const json = await readWorkspacesMetadata(backupWorkspacesPath);
-			assert.deepStrictEqual(json.folderWorkspaceInfos, [{ folderUri: barFile.toString() }]);
-			service.unregisterFolderBackup(barFile);
-
-			const json2 = await readWorkspacesMetadata(backupWorkspacesPath);
-			assert.deepStrictEqual(json2.folderWorkspaceInfos, []);
-		});
-
-		test('should remove folder workspaces from workspaces.json (root workspace)', async () => {
-			const ws1 = toWorkspaceBackupInfo(fooFile.fsPath);
-			service.registerWorkspaceBackup(ws1);
-			const ws2 = toWorkspaceBackupInfo(barFile.fsPath);
-			service.registerWorkspaceBackup(ws2);
-			service.unregisterWorkspaceBackup(ws1.workspace);
-
-			const json = await readWorkspacesMetadata(backupWorkspacesPath);
-			assert.deepStrictEqual(json.rootURIWorkspaces.map(r => r.configURIPath), [barFile.toString()]);
-			service.unregisterWorkspaceBackup(ws2.workspace);
-
-			const json2 = await readWorkspacesMetadata(backupWorkspacesPath);
-			assert.deepStrictEqual(json2.rootURIWorkspaces, []);
-		});
-
-		test('should remove empty workspaces from workspaces.json', async () => {
-			service.registerEmptyWindowBackup('foo');
-			service.registerEmptyWindowBackup('bar');
-			service.unregisterEmptyWindowBackup('foo');
-
-			const json = await readWorkspacesMetadata(backupWorkspacesPath);
-			assert.deepStrictEqual(json.emptyWorkspaceInfos, [{ backupFolder: 'bar' }]);
-			service.unregisterEmptyWindowBackup('bar');
-
-			const json2 = await readWorkspacesMetadata(backupWorkspacesPath);
-			assert.deepStrictEqual(json2.emptyWorkspaceInfos, []);
-		});
-
-		test('should fail gracefully when removing a path that doesn\'t exist', async () => {
-
-			await ensureFolderExists(existingTestFolder1); // make sure backup folder exists, so the folder is not removed on loadSync
-
-			const workspacesJson: ISerializedBackupWorkspaces = { rootURIWorkspaces: [], folderWorkspaceInfos: [{ folderUri: existingTestFolder1.toString() }], emptyWorkspaceInfos: [] };
-			await pfs.Promises.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
-			await service.initialize();
-			service.unregisterFolderBackup(barFile);
-			service.unregisterEmptyWindowBackup('test');
-			const content = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
-			const json = (<ISerializedBackupWorkspaces>JSON.parse(content));
-			assert.deepStrictEqual(json.folderWorkspaceInfos, [{ folderUri: existingTestFolder1.toString() }]);
-		});
-	});
-
 	suite('getWorkspaceHash', () => {
 		(platform.isLinux ? test.skip : test)('should ignore case on Windows and Mac', () => {
 			const assertFolderHash = (uri1: URI, uri2: URI) => {
@@ -661,24 +604,6 @@ flakySuite('BackupMainService', () => {
 				assert.strictEqual(service.getWorkspaceBackups().length, 2);
 			} else {
 				assert.strictEqual(service.getWorkspaceBackups().length, 1);
-			}
-		});
-
-		test('should handle case insensitive paths properly (removeBackupPathSync) (folder workspace)', () => {
-
-			// same case
-			service.registerFolderBackup(toFolderBackupInfo(fooFile));
-			service.unregisterFolderBackup(fooFile);
-			assert.strictEqual(service.getFolderBackups().length, 0);
-
-			// mixed case
-			service.registerFolderBackup(toFolderBackupInfo(fooFile));
-			service.unregisterFolderBackup(URI.file(fooFile.fsPath.toUpperCase()));
-
-			if (platform.isLinux) {
-				assert.strictEqual(service.getFolderBackups().length, 1);
-			} else {
-				assert.strictEqual(service.getFolderBackups().length, 0);
 			}
 		});
 	});
