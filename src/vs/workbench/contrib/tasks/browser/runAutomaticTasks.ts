@@ -56,7 +56,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		}
 		const workspaceTasks = await this._taskService.getWorkspaceTasks(TaskRunSource.FolderOpen);
 		this._logService.trace(`RunAutomaticTasks: Found ${workspaceTasks.size} automatic tasks`);
-		await RunAutomaticTasks.runWithPermission(this._taskService, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, workspaceTasks);
+		await this._runWithPermission(this._taskService, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, workspaceTasks);
 	}
 
 	private static _runTasks(taskService: ITaskService, tasks: Array<Task | Promise<Task | undefined>>) {
@@ -129,12 +129,8 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		return { tasks, taskNames, locations };
 	}
 
-	public static async runWithPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService, workspaceTrustManagementService: IWorkspaceTrustManagementService,
+	private async _runWithPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService, workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		openerService: IOpenerService, configurationService: IConfigurationService, workspaceTaskResult: Map<string, IWorkspaceFolderTaskResult>) {
-		const isWorkspaceTrusted = workspaceTrustManagementService.isWorkspaceTrusted();
-		if (RunAutomaticTasks.hasRunTasks || !isWorkspaceTrusted || configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'off') {
-			return;
-		}
 
 		const hasShownPromptForAutomaticTasks = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.WORKSPACE, false);
 		const { tasks, taskNames, locations } = RunAutomaticTasks._findAutoTasks(taskService, workspaceTaskResult);
@@ -147,7 +143,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		} else if (configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'auto' && !hasShownPromptForAutomaticTasks) {
 			// by default, only prompt once per folder
 			// otherwise, this can be configured via the setting
-			this._showPrompt(notificationService, storageService, openerService, configurationService, taskNames, locations).then(allow => {
+			RunAutomaticTasks._showPrompt(notificationService, storageService, openerService, configurationService, taskNames, locations).then(allow => {
 				if (allow) {
 					storageService.store(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, true, StorageScope.WORKSPACE, StorageTarget.USER);
 					RunAutomaticTasks._runTasks(taskService, tasks);
