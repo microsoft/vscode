@@ -7,6 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IAction } from 'vs/base/common/actions';
@@ -14,6 +15,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { OS } from 'vs/base/common/platform';
 import 'vs/css!./media/action';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -78,34 +80,36 @@ type ICodeActionMenuItem = CodeActionListItemCodeAction | CodeActionListItemHead
 
 interface ICodeActionMenuTemplateData {
 	readonly container: HTMLElement;
-	readonly text: HTMLElement;
 	readonly icon: HTMLElement;
+	readonly text: HTMLElement;
+	readonly keybinding: KeybindingLabel;
 }
 
 class CodeActionItemRenderer implements IListRenderer<CodeActionListItemCodeAction, ICodeActionMenuTemplateData> {
 	constructor(
+		private readonly keybindingResolver: CodeActionKeybindingResolver,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) { }
 
 	get templateId(): string { return CodeActionListItemKind.CodeAction; }
 
 	renderTemplate(container: HTMLElement): ICodeActionMenuTemplateData {
-		const iconContainer = document.createElement('div');
-		iconContainer.className = 'icon-container';
-		container.append(iconContainer);
+		container.classList.add('code-action');
 
 		const icon = document.createElement('div');
-		iconContainer.append(icon);
+		icon.className = 'icon';
+		container.append(icon);
 
 		const text = document.createElement('span');
+		text.className = 'title';
 		container.append(text);
 
-		return { container, icon, text };
+		const keybinding = new KeybindingLabel(container, OS);
+
+		return { container, icon, text, keybinding };
 	}
 
 	renderElement(element: CodeActionListItemCodeAction, _index: number, data: ICodeActionMenuTemplateData): void {
-		data.text.textContent = stripNewlines(element.action.action.title);
-
 		// Icons and Label modification based on group
 		const kind = element.action.action.kind ? new CodeActionKind(element.action.action.kind) : CodeActionKind.None;
 		if (CodeActionKind.SurroundWith.contains(kind)) {
@@ -121,6 +125,16 @@ class CodeActionItemRenderer implements IListRenderer<CodeActionListItemCodeActi
 		} else {
 			data.icon.className = Codicon.lightBulb.classNames;
 			data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
+		}
+
+		data.text.textContent = stripNewlines(element.action.action.title);
+
+		const binding = this.keybindingResolver.getResolver()(element.action.action);
+		data.keybinding.set(binding);
+		if (!binding) {
+			dom.hide(data.keybinding.element);
+		} else {
+			dom.show(data.keybinding.element);
 		}
 
 		// Check if action has disabled reason
@@ -157,7 +171,7 @@ class HeaderRenderer implements IListRenderer<CodeActionListItemHeader, HeaderTe
 	get templateId(): string { return CodeActionListItemKind.Header; }
 
 	renderTemplate(container: HTMLElement): HeaderTemplateData {
-		container.classList.add('group-header', 'option-disabled');
+		container.classList.add('group-header');
 
 		const text = document.createElement('span');
 		container.append(text);
@@ -203,10 +217,11 @@ class CodeActionList extends Disposable {
 			getHeight: element => element.kind === CodeActionListItemKind.Header ? this.headerLineHeight : this.codeActionLineHeight,
 			getTemplateId: element => element.kind,
 		}, [
-			new CodeActionItemRenderer(keybindingService),
+			new CodeActionItemRenderer(new CodeActionKeybindingResolver(keybindingService), keybindingService),
 			new HeaderRenderer(),
 		], {
 			keyboardSupport: false,
+			mouseSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === CodeActionListItemKind.CodeAction) {
@@ -251,9 +266,10 @@ class CodeActionList extends Disposable {
 		const itemWidths: number[] = this.allMenuItems.map((_, index): number => {
 			const element = document.getElementById(this.list.getElementID(index));
 			if (element) {
-				const textPadding = 10;
-				const iconPadding = 10;
-				return [...element.children].reduce((p, c) => p + c.clientWidth, 0) + (textPadding * 2) + iconPadding;
+				element.style.width = 'auto';
+				const width = element.getBoundingClientRect().width;
+				element.style.width = '';
+				return width;
 			}
 			return 0;
 		});
