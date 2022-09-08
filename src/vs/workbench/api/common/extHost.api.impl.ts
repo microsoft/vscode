@@ -327,6 +327,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				const installAge = Date.now() - new Date(initData.telemetryInfo.firstSessionDate).getTime();
 				return isNaN(installAge) ? false : installAge < 1000 * 60 * 60 * 24; // install age is less than a day
 			},
+			createTelemetryLogger(appender: vscode.TelemetryAppender): vscode.TelemetryLogger {
+				checkProposedApiEnabled(extension, 'telemetry');
+				return extHostTelemetry.instantiateLogger(extension.identifier.value, appender);
+			},
 			openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string }) {
 				return extHostWindow.openUri(uri, {
 					allowTunneling: !!initData.remote.authority,
