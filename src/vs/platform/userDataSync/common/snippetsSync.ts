@@ -31,12 +31,11 @@ interface ISnippetsAcceptedResourcePreview extends IFileResourcePreview {
 export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
 	protected readonly version: number = 1;
-	private readonly snippetsFolder: URI;
 
 	constructor(
+		private readonly snippetsFolder: URI,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
-		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
@@ -47,7 +46,6 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super(SyncResource.Snippets, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
-		this.snippetsFolder = userDataProfilesService.defaultProfile.snippetsHome;
 		this._register(this.fileService.watch(environmentService.userRoamingDataHome));
 		this._register(this.fileService.watch(this.snippetsFolder));
 		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.affects(this.snippetsFolder))(() => this.triggerLocalChange()));
