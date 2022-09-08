@@ -11,12 +11,11 @@ import { join } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
-import { TaskSequentializer } from 'vs/base/common/async';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { ISerializedBackupWorkspaces, IEmptyWindowBackupInfo, isEmptyWindowBackupInfo, deserializeWorkspaceInfos, deserializeFolderInfos } from 'vs/platform/backup/node/backup';
+import { ISerializedBackupWorkspaces, IEmptyWindowBackupInfo, isEmptyWindowBackupInfo, deserializeWorkspaceInfos, deserializeFolderInfos, ISerializedWorkspaceBackupInfo, ISerializedFolderBackupInfo, ISerializedEmptyWindowBackupInfo, ILegacySerializedBackupWorkspaces } from 'vs/platform/backup/node/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILifecycleMainService, ShutdownEvent } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { HotExitConfiguration, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
@@ -27,12 +26,9 @@ export class BackupMainService implements IBackupMainService {
 
 	declare readonly _serviceBrand: undefined;
 
-	protected backupHome = this.environmentMainService.backupHome;
+	private static readonly backupWorkspacesMetadataStorageKey = 'backupWorkspaces';
 
-	protected workspacesJsonPath = join(this.backupHome, 'workspaces.json');
-	protected readonly workspacesJsonSaveSequentializer = new TaskSequentializer();
-	private lastKnownWorkspacesJsonContents: string | undefined = undefined;
-	private workspacesJsonWriteCounter = 0;
+	protected backupHome = this.environmentMainService.backupHome;
 
 	private workspaces: IWorkspaceBackupInfo[] = [];
 	private folders: IFolderBackupInfo[] = [];
@@ -48,40 +44,17 @@ export class BackupMainService implements IBackupMainService {
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
+		@IStateMainService private readonly stateMainService: IStateMainService
 	) {
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.lifecycleMainService.onWillShutdown(e => this.onWillShutdown(e));
-	}
-
-	private onWillShutdown(e: ShutdownEvent): void {
-
-		// Prolong shutdown for pending metadata writes
-		e.join(this.workspacesJsonSaveSequentializer.join());
 	}
 
 	async initialize(): Promise<void> {
 
-		// typically we have no writes before `initialize`, but conceptually
-		// we have to ensure to await pending writes before reading metadata
-		await this.workspacesJsonSaveSequentializer.join();
-
-		// read workspace metadata
-		let serializedBackupWorkspaces: ISerializedBackupWorkspaces = Object.create(null);
-		try {
-			const workspacesMetadata = await this.readWorkspacesMetadata();
-			if (workspacesMetadata) {
-				serializedBackupWorkspaces = JSON.parse(workspacesMetadata);
-			}
-		} catch (error) {
-			// invalid JSON or permission issue can happen here
-		}
+		// read backup workspaces
+		const serializedBackupWorkspaces = await this.initializeAndMigrateBackupWorkspacesMetadata();
 
 		// validate empty workspaces backups first
-		this.emptyWindows = await this.validateEmptyWorkspaces(serializedBackupWorkspaces.emptyWorkspaceInfos);
+		this.emptyWindows = await this.validateEmptyWorkspaces(serializedBackupWorkspaces.emptyWindows);
 
 		// validate workspace backups
 		this.workspaces = await this.validateWorkspaces(deserializeWorkspaceInfos(serializedBackupWorkspaces));
@@ -89,8 +62,34 @@ export class BackupMainService implements IBackupMainService {
 		// validate folder backups
 		this.folders = await this.validateFolders(deserializeFolderInfos(serializedBackupWorkspaces));
 
-		// save again in case some workspaces or folders have been removed
-		this.writeWorkspacesMetadata();
+		// store metadata in case some workspaces or folders have been removed
+		this.storeWorkspacesMetadata();
+	}
+
+	private async initializeAndMigrateBackupWorkspacesMetadata(): Promise<ISerializedBackupWorkspaces> {
+		let serializedBackupWorkspaces = this.stateMainService.getItem<ISerializedBackupWorkspaces>(BackupMainService.backupWorkspacesMetadataStorageKey);
+		if (!serializedBackupWorkspaces) {
+			try {
+				//TODO@bpasero remove after a while
+				const legacyBackupWorkspacesPath = join(this.backupHome, 'workspaces.json');
+				const legacyBackupWorkspaces = await Promises.readFile(legacyBackupWorkspacesPath, 'utf8');
+
+				await Promises.unlink(legacyBackupWorkspacesPath);
+
+				const legacySserializedBackupWorkspaces = JSON.parse(legacyBackupWorkspaces) as ILegacySerializedBackupWorkspaces;
+				serializedBackupWorkspaces = {
+					workspaces: Array.isArray(legacySserializedBackupWorkspaces.rootURIWorkspaces) ? legacySserializedBackupWorkspaces.rootURIWorkspaces : [],
+					folders: Array.isArray(legacySserializedBackupWorkspaces.folderWorkspaceInfos) ? legacySserializedBackupWorkspaces.folderWorkspaceInfos : [],
+					emptyWindows: Array.isArray(legacySserializedBackupWorkspaces.emptyWorkspaceInfos) ? legacySserializedBackupWorkspaces.emptyWorkspaceInfos : [],
+				};
+			} catch (error) {
+				if (error.code !== 'ENOENT') {
+					this.logService.error(`Backup: Could not migrate legacy backup workspaces metadata: ${error.toString()}`);
+				}
+			}
+		}
+
+		return serializedBackupWorkspaces ?? Object.create(null);
 	}
 
 	protected getWorkspaceBackups(): IWorkspaceBackupInfo[] {
@@ -134,7 +133,7 @@ export class BackupMainService implements IBackupMainService {
 	registerWorkspaceBackup(workspaceInfo: IWorkspaceBackupInfo, migrateFrom?: string): string {
 		if (!this.workspaces.some(workspace => workspaceInfo.workspace.id === workspace.workspace.id)) {
 			this.workspaces.push(workspaceInfo);
-			this.writeWorkspacesMetadata();
+			this.storeWorkspacesMetadata();
 		}
 
 		const backupPath = join(this.backupHome, workspaceInfo.workspace.id);
@@ -166,7 +165,7 @@ export class BackupMainService implements IBackupMainService {
 	registerFolderBackup(folderInfo: IFolderBackupInfo): string {
 		if (!this.folders.some(folder => this.backupUriComparer.isEqual(folderInfo.folderUri, folder.folderUri))) {
 			this.folders.push(folderInfo);
-			this.writeWorkspacesMetadata();
+			this.storeWorkspacesMetadata();
 		}
 
 		return join(this.backupHome, this.getFolderHash(folderInfo));
@@ -175,7 +174,7 @@ export class BackupMainService implements IBackupMainService {
 	registerEmptyWindowBackup(emptyWindowInfo: IEmptyWindowBackupInfo): string {
 		if (!this.emptyWindows.some(emptyWindow => !!emptyWindow.backupFolder && this.backupPathComparer.isEqual(emptyWindow.backupFolder, emptyWindowInfo.backupFolder))) {
 			this.emptyWindows.push(emptyWindowInfo);
-			this.writeWorkspacesMetadata();
+			this.storeWorkspacesMetadata();
 		}
 
 		return join(this.backupHome, emptyWindowInfo.backupFolder);
@@ -399,60 +398,47 @@ export class BackupMainService implements IBackupMainService {
 		return false;
 	}
 
-	private async readWorkspacesMetadata(): Promise<string | undefined> {
-		try {
-			this.lastKnownWorkspacesJsonContents = await Promises.readFile(this.workspacesJsonPath, 'utf8');
-		} catch (error) {
-			if (error.code !== 'ENOENT') {
-				this.logService.error(`Backup: Could not read workspaces.json: ${error.toString()}`);
-			}
-		}
 
-		return this.lastKnownWorkspacesJsonContents;
-	}
+	private storeWorkspacesMetadata(): void {
+		const serializedBackupWorkspaces: ISerializedBackupWorkspaces = {
+			workspaces: this.workspaces.map(({ workspace, remoteAuthority }) => {
+				const serializedWorkspaceBackupInfo: ISerializedWorkspaceBackupInfo = {
+					id: workspace.id,
+					configURIPath: workspace.configPath.toString()
+				};
 
-	private writeWorkspacesMetadata(): void {
-
-		// No pending save: directly set as pending
-		if (!this.workspacesJsonSaveSequentializer.hasPending()) {
-			this.workspacesJsonSaveSequentializer.setPending(++this.workspacesJsonWriteCounter, this.doWriteWorkspacesMetadata());
-		}
-
-		// Pending task: schedule to run next
-		else {
-			this.workspacesJsonSaveSequentializer.setNext(() => this.doWriteWorkspacesMetadata());
-		}
-	}
-
-	private async doWriteWorkspacesMetadata(): Promise<void> {
-		try {
-			const newWorkspacesJsonContentsContents = JSON.stringify(this.serializeBackups());
-			if (this.lastKnownWorkspacesJsonContents !== newWorkspacesJsonContentsContents) {
-				await Promises.writeFile(this.workspacesJsonPath, newWorkspacesJsonContentsContents);
-				this.lastKnownWorkspacesJsonContents = newWorkspacesJsonContentsContents;
-			}
-		} catch (error) {
-			this.logService.error(`Backup: Could not save workspaces.json: ${error.toString()}`);
-		}
-	}
-
-	private serializeBackups(): ISerializedBackupWorkspaces {
-		return {
-			rootURIWorkspaces: this.workspaces.map(workspace => (
-				{
-					id: workspace.workspace.id,
-					configURIPath: workspace.workspace.configPath.toString(),
-					remoteAuthority: workspace.remoteAuthority
+				if (remoteAuthority) {
+					serializedWorkspaceBackupInfo.remoteAuthority = remoteAuthority;
 				}
-			)),
-			folderWorkspaceInfos: this.folders.map(folder => (
+
+				return serializedWorkspaceBackupInfo;
+			}),
+			folders: this.folders.map(({ folderUri, remoteAuthority }) => {
+				const serializedFolderBackupInfo: ISerializedFolderBackupInfo =
 				{
-					folderUri: folder.folderUri.toString(),
-					remoteAuthority: folder.remoteAuthority
+					folderUri: folderUri.toString()
+				};
+
+				if (remoteAuthority) {
+					serializedFolderBackupInfo.remoteAuthority = remoteAuthority;
 				}
-			)),
-			emptyWorkspaceInfos: this.emptyWindows
+
+				return serializedFolderBackupInfo;
+			}),
+			emptyWindows: this.emptyWindows.map(({ backupFolder, remoteAuthority }) => {
+				const serializedEmptyWindowBackupInfo: ISerializedEmptyWindowBackupInfo = {
+					backupFolder
+				};
+
+				if (remoteAuthority) {
+					serializedEmptyWindowBackupInfo.remoteAuthority = remoteAuthority;
+				}
+
+				return serializedEmptyWindowBackupInfo;
+			})
 		};
+
+		this.stateMainService.setItem(BackupMainService.backupWorkspacesMetadataStorageKey, serializedBackupWorkspaces);
 	}
 
 	protected getFolderHash(folder: IFolderBackupInfo): string {

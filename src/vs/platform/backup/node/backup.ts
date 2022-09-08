@@ -19,14 +19,14 @@ export function isEmptyWindowBackupInfo(obj: unknown): obj is IEmptyWindowBackup
 export interface ISerializedWorkspaceBackupInfo {
 	readonly id: string;
 	readonly configURIPath: string;
-	readonly remoteAuthority?: string;
+	remoteAuthority?: string;
 }
 
 export function deserializeWorkspaceInfos(serializedBackupWorkspaces: ISerializedBackupWorkspaces): IWorkspaceBackupInfo[] {
 	let workspaceBackupInfos: IWorkspaceBackupInfo[] = [];
 	try {
-		if (Array.isArray(serializedBackupWorkspaces.rootURIWorkspaces)) {
-			workspaceBackupInfos = serializedBackupWorkspaces.rootURIWorkspaces.map(workspace => (
+		if (Array.isArray(serializedBackupWorkspaces.workspaces)) {
+			workspaceBackupInfos = serializedBackupWorkspaces.workspaces.map(workspace => (
 				{
 					workspace: {
 						id: workspace.id,
@@ -45,14 +45,14 @@ export function deserializeWorkspaceInfos(serializedBackupWorkspaces: ISerialize
 
 export interface ISerializedFolderBackupInfo {
 	readonly folderUri: string;
-	readonly remoteAuthority?: string;
+	remoteAuthority?: string;
 }
 
 export function deserializeFolderInfos(serializedBackupWorkspaces: ISerializedBackupWorkspaces): IFolderBackupInfo[] {
 	let folderBackupInfos: IFolderBackupInfo[] = [];
 	try {
-		if (Array.isArray(serializedBackupWorkspaces.folderWorkspaceInfos)) {
-			folderBackupInfos = serializedBackupWorkspaces.folderWorkspaceInfos.map(folder => (
+		if (Array.isArray(serializedBackupWorkspaces.folders)) {
+			folderBackupInfos = serializedBackupWorkspaces.folders.map(folder => (
 				{
 					folderUri: URI.parse(folder.folderUri),
 					remoteAuthority: folder.remoteAuthority
@@ -68,8 +68,14 @@ export function deserializeFolderInfos(serializedBackupWorkspaces: ISerializedBa
 
 export interface ISerializedEmptyWindowBackupInfo extends IEmptyWindowBackupInfo { }
 
-export interface ISerializedBackupWorkspaces {
+export interface ILegacySerializedBackupWorkspaces {
 	readonly rootURIWorkspaces: ISerializedWorkspaceBackupInfo[];
 	readonly folderWorkspaceInfos: ISerializedFolderBackupInfo[];
 	readonly emptyWorkspaceInfos: ISerializedEmptyWindowBackupInfo[];
+}
+
+export interface ISerializedBackupWorkspaces {
+	readonly workspaces: ISerializedWorkspaceBackupInfo[];
+	readonly folders: ISerializedFolderBackupInfo[];
+	readonly emptyWindows: ISerializedEmptyWindowBackupInfo[];
 }
