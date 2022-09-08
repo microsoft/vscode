@@ -134,7 +134,9 @@ class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchC
 	}
 }
 
-
+/**
+ * Sets the 'wslFeatureInstalled' context key if the WSL feature is or was installed on this machine.
+ */
 class WSLContextKeyInitializer extends Disposable implements IWorkbenchContribution {
 
 	constructor(
