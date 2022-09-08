@@ -2285,17 +2285,8 @@ export class CommandCenter {
 
 		quickpick.show();
 		const remoteItem = await new Promise<RemoteItem | FetchAllRemotesItem | undefined>(resolve => {
-			let isAccepted = false;
-
-			quickpick.onDidAccept(() => {
-				isAccepted = true;
-				resolve(quickpick.activeItems[0] as RemoteItem | FetchAllRemotesItem);
-			});
-			quickpick.onDidHide(() => {
-				if (!isAccepted) {
-					resolve(undefined);
-				}
-			});
+			quickpick.onDidAccept(() => resolve(quickpick.activeItems[0] as RemoteItem | FetchAllRemotesItem));
+			quickpick.onDidHide(() => resolve(undefined));
 		});
 		quickpick.hide();
 
