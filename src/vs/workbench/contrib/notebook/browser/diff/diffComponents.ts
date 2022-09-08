@@ -95,6 +95,8 @@ export const fixedDiffEditorOptions: IDiffEditorConstructionOptions = {
 	readOnly: false,
 	isInEmbeddedEditor: true,
 	renderOverviewRuler: false,
+	wordWrap: 'off',
+	diffWordWrap: 'off',
 	diffAlgorithm: 'smart',
 };
 
