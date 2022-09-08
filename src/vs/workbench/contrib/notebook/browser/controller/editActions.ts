@@ -201,7 +201,8 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 			return;
 		}
 
-		editor.textModel.applyEdits([{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined, undefined, true);
+		const computeUndoRedo = !editor.isReadOnly;
+		editor.textModel.applyEdits([{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined, undefined, computeUndoRedo);
 
 		const runState = notebookExecutionStateService.getCellExecution(context.cell.uri)?.state;
 		if (runState !== NotebookCellExecutionState.Executing) {
@@ -213,7 +214,7 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 					executionOrder: null,
 					lastRunSuccess: null
 				}
-			}], true, undefined, () => undefined, undefined, true);
+			}], true, undefined, () => undefined, undefined, computeUndoRedo);
 		}
 	}
 });
@@ -256,10 +257,11 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 			return;
 		}
 
+		const computeUndoRedo = !editor.isReadOnly;
 		editor.textModel.applyEdits(
 			editor.textModel.cells.map((cell, index) => ({
 				editType: CellEditType.Output, index, outputs: []
-			})), true, undefined, () => undefined, undefined, true);
+			})), true, undefined, () => undefined, undefined, computeUndoRedo);
 
 		const clearExecutionMetadataEdits = editor.textModel.cells.map((cell, index) => {
 			const runState = notebookExecutionStateService.getCellExecution(cell.uri)?.state;
@@ -278,7 +280,7 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 			}
 		}).filter(edit => !!edit) as ICellEditOperation[];
 		if (clearExecutionMetadataEdits.length) {
-			context.notebookEditor.textModel.applyEdits(clearExecutionMetadataEdits, true, undefined, () => undefined, undefined, true);
+			context.notebookEditor.textModel.applyEdits(clearExecutionMetadataEdits, true, undefined, () => undefined, undefined, computeUndoRedo);
 		}
 	}
 });
@@ -498,7 +500,7 @@ async function setCellToLanguage(languageId: string, context: IChangeCellContext
 		const index = context.notebookEditor.textModel.cells.indexOf(context.cell.model);
 		context.notebookEditor.textModel.applyEdits(
 			[{ editType: CellEditType.CellLanguage, index, language: languageId }],
-			true, undefined, () => undefined, undefined, true
+			true, undefined, () => undefined, undefined, !context.notebookEditor.isReadOnly
 		);
 	}
 }
