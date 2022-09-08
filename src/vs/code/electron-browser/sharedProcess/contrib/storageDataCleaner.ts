@@ -12,11 +12,9 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/workspace/common/workspace';
+import { NON_EMPTY_WORKSPACE_ID_LENGTH } from 'vs/platform/workspaces/node/workspaces';
 
 export class UnusedWorkspaceStorageDataCleaner extends Disposable {
-
-	// Workspace/Folder storage names are MD5 hashes (128bits / 4 due to hex presentation)
-	private static readonly NON_EMPTY_WORKSPACE_ID_LENGTH = 128 / 4;
 
 	constructor(
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
@@ -38,7 +36,7 @@ export class UnusedWorkspaceStorageDataCleaner extends Disposable {
 			const workspaceStorageFolders = await Promises.readdir(this.environmentService.workspaceStorageHome.fsPath);
 
 			await Promise.all(workspaceStorageFolders.map(async workspaceStorageFolder => {
-				if (workspaceStorageFolder.length === UnusedWorkspaceStorageDataCleaner.NON_EMPTY_WORKSPACE_ID_LENGTH) {
+				if (workspaceStorageFolder.length === NON_EMPTY_WORKSPACE_ID_LENGTH) {
 					return; // keep workspace storage for folders/workspaces that can be accessed still
 				}
 
