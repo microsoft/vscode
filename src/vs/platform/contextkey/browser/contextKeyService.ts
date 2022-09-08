@@ -293,11 +293,11 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 
 
 	bufferChangeEvents(callback: Function): void {
-		// this._onDidChangeContext.pause();
+		this._onDidChangeContext.pause();
 		try {
 			callback();
 		} finally {
-			// this._onDidChangeContext.resume();
+			this._onDidChangeContext.resume();
 		}
 	}
 
