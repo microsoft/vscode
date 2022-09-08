@@ -197,7 +197,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private static _nextHandle: number = 0;
 
 	private _tasksReconnected: boolean = false;
-	private _automaticTasksHaveRun: boolean = false;
 	private _schemaVersion: JsonSchemaVersion | undefined;
 	private _executionEngine: ExecutionEngine | undefined;
 	private _workspaceFolders: IWorkspaceFolder[] | undefined;
@@ -364,29 +363,20 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._onDidRegisterSupportedExecutions.fire();
 	}
 
-	private async _runAutomaticTasks(): Promise<void> {
-		if (!this._automaticTasksHaveRun) {
-			this.getWorkspaceTasks().then(async (tasks) => {
-				RunAutomaticTasks.runWithPermission(this, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, tasks);
-			});
-			this._automaticTasksHaveRun = true;
-		}
-	}
-
 	private _attemptTaskReconnection(): void {
-		if (this._tasksReconnected
-			|| !this._configurationService.getValue(TaskSettingId.Reconnection)
-			|| this._lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
-			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
+		if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			this._tasksReconnected = true;
-			this._runAutomaticTasks().then(() => {
-				return;
-			});
+			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
+		}
+		if (!this._configurationService.getValue(TaskSettingId.Reconnection) || this._tasksReconnected) {
+			this._tasksReconnected = true;
+			return;
 		}
 		this._getTaskSystem();
-		this._waitForSupportedExecutions.then(async () => {
-			await this._runAutomaticTasks();
-			this._tasksReconnected = await this._reconnectTasks();
+		this._waitForSupportedExecutions.then(() => {
+			this.getWorkspaceTasks().then(async () => {
+				this._tasksReconnected = await this._reconnectTasks();
+			});
 		});
 	}
 
@@ -1229,6 +1219,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			} else {
 				executeTaskResult = await this._executeTask(task, resolver, runSource);
+			}
+			if (runSource === TaskRunSource.User) {
+				const workspaceTasks = await this.getWorkspaceTasks();
+				RunAutomaticTasks.runWithPermission(this, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, workspaceTasks);
 			}
 			return executeTaskResult;
 		} catch (error) {

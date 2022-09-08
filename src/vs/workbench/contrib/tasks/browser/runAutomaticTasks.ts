@@ -25,7 +25,6 @@ const HAS_PROMPTED_FOR_AUTOMATIC_TASKS = 'task.hasPromptedForAutomaticTasks';
 const ALLOW_AUTOMATIC_TASKS = 'task.allowAutomaticTasks';
 
 export class RunAutomaticTasks extends Disposable implements IWorkbenchContribution {
-	static _hasRunAutomaticTasks: boolean;
 	constructor(
 		@ITaskService private readonly _taskService: ITaskService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -130,11 +129,9 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		const hasShownPromptForAutomaticTasks = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.WORKSPACE, false);
 		const { tasks, taskNames, locations } = RunAutomaticTasks._findAutoTasks(taskService, workspaceTaskResult);
 
-		if (taskNames.length === 0 || RunAutomaticTasks._hasRunAutomaticTasks) {
+		if (taskNames.length === 0) {
 			return;
 		}
-
-		RunAutomaticTasks._hasRunAutomaticTasks = true;
 
 		if (configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'on') {
 			RunAutomaticTasks._runTasks(taskService, tasks);
