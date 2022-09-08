@@ -8,7 +8,7 @@ import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal'
 import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 import * as dom from 'vs/base/browser/dom';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { CommandInvalidationReason, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { CommandInvalidationReason, ICommandDetectionCapability, IMarkProperties, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
@@ -24,10 +24,10 @@ import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationMark, terminalDecorationSuccess } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
@@ -45,12 +45,12 @@ const enum DecorationStyles {
 	MarginLeft = -17,
 }
 
-interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; genericMarkProperties?: IGenericMarkProperties }
+interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; markProperties?: IMarkProperties }
 
 export class DecorationAddon extends Disposable implements ITerminalAddon {
 	protected _terminal: Terminal | undefined;
 	private _hoverDelayer: Delayer<void>;
-	private _commandDetectionListeners: IDisposable[] | undefined;
+	private _capabilityDisposables: Map<TerminalCapability, IDisposable[]> = new Map();
 	private _contextMenuVisible: boolean = false;
 	private _decorations: Map<number, IDisposableDecoration> = new Map();
 	private _placeholderDecoration: IDecoration | undefined;
@@ -83,29 +83,52 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			} else if (e.affectsConfiguration('workbench.colorCustomizations')) {
 				this._refreshStyles(true);
 			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
-				if (this._commandDetectionListeners) {
-					dispose(this._commandDetectionListeners);
-					this._commandDetectionListeners = undefined;
-				}
+				this._removeCapabilityDisposables(TerminalCapability.CommandDetection);
+				this._updateDecorationVisibility();
+			} else if (e.affectsConfiguration(TaskSettingId.ShowDecorations)) {
 				this._updateDecorationVisibility();
 			}
 		}));
 		this._register(this._themeService.onDidColorThemeChange(() => this._refreshStyles(true)));
 		this._updateDecorationVisibility();
-		this._register(this._capabilities.onDidAddCapability(c => {
-			if (c === TerminalCapability.CommandDetection) {
-				this._addCommandDetectionListeners();
-			}
-		}));
-		this._register(this._capabilities.onDidRemoveCapability(c => {
-			if (c === TerminalCapability.CommandDetection) {
-				if (this._commandDetectionListeners) {
-					dispose(this._commandDetectionListeners);
-					this._commandDetectionListeners = undefined;
-				}
-			}
-		}));
+		this._register(this._capabilities.onDidAddCapability(c => this._createCapabilityDisposables(c)));
+		this._register(this._capabilities.onDidRemoveCapability(c => this._removeCapabilityDisposables(c)));
 		this._register(lifecycleService.onWillShutdown(() => this._disposeAllDecorations()));
+	}
+
+	private _removeCapabilityDisposables(c: TerminalCapability): void {
+		const disposables = this._capabilityDisposables.get(c);
+		if (disposables) {
+			dispose(disposables);
+		}
+		this._capabilityDisposables.delete(c);
+	}
+
+	private _createCapabilityDisposables(c: TerminalCapability): void {
+		let disposables: IDisposable[] = [];
+		const capability = this._capabilities.get(c);
+		if (!capability || this._capabilityDisposables.has(c)) {
+			return;
+		}
+		switch (capability.type) {
+			case TerminalCapability.BufferMarkDetection:
+				disposables = [capability.onMarkAdded(mark => this.registerMarkDecoration({ hoverMessage: mark.hoverMessage }))];
+				break;
+			case TerminalCapability.CommandDetection:
+				disposables = this._getCommandDetectionListeners(capability);
+				break;
+		}
+		this._capabilityDisposables.set(c, disposables);
+	}
+
+	registerMarkDecoration(mark: IMarkProperties): IDecoration | undefined {
+		if (!this._terminal || (!this._showGutterDecorations && !this._showOverviewRulerDecorations)) {
+			return undefined;
+		}
+		if (mark.hidden) {
+			return undefined;
+		}
+		return this.registerCommandDecoration(undefined, undefined, mark);
 	}
 
 	private _updateDecorationVisibility(): void {
@@ -171,13 +194,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		this._updateClasses(this._placeholderDecoration?.element);
 		for (const decoration of this._decorations.values()) {
-			this._updateClasses(decoration.decoration.element, decoration.exitCode, decoration.genericMarkProperties);
+			this._updateClasses(decoration.decoration.element, decoration.exitCode, decoration.markProperties);
 		}
 	}
 
 	private _dispose(): void {
-		if (this._commandDetectionListeners) {
-			dispose(this._commandDetectionListeners);
+		for (const disposable of this._capabilityDisposables.values()) {
+			dispose(disposable);
 		}
 		this.clearDecorations();
 	}
@@ -196,31 +219,29 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	private _attachToCommandCapability(): void {
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-			this._addCommandDetectionListeners();
+			this._getCommandDetectionListeners(this._capabilities.get(TerminalCapability.CommandDetection)!);
 		}
 	}
 
-	private _addCommandDetectionListeners(): void {
-		if (this._commandDetectionListeners) {
-			return;
+	private _getCommandDetectionListeners(capability: ICommandDetectionCapability): IDisposable[] {
+		if (this._capabilityDisposables.has(TerminalCapability.CommandDetection)) {
+			const disposables = this._capabilityDisposables.get(TerminalCapability.CommandDetection)!;
+			dispose(disposables);
+			this._capabilityDisposables.delete(capability.type);
 		}
-		const capability = this._capabilities.get(TerminalCapability.CommandDetection);
-		if (!capability) {
-			return;
-		}
-		this._commandDetectionListeners = [];
+		const commandDetectionListeners = [];
 		// Command started
 		if (capability.executingCommandObject?.marker) {
 			this.registerCommandDecoration(capability.executingCommandObject, true);
 		}
-		this._commandDetectionListeners.push(capability.onCommandStarted(command => this.registerCommandDecoration(command, true)));
+		commandDetectionListeners.push(capability.onCommandStarted(command => this.registerCommandDecoration(command, true)));
 		// Command finished
 		for (const command of capability.commands) {
 			this.registerCommandDecoration(command);
 		}
-		this._commandDetectionListeners.push(capability.onCommandFinished(command => this.registerCommandDecoration(command)));
+		commandDetectionListeners.push(capability.onCommandFinished(command => this.registerCommandDecoration(command)));
 		// Command invalidated
-		this._commandDetectionListeners.push(capability.onCommandInvalidated(commands => {
+		commandDetectionListeners.push(capability.onCommandInvalidated(commands => {
 			for (const command of commands) {
 				const id = command.marker?.id;
 				if (id) {
@@ -233,7 +254,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			}
 		}));
 		// Current command invalidated
-		this._commandDetectionListeners.push(capability.onCurrentCommandInvalidated((request) => {
+		commandDetectionListeners.push(capability.onCurrentCommandInvalidated((request) => {
 			if (request.reason === CommandInvalidationReason.NoProblemsReported) {
 				const lastDecoration = Array.from(this._decorations.entries())[this._decorations.size - 1];
 				lastDecoration?.[1].decoration.dispose();
@@ -241,6 +262,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._clearPlaceholder();
 			}
 		}));
+		return commandDetectionListeners;
 	}
 
 	activate(terminal: Terminal): void {
@@ -248,25 +270,26 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._attachToCommandCapability();
 	}
 
-	registerCommandDecoration(command: ITerminalCommand, beforeCommandExecution?: boolean): IDecoration | undefined {
-		if (!this._terminal || (beforeCommandExecution && command.genericMarkProperties) || (!this._showGutterDecorations && !this._showOverviewRulerDecorations)) {
+	registerCommandDecoration(command?: ITerminalCommand, beforeCommandExecution?: boolean, markProperties?: IMarkProperties): IDecoration | undefined {
+		if (!this._terminal || (beforeCommandExecution && !command) || (!this._showGutterDecorations && !this._showOverviewRulerDecorations)) {
 			return undefined;
 		}
-		if (!command.marker) {
+		const marker = command?.marker || markProperties?.marker;
+		if (!marker) {
 			throw new Error(`cannot add a decoration for a command ${JSON.stringify(command)} with no marker`);
 		}
 		this._clearPlaceholder();
-		let color = command.exitCode === undefined ? defaultColor : command.exitCode ? errorColor : successColor;
+		let color = command?.exitCode === undefined ? defaultColor : command.exitCode ? errorColor : successColor;
 		if (color && typeof color !== 'string') {
 			color = color.toString();
 		} else {
 			color = '';
 		}
 		const decoration = this._terminal.registerDecoration({
-			marker: command.marker,
+			marker,
 			overviewRulerOptions: this._showOverviewRulerDecorations ? (beforeCommandExecution
 				? { color, position: 'left' }
-				: { color, position: command.exitCode ? 'right' : 'left' }) : undefined
+				: { color, position: command?.exitCode ? 'right' : 'left' }) : undefined
 		});
 		if (!decoration) {
 			return undefined;
@@ -283,25 +306,25 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._decorations.set(decoration.marker.id,
 					{
 						decoration,
-						disposables: this._createDisposables(element, command),
-						exitCode: command.exitCode,
-						genericMarkProperties: command.genericMarkProperties
+						disposables: markProperties?.hoverMessage ? this._createDisposables(element, command, markProperties) : [],
+						exitCode: command?.exitCode,
+						markProperties: command?.markProperties
 					});
 			}
-			if (!element.classList.contains(DecorationSelector.Codicon) || command.marker?.line === 0) {
+			if (!element.classList.contains(DecorationSelector.Codicon) || command?.marker?.line === 0) {
 				// first render or buffer was cleared
 				this._updateLayout(element);
-				this._updateClasses(element, command.exitCode, command.genericMarkProperties);
+				this._updateClasses(element, command?.exitCode, command?.markProperties || markProperties);
 			}
 		});
 		return decoration;
 	}
 
-	private _createDisposables(element: HTMLElement, command: ITerminalCommand): IDisposable[] {
-		if (command.exitCode === undefined && !command.genericMarkProperties) {
+	private _createDisposables(element: HTMLElement, command?: ITerminalCommand, markProperties?: IMarkProperties): IDisposable[] {
+		if (command?.exitCode === undefined && !command?.markProperties) {
 			return [];
-		} else if (command.genericMarkProperties) {
-			return [...this._createHover(element, command)];
+		} else if (command?.markProperties || markProperties) {
+			return [...this._createHover(element, command || markProperties?.hoverMessage)];
 		}
 		return [this._createContextMenu(element, command), ...this._createHover(element, command)];
 	}
@@ -323,7 +346,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	private _updateClasses(element?: HTMLElement, exitCode?: number, genericMarkProperties?: IGenericMarkProperties): void {
+	private _updateClasses(element?: HTMLElement, exitCode?: number, markProperties?: IMarkProperties): void {
 		if (!element) {
 			return;
 		}
@@ -332,9 +355,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
 
-		if (genericMarkProperties) {
+		if (markProperties) {
 			element.classList.add(DecorationSelector.DefaultColor, ...ThemeIcon.asClassNameArray(terminalDecorationMark));
-			if (!genericMarkProperties.hoverMessage) {
+			if (!markProperties.hoverMessage) {
 				//disable the mouse pointer
 				element.classList.add(DecorationSelector.Default);
 			}
@@ -363,7 +386,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		});
 	}
 
-	private _createHover(element: HTMLElement, command: ITerminalCommand): IDisposable[] {
+	private _createHover(element: HTMLElement, command: ITerminalCommand, markProperties?: IMarkProperties): IDisposable[] {
 		return [
 			dom.addDisposableListener(element, dom.EventType.MOUSE_ENTER, () => {
 				if (this._contextMenuVisible) {
@@ -372,9 +395,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._hoverDelayer.trigger(() => {
 					let hoverContent = `${localize('terminalPromptContextMenu', "Show Command Actions")}`;
 					hoverContent += '\n\n---\n\n';
-					if (command.genericMarkProperties) {
-						if (command.genericMarkProperties.hoverMessage) {
-							hoverContent = command.genericMarkProperties.hoverMessage;
+					if (command.markProperties || markProperties) {
+						if (command.markProperties?.hoverMessage || markProperties?.hoverMessage) {
+							hoverContent = command.markProperties?.hoverMessage || markProperties?.hoverMessage || '';
 						} else {
 							return;
 						}

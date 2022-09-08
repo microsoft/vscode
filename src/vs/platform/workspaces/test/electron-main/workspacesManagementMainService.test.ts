@@ -28,7 +28,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
+import { IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
 import { IStoredWorkspace, IStoredWorkspaceFolder, IWorkspaceFolderCreationData, rewriteWorkspaceFileForNewLocation } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
@@ -55,10 +55,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 		getEmptyWindowBackups(): IEmptyWindowBackupInfo[] { throw new Error('Method not implemented.'); }
 		registerWorkspaceBackup(workspace: IWorkspaceBackupInfo, migrateFrom?: string | undefined): string { throw new Error('Method not implemented.'); }
 		registerFolderBackup(folder: IFolderBackupInfo): string { throw new Error('Method not implemented.'); }
-		registerEmptyWindowBackup(backupFolder?: string | undefined, remoteAuthority?: string | undefined): string { throw new Error('Method not implemented.'); }
-		unregisterWorkspaceBackup(workspace: IWorkspaceIdentifier): void { throw new Error('Method not implemented.'); }
-		unregisterFolderBackup(folderUri: URI): void { throw new Error('Method not implemented.'); }
-		unregisterEmptyWindowBackup(backupFolder: string): void { throw new Error('Method not implemented.'); }
+		registerEmptyWindowBackup(empty: IEmptyWindowBackupInfo): string { throw new Error('Method not implemented.'); }
 		async getDirtyWorkspaces(): Promise<(IWorkspaceBackupInfo | IFolderBackupInfo)[]> { return []; }
 	}
 

@@ -27,7 +27,7 @@ import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
 import { isWorkspaceIdentifier, IWorkspaceIdentifier, IResolvedWorkspace, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, isUntitledWorkspace } from 'vs/platform/workspace/common/workspace';
 import { getStoredWorkspaceFolder, IEnterWorkspaceResult, isStoredWorkspaceFolder, IStoredWorkspace, IStoredWorkspaceFolder, IUntitledWorkspaceInfo, IWorkspaceFolderCreationData, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
-import { getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspaces';
+import { getWorkspaceIdentifier } from 'vs/platform/workspaces/node/workspaces';
 
 export const IWorkspacesManagementMainService = createDecorator<IWorkspacesManagementMainService>('workspacesManagementMainService');
 

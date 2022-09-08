@@ -25,9 +25,9 @@ export class MainThreadBulkEdits implements MainThreadBulkEditsShape {
 
 	dispose(): void { }
 
-	$tryApplyWorkspaceEdit(dto: IWorkspaceEditDto, undoRedoGroupId?: number): Promise<boolean> {
+	$tryApplyWorkspaceEdit(dto: IWorkspaceEditDto, undoRedoGroupId?: number, isRefactoring?: boolean): Promise<boolean> {
 		const edits = reviveWorkspaceEditDto(dto, this._uriIdentService);
-		return this._bulkEditService.apply(edits, { undoRedoGroupId }).then(() => true, err => {
+		return this._bulkEditService.apply(edits, { undoRedoGroupId, respectAutoSaveConfig: isRefactoring }).then(() => true, err => {
 			this._logService.warn(`IGNORING workspace edit: ${err}`);
 			return false;
 		});

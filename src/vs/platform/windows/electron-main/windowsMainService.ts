@@ -45,7 +45,7 @@ import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWor
 import { IWindowState, WindowsStateHandler } from 'vs/platform/windows/electron-main/windowsStateHandler';
 import { IRecent } from 'vs/platform/workspaces/common/workspaces';
 import { hasWorkspaceFileExtension, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspaces';
+import { createEmptyWorkspaceIdentifier, getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/platform/workspaces/node/workspaces';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { ICodeWindow, UnloadReason } from 'vs/platform/window/electron-main/window';
@@ -551,9 +551,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 
 			// Open remaining ones
-			allWorkspacesToOpen.forEach(workspaceToOpen => {
+			for (const workspaceToOpen of allWorkspacesToOpen) {
 				if (windowsOnWorkspace.some(window => window.openedWorkspace && window.openedWorkspace.id === workspaceToOpen.workspace.id)) {
-					return; // ignore folders that are already open
+					continue; // ignore folders that are already open
 				}
 
 				const remoteAuthority = workspaceToOpen.remoteAuthority;
@@ -563,7 +563,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				addUsedWindow(this.doOpenFolderOrWorkspace(openConfig, workspaceToOpen, openFolderInNewWindow, filesToOpenInWindow), !!filesToOpenInWindow);
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
-			});
+			}
 		}
 
 		// Handle folders to open (instructed and to restore)
@@ -583,9 +583,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 
 			// Open remaining ones
-			allFoldersToOpen.forEach(folderToOpen => {
+			for (const folderToOpen of allFoldersToOpen) {
 				if (windowsOnFolderPath.some(window => isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && extUriBiasedIgnorePathCase.isEqual(window.openedWorkspace.uri, folderToOpen.workspace.uri))) {
-					return; // ignore folders that are already open
+					continue; // ignore folders that are already open
 				}
 
 				const remoteAuthority = folderToOpen.remoteAuthority;
@@ -595,20 +595,20 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				addUsedWindow(this.doOpenFolderOrWorkspace(openConfig, folderToOpen, openFolderInNewWindow, filesToOpenInWindow), !!filesToOpenInWindow);
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
-			});
+			}
 		}
 
 		// Handle empty to restore
 		const allEmptyToRestore = distinct(emptyToRestore, info => info.backupFolder); // prevent duplicates
 		if (allEmptyToRestore.length > 0) {
-			allEmptyToRestore.forEach(emptyWindowBackupInfo => {
+			for (const emptyWindowBackupInfo of allEmptyToRestore) {
 				const remoteAuthority = emptyWindowBackupInfo.remoteAuthority;
 				const filesToOpenInWindow = isEqualAuthority(filesToOpen?.remoteAuthority, remoteAuthority) ? filesToOpen : undefined;
 
 				addUsedWindow(this.doOpenEmpty(openConfig, true, remoteAuthority, filesToOpenInWindow, emptyWindowBackupInfo), !!filesToOpenInWindow);
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
-			});
+			}
 		}
 
 		// Handle empty to open (only if no other window opened)
@@ -1217,7 +1217,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Fill in previously opened workspace unless an explicit path is provided and we are not unit testing
 		if (!cliArgs.length && !folderUris.length && !fileUris.length && !openConfig.cli.extensionTestsPath) {
 			const extensionDevelopmentWindowState = this.windowsStateHandler.state.lastPluginDevelopmentHostWindow;
-			const workspaceToOpen = extensionDevelopmentWindowState && (extensionDevelopmentWindowState.workspace || extensionDevelopmentWindowState.folderUri);
+			const workspaceToOpen = extensionDevelopmentWindowState?.workspace ?? extensionDevelopmentWindowState?.folderUri;
 			if (workspaceToOpen) {
 				if (URI.isUri(workspaceToOpen)) {
 					if (workspaceToOpen.scheme === Schemas.file) {
@@ -1325,7 +1325,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			codeCachePath: this.environmentMainService.codeCachePath,
 			// If we know the backup folder upfront (for empty windows to restore), we can set it
 			// directly here which helps for restoring UI state associated with that window.
-			// For all other cases we first call into registerEmptyWindowBackupSync() to set it before
+			// For all other cases we first call into registerEmptyWindowBackup() to set it before
 			// loading the window.
 			backupPath: options.emptyWindowBackupInfo ? join(this.environmentMainService.backupHome, options.emptyWindowBackupInfo.backupFolder) : undefined,
 
@@ -1419,7 +1419,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// Some configuration things get inherited if the window is being reused and we are
 			// in extension development host mode. These options are all development related.
 			const currentWindowConfig = window.config;
-			if (!configuration.extensionDevelopmentPath && currentWindowConfig && !!currentWindowConfig.extensionDevelopmentPath) {
+			if (!configuration.extensionDevelopmentPath && currentWindowConfig?.extensionDevelopmentPath) {
 				configuration.extensionDevelopmentPath = currentWindowConfig.extensionDevelopmentPath;
 				configuration.extensionDevelopmentKind = currentWindowConfig.extensionDevelopmentKind;
 				configuration['enable-proposed-api'] = currentWindowConfig['enable-proposed-api'];
@@ -1455,15 +1455,34 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private doOpenInBrowserWindow(window: ICodeWindow, configuration: INativeWindowConfiguration, options: IOpenBrowserWindowOptions): void {
 
-		// Register window for backups
+		// Register window for backups unless the window
+		// is for extension development, where we do not
+		// keep any backups.
+
 		if (!configuration.extensionDevelopmentPath) {
 			if (isWorkspaceIdentifier(configuration.workspace)) {
-				configuration.backupPath = this.backupMainService.registerWorkspaceBackup({ workspace: configuration.workspace, remoteAuthority: configuration.remoteAuthority });
+				configuration.backupPath = this.backupMainService.registerWorkspaceBackup({
+					workspace: configuration.workspace,
+					remoteAuthority: configuration.remoteAuthority
+				});
 			} else if (isSingleFolderWorkspaceIdentifier(configuration.workspace)) {
-				configuration.backupPath = this.backupMainService.registerFolderBackup({ folderUri: configuration.workspace.uri, remoteAuthority: configuration.remoteAuthority });
+				configuration.backupPath = this.backupMainService.registerFolderBackup({
+					folderUri: configuration.workspace.uri,
+					remoteAuthority: configuration.remoteAuthority
+				});
 			} else {
-				const backupFolder = options.emptyWindowBackupInfo && options.emptyWindowBackupInfo.backupFolder;
-				configuration.backupPath = this.backupMainService.registerEmptyWindowBackup(backupFolder, configuration.remoteAuthority);
+
+				// Empty windows are special in that they provide no workspace on
+				// their configuration. To properly register them with the backup
+				// service, we either use the provided associated `backupFolder`
+				// in case we restore a previously opened empty window or we have
+				// to generate a new empty window workspace identifier to be used
+				// as `backupFolder`.
+
+				configuration.backupPath = this.backupMainService.registerEmptyWindowBackup({
+					backupFolder: options.emptyWindowBackupInfo?.backupFolder ?? createEmptyWorkspaceIdentifier().id,
+					remoteAuthority: configuration.remoteAuthority
+				});
 			}
 		}
 

@@ -220,28 +220,32 @@ export class ResourceContextKey {
 			return;
 		}
 		this._value = value;
-		this._resourceKey.set(value ? value.toString() : null);
-		this._schemeKey.set(value ? value.scheme : null);
-		this._filenameKey.set(value ? basename(value) : null);
-		this._dirnameKey.set(value ? dirname(value).fsPath : null);
-		this._pathKey.set(value ? value.fsPath : null);
-		this._setLangId();
-		this._extensionKey.set(value ? extname(value) : null);
-		this._hasResource.set(Boolean(value));
-		this._isFileSystemResource.set(value ? this._fileService.hasProvider(value) : false);
+		this._contextKeyService.bufferChangeEvents(() => {
+			this._resourceKey.set(value ? value.toString() : null);
+			this._schemeKey.set(value ? value.scheme : null);
+			this._filenameKey.set(value ? basename(value) : null);
+			this._dirnameKey.set(value ? dirname(value).fsPath : null);
+			this._pathKey.set(value ? value.fsPath : null);
+			this._setLangId();
+			this._extensionKey.set(value ? extname(value) : null);
+			this._hasResource.set(Boolean(value));
+			this._isFileSystemResource.set(value ? this._fileService.hasProvider(value) : false);
+		});
 	}
 
 	reset(): void {
 		this._value = undefined;
-		this._resourceKey.reset();
-		this._schemeKey.reset();
-		this._filenameKey.reset();
-		this._dirnameKey.reset();
-		this._pathKey.reset();
-		this._langIdKey.reset();
-		this._extensionKey.reset();
-		this._hasResource.reset();
-		this._isFileSystemResource.reset();
+		this._contextKeyService.bufferChangeEvents(() => {
+			this._resourceKey.reset();
+			this._schemeKey.reset();
+			this._filenameKey.reset();
+			this._dirnameKey.reset();
+			this._pathKey.reset();
+			this._langIdKey.reset();
+			this._extensionKey.reset();
+			this._hasResource.reset();
+			this._isFileSystemResource.reset();
+		});
 	}
 
 	get(): URI | undefined {

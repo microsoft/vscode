@@ -692,7 +692,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Backups
-		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService, this.lifecycleMainService);
+		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService, this.stateMainService);
 		services.set(IBackupMainService, backupMainService);
 
 		// URL handling
@@ -1187,8 +1187,8 @@ export class CodeApplication extends Disposable {
 				case WindowError.UNRESPONSIVE:
 					message = 'SharedProcess: detected unresponsive window';
 					break;
-				case WindowError.CRASHED:
-					message = `SharedProcess: crashed (detail: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`;
+				case WindowError.PROCESS_GONE:
+					message = `SharedProcess: renderer process gone (detail: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`;
 					break;
 				case WindowError.LOAD:
 					message = `SharedProcess: failed to load (detail: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`;

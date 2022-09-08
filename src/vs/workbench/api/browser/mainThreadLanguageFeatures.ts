@@ -380,12 +380,12 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		));
 	}
 
-	$resolvePasteFileData(handle: number, requestId: number, dataIndex: number): Promise<VSBuffer> {
+	$resolvePasteFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer> {
 		const provider = this._pasteEditProviders.get(handle);
 		if (!provider) {
 			throw new Error('Could not find provider');
 		}
-		return provider.resolveFileData(requestId, dataIndex);
+		return provider.resolveFileData(requestId, dataId);
 	}
 
 	// --- formatting
@@ -896,12 +896,12 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		));
 	}
 
-	async $resolveDocumentOnDropFileData(handle: number, requestId: number, dataIndex: number): Promise<VSBuffer> {
+	async $resolveDocumentOnDropFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer> {
 		const provider = this._documentOnDropEditProviders.get(handle);
 		if (!provider) {
 			throw new Error('Could not find provider');
 		}
-		return provider.resolveDocumentOnDropFileData(requestId, dataIndex);
+		return provider.resolveDocumentOnDropFileData(requestId, dataId);
 	}
 }
 
@@ -961,8 +961,8 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 		}
 	}
 
-	resolveFileData(requestId: number, dataIndex: number): Promise<VSBuffer> {
-		return this.dataTransfers.resolveDropFileData(requestId, dataIndex);
+	resolveFileData(requestId: number, dataId: string): Promise<VSBuffer> {
+		return this.dataTransfers.resolveDropFileData(requestId, dataId);
 	}
 }
 
@@ -993,8 +993,8 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 		}
 	}
 
-	public resolveDocumentOnDropFileData(requestId: number, dataIndex: number): Promise<VSBuffer> {
-		return this.dataTransfers.resolveDropFileData(requestId, dataIndex);
+	public resolveDocumentOnDropFileData(requestId: number, dataId: string): Promise<VSBuffer> {
+		return this.dataTransfers.resolveDropFileData(requestId, dataId);
 	}
 }
 

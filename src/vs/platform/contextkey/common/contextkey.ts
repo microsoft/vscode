@@ -1619,6 +1619,7 @@ export interface IContextKeyService {
 	dispose(): void;
 
 	onDidChangeContext: Event<IContextKeyChangeEvent>;
+	bufferChangeEvents(callback: Function): void;
 
 	createKey<T extends ContextKeyValue>(key: string, defaultValue: T | undefined): IContextKey<T>;
 	contextMatchesRules(rules: ContextKeyExpression | undefined): boolean;

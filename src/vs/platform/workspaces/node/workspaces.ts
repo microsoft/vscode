@@ -9,8 +9,13 @@ import { Schemas } from 'vs/base/common/network';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { originalFSPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
+/**
+ * Length of workspace identifiers that are not empty. Those are
+ * MD5 hashes (128bits / 4 due to hex presentation).
+ */
+export const NON_EMPTY_WORKSPACE_ID_LENGTH = 128 / 4;
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 // NOTE: DO NOT CHANGE. IDENTIFIERS HAVE TO REMAIN STABLE
@@ -84,4 +89,14 @@ export function getSingleFolderWorkspaceIdentifier(folderUri: URI, folderStat?: 
 	}
 
 	return undefined; // invalid folder
+}
+
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// NOTE: DO NOT CHANGE. IDENTIFIERS HAVE TO REMAIN STABLE
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+export function createEmptyWorkspaceIdentifier(): IEmptyWorkspaceIdentifier {
+	return {
+		id: (Date.now() + Math.round(Math.random() * 1000)).toString()
+	};
 }

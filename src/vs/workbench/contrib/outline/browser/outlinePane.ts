@@ -103,9 +103,11 @@ export class OutlinePane extends ViewPane {
 		this._outlineViewState.restore(this._storageService);
 		this._disposables.add(this._outlineViewState);
 
-		this._ctxFollowsCursor = _ctxFollowsCursor.bindTo(contextKeyService);
-		this._ctxFilterOnType = _ctxFilterOnType.bindTo(contextKeyService);
-		this._ctxSortMode = _ctxSortMode.bindTo(contextKeyService);
+		contextKeyService.bufferChangeEvents(() => {
+			this._ctxFollowsCursor = _ctxFollowsCursor.bindTo(contextKeyService);
+			this._ctxFilterOnType = _ctxFilterOnType.bindTo(contextKeyService);
+			this._ctxSortMode = _ctxSortMode.bindTo(contextKeyService);
+		});
 
 		const updateContext = () => {
 			this._ctxFollowsCursor.set(this._outlineViewState.followCursor);

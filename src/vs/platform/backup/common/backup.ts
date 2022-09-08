@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export interface IBaseBackupInfo {
-	readonly remoteAuthority?: string;
+	remoteAuthority?: string;
 }
 
 export interface IWorkspaceBackupInfo extends IBaseBackupInfo {

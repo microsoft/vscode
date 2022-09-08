@@ -9,19 +9,20 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { join } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { StorageClient } from 'vs/platform/storage/common/storageIpc';
 import { EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/workspace/common/workspace';
+import { NON_EMPTY_WORKSPACE_ID_LENGTH } from 'vs/platform/workspaces/node/workspaces';
 
 export class UnusedWorkspaceStorageDataCleaner extends Disposable {
-
-	// Workspace/Folder storage names are MD5 hashes (128bits / 4 due to hex presentation)
-	private static readonly NON_EMPTY_WORKSPACE_ID_LENGTH = 128 / 4;
 
 	constructor(
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILogService private readonly logService: ILogService,
-		@INativeHostService private readonly nativeHostService: INativeHostService
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IMainProcessService private readonly mainProcessService: IMainProcessService
 	) {
 		super();
 
@@ -36,9 +37,12 @@ export class UnusedWorkspaceStorageDataCleaner extends Disposable {
 
 		try {
 			const workspaceStorageFolders = await Promises.readdir(this.environmentService.workspaceStorageHome.fsPath);
+			const storageClient = new StorageClient(this.mainProcessService.getChannel('storage'));
 
 			await Promise.all(workspaceStorageFolders.map(async workspaceStorageFolder => {
-				if (workspaceStorageFolder.length === UnusedWorkspaceStorageDataCleaner.NON_EMPTY_WORKSPACE_ID_LENGTH) {
+				const workspaceStoragePath = join(this.environmentService.workspaceStorageHome.fsPath, workspaceStorageFolder);
+
+				if (workspaceStorageFolder.length === NON_EMPTY_WORKSPACE_ID_LENGTH) {
 					return; // keep workspace storage for folders/workspaces that can be accessed still
 				}
 
@@ -51,9 +55,14 @@ export class UnusedWorkspaceStorageDataCleaner extends Disposable {
 					return; // keep workspace storage for empty workspaces opened as window
 				}
 
+				const isStorageUsed = await storageClient.isUsed(workspaceStoragePath);
+				if (isStorageUsed) {
+					return; // keep workspace storage for empty workspaces that are in use
+				}
+
 				this.logService.trace(`[storage cleanup]: Deleting workspace storage folder ${workspaceStorageFolder} as it seems to be an unused empty workspace.`);
 
-				await Promises.rm(join(this.environmentService.workspaceStorageHome.fsPath, workspaceStorageFolder));
+				await Promises.rm(workspaceStoragePath);
 			}));
 		} catch (error) {
 			onUnexpectedError(error);
