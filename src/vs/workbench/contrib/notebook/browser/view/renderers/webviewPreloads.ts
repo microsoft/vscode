@@ -462,19 +462,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return element;
 	}
 
-	function addMouseoverListeners(element: HTMLElement, outputId: string): void {
-		element.addEventListener('mouseenter', () => {
-			postNotebookMessage<webviewMessages.IMouseEnterMessage>('mouseenter', {
-				id: outputId,
-			});
-		});
-		element.addEventListener('mouseleave', () => {
-			postNotebookMessage<webviewMessages.IMouseLeaveMessage>('mouseleave', {
-				id: outputId,
-			});
-		});
-	}
-
 	function _internalHighlightRange(range: Range, tagName = 'mark', attributes = {}) {
 		// derived from https://github.com/Treora/dom-highlight-range/blob/master/highlight-range.js
 
@@ -1386,6 +1373,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	};
 
+	type ExtendedRendererApi = rendererApi.RendererApi & {
+		renderOutputItem(outputItem: rendererApi.OutputItem, element: HTMLElement, signal: AbortSignal): void | Promise<void>;
+	};
+
 	const renderers = new class {
 		private readonly _renderers = new Map</* id */ string, Renderer>();
 
@@ -1470,7 +1461,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this._renderers.get(rendererId)?.api?.disposeOutputItem?.(outputId);
 		}
 
-		public async render(info: rendererApi.OutputItem, element: HTMLElement) {
+		public async render(info: rendererApi.OutputItem, element: HTMLElement, signal: AbortSignal): Promise<void> {
 			const renderers = Array.from(this._renderers.values())
 				.filter(renderer => renderer.data.mimeTypes.includes(info.mime) && !renderer.data.extends);
 
@@ -1497,7 +1488,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 			// De-prioritize built-in renderers
 			renderers.sort((a, b) => +a.data.isBuiltin - +b.data.isBuiltin);
 
-			(await renderers[0].load())?.renderOutputItem(info, element);
+			const renderer = await renderers[0].load();
+			if (renderer) {
+				await (renderer as ExtendedRendererApi).renderOutputItem(info, element, signal);
+			}
 		}
 	}();
 
@@ -1507,7 +1501,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 		private readonly _outputCells = new Map<string, OutputCell>();
 
 		public clearAll() {
+			for (const cell of this._markupCells.values()) {
+				cell.dispose();
+			}
 			this._markupCells.clear();
+
+			for (const output of this._outputCells.values()) {
+				output.dispose();
+			}
 			this._outputCells.clear();
 		}
 
@@ -1545,6 +1546,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			const cell = this.getExpectedMarkupCell(id);
 			if (cell) {
 				cell.remove();
+				cell.dispose();
 				this._markupCells.delete(id);
 			}
 		}
@@ -1722,6 +1724,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		/// Internal field that holds text content
 		private _content: { readonly value: string; readonly version: number; readonly metadata: NotebookCellMetadata };
 
+		private renderTaskAbort?: AbortController;
+
 		constructor(id: string, mime: string, content: string, top: number, metadata: NotebookCellMetadata) {
 			const self = this;
 			this.id = id;
@@ -1785,6 +1789,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 		}
 
+		public dispose() {
+			this.renderTaskAbort?.abort();
+			this.renderTaskAbort = undefined;
+		}
+
 		private addEventListeners() {
 			this.element.addEventListener('dblclick', () => {
 				postNotebookMessage<webviewMessages.IToggleMarkupPreviewMessage>('toggleMarkupPreview', { cellId: this.id });
@@ -1832,7 +1841,17 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public async updateContentAndRender(newContent: string, metadata: NotebookCellMetadata): Promise<void> {
 			this._content = { value: newContent, version: this._content.version + 1, metadata };
 
-			await renderers.render(this.outputItem, this.element);
+			this.renderTaskAbort?.abort();
+
+			const controller = new AbortController();
+			this.renderTaskAbort = controller;
+			try {
+				await renderers.render(this.outputItem, this.element, this.renderTaskAbort.signal);
+			} finally {
+				if (this.renderTaskAbort === controller) {
+					this.renderTaskAbort = undefined;
+				}
+			}
 
 			const root = (this.element.shadowRoot ?? this.element);
 			const html = [];
@@ -1935,6 +1954,13 @@ async function webviewPreloads(ctx: PreloadContext) {
 			container.appendChild(lowerWrapperElement);
 		}
 
+		public dispose() {
+			for (const output of this.outputElements.values()) {
+				output.dispose();
+			}
+			this.outputElements.clear();
+		}
+
 		public createOutputElement(outputId: string, outputOffset: number, left: number, cellId: string): OutputElement {
 			let outputContainer = this.outputElements.get(outputId);
 			if (!outputContainer) {
@@ -1947,7 +1973,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		public clearOutput(outputId: string, rendererId: string | undefined) {
-			this.outputElements.get(outputId)?.clear(rendererId);
+			const output = this.outputElements.get(outputId);
+			output?.clear(rendererId);
+			output?.dispose();
 			this.outputElements.delete(outputId);
 		}
 
@@ -2009,6 +2037,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.style.overflow = 'hidden';
 		}
 
+		public dispose() {
+			this._outputNode?.dispose();
+		}
+
 		public clear(rendererId: string | undefined) {
 			if (rendererId) {
 				renderers.clearOutput(rendererId, this.outputId);
@@ -2030,6 +2062,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.style.maxHeight = '0px';
 			this.element.style.top = `${outputOffset}px`;
 
+			this._outputNode?.dispose();
 			this._outputNode = new OutputElement(outputId, left, cellId);
 			this.element.appendChild(this._outputNode.element);
 			return this._outputNode;
@@ -2065,6 +2098,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		private _content?: { content: webviewMessages.ICreationContent; preloadsAndErrors: unknown[] };
 		private hasResizeObserver = false;
 
+		private renderTaskAbort?: AbortController;
+
 		constructor(
 			private readonly outputId: string,
 			left: number,
@@ -2078,11 +2113,23 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.style.left = left + 'px';
 			this.element.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}`;
 
-			addMouseoverListeners(this.element, outputId);
+			this.element.addEventListener('mouseenter', () => {
+				postNotebookMessage<webviewMessages.IMouseEnterMessage>('mouseenter', { id: outputId });
+			});
+			this.element.addEventListener('mouseleave', () => {
+				postNotebookMessage<webviewMessages.IMouseLeaveMessage>('mouseleave', { id: outputId });
+			});
 		}
 
+		public dispose() {
+			this.renderTaskAbort?.abort();
+			this.renderTaskAbort = undefined;
+		}
 
-		public render(content: webviewMessages.ICreationContent, preloadsAndErrors: unknown[]) {
+		public async render(content: webviewMessages.ICreationContent, preloadsAndErrors: unknown[]) {
+			this.renderTaskAbort?.abort();
+			this.renderTaskAbort = undefined;
+
 			this._content = { content, preloadsAndErrors };
 			if (content.type === 0 /* RenderOutputType.Html */) {
 				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
@@ -2092,9 +2139,19 @@ async function webviewPreloads(ctx: PreloadContext) {
 				const errors = preloadsAndErrors.filter((e): e is Error => e instanceof Error);
 				showPreloadErrors(this.element, ...errors);
 			} else {
-				const rendererApi = preloadsAndErrors[0] as rendererApi.RendererApi;
+				const rendererApi = preloadsAndErrors[0] as ExtendedRendererApi;
 				try {
-					rendererApi.renderOutputItem(createOutputItem(this.outputId, content.mimeType, content.metadata, content.valueBytes), this.element);
+					const item = createOutputItem(this.outputId, content.mimeType, content.metadata, content.valueBytes);
+
+					const controller = new AbortController();
+					this.renderTaskAbort = controller;
+					try {
+						await rendererApi.renderOutputItem(item, this.element, this.renderTaskAbort.signal);
+					} finally {
+						if (this.renderTaskAbort === controller) {
+							this.renderTaskAbort = undefined;
+						}
+					}
 				} catch (e) {
 					showPreloadErrors(this.element, e);
 				}
