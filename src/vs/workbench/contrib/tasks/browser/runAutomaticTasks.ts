@@ -124,7 +124,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 
 	public static async runWithPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService, workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		openerService: IOpenerService, configurationService: IConfigurationService, workspaceTaskResult: Map<string, IWorkspaceFolderTaskResult>) {
-		const isWorkspaceTrusted = workspaceTrustManagementService.isWorkspaceTrusted;
+		const isWorkspaceTrusted = workspaceTrustManagementService.isWorkspaceTrusted();
 		if (!isWorkspaceTrusted || configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'off') {
 			return;
 		}
