@@ -25,6 +25,7 @@ const HAS_PROMPTED_FOR_AUTOMATIC_TASKS = 'task.hasPromptedForAutomaticTasks';
 const ALLOW_AUTOMATIC_TASKS = 'task.allowAutomaticTasks';
 
 export class RunAutomaticTasks extends Disposable implements IWorkbenchContribution {
+	static hasRunTasks: boolean = false;
 	constructor(
 		@ITaskService private readonly _taskService: ITaskService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -35,6 +36,14 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		@INotificationService private readonly _notificationService: INotificationService) {
 		super();
 		this._tryRunTasks();
+		this._register(this._workspaceTrustManagementService.onDidChangeTrust(async trusted => {
+			if (trusted) {
+				const workspaceTaskResult = await _taskService.getWorkspaceTasks();
+				if (workspaceTaskResult) {
+					await RunAutomaticTasks.runWithPermission(_taskService, _storageService, _notificationService, _workspaceTrustManagementService, _openerService, _configurationService, workspaceTaskResult);
+				}
+			}
+		}));
 	}
 
 	private async _tryRunTasks() {
@@ -44,7 +53,10 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 			this._logService.trace('RunAutomaticTasks: Awaiting task system info.');
 			await Event.toPromise(Event.once(this._taskService.onDidChangeTaskSystemInfo));
 		}
-
+		const isWorkspaceTrusted = this._workspaceTrustManagementService.isWorkspaceTrusted();
+		if (RunAutomaticTasks.hasRunTasks || !isWorkspaceTrusted || this._configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'off') {
+			return;
+		}
 		const workspaceTasks = await this._taskService.getWorkspaceTasks(TaskRunSource.FolderOpen);
 		this._logService.trace(`RunAutomaticTasks: Found ${workspaceTasks.size} automatic tasks`);
 		await RunAutomaticTasks.runWithPermission(this._taskService, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, workspaceTasks);
@@ -62,6 +74,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 				taskService.run(task);
 			}
 		});
+		RunAutomaticTasks.hasRunTasks = true;
 	}
 
 	private static _getTaskSource(source: TaskSource): URI | undefined {
@@ -122,7 +135,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 	public static async runWithPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService, workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		openerService: IOpenerService, configurationService: IConfigurationService, workspaceTaskResult: Map<string, IWorkspaceFolderTaskResult>) {
 		const isWorkspaceTrusted = workspaceTrustManagementService.isWorkspaceTrusted();
-		if (!isWorkspaceTrusted || configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'off') {
+		if (RunAutomaticTasks.hasRunTasks || !isWorkspaceTrusted || configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'off') {
 			return;
 		}
 
@@ -132,7 +145,6 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		if (taskNames.length === 0) {
 			return;
 		}
-
 		if (configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'on') {
 			RunAutomaticTasks._runTasks(taskService, tasks);
 		} else if (configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'auto' && !hasShownPromptForAutomaticTasks) {
