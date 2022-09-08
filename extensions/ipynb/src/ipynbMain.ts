@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { NotebookSerializer } from './notebookSerializer';
 import { ensureAllNewCellsHaveCellIds } from './cellIdService';
 import { notebookImagePasteSetup } from './notebookImagePaste';
-import { notebookAttachmentCleanerSetup } from './notebookAttachmentCleaner';
+import { AttachmentCleaner } from './notebookAttachmentCleaner';
 
 // From {nbformat.INotebookMetadata} in @jupyterlab/coreutils
 type NotebookMetadata = {
@@ -80,7 +80,12 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(notebookImagePasteSetup());
-	notebookAttachmentCleanerSetup(context);
+
+	const enabled = vscode.workspace.getConfiguration('ipynb').get('experimental.pasteImages.enabled', false);
+	if (enabled) {
+		const cleaner = new AttachmentCleaner();
+		context.subscriptions.push(cleaner);
+	}
 
 	// Update new file contribution
 	vscode.extensions.onDidChange(() => {

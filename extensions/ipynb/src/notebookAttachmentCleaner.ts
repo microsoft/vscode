@@ -11,14 +11,24 @@ interface AttachmentCleanRequest {
 	document: vscode.TextDocument;
 	cell: vscode.NotebookCell;
 }
-class AttachmentCleaner {
 
-	// FIXME: potentially just turn this into a map
-	attachmentCache:
-		{ [key: string/*uri*/]: { [key: string/*cellFragment*/]: { [key: string/*filename*/]: { [key: string/*mime*/]: string/*b64*/ } } } } = {};
+interface IAttachmentData {
+	[key: string /** mimetype */]: string;/** b64-encoded */
+}
+
+interface IAttachmentDiagnostic {
+	name: string;
+	ranges: vscode.Range[];
+}
+
+export class AttachmentCleaner {
+	private _attachmentCache:
+		Map<string /** uri */, Map<string /** cell fragment*/, Map<string /** attachment filename */, IAttachmentData>>> = new Map();
 
 	private _disposables: vscode.Disposable[];
+	private _imageDiagnosticCollection: vscode.DiagnosticCollection;
 	constructor() {
+		this._disposables = [];
 		const debounceTrigger = new DebounceTrigger<AttachmentCleanRequest>({
 			callback: (change: AttachmentCleanRequest) => {
 				this.cleanNotebookAttachments(change);
@@ -26,7 +36,8 @@ class AttachmentCleaner {
 			delay: 500
 		});
 
-		this._disposables = [];
+		this._imageDiagnosticCollection = vscode.languages.createDiagnosticCollection('Notebook Image Attachment');
+		this._disposables.push(this._imageDiagnosticCollection);
 
 		this._disposables.push(vscode.workspace.onDidChangeNotebookDocument(e => {
 			e.cellChanges.forEach(change => {
@@ -47,13 +58,22 @@ class AttachmentCleaner {
 		}));
 
 		this._disposables.push(vscode.workspace.onDidCloseNotebookDocument(e => {
-			this.deleteCacheUri(e);
+			this._attachmentCache.delete(e.uri.toString());
 		}));
 
+		// TODO@rebornix, is this necessary? rename will trigger notebook document close
 		this._disposables.push(vscode.workspace.onDidRenameFiles(e => {
-			this.renameCacheUri(e);
+			const re = /\.ipynb$/;
+			for (const file of e.files) {
+				if (!re.exec(file.oldUri.toString())) {
+					continue;
+				}
+				if (this._attachmentCache.has(file.oldUri.toString())) {
+					this._attachmentCache.set(file.newUri.toString(), this._attachmentCache.get(file.oldUri.toString())!);
+					this._attachmentCache.delete(file.oldUri.toString());
+				}
+			}
 		}));
-
 	}
 
 	/**
@@ -70,39 +90,47 @@ class AttachmentCleaner {
 		const updateMetadata: { [key: string]: any } = deepClone(cell.metadata);
 		const cellFragment = cell.document.uri.fragment;
 		const notebookUri = e.notebook.uri.toString();
-		const mkdnSource = document?.getText();
+		const mkdnSource = document.getText();
+		const diagnostics: IAttachmentDiagnostic[] = [];
 
-		if (!mkdnSource) { // cell with 0 content
+		if (mkdnSource.length === 0) { // cell with 0 content
 			this.cacheAllImages(updateMetadata, notebookUri, cellFragment);
 		} else {
-			const markdownAttachments = this.getAttachmentNames(mkdnSource);
-			if (!markdownAttachments) {
+			const markdownAttachments = this.getAttachmentNames(document);
+			if (markdownAttachments.size === 0) {
+				// no attachments used in this cell, cache all images from cell metadata
 				this.cacheAllImages(updateMetadata, notebookUri, cellFragment);
 			}
 
 			if (this.checkMetadataAttachments(updateMetadata)) {
+				// the cell metadata contains attachments, check if any are used in the markdown source
+
 				for (const currFilename of Object.keys(updateMetadata.custom.attachments)) {
 					// means markdown reference is present in the metadata, rendering will work properly
 					// therefore, we don't need to check it in the next loop either
-					if (currFilename in markdownAttachments) {
-						markdownAttachments[currFilename] = true;
+					if (markdownAttachments.has(currFilename)) {
+						// attachment reference is present in the markdown source, no need to cache it
+						markdownAttachments.get(currFilename)!.rendered = true;
 					} else {
+						// attachment reference is not present in the markdown source, cache it
 						this.cacheAttachment(notebookUri, cellFragment, currFilename, updateMetadata);
 					}
 				}
 			}
 
-			for (const currFilename of Object.keys(markdownAttachments)) {
-				// if image is addressed already --> continue, attachment will function as normal
-				if (markdownAttachments[currFilename]) {
+			for (const [currFilename, attachment] of markdownAttachments) {
+				if (attachment.rendered) {
+					// attachment reference is present in both the markdown source and the metadata, no op
 					continue;
 				}
 
-				// if image is referenced in mkdn && image is not in metadata -> check if image IS inside cache
-				if (this.checkCacheValidity(notebookUri, cellFragment) && Object.keys(this.attachmentCache[notebookUri][cellFragment]).includes(currFilename)) {
+				// if image is referenced in markdown source but not in metadata -> check if we have image in the cache
+				if (this._attachmentCache.get(notebookUri)?.get(cellFragment)?.has(currFilename)) {
 					this.addImageToCellMetadata(notebookUri, cellFragment, currFilename, updateMetadata);
+				} else {
+					// if image is not in the cache, show warning
+					diagnostics.push({ name: currFilename, ranges: attachment.ranges });
 				}
-				//TODO: ELSE: diagnostic squiggle, image not present
 			}
 		}
 
@@ -112,34 +140,19 @@ class AttachmentCleaner {
 			workspaceEdit.set(e.notebook.uri, [metadataEdit]);
 			vscode.workspace.applyEdit(workspaceEdit);
 		}
+
+		this.updateDiagnostics(cell.document.uri, diagnostics);
 	}
 
-	/**
-	 * delete a URI entry in the cache when a notebook editor is closed
-	 * @param e NotebookDocument that was closed
-	 */
-	deleteCacheUri(e: vscode.NotebookDocument) {
-		const key = e.uri.toString();
-		if (key in this.attachmentCache) {
-			delete this.attachmentCache[key];
+	private updateDiagnostics(cellUri: vscode.Uri, diagnostics: IAttachmentDiagnostic[]) {
+		const vscodeDiagnostics: vscode.Diagnostic[] = [];
+		for (const currDiagnostic of diagnostics) {
+			currDiagnostic.ranges.forEach(range => {
+				vscodeDiagnostics.push(new vscode.Diagnostic(range, `Attachment ${currDiagnostic.name} not available`, vscode.DiagnosticSeverity.Warning));
+			});
 		}
-	}
 
-	/**
-	 * rename cache entries to maintain the attachment cache across file renamings
-	 * @param e FileRenameEvent
-	 */
-	renameCacheUri(e: vscode.FileRenameEvent) {
-		const re = /\.ipynb$/;
-		for (const file of e.files) {
-			if (!re.exec(file.oldUri.toString())) {
-				continue;
-			}
-			if (Object.keys(this.attachmentCache).includes(file.oldUri.toString())) {
-				this.attachmentCache[file.newUri.toString()] = this.attachmentCache[file.oldUri.toString()];
-				delete this.attachmentCache[file.oldUri.toString()];
-			}
-		}
+		this._imageDiagnosticCollection.set(cellUri, vscodeDiagnostics);
 	}
 
 	/**
@@ -150,8 +163,8 @@ class AttachmentCleaner {
 	 * @param metadata metadata of the cell currently being edited
 	 */
 	private addImageToCellMetadata(notebookUri: string, cellFragment: string, currFilename: string, metadata: { [key: string]: any }) {
-		metadata.custom.attachments[currFilename] = this.attachmentCache[notebookUri][cellFragment][currFilename];
-		delete this.attachmentCache[notebookUri][cellFragment][currFilename];
+		metadata.custom.attachments[currFilename] = this._attachmentCache.get(notebookUri)?.get(cellFragment)?.get(currFilename);
+		this._attachmentCache.get(notebookUri)?.get(cellFragment)?.delete(currFilename);
 	}
 
 	/**
@@ -162,13 +175,25 @@ class AttachmentCleaner {
 	 * @param metadata metadata of the cell currently being edited
 	 */
 	private cacheAttachment(notebookUri: string, cellFragment: string, currFilename: string, metadata: { [key: string]: any }): void {
-		if (!this.attachmentCache[notebookUri]) {
-			this.attachmentCache[notebookUri] = { [cellFragment]: { [currFilename]: this.getMetadataAttachment(metadata, currFilename) } };
-		} else if (!this.attachmentCache[notebookUri][cellFragment]) {
-			this.attachmentCache[notebookUri][cellFragment] = { [currFilename]: this.getMetadataAttachment(metadata, currFilename) };
+		const documentCache = this._attachmentCache.get(notebookUri);
+		if (!documentCache) {
+			// no cache for this notebook yet
+			const cellCache = new Map<string, IAttachmentData>();
+			cellCache.set(currFilename, this.getMetadataAttachment(metadata, currFilename));
+			const documentCache = new Map();
+			documentCache.set(cellFragment, cellCache);
+			this._attachmentCache.set(notebookUri, documentCache);
+		} else if (!documentCache.has(cellFragment)) {
+			// no cache for this cell yet
+			const cellCache = new Map<string, IAttachmentData>();
+			cellCache.set(currFilename, this.getMetadataAttachment(metadata, currFilename));
+			documentCache.set(cellFragment, cellCache);
 		} else {
-			this.attachmentCache[notebookUri][cellFragment][currFilename] = this.getMetadataAttachment(metadata, currFilename);
+			// cache for this cell already exists
+			// add to cell cache
+			documentCache.get(cellFragment)?.set(currFilename, this.getMetadataAttachment(metadata, currFilename));
 		}
+
 		delete metadata.custom.attachments[currFilename];
 	}
 
@@ -192,52 +217,44 @@ class AttachmentCleaner {
 	}
 
 	/**
-	 * check if there is an entry in the cache for the cell being edited/cleaned
-	 * @param notebookUri uri of the notebook currently being edited
-	 * @param cellFragment fragment of the cell currently being edited
-	 * @returns boolean representing validity of cache entry
-	 */
-	private checkCacheValidity(notebookUri: string, cellFragment: string): boolean {
-		if (!this.attachmentCache[notebookUri]) {
-			return false;
-		} else if (!this.attachmentCache[notebookUri][cellFragment]) {
-			return false;
-		}
-		return true;
-	}
-
-	/**
 	 * given metadata from a cell, cache every image (used in cases with no image links in markdown source)
 	 * @param metadata metadata for a cell with no images in markdown source
 	 * @param notebookUri uri for the notebook being edited
 	 * @param cellFragment fragment of cell being edited
 	 */
 	private cacheAllImages(metadata: { [key: string]: any }, notebookUri: string, cellFragment: string): void {
+		const documentCache = this._attachmentCache.get(notebookUri) ?? new Map();
+		this._attachmentCache.set(notebookUri, documentCache);
+		const cellCache = documentCache.get(cellFragment) ?? new Map<string, IAttachmentData>();
+		documentCache.set(cellFragment, cellCache);
+
 		for (const currFilename of Object.keys(metadata.custom.attachments)) {
-			if (!this.attachmentCache[notebookUri]) {
-				this.attachmentCache[notebookUri] = { [cellFragment]: { [currFilename]: metadata.custom.attachments[currFilename] } };
-			} else if (!this.attachmentCache[notebookUri][cellFragment]) {
-				this.attachmentCache[notebookUri][cellFragment] = { [currFilename]: metadata.custom.attachments[currFilename] };
-			} else {
-				this.attachmentCache[notebookUri][cellFragment][currFilename] = metadata.custom.attachments[currFilename];
-			}
+			cellCache.set(currFilename, metadata.custom.attachments[currFilename]);
 			delete metadata.custom.attachments[currFilename];
 		}
 	}
 
 	/**
 	 * pass in all of the markdown source code, and get a dictionary of all images referenced in the markdown. keys are image filenames, values are render state
-	 * @param source the markdown source code for the cell, formatted as a string
+	 * @param document the text document for the cell, formatted as a string
 	 * @returns a dictionary with all markdown names and a boolean representing their rendering state (true = will render properly // false = won't render or not checked yet)
 	 */
-	private getAttachmentNames(source: string) {
-		const filenames: any = {};
+	private getAttachmentNames(document: vscode.TextDocument) {
+		const source = document.getText();
+		const filenames: Map<string, { rendered: boolean; ranges: vscode.Range[] }> = new Map();
 		const re = /!\[.*?\]\(attachment:(?<filename>.*?)\)/gm;
 
 		let match;
 		while ((match = re.exec(source))) {
 			if (match.groups?.filename) {
-				filenames[match.groups?.filename] = false;
+				const index = match.index;
+				const length = match[0].length;
+				const startPosition = document.positionAt(index);
+				const endPosition = document.positionAt(index + length);
+				const range = new vscode.Range(startPosition, endPosition);
+				const filename = filenames.get(match.groups.filename) ?? { rendered: false, ranges: [] };
+				filenames.set(match.groups.filename, filename);
+				filename.ranges.push(range);
 			}
 		}
 		return filenames;
@@ -248,13 +265,3 @@ class AttachmentCleaner {
 	}
 }
 
-export function notebookAttachmentCleanerSetup(context: vscode.ExtensionContext) {
-
-	const enabled = vscode.workspace.getConfiguration('ipynb').get('experimental.pasteImages.enabled', false);
-	if (!enabled) {
-		return;
-	}
-
-	const cleaner = new AttachmentCleaner();
-	context.subscriptions.push(cleaner);
-}
