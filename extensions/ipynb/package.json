@@ -52,6 +52,10 @@
 			{
 				"command": "ipynb.openIpynbInNotebookEditor",
 				"title": "Open ipynb file in notebook editor"
+			},
+			{
+				"command": "ipynb.cleanInvalidImageAttachment",
+				"title": "Clean invalid image attachment reference"
 			}
 		],
 		"notebooks": [
@@ -89,6 +93,10 @@
 				},
 				{
 					"command": "ipynb.openIpynbInNotebookEditor",
+					"when": "false"
+				},
+				{
+					"command": "ipynb.cleanInvalidImageAttachment",
 					"when": "false"
 				}
 			]

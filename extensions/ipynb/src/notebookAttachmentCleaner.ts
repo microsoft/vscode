@@ -21,7 +21,11 @@ interface IAttachmentDiagnostic {
 	ranges: vscode.Range[];
 }
 
-export class AttachmentCleaner {
+export enum DiagnosticCode {
+	missing_attachment = 'notebook.missing-attachment'
+}
+
+export class AttachmentCleaner implements vscode.CodeActionProvider {
 	private _attachmentCache:
 		Map<string /** uri */, Map<string /** cell fragment*/, Map<string /** attachment filename */, IAttachmentData>>> = new Map();
 
@@ -38,6 +42,16 @@ export class AttachmentCleaner {
 
 		this._imageDiagnosticCollection = vscode.languages.createDiagnosticCollection('Notebook Image Attachment');
 		this._disposables.push(this._imageDiagnosticCollection);
+
+		this._disposables.push(vscode.commands.registerCommand('ipynb.cleanInvalidImageAttachment', async (document: vscode.Uri, range: vscode.Range) => {
+			const workspaceEdit = new vscode.WorkspaceEdit();
+			workspaceEdit.delete(document, range);
+			await vscode.workspace.applyEdit(workspaceEdit);
+		}));
+
+		const selector: vscode.DocumentSelector = { notebookType: 'jupyter-notebook', language: 'markdown' }; // this is correct provider
+
+		this._disposables.push(vscode.languages.registerCodeActionsProvider(selector, this));
 
 		this._disposables.push(vscode.workspace.onDidChangeNotebookDocument(e => {
 			e.cellChanges.forEach(change => {
@@ -87,6 +101,32 @@ export class AttachmentCleaner {
 		vscode.workspace.textDocuments.forEach(document => {
 			this.analyzeMissingAttachments(document);
 		});
+	}
+
+	provideCodeActions(document: vscode.TextDocument, _range: vscode.Range | vscode.Selection, context: vscode.CodeActionContext, _token: vscode.CancellationToken): vscode.ProviderResult<(vscode.CodeAction | vscode.Command)[]> {
+		const fixes: vscode.CodeAction[] = [];
+
+		for (const diagnostic of context.diagnostics) {
+			switch (diagnostic.code) {
+				case DiagnosticCode.missing_attachment:
+					{
+						const fix = new vscode.CodeAction(
+							'Remove invalid image attachment reference',
+							vscode.CodeActionKind.QuickFix);
+
+						fix.command = {
+							command: 'ipynb.cleanInvalidImageAttachment',
+							title: 'Remove invalid image attachment reference',
+							arguments: [document.uri, diagnostic.range],
+						};
+						fixes.push(fix);
+					}
+					break;
+			}
+		}
+
+
+		return fixes;
 	}
 
 	/**
@@ -201,7 +241,9 @@ export class AttachmentCleaner {
 		const vscodeDiagnostics: vscode.Diagnostic[] = [];
 		for (const currDiagnostic of diagnostics) {
 			currDiagnostic.ranges.forEach(range => {
-				vscodeDiagnostics.push(new vscode.Diagnostic(range, `Attachment ${currDiagnostic.name} not available`, vscode.DiagnosticSeverity.Warning));
+				const diagnostic = new vscode.Diagnostic(range, `The image named: '${currDiagnostic.name}' is not present in cell metadata.`, vscode.DiagnosticSeverity.Warning);
+				diagnostic.code = DiagnosticCode.missing_attachment;
+				vscodeDiagnostics.push(diagnostic);
 			});
 		}
 
