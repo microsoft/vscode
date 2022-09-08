@@ -7,6 +7,7 @@ import { Promises } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { ICodeWindow, UnloadReason } from 'vs/platform/window/electron-main/window';
 
 export class TestLifecycleMainService implements ILifecycleMainService {
@@ -46,4 +47,31 @@ export class TestLifecycleMainService implements ILifecycleMainService {
 	async quit(willRestart?: boolean): Promise<boolean> { return true; }
 	async kill(code?: number): Promise<void> { }
 	async when(phase: LifecycleMainPhase): Promise<void> { }
+}
+
+export class InMemoryTestStateMainService implements IStateMainService {
+
+	_serviceBrand: undefined;
+
+	private readonly data = new Map<string, object | string | number | boolean | undefined | null>();
+
+	setItem(key: string, data?: object | string | number | boolean | undefined | null): void {
+		this.data.set(key, data);
+	}
+
+	setItems(items: readonly { key: string; data?: object | string | number | boolean | undefined | null }[]): void {
+		for (const { key, data } of items) {
+			this.data.set(key, data);
+		}
+	}
+
+	getItem<T>(key: string): T | undefined {
+		return this.data.get(key) as T | undefined;
+	}
+
+	removeItem(key: string): void {
+		this.data.delete(key);
+	}
+
+	async close(): Promise<void> { }
 }
