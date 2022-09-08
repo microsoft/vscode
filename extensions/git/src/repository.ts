@@ -833,8 +833,12 @@ export class Repository implements Disposable {
 			this.inputBox.value = rebaseCommit.message;
 		}
 
+		const shouldUpdateContext = !!this._rebaseCommit !== !!rebaseCommit;
 		this._rebaseCommit = rebaseCommit;
-		commands.executeCommand('setContext', 'gitRebaseInProgress', !!this._rebaseCommit);
+
+		if (shouldUpdateContext) {
+			commands.executeCommand('setContext', 'gitRebaseInProgress', !!this._rebaseCommit);
+		}
 	}
 
 	get rebaseCommit(): Commit | undefined {
@@ -844,6 +848,10 @@ export class Repository implements Disposable {
 	private _mergeInProgress: boolean = false;
 
 	set mergeInProgress(value: boolean) {
+		if (this._mergeInProgress === value) {
+			return;
+		}
+
 		this._mergeInProgress = value;
 		commands.executeCommand('setContext', 'gitMergeInProgress', value);
 	}
