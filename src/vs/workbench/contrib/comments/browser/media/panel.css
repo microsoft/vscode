@@ -108,3 +108,62 @@
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container {
 	padding-left: 16px;
 }
+
+.comments-panel-container .monaco-action-bar.comments-panel-filter-container .action-item.comments-panel-action-filter-container,
+.panel > .title .monaco-action-bar .action-item.comments-panel-action-filter-container.grow {
+	flex: 1;
+}
+
+.comments-panel-container .monaco-action-bar.comments-panel-filter-container {
+	margin: 10px 20px;
+	height: initial;
+}
+
+.comments-panel-action-filter > .comments-panel-filter-controls {
+	position: absolute;
+	top: 0px;
+	bottom: 0;
+	right: 0px;
+	display: flex;
+	align-items: center;
+}
+
+.comments-panel-action-filter > .comments-panel-filter-controls > .comments-panel-filter-badge {
+	margin: 4px 0px;
+	padding: 0px 8px;
+	border-radius: 2px;
+}
+
+.comments-panel-action-filter > .comments-panel-filter-controls > .comments-panel-filter-badge.hidden,
+.comments-panel-action-filter.small > .comments-panel-filter-controls > .comments-panel-filter-badge {
+	display: none;
+}
+
+.comments-panel-action-filter > .comments-panel-filter-controls > .monaco-action-bar .action-item .action-label.codicon.comments-filters {
+	padding: 2px;
+}
+
+.panel > .title .monaco-action-bar .action-item.comments-panel-action-filter-container {
+	max-width: 400px;
+	min-width: 300px;
+	margin-right: 10px;
+}
+
+.monaco-action-bar .comments-panel-action-filter .monaco-inputbox {
+	height: 24px;
+	font-size: 12px;
+	flex: 1;
+}
+
+.pane-header .monaco-action-bar .comments-panel-action-filter .monaco-inputbox {
+	height: 20px;
+	line-height: 18px;
+}
+
+.monaco-workbench.vs .monaco-action-bar .comments-panel-action-filter .monaco-inputbox {
+	height: 25px;
+}
+
+.comments-panel .hide {
+	display: none;
+}

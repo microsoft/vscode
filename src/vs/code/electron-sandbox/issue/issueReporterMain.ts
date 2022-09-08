@@ -27,7 +27,9 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
 
-const MAX_URL_LENGTH = 2045;
+// GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
+// ref https://github.com/microsoft/vscode/issues/159191
+const MAX_URL_LENGTH = 7500;
 
 interface SearchResult {
 	html_url: string;
@@ -71,7 +73,7 @@ export class IssueReporter extends Disposable {
 		const mainProcessService = new ElectronIPCMainProcessService(configuration.windowId);
 		this.nativeHostService = new NativeHostService(configuration.windowId, mainProcessService) as INativeHostService;
 
-		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id === configuration.data.extensionId) : undefined;
+		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === configuration.data.extensionId?.toLocaleLowerCase()) : undefined;
 		this.issueReporterModel = new IssueReporterModel({
 			...configuration.data,
 			issueType: configuration.data.issueType || IssueType.Bug,

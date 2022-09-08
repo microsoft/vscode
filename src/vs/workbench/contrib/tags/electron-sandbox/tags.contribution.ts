@@ -9,4 +9,4 @@ import { WorkspaceTags } from 'vs/workbench/contrib/tags/electron-sandbox/worksp
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 // Register Workspace Tags Contribution
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTags, LifecyclePhase.Eventually);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTags, 'WorkspaceTags', LifecyclePhase.Eventually);

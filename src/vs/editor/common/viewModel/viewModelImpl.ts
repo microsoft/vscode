@@ -465,11 +465,22 @@ export class ViewModel extends Disposable implements IViewModel {
 		}));
 	}
 
-	public setHiddenAreas(ranges: Range[]): void {
+	private readonly hiddenAreasModel = new HiddenAreasModel();
+	private previousHiddenAreas: readonly Range[] = [];
+
+	public setHiddenAreas(ranges: Range[], source?: unknown): void {
+		this.hiddenAreasModel.setHiddenAreas(source, ranges);
+		const mergedRanges = this.hiddenAreasModel.getMergedRanges();
+		if (mergedRanges === this.previousHiddenAreas) {
+			return;
+		}
+
+		this.previousHiddenAreas = mergedRanges;
+
 		let lineMappingChanged = false;
 		try {
 			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-			lineMappingChanged = this._lines.setHiddenAreas(ranges);
+			lineMappingChanged = this._lines.setHiddenAreas(mergedRanges);
 			if (lineMappingChanged) {
 				eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
 				eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
@@ -1161,3 +1172,74 @@ class OverviewRulerDecorations {
 	}
 }
 
+class HiddenAreasModel {
+	private readonly hiddenAreas = new Map<unknown, Range[]>();
+	private shouldRecompute = false;
+	private ranges: Range[] = [];
+
+	setHiddenAreas(source: unknown, ranges: Range[]): void {
+		const existing = this.hiddenAreas.get(source);
+		if (existing && rangeArraysEqual(existing, ranges)) {
+			return;
+		}
+		this.hiddenAreas.set(source, ranges);
+		this.shouldRecompute = true;
+	}
+
+	/**
+	 * The returned array is immutable.
+	*/
+	getMergedRanges(): readonly Range[] {
+		if (!this.shouldRecompute) {
+			return this.ranges;
+		}
+		this.shouldRecompute = false;
+		const newRanges = Array.from(this.hiddenAreas.values()).reduce((r, hiddenAreas) => mergeLineRangeArray(r, hiddenAreas), []);
+		if (rangeArraysEqual(this.ranges, newRanges)) {
+			return this.ranges;
+		}
+		this.ranges = newRanges;
+		return this.ranges;
+	}
+}
+
+function mergeLineRangeArray(arr1: Range[], arr2: Range[]): Range[] {
+	const result = [];
+	let i = 0;
+	let j = 0;
+	while (i < arr1.length && j < arr2.length) {
+		const item1 = arr1[i];
+		const item2 = arr2[j];
+
+		if (item1.endLineNumber < item2.startLineNumber - 1) {
+			result.push(arr1[i++]);
+		} else if (item2.endLineNumber < item1.startLineNumber - 1) {
+			result.push(arr2[j++]);
+		} else {
+			const startLineNumber = Math.min(item1.startLineNumber, item2.startLineNumber);
+			const endLineNumber = Math.max(item1.endLineNumber, item2.endLineNumber);
+			result.push(new Range(startLineNumber, 1, endLineNumber, 1));
+			i++;
+			j++;
+		}
+	}
+	while (i < arr1.length) {
+		result.push(arr1[i++]);
+	}
+	while (j < arr2.length) {
+		result.push(arr2[j++]);
+	}
+	return result;
+}
+
+function rangeArraysEqual(arr1: Range[], arr2: Range[]): boolean {
+	if (arr1.length !== arr2.length) {
+		return false;
+	}
+	for (let i = 0; i < arr1.length; i++) {
+		if (!arr1[i].equalsRange(arr2[i])) {
+			return false;
+		}
+	}
+	return true;
+}

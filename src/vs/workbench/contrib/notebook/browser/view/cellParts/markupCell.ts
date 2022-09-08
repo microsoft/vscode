@@ -203,20 +203,20 @@ export class MarkupCell extends Disposable {
 		this._register(this.viewCell.onCellDecorationsChanged((e) => {
 			e.added.forEach(options => {
 				if (options.className) {
-					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.className], []);
+					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.className], []);
 				}
 			});
 
 			e.removed.forEach(options => {
 				if (options.className) {
-					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [], [options.className]);
+					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [], [options.className]);
 				}
 			});
 		}));
 
 		this.viewCell.getCellDecorations().forEach(options => {
 			if (options.className) {
-				this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.className], []);
+				this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.className], []);
 			}
 		});
 	}

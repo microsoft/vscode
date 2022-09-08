@@ -667,6 +667,7 @@ suite('Async', () => {
 			const sequentializer = new async.TaskSequentializer();
 
 			assert.ok(!sequentializer.hasPending());
+			assert.ok(!sequentializer.hasNext());
 			assert.ok(!sequentializer.hasPending(2323));
 			assert.ok(!sequentializer.pending);
 
@@ -675,11 +676,13 @@ suite('Async', () => {
 			assert.ok(!sequentializer.hasPending());
 			assert.ok(!sequentializer.hasPending(1));
 			assert.ok(!sequentializer.pending);
+			assert.ok(!sequentializer.hasNext());
 
 			// pending removes itself after done (use async.timeout)
 			sequentializer.setPending(2, async.timeout(1));
 			assert.ok(sequentializer.hasPending());
 			assert.ok(sequentializer.hasPending(2));
+			assert.ok(!sequentializer.hasNext());
 			assert.strictEqual(sequentializer.hasPending(1), false);
 			assert.ok(sequentializer.pending);
 
@@ -699,9 +702,12 @@ suite('Async', () => {
 			let nextDone = false;
 			const res = sequentializer.setNext(() => Promise.resolve(null).then(() => { nextDone = true; return; }));
 
+			assert.ok(sequentializer.hasNext());
+
 			await res;
 			assert.ok(pendingDone);
 			assert.ok(nextDone);
+			assert.ok(!sequentializer.hasNext());
 		});
 
 		test('pending and next (finishes after timeout)', async function () {
@@ -717,6 +723,42 @@ suite('Async', () => {
 			await res;
 			assert.ok(pendingDone);
 			assert.ok(nextDone);
+			assert.ok(!sequentializer.hasNext());
+		});
+
+		test('join (without next or pending)', async function () {
+			const sequentializer = new async.TaskSequentializer();
+
+			await sequentializer.join();
+			assert.ok(!sequentializer.hasNext());
+		});
+
+		test('join (without next)', async function () {
+			const sequentializer = new async.TaskSequentializer();
+
+			let pendingDone = false;
+			sequentializer.setPending(1, async.timeout(1).then(() => { pendingDone = true; return; }));
+
+			await sequentializer.join();
+			assert.ok(pendingDone);
+			assert.ok(!sequentializer.hasPending());
+		});
+
+		test('join (with next and pending)', async function () {
+			const sequentializer = new async.TaskSequentializer();
+
+			let pendingDone = false;
+			sequentializer.setPending(1, async.timeout(1).then(() => { pendingDone = true; return; }));
+
+			// next finishes after async.timeout
+			let nextDone = false;
+			sequentializer.setNext(() => async.timeout(1).then(() => { nextDone = true; return; }));
+
+			await sequentializer.join();
+			assert.ok(pendingDone);
+			assert.ok(nextDone);
+			assert.ok(!sequentializer.hasPending());
+			assert.ok(!sequentializer.hasNext());
 		});
 
 		test('pending and multiple next (last one wins)', async function () {

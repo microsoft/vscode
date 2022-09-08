@@ -15,7 +15,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 
 registerSingleton(IExperimentService, ExperimentService, true);
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExperimentalPrompts, LifecyclePhase.Eventually);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExperimentalPrompts, 'ExperimentalPrompts', LifecyclePhase.Eventually);
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 

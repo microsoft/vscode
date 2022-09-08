@@ -344,7 +344,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				}
 			}
 		}
-		this.editor.setHiddenAreas(hiddenRanges);
+		this.editor.setHiddenAreas(hiddenRanges, this);
 	}
 
 	private onCursorPositionChanged() {
@@ -1066,7 +1066,7 @@ class FoldRangeFromSelectionAction extends FoldingAction<void> {
 		super({
 			id: 'editor.createFoldingRangeFromSelection',
 			label: nls.localize('createManualFoldRange.label', "Create Manual Folding Range from Selection"),
-			alias: 'Create Folding Range from Selection',
+			alias: 'Create Manual Folding Range from Selection',
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

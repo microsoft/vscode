@@ -9,6 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { assertNever } from 'vs/base/common/assert';
 import { applyTestItemUpdate, ITestItem, ITestTag, namespaceTestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { URI } from 'vs/base/common/uri';
 
 /**
  * @private
@@ -82,6 +83,9 @@ export interface ITestItemCollectionOptions<T> {
 	/** Controller ID to use to prefix these test items. */
 	controllerId: string;
 
+	/** Gets the document version at the given URI, if it's open */
+	getDocumentVersion(uri: URI | undefined): number | undefined;
+
 	/** Gets API for the given test item, used to listen for events and set parents. */
 	getApiFor(item: T): ITestItemApi<T>;
 
@@ -142,6 +146,7 @@ export interface ITestChildrenLike<T> extends Iterable<[string, T]> {
 export interface ITestItemLike {
 	id: string;
 	tags: readonly ITestTag[];
+	uri?: URI;
 	canResolveChildren: boolean;
 }
 
@@ -283,7 +288,11 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 			case TestItemEventOp.SetProp:
 				this.pushDiff({
 					op: TestDiffOpType.Update,
-					item: { extId: internal.fullId.toString(), item: evt.update }
+					item: {
+						extId: internal.fullId.toString(),
+						item: evt.update,
+						docv: this.options.getDocumentVersion(internal.actual.uri),
+					}
 				});
 				break;
 			default:

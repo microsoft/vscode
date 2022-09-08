@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
 import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IStorage } from 'vs/base/parts/storage/common/storage';
@@ -16,6 +17,7 @@ import { ApplicationStorageMain, ProfileStorageMain, InMemoryStorageMain, IStora
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 //#region Storage Main Service (intent: make application, profile and workspace storage accessible to windows from main process)
 
@@ -50,6 +52,13 @@ export interface IStorageMainService {
 	 *       This is currently not supported.
 	 */
 	workspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain;
+
+	/**
+	 * Checks if the provided path is currently in use for a storage database.
+	 *
+	 * @param path the path to the storage file or parent folder
+	 */
+	isUsed(path: string): boolean;
 }
 
 export class StorageMainService extends Disposable implements IStorageMainService {
@@ -63,7 +72,8 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUserDataProfilesMainService private readonly userDataProfilesService: IUserDataProfilesMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -233,6 +243,22 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	}
 
 	//#endregion
+
+	isUsed(path: string): boolean {
+		const pathUri = URI.file(path);
+
+		for (const storage of [this.applicationStorage, ...this.mapProfileToStorage.values(), ...this.mapWorkspaceToStorage.values()]) {
+			if (!storage.path) {
+				continue;
+			}
+
+			if (this.uriIdentityService.extUri.isEqualOrParent(URI.file(storage.path), pathUri)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
 }
 
 //#endregion

@@ -84,15 +84,3 @@ body {
 	padding-left: 20px;
 	white-space: nowrap;
 }
-
-.monaco-scrollable-element .scrollbar > .slider {
-	background: #64646457 !important;
-}
-
-.monaco-scrollable-element .scrollbar > .slider:hover {
-	background: highlight !important;
-}
-
-.monaco-scrollable-element .scrollbar > .slider.active {
-	background: highlight !important;
-}

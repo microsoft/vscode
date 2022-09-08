@@ -260,7 +260,6 @@ class Menu implements IMenu {
 					} else {
 						action = new SubmenuItemAction(item, this._menuService, this._contextKeyService, options);
 						if (action.actions.length === 0) {
-							action.dispose();
 							action = undefined;
 						}
 					}

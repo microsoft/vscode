@@ -31,14 +31,40 @@ export class BrowserUserDataProfilesService extends UserDataProfilesService impl
 		this._register(this.changesBroadcastChannel.onDidReceiveData(changes => {
 			try {
 				this._profilesObject = undefined;
+				const added = changes.added.map(p => reviveProfile(p, this.profilesHome.scheme));
+				const removed = changes.removed.map(p => reviveProfile(p, this.profilesHome.scheme));
+				const updated = changes.updated.map(p => reviveProfile(p, this.profilesHome.scheme));
+
+				this.updateTransientProfiles(
+					added.filter(a => a.isTransient),
+					removed.filter(a => a.isTransient),
+					updated.filter(a => a.isTransient)
+				);
+
 				this._onDidChangeProfiles.fire({
-					added: changes.added.map(p => reviveProfile(p, this.profilesHome.scheme)),
-					removed: changes.removed.map(p => reviveProfile(p, this.profilesHome.scheme)),
-					updated: changes.updated.map(p => reviveProfile(p, this.profilesHome.scheme)),
+					added,
+					removed,
+					updated,
 					all: this.profiles
 				});
 			} catch (error) {/* ignore */ }
 		}));
+	}
+
+	private updateTransientProfiles(added: IUserDataProfile[], removed: IUserDataProfile[], updated: IUserDataProfile[]): void {
+		if (added.length) {
+			this.transientProfilesObject.profiles.push(...added);
+		}
+		if (removed.length || updated.length) {
+			const allTransientProfiles = this.transientProfilesObject.profiles;
+			this.transientProfilesObject.profiles = [];
+			for (const profile of allTransientProfiles) {
+				if (removed.some(p => profile.id === p.id)) {
+					continue;
+				}
+				this.transientProfilesObject.profiles.push(updated.find(p => profile.id === p.id) ?? profile);
+			}
+		}
 	}
 
 	override setEnablement(enabled: boolean): void {

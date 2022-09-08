@@ -7,8 +7,8 @@ import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
 
@@ -297,7 +297,7 @@ export interface IPtyService extends IPtyHostController {
 		workspaceName: string
 	): Promise<number>;
 	attachToProcess(id: number): Promise<void>;
-	detachFromProcess(id: number): Promise<void>;
+	detachFromProcess(id: number, forcePersist?: boolean): Promise<void>;
 
 	/**
 	 * Lists all orphaned processes, ie. those without a connected frontend.
@@ -580,6 +580,9 @@ export interface IShellLaunchConfigDto {
 	env?: ITerminalEnvironment;
 	useShellEnvironment?: boolean;
 	hideFromUser?: boolean;
+	reconnectionProperties?: IReconnectionProperties;
+	type?: 'Task' | 'Local';
+	isFeatureTerminal?: boolean;
 }
 
 /**
@@ -642,8 +645,9 @@ export interface ITerminalChildProcess {
 
 	/**
 	 * Detach the process from the UI and await reconnect.
+	 * @param forcePersist Whether to force the process to persist if it supports persistence.
 	 */
-	detach?(): Promise<void>;
+	detach?(forcePersist?: boolean): Promise<void>;
 
 	/**
 	 * Shutdown the terminal process.

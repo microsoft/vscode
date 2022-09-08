@@ -251,3 +251,53 @@ class FileAccessImpl {
 }
 
 export const FileAccess = new FileAccessImpl();
+
+
+export namespace COI {
+
+	const coiHeaders = new Map<'3' | '2' | '1' | string, Record<string, string>>([
+		['1', { 'Cross-Origin-Opener-Policy': 'same-origin' }],
+		['2', { 'Cross-Origin-Embedder-Policy': 'require-corp' }],
+		['3', { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' }],
+	]);
+
+	export const CoopAndCoep = Object.freeze(coiHeaders.get('3'));
+
+	const coiSearchParamName = 'vscode-coi';
+
+	/**
+	 * Extract desired headers from `vscode-coi` invocation
+	 */
+	export function getHeadersFromQuery(url: string | URI | URL): Record<string, string> | undefined {
+		let params: URLSearchParams | undefined;
+		if (typeof url === 'string') {
+			params = new URL(url).searchParams;
+		} else if (url instanceof URL) {
+			params = url.searchParams;
+		} else if (URI.isUri(url)) {
+			params = new URL(url.toString(true)).searchParams;
+		}
+		const value = params?.get(coiSearchParamName);
+		if (!value) {
+			return undefined;
+		}
+		return coiHeaders.get(value);
+	}
+
+	/**
+	 * Add the `vscode-coi` query attribute based on wanting `COOP` and `COEP`. Will be a noop when `crossOriginIsolated`
+	 * isn't enabled the current context
+	 */
+	export function addSearchParam(urlOrSearch: URLSearchParams | Record<string, string>, coop: boolean, coep: boolean): void {
+		if (!(<any>globalThis).crossOriginIsolated) {
+			// depends on the current context being COI
+			return;
+		}
+		const value = coop && coep ? '3' : coep ? '2' : '1';
+		if (urlOrSearch instanceof URLSearchParams) {
+			urlOrSearch.set(coiSearchParamName, value);
+		} else {
+			(<Record<string, string>>urlOrSearch)[coiSearchParamName] = value;
+		}
+	}
+}
