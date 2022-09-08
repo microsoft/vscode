@@ -25,7 +25,7 @@ const HAS_PROMPTED_FOR_AUTOMATIC_TASKS = 'task.hasPromptedForAutomaticTasks';
 const ALLOW_AUTOMATIC_TASKS = 'task.allowAutomaticTasks';
 
 export class RunAutomaticTasks extends Disposable implements IWorkbenchContribution {
-	static hasRunTasks: boolean = false;
+	private _hasRunTasks: boolean = false;
 	constructor(
 		@ITaskService private readonly _taskService: ITaskService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -51,7 +51,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 			await Event.toPromise(Event.once(this._taskService.onDidChangeTaskSystemInfo));
 		}
 		const isWorkspaceTrusted = this._workspaceTrustManagementService.isWorkspaceTrusted();
-		if (RunAutomaticTasks.hasRunTasks || !isWorkspaceTrusted || this._configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'off') {
+		if (this._hasRunTasks || !isWorkspaceTrusted || this._configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'off') {
 			return;
 		}
 		const workspaceTasks = await this._taskService.getWorkspaceTasks(TaskRunSource.FolderOpen);
@@ -59,7 +59,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		await this._runWithPermission(this._taskService, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, workspaceTasks);
 	}
 
-	private static _runTasks(taskService: ITaskService, tasks: Array<Task | Promise<Task | undefined>>) {
+	private _runTasks(taskService: ITaskService, tasks: Array<Task | Promise<Task | undefined>>) {
 		tasks.forEach(task => {
 			if (task instanceof Promise) {
 				task.then(promiseResult => {
@@ -71,10 +71,10 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 				taskService.run(task);
 			}
 		});
-		RunAutomaticTasks.hasRunTasks = true;
+		this._hasRunTasks = true;
 	}
 
-	private static _getTaskSource(source: TaskSource): URI | undefined {
+	private _getTaskSource(source: TaskSource): URI | undefined {
 		const taskKind = TaskSourceKind.toConfigurationTarget(source.kind);
 		switch (taskKind) {
 			case ConfigurationTarget.WORKSPACE_FOLDER: {
@@ -87,7 +87,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		return undefined;
 	}
 
-	private static _findAutoTasks(taskService: ITaskService, workspaceTaskResult: Map<string, IWorkspaceFolderTaskResult>): { tasks: Array<Task | Promise<Task | undefined>>; taskNames: Array<string>; locations: Map<string, URI> } {
+	private _findAutoTasks(taskService: ITaskService, workspaceTaskResult: Map<string, IWorkspaceFolderTaskResult>): { tasks: Array<Task | Promise<Task | undefined>>; taskNames: Array<string>; locations: Map<string, URI> } {
 		const tasks = new Array<Task | Promise<Task | undefined>>();
 		const taskNames = new Array<string>();
 		const locations = new Map<string, URI>();
@@ -99,7 +99,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 						if (task.runOptions.runOn === RunOnOptions.folderOpen) {
 							tasks.push(task);
 							taskNames.push(task._label);
-							const location = RunAutomaticTasks._getTaskSource(task._source);
+							const location = this._getTaskSource(task._source);
 							if (location) {
 								locations.set(location.fsPath, location);
 							}
@@ -117,7 +117,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 							} else {
 								taskNames.push(configuredTask.configures.task);
 							}
-							const location = RunAutomaticTasks._getTaskSource(configuredTask._source);
+							const location = this._getTaskSource(configuredTask._source);
 							if (location) {
 								locations.set(location.fsPath, location);
 							}
@@ -133,26 +133,26 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		openerService: IOpenerService, configurationService: IConfigurationService, workspaceTaskResult: Map<string, IWorkspaceFolderTaskResult>) {
 
 		const hasShownPromptForAutomaticTasks = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.WORKSPACE, false);
-		const { tasks, taskNames, locations } = RunAutomaticTasks._findAutoTasks(taskService, workspaceTaskResult);
+		const { tasks, taskNames, locations } = this._findAutoTasks(taskService, workspaceTaskResult);
 
 		if (taskNames.length === 0) {
 			return;
 		}
 		if (configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'on') {
-			RunAutomaticTasks._runTasks(taskService, tasks);
+			this._runTasks(taskService, tasks);
 		} else if (configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'auto' && !hasShownPromptForAutomaticTasks) {
 			// by default, only prompt once per folder
 			// otherwise, this can be configured via the setting
-			RunAutomaticTasks._showPrompt(notificationService, storageService, openerService, configurationService, taskNames, locations).then(allow => {
+			this._showPrompt(notificationService, storageService, openerService, configurationService, taskNames, locations).then(allow => {
 				if (allow) {
 					storageService.store(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, true, StorageScope.WORKSPACE, StorageTarget.USER);
-					RunAutomaticTasks._runTasks(taskService, tasks);
+					this._runTasks(taskService, tasks);
 				}
 			});
 		}
 	}
 
-	private static _showPrompt(notificationService: INotificationService, storageService: IStorageService,
+	private _showPrompt(notificationService: INotificationService, storageService: IStorageService,
 		openerService: IOpenerService, configurationService: IConfigurationService, taskNames: Array<string>, locations: Map<string, URI>): Promise<boolean> {
 		return new Promise<boolean>(resolve => {
 			notificationService.prompt(Severity.Info, nls.localize('tasks.run.allowAutomatic',
