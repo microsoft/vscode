@@ -74,6 +74,19 @@ export class AttachmentCleaner {
 				}
 			}
 		}));
+
+
+		this._disposables.push(vscode.workspace.onDidOpenTextDocument(e => {
+			this.analyzeCell(e);
+		}));
+
+		this._disposables.push(vscode.workspace.onDidCloseTextDocument(e => {
+			this.analyzeCell(e);
+		}));
+
+		vscode.workspace.textDocuments.forEach(document => {
+			this.analyzeCell(document);
+		});
 	}
 
 	/**
@@ -142,6 +155,46 @@ export class AttachmentCleaner {
 		}
 
 		this.updateDiagnostics(cell.document.uri, diagnostics);
+	}
+
+	private analyzeCell(document: vscode.TextDocument): void {
+		if (document.uri.scheme !== 'vscode-notebook-cell') {
+			// not notebook
+			return;
+		}
+
+		if (document.isClosed) {
+			this.updateDiagnostics(document.uri, []);
+			return;
+		}
+
+		let notebook: vscode.NotebookDocument | undefined;
+		let activeCell: vscode.NotebookCell | undefined;
+		for (const notebookDocument of vscode.workspace.notebookDocuments) {
+			const cell = notebookDocument.getCells().find(cell => cell.document === document);
+			if (cell) {
+				notebook = notebookDocument;
+				activeCell = cell;
+				break;
+			}
+		}
+
+		if (!notebook || !activeCell) {
+			return;
+		}
+
+		const diagnostics: IAttachmentDiagnostic[] = [];
+		const markdownAttachments = this.getAttachmentNames(document);
+		if (this.checkMetadataAttachments(activeCell.metadata)) {
+			for (const [currFilename, attachment] of markdownAttachments) {
+				if (!activeCell.metadata.custom.attachments[currFilename]) {
+					// no attachment reference in the metadata
+					diagnostics.push({ name: currFilename, ranges: attachment.ranges });
+				}
+			}
+		}
+
+		this.updateDiagnostics(activeCell.document.uri, diagnostics);
 	}
 
 	private updateDiagnostics(cellUri: vscode.Uri, diagnostics: IAttachmentDiagnostic[]) {
