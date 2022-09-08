@@ -197,6 +197,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private static _nextHandle: number = 0;
 
 	private _tasksReconnected: boolean = false;
+	private _automaticTasksHaveRun: boolean = false;
 	private _schemaVersion: JsonSchemaVersion | undefined;
 	private _executionEngine: ExecutionEngine | undefined;
 	private _workspaceFolders: IWorkspaceFolder[] | undefined;
@@ -364,9 +365,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _runAutomaticTasks(): Promise<void> {
-		this.getWorkspaceTasks().then(async (tasks) => {
-			RunAutomaticTasks.runWithPermission(this, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, tasks);
-		});
+		if (!this._automaticTasksHaveRun) {
+			this.getWorkspaceTasks().then(async (tasks) => {
+				RunAutomaticTasks.runWithPermission(this, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, tasks);
+			});
+			this._automaticTasksHaveRun = true;
+		}
 	}
 
 	private _attemptTaskReconnection(): void {
@@ -375,7 +379,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			|| this._lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
 			this._tasksReconnected = true;
-			this._runAutomaticTasks().then(() => { return; });
+			this._runAutomaticTasks().then(() => {
+				return;
+			});
 		}
 		this._getTaskSystem();
 		this._waitForSupportedExecutions.then(async () => {
