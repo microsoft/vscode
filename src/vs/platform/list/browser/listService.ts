@@ -284,9 +284,11 @@ export class WorkbenchList<T> extends List<T> {
 			const selection = this.getSelection();
 			const focus = this.getFocus();
 
-			this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
-			this.listMultiSelection.set(selection.length > 1);
-			this.listDoubleSelection.set(selection.length === 2);
+			this.contextKeyService.bufferChangeEvents(() => {
+				this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+				this.listMultiSelection.set(selection.length > 1);
+				this.listDoubleSelection.set(selection.length === 2);
+			});
 		}));
 		this.disposables.add(this.onDidChangeFocus(() => {
 			const selection = this.getSelection();
@@ -555,9 +557,11 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 			const selection = this.getSelection();
 			const focus = this.getFocus();
 
-			this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
-			this.listMultiSelection.set(selection.length > 1);
-			this.listDoubleSelection.set(selection.length === 2);
+			this.contextKeyService.bufferChangeEvents(() => {
+				this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+				this.listMultiSelection.set(selection.length > 1);
+				this.listDoubleSelection.set(selection.length === 2);
+			});
 		}));
 		this.disposables.add(this.onDidChangeFocus(() => {
 			const selection = this.getSelection();
@@ -1209,9 +1213,11 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 				const selection = tree.getSelection();
 				const focus = tree.getFocus();
 
-				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
-				this.hasMultiSelection.set(selection.length > 1);
-				this.hasDoubleSelection.set(selection.length === 2);
+				this.contextKeyService.bufferChangeEvents(() => {
+					this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+					this.hasMultiSelection.set(selection.length > 1);
+					this.hasDoubleSelection.set(selection.length === 2);
+				});
 			}),
 			tree.onDidChangeFocus(() => {
 				const selection = tree.getSelection();
