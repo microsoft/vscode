@@ -61,13 +61,14 @@ export class AttachmentCleaner {
 			this._attachmentCache.delete(e.uri.toString());
 		}));
 
-		// TODO@rebornix, is this necessary? rename will trigger notebook document close
-		this._disposables.push(vscode.workspace.onDidRenameFiles(e => {
+		this._disposables.push(vscode.workspace.onWillRenameFiles(e => {
 			const re = /\.ipynb$/;
 			for (const file of e.files) {
 				if (!re.exec(file.oldUri.toString())) {
 					continue;
 				}
+
+				// transfer cache to new uri
 				if (this._attachmentCache.has(file.oldUri.toString())) {
 					this._attachmentCache.set(file.newUri.toString(), this._attachmentCache.get(file.oldUri.toString())!);
 					this._attachmentCache.delete(file.oldUri.toString());
