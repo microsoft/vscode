@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserMessageReader, BrowserMessageWriter, createConnection } from 'vscode-languageserver/browser';
-import { startVsCodeServer } from '../server';
+import { startServer } from '../server';
 
 declare let self: any;
 
@@ -13,4 +13,4 @@ const messageWriter = new BrowserMessageWriter(self);
 
 const connection = createConnection(messageReader, messageWriter);
 
-startVsCodeServer(connection);
+startServer(connection);

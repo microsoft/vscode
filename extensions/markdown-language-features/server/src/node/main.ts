@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Connection, createConnection } from 'vscode-languageserver/node';
-import { startVsCodeServer } from '../server';
+import { startServer } from '../server';
 
 // Create a connection for the server.
 const connection: Connection = createConnection();
@@ -16,4 +16,4 @@ process.on('unhandledRejection', (e: any) => {
 	connection.console.error(`Unhandled exception ${e}`);
 });
 
-startVsCodeServer(connection);
+startServer(connection);

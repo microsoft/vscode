@@ -9,6 +9,7 @@ import { disposeAll } from 'vscode-markdown-languageservice/out/util/dispose';
 import { Disposable } from 'vscode-notebook-renderer/events';
 import { URI } from 'vscode-uri';
 import { ConfigurationManager, ValidateEnabled } from '../configuration';
+import { VsCodeClientWorkspace } from '../workspace';
 
 const defaultDiagnosticOptions: md.DiagnosticOptions = {
 	validateFileLinks: md.DiagnosticLevel.ignore,
@@ -44,7 +45,7 @@ function getDiagnosticsOptions(config: ConfigurationManager): md.DiagnosticOptio
 
 export function registerValidateSupport(
 	connection: Connection,
-	workspace: md.IWorkspace,
+	workspace: VsCodeClientWorkspace,
 	ls: md.IMdLanguageService,
 	config: ConfigurationManager,
 	logger: md.ILogger,
