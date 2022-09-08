@@ -13,7 +13,7 @@
     "vscode-languageserver": "^8.0.2",
     "vscode-languageserver-textdocument": "^1.0.5",
     "vscode-languageserver-types": "^3.17.1",
-    "vscode-markdown-languageservice": "^0.1.0-alpha.1",
+    "vscode-markdown-languageservice": "^0.1.0-alpha.2",
     "vscode-nls": "^5.0.1",
     "vscode-uri": "^3.0.3"
   },

@@ -8,13 +8,11 @@ import * as nls from 'vscode-nls';
 import * as uri from 'vscode-uri';
 import { ILogger } from '../logging';
 import { MarkdownContributionProvider } from '../markdownExtensions';
-import { MdTableOfContentsProvider } from '../tableOfContents';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
-import { openDocumentLink, resolveDocumentLink, resolveUriToMarkdownFile } from '../util/openDocumentLink';
+import { MdLinkOpener } from '../util/openDocumentLink';
 import { WebviewResourceProvider } from '../util/resources';
 import { urlToUri } from '../util/url';
-import { IMdWorkspace } from '../workspace';
 import { MdDocumentRenderer } from './documentRenderer';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { scrollEditorToLine, StartingScrollFragment, StartingScrollLine, StartingScrollLocation } from './scrolling';
@@ -119,10 +117,9 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		private readonly delegate: MarkdownPreviewDelegate,
 		private readonly _contentProvider: MdDocumentRenderer,
 		private readonly _previewConfigurations: MarkdownPreviewConfigurationManager,
-		private readonly _workspace: IMdWorkspace,
 		private readonly _logger: ILogger,
 		private readonly _contributionProvider: MarkdownContributionProvider,
-		private readonly _tocProvider: MdTableOfContentsProvider,
+		private readonly _opener: MdLinkOpener,
 	) {
 		super();
 
@@ -444,19 +441,23 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	}
 
 	private async onDidClickPreviewLink(href: string) {
-		const targetResource = resolveDocumentLink(href, this.resource);
-
 		const config = vscode.workspace.getConfiguration('markdown', this.resource);
 		const openLinks = config.get<string>('preview.openMarkdownLinks', 'inPreview');
 		if (openLinks === 'inPreview') {
-			const linkedDoc = await resolveUriToMarkdownFile(this._workspace, targetResource);
-			if (linkedDoc) {
-				this.delegate.openPreviewLinkToMarkdownFile(linkedDoc.uri, targetResource.fragment);
-				return;
+			const resolved = await this._opener.resolveDocumentLink(href, this.resource);
+			if (resolved.kind === 'file') {
+				try {
+					const doc = await vscode.workspace.openTextDocument(vscode.Uri.from(resolved.uri));
+					if (isMarkdownFile(doc)) {
+						return this.delegate.openPreviewLinkToMarkdownFile(doc.uri, resolved.fragment ?? '');
+					}
+				} catch {
+					// Noop
+				}
 			}
 		}
 
-		return openDocumentLink(this._tocProvider, targetResource, this.resource);
+		return this._opener.openDocumentLink(href, this.resource);
 	}
 
 	//#region WebviewResourceProvider
@@ -502,13 +503,12 @@ export class StaticMarkdownPreview extends Disposable implements IManagedMarkdow
 		contentProvider: MdDocumentRenderer,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
 		topmostLineMonitor: TopmostLineMonitor,
-		workspace: IMdWorkspace,
 		logger: ILogger,
 		contributionProvider: MarkdownContributionProvider,
-		tocProvider: MdTableOfContentsProvider,
+		opener: MdLinkOpener,
 		scrollLine?: number,
 	): StaticMarkdownPreview {
-		return new StaticMarkdownPreview(webview, resource, contentProvider, previewConfigurations, topmostLineMonitor, workspace, logger, contributionProvider, tocProvider, scrollLine);
+		return new StaticMarkdownPreview(webview, resource, contentProvider, previewConfigurations, topmostLineMonitor, logger, contributionProvider, opener, scrollLine);
 	}
 
 	private readonly preview: MarkdownPreview;
@@ -519,10 +519,9 @@ export class StaticMarkdownPreview extends Disposable implements IManagedMarkdow
 		contentProvider: MdDocumentRenderer,
 		private readonly _previewConfigurations: MarkdownPreviewConfigurationManager,
 		topmostLineMonitor: TopmostLineMonitor,
-		workspace: IMdWorkspace,
 		logger: ILogger,
 		contributionProvider: MarkdownContributionProvider,
-		tocProvider: MdTableOfContentsProvider,
+		opener: MdLinkOpener,
 		scrollLine?: number,
 	) {
 		super();
@@ -534,7 +533,7 @@ export class StaticMarkdownPreview extends Disposable implements IManagedMarkdow
 					fragment
 				}), StaticMarkdownPreview.customEditorViewType, this._webviewPanel.viewColumn);
 			}
-		}, contentProvider, _previewConfigurations, workspace, logger, contributionProvider, tocProvider));
+		}, contentProvider, _previewConfigurations, logger, contributionProvider, opener));
 
 		this._register(this._webviewPanel.onDidDispose(() => {
 			this.dispose();
@@ -615,16 +614,15 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 		webview: vscode.WebviewPanel,
 		contentProvider: MdDocumentRenderer,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
-		workspace: IMdWorkspace,
 		logger: ILogger,
 		topmostLineMonitor: TopmostLineMonitor,
 		contributionProvider: MarkdownContributionProvider,
-		tocProvider: MdTableOfContentsProvider,
+		opener: MdLinkOpener,
 	): DynamicMarkdownPreview {
 		webview.iconPath = contentProvider.iconPath;
 
 		return new DynamicMarkdownPreview(webview, input,
-			contentProvider, previewConfigurations, workspace, logger, topmostLineMonitor, contributionProvider, tocProvider);
+			contentProvider, previewConfigurations, logger, topmostLineMonitor, contributionProvider, opener);
 	}
 
 	public static create(
@@ -632,11 +630,10 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 		previewColumn: vscode.ViewColumn,
 		contentProvider: MdDocumentRenderer,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
-		workspace: IMdWorkspace,
 		logger: ILogger,
 		topmostLineMonitor: TopmostLineMonitor,
 		contributionProvider: MarkdownContributionProvider,
-		tocProvider: MdTableOfContentsProvider,
+		opener: MdLinkOpener,
 	): DynamicMarkdownPreview {
 		const webview = vscode.window.createWebviewPanel(
 			DynamicMarkdownPreview.viewType,
@@ -646,7 +643,7 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 		webview.iconPath = contentProvider.iconPath;
 
 		return new DynamicMarkdownPreview(webview, input,
-			contentProvider, previewConfigurations, workspace, logger, topmostLineMonitor, contributionProvider, tocProvider);
+			contentProvider, previewConfigurations, logger, topmostLineMonitor, contributionProvider, opener);
 	}
 
 	private constructor(
@@ -654,11 +651,10 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 		input: DynamicPreviewInput,
 		private readonly _contentProvider: MdDocumentRenderer,
 		private readonly _previewConfigurations: MarkdownPreviewConfigurationManager,
-		private readonly _workspace: IMdWorkspace,
 		private readonly _logger: ILogger,
 		private readonly _topmostLineMonitor: TopmostLineMonitor,
 		private readonly _contributionProvider: MarkdownContributionProvider,
-		private readonly _tocProvider: MdTableOfContentsProvider,
+		private readonly _opener: MdLinkOpener,
 	) {
 		super();
 
@@ -812,9 +808,8 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 		},
 			this._contentProvider,
 			this._previewConfigurations,
-			this._workspace,
 			this._logger,
 			this._contributionProvider,
-			this._tocProvider);
+			this._opener);
 	}
 }
