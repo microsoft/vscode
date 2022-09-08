@@ -7,6 +7,7 @@ import { MultiCommand, RedoCommand, SelectAllCommand, UndoCommand } from 'vs/edi
 import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
 import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWebviewService, IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -44,13 +45,17 @@ overrideCommandForWebview(CopyAction, webview => webview.copy());
 overrideCommandForWebview(PasteAction, webview => webview.paste());
 overrideCommandForWebview(CutAction, webview => webview.cut());
 
+export const PreventDefaultContextMenuItemsContextKeyName = 'preventDefaultContextMenuItems';
+
 if (CutAction) {
 	MenuRegistry.appendMenuItem(MenuId.WebviewContext, {
 		command: {
 			id: CutAction.id,
 			title: nls.localize('cut', "Cut"),
 		},
+		group: '5_cutcopypaste',
 		order: 1,
+		when: ContextKeyExpr.not(PreventDefaultContextMenuItemsContextKeyName),
 	});
 }
 
@@ -60,7 +65,9 @@ if (CopyAction) {
 			id: CopyAction.id,
 			title: nls.localize('copy', "Copy"),
 		},
+		group: '5_cutcopypaste',
 		order: 2,
+		when: ContextKeyExpr.not(PreventDefaultContextMenuItemsContextKeyName),
 	});
 }
 
@@ -70,6 +77,8 @@ if (PasteAction) {
 			id: PasteAction.id,
 			title: nls.localize('paste', "Paste"),
 		},
+		group: '5_cutcopypaste',
 		order: 3,
+		when: ContextKeyExpr.not(PreventDefaultContextMenuItemsContextKeyName),
 	});
 }

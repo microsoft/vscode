@@ -48,7 +48,7 @@ class OutputChannel extends Disposable implements IOutputChannel {
 	}
 
 	update(mode: OutputChannelUpdateMode, till?: number): void {
-		this.model.update(mode, till);
+		this.model.update(mode, till, true);
 	}
 
 	clear(): void {

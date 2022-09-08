@@ -33,14 +33,14 @@ export class ModifiedBaseRange {
 		const alignments = MappingAlignment.compute(diffs1, diffs2);
 		return alignments.map(
 			(a) => new ModifiedBaseRange(
-				a.baseRange,
+				a.inputRange,
 				baseTextModel,
-				a.input1Range,
+				a.output1Range,
 				input1TextModel,
-				a.input1LineMappings,
-				a.input2Range,
+				a.output1LineMappings,
+				a.output2Range,
 				input2TextModel,
-				a.input2LineMappings
+				a.output2LineMappings
 			)
 		);
 	}
@@ -48,15 +48,22 @@ export class ModifiedBaseRange {
 	public readonly input1CombinedDiff = DetailedLineRangeMapping.join(this.input1Diffs);
 	public readonly input2CombinedDiff = DetailedLineRangeMapping.join(this.input2Diffs);
 
-
 	constructor(
 		public readonly baseRange: LineRange,
 		public readonly baseTextModel: ITextModel,
 		public readonly input1Range: LineRange,
 		public readonly input1TextModel: ITextModel,
+
+		/**
+		 * From base to input1
+		*/
 		public readonly input1Diffs: readonly DetailedLineRangeMapping[],
 		public readonly input2Range: LineRange,
 		public readonly input2TextModel: ITextModel,
+
+		/**
+		 * From base to input2
+		*/
 		public readonly input2Diffs: readonly DetailedLineRangeMapping[]
 	) {
 		if (this.input1Diffs.length === 0 && this.input2Diffs.length === 0) {
@@ -281,21 +288,29 @@ export class ModifiedBaseRangeState {
 	}
 
 	public toString(): string {
-		const arr: ('1' | '2')[] = [];
+		const arr: string[] = [];
 		if (this.input1) {
-			arr.push('1');
+			arr.push('1✓');
 		}
 		if (this.input2) {
-			arr.push('2');
+			arr.push('2✓');
 		}
 		if (this.input2First) {
 			arr.reverse();
 		}
+		if (this.conflicting) {
+			arr.push('conflicting');
+		}
 		return arr.join(',');
 	}
 
-	equals(newState: ModifiedBaseRangeState): boolean {
-		return this.input1 === newState.input1 && this.input2 === newState.input2 && this.input2First === newState.input2First;
+	equals(other: ModifiedBaseRangeState): boolean {
+		return (
+			this.input1 === other.input1 &&
+			this.input2 === other.input2 &&
+			this.input2First === other.input2First &&
+			this.conflicting === other.conflicting
+		);
 	}
 }
 

@@ -202,6 +202,7 @@ export class OutlineModel extends TreeElement {
 			const id = TreeElement.findId(`provider_${index}`, result);
 			const group = new OutlineGroup(id, result, provider.displayName ?? 'Unknown Outline Provider', index);
 
+
 			return Promise.resolve(provider.provideDocumentSymbols(textModel, cts.token)).then(result => {
 				for (const info of result || []) {
 					OutlineModel._makeOutlineElement(info, group);

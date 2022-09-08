@@ -12,7 +12,7 @@ import { streamToBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
+import { COI, Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
@@ -102,6 +102,7 @@ namespace WebviewState {
 
 export interface WebviewInitInfo {
 	readonly id: string;
+	readonly providedViewType?: string;
 	readonly origin?: string;
 
 	readonly options: WebviewOptions;
@@ -110,6 +111,12 @@ export interface WebviewInitInfo {
 	readonly extension: WebviewExtensionDescription | undefined;
 }
 
+interface WebviewActionContext {
+	webview?: string;
+	[key: string]: unknown;
+}
+
+const webviewIdContext = 'webviewId';
 
 export class WebviewElement extends Disposable implements IWebview, WebviewFindDelegate {
 
@@ -117,6 +124,11 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	 * External identifier of this webview.
 	 */
 	public readonly id: string;
+
+	/**
+	 * The provided identifier of this webview.
+	 */
+	public readonly providedViewType?: string;
 
 	/**
 	 * The origin this webview itself is loaded from. May not be unique
@@ -199,6 +211,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		super();
 
 		this.id = initInfo.id;
+		this.providedViewType = initInfo.providedViewType;
 		this.iframeId = generateUuid();
 		this.origin = initInfo.origin ?? this.iframeId;
 
@@ -319,7 +332,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			this.handleKeyEvent('keyup', data);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didContextMenu, (data: { clientX: number; clientY: number }) => {
+		this._register(this.on(WebviewMessageChannels.didContextMenu, (data: { clientX: number; clientY: number; context: { [key: string]: unknown } }) => {
 			if (!this.element) {
 				return;
 			}
@@ -329,12 +342,18 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			const elementBox = this.element.getBoundingClientRect();
 			contextMenuService.showContextMenu({
 				getActions: () => {
+					const contextKeyService = this._contextKeyService!.createOverlay([
+						...Object.entries(data.context),
+						[webviewIdContext, this.providedViewType],
+					]);
+
 					const result: IAction[] = [];
-					const menu = menuService.createMenu(MenuId.WebviewContext, this._contextKeyService!);
-					createAndFillInContextMenuActions(menu, undefined, result);
+					const menu = menuService.createMenu(MenuId.WebviewContext, contextKeyService);
+					createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result);
 					menu.dispose();
 					return result;
 				},
+				getActionsContext: (): WebviewActionContext => ({ ...data.context, webview: this.providedViewType }),
 				getAnchor: () => ({
 					x: elementBox.x + data.clientX,
 					y: elementBox.y + data.clientY
@@ -474,9 +493,14 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		element.name = this.id;
 		element.className = `webview ${options.customClasses || ''}`;
 		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads');
+
+		const allowRules = ['cross-origin-isolated;'];
 		if (!isFirefox) {
-			element.setAttribute('allow', 'clipboard-read; clipboard-write;');
+			allowRules.push('clipboard-read;', 'clipboard-write;');
+			element.setAttribute('allow', 'clipboard-read; clipboard-write; cross-origin-isolated;');
 		}
+		element.setAttribute('allow', allowRules.join(' '));
+
 		element.style.border = 'none';
 		element.style.width = '100%';
 		element.style.height = '100%';
@@ -507,6 +531,9 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		if (options.purpose) {
 			params.purpose = options.purpose;
 		}
+
+
+		COI.addSearchParam(params, true, true);
 
 		const queryString = new URLSearchParams(params).toString();
 
@@ -551,7 +578,12 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	}
 
 	protected webviewContentEndpoint(encodedWebviewOrigin: string): string {
-		const endpoint = this._environmentService.webviewExternalEndpoint!.replace('{{uuid}}', encodedWebviewOrigin);
+		const webviewExternalEndpoint = this._environmentService.webviewExternalEndpoint;
+		if (!webviewExternalEndpoint) {
+			throw new Error(`'webviewExternalEndpoint' has not been configured. Webviews will not work!`);
+		}
+
+		const endpoint = webviewExternalEndpoint.replace('{{uuid}}', encodedWebviewOrigin);
 		if (endpoint[endpoint.length - 1] === '/') {
 			return endpoint.slice(0, endpoint.length - 1);
 		}

@@ -14,7 +14,7 @@ import { localize } from 'vs/nls';
 import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ImportantExtensionTip } from 'vs/base/common/product';
-import { forEach, IStringDictionary } from 'vs/base/common/collections';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { ITextModel } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
 import { basename, extname } from 'vs/base/common/resources';
@@ -115,10 +115,10 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		this.tasExperimentService = tasExperimentService;
 
 		if (productService.extensionTips) {
-			forEach(productService.extensionTips, ({ key, value }) => this.extensionTips.set(key.toLowerCase(), value));
+			Object.entries(productService.extensionTips).forEach(([key, value]) => this.extensionTips.set(key.toLowerCase(), value));
 		}
 		if (productService.extensionImportantTips) {
-			forEach(productService.extensionImportantTips, ({ key, value }) => this.importantExtensionTips.set(key.toLowerCase(), value));
+			Object.entries(productService.extensionImportantTips).forEach(([key, value]) => this.importantExtensionTips.set(key.toLowerCase(), value));
 		}
 	}
 
@@ -153,7 +153,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		const cachedRecommendations = this.getCachedRecommendations();
 		const now = Date.now();
 		// Retire existing recommendations if they are older than a week or are not part of this.productService.extensionTips anymore
-		forEach(cachedRecommendations, ({ key, value }) => {
+		Object.entries(cachedRecommendations).forEach(([key, value]) => {
 			const diff = (now - value) / milliSecondsInADay;
 			if (diff <= 7 && allRecommendations.indexOf(key) > -1) {
 				this.fileBasedRecommendations.set(key.toLowerCase(), { recommendedTime: value });
@@ -400,7 +400,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			storedRecommendations = storedRecommendations.reduce((result, id) => { result[id] = Date.now(); return result; }, <IStringDictionary<number>>{});
 		}
 		const result: IStringDictionary<number> = {};
-		forEach(storedRecommendations, ({ key, value }) => {
+		Object.entries(storedRecommendations).forEach(([key, value]) => {
 			if (typeof value === 'number') {
 				result[key.toLowerCase()] = value;
 			}

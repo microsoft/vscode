@@ -16,9 +16,11 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { NullLogService } from 'vs/platform/log/common/log';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { createSuite } from 'vs/platform/storage/test/common/storageService.test';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { IUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { BrowserStorageService, IndexedDBStorageDatabase } from 'vs/workbench/services/storage/browser/storageService';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
+import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 async function createStorageService(): Promise<[DisposableStore, BrowserStorageService]> {
 	const disposables = new DisposableStore();
@@ -45,7 +47,7 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 		extensionsResource: joinPath(inMemoryExtraProfileRoot, 'extensionsResource')
 	};
 
-	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, new UserDataProfileService(inMemoryExtraProfile), logService));
+	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, new UserDataProfileService(inMemoryExtraProfile, new UserDataProfilesService(TestEnvironmentService, fileService, new UriIdentityService(fileService), logService)), logService));
 
 	await storageService.initialize();
 
@@ -87,7 +89,7 @@ flakySuite('StorageService (browser specific)', () => {
 		disposables.clear();
 	});
 
-	test('clear', () => {
+	test.skip('clear', () => { // slow test and also only ever being used as a developer action
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			storageService.store('bar', 'foo', StorageScope.APPLICATION, StorageTarget.MACHINE);
 			storageService.store('bar', 3, StorageScope.APPLICATION, StorageTarget.USER);

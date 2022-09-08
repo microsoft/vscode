@@ -196,7 +196,7 @@ export class TransactionImpl implements ITransaction {
 export interface ISettableObservable<T, TChange = void> extends IObservable<T, TChange>, ISettable<T, TChange> {
 }
 
-export function observableValue<T>(name: string, initialValue: T): ISettableObservable<T> {
+export function observableValue<T, TChange = void>(name: string, initialValue: T): ISettableObservable<T, TChange> {
 	return new ObservableValue(name, initialValue);
 }
 

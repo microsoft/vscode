@@ -7,11 +7,10 @@ import { timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 // Importing types is safe in any layer
-// eslint-disable-next-line code-import-patterns
-import type { IBuffer, IDisposable, IMarker, Terminal } from 'xterm-headless';
+// eslint-disable-next-line local/code-import-patterns
+import type { IBuffer, IBufferLine, IDisposable, IMarker, Terminal } from 'xterm-headless';
 
 export interface ICurrentPartialCommand {
 	previousCommandMarker?: IMarker;
@@ -317,7 +316,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 		this._currentCommand.commandStartMarker = options?.marker || this._terminal.registerMarker(0);
-		this._onCommandStarted.fire({ marker: options?.marker || this._currentCommand.commandStartMarker, genericMarkProperties: options?.genericMarkProperties } as ITerminalCommand);
+		this._onCommandStarted.fire({ marker: options?.marker || this._currentCommand.commandStartMarker, markProperties: options?.markProperties } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
 
@@ -353,7 +352,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	}
 
 	handleGenericCommand(options?: IHandleCommandOptions): void {
-		if (options?.genericMarkProperties?.disableCommandStorage) {
+		if (options?.markProperties?.disableCommandStorage) {
 			this.setIsCommandStorageDisabled();
 		}
 		this.handlePromptStart(options);
@@ -457,9 +456,9 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				cwd: this._cwd,
 				exitCode: this._exitCode,
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
-				hasOutput: !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
+				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				genericMarkProperties: options?.genericMarkProperties
+				markProperties: options?.markProperties
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
@@ -526,7 +525,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				cwd: e.cwd,
 				exitCode: e.exitCode,
 				commandStartLineContent: e.commandStartLineContent,
-				timestamp: e.timestamp
+				timestamp: e.timestamp,
+				markProperties: e.markProperties
 			};
 		});
 		if (this._currentCommand.commandStartMarker) {
@@ -540,6 +540,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: undefined,
 				commandStartLineContent: undefined,
 				timestamp: 0,
+				markProperties: undefined
 			});
 		}
 		return {
@@ -579,9 +580,9 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				cwd: e.cwd,
 				commandStartLineContent: e.commandStartLineContent,
 				exitCode: e.exitCode,
-				hasOutput: !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
+				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				genericMarkProperties: e.genericMarkProperties
+				markProperties: e.markProperties
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
@@ -601,8 +602,13 @@ function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMa
 		return undefined;
 	}
 	let output = '';
+	let line: IBufferLine | undefined;
 	for (let i = startLine; i < endLine; i++) {
-		output += buffer.getLine(i)?.translateToString(true) + '\n';
+		line = buffer.getLine(i);
+		if (!line) {
+			continue;
+		}
+		output += line.translateToString(!line.isWrapped) + (line.isWrapped ? '' : '\n');
 	}
 	return output === '' ? undefined : output;
 }

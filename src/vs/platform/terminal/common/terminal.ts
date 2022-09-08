@@ -7,8 +7,8 @@ import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
 
@@ -40,6 +40,8 @@ export const enum TerminalSettingId {
 	DefaultProfileMacOs = 'terminal.integrated.defaultProfile.osx',
 	DefaultProfileWindows = 'terminal.integrated.defaultProfile.windows',
 	UseWslProfiles = 'terminal.integrated.useWslProfiles',
+	TabsDefaultColor = 'terminal.integrated.tabs.defaultColor',
+	TabsDefaultIcon = 'terminal.integrated.tabs.defaultIcon',
 	TabsEnabled = 'terminal.integrated.tabs.enabled',
 	TabsEnableAnimation = 'terminal.integrated.tabs.enableAnimation',
 	TabsHideCondition = 'terminal.integrated.tabs.hideCondition',
@@ -107,10 +109,8 @@ export const enum TerminalSettingId {
 	ShellIntegrationEnabled = 'terminal.integrated.shellIntegration.enabled',
 	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
-	ShellIntegrationDecorationIcon = 'terminal.integrated.shellIntegration.decorationIcon',
-	ShellIntegrationDecorationIconError = 'terminal.integrated.shellIntegration.decorationIconError',
-	ShellIntegrationDecorationIconSuccess = 'terminal.integrated.shellIntegration.decorationIconSuccess',
-	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history'
+	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
+	SmoothScrolling = 'terminal.integrated.smoothScrolling'
 }
 
 export const enum TerminalLogConstants {
@@ -165,7 +165,19 @@ export interface IPtyHostAttachTarget {
 	icon: TerminalIcon | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
+	reconnectionProperties?: IReconnectionProperties;
+	waitOnExit?: WaitOnExitValue;
+	hideFromUser?: boolean;
+	isFeatureTerminal?: boolean;
+	type?: TerminalType;
 }
+
+export interface IReconnectionProperties {
+	ownerId: string;
+	data?: unknown;
+}
+
+export type TerminalType = 'Task' | 'Local' | undefined;
 
 export enum TitleEventSource {
 	/** From the API or the rename command that overrides any other type */
@@ -285,7 +297,7 @@ export interface IPtyService extends IPtyHostController {
 		workspaceName: string
 	): Promise<number>;
 	attachToProcess(id: number): Promise<void>;
-	detachFromProcess(id: number): Promise<void>;
+	detachFromProcess(id: number, forcePersist?: boolean): Promise<void>;
 
 	/**
 	 * Lists all orphaned processes, ie. those without a connected frontend.
@@ -313,6 +325,7 @@ export interface IPtyService extends IPtyHostController {
 	getProfiles?(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getWslPath(original: string): Promise<string>;
+	getRevivedPtyNewId(id: number): Promise<number | undefined>;
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
@@ -435,16 +448,21 @@ export interface IShellLaunchConfig {
 	 */
 	ignoreConfigurationCwd?: boolean;
 
+	/**
+	 * The reconnection properties for this terminal
+	 */
+	reconnectionProperties?: IReconnectionProperties;
+
 	/** Whether to wait for a key press before closing the terminal. */
-	waitOnExit?: boolean | string | ((exitCode: number) => string);
+	waitOnExit?: WaitOnExitValue;
 
 	/**
 	 * A string including ANSI escape sequences that will be written to the terminal emulator
-	 * _before_ the terminal process has launched, a trailing \n is added at the end of the string.
-	 * This allows for example the terminal instance to display a styled message as the first line
-	 * of the terminal. Use \x1b over \033 or \e for the escape control character.
+	 * _before_ the terminal process has launched, when a string is specified, a trailing \n is
+	 * added at the end. This allows for example the terminal instance to display a styled message
+	 * as the first line of the terminal. Use \x1b over \033 or \e for the escape control character.
 	 */
-	initialText?: string;
+	initialText?: string | { text: string; trailingNewLine: boolean };
 
 	/**
 	 * Custom PTY/pseudoterminal process to use.
@@ -459,7 +477,9 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections };
+	attachPersistentProcess?: {
+		id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections; reconnectionProperties?: IReconnectionProperties; type?: TerminalType; waitOnExit?: WaitOnExitValue; hideFromUser?: boolean; isFeatureTerminal?: boolean;
+	};
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -532,6 +552,8 @@ export interface IShellLaunchConfig {
 	ignoreShellIntegration?: boolean;
 }
 
+export type WaitOnExitValue = boolean | string | ((exitCode: number) => string);
+
 export interface ICreateContributedTerminalProfileOptions {
 	icon?: URI | string | { light: URI; dark: URI };
 	color?: string;
@@ -558,6 +580,9 @@ export interface IShellLaunchConfigDto {
 	env?: ITerminalEnvironment;
 	useShellEnvironment?: boolean;
 	hideFromUser?: boolean;
+	reconnectionProperties?: IReconnectionProperties;
+	type?: 'Task' | 'Local';
+	isFeatureTerminal?: boolean;
 }
 
 /**
@@ -620,8 +645,9 @@ export interface ITerminalChildProcess {
 
 	/**
 	 * Detach the process from the UI and await reconnect.
+	 * @param forcePersist Whether to force the process to persist if it supports persistence.
 	 */
-	detach?(): Promise<void>;
+	detach?(forcePersist?: boolean): Promise<void>;
 
 	/**
 	 * Shutdown the terminal process.
@@ -782,6 +808,27 @@ export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSourc
 export type ITerminalProfileType = ITerminalProfile | IExtensionTerminalProfile;
 
 export interface IShellIntegration {
-	capabilities: ITerminalCapabilityStore;
+	readonly capabilities: ITerminalCapabilityStore;
+	readonly status: ShellIntegrationStatus;
+
+	readonly onDidChangeStatus: Event<ShellIntegrationStatus>;
+
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
+}
+
+export const enum ShellIntegrationStatus {
+	/** No shell integration sequences have been encountered. */
+	Off,
+	/** Final term shell integration sequences have been encountered. */
+	FinalTerm,
+	/** VS Code shell integration sequences have been encountered. Supercedes FinalTerm. */
+	VSCode
+}
+
+export enum TerminalExitReason {
+	Unknown = 0,
+	Shutdown = 1,
+	Process = 2,
+	User = 3,
+	Extension = 4,
 }

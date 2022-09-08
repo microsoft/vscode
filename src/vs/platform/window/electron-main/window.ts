@@ -17,6 +17,7 @@ export interface ICodeWindow extends IDisposable {
 
 	readonly onWillLoad: Event<ILoadEvent>;
 	readonly onDidSignalReady: Event<void>;
+	readonly onDidTriggerSystemContextMenu: Event<{ x: number; y: number }>;
 	readonly onDidClose: Event<void>;
 	readonly onDidDestroy: Event<void>;
 
@@ -42,8 +43,6 @@ export interface ICodeWindow extends IDisposable {
 	readonly isReady: boolean;
 	ready(): Promise<ICodeWindow>;
 	setReady(): void;
-
-	readonly hasHiddenTitleBarStyle: boolean;
 
 	addTabbedWindow(window: ICodeWindow): void;
 
@@ -74,6 +73,8 @@ export interface ICodeWindow extends IDisposable {
 	updateTouchBar(items: ISerializableCommandAction[][]): void;
 
 	serializeWindowState(): IWindowState;
+
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void;
 }
 
 export const enum LoadReason {

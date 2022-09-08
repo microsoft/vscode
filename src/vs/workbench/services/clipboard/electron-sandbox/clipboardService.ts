@@ -56,11 +56,11 @@ export class NativeClipboardService implements IClipboardService {
 		return this.nativeHostService.hasClipboard(NativeClipboardService.FILE_FORMAT);
 	}
 
-	private resourcesToBuffer(resources: URI[]): Uint8Array {
-		return VSBuffer.fromString(resources.map(r => r.toString()).join('\n')).buffer;
+	private resourcesToBuffer(resources: URI[]): VSBuffer {
+		return VSBuffer.fromString(resources.map(r => r.toString()).join('\n'));
 	}
 
-	private bufferToResources(buffer: Uint8Array): URI[] {
+	private bufferToResources(buffer: VSBuffer): URI[] {
 		if (!buffer) {
 			return [];
 		}

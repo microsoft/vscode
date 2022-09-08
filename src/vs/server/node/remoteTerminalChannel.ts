@@ -89,7 +89,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		uriTransformer: IURITransformer;
 	}>();
 
-	private readonly _onExecuteCommand = this._register(new Emitter<{ reqId: number; commandId: string; commandArgs: any[] }>());
+	private readonly _onExecuteCommand = this._register(new Emitter<{ reqId: number; persistentProcessId: number; commandId: string; commandArgs: any[] }>());
 	readonly onExecuteCommand = this._onExecuteCommand.event;
 
 	constructor(
@@ -138,6 +138,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$setTerminalLayoutInfo': return this._ptyService.setTerminalLayoutInfo(<ISetTerminalLayoutInfoArgs>args);
 			case '$serializeTerminalState': return this._ptyService.serializeTerminalState.apply(this._ptyService, args);
 			case '$reviveTerminalProcesses': return this._ptyService.reviveTerminalProcesses.apply(this._ptyService, args);
+			case '$getRevivedPtyNewId': return this._ptyService.getRevivedPtyNewId.apply(this._ptyService, args);
 			case '$setUnicodeVersion': return this._ptyService.setUnicodeVersion.apply(this._ptyService, args);
 			case '$reduceConnectionGraceTime': return this._reduceConnectionGraceTime();
 			case '$updateIcon': return this._ptyService.updateIcon.apply(this._ptyService, args);
@@ -184,7 +185,10 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 					: URI.revive(uriTransformer.transformIncoming(args.shellLaunchConfig.cwd))
 			),
 			env: args.shellLaunchConfig.env,
-			useShellEnvironment: args.shellLaunchConfig.useShellEnvironment
+			useShellEnvironment: args.shellLaunchConfig.useShellEnvironment,
+			reconnectionProperties: args.shellLaunchConfig.reconnectionProperties,
+			type: args.shellLaunchConfig.type,
+			isFeatureTerminal: args.shellLaunchConfig.isFeatureTerminal
 		};
 
 
@@ -239,21 +243,21 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		// Setup the CLI server to support forwarding commands run from the CLI
 		const ipcHandlePath = createRandomIPCHandle();
 		env.VSCODE_IPC_HOOK_CLI = ipcHandlePath;
+
+		const persistentProcessId = await this._ptyService.createProcess(shellLaunchConfig, initialCwd, args.cols, args.rows, args.unicodeVersion, env, baseEnv, args.options, args.shouldPersistTerminal, args.workspaceId, args.workspaceName);
 		const commandsExecuter: ICommandsExecuter = {
-			executeCommand: <T>(id: string, ...args: any[]): Promise<T> => this._executeCommand(id, args, uriTransformer)
+			executeCommand: <T>(id: string, ...args: any[]): Promise<T> => this._executeCommand(persistentProcessId, id, args, uriTransformer)
 		};
 		const cliServer = new CLIServerBase(commandsExecuter, this._logService, ipcHandlePath);
-
-		const id = await this._ptyService.createProcess(shellLaunchConfig, initialCwd, args.cols, args.rows, args.unicodeVersion, env, baseEnv, args.options, args.shouldPersistTerminal, args.workspaceId, args.workspaceName);
-		this._ptyService.onProcessExit(e => e.id === id && cliServer.dispose());
+		this._ptyService.onProcessExit(e => e.id === persistentProcessId && cliServer.dispose());
 
 		return {
-			persistentTerminalId: id,
+			persistentTerminalId: persistentProcessId,
 			resolvedShellLaunchConfig: shellLaunchConfig
 		};
 	}
 
-	private _executeCommand<T>(commandId: string, commandArgs: any[], uriTransformer: IURITransformer): Promise<T> {
+	private _executeCommand<T>(persistentProcessId: number, commandId: string, commandArgs: any[], uriTransformer: IURITransformer): Promise<T> {
 		let resolve!: (data: any) => void;
 		let reject!: (err: any) => void;
 		const result = new Promise<T>((_resolve, _reject) => {
@@ -276,6 +280,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		});
 		this._onExecuteCommand.fire({
 			reqId,
+			persistentProcessId,
 			commandId,
 			commandArgs: serializedCommandArgs
 		});

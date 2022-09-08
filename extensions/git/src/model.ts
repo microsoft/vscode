@@ -13,12 +13,13 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 import { fromGitUri } from './uri';
-import { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher } from './api/git';
+import { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher, PostCommitCommandsProvider } from './api/git';
 import { Askpass } from './askpass';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { OutputChannelLogger } from './log';
+import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
 
 const localize = nls.loadMessageBundle();
 
@@ -50,7 +51,7 @@ interface OpenRepository extends Disposable {
 	repository: Repository;
 }
 
-export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerRegistry {
+export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommandsProviderRegistry, IPushErrorHandlerRegistry {
 
 	private _onDidOpenRepository = new EventEmitter<Repository>();
 	readonly onDidOpenRepository: Event<Repository> = this._onDidOpenRepository.event;
@@ -105,6 +106,11 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 	private _onDidRemoveRemoteSourcePublisher = new EventEmitter<RemoteSourcePublisher>();
 	readonly onDidRemoveRemoteSourcePublisher = this._onDidRemoveRemoteSourcePublisher.event;
 
+	private postCommitCommandsProviders = new Set<PostCommitCommandsProvider>();
+
+	private _onDidChangePostCommitCommandsProviders = new EventEmitter<void>();
+	readonly onDidChangePostCommitCommandsProviders = this._onDidChangePostCommitCommandsProviders.event;
+
 	private showRepoOnHomeDriveRootWarning = true;
 	private pushErrorHandlers = new Set<PushErrorHandler>();
 
@@ -133,6 +139,18 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			this.onDidChangeVisibleTextEditors(window.visibleTextEditors),
 			this.scanWorkspaceFolders()
 		]);
+
+		const config = workspace.getConfiguration('git');
+		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+
+		/* __GDPR__
+			"git.repositoryInitialScan" : {
+				"owner": "lszomoru",
+				"autoRepositoryDetection": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Setting that controls the initial repository scan" },
+				"repositoryCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of repositories opened during initial repository scan" }
+			}
+		*/
+		this.telemetryReporter.sendTelemetryEvent('git.repositoryInitialScan', { autoRepositoryDetection: String(autoRepositoryDetection) }, { repositoryCount: this.openRepositories.length });
 	}
 
 	/**
@@ -305,7 +323,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 	@sequentialize
 	async openRepository(repoPath: string): Promise<void> {
 		this.outputChannelLogger.logTrace(`Opening repository: ${repoPath}`);
-		if (this.getRepository(repoPath)) {
+		if (this.getRepositoryExact(repoPath)) {
 			this.outputChannelLogger.logTrace(`Repository for path ${repoPath} already exists`);
 			return;
 		}
@@ -341,7 +359,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			const repositoryRoot = Uri.file(rawRoot).fsPath;
 			this.outputChannelLogger.logTrace(`Repository root: ${repositoryRoot}`);
 
-			if (this.getRepository(repositoryRoot)) {
+			if (this.getRepositoryExact(repositoryRoot)) {
 				this.outputChannelLogger.logTrace(`Repository for path ${repositoryRoot} already exists`);
 				return;
 			}
@@ -369,7 +387,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			}
 
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
-			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this.globalState, this.outputChannelLogger, this.telemetryReporter);
+			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this, this.globalState, this.outputChannelLogger, this.telemetryReporter);
 
 			this.open(repository);
 			repository.status(); // do not await this, we want SCM to know about the repo asap
@@ -492,6 +510,12 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 		return liveRepository && liveRepository.repository;
 	}
 
+	private getRepositoryExact(repoPath: string): Repository | undefined {
+		const openRepository = this.openRepositories
+			.find(r => pathEquals(r.repository.root, repoPath));
+		return openRepository?.repository;
+	}
+
 	private getOpenRepository(repository: Repository): OpenRepository | undefined;
 	private getOpenRepository(sourceControl: SourceControl): OpenRepository | undefined;
 	private getOpenRepository(resourceGroup: SourceControlResourceGroup): OpenRepository | undefined;
@@ -504,6 +528,10 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 
 		if (hint instanceof Repository) {
 			return this.openRepositories.filter(r => r.repository === hint)[0];
+		}
+
+		if (hint instanceof ApiRepository) {
+			return this.openRepositories.filter(r => r.repository === hint.repository)[0];
 		}
 
 		if (typeof hint === 'string') {
@@ -580,6 +608,20 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 
 	getRemoteSourcePublishers(): RemoteSourcePublisher[] {
 		return [...this.remoteSourcePublishers.values()];
+	}
+
+	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable {
+		this.postCommitCommandsProviders.add(provider);
+		this._onDidChangePostCommitCommandsProviders.fire();
+
+		return toDisposable(() => {
+			this.postCommitCommandsProviders.delete(provider);
+			this._onDidChangePostCommitCommandsProviders.fire();
+		});
+	}
+
+	getPostCommitCommandsProviders(): PostCommitCommandsProvider[] {
+		return [...this.postCommitCommandsProviders.values()];
 	}
 
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable {

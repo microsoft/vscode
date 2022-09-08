@@ -5,8 +5,7 @@
 
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { CSSIcon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
+import { Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from 'vs/platform/action/common/action';
@@ -35,17 +34,17 @@ export interface ISubmenuItem {
 	rememberDefaultAction?: boolean;	// for dropdown menu: if true the last executed action is remembered as the default action
 }
 
-export function isIMenuItem(item: IMenuItem | ISubmenuItem): item is IMenuItem {
+export function isIMenuItem(item: any): item is IMenuItem {
 	return (item as IMenuItem).command !== undefined;
 }
 
-export function isISubmenuItem(item: IMenuItem | ISubmenuItem): item is ISubmenuItem {
+export function isISubmenuItem(item: any): item is ISubmenuItem {
 	return (item as ISubmenuItem).submenu !== undefined;
 }
 
 export class MenuId {
 
-	private static _idPool = 0;
+	private static readonly _instances = new Map<string, MenuId>();
 
 	static readonly CommandPalette = new MenuId('CommandPalette');
 	static readonly DebugBreakpointsContext = new MenuId('DebugBreakpointsContext');
@@ -57,6 +56,7 @@ export class MenuId {
 	static readonly DebugToolBarStop = new MenuId('DebugToolBarStop');
 	static readonly EditorContext = new MenuId('EditorContext');
 	static readonly SimpleEditorContext = new MenuId('SimpleEditorContext');
+	static readonly EditorContent = new MenuId('EditorContent');
 	static readonly EditorContextCopy = new MenuId('EditorContextCopy');
 	static readonly EditorContextPeek = new MenuId('EditorContextPeek');
 	static readonly EditorContextShare = new MenuId('EditorContextShare');
@@ -109,6 +109,7 @@ export class MenuId {
 	static readonly TestPeekTitle = new MenuId('TestPeekTitle');
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
 	static readonly TitleBarContext = new MenuId('TitleBarContext');
+	static readonly TitleBarTitleContext = new MenuId('TitleBarTitleContext');
 	static readonly TunnelContext = new MenuId('TunnelContext');
 	static readonly TunnelPrivacy = new MenuId('TunnelPrivacy');
 	static readonly TunnelProtocol = new MenuId('TunnelProtocol');
@@ -123,14 +124,18 @@ export class MenuId {
 	static readonly ViewTitleContext = new MenuId('ViewTitleContext');
 	static readonly CommentThreadTitle = new MenuId('CommentThreadTitle');
 	static readonly CommentThreadActions = new MenuId('CommentThreadActions');
+	static readonly CommentThreadTitleContext = new MenuId('CommentThreadTitleContext');
+	static readonly CommentThreadCommentContext = new MenuId('CommentThreadCommentContext');
 	static readonly CommentTitle = new MenuId('CommentTitle');
 	static readonly CommentActions = new MenuId('CommentActions');
 	static readonly InteractiveToolbar = new MenuId('InteractiveToolbar');
 	static readonly InteractiveCellTitle = new MenuId('InteractiveCellTitle');
+	static readonly InteractiveCellDelete = new MenuId('InteractiveCellDelete');
 	static readonly InteractiveCellExecute = new MenuId('InteractiveCellExecute');
 	static readonly InteractiveInputExecute = new MenuId('InteractiveInputExecute');
 	static readonly NotebookToolbar = new MenuId('NotebookToolbar');
 	static readonly NotebookCellTitle = new MenuId('NotebookCellTitle');
+	static readonly NotebookCellDelete = new MenuId('NotebookCellDelete');
 	static readonly NotebookCellInsert = new MenuId('NotebookCellInsert');
 	static readonly NotebookCellBetween = new MenuId('NotebookCellBetween');
 	static readonly NotebookCellListTop = new MenuId('NotebookCellTop');
@@ -160,14 +165,31 @@ export class MenuId {
 	static readonly WebviewContext = new MenuId('WebviewContext');
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
 	static readonly NewFile = new MenuId('NewFile');
-	static readonly MergeToolbar = new MenuId('MergeToolbar');
+	static readonly MergeInput1Toolbar = new MenuId('MergeToolbar1Toolbar');
+	static readonly MergeInput2Toolbar = new MenuId('MergeToolbar2Toolbar');
+	static readonly MergeBaseToolbar = new MenuId('MergeBaseToolbar');
+	static readonly MergeInputResultToolbar = new MenuId('MergeToolbarResultToolbar');
 
-	readonly id: number;
-	readonly _debugName: string;
+	/**
+	 * Create or reuse a `MenuId` with the given identifier
+	 */
+	static for(identifier: string): MenuId {
+		return MenuId._instances.get(identifier) ?? new MenuId(identifier);
+	}
 
-	constructor(debugName: string) {
-		this.id = MenuId._idPool++;
-		this._debugName = debugName;
+	readonly id: string;
+
+	/**
+	 * Create a new `MenuId` with the unique identifier. Will throw if a menu
+	 * with the identifier already exists, use `MenuId.for(ident)` or a unique
+	 * identifier
+	 */
+	constructor(identifier: string) {
+		if (MenuId._instances.has(identifier)) {
+			throw new TypeError(`MenuId with identifier '${identifier}' already exists. Use MenuId.for(ident) or a unique identifier`);
+		}
+		MenuId._instances.set(identifier, this);
+		this.id = identifier;
 	}
 }
 
@@ -193,7 +215,18 @@ export interface IMenuService {
 
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * Create a new menu for the given menu identifier. A menu sends events when it's entries
+	 * have changed (placement, enablement, checked-state). By default it does not send events for
+	 * submenu entries. That is more expensive and must be explicitly enabled with the
+	 * `emitEventsForSubmenuChanges` flag.
+	 */
 	createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu;
+
+	/**
+	 * Reset **all** menu item hidden states.
+	 */
+	resetHiddenStates(): void;
 }
 
 export type ICommandsMap = Map<string, ICommandAction>;
@@ -202,12 +235,46 @@ export interface IMenuRegistryChangeEvent {
 	has(id: MenuId): boolean;
 }
 
+class MenuRegistryChangeEvent {
+
+	private static _all = new Map<MenuId, MenuRegistryChangeEvent>();
+
+	static for(id: MenuId): MenuRegistryChangeEvent {
+		let value = this._all.get(id);
+		if (!value) {
+			value = new MenuRegistryChangeEvent(id);
+			this._all.set(id, value);
+		}
+		return value;
+	}
+
+	static merge(events: IMenuRegistryChangeEvent[]): IMenuRegistryChangeEvent {
+		const ids = new Set<MenuId>();
+		for (const item of events) {
+			if (item instanceof MenuRegistryChangeEvent) {
+				ids.add(item.id);
+			}
+		}
+		return ids;
+	}
+
+	readonly has: (id: MenuId) => boolean;
+
+	private constructor(private readonly id: MenuId) {
+		this.has = candidate => candidate === id;
+	}
+}
+
 export interface IMenuRegistry {
 	readonly onDidChangeMenu: Event<IMenuRegistryChangeEvent>;
-	addCommands(newCommands: Iterable<ICommandAction>): IDisposable;
 	addCommand(userCommand: ICommandAction): IDisposable;
 	getCommand(id: string): ICommandAction | undefined;
 	getCommands(): ICommandsMap;
+
+	/**
+	 * @deprecated Use `appendMenuItem` or most likely use `registerAction2` instead. There should be no strong
+	 * reason to use this directly.
+	 */
 	appendMenuItems(items: Iterable<{ id: MenuId; item: IMenuItem | ISubmenuItem }>): IDisposable;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
 	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
@@ -217,30 +284,19 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	private readonly _commands = new Map<string, ICommandAction>();
 	private readonly _menuItems = new Map<MenuId, LinkedList<IMenuItem | ISubmenuItem>>();
-	private readonly _onDidChangeMenu = new Emitter<IMenuRegistryChangeEvent>();
+	private readonly _onDidChangeMenu = new MicrotaskEmitter<IMenuRegistryChangeEvent>({
+		merge: MenuRegistryChangeEvent.merge
+	});
 
 	readonly onDidChangeMenu: Event<IMenuRegistryChangeEvent> = this._onDidChangeMenu.event;
 
 	addCommand(command: ICommandAction): IDisposable {
-		return this.addCommands(Iterable.single(command));
-	}
+		this._commands.set(command.id, command);
+		this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(MenuId.CommandPalette));
 
-	private readonly _commandPaletteChangeEvent: IMenuRegistryChangeEvent = {
-		has: id => id === MenuId.CommandPalette
-	};
-
-	addCommands(commands: Iterable<ICommandAction>): IDisposable {
-		for (const command of commands) {
-			this._commands.set(command.id, command);
-		}
-		this._onDidChangeMenu.fire(this._commandPaletteChangeEvent);
 		return toDisposable(() => {
-			let didChange = false;
-			for (const command of commands) {
-				didChange = this._commands.delete(command.id) || didChange;
-			}
-			if (didChange) {
-				this._onDidChangeMenu.fire(this._commandPaletteChangeEvent);
+			if (this._commands.delete(command.id)) {
+				this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(MenuId.CommandPalette));
 			}
 		});
 	}
@@ -256,35 +312,22 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 	}
 
 	appendMenuItem(id: MenuId, item: IMenuItem | ISubmenuItem): IDisposable {
-		return this.appendMenuItems(Iterable.single({ id, item }));
+		let list = this._menuItems.get(id);
+		if (!list) {
+			list = new LinkedList();
+			this._menuItems.set(id, list);
+		}
+		const rm = list.push(item);
+		this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(id));
+		return toDisposable(rm);
 	}
 
 	appendMenuItems(items: Iterable<{ id: MenuId; item: IMenuItem | ISubmenuItem }>): IDisposable {
-
-		const changedIds = new Set<MenuId>();
-		const toRemove = new LinkedList<Function>();
-
+		const result = new DisposableStore();
 		for (const { id, item } of items) {
-			let list = this._menuItems.get(id);
-			if (!list) {
-				list = new LinkedList();
-				this._menuItems.set(id, list);
-			}
-			toRemove.push(list.push(item));
-			changedIds.add(id);
+			result.add(this.appendMenuItem(id, item));
 		}
-
-		this._onDidChangeMenu.fire(changedIds);
-
-		return toDisposable(() => {
-			if (toRemove.size > 0) {
-				for (const fn of toRemove) {
-					fn();
-				}
-				this._onDidChangeMenu.fire(changedIds);
-				toRemove.clear();
-			}
-		});
+		return result;
 	}
 
 	getMenuItems(id: MenuId): Array<IMenuItem | ISubmenuItem> {
@@ -350,6 +393,12 @@ export class SubmenuItemAction extends SubmenuAction {
 	}
 }
 
+export interface IMenuItemHide {
+	readonly isHidden: boolean;
+	readonly hide: IAction;
+	readonly toggle: IAction;
+}
+
 // implements IAction, does NOT extend Action, so that no one
 // subscribes to events of Action or modified properties
 export class MenuItemAction implements IAction {
@@ -370,6 +419,7 @@ export class MenuItemAction implements IAction {
 		item: ICommandAction,
 		alt: ICommandAction | undefined,
 		options: IMenuActionOptions | undefined,
+		readonly hideActions: IMenuItemHide | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private _commandService: ICommandService
 	) {
@@ -396,17 +446,11 @@ export class MenuItemAction implements IAction {
 		}
 
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, undefined, options, contextKeyService, _commandService) : undefined;
+		this.alt = alt ? new MenuItemAction(alt, undefined, options, hideActions, contextKeyService, _commandService) : undefined;
 		this._options = options;
 		if (ThemeIcon.isThemeIcon(item.icon)) {
 			this.class = CSSIcon.asClassName(item.icon);
 		}
-	}
-
-	dispose(): void {
-		// there is NOTHING to dispose and the MenuItemAction should
-		// never have anything to dispose as it is a convenience type
-		// to bridge into the rendering world.
 	}
 
 	run(...args: any[]): Promise<void> {
@@ -424,6 +468,9 @@ export class MenuItemAction implements IAction {
 	}
 }
 
+/**
+ * @deprecated Use {@link registerAction2} instead.
+ */
 export class SyncActionDescriptor {
 
 	private readonly _descriptor: SyncDescriptor0<Action>;
@@ -535,7 +582,9 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 
 	// menu
 	if (Array.isArray(menu)) {
-		disposables.add(MenuRegistry.appendMenuItems(menu.map(item => ({ id: item.id, item: { command, ...item } }))));
+		for (const item of menu) {
+			disposables.add(MenuRegistry.appendMenuItem(item.id, { command, ...item }));
+		}
 
 	} else if (menu) {
 		disposables.add(MenuRegistry.appendMenuItem(menu.id, { command, ...menu }));
@@ -548,18 +597,18 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	// keybinding
 	if (Array.isArray(keybinding)) {
 		for (const item of keybinding) {
-			KeybindingsRegistry.registerKeybindingRule({
+			disposables.add(KeybindingsRegistry.registerKeybindingRule({
 				...item,
 				id: command.id,
 				when: command.precondition ? ContextKeyExpr.and(command.precondition, item.when) : item.when
-			});
+			}));
 		}
 	} else if (keybinding) {
-		KeybindingsRegistry.registerKeybindingRule({
+		disposables.add(KeybindingsRegistry.registerKeybindingRule({
 			...keybinding,
 			id: command.id,
 			when: command.precondition ? ContextKeyExpr.and(command.precondition, keybinding.when) : keybinding.when
-		});
+		}));
 	}
 
 	return disposables;

@@ -12,21 +12,11 @@ import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/edito
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import {
-	autorun,
-	autorunDelta,
-	constObservable,
-	derivedObservable,
-	observableFromEvent,
-	observableFromPromise,
-	IObservable,
-	wasEventTriggeredRecently,
-	debouncedObservable,
-} from 'vs/workbench/contrib/audioCues/browser/observable';
 import { ITextModel } from 'vs/editor/common/model';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
 import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
+import { autorun, autorunDelta, constObservable, debouncedObservable, derived, IObservable, observableFromEvent, observableFromPromise, wasEventTriggeredRecently } from 'vs/base/common/observable';
 
 export class AudioCueLineFeatureContribution
 	extends Disposable
@@ -48,7 +38,7 @@ export class AudioCueLineFeatureContribution
 	) {
 		super();
 
-		const someAudioCueFeatureIsEnabled = derivedObservable(
+		const someAudioCueFeatureIsEnabled = derived(
 			'someAudioCueFeatureIsEnabled',
 			(reader) =>
 				this.features.some((feature) =>
@@ -73,7 +63,7 @@ export class AudioCueLineFeatureContribution
 		);
 
 		this._register(
-			autorun((reader) => {
+			autorun('updateAudioCuesEnabled', (reader) => {
 				this.store.clear();
 
 				if (!someAudioCueFeatureIsEnabled.read(reader)) {
@@ -84,7 +74,7 @@ export class AudioCueLineFeatureContribution
 				if (activeEditor) {
 					this.registerAudioCuesForEditor(activeEditor.editor, activeEditor.model, this.store);
 				}
-			}, 'updateAudioCuesEnabled')
+			})
 		);
 	}
 
@@ -118,7 +108,7 @@ export class AudioCueLineFeatureContribution
 
 		const featureStates = this.features.map((feature) => {
 			const lineFeatureState = feature.getObservableState(editor, editorModel);
-			const isFeaturePresent = derivedObservable(
+			const isFeaturePresent = derived(
 				`isPresentInLine:${feature.audioCue.name}`,
 				(reader) => {
 					if (!this.audioCueService.isEnabled(feature.audioCue).read(reader)) {
@@ -130,7 +120,7 @@ export class AudioCueLineFeatureContribution
 						: lineFeatureState.read(reader).isPresent(lineNumber);
 				}
 			);
-			return derivedObservable(
+			return derived(
 				`typingDebouncedFeatureState:\n${feature.audioCue.name}`,
 				(reader) =>
 					feature.debounceWhileTyping && isTyping.read(reader)
@@ -139,7 +129,7 @@ export class AudioCueLineFeatureContribution
 			);
 		});
 
-		const state = derivedObservable(
+		const state = derived(
 			'states',
 			(reader) => ({
 				lineNumber: debouncedLineNumber.read(reader),
@@ -282,7 +272,7 @@ class InlineCompletionLineFeature implements LineFeature {
 				: undefined
 		));
 
-		return derivedObservable<LineFeatureState>('ghostText', reader => {
+		return derived<LineFeatureState>('ghostText', reader => {
 			const ghostText = activeGhostText.read(reader)?.read(reader);
 			return {
 				isPresent(lineNumber) {

@@ -72,9 +72,7 @@ export class DebugStatusContribution implements IWorkbenchContribution {
 	}
 
 	dispose(): void {
-		if (this.entryAccessor) {
-			this.entryAccessor.dispose();
-		}
+		this.entryAccessor?.dispose();
 		dispose(this.toDispose);
 	}
 }

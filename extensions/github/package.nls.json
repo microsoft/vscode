@@ -6,6 +6,8 @@
 	"welcome.publishFolder": {
 		"message": "You can also directly publish this folder to a GitHub repository. Once published, you'll have access to source control features powered by git and GitHub.\n[$(github) Publish to GitHub](command:github.publish)",
 		"comment": [
+			"{Locked='$(github)'}",
+			"Do not translate '$(github)'. It will be rendered as an icon",
 			"{Locked='](command:github.publish'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
@@ -14,6 +16,8 @@
 	"welcome.publishWorkspaceFolder": {
 		"message": "You can also directly publish a workspace folder to a GitHub repository. Once published, you'll have access to source control features powered by git and GitHub.\n[$(github) Publish to GitHub](command:github.publish)",
 		"comment": [
+			"{Locked='$(github)'}",
+			"Do not translate '$(github)'. It will be rendered as an icon",
 			"{Locked='](command:github.publish'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"

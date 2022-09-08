@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
-import { autorun, derived, IObserver, ITransaction, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
-import { BaseObservable } from 'vs/base/common/observableImpl/base';
+import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
+import { BaseObservable, IObservable, IObserver } from 'vs/base/common/observableImpl/base';
 
 suite('observable integration', () => {
 	test('basic observable + autorun', () => {
@@ -209,29 +209,41 @@ suite('observable integration', () => {
 		]);
 	});
 
-	test('transaction from autorun', () => {
+	test('self-disposing autorun', () => {
 		const log = new Log();
 
-		const observable1 = observableValue('MyObservableValue1', 0);
-		const observable2 = observableValue('MyObservableValue2', 0);
+		const observable1 = new LoggingObservableValue('MyObservableValue1', 0, log);
+		const observable2 = new LoggingObservableValue('MyObservableValue2', 0, log);
+		const observable3 = new LoggingObservableValue('MyObservableValue3', 0, log);
 
-		const computed = derived('computed', (reader) => {
-			const value1 = observable1.read(reader);
-			const value2 = observable2.read(reader);
-			const sum = value1 + value2;
-			log.log(`recompute: ${value1} + ${value2} = ${sum}`);
-			return sum;
+		const d = autorun('autorun', (reader) => {
+			if (observable1.read(reader) >= 2) {
+				observable2.read(reader);
+				d.dispose();
+				observable3.read(reader);
+			}
 		});
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			'MyObservableValue1.firstObserverAdded',
+			'MyObservableValue1.get',
+		]);
 
-		autorun('autorun', (reader) => {
-			log.log(`value: ${computed.read(reader)}`);
-			transaction(tx => {
+		observable1.set(1, undefined);
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			'MyObservableValue1.set (value 1)',
+			'MyObservableValue1.get',
+		]);
 
-			});
-
-		});
-
-
+		observable1.set(2, undefined);
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			'MyObservableValue1.set (value 2)',
+			'MyObservableValue1.get',
+			'MyObservableValue2.firstObserverAdded',
+			'MyObservableValue2.get',
+			'MyObservableValue1.lastObserverRemoved',
+			'MyObservableValue2.lastObserverRemoved',
+			'MyObservableValue3.get',
+		]);
 	});
 
 	test('from event', () => {
@@ -382,47 +394,8 @@ suite('observable details', () => {
 	test('1', () => {
 		const log = new Log();
 
-		class TrackedObservableValue<T> extends BaseObservable<T> {
-			private value: T;
-
-			constructor(initialValue: T) {
-				super();
-				this.value = initialValue;
-			}
-
-			readonly debugName = 'TrackedObservableValue';
-
-			public override addObserver(observer: IObserver): void {
-				log.log(`observable.addObserver ${observer.toString()}`);
-				super.addObserver(observer);
-			}
-
-			public override removeObserver(observer: IObserver): void {
-				log.log(`observable.removeObserver ${observer.toString()}`);
-				super.removeObserver(observer);
-			}
-
-			public get(): T {
-				log.log('observable.get');
-				return this.value;
-			}
-
-			public set(value: T, tx: ITransaction): void {
-				log.log(`observable.set (value ${value})`);
-
-				if (this.value === value) {
-					return;
-				}
-				this.value = value;
-				for (const observer of this.observers) {
-					tx.updateObserver(observer, this);
-					observer.handleChange(this, undefined);
-				}
-			}
-		}
-
 		const shouldReadObservable = observableValue('shouldReadObservable', true);
-		const observable = new TrackedObservableValue(0);
+		const observable = new LoggingObservableValue('observable', 0, log);
 		const computed = derived('test', reader => {
 			if (shouldReadObservable.read(reader)) {
 				return observable.read(reader) * 2;
@@ -434,11 +407,7 @@ suite('observable details', () => {
 			log.log(`autorun: ${value}`);
 		});
 
-		assert.deepStrictEqual(log.getAndClearEntries(), [
-			'observable.addObserver LazyDerived<test>',
-			'observable.get',
-			'autorun: 0',
-		]);
+		assert.deepStrictEqual(log.getAndClearEntries(), (["observable.firstObserverAdded", "observable.get", "autorun: 0"]));
 
 		transaction(tx => {
 			observable.set(1, tx);
@@ -448,11 +417,81 @@ suite('observable details', () => {
 			assert.deepStrictEqual(log.getAndClearEntries(), ([]));
 
 			computed.get();
-			assert.deepStrictEqual(log.getAndClearEntries(), (["observable.removeObserver LazyDerived<test>"]));
+			assert.deepStrictEqual(log.getAndClearEntries(), (["observable.lastObserverRemoved"]));
 		});
 		assert.deepStrictEqual(log.getAndClearEntries(), (["autorun: 1"]));
 	});
 });
+
+export class LoggingObserver implements IObserver {
+	private count = 0;
+
+	constructor(public readonly debugName: string, private readonly log: Log) {
+	}
+
+	beginUpdate<T>(observable: IObservable<T, void>): void {
+		this.count++;
+		this.log.log(`${this.debugName}.beginUpdate (count ${this.count})`);
+	}
+	handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
+		this.log.log(`${this.debugName}.handleChange (count ${this.count})`);
+	}
+	endUpdate<T>(observable: IObservable<T, void>): void {
+		this.log.log(`${this.debugName}.endUpdate (count ${this.count})`);
+		this.count--;
+	}
+}
+
+export class LoggingObservableValue<T, TChange = void>
+	extends BaseObservable<T, TChange>
+	implements ISettableObservable<T, TChange>
+{
+	private value: T;
+
+	constructor(public readonly debugName: string, initialValue: T, private readonly log: Log) {
+		super();
+		this.value = initialValue;
+	}
+
+	protected override onFirstObserverAdded(): void {
+		this.log.log(`${this.debugName}.firstObserverAdded`);
+	}
+
+	protected override onLastObserverRemoved(): void {
+		this.log.log(`${this.debugName}.lastObserverRemoved`);
+	}
+
+	public get(): T {
+		this.log.log(`${this.debugName}.get`);
+		return this.value;
+	}
+
+	public set(value: T, tx: ITransaction | undefined, change: TChange): void {
+		if (this.value === value) {
+			return;
+		}
+
+		if (!tx) {
+			transaction((tx) => {
+				this.set(value, tx, change);
+			}, () => `Setting ${this.debugName}`);
+			return;
+		}
+
+		this.log.log(`${this.debugName}.set (value ${value})`);
+
+		this.value = value;
+
+		for (const observer of this.observers) {
+			tx.updateObserver(observer, this);
+			observer.handleChange(this, change);
+		}
+	}
+
+	override toString(): string {
+		return `${this.debugName}: ${this.value}`;
+	}
+}
 
 class Log {
 	private readonly entries: string[] = [];

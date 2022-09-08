@@ -185,7 +185,7 @@ body.web {
 	outline-width: 1px;
 	outline-style: solid;
 	outline-offset: -1px;
-	opacity: 1 !important;
+	opacity: 1;
 }
 
 .monaco-workbench input[type="checkbox"]:focus {
@@ -234,4 +234,8 @@ body.web {
 
 .monaco-workbench .monaco-list:focus {
 	outline: 0 !important; /* tree indicates focus not via outline but through the focused item */
+}
+
+.monaco-workbench a.monaco-link:hover {
+	text-decoration: underline; /* render underline on hover for accessibility requirements */
 }

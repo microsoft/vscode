@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-mssql/commit/c98518dd7418ddfb6f35676e14cf12791b0a235d",
+	"version": "https://github.com/microsoft/vscode-mssql/commit/b8b58864526c048002b7c3964bdac8aac3713bd9",
 	"name": "SQL",
 	"scopeName": "source.sql",
 	"patterns": [
@@ -191,7 +191,7 @@
 			"name": "keyword.operator.concatenator.sql"
 		},
 		{
-			"match": "(?i)\\b(avg|checksum_agg|count|count_big|grouping|grouping_id|max|min|sum|stdev|stdevp|var|varp)\\b",
+			"match": "(?i)\\b(aggregate|approx_count_distinct|avg|checksum_agg|count|count_big|grouping|grouping_id|max|min|sum|stdev|stdevp|var|varp)\\b",
 			"name": "support.function.aggregate.sql"
 		},
 		{
@@ -203,12 +203,24 @@
 			"name": "support.function.conversion.sql"
 		},
 		{
+			"match": "(?i)\\b(collationproperty|tertiary_weights)\\b",
+			"name": "support.function.collation.sql"
+		},
+		{
+			"match": "(?i)\\b(asymkey_id|asymkeyproperty|certproperty|cert_id|crypt_gen_random|decryptbyasymkey|decryptbycert|decryptbykey|decryptbykeyautoasymkey|decryptbykeyautocert|decryptbypassphrase|encryptbyasymkey|encryptbycert|encryptbykey|encryptbypassphrase|hashbytes|is_objectsigned|key_guid|key_id|key_name|signbyasymkey|signbycert|symkeyproperty|verifysignedbycert|verifysignedbyasymkey)\\b",
+			"name": "support.function.cryptographic.sql"
+		},
+		{
 			"match": "(?i)\\b(cursor_status)\\b",
 			"name": "support.function.cursor.sql"
 		},
 		{
-			"match": "(?i)\\b(sysdatetime|sysdatetimeoffset|sysutcdatetime|current_time(stamp)?|getdate|getutcdate|datename|datepart|day|month|year|datefromparts|datetime2fromparts|datetimefromparts|datetimeoffsetfromparts|smalldatetimefromparts|timefromparts|datediff|dateadd|eomonth|switchoffset|todatetimeoffset|isdate)\\b",
+			"match": "(?i)\\b(sysdatetime|sysdatetimeoffset|sysutcdatetime|current_time(stamp)?|getdate|getutcdate|datename|datepart|day|month|year|datefromparts|datetime2fromparts|datetimefromparts|datetimeoffsetfromparts|smalldatetimefromparts|timefromparts|datediff|dateadd|eomonth|switchoffset|todatetimeoffset|isdate|date_bucket)\\b",
 			"name": "support.function.datetime.sql"
+		},
+		{
+			"match": "(?i)\\b(datalength|ident_current|ident_incr|ident_seed|identity|sql_variant_property)\\b",
+			"name": "support.function.datatype.sql"
 		},
 		{
 			"match": "(?i)\\b(coalesce|nullif)\\b",
@@ -219,7 +231,11 @@
 			"name": "support.function.globalvar.sql"
 		},
 		{
-			"match": "(?i)\\b(choose|iif)\\b",
+			"match": "(?i)\\b(json|isjson|json_object|json_array|json_value|json_query|json_modify|json_path_exists)\\b",
+			"name": "support.function.json.sql"
+		},
+		{
+			"match": "(?i)\\b(choose|iif|greatest|least)\\b",
 			"name": "support.function.logical.sql"
 		},
 		{
@@ -235,7 +251,7 @@
 			"name": "support.function.ranking.sql"
 		},
 		{
-			"match": "(?i)\\b(opendatasource|openrowset|openquery|openxml)\\b",
+			"match": "(?i)\\b(generate_series|opendatasource|openjson|openrowset|openquery|openxml|predict|string_split)\\b",
 			"name": "support.function.rowset.sql"
 		},
 		{

@@ -99,9 +99,7 @@ export interface IProductConfiguration {
 	readonly enableTelemetry?: boolean;
 	readonly openToWelcomeMainPage?: boolean;
 	readonly aiConfig?: {
-		readonly asimovKey: string;
 		readonly ariaKey: string;
-		readonly preferAria: boolean;
 	};
 
 	readonly sendASmile?: {
@@ -155,7 +153,7 @@ export interface IProductConfiguration {
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 
-	readonly 'sessionSync.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
+	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 
 	readonly darwinUniversalAssetId?: string;
 }

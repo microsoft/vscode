@@ -4,55 +4,118 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { findLast } from 'vs/base/common/arrays';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { derived, derivedObservableWithWritableCache, IObservable, IReader, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
+import { Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { derivedObservable, derivedObservableWithWritableCache, IReader, ITransaction, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { ModifiedBaseRange, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
+import { BaseCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/baseCodeEditorView';
 import { CodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/codeEditorView';
 import { InputCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/inputCodeEditorView';
 import { ResultCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/resultCodeEditorView';
 
-export class MergeEditorViewModel {
+export class MergeEditorViewModel extends Disposable {
+	private readonly manuallySetActiveModifiedBaseRange = observableValue<
+		{ range: ModifiedBaseRange | undefined; counter: number }
+	>('manuallySetActiveModifiedBaseRange', { range: undefined, counter: 0 });
+
+	constructor(
+		public readonly model: MergeEditorModel,
+		public readonly inputCodeEditorView1: InputCodeEditorView,
+		public readonly inputCodeEditorView2: InputCodeEditorView,
+		public readonly resultCodeEditorView: ResultCodeEditorView,
+		public readonly baseCodeEditorView: IObservable<BaseCodeEditorView | undefined>,
+	) {
+		super();
+
+		this._register(resultCodeEditorView.editor.onDidChangeModelContent(e => {
+			transaction(tx => {
+				/** @description Mark conflicts touched by manual edits as handled */
+				for (const change of e.changes) {
+					const rangeInBase = this.model.translateResultRangeToBase(Range.lift(change.range));
+					const baseRanges = this.model.findModifiedBaseRangesInRange(new LineRange(rangeInBase.startLineNumber, rangeInBase.endLineNumber - rangeInBase.startLineNumber));
+					if (baseRanges.length === 1) {
+						this.model.setHandled(baseRanges[0], true, tx);
+					}
+				}
+			});
+		}));
+	}
+
+	private counter = 0;
 	private readonly lastFocusedEditor = derivedObservableWithWritableCache<
-		CodeEditorView | undefined
+		{ view: CodeEditorView | undefined; counter: number }
 	>('lastFocusedEditor', (reader, lastValue) => {
 		const editors = [
 			this.inputCodeEditorView1,
 			this.inputCodeEditorView2,
 			this.resultCodeEditorView,
+			this.baseCodeEditorView.read(reader),
 		];
-		return editors.find((e) => e.isFocused.read(reader)) || lastValue;
+		const view = editors.find((e) => e && e.isFocused.read(reader));
+		return view ? { view, counter: this.counter++ } : lastValue || { view: undefined, counter: this.counter++ };
 	});
 
-	private readonly manuallySetActiveModifiedBaseRange = new ObservableValue<
-		ModifiedBaseRange | undefined
-	>(undefined, 'manuallySetActiveModifiedBaseRange');
+	public readonly selectionInBase = derived('selectionInBase', (reader) => {
+		const sourceEditor = this.lastFocusedEditor.read(reader).view;
+		if (!sourceEditor) {
+			return undefined;
+		}
+		const selections = sourceEditor.selection.read(reader) || [];
 
-	private getRange(editor: CodeEditorView, modifiedBaseRange: ModifiedBaseRange, reader: IReader | undefined): LineRange {
+		const rangesInBase = selections.map((selection) => {
+			if (sourceEditor === this.inputCodeEditorView1) {
+				return this.model.translateInputRangeToBase(1, selection);
+			} else if (sourceEditor === this.inputCodeEditorView2) {
+				return this.model.translateInputRangeToBase(2, selection);
+			} else if (sourceEditor === this.resultCodeEditorView) {
+				return this.model.translateResultRangeToBase(selection);
+			} else if (sourceEditor === this.baseCodeEditorView.read(reader)) {
+				return selection;
+			} else {
+				return selection;
+			}
+		});
+
+		return {
+			rangesInBase,
+			sourceEditor
+		};
+	});
+
+	private getRangeOfModifiedBaseRange(editor: CodeEditorView, modifiedBaseRange: ModifiedBaseRange, reader: IReader | undefined): LineRange {
 		if (editor === this.resultCodeEditorView) {
-			return this.model.getRangeInResult(modifiedBaseRange.baseRange, reader);
+			return this.model.getLineRangeInResult(modifiedBaseRange.baseRange, reader);
+		} else if (editor === this.baseCodeEditorView.get()) {
+			return modifiedBaseRange.baseRange;
 		} else {
 			const input = editor === this.inputCodeEditorView1 ? 1 : 2;
 			return modifiedBaseRange.getInputRange(input);
 		}
 	}
 
-	public readonly activeModifiedBaseRange = derivedObservable(
+	public readonly activeModifiedBaseRange = derived(
 		'activeModifiedBaseRange',
 		(reader) => {
 			const focusedEditor = this.lastFocusedEditor.read(reader);
-			if (!focusedEditor) {
-				return this.manuallySetActiveModifiedBaseRange.read(reader);
+			const manualRange = this.manuallySetActiveModifiedBaseRange.read(reader);
+			if (manualRange.counter > focusedEditor.counter) {
+				return manualRange.range;
 			}
-			const cursorLineNumber = focusedEditor.cursorLineNumber.read(reader);
+
+			if (!focusedEditor.view) {
+				return;
+			}
+			const cursorLineNumber = focusedEditor.view.cursorLineNumber.read(reader);
 			if (!cursorLineNumber) {
 				return undefined;
 			}
 
 			const modifiedBaseRanges = this.model.modifiedBaseRanges.read(reader);
 			return modifiedBaseRanges.find((r) => {
-				const range = this.getRange(focusedEditor, r, reader);
+				const range = this.getRangeOfModifiedBaseRange(focusedEditor.view!, r, reader);
 				return range.isEmpty
 					? range.startLineNumber === cursorLineNumber
 					: range.contains(cursorLineNumber);
@@ -60,71 +123,64 @@ export class MergeEditorViewModel {
 		}
 	);
 
-	constructor(
-		public readonly model: MergeEditorModel,
-		private readonly inputCodeEditorView1: InputCodeEditorView,
-		private readonly inputCodeEditorView2: InputCodeEditorView,
-		private readonly resultCodeEditorView: ResultCodeEditorView
-	) { }
-
 	public setState(
 		baseRange: ModifiedBaseRange,
 		state: ModifiedBaseRangeState,
 		tx: ITransaction
 	): void {
-		this.manuallySetActiveModifiedBaseRange.set(baseRange, tx);
-		this.lastFocusedEditor.clearCache(tx);
+		this.manuallySetActiveModifiedBaseRange.set({ range: baseRange, counter: this.counter++ }, tx);
 		this.model.setState(baseRange, state, true, tx);
 	}
 
 	private goToConflict(getModifiedBaseRange: (editor: CodeEditorView, curLineNumber: number) => ModifiedBaseRange | undefined): void {
-		const lastFocusedEditor = this.lastFocusedEditor.get();
-		if (!lastFocusedEditor) {
-			return;
+		let editor = this.lastFocusedEditor.get().view;
+		if (!editor) {
+			editor = this.resultCodeEditorView;
 		}
-		const curLineNumber = lastFocusedEditor.editor.getPosition()?.lineNumber;
+		const curLineNumber = editor.editor.getPosition()?.lineNumber;
 		if (curLineNumber === undefined) {
 			return;
 		}
-		const modifiedBaseRange = getModifiedBaseRange(lastFocusedEditor, curLineNumber);
+		const modifiedBaseRange = getModifiedBaseRange(editor, curLineNumber);
 		if (modifiedBaseRange) {
-			const range = this.getRange(lastFocusedEditor, modifiedBaseRange, undefined);
-			lastFocusedEditor.editor.setPosition({
+			const range = this.getRangeOfModifiedBaseRange(editor, modifiedBaseRange, undefined);
+			editor.editor.focus();
+			editor.editor.setPosition({
 				lineNumber: range.startLineNumber,
-				column: lastFocusedEditor.editor.getModel()!.getLineFirstNonWhitespaceColumn(range.startLineNumber),
+				column: editor.editor.getModel()!.getLineFirstNonWhitespaceColumn(range.startLineNumber),
 			});
-			lastFocusedEditor.editor.revealLinesNearTop(range.startLineNumber, range.endLineNumberExclusive, ScrollType.Smooth);
+			editor.editor.revealLinesNearTop(range.startLineNumber, range.endLineNumberExclusive, ScrollType.Smooth);
 		}
 	}
 
-	public goToNextModifiedBaseRange(onlyConflicting: boolean): void {
+	public goToNextModifiedBaseRange(predicate: (m: ModifiedBaseRange) => boolean): void {
 		this.goToConflict(
 			(e, l) =>
 				this.model.modifiedBaseRanges
 					.get()
 					.find(
 						(r) =>
-							(!onlyConflicting || r.isConflicting) &&
-							this.getRange(e, r, undefined).startLineNumber > l
+							predicate(r) &&
+							this.getRangeOfModifiedBaseRange(e, r, undefined).startLineNumber > l
 					) ||
 				this.model.modifiedBaseRanges
 					.get()
-					.find((r) => !onlyConflicting || r.isConflicting)
+					.find((r) => predicate(r))
 		);
 	}
 
-	public goToPreviousModifiedBaseRange(onlyConflicting: boolean): void {
+	public goToPreviousModifiedBaseRange(predicate: (m: ModifiedBaseRange) => boolean): void {
 		this.goToConflict(
 			(e, l) =>
 				findLast(
 					this.model.modifiedBaseRanges.get(),
 					(r) =>
-						(!onlyConflicting || r.isConflicting) &&
-						this.getRange(e, r, undefined).endLineNumberExclusive < l
+						predicate(r) &&
+						this.getRangeOfModifiedBaseRange(e, r, undefined).endLineNumberExclusive < l
 				) ||
 				findLast(
 					this.model.modifiedBaseRanges.get(),
-					(r) => !onlyConflicting || r.isConflicting
+					(r) => predicate(r)
 				)
 		);
 	}
@@ -141,6 +197,19 @@ export class MergeEditorViewModel {
 				this.model.getState(activeModifiedBaseRange).get().toggle(inputNumber),
 				tx
 			);
+		});
+	}
+
+	public acceptAll(inputNumber: 1 | 2): void {
+		transaction(tx => {
+			/** @description Toggle Active Conflict */
+			for (const range of this.model.modifiedBaseRanges.get()) {
+				this.setState(
+					range,
+					this.model.getState(range).get().withInputValue(inputNumber, true),
+					tx
+				);
+			}
 		});
 	}
 }

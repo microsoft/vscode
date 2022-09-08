@@ -6,34 +6,55 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
+import { ILocalizedString } from 'vs/platform/action/common/action';
+import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IResourceMergeEditorInput } from 'vs/workbench/common/editor';
+import { MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
-import { ctxIsMergeEditor, ctxMergeEditorLayout } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
+import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+
+abstract class MergeEditorAction extends Action2 {
+	constructor(desc: Readonly<IAction2Options>) {
+		super(desc);
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const { activeEditorPane } = accessor.get(IEditorService);
+		if (activeEditorPane instanceof MergeEditor) {
+			const vm = activeEditorPane.viewModel.get();
+			if (!vm) {
+				return;
+			}
+			this.runWithViewModel(vm, accessor);
+		}
+	}
+
+	abstract runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void;
+}
 
 export class OpenMergeEditor extends Action2 {
 	constructor() {
 		super({
 			id: '_open.mergeEditor',
-			title: localize('title', "Open Merge Editor"),
+			title: { value: localize('title', "Open Merge Editor"), original: 'Open Merge Editor' },
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const validatedArgs = IRelaxedOpenArgs.validate(args[0]);
 
-		const instaService = accessor.get(IInstantiationService);
-		const input = instaService.createInstance(
-			MergeEditorInput,
-			validatedArgs.base,
-			validatedArgs.input1,
-			validatedArgs.input2,
-			validatedArgs.output,
-		);
-		accessor.get(IEditorService).openEditor(input, { preserveFocus: true });
+		const input: IResourceMergeEditorInput = {
+			base: { resource: validatedArgs.base },
+			input1: { resource: validatedArgs.input1.uri, label: validatedArgs.input1.title, description: validatedArgs.input1.description, detail: validatedArgs.input1.detail },
+			input2: { resource: validatedArgs.input2.uri, label: validatedArgs.input2.title, description: validatedArgs.input2.description, detail: validatedArgs.input2.detail },
+			result: { resource: validatedArgs.output },
+			options: { preserveFocus: true }
+		};
+		accessor.get(IEditorService).openEditor(input);
 	}
 }
 
@@ -111,14 +132,19 @@ export class SetMixedLayout extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.mixedLayout',
-			title: localize('layout.mixed', "Mixed Layout"),
+			title: {
+				value: localize('layout.mixed', 'Mixed Layout'),
+				original: 'Mixed Layout',
+			},
 			toggled: ctxMergeEditorLayout.isEqualTo('mixed'),
-			menu: [{
-				id: MenuId.EditorTitle,
-				when: ctxIsMergeEditor,
-				group: '1_merge',
-				order: 9,
-			}],
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ctxIsMergeEditor,
+					group: '1_merge',
+					order: 9,
+				},
+			],
 			precondition: ctxIsMergeEditor,
 		});
 	}
@@ -126,7 +152,7 @@ export class SetMixedLayout extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
-			activeEditorPane.setLayout('mixed');
+			activeEditorPane.setLayoutKind('mixed');
 		}
 	}
 }
@@ -135,7 +161,7 @@ export class SetColumnLayout extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.columnLayout',
-			title: localize('layout.column', "Column Layout"),
+			title: { value: localize('layout.column', "Column Layout"), original: 'Column Layout' },
 			toggled: ctxMergeEditorLayout.isEqualTo('columns'),
 			menu: [{
 				id: MenuId.EditorTitle,
@@ -150,155 +176,358 @@ export class SetColumnLayout extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
-			activeEditorPane.setLayout('columns');
+			activeEditorPane.setLayoutKind('columns');
 		}
 	}
 }
 
-export class GoToNextConflict extends Action2 {
+export class ShowHideBase extends Action2 {
 	constructor() {
 		super({
-			id: 'merge.goToNextConflict',
-			category: localize('mergeEditor', "Merge Editor"),
-			title: localize('merge.goToNextConflict', "Go to Next Conflict"),
+			id: 'merge.showBase',
+			title: {
+				value: localize('layout.showBase', 'Show Base'),
+				original: 'Show Base',
+			},
+			toggled: ctxMergeEditorShowBase.isEqualTo(true),
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ctxIsMergeEditor,
+					group: '2_merge',
+					order: 9,
+				},
+			],
+			precondition: ctxIsMergeEditor,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const { activeEditorPane } = accessor.get(IEditorService);
+		if (activeEditorPane instanceof MergeEditor) {
+			activeEditorPane.toggleBase();
+		}
+	}
+}
+
+const mergeEditorCategory: ILocalizedString = {
+	value: localize('mergeEditor', 'Merge Editor'),
+	original: 'Merge Editor',
+};
+
+export class OpenResultResource extends MergeEditorAction {
+	constructor() {
+		super({
+			id: 'merge.openResult',
+			icon: Codicon.goToFile,
+			title: {
+				value: localize('openfile', 'Open File'),
+				original: 'Open File',
+			},
+			category: mergeEditorCategory,
+			menu: [{
+				id: MenuId.EditorTitle,
+				when: ctxIsMergeEditor,
+				group: 'navigation',
+				order: 1,
+			}],
+			precondition: ctxIsMergeEditor,
+		});
+	}
+
+	override runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void {
+		const editorService = accessor.get(IEditorService);
+		editorService.openEditor({ resource: viewModel.model.resultTextModel.uri });
+	}
+}
+
+export class GoToNextUnhandledConflict extends MergeEditorAction {
+	constructor() {
+		super({
+			id: 'merge.goToNextUnhandledConflict',
+			category: mergeEditorCategory,
+			title: {
+				value: localize('merge.goToNextUnhandledConflict', 'Go to Next Unhandled Conflict'),
+				original: 'Go to Next Unhandled Conflict',
+			},
 			icon: Codicon.arrowDown,
-			menu: [{
-				id: MenuId.EditorTitle,
-				when: ctxIsMergeEditor,
-				group: 'navigation',
-			}],
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ctxIsMergeEditor,
+					group: 'navigation',
+					order: 3
+				},
+			],
 			f1: true,
 			precondition: ctxIsMergeEditor,
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const { activeEditorPane } = accessor.get(IEditorService);
-		if (activeEditorPane instanceof MergeEditor) {
-			activeEditorPane.viewModel.get()?.goToNextModifiedBaseRange(true);
-		}
+	override runWithViewModel(viewModel: MergeEditorViewModel): void {
+		viewModel.goToNextModifiedBaseRange(r => !viewModel.model.isHandled(r).get());
 	}
 }
 
-export class GoToPreviousConflict extends Action2 {
+export class GoToPreviousUnhandledConflict extends MergeEditorAction {
 	constructor() {
 		super({
-			id: 'merge.goToPreviousConflict',
-			category: localize('mergeEditor', "Merge Editor"),
-			title: localize('merge.goToPreviousConflict', "Go to Previous Conflict"),
+			id: 'merge.goToPreviousUnhandledConflict',
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'merge.goToPreviousUnhandledConflict',
+					'Go to Previous Unhandled Conflict'
+				),
+				original: 'Go to Previous Unhandled Conflict',
+			},
 			icon: Codicon.arrowUp,
-			menu: [{
-				id: MenuId.EditorTitle,
-				when: ctxIsMergeEditor,
-				group: 'navigation',
-			}],
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ctxIsMergeEditor,
+					group: 'navigation',
+					order: 2
+				},
+			],
 			f1: true,
 			precondition: ctxIsMergeEditor,
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const { activeEditorPane } = accessor.get(IEditorService);
-		if (activeEditorPane instanceof MergeEditor) {
-			activeEditorPane.viewModel.get()?.goToPreviousModifiedBaseRange(true);
-		}
+	override runWithViewModel(viewModel: MergeEditorViewModel): void {
+		viewModel.goToPreviousModifiedBaseRange(r => !viewModel.model.isHandled(r).get());
 	}
 }
 
-export class ToggleActiveConflictInput1 extends Action2 {
+export class ToggleActiveConflictInput1 extends MergeEditorAction {
 	constructor() {
 		super({
 			id: 'merge.toggleActiveConflictInput1',
-			category: localize('mergeEditor', "Merge Editor"),
-			title: localize('merge.toggleCurrentConflictFromLeft', "Toggle Current Conflict from Left"),
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'merge.toggleCurrentConflictFromLeft',
+					'Toggle Current Conflict from Left'
+				),
+				original: 'Toggle Current Conflict from Left',
+			},
 			f1: true,
 			precondition: ctxIsMergeEditor,
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const { activeEditorPane } = accessor.get(IEditorService);
-		if (activeEditorPane instanceof MergeEditor) {
-			const vm = activeEditorPane.viewModel.get();
-			if (!vm) {
-				return;
-			}
-			vm.toggleActiveConflict(1);
-		}
+	override runWithViewModel(viewModel: MergeEditorViewModel): void {
+		viewModel.toggleActiveConflict(1);
 	}
 }
 
-export class ToggleActiveConflictInput2 extends Action2 {
+export class ToggleActiveConflictInput2 extends MergeEditorAction {
 	constructor() {
 		super({
 			id: 'merge.toggleActiveConflictInput2',
-			category: localize('mergeEditor', "Merge Editor"),
-			title: localize('merge.toggleCurrentConflictFromRight', "Toggle Current Conflict from Right"),
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'merge.toggleCurrentConflictFromRight',
+					'Toggle Current Conflict from Right'
+				),
+				original: 'Toggle Current Conflict from Right',
+			},
 			f1: true,
 			precondition: ctxIsMergeEditor,
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const { activeEditorPane } = accessor.get(IEditorService);
-		if (activeEditorPane instanceof MergeEditor) {
-			const vm = activeEditorPane.viewModel.get();
-			if (!vm) {
-				return;
-			}
-			vm.toggleActiveConflict(2);
-		}
+	override runWithViewModel(viewModel: MergeEditorViewModel): void {
+		viewModel.toggleActiveConflict(2);
 	}
 }
 
-export class CompareInput1WithBaseCommand extends Action2 {
+export class CompareInput1WithBaseCommand extends MergeEditorAction {
 	constructor() {
 		super({
 			id: 'mergeEditor.compareInput1WithBase',
-			category: localize('mergeEditor', "Merge Editor"),
-			title: localize('mergeEditor.compareInput1WithBase', "Compare Input 1 With Base"),
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'mergeEditor.compareInput1WithBase',
+					'Compare Input 1 With Base'
+				),
+				original: 'Compare Input 1 With Base',
+			},
+			shortTitle: localize('mergeEditor.compareWithBase', 'Compare With Base'),
 			f1: true,
 			precondition: ctxIsMergeEditor,
+			menu: { id: MenuId.MergeInput1Toolbar }
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: unknown[]): void {
+
+	override runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void {
 		const editorService = accessor.get(IEditorService);
-		const commandService = accessor.get(ICommandService);
-		mergeEditorCompare(editorService, commandService, 1);
+		mergeEditorCompare(viewModel, editorService, 1);
 	}
 }
 
-export class CompareInput2WithBaseCommand extends Action2 {
+export class CompareInput2WithBaseCommand extends MergeEditorAction {
 	constructor() {
 		super({
 			id: 'mergeEditor.compareInput2WithBase',
-			category: localize('mergeEditor', "Merge Editor"),
-			title: localize('mergeEditor.compareInput2WithBase', "Compare Input 2 With Base"),
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'mergeEditor.compareInput2WithBase',
+					'Compare Input 2 With Base'
+				),
+				original: 'Compare Input 2 With Base',
+			},
+			shortTitle: localize('mergeEditor.compareWithBase', 'Compare With Base'),
+			f1: true,
+			precondition: ctxIsMergeEditor,
+			menu: { id: MenuId.MergeInput2Toolbar }
+		});
+	}
+
+	override runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void {
+		const editorService = accessor.get(IEditorService);
+		mergeEditorCompare(viewModel, editorService, 2);
+	}
+}
+
+async function mergeEditorCompare(viewModel: MergeEditorViewModel, editorService: IEditorService, inputNumber: 1 | 2) {
+	const model = viewModel.model;
+	const base = model.base;
+	const input = inputNumber === 1 ? viewModel.inputCodeEditorView1.editor : viewModel.inputCodeEditorView2.editor;
+
+	const lineNumber = input.getPosition()!.lineNumber;
+	await editorService.openEditor({
+		original: { resource: base.uri },
+		modified: { resource: input.getModel()!.uri },
+		options: {
+			selection: {
+				startLineNumber: lineNumber,
+				startColumn: 1,
+			},
+			revealIfOpened: true,
+			revealIfVisible: true,
+		} as ITextEditorOptions
+	});
+}
+
+export class OpenBaseFile extends MergeEditorAction {
+	constructor() {
+		super({
+			id: 'merge.openBaseEditor',
+			category: mergeEditorCategory,
+			title: {
+				value: localize('merge.openBaseEditor', 'Open Base File'),
+				original: 'Open Base File',
+			},
 			f1: true,
 			precondition: ctxIsMergeEditor,
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: unknown[]): void {
-		const editorService = accessor.get(IEditorService);
-		const commandService = accessor.get(ICommandService);
-		mergeEditorCompare(editorService, commandService, 2);
+
+	override runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void {
+		const openerService = accessor.get(IOpenerService);
+		openerService.open(viewModel.model.base.uri);
 	}
 }
 
-function mergeEditorCompare(editorService: IEditorService, commandService: ICommandService, inputNumber: 1 | 2) {
-	const { activeEditorPane } = editorService;
-	if (activeEditorPane instanceof MergeEditor) {
-		if (!activeEditorPane.model) {
-			return;
-		}
+export class AcceptAllInput1 extends MergeEditorAction {
+	constructor() {
+		super({
+			id: 'merge.acceptAllInput1',
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'merge.acceptAllInput1',
+					'Accept All Changes from Left'
+				),
+				original: 'Accept All Changes from Left',
+			},
+			f1: true,
+			precondition: ctxIsMergeEditor,
+			menu: [
+				{ id: MenuId.MergeInput1Toolbar, }
+			]
+		});
+	}
 
-		const base = activeEditorPane.model.base.uri;
-		const input = inputNumber === 1 ? activeEditorPane.model.input1.uri : activeEditorPane.model.input2.uri;
-
-		openDiffEditor(commandService, base, input);
+	override runWithViewModel(viewModel: MergeEditorViewModel): void {
+		viewModel.acceptAll(1);
 	}
 }
 
-function openDiffEditor(commandService: ICommandService, left: URI, right: URI, label?: string) {
-	commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, left, right, label);
+export class AcceptAllInput2 extends MergeEditorAction {
+	constructor() {
+		super({
+			id: 'merge.acceptAllInput2',
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'merge.acceptAllInput2',
+					'Accept All Changes from Right'
+				),
+				original: 'Accept All Changes from Right',
+			},
+			f1: true,
+			precondition: ctxIsMergeEditor,
+			menu: [
+				{ id: MenuId.MergeInput2Toolbar, }
+			]
+		});
+	}
+
+	override runWithViewModel(viewModel: MergeEditorViewModel): void {
+		viewModel.acceptAll(2);
+	}
+}
+
+export class ResetToBaseAndAutoMergeCommand extends MergeEditorAction {
+	constructor() {
+		super({
+			id: 'mergeEditor.resetResultToBaseAndAutoMerge',
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'mergeEditor.resetResultToBaseAndAutoMerge',
+					'Reset Result'
+				),
+				original: 'Reset Result',
+			},
+			shortTitle: localize('mergeEditor.resetResultToBaseAndAutoMerge.short', 'Reset'),
+			f1: true,
+			precondition: ctxIsMergeEditor,
+			menu: { id: MenuId.MergeInputResultToolbar }
+		});
+	}
+
+	override runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void {
+		viewModel.model.resetResultToBaseAndAutoMerge();
+	}
+}
+
+export class ResetDirtyConflictsToBaseCommand extends MergeEditorAction {
+	constructor() {
+		super({
+			id: 'mergeEditor.resetDirtyConflictsToBase',
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'mergeEditor.resetDirtyConflictsToBase',
+					'Reset Dirty Conflicts In Result To Base'
+				),
+				original: 'Reset Dirty Conflicts In Result To Base',
+			},
+			shortTitle: localize('mergeEditor.resetDirtyConflictsToBase.short', 'Reset Dirty Conflicts To Base'),
+			f1: true,
+			precondition: ctxIsMergeEditor,
+			menu: { id: MenuId.MergeInputResultToolbar }
+		});
+	}
+
+	override runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void {
+		viewModel.model.resetDirtyConflictsToBase();
+	}
 }

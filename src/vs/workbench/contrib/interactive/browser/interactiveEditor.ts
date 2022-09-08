@@ -22,9 +22,9 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorPaneSelectionChangeReason, IEditorMemento, IEditorOpenContext, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
-import { ICellViewModel, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, INotebookEditorOptions, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
+import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { cellEditorBackground, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
@@ -33,9 +33,8 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
+import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
-import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -57,6 +56,8 @@ import { ITextEditorOptions, TextEditorSelectionSource } from 'vs/platform/edito
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NOTEBOOK_KERNEL } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { isEqual } from 'vs/base/common/resources';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -97,11 +98,13 @@ export class InteractiveEditor extends EditorPane {
 	#contextMenuService: IContextMenuService;
 	#editorGroupService: IEditorGroupsService;
 	#notebookExecutionStateService: INotebookExecutionStateService;
+	#extensionService: IExtensionService;
 	#widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	#dimension?: DOM.Dimension;
 	#notebookOptions: NotebookOptions;
 	#editorMemento: IEditorMemento<InteractiveEditorViewState>;
 	#groupListener = this._register(new DisposableStore());
+	#runbuttonToolbar: ToolBar | undefined;
 
 	#onDidFocusWidget = this._register(new Emitter<void>());
 	override get onDidFocus(): Event<void> { return this.#onDidFocusWidget.event; }
@@ -124,7 +127,8 @@ export class InteractiveEditor extends EditorPane {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService
+		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		super(
 			InteractiveEditor.ID,
@@ -142,6 +146,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#contextMenuService = contextMenuService;
 		this.#editorGroupService = editorGroupService;
 		this.#notebookExecutionStateService = notebookExecutionStateService;
+		this.#extensionService = extensionService;
 
 		this.#notebookOptions = new NotebookOptions(configurationService, notebookExecutionStateService, { cellToolbarInteraction: 'hover', globalToolbar: true, defaultCellCollapseConfig: { codeCell: { inputCollapsed: true } } });
 		this.#editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
@@ -149,9 +154,11 @@ export class InteractiveEditor extends EditorPane {
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
 		this._register(this.#keybindingService.onDidUpdateKeybindings(this.#updateInputDecoration, this));
 		this._register(this.#notebookExecutionStateService.onDidChangeCellExecution((e) => {
-			const cell = this.#notebookWidget.value?.getCellByHandle(e.cellHandle);
-			if (cell && e.changed?.state) {
-				this.#scrollIfNecessary(cell);
+			if (isEqual(e.notebook, this.#notebookWidget.value?.viewModel?.notebookDocument.uri)) {
+				const cell = this.#notebookWidget.value?.getCellByHandle(e.cellHandle);
+				if (cell && e.changed?.state) {
+					this.#scrollIfNecessary(cell);
+				}
 			}
 		}));
 	}
@@ -180,7 +187,7 @@ export class InteractiveEditor extends EditorPane {
 
 	#setupRunButtonToolbar(runButtonContainer: HTMLElement) {
 		const menu = this._register(this.#menuService.createMenu(MenuId.InteractiveInputExecute, this.#contextKeyService));
-		const toolbar = this._register(new ToolBar(runButtonContainer, this.#contextMenuService, {
+		this.#runbuttonToolbar = this._register(new ToolBar(runButtonContainer, this.#contextMenuService, {
 			getKeyBinding: action => this.#keybindingService.lookupKeybinding(action.id),
 			actionViewItemProvider: action => {
 				return createActionViewItem(this.#instantiationService, action);
@@ -193,7 +200,7 @@ export class InteractiveEditor extends EditorPane {
 		const result = { primary, secondary };
 
 		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result);
-		toolbar.setActions([...primary, ...secondary]);
+		this.#runbuttonToolbar.setActions([...primary, ...secondary]);
 	}
 
 	#createLayoutStyles(): void {
@@ -310,13 +317,9 @@ export class InteractiveEditor extends EditorPane {
 
 		// there currently is a widget which we still own so
 		// we need to hide it before getting a new widget
-		if (this.#notebookWidget.value) {
-			this.#notebookWidget.value.onWillHide();
-		}
+		this.#notebookWidget.value?.onWillHide();
 
-		if (this.#codeEditorWidget) {
-			this.#codeEditorWidget.dispose();
-		}
+		this.#codeEditorWidget?.dispose();
 
 		this.#widgetDisposableStore.clear();
 
@@ -330,6 +333,7 @@ export class InteractiveEditor extends EditorPane {
 			menuIds: {
 				notebookToolbar: MenuId.InteractiveToolbar,
 				cellTitleToolbar: MenuId.InteractiveCellTitle,
+				cellDeleteToolbar: MenuId.InteractiveCellDelete,
 				cellInsertToolbar: MenuId.NotebookCellBetween,
 				cellTopInsertToolbar: MenuId.NotebookCellListTop,
 				cellExecuteToolbar: MenuId.InteractiveCellExecute,
@@ -389,6 +393,9 @@ export class InteractiveEditor extends EditorPane {
 
 		await super.setInput(input, options, context, token);
 		const model = await input.resolve();
+		if (this.#runbuttonToolbar) {
+			this.#runbuttonToolbar.context = input.resource;
+		}
 
 		if (model === null) {
 			throw new Error('?');
@@ -397,6 +404,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookWidget.value?.setParentContextKeyService(this.#contextKeyService);
 
 		const viewState = options?.viewState ?? this.#loadNotebookEditorViewState(input);
+		await this.#extensionService.whenInstalledExtensionsRegistered();
 		await this.#notebookWidget.value!.setModel(model.notebook, viewState?.notebook);
 		model.notebook.setCellCollapseDefault(this.#notebookOptions.getCellCollapseDefault());
 		this.#notebookWidget.value!.setOptions({
@@ -501,6 +509,11 @@ export class InteractiveEditor extends EditorPane {
 		this.#syncWithKernel();
 	}
 
+	override setOptions(options: INotebookEditorOptions | undefined): void {
+		this.#notebookWidget.value?.setOptions(options);
+		super.setOptions(options);
+	}
+
 	#toEditorPaneSelectionChangeReason(e: ICursorPositionChangedEvent): EditorPaneSelectionChangeReason {
 		switch (e.source) {
 			case TextEditorSelectionSource.PROGRAMMATIC: return EditorPaneSelectionChangeReason.PROGRAMMATIC;
@@ -523,7 +536,7 @@ export class InteractiveEditor extends EditorPane {
 		const index = this.#notebookWidget.value!.getCellIndex(cvm);
 		if (index === this.#notebookWidget.value!.getLength() - 1) {
 			// If we're already at the bottom or auto scroll is enabled, scroll to the bottom
-			if (this.configurationService.getValue<boolean>(NotebookSetting.interactiveWindowAlwaysScrollOnNewCell) || this.#cellAtBottom(cvm)) {
+			if (this.configurationService.getValue<boolean>(InteractiveWindowSetting.interactiveWindowAlwaysScrollOnNewCell) || this.#cellAtBottom(cvm)) {
 				this.#notebookWidget.value!.scrollToBottom();
 			}
 		}
@@ -652,9 +665,7 @@ export class InteractiveEditor extends EditorPane {
 			this.#notebookWidget.value.onWillHide();
 		}
 
-		if (this.#codeEditorWidget) {
-			this.#codeEditorWidget.dispose();
-		}
+		this.#codeEditorWidget?.dispose();
 
 		this.#notebookWidget = { value: undefined };
 		this.#widgetDisposableStore.clear();

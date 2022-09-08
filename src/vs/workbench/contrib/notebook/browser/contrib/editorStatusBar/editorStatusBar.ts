@@ -243,7 +243,7 @@ registerAction2(class extends Action2 {
 				quickPickItems.push({
 					id: 'installSuggested',
 					description: suggestedExtension.displayName ?? suggestedExtension.extensionId,
-					label: nls.localize('installSuggestedKernel', '$({0}) Install suggested extensions', Codicon.lightbulb.id),
+					label: `$(${Codicon.lightbulb.id}) ` + nls.localize('installSuggestedKernel', 'Install suggested extensions'),
 				});
 			}
 			// there is no kernel, show the install from marketplace
@@ -516,7 +516,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(KernelStatus, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(KernelStatus, 'KernelStatus', LifecyclePhase.Restored);
 
 export class ActiveCellStatus extends Disposable implements IWorkbenchContribution {
 
@@ -592,4 +592,4 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ActiveCellStatus, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ActiveCellStatus, 'ActiveCellStatus', LifecyclePhase.Restored);

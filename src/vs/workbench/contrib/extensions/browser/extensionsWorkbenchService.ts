@@ -45,8 +45,9 @@ import { isBoolean, isUndefined } from 'vs/base/common/types';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IExtensionService, IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
-import { isWeb } from 'vs/base/common/platform';
-import { GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
+import { isWeb, language } from 'vs/base/common/platform';
+import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
+import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -56,11 +57,12 @@ interface InstalledExtensionsEvent {
 	readonly extensionIds: string;
 	readonly count: number;
 }
-interface ExtensionsLoadClassification extends GDPRClassification<InstalledExtensionsEvent> {
+type ExtensionsLoadClassification = {
 	owner: 'digitarald';
-	readonly extensionIds: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-	readonly count: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-}
+	comment: 'Helps to understand which extensions are the most actively used.';
+	readonly extensionIds: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The list of extension ids that are installed.' };
+	readonly count: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The number of extensions that are installed.' };
+};
 
 export class Extension implements IExtension {
 
@@ -438,7 +440,7 @@ class Extensions extends Disposable {
 		this._register(server.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
 		this._register(server.extensionManagementService.onUninstallExtension(e => this.onUninstallExtension(e.identifier)));
 		this._register(server.extensionManagementService.onDidUninstallExtension(e => this.onDidUninstallExtension(e)));
-		this._register(server.extensionManagementService.onDidChangeProfileExtensions(e => this.onDidChangeProfileExtensions(e.added, e.removed)));
+		this._register(server.extensionManagementService.onDidChangeProfile(e => this.onDidChangeProfile(e.added, e.removed)));
 		this._register(extensionEnablementService.onEnablementChanged(e => this.onEnablementChanged(e)));
 	}
 
@@ -558,7 +560,7 @@ class Extensions extends Disposable {
 		}
 	}
 
-	private async onDidChangeProfileExtensions(added: ILocalExtension[], removed: ILocalExtension[]): Promise<void> {
+	private async onDidChangeProfile(added: ILocalExtension[], removed: ILocalExtension[]): Promise<void> {
 		const extensionsControlManifest = await this.server.extensionManagementService.getExtensionsControlManifest();
 		for (const addedExtension of added) {
 			if (this.installed.find(e => areSameExtensions(e.identifier, addedExtension.identifier))) {
@@ -710,6 +712,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@ILanguagePackService private readonly languagePackService: ILanguagePackService,
+		@ILocaleService private readonly localeService: ILocaleService,
 	) {
 		super();
 		const preferPreReleasesValue = configurationService.getValue('_extensions.preferPreReleases');
@@ -781,7 +785,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 	private _reportTelemetry() {
 		const extensionIds = this.installed.filter(extension =>
-			extension.type === ExtensionType.User &&
+			!extension.isBuiltin &&
 			(extension.enablementState === EnablementState.EnabledWorkspace ||
 				extension.enablementState === EnablementState.EnabledGlobally))
 			.map(extension => ExtensionIdentifier.toKey(extension.identifier.id));
@@ -1246,6 +1250,34 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		return this.installWithProgress(() => this.installFromGallery(extension, gallery, installOptions), gallery.displayName, progressLocation);
+	}
+
+	canSetLanguage(extension: IExtension): boolean {
+		if (!isWeb) {
+			return false;
+		}
+
+		if (!extension.gallery) {
+			return false;
+		}
+
+		const locale = this.languagePackService.getLocale(extension.gallery);
+		if (!locale) {
+			return false;
+		}
+
+		return true;
+	}
+
+	async setLanguage(extension: IExtension): Promise<void> {
+		if (!this.canSetLanguage(extension)) {
+			throw new Error('Can not set language');
+		}
+		const locale = this.languagePackService.getLocale(extension.gallery!);
+		if (locale === language) {
+			return;
+		}
+		return this.localeService.setLocale({ id: locale, galleryExtension: extension.gallery, extensionId: extension.identifier.id, label: extension.displayName });
 	}
 
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void> {

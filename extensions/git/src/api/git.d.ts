@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, Event, Disposable, ProviderResult } from 'vscode';
+import { Uri, Event, Disposable, ProviderResult, Command } from 'vscode';
 export { ProviderResult } from 'vscode';
 
 export interface Git {
@@ -129,8 +129,6 @@ export interface LogOptions {
 	readonly path?: string;
 }
 
-export type PostCommitCommand = 'push' | 'sync' | string;
-
 export interface CommitOptions {
 	all?: boolean | 'tracked';
 	amend?: boolean;
@@ -141,7 +139,7 @@ export interface CommitOptions {
 	requireUserConfig?: boolean;
 	useEditor?: boolean;
 	verbose?: boolean;
-	postCommitCommand?: PostCommitCommand;
+	postCommitCommand?: string;
 }
 
 export interface FetchOptions {
@@ -256,6 +254,12 @@ export interface CredentialsProvider {
 	getCredentials(host: Uri): ProviderResult<Credentials>;
 }
 
+export type CommitCommand = Command & { description?: string };
+
+export interface PostCommitCommandsProvider {
+	getCommands(repository: Repository): CommitCommand[];
+}
+
 export interface PushErrorHandler {
 	handlePushError(repository: Repository, remote: Remote, refspec: string, error: Error & { gitErrorCode: GitErrorCodes }): Promise<boolean>;
 }
@@ -284,6 +288,7 @@ export interface API {
 	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable;
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable;
+	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable;
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable;
 }
 
