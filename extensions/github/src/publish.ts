@@ -10,6 +10,7 @@ import { getOctokit } from './auth';
 import { TextEncoder } from 'util';
 import { basename } from 'path';
 import { Octokit } from '@octokit/rest';
+import { isInCodespaces } from './pushErrorHandler';
 
 const localize = nls.loadMessageBundle();
 
@@ -175,32 +176,40 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 			increment: 25
 		});
 
-		const res = await octokit.repos.createForAuthenticatedUser({
-			name: repo!,
-			private: isPrivate
-		});
+		type CreateRepositoryResponseData = Awaited<ReturnType<typeof octokit.repos.createForAuthenticatedUser>>['data'];
+		let createdGithubRepository: CreateRepositoryResponseData | undefined = undefined;
 
-		const createdGithubRepository = res.data;
-
-		progress.report({ message: localize('publishing_firstcommit', "Creating first commit"), increment: 25 });
-
-		if (!repository) {
-			repository = await gitAPI.init(folder) || undefined;
-
-			if (!repository) {
-				return;
-			}
-
-			await repository.commit('first commit', { all: true });
+		if (isInCodespaces()) {
+			createdGithubRepository = await vscode.commands.executeCommand<CreateRepositoryResponseData>('github.codespaces.publish', { name: repo!, isPrivate });
+		} else {
+			const res = await octokit.repos.createForAuthenticatedUser({
+				name: repo!,
+				private: isPrivate
+			});
+			createdGithubRepository = res.data;
 		}
 
-		progress.report({ message: localize('publishing_uploading', "Uploading files"), increment: 25 });
+		if (createdGithubRepository) {
+			progress.report({ message: localize('publishing_firstcommit', "Creating first commit"), increment: 25 });
 
-		const branch = await repository.getBranch('HEAD');
-		const protocol = vscode.workspace.getConfiguration('github').get<'https' | 'ssh'>('gitProtocol');
-		const remoteUrl = protocol === 'https' ? createdGithubRepository.clone_url : createdGithubRepository.ssh_url;
-		await repository.addRemote('origin', remoteUrl);
-		await repository.push('origin', branch.name, true);
+			if (!repository) {
+				repository = await gitAPI.init(folder) || undefined;
+
+				if (!repository) {
+					return;
+				}
+
+				await repository.commit('first commit', { all: true });
+			}
+
+			progress.report({ message: localize('publishing_uploading', "Uploading files"), increment: 25 });
+
+			const branch = await repository.getBranch('HEAD');
+			const protocol = vscode.workspace.getConfiguration('github').get<'https' | 'ssh'>('gitProtocol');
+			const remoteUrl = protocol === 'https' ? createdGithubRepository.clone_url : createdGithubRepository.ssh_url;
+			await repository.addRemote('origin', remoteUrl);
+			await repository.push('origin', branch.name, true);
+		}
 
 		return createdGithubRepository;
 	});
