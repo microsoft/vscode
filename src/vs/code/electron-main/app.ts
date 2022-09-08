@@ -1187,8 +1187,8 @@ export class CodeApplication extends Disposable {
 				case WindowError.UNRESPONSIVE:
 					message = 'SharedProcess: detected unresponsive window';
 					break;
-				case WindowError.CRASHED:
-					message = `SharedProcess: crashed (detail: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`;
+				case WindowError.PROCESS_GONE:
+					message = `SharedProcess: renderer process gone (detail: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`;
 					break;
 				case WindowError.LOAD:
 					message = `SharedProcess: failed to load (detail: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`;
