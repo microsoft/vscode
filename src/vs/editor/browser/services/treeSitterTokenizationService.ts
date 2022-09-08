@@ -12,24 +12,30 @@ import { FileAccess } from 'vs/base/common/network';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TreeSitterParseTree } from './treeSitterParserTree';
 import { Iterable } from 'vs/base/common/iterator';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface ITreeSitterTokenizationService {
 	registerModelTrees(): void;
+	getTreeSitterParseTree(): TreeSitterParseTree;
+	dispose(): void
 }
 
 const ITreeSitterTokenizationService = createDecorator<ITreeSitterTokenizationService>('ITreeSitterTokenizationService');
 
-class TreeSitterTokenizationService implements ITreeSitterTokenizationService {
+export class TreeSitterTokenizationService implements ITreeSitterTokenizationService {
 
 	private _language: Language | undefined;
 	private readonly _disposableStore: DisposableStore = new DisposableStore();
 	private readonly _modelTrees: TreeSitterParseTree[] = [];
+	private _themeService: IThemeService;
 
 	// TODO: When I place the editor inside of the constructor, this throws an error, so presumably I don't need to use the editor
 	constructor(
+		@IThemeService _themeService: IThemeService,
 		@IModelService private readonly _modelService: IModelService
 	) {
 
+		this._themeService = _themeService;
 		init({
 			locateFile(_file: string, _folder: string) {
 				const value = FileAccess.asBrowserUri('../../../../../node_modules/web-tree-sitter/tree-sitter.wasm', require).toString(true);
@@ -45,12 +51,12 @@ class TreeSitterTokenizationService implements ITreeSitterTokenizationService {
 			this.registerModelTrees();
 			this._disposableStore.add(_modelService.onModelAdded((model) => {
 				if (model.getLanguageId() === 'typescript' && this._language) {
-					this._modelTrees.push(new TreeSitterParseTree(model, this._language));
+					this._modelTrees.push(new TreeSitterParseTree(model, this._language, this._themeService));
 				}
 			}));
 			this._disposableStore.add(_modelService.onModelLanguageChanged(({ model, oldLanguageId }) => {
 				if (model.getLanguageId() === 'typescript' && this._language) {
-					this._modelTrees.push(new TreeSitterParseTree(model, this._language));
+					this._modelTrees.push(new TreeSitterParseTree(model, this._language, this._themeService));
 				}
 			}))
 			this._disposableStore.add(_modelService.onModelRemoved((model) => {
@@ -64,11 +70,18 @@ class TreeSitterTokenizationService implements ITreeSitterTokenizationService {
 		});
 	}
 
+	getTreeSitterParseTree(): TreeSitterParseTree {
+		//! for simplicity while testing return the first TreeSitterParseTree
+		//! Requires there to only be one model
+		console.log('this._modelTrees : ', this._modelTrees);
+		return this._modelTrees[0];
+	}
+
 	registerModelTrees() {
 		const models = this._modelService.getModels();
 		for (const model of models) {
 			if (model.getLanguageId() === 'typescript' && this._language) {
-				this._modelTrees.push(new TreeSitterParseTree(model, this._language));
+				this._modelTrees.push(new TreeSitterParseTree(model, this._language, this._themeService));
 			}
 		}
 	}

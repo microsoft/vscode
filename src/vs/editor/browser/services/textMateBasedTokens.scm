@@ -1,6 +1,8 @@
 (comment) @comment.block.ts
 
+
 (string) @string.quoted.double.ts
+
 
 (number) @constant.numeric.decimal.ts
 
@@ -9,86 +11,117 @@
 (method_definition name: (property_identifier) @entity.name.function.ts)
 (call_expression function: (member_expression property: (property_identifier) @entity.name.function.ts))
 (call_expression function: (identifier) @entity.name.function.ts)
+(new_expression constructor: (identifier) @entity.name.function.ts)
 
 [
   "class"
 ] @storage.type.class.ts
 
-
 [
   "const"
   "let"
+] @storage.type.ts
+
+[
   "extends"
   "static"
   "readonly"
-  "new"
-  "interface"
-  "type"
-  "namespace"
-  "keyof"
   "implements"
   "extends"
   "declare"
-  "enum"
   "private"
   "public"
   "readonly"
   "protected"
-] @keywords1
-(member_expression object: (this) @keywords1)
-(call_expression function: (super) @keywords1)
-(undefined) @keywords1
-(function_declaration) @function_declaration
-(method_definition) @method_definition
+] @storage.modifier.ts
+
+[
+  "new"
+] @keyword.operator.new.ts
+
+[
+  "interface"
+] @storage.type.interface.ts
+
+[
+  "type"
+] @storage.type.type.ts
+
+[
+  "namespace"
+] @storage.type.namespace.ts
+
+[
+  "keyof"
+] @keyword.operator.expression.keyof.ts
+
+[
+  "enum"
+] @storage.type.enum.ts
 
 [
 	"import"
+] @keyword.control.import.ts
+
+[
 	"from"
+] @keyword.control.from.ts
+
+[
 	"export"
+] @keyword.control.export.ts
+
+[
 	"while"
+  "for"
+] @keyword.control.loop.ts
+
+[
 	"if"
-	"else"
-	"for"
+  "else"
+] @keyword.control.conditional.ts
+
+[
 	"return"
-] @keywords2
-(await_expression) @await_expression
-(as_expression) @as_expression
+] @keyword.control.flow.ts
 
-(import_specifier name : (identifier) @variable)
-(public_field_definition name: (property_identifier) @variable)
-(assignment_expression left : (member_expression property: (property_identifier) @variable))
-(assignment_expression right: (identifier) @variable)
-(lexical_declaration (variable_declarator name: (identifier) @variable))
-(arguments (identifier) @variable)
-(binary_expression left: (identifier) @variable)
-(binary_expression right: (identifier) @variable)
-(arrow_function parameter: (identifier) @variable)
-(member_expression object: (identifier) @variable property: (property_identifier) @variable)
-(call_expression function: (member_expression object: (identifier) @variable))
-(enum_assignment (property_identifier) @variable)
-(property_signature name: (property_identifier) @variable)
-(required_parameter (identifier) @variable)
-(optional_parameter (identifier) @variable)
-(decorator (identifier) @variable)
-(member_expression property: (property_identifier) @variable)
-(object_pattern (shorthand_property_identifier_pattern) @variable)
-(assignment_expression left: (identifier) @variable)
-(unary_expression argument: (identifier) @variable)
-(variable_declarator value: (identifier) @variable)
-(array_pattern (identifier) @variable)
-(non_null_expression (identifier) @variable)
-(pair key: (property_identifier) @variable value: (identifier) @variable)
-(for_in_statement left: (identifier) @variable)
-(subscript_expression object: (identifier) @variable)
-(augmented_assignment_expression left: (identifier) @variable)
-(pair key: (property_identifier) @variable)
-(object (shorthand_property_identifier) @variable)
-(enum_body (property_identifier) @variable)
 
-(type_annotation (predefined_type) @type)
-(type_identifier) @type
-(enum_declaration name: (identifier) @type)
-(internal_module name: (identifier) @type)
-(new_expression constructor: (identifier) @type)
-(union_type (predefined_type) @type)
-(predefined_type) @type
+(member_expression object: (this) @variable.language.this.ts)
+
+(call_expression function: (super) @variable.language.super.ts)
+
+(undefined) @constant.language.undefined.ts
+
+(public_field_definition name: (property_identifier) @variable.object.property.ts)
+(property_signature name: (property_identifier) @variable.object.property.ts)
+
+(assignment_expression left : (member_expression property: (property_identifier) @variable.other.property.ts))
+
+(member_expression property: (property_identifier) @variable.other.object.property.ts)
+
+(binary_expression left: (identifier) @variable.other.object.ts)
+(call_expression function: (member_expression object: (identifier) @variable.other.object.ts))
+
+(import_specifier name : (identifier) @variable.other.readwrite.alias.ts)
+
+(assignment_expression right: (identifier) @variable.other.readwrite.ts)
+(decorator (identifier) @variable.other.readwrite.ts)
+(arguments (identifier) @variable.other.readwrite.ts)
+(binary_expression right: (identifier) @variable.other.readwrite.ts)
+(assignment_expression left: (identifier) @variable.other.readwrite.ts)
+(unary_expression argument: (identifier) @variable.other.readwrite.ts)
+(variable_declarator value: (identifier) @variable.other.readwrite.ts)
+(for_in_statement left: (identifier) @variable.other.readwrite.ts)
+
+(false) @constant.language.boolean.false.ts
+(true) @constant.language.boolean.true.ts
+
+(arrow_function parameter: (identifier) @variable.parameter.ts)
+(required_parameter (identifier) @variable.parameter.ts)
+(optional_parameter (identifier) @variable.parameter.ts)
+
+(enum_assignment (property_identifier) @variable.other.enummember.ts)
+
+(predefined_type) @support.type.primitive.ts
+
+(type_identifier) @entity.name.type.class.ts
