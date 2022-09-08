@@ -194,7 +194,7 @@ flakySuite('BackupMainService', () => {
 
 		// file with empty contents (2)
 		stateMainService.removeItem('backupWorkspaces');
-		Promises.writeFile(legacyWorkspaceJsonPath, JSON.stringify({
+		await Promises.writeFile(legacyWorkspaceJsonPath, JSON.stringify({
 			rootURIWorkspaces: [],
 			folderWorkspaceInfos: [],
 			emptyWorkspaceInfos: []
