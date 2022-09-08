@@ -56,6 +56,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		if (this._hasRunTasks || !isWorkspaceTrusted || this._configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'off') {
 			return;
 		}
+		this._hasRunTasks = true;
 		const workspaceTasks = await this._taskService.getWorkspaceTasks(TaskRunSource.FolderOpen);
 		this._logService.trace(`RunAutomaticTasks: Found ${workspaceTasks.size} automatic tasks`);
 		await this._runWithPermission(this._taskService, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, workspaceTasks);
@@ -73,7 +74,6 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 				taskService.run(task);
 			}
 		});
-		this._hasRunTasks = true;
 	}
 
 	private _getTaskSource(source: TaskSource): URI | undefined {
