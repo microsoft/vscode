@@ -833,7 +833,7 @@ export class Repository implements Disposable {
 			this.inputBox.value = rebaseCommit.message;
 		}
 
-		const shouldUpdateContext = !!this._rebaseCommit != !!rebaseCommit;
+		const shouldUpdateContext = !!this._rebaseCommit !== !!rebaseCommit;
 		this._rebaseCommit = rebaseCommit;
 
 		if (shouldUpdateContext) {
