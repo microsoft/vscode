@@ -21,7 +21,7 @@ import { IKeyMods, IQuickPickItemWithResource } from 'vs/platform/quickinput/com
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { getSelectionSearchString } from 'vs/editor/contrib/find/browser/findController';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { prepareQuery, IPreparedQuery, scoreFuzzy2, pieceToQuery } from 'vs/base/common/fuzzyScorer';
+import { prepareQuery, IPreparedQuery, scoreFuzzy2, pieceToQuery, IPreparedQueryPiece } from 'vs/base/common/fuzzyScorer';
 import { IMatch } from 'vs/base/common/filters';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -114,6 +114,11 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		const workspaceSymbols = await getWorkspaceSymbols(symbolQuery.original, token);
 		if (token.isCancellationRequested) {
 			return [];
+		}
+		// fix the queries before matching start
+		symbolQuery = this.removeWildcards(symbolQuery);
+		if (containerQuery) {
+			containerQuery = this.removeWildcards(containerQuery);
 		}
 
 		const symbolPicks: Array<ISymbolQuickPickItem> = [];
@@ -223,6 +228,30 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		}
 
 		return symbolPicks;
+	}
+
+	private removeWildcards(query: IPreparedQuery): IPreparedQuery {
+		return {
+			expectContiguousMatch: query.expectContiguousMatch,
+			normalized: query.normalized.replaceAll('*', ''),
+			normalizedLowercase: query.normalizedLowercase.replaceAll('*', ''),
+			original: query.original.replaceAll('*', ''),
+			originalLowercase: query.originalLowercase.replaceAll('*', ''),
+			pathNormalized: query.pathNormalized.replaceAll('*', ''),
+			containsPathSeparator: query.containsPathSeparator,
+			values: query.values?.map((v) => this.removeWildcardsInPiece(v))
+		};
+	}
+
+	private removeWildcardsInPiece(query: IPreparedQueryPiece): IPreparedQueryPiece {
+		return {
+			expectContiguousMatch: query.expectContiguousMatch,
+			normalized: query.normalized.replaceAll('*', ''),
+			normalizedLowercase: query.normalizedLowercase.replaceAll('*', ''),
+			original: query.original.replaceAll('*', ''),
+			originalLowercase: query.originalLowercase.replaceAll('*', ''),
+			pathNormalized: query.pathNormalized.replaceAll('*', '')
+		};
 	}
 
 	private async openSymbol(provider: IWorkspaceSymbolProvider, symbol: IWorkspaceSymbol, token: CancellationToken, options: { keyMods: IKeyMods; forceOpenSideBySide?: boolean; preserveFocus?: boolean; forcePinned?: boolean }): Promise<void> {
