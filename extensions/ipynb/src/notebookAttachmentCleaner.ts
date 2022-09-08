@@ -76,7 +76,6 @@ export class AttachmentCleaner {
 			}
 		}));
 
-
 		this._disposables.push(vscode.workspace.onDidOpenTextDocument(e => {
 			this.analyzeCell(e);
 		}));
@@ -104,50 +103,45 @@ export class AttachmentCleaner {
 		const markdownAttachmentsInUse: { [key: string]: IAttachmentData } = {};
 		const cellFragment = cell.document.uri.fragment;
 		const notebookUri = e.notebook.uri.toString();
-		const mkdnSource = document.getText();
 		const diagnostics: IAttachmentDiagnostic[] = [];
+		const markdownAttachments = this.getAttachmentNames(document);
 
-		if (mkdnSource.length === 0) { // cell with 0 content
+		if (markdownAttachments.size === 0) {
+			// no attachments used in this cell, cache all images from cell metadata
 			this.cacheAllImages(cell.metadata, notebookUri, cellFragment);
-		} else {
-			const markdownAttachments = this.getAttachmentNames(document);
-			if (markdownAttachments.size === 0) {
-				// no attachments used in this cell, cache all images from cell metadata
-				this.cacheAllImages(cell.metadata, notebookUri, cellFragment);
-			}
+		}
 
-			if (this.checkMetadataAttachments(cell.metadata)) {
-				// the cell metadata contains attachments, check if any are used in the markdown source
+		if (this.checkMetadataAttachments(cell.metadata)) {
+			// the cell metadata contains attachments, check if any are used in the markdown source
 
-				for (const currFilename of Object.keys(cell.metadata.custom.attachments)) {
-					// means markdown reference is present in the metadata, rendering will work properly
-					// therefore, we don't need to check it in the next loop either
-					if (markdownAttachments.has(currFilename)) {
-						// attachment reference is present in the markdown source, no need to cache it
-						markdownAttachments.get(currFilename)!.rendered = true;
-						markdownAttachmentsInUse[currFilename] = cell.metadata.custom.attachments[currFilename];
-					} else {
-						// attachment reference is not present in the markdown source, cache it
-						this.cacheAttachment(notebookUri, cellFragment, currFilename, cell.metadata);
-					}
-				}
-			}
-
-			for (const [currFilename, attachment] of markdownAttachments) {
-				if (attachment.rendered) {
-					// attachment reference is present in both the markdown source and the metadata, no op
-					continue;
-				}
-
-				// if image is referenced in markdown source but not in metadata -> check if we have image in the cache
-				const cachedImageAttachment = this._attachmentCache.get(notebookUri)?.get(cellFragment)?.get(currFilename);
-				if (cachedImageAttachment) {
-					markdownAttachmentsInUse[currFilename] = cachedImageAttachment;
-					this._attachmentCache.get(notebookUri)?.get(cellFragment)?.delete(currFilename);
+			for (const currFilename of Object.keys(cell.metadata.custom.attachments)) {
+				// means markdown reference is present in the metadata, rendering will work properly
+				// therefore, we don't need to check it in the next loop either
+				if (markdownAttachments.has(currFilename)) {
+					// attachment reference is present in the markdown source, no need to cache it
+					markdownAttachments.get(currFilename)!.rendered = true;
+					markdownAttachmentsInUse[currFilename] = cell.metadata.custom.attachments[currFilename];
 				} else {
-					// if image is not in the cache, show warning
-					diagnostics.push({ name: currFilename, ranges: attachment.ranges });
+					// attachment reference is not present in the markdown source, cache it
+					this.cacheAttachment(notebookUri, cellFragment, currFilename, cell.metadata);
 				}
+			}
+		}
+
+		for (const [currFilename, attachment] of markdownAttachments) {
+			if (attachment.rendered) {
+				// attachment reference is present in both the markdown source and the metadata, no op
+				continue;
+			}
+
+			// if image is referenced in markdown source but not in metadata -> check if we have image in the cache
+			const cachedImageAttachment = this._attachmentCache.get(notebookUri)?.get(cellFragment)?.get(currFilename);
+			if (cachedImageAttachment) {
+				markdownAttachmentsInUse[currFilename] = cachedImageAttachment;
+				this._attachmentCache.get(notebookUri)?.get(cellFragment)?.delete(currFilename);
+			} else {
+				// if image is not in the cache, show warning
+				diagnostics.push({ name: currFilename, ranges: attachment.ranges });
 			}
 		}
 
