@@ -859,8 +859,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			saveAll: (includeUntitled?) => {
 				return extHostWorkspace.saveAll(includeUntitled);
 			},
-			applyEdit(edit: vscode.WorkspaceEdit): Thenable<boolean> {
-				return extHostBulkEdits.applyWorkspaceEdit(edit, extension);
+			applyEdit(edit: vscode.WorkspaceEdit, isRefactoring?: boolean): Thenable<boolean> {
+				return extHostBulkEdits.applyWorkspaceEdit(edit, extension, isRefactoring);
 			},
 			createFileSystemWatcher: (pattern, ignoreCreate, ignoreChange, ignoreDelete): vscode.FileSystemWatcher => {
 				return extHostFileSystemEvent.createFileSystemWatcher(extHostWorkspace, extension, pattern, ignoreCreate, ignoreChange, ignoreDelete);
