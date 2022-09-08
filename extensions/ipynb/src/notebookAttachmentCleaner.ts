@@ -77,15 +77,15 @@ export class AttachmentCleaner {
 		}));
 
 		this._disposables.push(vscode.workspace.onDidOpenTextDocument(e => {
-			this.analyzeCell(e);
+			this.analyzeMissingAttachments(e);
 		}));
 
 		this._disposables.push(vscode.workspace.onDidCloseTextDocument(e => {
-			this.analyzeCell(e);
+			this.analyzeMissingAttachments(e);
 		}));
 
 		vscode.workspace.textDocuments.forEach(document => {
-			this.analyzeCell(document);
+			this.analyzeMissingAttachments(document);
 		});
 	}
 
@@ -157,7 +157,7 @@ export class AttachmentCleaner {
 		this.updateDiagnostics(cell.document.uri, diagnostics);
 	}
 
-	private analyzeCell(document: vscode.TextDocument): void {
+	private analyzeMissingAttachments(document: vscode.TextDocument): void {
 		if (document.uri.scheme !== 'vscode-notebook-cell') {
 			// not notebook
 			return;
