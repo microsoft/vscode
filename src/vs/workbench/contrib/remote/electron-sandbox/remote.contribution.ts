@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
@@ -169,7 +169,9 @@ workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnost
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteExtensionHostEnvironmentUpdater, 'RemoteExtensionHostEnvironmentUpdater', LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, 'RemoteTelemetryEnablementUpdater', LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, 'RemoteEmptyWorkbenchPresentation', LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(WSLContextKeyInitializer, 'WSLContextKeyInitializer', LifecyclePhase.Ready);
+if (isWindows) {
+	workbenchContributionsRegistry.registerWorkbenchContribution(WSLContextKeyInitializer, 'WSLContextKeyInitializer', LifecyclePhase.Ready);
+}
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
