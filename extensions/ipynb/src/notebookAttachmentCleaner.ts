@@ -100,36 +100,36 @@ export class AttachmentCleaner {
 		const document = e.document;
 		const cell = e.cell;
 
-		const markdownAttachmentsInUse: { [key: string]: IAttachmentData } = {};
+		const markdownAttachmentsInUse: { [key: string /** filename */]: IAttachmentData } = {};
 		const cellFragment = cell.document.uri.fragment;
 		const notebookUri = e.notebook.uri.toString();
 		const diagnostics: IAttachmentDiagnostic[] = [];
-		const markdownAttachments = this.getAttachmentNames(document);
+		const markdownAttachmentsRefedInCell = this.getAttachmentNames(document);
 
-		if (markdownAttachments.size === 0) {
+		if (markdownAttachmentsRefedInCell.size === 0) {
 			// no attachments used in this cell, cache all images from cell metadata
-			this.cacheAllImages(cell.metadata, notebookUri, cellFragment);
+			this.saveAllAttachmentsToCache(cell.metadata, notebookUri, cellFragment);
 		}
 
-		if (this.checkMetadataAttachments(cell.metadata)) {
+		if (this.checkMetadataAttachmentsExistence(cell.metadata)) {
 			// the cell metadata contains attachments, check if any are used in the markdown source
 
 			for (const currFilename of Object.keys(cell.metadata.custom.attachments)) {
 				// means markdown reference is present in the metadata, rendering will work properly
 				// therefore, we don't need to check it in the next loop either
-				if (markdownAttachments.has(currFilename)) {
+				if (markdownAttachmentsRefedInCell.has(currFilename)) {
 					// attachment reference is present in the markdown source, no need to cache it
-					markdownAttachments.get(currFilename)!.rendered = true;
+					markdownAttachmentsRefedInCell.get(currFilename)!.valid = true;
 					markdownAttachmentsInUse[currFilename] = cell.metadata.custom.attachments[currFilename];
 				} else {
 					// attachment reference is not present in the markdown source, cache it
-					this.cacheAttachment(notebookUri, cellFragment, currFilename, cell.metadata);
+					this.saveAttachmentToCache(notebookUri, cellFragment, currFilename, cell.metadata);
 				}
 			}
 		}
 
-		for (const [currFilename, attachment] of markdownAttachments) {
-			if (attachment.rendered) {
+		for (const [currFilename, attachment] of markdownAttachmentsRefedInCell) {
+			if (attachment.valid) {
 				// attachment reference is present in both the markdown source and the metadata, no op
 				continue;
 			}
@@ -185,7 +185,7 @@ export class AttachmentCleaner {
 
 		const diagnostics: IAttachmentDiagnostic[] = [];
 		const markdownAttachments = this.getAttachmentNames(document);
-		if (this.checkMetadataAttachments(activeCell.metadata)) {
+		if (this.checkMetadataAttachmentsExistence(activeCell.metadata)) {
 			for (const [currFilename, attachment] of markdownAttachments) {
 				if (!activeCell.metadata.custom.attachments[currFilename]) {
 					// no attachment reference in the metadata
@@ -215,7 +215,7 @@ export class AttachmentCleaner {
 	 * @param currFilename filename of the image being pulled into the cell
 	 * @param metadata metadata of the cell currently being edited
 	 */
-	private cacheAttachment(notebookUri: string, cellFragment: string, currFilename: string, metadata: { [key: string]: any }): void {
+	private saveAttachmentToCache(notebookUri: string, cellFragment: string, currFilename: string, metadata: { [key: string]: any }): void {
 		const documentCache = this._attachmentCache.get(notebookUri);
 		if (!documentCache) {
 			// no cache for this notebook yet
@@ -251,7 +251,7 @@ export class AttachmentCleaner {
 	 * @param metadata metadata of cell
 	 * @returns boolean representing the presence of any attachments
 	 */
-	private checkMetadataAttachments(metadata: { [key: string]: any }): boolean {
+	private checkMetadataAttachmentsExistence(metadata: { [key: string]: any }): boolean {
 		return !!(metadata.custom?.attachments);
 	}
 
@@ -261,7 +261,7 @@ export class AttachmentCleaner {
 	 * @param notebookUri uri for the notebook being edited
 	 * @param cellFragment fragment of cell being edited
 	 */
-	private cacheAllImages(metadata: { [key: string]: any }, notebookUri: string, cellFragment: string): void {
+	private saveAllAttachmentsToCache(metadata: { [key: string]: any }, notebookUri: string, cellFragment: string): void {
 		const documentCache = this._attachmentCache.get(notebookUri) ?? new Map();
 		this._attachmentCache.set(notebookUri, documentCache);
 		const cellCache = documentCache.get(cellFragment) ?? new Map<string, IAttachmentData>();
@@ -275,11 +275,10 @@ export class AttachmentCleaner {
 	/**
 	 * pass in all of the markdown source code, and get a dictionary of all images referenced in the markdown. keys are image filenames, values are render state
 	 * @param document the text document for the cell, formatted as a string
-	 * @returns a dictionary with all markdown names and a boolean representing their rendering state (true = will render properly // false = won't render or not checked yet)
 	 */
 	private getAttachmentNames(document: vscode.TextDocument) {
 		const source = document.getText();
-		const filenames: Map<string, { rendered: boolean; ranges: vscode.Range[] }> = new Map();
+		const filenames: Map<string, { valid: boolean; ranges: vscode.Range[] }> = new Map();
 		const re = /!\[.*?\]\(attachment:(?<filename>.*?)\)/gm;
 
 		let match;
@@ -290,7 +289,7 @@ export class AttachmentCleaner {
 				const startPosition = document.positionAt(index);
 				const endPosition = document.positionAt(index + length);
 				const range = new vscode.Range(startPosition, endPosition);
-				const filename = filenames.get(match.groups.filename) ?? { rendered: false, ranges: [] };
+				const filename = filenames.get(match.groups.filename) ?? { valid: false, ranges: [] };
 				filenames.set(match.groups.filename, filename);
 				filename.ranges.push(range);
 			}
