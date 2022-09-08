@@ -38,10 +38,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		this._tryRunTasks();
 		this._register(this._workspaceTrustManagementService.onDidChangeTrust(async trusted => {
 			if (trusted) {
-				const workspaceTaskResult = await _taskService.getWorkspaceTasks();
-				if (workspaceTaskResult) {
-					await RunAutomaticTasks.runWithPermission(_taskService, _storageService, _notificationService, _workspaceTrustManagementService, _openerService, _configurationService, workspaceTaskResult);
-				}
+				await this._tryRunTasks();
 			}
 		}));
 	}
