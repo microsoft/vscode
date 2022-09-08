@@ -52,8 +52,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 			this._logService.trace('RunAutomaticTasks: Awaiting task system info.');
 			await Event.toPromise(Event.once(this._taskService.onDidChangeTaskSystemInfo));
 		}
-		const isWorkspaceTrusted = this._workspaceTrustManagementService.isWorkspaceTrusted();
-		if (this._hasRunTasks || !isWorkspaceTrusted || this._configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'off') {
+		if (this._hasRunTasks || this._configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'off') {
 			return;
 		}
 		this._hasRunTasks = true;
