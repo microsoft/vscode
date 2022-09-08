@@ -12,10 +12,10 @@ import { LineRangeEdit } from 'vs/workbench/contrib/mergeEditor/browser/model/ed
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { ReentrancyBarrier } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { IMergeDiffComputer } from './diffComputer';
-import { autorun, IObservable, IReader, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
+import { autorun, IObservable, IReader, ITransaction, observableSignal, observableValue, transaction } from 'vs/base/common/observable';
 
 export class TextModelDiffs extends Disposable {
-	private updateCount = 0;
+	private recomputeCount = 0;
 	private readonly _state = observableValue<TextModelDiffState, TextModelDiffChangeReason>('LiveDiffState', TextModelDiffState.initializing);
 	private readonly _diffs = observableValue<DetailedLineRangeMapping[], TextModelDiffChangeReason>('LiveDiffs', []);
 
@@ -29,15 +29,27 @@ export class TextModelDiffs extends Disposable {
 	) {
 		super();
 
-		const counter = observableValue('invalidation counter', 0);
+		const recomputeSignal = observableSignal('recompute');
 
 		this._register(autorun('Update diff state', reader => {
-			counter.read(reader);
-			this.update(reader);
+			recomputeSignal.read(reader);
+			this.recompute(reader);
 		}));
 
-		this._register(baseTextModel.onDidChangeContent(this.barrier.makeExclusive(() => { counter.set(counter.get() + 1, undefined); })));
-		this._register(textModel.onDidChangeContent(this.barrier.makeExclusive(() => { counter.set(counter.get() + 1, undefined); })));
+		this._register(
+			baseTextModel.onDidChangeContent(
+				this.barrier.makeExclusive(() => {
+					recomputeSignal.trigger(undefined);
+				})
+			)
+		);
+		this._register(
+			textModel.onDidChangeContent(
+				this.barrier.makeExclusive(() => {
+					recomputeSignal.trigger(undefined);
+				})
+			)
+		);
 		this._register(toDisposable(() => {
 			this.isDisposed = true;
 		}));
@@ -47,15 +59,18 @@ export class TextModelDiffs extends Disposable {
 		return this._state;
 	}
 
+	/**
+	 * Diffs from base to input.
+	*/
 	public get diffs(): IObservable<DetailedLineRangeMapping[], TextModelDiffChangeReason> {
 		return this._diffs;
 	}
 
 	private isInitializing = true;
 
-	private update(reader: IReader): void {
-		this.updateCount++;
-		const currentUpdateCount = this.updateCount;
+	private recompute(reader: IReader): void {
+		this.recomputeCount++;
+		const currentRecomputeIdx = this.recomputeCount;
 
 		if (this._state.get() === TextModelDiffState.initializing) {
 			this.isInitializing = true;
@@ -77,8 +92,8 @@ export class TextModelDiffs extends Disposable {
 				return;
 			}
 
-			if (currentUpdateCount !== this.updateCount) {
-				// There is a newer update call
+			if (currentRecomputeIdx !== this.recomputeCount) {
+				// There is a newer recompute call
 				return;
 			}
 
@@ -196,7 +211,7 @@ export class TextModelDiffs extends Disposable {
 		return lineNumber + offset;
 	}
 
-	public getResultRange(baseRange: LineRange, reader?: IReader): LineRange {
+	public getResultLineRange(baseRange: LineRange, reader?: IReader): LineRange {
 		let start = this.getResultLine(baseRange.startLineNumber, reader);
 		if (typeof start !== 'number') {
 			start = start.outputRange.startLineNumber;

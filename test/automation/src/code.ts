@@ -76,11 +76,11 @@ export async function launch(options: LaunchOptions): Promise<Code> {
 		throw new Error('Smoke test process has terminated, refusing to spawn Code');
 	}
 
-	await measureAndLog(copyExtension(rootPath, options.extensionsPath, 'vscode-notebook-tests'), 'copyExtension(vscode-notebook-tests)', options.logger);
+	await measureAndLog(() => copyExtension(rootPath, options.extensionsPath, 'vscode-notebook-tests'), 'copyExtension(vscode-notebook-tests)', options.logger);
 
 	// Browser smoke tests
 	if (options.web) {
-		const { serverProcess, driver } = await measureAndLog(launchPlaywrightBrowser(options), 'launch playwright (browser)', options.logger);
+		const { serverProcess, driver } = await measureAndLog(() => launchPlaywrightBrowser(options), 'launch playwright (browser)', options.logger);
 		registerInstance(serverProcess, options.logger, 'server');
 
 		return new Code(driver, options.logger, serverProcess);
@@ -88,7 +88,7 @@ export async function launch(options: LaunchOptions): Promise<Code> {
 
 	// Electron smoke tests (playwright)
 	else {
-		const { electronProcess, driver } = await measureAndLog(launchPlaywrightElectron(options), 'launch playwright (electron)', options.logger);
+		const { electronProcess, driver } = await measureAndLog(() => launchPlaywrightElectron(options), 'launch playwright (electron)', options.logger);
 		registerInstance(electronProcess, options.logger, 'electron');
 
 		return new Code(driver, options.logger, electronProcess);
@@ -140,7 +140,7 @@ export class Code {
 	}
 
 	async exit(): Promise<void> {
-		return measureAndLog(new Promise<void>(resolve => {
+		return measureAndLog(() => new Promise<void>(resolve => {
 			const pid = this.mainProcess.pid!;
 
 			let done = false;
@@ -154,18 +154,39 @@ export class Code {
 				while (!done) {
 					retries++;
 
-					if (retries === 40) {
-						this.logger.log('Smoke test exit call did not terminate process after 20s, forcefully exiting the application...');
+					switch (retries) {
 
-						// no need to await since we're polling for the process to die anyways
-						treekill(pid, err => {
-							try {
-								process.kill(pid, 0); // throws an exception if the process doesn't exist anymore
-								this.logger.log('Failed to kill Electron process tree:', err?.message);
-							} catch (error) {
-								// Expected when process is gone
-							}
-						});
+						// after 5 / 10 seconds: try to exit gracefully again
+						case 10:
+						case 20: {
+							this.logger.log('Smoke test exit call did not terminate process after 5-10s, gracefully trying to exit the application again...');
+							this.driver.exitApplication();
+							break;
+						}
+
+						// after 20 seconds: forcefully kill
+						case 40: {
+							this.logger.log('Smoke test exit call did not terminate process after 20s, forcefully exiting the application...');
+
+							// no need to await since we're polling for the process to die anyways
+							treekill(pid, err => {
+								try {
+									process.kill(pid, 0); // throws an exception if the process doesn't exist anymore
+									this.logger.log('Failed to kill Electron process tree:', err?.message);
+								} catch (error) {
+									// Expected when process is gone
+								}
+							});
+
+							break;
+						}
+
+						// after 30 seconds: give up
+						case 60: {
+							done = true;
+							this.logger.log('Smoke test exit call did not terminate process after 30s, giving up');
+							resolve();
+						}
 					}
 
 					try {
@@ -173,12 +194,6 @@ export class Code {
 						await new Promise(resolve => setTimeout(resolve, 500));
 					} catch (error) {
 						done = true;
-						resolve();
-					}
-
-					if (retries === 60) {
-						done = true;
-						this.logger.log('Smoke test exit call did not terminate process after 30s, giving up');
 						resolve();
 					}
 				}

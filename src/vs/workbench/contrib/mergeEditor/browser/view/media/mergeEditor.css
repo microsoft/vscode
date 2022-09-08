@@ -212,3 +212,7 @@
 .focused.conflict-zone .conflict-zone-root {
 	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 }
+
+.merge-conflict-input-selection {
+	background-color: red;
+}

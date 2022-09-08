@@ -3,6 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export function isEmptyOrWhitespace(str: string): boolean {
-	return /^\s*$/.test(str);
-}
+// empty placeholder declaration for `mergeEditor/*` menus
