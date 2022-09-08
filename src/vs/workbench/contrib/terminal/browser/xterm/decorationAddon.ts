@@ -306,7 +306,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._decorations.set(decoration.marker.id,
 					{
 						decoration,
-						disposables: markProperties?.hoverMessage ? this._createDisposables(element, command, markProperties) : [],
+						disposables: this._createDisposables(element, command, markProperties),
 						exitCode: command?.exitCode,
 						markProperties: command?.markProperties
 					});
