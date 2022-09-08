@@ -2206,6 +2206,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	public async getWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, IWorkspaceFolderTaskResult>> {
+		if (!(await this._trust())) {
+			return new Map();
+		}
 		await this._waitForSupportedExecutions;
 		if (this._workspaceTasksPromise) {
 			return this._workspaceTasksPromise;

@@ -47,10 +47,8 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		}
 
 		const workspaceTasks = await this._taskService.getWorkspaceTasks(TaskRunSource.FolderOpen);
-		if (workspaceTasks.size) {
-			this._logService.trace(`RunAutomaticTasks: Found ${workspaceTasks.size} automatic tasks`);
-			await RunAutomaticTasks.runWithPermission(this._taskService, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, workspaceTasks);
-		}
+		this._logService.trace(`RunAutomaticTasks: Found ${workspaceTasks.size} automatic tasks`);
+		await RunAutomaticTasks.runWithPermission(this._taskService, this._storageService, this._notificationService, this._workspaceTrustManagementService, this._openerService, this._configurationService, workspaceTasks);
 	}
 
 	private static _runTasks(taskService: ITaskService, tasks: Array<Task | Promise<Task | undefined>>) {
