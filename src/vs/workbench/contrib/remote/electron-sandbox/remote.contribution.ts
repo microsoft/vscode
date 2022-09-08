@@ -27,6 +27,9 @@ import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderComman
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 	constructor(
@@ -131,11 +134,42 @@ class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchC
 	}
 }
 
+
+class WSLContextKeyInitializer extends Disposable implements IWorkbenchContribution {
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@INativeHostService nativeHostService: INativeHostService,
+		@IStorageService storageService: IStorageService
+	) {
+		super();
+
+		const contextKeyId = 'wslFeatureInstalled';
+		const storageKey = 'remote.wslFeatureInstalled';
+
+		const defaultValue = storageService.getBoolean(storageKey, StorageScope.APPLICATION, undefined);
+
+		const hasWSLFeatureContext = new RawContextKey<boolean>(contextKeyId, !!defaultValue, nls.localize('wslFeatureInstalled', "Whether the platform has the WSL feature installed"));
+		const contextKey = hasWSLFeatureContext.bindTo(contextKeyService);
+
+		if (defaultValue === undefined) {
+			nativeHostService.hasWSLFeatureInstalled().then(res => {
+				if (res) {
+					contextKey.set(true);
+					// once detected, set to true
+					storageService.store(storageKey, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				}
+			});
+		}
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, 'RemoteAgentDiagnosticListener', LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteExtensionHostEnvironmentUpdater, 'RemoteExtensionHostEnvironmentUpdater', LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, 'RemoteTelemetryEnablementUpdater', LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, 'RemoteEmptyWorkbenchPresentation', LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(WSLContextKeyInitializer, 'WSLContextKeyInitializer', LifecyclePhase.Ready);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
