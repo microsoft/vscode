@@ -22,6 +22,7 @@
 	font-size: 13px;
 	border-radius: 0;
 	min-width: 160px;
+	max-width: 500px;
 	z-index: 40;
 	display: block;
 	width: 100%;
@@ -48,9 +49,7 @@
 }
 
 /** Styles for each row in the list element **/
-.codeActionWidget .monaco-list .monaco-list-row:not(.separator) {
-	display: flex;
-	box-sizing: border-box;
+.codeActionWidget .monaco-list .monaco-list-row {
 	padding: 0 10px;
 	white-space: nowrap;
 	cursor: pointer;
@@ -58,17 +57,23 @@
 	width: 100%;
 }
 
-.codeActionWidget .monaco-list .monaco-list-row:hover:not(.option-disabled),
-.codeActionWidget .monaco-list .monaco-list-row.focused:not(.option-disabled) {
+.codeActionWidget .monaco-list .monaco-list-row.code-action:hover:not(.option-disabled),
+.codeActionWidget .monaco-list .monaco-list-row.code-action.focused:not(.option-disabled) {
 	background-color: var(--vscode-list-hoverBackground) !important;
 	color: var(--vscode-list-activeSelectionForeground) !important;
 }
 
-.codeActionWidget .monaco-list .monaco-list-row.focused:not(.option-disabled)  {
+.codeActionWidget .monaco-list .monaco-list-row.code-action.focused:not(.option-disabled)  {
 	outline: 0 solid !important;
 	background-color: var(--vscode-menu-selectionBackground) !important;
 }
 
+.codeActionWidget .monaco-list-row.group-header {
+	color: var(--vscode-textLink-activeForeground);
+	font-weight: bold;
+}
+
+.codeActionWidget .monaco-list .group-header,
 .codeActionWidget .monaco-list .option-disabled,
 .codeActionWidget .monaco-list .option-disabled:before,
 .codeActionWidget .monaco-list .option-disabled .focused,
@@ -81,24 +86,24 @@
 	-ms-user-select: none;
 	user-select: none;
 	background-color: var(--vscode-menu-background) !important;
-	color: var(--vscode-disabledForeground) !important;
 	outline: 0 solid !important;
 }
 
-.codeActionWidget .monaco-list .group-header.option-disabled {
-	color: var(--vscode-textLink-activeForeground) !important;
-	font-weight: bold;
+.codeActionWidget .monaco-list-row.code-action {
+	display: flex;
+	gap: 10px;
+	align-items: center;
 }
 
-.codeActionWidget .monaco-list-row:not(.group-header) .icon-container {
-	margin-top: 3px;
-	margin-right: 10px;
-	width: 13px;
-	height: 13px;
-	flex-shrink: 0;
-	color: var(--vscode-editorLightBulb-foreground);
+.codeActionWidget .monaco-list-row.code-action.option-disabled {
+	color: var(--vscode-disabledForeground);
 }
 
+.codeActionWidget .monaco-list-row.code-action .title {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
 
 /* Action bar */
 
