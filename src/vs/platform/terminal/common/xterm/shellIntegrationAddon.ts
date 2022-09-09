@@ -373,9 +373,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				}
 			}
 			case VSCodeOscPt.SetMark: {
-				if (args.length > 2) {
-					return false;
-				}
 				this._createOrGetBufferMarkDetection(this._terminal).addMark(parseMarkSequence(args));
 				return true;
 			}

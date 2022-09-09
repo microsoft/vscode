@@ -3,11 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonIssueService } from 'vs/platform/issue/common/issue';
+declare module 'vscode' {
 
-export const IIssueService = createDecorator<IIssueService>('issueService');
+	// https://github.com/microsoft/vscode/issues/112109
 
-export interface IIssueService extends ICommonIssueService {
-	stopTracing(): Promise<void>;
+	export namespace workspace {
+
+		/**
+		 *
+		 * @param isRefactoring Signal to the editor that this edit is a refactoring.
+		 */
+		export function applyEdit(edit: WorkspaceEdit, isRefactoring?: boolean): Thenable<boolean>;
+	}
 }
