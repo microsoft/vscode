@@ -195,6 +195,9 @@ export class TextAreaHandler extends ViewPart {
 			},
 			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
 				return this._context.viewModel.getValueInRange(range, eol);
+			},
+			getValueLengthInRange: (range: Range): number => {
+				return this._context.viewModel.model.getValueLengthInRange(range);
 			}
 		};
 
@@ -242,15 +245,13 @@ export class TextAreaHandler extends ViewPart {
 							return new TextAreaState(textBefore, textBefore.length, textBefore.length, position, position);
 						}
 					}
-					// on macOS, write current selection into textarea will allow system text services pick selected text
-					// https://github.com/microsoft/vscode/issues/27799#issuecomment-1200088452
-					if (platform.isMacintosh && !selection.isEmpty()) {
-						let text = simpleModel.getValueInRange(selection, EndOfLinePreference.TextDefined);
-						// Trim long text to avoid stalling the entire UI
-						const LIMIT_CHARS = 1000;
-						if (text.length > LIMIT_CHARS) {
-							text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230);
-						}
+					// on macOS, write current selection into textarea will allow system text services pick selected text,
+					// but we still want to limit the amount of text given Chromium handles very poorly text even of a few
+					// thousand chars
+					// (https://github.com/microsoft/vscode/issues/27799)
+					const LIMIT_CHARS = 500;
+					if (platform.isMacintosh && !selection.isEmpty() && simpleModel.getValueLengthInRange(selection) < LIMIT_CHARS) {
+						const text = simpleModel.getValueInRange(selection, EndOfLinePreference.TextDefined);
 						return new TextAreaState(text, 0, text.length, selection.getStartPosition(), selection.getEndPosition());
 					}
 
