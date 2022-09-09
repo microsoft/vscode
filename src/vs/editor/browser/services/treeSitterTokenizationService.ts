@@ -45,18 +45,18 @@ export class TreeSitterTokenizationService implements ITreeSitterTokenizationSer
 
 			this.registerModelTrees();
 			this._disposableStore.add(_modelService.onModelAdded((model) => {
-				if (model.getLanguageId() === 'typescript') {
-					this._modelTrees.push(new TreeSitterParseTree(model, this._language!, this._themeService));
+				if (model.getLanguageId() === 'typescript' && this._language) {
+					this._modelTrees.push(new TreeSitterParseTree(model, this._language, this._themeService));
 				}
 			}));
 			this._disposableStore.add(_modelService.onModelLanguageChanged((event) => {
 				const model = event.model;
-				if (model.getLanguageId() === 'typescript') {
-					this._modelTrees.push(new TreeSitterParseTree(model, this._language!, this._themeService));
+				if (model.getLanguageId() === 'typescript' && this._language) {
+					this._modelTrees.push(new TreeSitterParseTree(model, this._language, this._themeService));
 				}
 			}))
 			this._disposableStore.add(_modelService.onModelRemoved((model) => {
-				if (model.getLanguageId() === 'typescript') {
+				if (model.getLanguageId() === 'typescript' && this._language) {
 					const treeSitterTreeToDispose = Iterable.find(this._modelTrees, tree => tree.id === model.id);
 					if (treeSitterTreeToDispose) {
 						treeSitterTreeToDispose.dispose();
@@ -69,8 +69,8 @@ export class TreeSitterTokenizationService implements ITreeSitterTokenizationSer
 	registerModelTrees() {
 		const models = this._modelService.getModels();
 		for (const model of models) {
-			if (model.getLanguageId() === 'typescript') {
-				this._modelTrees.push(new TreeSitterParseTree(model, this._language!, this._themeService));
+			if (model.getLanguageId() === 'typescript' && this._language) {
+				this._modelTrees.push(new TreeSitterParseTree(model, this._language, this._themeService));
 			}
 		}
 	}
