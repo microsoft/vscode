@@ -50,13 +50,13 @@ export class TaskQuickPick extends Disposable {
 	private _sorter: TaskSorter;
 	private _topLevelEntries: QuickPickInput<ITaskTwoLevelQuickPickEntry>[] | undefined;
 	constructor(
-		private _taskService: ITaskService,
-		private _configurationService: IConfigurationService,
-		private _quickInputService: IQuickInputService,
-		private _notificationService: INotificationService,
-		private _themeService: IThemeService,
-		private _dialogService: IDialogService,
-		private _storageService: IStorageService) {
+		@ITaskService private _taskService: ITaskService,
+		@IConfigurationService private _configurationService: IConfigurationService,
+		@IQuickInputService private _quickInputService: IQuickInputService,
+		@INotificationService private _notificationService: INotificationService,
+		@IThemeService private _themeService: IThemeService,
+		@IDialogService private _dialogService: IDialogService,
+		@IStorageService private _storageService: IStorageService) {
 		super();
 		this._sorter = this._taskService.createSorter();
 	}
@@ -403,12 +403,5 @@ export class TaskQuickPick extends Disposable {
 			this._notificationService.error(nls.localize('noProviderForTask', "There is no task provider registered for tasks of type \"{0}\".", task.type));
 		}
 		return resolvedTask;
-	}
-
-	static async show(taskService: ITaskService, configurationService: IConfigurationService,
-		quickInputService: IQuickInputService, notificationService: INotificationService,
-		dialogService: IDialogService, themeService: IThemeService, storageService: IStorageService, placeHolder: string, defaultEntry?: ITaskQuickPickEntry, type?: string, name?: string) {
-		const taskQuickPick = new TaskQuickPick(taskService, configurationService, quickInputService, notificationService, themeService, dialogService, storageService);
-		return taskQuickPick.show(placeHolder, defaultEntry, type, name);
 	}
 }
