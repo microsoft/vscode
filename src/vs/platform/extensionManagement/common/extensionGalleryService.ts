@@ -316,7 +316,7 @@ class Query {
 	}
 
 	withSortBy(sortBy: SortBy): Query {
-		return new Query({ ...this.state, sortBy });
+		return sortBy !== SortBy.UpdateDate ? new Query({ ...this.state, sortBy }) : new Query({ ...this.state });
 	}
 
 	withSortOrder(sortOrder: SortOrder): Query {

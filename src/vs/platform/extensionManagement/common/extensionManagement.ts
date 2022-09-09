@@ -259,7 +259,8 @@ export const enum SortBy {
 	InstallCount = 4,
 	PublishedDate = 10,
 	AverageRating = 6,
-	WeightedRating = 12
+	WeightedRating = 12,
+	UpdateDate = 13,
 }
 
 export const enum SortOrder {

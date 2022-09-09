@@ -242,6 +242,7 @@ export class ExtensionsListView extends ViewPane {
 			case 'rating': options.sortBy = SortBy.WeightedRating; break;
 			case 'name': options.sortBy = SortBy.Title; break;
 			case 'publishedDate': options.sortBy = SortBy.PublishedDate; break;
+			case 'updateDate': options.sortBy = SortBy.UpdateDate; break;
 		}
 
 		const request = createCancelablePromise(async token => {
@@ -324,8 +325,13 @@ export class ExtensionsListView extends ViewPane {
 			return { model, disposables: new DisposableStore() };
 		}
 
-		if (ExtensionsListView.isLocalExtensionsQuery(query.value)) {
+		if (ExtensionsListView.isLocalExtensionsQuery(query.value, query.sortBy)) {
 			return this.queryLocal(query, options);
+		}
+
+		if (/@popular/i.test(query.value)) {
+			query.value = query.value.replace('@popular', '');
+			options.sortBy = !options.sortBy ? SortBy.InstallCount : options.sortBy;
 		}
 
 		const model = await this.queryGallery(query, options, token);
@@ -736,6 +742,10 @@ export class ExtensionsListView extends ViewPane {
 			case SortBy.InstallCount:
 				extensions = extensions.sort((e1, e2) => typeof e2.installCount === 'number' && typeof e1.installCount === 'number' ? e2.installCount - e1.installCount : NaN);
 				break;
+			case SortBy.UpdateDate:
+				extensions = extensions.sort((e1, e2) =>
+					typeof e2.local?.installedTimestamp === 'number' && typeof e1.local?.installedTimestamp === 'number' ? e2.local.installedTimestamp - e1.local.installedTimestamp : NaN);
+				break;
 			case SortBy.AverageRating:
 			case SortBy.WeightedRating:
 				extensions = extensions.sort((e1, e2) => typeof e2.rating === 'number' && typeof e1.rating === 'number' ? e2.rating - e1.rating : NaN);
@@ -1018,7 +1028,7 @@ export class ExtensionsListView extends ViewPane {
 		this.list = null;
 	}
 
-	static isLocalExtensionsQuery(query: string): boolean {
+	static isLocalExtensionsQuery(query: string, sortBy?: string): boolean {
 		return this.isInstalledExtensionsQuery(query)
 			|| this.isOutdatedExtensionsQuery(query)
 			|| this.isEnabledExtensionsQuery(query)
@@ -1027,7 +1037,8 @@ export class ExtensionsListView extends ViewPane {
 			|| this.isSearchBuiltInExtensionsQuery(query)
 			|| this.isBuiltInGroupExtensionsQuery(query)
 			|| this.isSearchDeprecatedExtensionsQuery(query)
-			|| this.isSearchWorkspaceUnsupportedExtensionsQuery(query);
+			|| this.isSearchWorkspaceUnsupportedExtensionsQuery(query)
+			|| this.isSortInstalledExtensionsQuery(query, sortBy);
 	}
 
 	static isSearchBuiltInExtensionsQuery(query: string): boolean {
@@ -1090,6 +1101,14 @@ export class ExtensionsListView extends ViewPane {
 		return /@recommended:languages/i.test(query);
 	}
 
+	static isSortInstalledExtensionsQuery(query: string, sortBy?: string): boolean {
+		return (sortBy !== undefined && sortBy !== '' && query === '') || (!sortBy && /^@sort:\S*$/i.test(query));
+	}
+
+	static isSortUpdateDateQuery(query: string): boolean {
+		return /@sort:updateDate/i.test(query);
+	}
+
 	override focus(): void {
 		super.focus();
 		if (!this.list) {
@@ -1116,7 +1135,7 @@ export class ServerInstalledExtensionsView extends ExtensionsListView {
 
 	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		query = query ? query : '@installed';
-		if (!ExtensionsListView.isLocalExtensionsQuery(query)) {
+		if (!ExtensionsListView.isLocalExtensionsQuery(query) || ExtensionsListView.isSortInstalledExtensionsQuery(query)) {
 			query = query += ' @installed';
 		}
 		return super.show(query.trim());
@@ -1128,7 +1147,8 @@ export class EnabledExtensionsView extends ExtensionsListView {
 
 	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		query = query || '@enabled';
-		return ExtensionsListView.isEnabledExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
+		return ExtensionsListView.isEnabledExtensionsQuery(query) ? super.show(query) :
+			ExtensionsListView.isSortInstalledExtensionsQuery(query) ? super.show('@enabled ' + query) : this.showEmptyModel();
 	}
 }
 
@@ -1136,7 +1156,8 @@ export class DisabledExtensionsView extends ExtensionsListView {
 
 	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		query = query || '@disabled';
-		return ExtensionsListView.isDisabledExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
+		return ExtensionsListView.isDisabledExtensionsQuery(query) ? super.show(query) :
+			ExtensionsListView.isSortInstalledExtensionsQuery(query) ? super.show('@disabled ' + query) : this.showEmptyModel();
 	}
 }
 
@@ -1262,7 +1283,8 @@ export class RecommendedExtensionsView extends ExtensionsListView {
 	}
 
 	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== this.recommendedExtensionsQuery) ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery);
+		return (query && query.trim() !== this.recommendedExtensionsQuery && !ExtensionsListView.isSortInstalledExtensionsQuery(query)) ?
+			this.showEmptyModel() : super.show(query.trim());
 	}
 }
 

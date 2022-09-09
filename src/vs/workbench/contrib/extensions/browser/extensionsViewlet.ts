@@ -61,17 +61,18 @@ import { extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
 import { extname } from 'vs/base/common/resources';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
-const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
-const SearchIntalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', false);
+export const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
+const SearchInstalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', false);
 const SearchOutdatedExtensionsContext = new RawContextKey<boolean>('searchOutdatedExtensions', false);
 const SearchEnabledExtensionsContext = new RawContextKey<boolean>('searchEnabledExtensions', false);
 const SearchDisabledExtensionsContext = new RawContextKey<boolean>('searchDisabledExtensions', false);
 const HasInstalledExtensionsContext = new RawContextKey<boolean>('hasInstalledExtensions', true);
-const BuiltInExtensionsContext = new RawContextKey<boolean>('builtInExtensions', false);
+export const BuiltInExtensionsContext = new RawContextKey<boolean>('builtInExtensions', false);
 const SearchBuiltInExtensionsContext = new RawContextKey<boolean>('searchBuiltInExtensions', false);
 const SearchUnsupportedWorkspaceExtensionsContext = new RawContextKey<boolean>('searchUnsupportedWorkspaceExtensions', false);
 const SearchDeprecatedExtensionsContext = new RawContextKey<boolean>('searchDeprecatedExtensions', false);
-const RecommendedExtensionsContext = new RawContextKey<boolean>('recommendedExtensions', false);
+export const RecommendedExtensionsContext = new RawContextKey<boolean>('recommendedExtensions', false);
+const SortByUpdateDateContext = new RawContextKey<boolean>('sortByUpdateDate', false);
 
 export class ExtensionsViewletViewsContribution implements IWorkbenchContribution {
 
@@ -221,7 +222,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			id: 'extensions.recommendedList',
 			name: localize('recommendedExtensions', "Recommended"),
 			ctorDescriptor: new SyncDescriptor(DefaultRecommendedExtensionsView, [{ flexibleHeight: true }]),
-			when: ContextKeyExpr.and(DefaultViewsContext, ContextKeyExpr.not('config.extensions.showRecommendationsOnlyOnDemand')),
+			when: ContextKeyExpr.and(DefaultViewsContext, SortByUpdateDateContext.negate(), ContextKeyExpr.not('config.extensions.showRecommendationsOnlyOnDemand')),
 			weight: 40,
 			order: 3,
 			canToggleVisibility: true
@@ -443,6 +444,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	private defaultViewsContextKey: IContextKey<boolean>;
 	private sortByContextKey: IContextKey<string>;
 	private searchMarketplaceExtensionsContextKey: IContextKey<boolean>;
+	private sortByUpdateDateContextKey: IContextKey<boolean>;
 	private searchInstalledExtensionsContextKey: IContextKey<boolean>;
 	private searchOutdatedExtensionsContextKey: IContextKey<boolean>;
 	private searchEnabledExtensionsContextKey: IContextKey<boolean>;
@@ -486,7 +488,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.defaultViewsContextKey = DefaultViewsContext.bindTo(contextKeyService);
 		this.sortByContextKey = ExtensionsSortByContext.bindTo(contextKeyService);
 		this.searchMarketplaceExtensionsContextKey = SearchMarketplaceExtensionsContext.bindTo(contextKeyService);
-		this.searchInstalledExtensionsContextKey = SearchIntalledExtensionsContext.bindTo(contextKeyService);
+		this.sortByUpdateDateContextKey = SortByUpdateDateContext.bindTo(contextKeyService);
+		this.searchInstalledExtensionsContextKey = SearchInstalledExtensionsContext.bindTo(contextKeyService);
 		this.searchWorkspaceUnsupportedExtensionsContextKey = SearchUnsupportedWorkspaceExtensionsContext.bindTo(contextKeyService);
 		this.searchDeprecatedExtensionsContextKey = SearchDeprecatedExtensionsContext.bindTo(contextKeyService);
 		this.searchOutdatedExtensionsContextKey = SearchOutdatedExtensionsContext.bindTo(contextKeyService);
@@ -633,7 +636,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 				.replace(/@tag:/g, 'tag:')
 				.replace(/@ext:/g, 'ext:')
 				.replace(/@featured/g, 'featured')
-				.replace(/@popular/g, this.extensionManagementServerService.webExtensionManagementServer && !this.extensionManagementServerService.localExtensionManagementServer && !this.extensionManagementServerService.remoteExtensionManagementServer ? '@web' : '@sort:installs')
+				.replace(/@popular/g, this.extensionManagementServerService.webExtensionManagementServer && !this.extensionManagementServerService.localExtensionManagementServer && !this.extensionManagementServerService.remoteExtensionManagementServer ? '@web' : '@popular')
 			: '';
 	}
 
@@ -661,7 +664,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			this.builtInExtensionsContextKey.set(ExtensionsListView.isBuiltInExtensionsQuery(value));
 			this.recommendedExtensionsContextKey.set(isRecommendedExtensionsQuery);
 			this.searchMarketplaceExtensionsContextKey.set(!!value && !ExtensionsListView.isLocalExtensionsQuery(value) && !isRecommendedExtensionsQuery);
-			this.defaultViewsContextKey.set(!value);
+			this.sortByUpdateDateContextKey.set(ExtensionsListView.isSortUpdateDateQuery(value));
+			this.defaultViewsContextKey.set(!value || ExtensionsListView.isSortInstalledExtensionsQuery(value));
 		});
 
 		return this.progress(Promise.all(this.panes.map(view =>

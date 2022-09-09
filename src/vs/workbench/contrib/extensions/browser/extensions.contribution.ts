@@ -18,7 +18,7 @@ import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, 
 import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
-import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
+import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer, BuiltInExtensionsContext, SearchMarketplaceExtensionsContext, RecommendedExtensionsContext } from 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
@@ -1080,7 +1080,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		MenuRegistry.appendMenuItem(extensionsFilterSubMenu, <ISubmenuItem>{
 			submenu: extensionsSortSubMenu,
 			title: localize('sorty by', "Sort By"),
-			when: CONTEXT_HAS_GALLERY,
+			when: ContextKeyExpr.and(ContextKeyExpr.or(CONTEXT_HAS_GALLERY, DefaultViewsContext), BuiltInExtensionsContext.negate()),
 			group: '4_sort',
 			order: 1,
 		});
@@ -1088,16 +1088,17 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		[
 			{ id: 'installs', title: localize('sort by installs', "Install Count") },
 			{ id: 'rating', title: localize('sort by rating', "Rating") },
-			{ id: 'name', title: localize('sort by name', "Name") },
-			{ id: 'publishedDate', title: localize('sort by date', "Published Date") },
-		].map(({ id, title }, index) => {
+			{ id: 'name', title: localize('sort by name', "Name"), },
+			{ id: 'publishedDate', title: localize('sort by published date', "Published Date") },
+			{ id: 'updateDate', title: localize('sort by update date', "Updated Date"), precondition: ContextKeyExpr.and(SearchMarketplaceExtensionsContext.negate(), RecommendedExtensionsContext.negate()) },
+		].map(({ id, title, precondition }, index) => {
 			this.registerExtensionAction({
 				id: `extensions.sort.${id}`,
 				title,
-				precondition: DefaultViewsContext.toNegated(),
+				precondition: precondition,
 				menu: [{
 					id: extensionsSortSubMenu,
-					when: CONTEXT_HAS_GALLERY,
+					when: ContextKeyExpr.or(CONTEXT_HAS_GALLERY, DefaultViewsContext),
 					order: index,
 				}],
 				toggled: ExtensionsSortByContext.isEqualTo(id),
