@@ -1953,7 +1953,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private async _getGroupedTasks(filter?: ITaskFilter): Promise<TaskMap> {
 		const type = filter?.type;
-		const name = filter?.task;
 		const needsRecentTasksMigration = this._needsRecentTasksMigration();
 		await this._activateTaskProviders(filter?.type);
 		const validTypes: IStringDictionary<boolean> = Object.create(null);
@@ -2005,9 +2004,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 									this._outputChannel.append(nls.localize('unexpectedTaskType', "The task provider for \"{0}\" tasks unexpectedly provided a task of type \"{1}\".\n", this._providerTypes.get(handle), task.type));
 									if ((task.type !== 'shell') && (task.type !== 'process')) {
 										this._showOutput();
-									}
-									if (task.getDefinition(true)?._key === name || task._label === name) {
-										return done({ tasks: [task], extension: taskSet.extension });
 									}
 									break;
 								}
@@ -2783,17 +2779,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _runTaskCommand(arg?: any): void {
 		const identifier = this._getTaskIdentifier(arg);
 		const type = arg && typeof arg !== 'string' && 'type' in arg ? arg.type : undefined;
-		let task = arg && typeof arg !== 'string' && 'task' in arg ? arg.task : arg === 'string' ? arg : undefined;
-		if (identifier) {
-			this._getGroupedTasks({ task, type }).then(async (grouped) => {
+		const task = arg && typeof arg !== 'string' && 'task' in arg ? arg.task : arg === 'string' ? arg : undefined;
+		this._getGroupedTasks().then(async (grouped) => {
+			const tasks = grouped.all();
+			if (identifier) {
 				const resolver = this._createResolver(grouped);
-				const tasks = grouped.all();
 				const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
 				if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 					folderURIs.push(this._contextService.getWorkspace().configuration!);
 				}
 				folderURIs.push(USER_TASKS_GROUP_KEY);
-				// match by identifier
 				for (const uri of folderURIs) {
 					const task = await resolver.resolve(uri, identifier);
 					if (task) {
@@ -2801,21 +2796,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						return;
 					}
 				}
-				// match by label
-				if (!!task) {
-					const taskToRun = tasks.find(g => g._label === task);
-					if (taskToRun) {
-						this.run(taskToRun).then(undefined, () => { });
-						return;
-					}
-				}
-				if (task && !tasks.some(g => g._label.includes(task))) {
-					task = undefined;
-				}
-				// if task is defined, will be used as a filter
+			}
+			const filteredTasks = tasks.filter(t => t._label.includes(task));
+			const exactMatchTask = tasks.find(t => t.getDefinition(true)?._key === task || t._label === task);
+			if (filteredTasks?.length > 1 && !exactMatchTask) {
 				this._doRunTaskCommand(tasks, type, task);
-			});
-		}
+				return;
+			} else if (exactMatchTask) {
+				this.run(task).then(undefined, () => { });
+				return;
+			}
+		});
 		this._doRunTaskCommand();
 	}
 
