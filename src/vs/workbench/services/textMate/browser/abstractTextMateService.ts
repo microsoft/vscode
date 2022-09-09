@@ -372,7 +372,6 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		return true;
 	}
 
-	// TODO: Grammar created should have tokenizeLine2 function
 	public async createGrammar(languageId: string): Promise<IGrammar | null> {
 		if (!this._languageService.isRegisteredLanguageId(languageId)) {
 			return null;
