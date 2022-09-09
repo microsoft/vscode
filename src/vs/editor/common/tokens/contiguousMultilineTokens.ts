@@ -32,7 +32,7 @@ export class ContiguousMultilineTokens {
 	/**
 	 * The start line number for this block of tokens.
 	 */
-	private _startLineNumber: number;
+	public _startLineNumber: number;
 
 	/**
 	 * The tokens are stored in a binary format. There is an element for each line,
