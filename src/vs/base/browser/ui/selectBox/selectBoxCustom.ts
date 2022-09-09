@@ -880,7 +880,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			}
 		};
 
-		const rendered = renderMarkdown({ value: text }, { actionHandler });
+		const rendered = renderMarkdown({ value: text, supportThemeIcons: true }, { actionHandler });
 
 		rendered.element.classList.add('select-box-description-markdown');
 		cleanRenderedMarkdown(rendered.element);
