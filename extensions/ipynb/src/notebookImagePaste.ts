@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR } from './constants';
 
 class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 
@@ -151,8 +152,7 @@ function buildAttachment(b64: string, cell: vscode.NotebookCell, filename: strin
 }
 
 export function notebookImagePasteSetup() {
-	const selector: vscode.DocumentSelector = { notebookType: 'jupyter-notebook', language: 'markdown' }; // this is correct provider
-	return vscode.languages.registerDocumentPasteEditProvider(selector, new CopyPasteEditProvider(), {
+	return vscode.languages.registerDocumentPasteEditProvider(JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR, new CopyPasteEditProvider(), {
 		pasteMimeTypes: ['image/png'],
 	});
 }

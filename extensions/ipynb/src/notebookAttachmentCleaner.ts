@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { ATTACHMENT_CLEANUP_COMMANDID, JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR } from './constants';
 import { DebounceTrigger, deepClone, objectEquals } from './helper';
 
 interface AttachmentCleanRequest {
@@ -43,15 +44,13 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 		this._imageDiagnosticCollection = vscode.languages.createDiagnosticCollection('Notebook Image Attachment');
 		this._disposables.push(this._imageDiagnosticCollection);
 
-		this._disposables.push(vscode.commands.registerCommand('ipynb.cleanInvalidImageAttachment', async (document: vscode.Uri, range: vscode.Range) => {
+		this._disposables.push(vscode.commands.registerCommand(ATTACHMENT_CLEANUP_COMMANDID, async (document: vscode.Uri, range: vscode.Range) => {
 			const workspaceEdit = new vscode.WorkspaceEdit();
 			workspaceEdit.delete(document, range);
 			await vscode.workspace.applyEdit(workspaceEdit);
 		}));
 
-		const selector: vscode.DocumentSelector = { notebookType: 'jupyter-notebook', language: 'markdown' }; // this is correct provider
-
-		this._disposables.push(vscode.languages.registerCodeActionsProvider(selector, this));
+		this._disposables.push(vscode.languages.registerCodeActionsProvider(JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR, this));
 
 		this._disposables.push(vscode.workspace.onDidChangeNotebookDocument(e => {
 			e.cellChanges.forEach(change => {
@@ -115,7 +114,7 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 							vscode.CodeActionKind.QuickFix);
 
 						fix.command = {
-							command: 'ipynb.cleanInvalidImageAttachment',
+							command: ATTACHMENT_CLEANUP_COMMANDID,
 							title: 'Remove invalid image attachment reference',
 							arguments: [document.uri, diagnostic.range],
 						};
@@ -124,7 +123,6 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 					break;
 			}
 		}
-
 
 		return fixes;
 	}

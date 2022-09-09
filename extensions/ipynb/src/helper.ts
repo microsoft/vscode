@@ -88,7 +88,7 @@ interface Options<T> {
 export class DebounceTrigger<T> {
 
 	private _isPaused = 0;
-	protected _eventQueue: T[] = [];
+	protected _queue: T[] = [];
 	private _callbackFn: (value: T) => void;
 	private _mergeFn?: (input: T[]) => T;
 	private readonly _delay: number;
@@ -107,21 +107,19 @@ export class DebounceTrigger<T> {
 	private resume(): void {
 		if (this._isPaused !== 0 && --this._isPaused === 0) {
 			if (this._mergeFn) {
-				const events = Array.from(this._eventQueue);
-				this._eventQueue = [];
-				this._callbackFn(this._mergeFn(events));
+				const items = Array.from(this._queue);
+				this._queue = [];
+				this._callbackFn(this._mergeFn(items));
 
 			} else {
-				// no merging, fire each event individually and test
-				// that this emitter isn't paused halfway through
-				while (!this._isPaused && this._eventQueue.length !== 0) {
-					this._callbackFn(this._eventQueue.shift()!);
+				while (!this._isPaused && this._queue.length !== 0) {
+					this._callbackFn(this._queue.shift()!);
 				}
 			}
 		}
 	}
 
-	trigger(event: T): void {
+	trigger(item: T): void {
 		if (!this._handle) {
 			this.pause();
 			this._handle = setTimeout(() => {
@@ -131,9 +129,9 @@ export class DebounceTrigger<T> {
 		}
 
 		if (this._isPaused !== 0) {
-			this._eventQueue.push(event);
+			this._queue.push(item);
 		} else {
-			this._callbackFn(event);
+			this._callbackFn(item);
 		}
 	}
 }
