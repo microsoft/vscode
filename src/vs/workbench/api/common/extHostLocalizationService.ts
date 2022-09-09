@@ -7,7 +7,7 @@ import { Language } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ExtHostLocalizationShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostLocalizationShape, IStringDetails } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 
 export abstract class AbstractExtHostLocalizationService implements ExtHostLocalizationShape {
@@ -17,9 +17,9 @@ export abstract class AbstractExtHostLocalizationService implements ExtHostLocal
 
 	constructor(@IExtHostInitDataService protected readonly initData: IExtHostInitDataService) { }
 
-	private format(message: string, args: any[]): string {
+	private format(message: string, args?: any[]): string {
 		let result: string;
-		if (args.length === 0) {
+		if (!args || args.length === 0) {
 			result = message;
 		}
 		else {
@@ -39,11 +39,16 @@ export abstract class AbstractExtHostLocalizationService implements ExtHostLocal
 		return result;
 	}
 
-	getMessage(extensionId: string, key: string, ...args: string[]): string {
+	getMessage(extensionId: string, details: IStringDetails): string {
+		const { message, args, comment } = details;
 		if (Language.isDefault()) {
-			return this.format(key, args);
+			return this.format(message, args);
 		}
 
+		let key = message;
+		if (comment && comment.length > 0) {
+			key += `/${comment.join()}`;
+		}
 		const str = this.bundleCache.get(extensionId)?.contents[key];
 		if (!str) {
 			console.warn(`Using default string since no string found in i18n bundle that has the key: ${key}`);

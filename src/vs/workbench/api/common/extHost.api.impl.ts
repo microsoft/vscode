@@ -298,31 +298,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			}
 		};
 
-		const i18n = (...args: [str: string, ...args: string[]] | [options: string[], str: string, ...args: string[]]): string => {
-			checkProposedApiEnabled(extension, 'localization');
-			// Get rid of comments if they are there
-			if (Array.isArray(args[0])) {
-				args.shift();
-			}
-			const key = args.shift() as string;
-			return extHostLocalization.getMessage(extension.identifier.value, key, ...args as string[]);
-		};
-
-		Object.defineProperties(i18n, {
-			bundleContents: {
-				get() {
-					checkProposedApiEnabled(extension, 'localization');
-					extHostLocalization.getBundleContents(extension.identifier.value);
-				},
-			},
-			bundleUri: {
-				get() {
-					checkProposedApiEnabled(extension, 'localization');
-					extHostLocalization.getBundleUri(extension.identifier.value);
-				},
-			}
-		});
-
 		// namespace: env
 		const env: typeof vscode.env = {
 			get machineId() { return initData.telemetryInfo.machineId; },
@@ -384,8 +359,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get uiKind() {
 				return initData.uiKind;
-			},
-			i18n: i18n as typeof vscode.env.i18n
+			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
 			// allow to patch env-function when running tests
@@ -1191,6 +1165,28 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			}
 		};
 
+		// namespace: l10n
+		const l10n: typeof vscode.l10n = {
+			t(...params: [message: string, ...args: string[]] | [{ message: string; args: string[]; comment: string[] }]): string {
+				checkProposedApiEnabled(extension, 'localization');
+
+				if (typeof params[0] === 'string') {
+					const key = params.shift() as string;
+					return extHostLocalization.getMessage(extension.identifier.value, { message: key, args: params as string[] });
+				}
+
+				return extHostLocalization.getMessage(extension.identifier.value, params[0]);
+			},
+			get contents() {
+				checkProposedApiEnabled(extension, 'localization');
+				return extHostLocalization.getBundleContents(extension.identifier.value);
+			},
+			get uri() {
+				checkProposedApiEnabled(extension, 'localization');
+				return extHostLocalization.getBundleUri(extension.identifier.value);
+			}
+		};
+
 		return <typeof vscode>{
 			version: initData.version,
 			// namespaces
@@ -1200,6 +1196,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			debug,
 			env,
 			extensions,
+			l10n,
 			languages,
 			notebooks,
 			scm,

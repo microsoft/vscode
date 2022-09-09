@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
-	export namespace env {
-		export const i18n: {
-			(comments: string[], str: string, ...args: string[]): string;
-			(str: string, ...args: string[]): string;
-			readonly bundleContents: { [key: string]: string };
-			readonly bundleUri: Uri;
-		};
+	export namespace l10n {
+		export function t(message: string, ...args: string[]): string;
+		export function t(options: { message: string; args: string[]; comment: string[] }): string;
+		export const contents: { [key: string]: string };
+		export const uri: Uri;
 	}
 }
