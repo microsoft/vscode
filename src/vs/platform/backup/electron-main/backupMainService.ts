@@ -74,13 +74,17 @@ export class BackupMainService implements IBackupMainService {
 				const legacyBackupWorkspacesPath = join(this.backupHome, 'workspaces.json');
 				const legacyBackupWorkspaces = await Promises.readFile(legacyBackupWorkspacesPath, 'utf8');
 
-				await Promises.unlink(legacyBackupWorkspacesPath);
+				try {
+					await Promises.unlink(legacyBackupWorkspacesPath);
+				} catch (error) {
+					// ignore
+				}
 
-				const legacySserializedBackupWorkspaces = JSON.parse(legacyBackupWorkspaces) as ILegacySerializedBackupWorkspaces;
+				const legacySerializedBackupWorkspaces = JSON.parse(legacyBackupWorkspaces) as ILegacySerializedBackupWorkspaces;
 				serializedBackupWorkspaces = {
-					workspaces: Array.isArray(legacySserializedBackupWorkspaces.rootURIWorkspaces) ? legacySserializedBackupWorkspaces.rootURIWorkspaces : [],
-					folders: Array.isArray(legacySserializedBackupWorkspaces.folderWorkspaceInfos) ? legacySserializedBackupWorkspaces.folderWorkspaceInfos : [],
-					emptyWindows: Array.isArray(legacySserializedBackupWorkspaces.emptyWorkspaceInfos) ? legacySserializedBackupWorkspaces.emptyWorkspaceInfos : [],
+					workspaces: Array.isArray(legacySerializedBackupWorkspaces.rootURIWorkspaces) ? legacySerializedBackupWorkspaces.rootURIWorkspaces : [],
+					folders: Array.isArray(legacySerializedBackupWorkspaces.folderWorkspaceInfos) ? legacySerializedBackupWorkspaces.folderWorkspaceInfos : [],
+					emptyWindows: Array.isArray(legacySerializedBackupWorkspaces.emptyWorkspaceInfos) ? legacySerializedBackupWorkspaces.emptyWorkspaceInfos : [],
 				};
 			} catch (error) {
 				if (error.code !== 'ENOENT') {
@@ -89,7 +93,7 @@ export class BackupMainService implements IBackupMainService {
 			}
 		}
 
-		return serializedBackupWorkspaces ?? Object.create(null);
+		return serializedBackupWorkspaces ?? { workspaces: [], folders: [], emptyWindows: [] };
 	}
 
 	protected getWorkspaceBackups(): IWorkspaceBackupInfo[] {
