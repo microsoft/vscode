@@ -2639,7 +2639,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return entries;
 	}
 	private async _showTwoLevelQuickPick(placeHolder: string, defaultEntry?: ITaskQuickPickEntry, type?: string, name?: string) {
-		return TaskQuickPick.show(this, this._configurationService, this._quickInputService, this._notificationService, this._dialogService, this._themeService, placeHolder, defaultEntry, type, name);
+		return TaskQuickPick.show(this, this._configurationService, this._quickInputService, this._notificationService, this._dialogService, this._themeService, this._storageService, placeHolder, defaultEntry, type, name);
 	}
 
 	private async _showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: ITaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: ITaskQuickPickEntry, additionalEntries?: ITaskQuickPickEntry[], type?: string, name?: string): Promise<ITaskQuickPickEntry | undefined | null> {
@@ -3268,7 +3268,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (this._isTaskEntry(selection)) {
 			this._configureTask(selection.task);
 		} else if (this._isSettingEntry(selection)) {
-			const taskQuickPick = new TaskQuickPick(this, this._configurationService, this._quickInputService, this._notificationService, this._themeService, this._dialogService);
+			const taskQuickPick = new TaskQuickPick(this, this._configurationService, this._quickInputService, this._notificationService, this._themeService, this._dialogService, this._storageService);
 			taskQuickPick.handleSettingOption(selection.settingType);
 		} else if (selection.folder && (this._contextService.getWorkbenchState() !== WorkbenchState.EMPTY)) {
 			this._openTaskFile(selection.folder.toResource('.vscode/tasks.json'), TaskSourceKind.Workspace);
