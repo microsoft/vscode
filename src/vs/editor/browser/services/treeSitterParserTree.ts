@@ -22,13 +22,6 @@ import { TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry
 // TODO: for pairs where the value is an arrow function, the key should be yellow not blue
 // TODO: take into account the case when we remove instead of adding, be able to detect it (see how newEndPosition can be used for that)
 
-const exceptions = {
-	FUNCTION_DECLARATION: 'function_declaration',
-	METHOD_DEFINITION: 'method_definition',
-	AWAIT_EXPRESSION: 'await_expression',
-	AS_EXPRESSION: 'as_expression'
-}
-
 export class TreeSitterParseTree {
 	private readonly _parser: Parser;
 	private _tree: Parser.Tree | undefined;
@@ -39,13 +32,13 @@ export class TreeSitterParseTree {
 	private _captureNameToNodeMap: Map<string, Parser.SyntaxNode[]>;
 	private _edits: Parser.Edit[];
 	public readonly id: string;
-
-	// Variables for asynchronous parsing and color rendering
+	private _content;
 	private _contiguousMultilineToken: ContiguousMultilineTokens[];
 	private _beginningCaptureIndex: number;
 	private _timeoutForRender: number;
 	private _startPositionRow: number;
 	private _endPositionRow: number;
+	private _newEndPositionRow: number;
 	private _colorThemeData: ColorThemeData;
 
 	constructor(
@@ -67,57 +60,90 @@ export class TreeSitterParseTree {
 		this._timeoutForRender = 0;
 		this._startPositionRow = 0;
 		this._endPositionRow = this._model.getLineCount() - 1;
+		this._newEndPositionRow = this._model.getLineCount() - 1;
 		this._colorThemeData = _themeService.getColorTheme() as ColorThemeData;
+		this._content = '';
 
 		this.setTimeoutForRender(10);
-		this.parseTree().then((tree) => {
-			if (!tree) {
-				return;
-			}
-			this._tree = tree;
-			this.getTextMateCaptures();
+		const uriString = FileAccess.asBrowserUri(`./textMateBasedTokens.scm`, require).toString(true);
 
-			this.setTokensWithThemeData().then(() => {
-				this._disposableStore.add(this._model.onDidChangeContent((e: IModelContentChangedEvent) => {
-					this._startPositionRow = Infinity;
-					this._endPositionRow = -Infinity;
-
-					const changes = e.changes;
-					for (const change of changes) {
-						const newEndPositionFromModel = this._model.getPositionAt(change.rangeOffset + change.text.length);
-						this._edits.push({
-							startPosition: { row: change.range.startLineNumber - 1, column: change.range.startColumn - 1 },
-							oldEndPosition: { row: change.range.endLineNumber - 1, column: change.range.endColumn - 1 },
-							newEndPosition: { row: newEndPositionFromModel.lineNumber - 1, column: newEndPositionFromModel.column - 1 },
-							startIndex: change.rangeOffset,
-							oldEndIndex: change.rangeOffset + change.rangeLength,
-							newEndIndex: change.rangeOffset + change.text.length
-						} as Parser.Edit);
-
-						if (change.range.startLineNumber - 1 < this._startPositionRow) {
-							this._startPositionRow = change.range.startLineNumber - 1;
-							this._beginningCaptureIndex = 0;
-						};
-						if (change.range.endLineNumber - 1 > this._endPositionRow) {
-							this._endPositionRow = change.range.endLineNumber - 1;
-						};
+		fetch(uriString).then((response) => {
+			response.text().then((content) => {
+				this._content = content;
+				this.parseTree().then((tree) => {
+					if (!tree) {
+						return;
 					}
-					this.parseTree().then((tree) => {
-						if (!tree) {
-							return;
-						}
-						this._tree = tree;
-						this.getTextMateCaptures();
-						this.setTokensWithThemeData();
+					this._tree = tree;
+
+					this.setTokensWithThemeData().then(() => {
+						this._disposableStore.add(this._model.onDidChangeContent((e: IModelContentChangedEvent) => {
+							this._startPositionRow = Infinity;
+							this._endPositionRow = -Infinity;
+							this._newEndPositionRow = -Infinity;
+
+							const changes = e.changes;
+							for (const change of changes) {
+								const newEndPositionFromModel = this._model.getPositionAt(change.rangeOffset + change.text.length);
+								this._edits.push({
+									startPosition: { row: change.range.startLineNumber - 1, column: change.range.startColumn - 1 }, // -1 on row
+									oldEndPosition: { row: change.range.endLineNumber - 1, column: change.range.endColumn - 1 }, // -1 on row
+									newEndPosition: { row: newEndPositionFromModel.lineNumber - 1, column: newEndPositionFromModel.column - 1 }, // -1 on row
+									startIndex: change.rangeOffset,
+									oldEndIndex: change.rangeOffset + change.rangeLength,
+									newEndIndex: change.rangeOffset + change.text.length
+								} as Parser.Edit);
+
+								if (change.range.startLineNumber - 1 < this._startPositionRow) {
+									this._startPositionRow = change.range.startLineNumber - 1;
+									this._beginningCaptureIndex = 0;
+								};
+								if (change.range.endLineNumber - 1 > this._endPositionRow) {
+									this._endPositionRow = change.range.endLineNumber - 1;
+								};
+								if (newEndPositionFromModel.lineNumber - 1 > this._newEndPositionRow) {
+									this._newEndPositionRow = newEndPositionFromModel.lineNumber - 1;
+								}
+							}
+							// this.getTextMateCaptures();
+							this.parseTree().then((tree) => {
+								if (!tree) {
+									return;
+								}
+								this._tree = tree;
+								this.setTokensWithThemeData();
+							})
+						}));
 					})
-				}));
+				})
 			})
 		})
 	}
 
 	public setTokensWithThemeData(): Promise<boolean> {
+		this.getTextMateCaptures();
 		let that = this;
-		this._contiguousMultilineToken = this._contiguousMultilineToken.splice(this._startPositionRow, this._endPositionRow - this._startPositionRow + 1);
+		this._contiguousMultilineToken.splice(this._startPositionRow, this._endPositionRow - this._startPositionRow + 1); //? Do I need +1 there?
+
+		// In that case we have removed some code
+		if (this._newEndPositionRow < this._endPositionRow) {
+			this._contiguousMultilineToken.map(token => {
+				if (token._startLineNumber >= this._endPositionRow + 2) {
+					token._startLineNumber = token._startLineNumber - (this._endPositionRow - this._startPositionRow);
+				}
+			})
+		}
+		if (this._newEndPositionRow > this._endPositionRow) {
+			this._contiguousMultilineToken.map(token => {
+				if (token._startLineNumber >= this._endPositionRow + 2) {
+					token._startLineNumber = token._startLineNumber + (this._newEndPositionRow - this._startPositionRow);
+				}
+			})
+		}
+
+		for (const a of this._contiguousMultilineToken) {
+			console.log(a);
+		}
 		return new Promise(function (resolve, reject) {
 			that.runSetTokensWithThemeData(resolve, reject);
 		})
@@ -150,15 +176,16 @@ export class TreeSitterParseTree {
 
 		let beginningCaptureIndex = this._beginningCaptureIndex;
 		let newBeginningIndexFound = true;
+		const endRow = this._newEndPositionRow;
 
-		for (let i = this._startPositionRow; i <= this._endPositionRow; i++) {
+		for (let i = this._startPositionRow; i <= endRow; i++) {
 			const array: Uint32Array[] = [];
 			const arrayOfTokens: number[] = [];
 			let j = beginningCaptureIndex;
 
 			while (j < numberCaptures && this._captures[j].node.startPosition.row <= i) {
-				if (this._captures[j].node.startPosition.row <= i && i <= this._captures[j].node.endPosition.row) {
 
+				if (this._captures[j].node.startPosition.row === i && i === this._captures[j].node.endPosition.row) { // used to be <= and >=
 					if (!newBeginningIndexFound) {
 						newBeginningIndexFound = true;
 						beginningCaptureIndex = this._captures[j].node.startPosition.row;
@@ -208,7 +235,6 @@ export class TreeSitterParseTree {
 			}
 			newBeginningIndexFound = false;
 			array.push(new Uint32Array(arrayOfTokens));
-
 			this._contiguousMultilineToken.splice(i, 0, new ContiguousMultilineTokens(i + 1, array));
 			this._model.tokenization.setTokens(this._contiguousMultilineToken);
 			this._startPositionRow = i + 1;
@@ -224,17 +250,12 @@ export class TreeSitterParseTree {
 	}
 
 	public getMatches() {
-		const uriString = FileAccess.asBrowserUri(`./textMateBasedTokens.scm`, require).toString(true);
-		fetch(uriString).then((response) => {
-			response.text().then((content) => {
-				if (!this._tree) {
-					return;
-				}
-				const query = this._language.query(content);
-				this._matches = query.matches(this._tree.rootNode);
-				query.delete();
-			})
-		})
+		if (!this._tree) {
+			return;
+		}
+		const query = this._language.query(this._content);
+		this._matches = query.matches(this._tree.rootNode);
+		query.delete();
 	}
 
 	public getTree() {
@@ -296,22 +317,17 @@ export class TreeSitterParseTree {
 	}
 
 	public getTextMateCaptures() {
-		const uriString = FileAccess.asBrowserUri(`./textMateBasedTokens.scm`, require).toString(true);
-		fetch(uriString).then((response) => {
-			response.text().then((content) => {
-				if (!this._tree) {
-					return;
-				}
-				const query = this._language.query(content);
-				this._captures = query.captures(this._tree.rootNode);
-				this._captureNames = query.captureNames;
-				for (const captureName of this._captureNames) {
-					const syntaxNodes: Parser.SyntaxNode[] = this._captures.filter(node => node.name === captureName).map(capture => capture.node);
-					this._captureNameToNodeMap.set(captureName, syntaxNodes);
-				}
-				query.delete();
-			})
-		})
+		if (!this._tree) {
+			return;
+		}
+		const query = this._language.query(this._content);
+		this._captures = query.captures(this._tree.rootNode);
+		this._captureNames = query.captureNames;
+		for (const captureName of this._captureNames) {
+			const syntaxNodes: Parser.SyntaxNode[] = this._captures.filter(node => node.name === captureName).map(capture => capture.node);
+			this._captureNameToNodeMap.set(captureName, syntaxNodes);
+		}
+		query.delete();
 	}
 
 	private _retrieveTextAtPosition(model: ITextModel, startIndex: number, _startPoint: Parser.Point | undefined, endIndex: number | undefined) {

@@ -12,6 +12,7 @@
 (call_expression function: (member_expression property: (property_identifier) @entity.name.function.ts))
 (call_expression function: (identifier) @entity.name.function.ts)
 (new_expression constructor: (identifier) @entity.name.function.ts)
+(pair key: (property_identifier) @entity.name.function.ts)
 
 [
   "class"
@@ -103,15 +104,17 @@
 (call_expression function: (member_expression object: (identifier) @variable.other.object.ts))
 
 (import_specifier name : (identifier) @variable.other.readwrite.alias.ts)
-
 (assignment_expression right: (identifier) @variable.other.readwrite.ts)
 (decorator (identifier) @variable.other.readwrite.ts)
 (arguments (identifier) @variable.other.readwrite.ts)
 (binary_expression right: (identifier) @variable.other.readwrite.ts)
 (assignment_expression left: (identifier) @variable.other.readwrite.ts)
 (unary_expression argument: (identifier) @variable.other.readwrite.ts)
-(variable_declarator value: (identifier) @variable.other.readwrite.ts)
+(variable_declarator name: (identifier) @variable.other.readwrite.ts)
 (for_in_statement left: (identifier) @variable.other.readwrite.ts)
+(update_expression argument: (identifier) @variable.other.readwrite.ts)
+(arrow_function body: (identifier) @variable.other.readwrite.ts)
+(shorthand_property_identifier) @variable.other.readwrite.ts
 
 (false) @constant.language.boolean.false.ts
 (true) @constant.language.boolean.true.ts
@@ -121,7 +124,10 @@
 (optional_parameter (identifier) @variable.parameter.ts)
 
 (enum_assignment (property_identifier) @variable.other.enummember.ts)
+(enum_body (property_identifier) @variable.other.enummember.ts)
 
 (predefined_type) @support.type.primitive.ts
 
 (type_identifier) @entity.name.type.class.ts
+
+(pair key: (property_identifier) @meta.object-literal.key.ts value: (identifier) @variable.other.readwrite.ts)
