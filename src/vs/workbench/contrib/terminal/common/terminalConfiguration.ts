@@ -42,12 +42,14 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.TabsDefaultColor]: {
 			description: localize('terminal.integrated.tabs.defaultColor', "A theme color ID to associate with terminal icons by default."),
-			...terminalColorSchema
+			...terminalColorSchema,
+			scope: ConfigurationScope.RESOURCE
 		},
 		[TerminalSettingId.TabsDefaultIcon]: {
 			description: localize('terminal.integrated.tabs.defaultIcon', "A codicon ID to associate with terminal icons by default."),
 			...terminalIconSchema,
 			default: Codicon.terminal.id,
+			scope: ConfigurationScope.RESOURCE
 		},
 		[TerminalSettingId.TabsEnabled]: {
 			description: localize('terminal.integrated.tabs.enabled', 'Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead.'),
@@ -113,21 +115,6 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'view',
 			description: localize('terminal.integrated.defaultLocation', "Controls where newly created terminals will appear.")
-		},
-		[TerminalSettingId.ShellIntegrationDecorationIconSuccess]: {
-			type: 'string',
-			default: 'primitive-dot',
-			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIconSuccess', "Controls the icon that will be used for each command in terminals with shell integration enabled that do not have an associated exit code. Set to {0} to hide the icon or disable decorations with {1}.", '`\"\"`', '`#terminal.integrated.shellIntegration.decorationsEnabled#`')
-		},
-		[TerminalSettingId.ShellIntegrationDecorationIconError]: {
-			type: 'string',
-			default: 'error-small',
-			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIconError', "Controls the icon that will be used for each command in terminals with shell integration enabled that do have an associated exit code. Set to {0} to hide the icon or disable decorations with {1}.", '`\"\"`', '`#terminal.integrated.shellIntegration.decorationsEnabled#`')
-		},
-		[TerminalSettingId.ShellIntegrationDecorationIcon]: {
-			type: 'string',
-			default: 'circle-outline',
-			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIcon', "Controls the icon that will be used for skipped/empty commands. Set to {0} to hide the icon or disable decorations with {1}.", '`\"\"`', '`#terminal.integrated.shellIntegration.decorationsEnabled#`')
 		},
 		[TerminalSettingId.TabsFocusMode]: {
 			type: 'string',
@@ -568,6 +555,11 @@ const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.shellIntegration.history', "Controls the number of recently used commands to keep in the terminal command history. Set to 0 to disable terminal command history."),
 			type: 'number',
 			default: 100
+		},
+		[TerminalSettingId.SmoothScrolling]: {
+			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
+			type: 'boolean',
+			default: false
 		},
 	}
 };

@@ -37,8 +37,9 @@ interface IAccountUsage {
 }
 
 const FIRST_PARTY_ALLOWED_EXTENSIONS = [
-	'github.vscode-pull-request-github',
 	'vscode.git',
+	'vscode.github',
+	'github.vscode-pull-request-github',
 	'github.remotehub',
 	'github.remotehub-insiders',
 	'github.codespaces',
@@ -734,4 +735,4 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 }
 
-registerSingleton(IAuthenticationService, AuthenticationService);
+registerSingleton(IAuthenticationService, AuthenticationService, false);

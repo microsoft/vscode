@@ -484,6 +484,8 @@ export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
 	readonly modified: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
+export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
+
 /**
  * A resource merge editor input compares multiple editors
  * highlighting the differences for merging.
@@ -496,12 +498,12 @@ export interface IResourceMergeEditorInput extends IBaseUntypedEditorInput {
 	/**
 	 * The one changed version of the file.
 	 */
-	readonly input1: IResourceEditorInput | ITextResourceEditorInput;
+	readonly input1: IResourceMergeEditorInputSide;
 
 	/**
 	 * The second changed version of the file.
 	 */
-	readonly input2: IResourceEditorInput | ITextResourceEditorInput;
+	readonly input2: IResourceMergeEditorInputSide;
 
 	/**
 	 * The base common ancestor of the file to merge.

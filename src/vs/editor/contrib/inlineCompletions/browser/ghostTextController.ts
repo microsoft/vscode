@@ -247,8 +247,6 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = GhostTextController.get(editor);
-		if (controller) {
-			controller.trigger();
-		}
+		controller?.trigger();
 	}
 }

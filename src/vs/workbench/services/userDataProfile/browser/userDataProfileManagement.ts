@@ -6,13 +6,13 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfilesService, UseDefaultProfileFlags, WorkspaceIdentifier } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IUserDataProfileManagementService, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { DidChangeUserDataProfileEvent, IUserDataProfileManagementService, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class UserDataProfileManagementService extends Disposable implements IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
@@ -28,6 +28,8 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 	) {
 		super();
 		this._register(userDataProfilesService.onDidChangeProfiles(e => this.onDidChangeProfiles(e)));
+		this._register(userDataProfilesService.onDidResetWorkspaces(() => this.onDidResetWorkspaces()));
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => this.onDidChangeCurrentProfile(e)));
 	}
 
 	private onDidChangeProfiles(e: DidChangeProfilesEvent): void {
@@ -37,9 +39,28 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		}
 	}
 
+	private onDidResetWorkspaces(): void {
+		if (!this.userDataProfileService.currentProfile.isDefault) {
+			this.enterProfile(this.userDataProfilesService.defaultProfile, false, localize('reload message when removed', "The current settings profile has been removed. Please reload to switch back to default settings profile"));
+			return;
+		}
+	}
+
+	private async onDidChangeCurrentProfile(e: DidChangeUserDataProfileEvent): Promise<void> {
+		if (e.previous.isTransient) {
+			await this.userDataProfilesService.cleanUpTransientProfiles();
+		}
+	}
+
 	async createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean): Promise<IUserDataProfile> {
 		const profile = await this.userDataProfilesService.createProfile(name, useDefaultFlags, this.getWorkspaceIdentifier());
 		await this.enterProfile(profile, !!fromExisting);
+		return profile;
+	}
+
+	async createAndEnterTransientProfile(): Promise<IUserDataProfile> {
+		const profile = await this.userDataProfilesService.createTransientProfile(this.getWorkspaceIdentifier());
+		await this.enterProfile(profile, false);
 		return profile;
 	}
 
@@ -71,7 +92,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		if (this.userDataProfileService.currentProfile.id === profile.id) {
 			return;
 		}
-		await this.userDataProfilesService.setProfileForWorkspace(profile, workspaceIdentifier);
+		await this.userDataProfilesService.setProfileForWorkspace(workspaceIdentifier, profile);
 		await this.enterProfile(profile, false);
 	}
 
@@ -111,4 +132,4 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 	}
 }
 
-registerSingleton(IUserDataProfileManagementService, UserDataProfileManagementService);
+registerSingleton(IUserDataProfileManagementService, UserDataProfileManagementService, InstantiationType.Eager /* Eager because it updates the current window profile by listening to profiles changes */);

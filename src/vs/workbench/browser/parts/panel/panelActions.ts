@@ -70,9 +70,7 @@ class FocusPanelAction extends Action {
 
 		// Focus into active panel
 		const panel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
-		if (panel) {
-			panel.focus();
-		}
+		panel?.focus();
 	}
 }
 

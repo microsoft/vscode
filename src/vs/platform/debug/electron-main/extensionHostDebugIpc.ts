@@ -7,11 +7,15 @@ import { AddressInfo, createServer } from 'net';
 import { IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
+import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 
 export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHostDebugBroadcastChannel<TContext> {
 
-	constructor(private windowsMainService: IWindowsMainService) {
+	constructor(
+		private windowsMainService: IWindowsMainService,
+		private userDataProfilesMainService: IUserDataProfilesMainService
+	) {
 		super();
 	}
 
@@ -32,9 +36,14 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 			return { success: false };
 		}
 
+		// Ensure profile exists when passed in from args
+		const profilePromise = this.userDataProfilesMainService.checkAndCreateProfileFromCli(pargs);
+		const profile = profilePromise ? await profilePromise : undefined;
+
 		const [codeWindow] = this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
 			context: OpenContext.API,
 			cli: pargs,
+			profile
 		});
 
 		if (!debugRenderer) {

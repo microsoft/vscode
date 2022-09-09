@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { decodeBase64, VSBuffer } from 'vs/base/common/buffer';
 import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
@@ -17,13 +18,16 @@ export const EDIT_SESSION_SYNC_CATEGORY: ILocalizedString = {
 	value: localize('session sync', 'Edit Sessions')
 };
 
-export const IEditSessionsWorkbenchService = createDecorator<IEditSessionsWorkbenchService>('IEditSessionsWorkbenchService');
-export interface IEditSessionsWorkbenchService {
+export const IEditSessionsStorageService = createDecorator<IEditSessionsStorageService>('IEditSessionsStorageService');
+export interface IEditSessionsStorageService {
 	_serviceBrand: undefined;
 
+	readonly isSignedIn: boolean;
+
+	initialize(fromContinueOn: boolean): Promise<boolean>;
 	read(ref: string | undefined): Promise<{ ref: string; editSession: EditSession } | undefined>;
 	write(editSession: EditSession): Promise<string>;
-	delete(ref: string): Promise<void>;
+	delete(ref: string | null): Promise<void>;
 	list(): Promise<IResourceRefHandle[]>;
 }
 
@@ -57,10 +61,11 @@ export type Change = Addition | Deletion;
 
 export interface Folder {
 	name: string;
+	canonicalIdentity: string | undefined;
 	workingChanges: Change[];
 }
 
-export const EditSessionSchemaVersion = 1;
+export const EditSessionSchemaVersion = 2;
 
 export interface EditSession {
 	version: number;
@@ -79,3 +84,14 @@ export const EDIT_SESSIONS_VIEW_ICON = registerIcon('edit-sessions-view-icon', C
 export const EDIT_SESSIONS_SHOW_VIEW = new RawContextKey<boolean>('editSessionsShowView', false);
 
 export const EDIT_SESSIONS_SCHEME = 'vscode-edit-sessions';
+
+export function decodeEditSessionFileContent(version: number, content: string): VSBuffer {
+	switch (version) {
+		case 1:
+			return VSBuffer.fromString(content);
+		case 2:
+			return decodeBase64(content);
+		default:
+			throw new Error('Upgrade to a newer version to decode this content.');
+	}
+}

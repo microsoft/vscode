@@ -13,9 +13,12 @@ export class CodeActionKind {
 	public static readonly Empty = new CodeActionKind('');
 	public static readonly QuickFix = new CodeActionKind('quickfix');
 	public static readonly Refactor = new CodeActionKind('refactor');
+	public static readonly Extract = CodeActionKind.Refactor.append('extract');
+	public static readonly Convert = CodeActionKind.Refactor.append('rewrite');
 	public static readonly Source = new CodeActionKind('source');
 	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
 	public static readonly SourceFixAll = CodeActionKind.Source.append('fixAll');
+	public static readonly SurroundWith = CodeActionKind.Refactor.append('surround');
 
 	constructor(
 		public readonly value: string

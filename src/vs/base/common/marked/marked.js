@@ -83,6 +83,7 @@
 
   function getDefaults() {
     return {
+      async: false,
       baseUrl: null,
       breaks: false,
       extensions: null,
@@ -423,7 +424,7 @@
         href: href,
         title: title,
         text: text,
-        tokens: lexer.inlineTokens(text, [])
+        tokens: lexer.inlineTokens(text)
       };
       lexer.state.inLink = false;
       return token;
@@ -531,15 +532,13 @@
           }
         }
 
-        var token = {
+        return {
           type: 'heading',
           raw: cap[0],
           depth: cap[1].length,
           text: text,
-          tokens: []
+          tokens: this.lexer.inline(text)
         };
-        this.lexer.inline(token.text, token.tokens);
-        return token;
       }
     };
 
@@ -632,7 +631,9 @@
 
           if (!endEarly) {
             var nextBulletRegex = new RegExp("^ {0," + Math.min(3, indent - 1) + "}(?:[*+-]|\\d{1,9}[.)])((?: [^\\n]*)?(?:\\n|$))");
-            var hrRegex = new RegExp("^ {0," + Math.min(3, indent - 1) + "}((?:- *){3,}|(?:_ *){3,}|(?:\\* *){3,})(?:\\n+|$)"); // Check if following lines should be included in List Item
+            var hrRegex = new RegExp("^ {0," + Math.min(3, indent - 1) + "}((?:- *){3,}|(?:_ *){3,}|(?:\\* *){3,})(?:\\n+|$)");
+            var fencesBeginRegex = new RegExp("^ {0," + Math.min(3, indent - 1) + "}(?:```|~~~)");
+            var headingBeginRegex = new RegExp("^ {0," + Math.min(3, indent - 1) + "}#"); // Check if following lines should be included in List Item
 
             while (src) {
               rawLine = src.split('\n', 1)[0];
@@ -640,6 +641,16 @@
 
               if (this.options.pedantic) {
                 line = line.replace(/^ {1,4}(?=( {4})*[^ ])/g, '  ');
+              } // End list item if found code fences
+
+
+              if (fencesBeginRegex.test(line)) {
+                break;
+              } // End list item if found start of new heading
+
+
+              if (headingBeginRegex.test(line)) {
+                break;
               } // End list item if found start of new bullet
 
 
@@ -757,10 +768,10 @@
         };
 
         if (this.options.sanitize) {
+          var text = this.options.sanitizer ? this.options.sanitizer(cap[0]) : escape(cap[0]);
           token.type = 'paragraph';
-          token.text = this.options.sanitizer ? this.options.sanitizer(cap[0]) : escape(cap[0]);
-          token.tokens = [];
-          this.lexer.inline(token.text, token.tokens);
+          token.text = text;
+          token.tokens = this.lexer.inline(text);
         }
 
         return token;
@@ -830,8 +841,7 @@
           l = item.header.length;
 
           for (j = 0; j < l; j++) {
-            item.header[j].tokens = [];
-            this.lexer.inline(item.header[j].text, item.header[j].tokens);
+            item.header[j].tokens = this.lexer.inline(item.header[j].text);
           } // cell child tokens
 
 
@@ -841,8 +851,7 @@
             row = item.rows[j];
 
             for (k = 0; k < row.length; k++) {
-              row[k].tokens = [];
-              this.lexer.inline(row[k].text, row[k].tokens);
+              row[k].tokens = this.lexer.inline(row[k].text);
             }
           }
 
@@ -855,15 +864,13 @@
       var cap = this.rules.block.lheading.exec(src);
 
       if (cap) {
-        var token = {
+        return {
           type: 'heading',
           raw: cap[0],
           depth: cap[2].charAt(0) === '=' ? 1 : 2,
           text: cap[1],
-          tokens: []
+          tokens: this.lexer.inline(cap[1])
         };
-        this.lexer.inline(token.text, token.tokens);
-        return token;
       }
     };
 
@@ -871,14 +878,13 @@
       var cap = this.rules.block.paragraph.exec(src);
 
       if (cap) {
-        var token = {
+        var text = cap[1].charAt(cap[1].length - 1) === '\n' ? cap[1].slice(0, -1) : cap[1];
+        return {
           type: 'paragraph',
           raw: cap[0],
-          text: cap[1].charAt(cap[1].length - 1) === '\n' ? cap[1].slice(0, -1) : cap[1],
-          tokens: []
+          text: text,
+          tokens: this.lexer.inline(text)
         };
-        this.lexer.inline(token.text, token.tokens);
-        return token;
       }
     };
 
@@ -886,14 +892,12 @@
       var cap = this.rules.block.text.exec(src);
 
       if (cap) {
-        var token = {
+        return {
           type: 'text',
           raw: cap[0],
           text: cap[0],
-          tokens: []
+          tokens: this.lexer.inline(cap[0])
         };
-        this.lexer.inline(token.text, token.tokens);
-        return token;
       }
     };
 
@@ -1072,7 +1076,7 @@
               type: 'em',
               raw: src.slice(0, lLength + match.index + rLength + 1),
               text: _text,
-              tokens: this.lexer.inlineTokens(_text, [])
+              tokens: this.lexer.inlineTokens(_text)
             };
           } // Create 'strong' if smallest delimiter has even char count. **a***
 
@@ -1082,7 +1086,7 @@
             type: 'strong',
             raw: src.slice(0, lLength + match.index + rLength + 1),
             text: text,
-            tokens: this.lexer.inlineTokens(text, [])
+            tokens: this.lexer.inlineTokens(text)
           };
         }
       }
@@ -1128,7 +1132,7 @@
           type: 'del',
           raw: cap[0],
           text: cap[2],
-          tokens: this.lexer.inlineTokens(cap[2], [])
+          tokens: this.lexer.inlineTokens(cap[2])
         };
       }
     };
@@ -1746,10 +1750,15 @@
     };
 
     _proto.inline = function inline(src, tokens) {
+      if (tokens === void 0) {
+        tokens = [];
+      }
+
       this.inlineQueue.push({
         src: src,
         tokens: tokens
       });
+      return tokens;
     }
     /**
      * Lexing/Compiling
@@ -2722,15 +2731,7 @@
       return;
     }
 
-    try {
-      var _tokens = Lexer.lex(src, opt);
-
-      if (opt.walkTokens) {
-        marked.walkTokens(_tokens, opt.walkTokens);
-      }
-
-      return Parser.parse(_tokens, opt);
-    } catch (e) {
+    function onError(e) {
       e.message += '\nPlease report this to https://github.com/markedjs/marked.';
 
       if (opt.silent) {
@@ -2738,6 +2739,24 @@
       }
 
       throw e;
+    }
+
+    try {
+      var _tokens = Lexer.lex(src, opt);
+
+      if (opt.walkTokens) {
+        if (opt.async) {
+          return Promise.all(marked.walkTokens(_tokens, opt.walkTokens)).then(function () {
+            return Parser.parse(_tokens, opt);
+          })["catch"](onError);
+        }
+
+        marked.walkTokens(_tokens, opt.walkTokens);
+      }
+
+      return Parser.parse(_tokens, opt);
+    } catch (e) {
+      onError(e);
     }
   }
   /**
@@ -2903,11 +2922,14 @@
         var _walkTokens = marked.defaults.walkTokens;
 
         opts.walkTokens = function (token) {
-          pack.walkTokens.call(this, token);
+          var values = [];
+          values.push(pack.walkTokens.call(this, token));
 
           if (_walkTokens) {
-            _walkTokens.call(this, token);
+            values = values.concat(_walkTokens.call(this, token));
           }
+
+          return values;
         };
       }
 
@@ -2924,16 +2946,18 @@
 
 
   marked.walkTokens = function (tokens, callback) {
+    var values = [];
+
     var _loop3 = function _loop3() {
       var token = _step.value;
-      callback.call(marked, token);
+      values = values.concat(callback.call(marked, token));
 
       switch (token.type) {
         case 'table':
           {
             for (var _iterator2 = _createForOfIteratorHelperLoose(token.header), _step2; !(_step2 = _iterator2()).done;) {
               var cell = _step2.value;
-              marked.walkTokens(cell.tokens, callback);
+              values = values.concat(marked.walkTokens(cell.tokens, callback));
             }
 
             for (var _iterator3 = _createForOfIteratorHelperLoose(token.rows), _step3; !(_step3 = _iterator3()).done;) {
@@ -2941,7 +2965,7 @@
 
               for (var _iterator4 = _createForOfIteratorHelperLoose(row), _step4; !(_step4 = _iterator4()).done;) {
                 var _cell = _step4.value;
-                marked.walkTokens(_cell.tokens, callback);
+                values = values.concat(marked.walkTokens(_cell.tokens, callback));
               }
             }
 
@@ -2950,7 +2974,7 @@
 
         case 'list':
           {
-            marked.walkTokens(token.items, callback);
+            values = values.concat(marked.walkTokens(token.items, callback));
             break;
           }
 
@@ -2959,10 +2983,10 @@
             if (marked.defaults.extensions && marked.defaults.extensions.childTokens && marked.defaults.extensions.childTokens[token.type]) {
               // Walk any extensions
               marked.defaults.extensions.childTokens[token.type].forEach(function (childTokens) {
-                marked.walkTokens(token[childTokens], callback);
+                values = values.concat(marked.walkTokens(token[childTokens], callback));
               });
             } else if (token.tokens) {
-              marked.walkTokens(token.tokens, callback);
+              values = values.concat(marked.walkTokens(token.tokens, callback));
             }
           }
       }
@@ -2971,6 +2995,8 @@
     for (var _iterator = _createForOfIteratorHelperLoose(tokens), _step; !(_step = _iterator()).done;) {
       _loop3();
     }
+
+    return values;
   };
   /**
    * Parse Inline

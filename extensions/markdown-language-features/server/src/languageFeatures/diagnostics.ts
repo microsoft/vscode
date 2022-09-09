@@ -9,7 +9,6 @@ import { disposeAll } from 'vscode-markdown-languageservice/out/util/dispose';
 import { Disposable } from 'vscode-notebook-renderer/events';
 import { URI } from 'vscode-uri';
 import { ConfigurationManager, ValidateEnabled } from '../configuration';
-import { VsCodeClientWorkspace } from '../workspace';
 
 const defaultDiagnosticOptions: md.DiagnosticOptions = {
 	validateFileLinks: md.DiagnosticLevel.ignore,
@@ -45,15 +44,15 @@ function getDiagnosticsOptions(config: ConfigurationManager): md.DiagnosticOptio
 
 export function registerValidateSupport(
 	connection: Connection,
-	workspace: VsCodeClientWorkspace,
+	workspace: md.IWorkspace,
 	ls: md.IMdLanguageService,
 	config: ConfigurationManager,
+	logger: md.ILogger,
 ): Disposable {
 	let diagnosticOptions: md.DiagnosticOptions = defaultDiagnosticOptions;
 	function updateDiagnosticsSetting(): void {
 		diagnosticOptions = getDiagnosticsOptions(config);
 	}
-
 
 	const subs: Disposable[] = [];
 	const manager = ls.createPullDiagnosticsManager();
@@ -64,14 +63,23 @@ export function registerValidateSupport(
 		connection.languages.diagnostics.refresh();
 	}));
 
+	const emptyDiagnosticsResponse = Object.freeze({ kind: 'full', items: [] });
+
 	connection.languages.diagnostics.on(async (params, token): Promise<FullDocumentDiagnosticReport | UnchangedDocumentDiagnosticReport> => {
+		logger.log(md.LogLevel.Trace, 'Server: connection.languages.diagnostics.on', params.textDocument.uri);
+
 		if (!config.getSettings()?.markdown.experimental.validate.enabled) {
-			return { kind: 'full', items: [] };
+			return emptyDiagnosticsResponse;
 		}
 
-		const document = await workspace.openMarkdownDocument(URI.parse(params.textDocument.uri));
+		const uri = URI.parse(params.textDocument.uri);
+		if (!workspace.hasMarkdownDocument(uri)) {
+			return emptyDiagnosticsResponse;
+		}
+
+		const document = await workspace.openMarkdownDocument(uri);
 		if (!document) {
-			return { kind: 'full', items: [] };
+			return emptyDiagnosticsResponse;
 		}
 
 		const diagnostics = await manager.computeDiagnostics(document, diagnosticOptions, token);
