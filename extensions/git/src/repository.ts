@@ -1431,9 +1431,9 @@ export class Repository implements Disposable {
 	@throttle
 	async fetchBranch(name: string): Promise<void> {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const pullBeforeCheckout = config.get<boolean>('pullBeforeCheckout', false) === true;
+		const fetchBeforeCheckout = config.get<boolean>('fetchBeforeCheckout', false) === true;
 
-		if (!pullBeforeCheckout) {
+		if (!fetchBeforeCheckout) {
 			return;
 		}
 

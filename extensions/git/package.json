@@ -2331,11 +2331,11 @@
           "default": false,
           "description": "%config.rebaseWhenSync%"
         },
-        "git.pullBeforeCheckout": {
+        "git.fetchBeforeCheckout": {
           "type": "boolean",
           "scope": "resource",
           "default": false,
-          "description": "%config.pullBeforeCheckout%"
+          "description": "%config.fetchBeforeCheckout%"
         },
         "git.fetchOnPull": {
           "type": "boolean",
