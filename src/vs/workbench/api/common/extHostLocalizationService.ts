@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Language } from 'vs/base/common/platform';
+import { format } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -17,32 +18,10 @@ export abstract class AbstractExtHostLocalizationService implements ExtHostLocal
 
 	constructor(@IExtHostInitDataService protected readonly initData: IExtHostInitDataService) { }
 
-	private format(message: string, args?: any[]): string {
-		let result: string;
-		if (!args || args.length === 0) {
-			result = message;
-		}
-		else {
-			result = message.replace(/\{(\d+)\}/g, (match, rest) => {
-				const index = rest[0];
-				const arg = args[index];
-				let replacement = match;
-				if (typeof arg === 'string') {
-					replacement = arg;
-				}
-				else if (typeof arg === 'number' || typeof arg === 'boolean' || arg === void 0 || arg === null) {
-					replacement = String(arg);
-				}
-				return replacement;
-			});
-		}
-		return result;
-	}
-
 	getMessage(extensionId: string, details: IStringDetails): string {
 		const { message, args, comment } = details;
 		if (Language.isDefault()) {
-			return this.format(message, args);
+			return format(message, args);
 		}
 
 		let key = message;
@@ -53,7 +32,7 @@ export abstract class AbstractExtHostLocalizationService implements ExtHostLocal
 		if (!str) {
 			console.warn(`Using default string since no string found in i18n bundle that has the key: ${key}`);
 		}
-		return this.format(str ?? key, args);
+		return format(str ?? key, args);
 	}
 
 	getBundle(extensionId: string): { [key: string]: string } {
