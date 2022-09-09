@@ -30,7 +30,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const Context = {
@@ -688,15 +687,13 @@ export class CodeActionKeybindingResolver {
 	];
 
 	constructor(
-		private readonly _keybindingProvider: {
-			getKeybindings(): readonly ResolvedKeybindingItem[];
-		},
+		private readonly keybindingService: IKeybindingService,
 	) { }
 
 	public getResolver(): (action: CodeAction) => ResolvedKeybinding | undefined {
 		// Lazy since we may not actually ever read the value
 		const allCodeActionBindings = new Lazy<readonly ResolveCodeActionKeybinding[]>(() =>
-			this._keybindingProvider.getKeybindings()
+			this.keybindingService.getKeybindings()
 				.filter(item => CodeActionKeybindingResolver.codeActionCommands.indexOf(item.command!) >= 0)
 				.filter(item => item.resolvedKeybinding)
 				.map((item): ResolveCodeActionKeybinding => {
