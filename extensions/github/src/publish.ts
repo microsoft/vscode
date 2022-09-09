@@ -199,7 +199,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 					return;
 				}
 
-				await repository.commit('first commit', { all: true });
+				await repository.commit('first commit', { all: true, postCommitCommand: null });
 			}
 
 			progress.report({ message: localize('publishing_uploading', "Uploading files"), increment: 25 });
