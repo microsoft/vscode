@@ -50,7 +50,11 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 			await vscode.workspace.applyEdit(workspaceEdit);
 		}));
 
-		this._disposables.push(vscode.languages.registerCodeActionsProvider(JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR, this));
+		this._disposables.push(vscode.languages.registerCodeActionsProvider(JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR, this, {
+			providedCodeActionKinds: [
+				vscode.CodeActionKind.QuickFix
+			],
+		}));
 
 		this._disposables.push(vscode.workspace.onDidChangeNotebookDocument(e => {
 			e.cellChanges.forEach(change => {
