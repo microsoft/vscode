@@ -365,7 +365,7 @@ export class BackupMainService implements IBackupMainService {
 
 		// Empty
 		if (isEmptyWindowBackupInfo(backupLocation)) {
-			backupPath = backupLocation.backupFolder;
+			backupPath = join(this.backupHome, backupLocation.backupFolder);
 		}
 
 		// Folder
