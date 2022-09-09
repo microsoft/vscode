@@ -7,7 +7,7 @@ declare module 'vscode' {
 	export namespace l10n {
 		export function t(message: string, ...args: string[]): string;
 		export function t(options: { message: string; args: string[]; comment: string[] }): string;
-		export const contents: { [key: string]: string };
+		export const bundle: { [key: string]: string };
 		export const uri: Uri;
 	}
 }

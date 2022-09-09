@@ -1177,9 +1177,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 				return extHostLocalization.getMessage(extension.identifier.value, params[0]);
 			},
-			get contents() {
+			get bundle() {
 				checkProposedApiEnabled(extension, 'localization');
-				return extHostLocalization.getBundleContents(extension.identifier.value);
+				return extHostLocalization.getBundle(extension.identifier.value);
 			},
 			get uri() {
 				checkProposedApiEnabled(extension, 'localization');

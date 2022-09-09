@@ -56,7 +56,7 @@ export abstract class AbstractExtHostLocalizationService implements ExtHostLocal
 		return this.format(str ?? key, args);
 	}
 
-	getBundleContents(extensionId: string): { [key: string]: string } {
+	getBundle(extensionId: string): { [key: string]: string } {
 		return this.bundleCache.get(extensionId)!.contents;
 	}
 
