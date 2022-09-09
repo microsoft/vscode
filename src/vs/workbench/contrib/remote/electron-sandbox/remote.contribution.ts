@@ -11,7 +11,7 @@ import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
@@ -142,7 +142,8 @@ class WSLContextKeyInitializer extends Disposable implements IWorkbenchContribut
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@INativeHostService nativeHostService: INativeHostService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		super();
 
@@ -155,12 +156,14 @@ class WSLContextKeyInitializer extends Disposable implements IWorkbenchContribut
 		const contextKey = hasWSLFeatureContext.bindTo(contextKeyService);
 
 		if (defaultValue === undefined) {
-			nativeHostService.hasWSLFeatureInstalled().then(res => {
-				if (res) {
-					contextKey.set(true);
-					// once detected, set to true
-					storageService.store(storageKey, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-				}
+			lifecycleService.when(LifecyclePhase.Eventually).then(async () => {
+				nativeHostService.hasWSLFeatureInstalled().then(res => {
+					if (res) {
+						contextKey.set(true);
+						// once detected, set to true
+						storageService.store(storageKey, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+					}
+				});
 			});
 		}
 	}
