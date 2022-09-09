@@ -9,6 +9,14 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTelemetryShape, MainThreadTelemetryShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { ILoggerService } from 'vs/platform/log/common/log';
+import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
+import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
+import { mixin } from 'vs/base/common/objects';
 
 export class ExtHostTelemetry implements ExtHostTelemetryShape {
 	private readonly _onDidChangeTelemetryEnabled = new Emitter<boolean>();
@@ -23,7 +31,13 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 	private readonly _telemetryLoggers = new Map<string, ExtHostTelemetryLogger>();
 	private readonly _mainThreadTelemetryProxy: MainThreadTelemetryShape;
 
-	constructor(@IExtHostRpcService rpc: IExtHostRpcService) {
+	constructor(
+		@IExtHostRpcService rpc: IExtHostRpcService,
+		@IExtHostFileSystemInfo extHostFileSystemInfo: IExtHostFileSystemInfo,
+		@IExtHostInitDataService private readonly initData: IExtHostInitDataService,
+		@ILoggerService loggerService: ILoggerService,
+	) {
+		//const log = loggerService.createLogger(file, { always: true, donotRotate: true, donotUseFormatters: true });
 		this._mainThreadTelemetryProxy = rpc.getProxy(MainContext.MainThreadTelemetry);
 	}
 
@@ -39,10 +53,10 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 		};
 	}
 
-	instantiateLogger(extensionId: string, appender: vscode.TelemetryAppender) {
+	instantiateLogger(extension: IExtensionDescription, appender: vscode.TelemetryAppender) {
 		const telemetryDetails = this.getTelemetryDetails();
-		const logger = new ExtHostTelemetryLogger(appender, { isUsageEnabled: telemetryDetails.isUsageEnabled, isErrorsEnabled: telemetryDetails.isErrorsEnabled });
-		this._telemetryLoggers.set(extensionId, logger);
+		const logger = new ExtHostTelemetryLogger(appender, this.getBuiltInCommonProperties(extension), { isUsageEnabled: telemetryDetails.isUsageEnabled, isErrorsEnabled: telemetryDetails.isErrorsEnabled });
+		this._telemetryLoggers.set(extension.identifier.value, logger);
 		return logger.apiTelemetryLogger;
 	}
 
@@ -51,9 +65,44 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 		this._productConfig = productConfig || { usage: true, error: true };
 	}
 
+	getBuiltInCommonProperties(extension: IExtensionDescription): Record<string, string | boolean | number | undefined> {
+		const commonProperties: Record<string, string | boolean | number | undefined> = {};
+		// TODO @lramos15, does os info like node arch, platform version, etc exist here.
+		// Or will first party extensions just mix this in
+		commonProperties['common.extname'] = extension.name;
+		commonProperties['common.extversion'] = extension.version;
+		commonProperties['common.vscodemachineid'] = this.initData.telemetryInfo.machineId;
+		commonProperties['common.vscodesessionid'] = this.initData.telemetryInfo.sessionId;
+		commonProperties['common.vscodeversion'] = this.initData.version;
+		//commonProperties['common.isnewappinstall'] = this.initData.isNewAppInstall ? this.vscodeAPI.env.isNewAppInstall.toString() : "false";
+		commonProperties['common.product'] = this.initData.environment.appHost;
+
+		switch (this.initData.uiKind) {
+			case UIKind.Web:
+				commonProperties['common.uikind'] = 'web';
+				break;
+			case UIKind.Desktop:
+				commonProperties['common.uikind'] = 'desktop';
+				break;
+			default:
+				commonProperties['common.uikind'] = 'unknown';
+		}
+
+		commonProperties['common.remotename'] = getRemoteName(cleanRemoteAuthority(this.initData.remote.authority));
+
+		return commonProperties;
+	}
+
 	$onDidChangeTelemetryLevel(level: TelemetryLevel): void {
 		this._oldTelemetryEnablement = this.getTelemetryConfiguration();
 		this._level = level;
+		const telemetryDetails = this.getTelemetryDetails();
+
+		// Loop through all loggers and update their level
+		this._telemetryLoggers.forEach(logger => {
+			logger.updateTelemetryEnablements(telemetryDetails.isUsageEnabled, telemetryDetails.isErrorsEnabled);
+		});
+
 		if (this._oldTelemetryEnablement !== this.getTelemetryConfiguration()) {
 			this._onDidChangeTelemetryEnabled.fire(this.getTelemetryConfiguration());
 		}
@@ -61,12 +110,19 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 	}
 }
 
+export class ExtHostTelemetryOuptutChannel {
+
+}
+
 export class ExtHostTelemetryLogger {
 	private _appender: vscode.TelemetryAppender;
 	private readonly _onDidChangeEnableStates = new Emitter<vscode.TelemetryLogger>();
 	private _telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean };
 	private _apiObject: vscode.TelemetryLogger | undefined;
-	constructor(appender: vscode.TelemetryAppender, telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean }) {
+	constructor(
+		appender: vscode.TelemetryAppender,
+		private readonly _commonProperties: Record<string, any>,
+		telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean }) {
 		this._appender = appender;
 		this._telemetryEnablements = { isUsageEnabled: telemetryEnablements.isUsageEnabled, isErrorsEnabled: telemetryEnablements.isErrorsEnabled };
 	}
@@ -78,11 +134,28 @@ export class ExtHostTelemetryLogger {
 		}
 	}
 
-	logUsage(eventName: string, data?: Record<string, string | number | boolean>): void {
+	mixInCommonPropsAndCleanData(data: Record<string, any>): Record<string, any> {
+		if (!this._appender.ignoreBuiltInCommonProperties) {
+			data = mixin(data, this._commonProperties);
+		}
+		if (this._appender.additionalCommonProperties) {
+			data = mixin(data, this._appender.additionalCommonProperties);
+		}
+
+		return data;
+	}
+
+	logUsage(eventName: string, data?: Record<string, any>): void {
+		if (!this._telemetryEnablements.isUsageEnabled) {
+			return;
+		}
 		this._appender.logEvent(eventName, data);
 	}
 
-	logError(eventNameOrException: Error | string, data?: Record<string, string | number | boolean>): void {
+	logError(eventNameOrException: Error | string, data?: Record<string, any>): void {
+		if (!this._telemetryEnablements.isErrorsEnabled) {
+			return;
+		}
 		if (typeof eventNameOrException === 'string') {
 			this._appender.logEvent(eventNameOrException, data);
 		} else {
