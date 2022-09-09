@@ -155,6 +155,13 @@ steps:
           exec { yarn --cwd test/smoke compile }
         displayName: Compile smoke tests
 
+      - script: |
+          set -e
+          yarn gulp \
+            compile-extension:markdown-language-features \
+            compile-extension-media
+        displayName: Build extensions for smoke tests
+
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
