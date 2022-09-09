@@ -2731,7 +2731,7 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.folder%",
-        "when": "config.git.enabled && !git.missing && workbenchState == folder",
+        "when": "config.git.enabled && !git.missing && workbenchState == folder && remoteName != 'codespaces'",
         "enablement": "git.state == initialized",
         "group": "5_scm@1"
       },
