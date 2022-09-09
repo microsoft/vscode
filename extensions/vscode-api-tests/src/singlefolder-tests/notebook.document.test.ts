@@ -26,15 +26,6 @@ suite('Notebook Document', function () {
 				[new vscode.NotebookCellData(vscode.NotebookCellKind.Code, uri.toString(), 'javascript')],
 			);
 		}
-		async saveNotebook(_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) {
-			//
-		}
-		async saveNotebookAs(_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) {
-			//
-		}
-		async backupNotebook(_document: vscode.NotebookDocument, _context: vscode.NotebookDocumentBackupContext, _cancellation: vscode.CancellationToken) {
-			return { id: '', delete() { } };
-		}
 	};
 
 	const disposables: vscode.Disposable[] = [];
