@@ -560,9 +560,6 @@ export namespace CellUri {
 		};
 	}
 
-
-	const _regex = /^(\d{8,})(\w[\w\d+.-]*)$/;
-
 	export function generateCellOutputUri(notebook: URI, outputId?: string) {
 		return notebook.with({
 			scheme: Schemas.vscodeNotebookCellOutput,
@@ -591,29 +588,16 @@ export namespace CellUri {
 		};
 	}
 
-	export function generateCellUri(notebook: URI, handle: number, scheme: string): URI {
-		return notebook.with({
-			scheme: scheme,
-			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
-		});
+	export function generateCellPropertyUri(notebook: URI, handle: number, scheme: string): URI {
+		return CellUri.generate(notebook, handle).with({ scheme: scheme });
 	}
 
-	export function parseCellUri(metadata: URI, scheme: string) {
-		if (metadata.scheme !== scheme) {
+	export function parseCellPropertyUri(uri: URI, propertyScheme: string) {
+		if (uri.scheme !== propertyScheme) {
 			return undefined;
 		}
-		const match = _regex.exec(metadata.fragment);
-		if (!match) {
-			return undefined;
-		}
-		const handle = Number(match[1]);
-		return {
-			handle,
-			notebook: metadata.with({
-				scheme: metadata.fragment.substring(match[0].length) || Schemas.file,
-				fragment: null
-			})
-		};
+
+		return CellUri.parse(uri.with({ scheme: scheme }));
 	}
 }
 
