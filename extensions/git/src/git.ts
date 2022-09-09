@@ -1710,6 +1710,19 @@ export class Repository {
 		}
 	}
 
+	async fetchBranch(options: { remote: string; ref: string; readonly cancellationToken?: CancellationToken }): Promise<void> {
+		const args = ['fetch'];
+		const spawnOptions: SpawnOptions = {
+			cancellationToken: options.cancellationToken,
+			env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
+		};
+
+		args.push(options.remote);
+		args.push(`${options.ref}:${options.ref}`);
+
+		await this.exec(args, spawnOptions);
+	}
+
 	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {
 		const args = ['pull'];
 

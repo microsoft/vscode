@@ -37,14 +37,7 @@ class CheckoutItem implements QuickPickItem {
 			return;
 		}
 
-		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const pullBeforeCheckout = config.get<boolean>('pullBeforeCheckout', false) === true;
-
-		if (pullBeforeCheckout) {
-			const branch = await this.repository.getBranch(this.ref.name);
-			await this.repository.pull(branch);
-		}
-
+		await this.repository.fetchBranch(this.ref.name);
 		await this.repository.checkout(this.ref.name, opts);
 	}
 }

@@ -1428,6 +1428,33 @@ export class Repository implements Disposable {
 		await this._fetch({ all: true, cancellationToken });
 	}
 
+	@throttle
+	async fetchBranch(name: string): Promise<void> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const pullBeforeCheckout = config.get<boolean>('pullBeforeCheckout', false) === true;
+
+		if (!pullBeforeCheckout) {
+			return;
+		}
+
+		// Get branch details
+		let branch = await this.getBranch(name);
+		if (!branch.upstream?.remote || !branch.name) {
+			return;
+		}
+
+		// Fetch the branch to refresh ahead/behind
+		await this.fetch({ remote: branch.upstream.remote, ref: branch.name });
+
+		branch = await this.getBranch(name);
+		if (branch.behind === 0 || branch.ahead !== 0) {
+			return;
+		}
+
+		const options = { remote: branch.upstream!.remote, ref: branch.name! };
+		await this.run(Operation.Fetch, async () => this.repository.fetchBranch(options));
+	}
+
 	async fetch(options: FetchOptions): Promise<void> {
 		await this._fetch(options);
 	}
