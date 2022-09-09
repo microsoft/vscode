@@ -8,7 +8,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Action } from 'vs/base/common/actions';
 import { ExtensionHostKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAndRunService } from 'vs/workbench/contrib/debug/common/debug';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/common/ports';
 
@@ -18,7 +18,7 @@ export class DebugExtensionHostAction extends Action {
 	static readonly CSS_CLASS = 'debug-extension-host';
 
 	constructor(
-		@IDebugService private readonly _debugService: IDebugService,
+		@IDebugService private readonly _debugService: IDebugAndRunService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,

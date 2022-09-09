@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, State, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAndRunService, State, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { STATUS_BAR_FOREGROUND, STATUS_BAR_BORDER } from 'vs/workbench/common/theme';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -59,7 +59,7 @@ export class StatusBarColorProvider implements IWorkbenchContribution {
 	}
 
 	constructor(
-		@IDebugService private readonly debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugAndRunService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService
 	) {

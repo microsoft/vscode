@@ -11,7 +11,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { DEBUG_SCHEME, IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { DEBUG_SCHEME, IDebugAndRunService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -40,7 +40,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 
 	constructor(
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IDebugService private readonly debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugAndRunService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService

@@ -9,7 +9,7 @@ import { DebugModel, Breakpoint } from 'vs/workbench/contrib/debug/common/debugM
 import { getExpandedBodySize, getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
-import { IBreakpointData, IBreakpointUpdateData, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
+import { IBreakpointData, IBreakpointUpdateData, IDebugAndRunService, State } from 'vs/workbench/contrib/debug/common/debug';
 import { createBreakpointDecorations } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
 import { OverviewRulerLane } from 'vs/editor/common/model';
 import { MarkdownString } from 'vs/base/common/htmlContent';

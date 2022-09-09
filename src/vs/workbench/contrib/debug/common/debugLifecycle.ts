@@ -7,13 +7,13 @@ import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugConfiguration, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugConfiguration, IDebugAndRunService } from 'vs/workbench/contrib/debug/common/debug';
 import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class DebugLifecycle implements IWorkbenchContribution {
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IDebugService private readonly debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugAndRunService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
 	) {

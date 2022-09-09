@@ -19,7 +19,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAndRunService, IExpression, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, ExpressionContainer, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
 
@@ -149,7 +149,7 @@ export interface IExpressionTemplateData {
 export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpression, FuzzyScore, IExpressionTemplateData> {
 
 	constructor(
-		@IDebugService protected debugService: IDebugService,
+		@IDebugService protected debugService: IDebugAndRunService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService
 	) { }

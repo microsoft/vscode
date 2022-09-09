@@ -22,7 +22,7 @@ import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions,
 import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { debugConsoleEvaluationInput } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { IDebugConfiguration, IDebugService, IDebugSession, IExpression, IExpressionContainer, IReplElement, IReplElementSource } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugConfiguration, IDebugAndRunService, IDebugSession, IExpression, IExpressionContainer, IReplElement, IReplElementSource } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, SimpleReplElement } from 'vs/workbench/contrib/debug/common/replModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -230,7 +230,7 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer {
 
 	constructor(
 		private readonly linkDetector: LinkDetector,
-		@IDebugService debugService: IDebugService,
+		@IDebugService debugService: IDebugAndRunService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IThemeService themeService: IThemeService,
 	) {

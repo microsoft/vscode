@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAndRunService } from 'vs/workbench/contrib/debug/common/debug';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Event } from 'vs/base/common/event';
@@ -240,7 +240,7 @@ class FoldedAreaLineFeature implements LineFeature {
 class BreakpointLineFeature implements LineFeature {
 	public readonly audioCue = AudioCue.break;
 
-	constructor(@IDebugService private readonly debugService: IDebugService) { }
+	constructor(@IDebugService private readonly debugService: IDebugAndRunService) { }
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
 		return observableFromEvent<LineFeatureState>(

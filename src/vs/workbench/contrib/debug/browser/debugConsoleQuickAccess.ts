@@ -11,12 +11,12 @@ import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider, Pi
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IViewsService } from 'vs/workbench/common/views';
 import { DEBUG_CONSOLE_QUICK_ACCESS_PREFIX, SELECT_AND_START_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { IDebugService, IDebugSession, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAndRunService, IDebugSession, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 
 export class DebugConsoleQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
 	constructor(
-		@IDebugService private readonly _debugService: IDebugService,
+		@IDebugService private readonly _debugService: IDebugAndRunService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {

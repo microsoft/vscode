@@ -928,9 +928,9 @@ export interface ILaunch {
 
 // Debug service interfaces
 
-export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
+export const IDebugAndRunService = createDecorator<IDebugAndRunService>(DEBUG_SERVICE_ID);
 
-export interface IDebugService {
+export interface IDebugAndRunService {
 	readonly _serviceBrand: undefined;
 
 	/**

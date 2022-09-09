@@ -12,7 +12,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IBreakpoint, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IBreakpoint, IDebugAndRunService } from 'vs/workbench/contrib/debug/common/debug';
 import { Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -25,7 +25,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 
 class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@IDebugService private readonly _debugService: IDebugService,
+		@IDebugService private readonly _debugService: IDebugAndRunService,
 		@INotebookService _notebookService: INotebookService,
 		@IEditorService private readonly _editorService: IEditorService,
 	) {
@@ -137,7 +137,7 @@ class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
 	private _scheduler: RunOnceScheduler;
 
 	constructor(
-		@IDebugService private readonly _debugService: IDebugService,
+		@IDebugService private readonly _debugService: IDebugAndRunService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super();

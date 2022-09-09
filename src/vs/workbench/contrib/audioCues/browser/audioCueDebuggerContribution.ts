@@ -7,14 +7,14 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 import { autorunWithStore } from 'vs/workbench/contrib/audioCues/browser/observable';
-import { IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAndRunService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 
 export class AudioCueLineDebuggerContribution
 	extends Disposable
 	implements IWorkbenchContribution {
 
 	constructor(
-		@IDebugService debugService: IDebugService,
+		@IDebugService debugService: IDebugAndRunService,
 		@IAudioCueService private readonly audioCueService: IAudioCueService,
 	) {
 		super();

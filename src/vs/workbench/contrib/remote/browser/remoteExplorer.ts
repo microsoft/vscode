@@ -18,7 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { INotificationHandle, INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAndRunService } from 'vs/workbench/contrib/debug/common/debug';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { isWeb, OperatingSystem } from 'vs/base/common/platform';
 import { isPortPrivileged, ITunnelService, RemoteTunnel } from 'vs/platform/tunnel/common/tunnel';
@@ -185,7 +185,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		@IWorkbenchEnvironmentService readonly environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IConfigurationService readonly configurationService: IConfigurationService,
-		@IDebugService readonly debugService: IDebugService,
+		@IDebugService readonly debugService: IDebugAndRunService,
 		@IRemoteAgentService readonly remoteAgentService: IRemoteAgentService,
 		@ITunnelService readonly tunnelService: ITunnelService,
 		@IHostService readonly hostService: IHostService,
@@ -420,7 +420,7 @@ class OutputAutomaticPortForwarding extends Disposable {
 		readonly externalOpenerService: IExternalUriOpenerService,
 		private readonly remoteExplorerService: IRemoteExplorerService,
 		private readonly configurationService: IConfigurationService,
-		private readonly debugService: IDebugService,
+		private readonly debugService: IDebugAndRunService,
 		readonly tunnelService: ITunnelService,
 		private readonly remoteAgentService: IRemoteAgentService,
 		readonly hostService: IHostService,

@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IDebugService, State, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAndRunService, State, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStatusbarEntry, IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -18,7 +18,7 @@ export class DebugStatusContribution implements IWorkbenchContribution {
 
 	constructor(
 		@IStatusbarService private readonly statusBarService: IStatusbarService,
-		@IDebugService readonly debugService: IDebugService,
+		@IDebugService readonly debugService: IDebugAndRunService,
 		@IConfigurationService readonly configurationService: IConfigurationService
 	) {
 

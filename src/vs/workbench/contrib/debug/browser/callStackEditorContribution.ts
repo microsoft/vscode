@@ -6,7 +6,7 @@
 import { Constants } from 'vs/base/common/uint';
 import { Range } from 'vs/editor/common/core/range';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
-import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAndRunService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
 import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
@@ -113,7 +113,7 @@ export class CallStackEditorContribution implements IEditorContribution {
 
 	constructor(
 		private readonly editor: ICodeEditor,
-		@IDebugService private readonly debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugAndRunService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 	) {

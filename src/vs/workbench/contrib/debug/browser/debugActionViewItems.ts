@@ -11,7 +11,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch, State } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAndRunService, IDebugSession, IDebugConfiguration, IConfig, ILaunch, State } from 'vs/workbench/contrib/debug/common/debug';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder, selectBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -40,7 +40,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 	constructor(
 		private context: unknown,
 		action: IAction,
-		@IDebugService private readonly debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugAndRunService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -264,7 +264,7 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 	constructor(
 		action: IAction,
 		session: IDebugSession | undefined,
-		@IDebugService protected readonly debugService: IDebugService,
+		@IDebugService protected readonly debugService: IDebugAndRunService,
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IConfigurationService private readonly configurationService: IConfigurationService

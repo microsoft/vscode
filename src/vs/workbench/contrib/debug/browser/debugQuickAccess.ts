@@ -7,7 +7,7 @@ import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { localize } from 'vs/nls';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAndRunService } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { matchesFuzzy } from 'vs/base/common/filters';
@@ -19,7 +19,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
 	constructor(
-		@IDebugService private readonly debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugAndRunService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,

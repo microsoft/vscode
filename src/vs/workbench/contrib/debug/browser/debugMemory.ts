@@ -10,7 +10,7 @@ import { clamp } from 'vs/base/common/numbers';
 import { assertNever } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { FileChangeType, IFileOpenOptions, FilePermission, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileChange, IFileSystemProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-import { DEBUG_MEMORY_SCHEME, IDebugService, IDebugSession, IMemoryInvalidationEvent, IMemoryRegion, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
+import { DEBUG_MEMORY_SCHEME, IDebugAndRunService, IDebugSession, IMemoryInvalidationEvent, IMemoryRegion, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
 
 const rangeRe = /range=([0-9]+):([0-9]+)/;
 
@@ -30,7 +30,7 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 		| FileSystemProviderCapabilities.PathCaseSensitive
 		| FileSystemProviderCapabilities.FileOpenReadWriteClose;
 
-	constructor(private readonly debugService: IDebugService) {
+	constructor(private readonly debugService: IDebugAndRunService) {
 		debugService.onDidEndSession(session => {
 			for (const [fd, memory] of this.fdMemory) {
 				if (memory.session === session) {

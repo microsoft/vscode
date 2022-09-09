@@ -15,7 +15,7 @@ import { IModelDecorationOptions, TrackedRangeStickiness, ITextModel, OverviewRu
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, BreakpointWidgetContext, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, State, IDebugSession, DebuggerUiMessage } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAndRunService, IBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, BreakpointWidgetContext, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, State, IDebugSession, DebuggerUiMessage } from 'vs/workbench/contrib/debug/common/debug';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -202,7 +202,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 
 	constructor(
 		private readonly editor: ICodeEditor,
-		@IDebugService private readonly debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugAndRunService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -655,7 +655,7 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 		private readonly decorationId: string,
 		cssClass: string | null | undefined,
 		private readonly breakpoint: IBreakpoint | undefined,
-		private readonly debugService: IDebugService,
+		private readonly debugService: IDebugAndRunService,
 		private readonly contextMenuService: IContextMenuService,
 		private readonly getContextMenuActions: () => IAction[]
 	) {

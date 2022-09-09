@@ -16,7 +16,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, DISASSEMBLY_VIEW_ID, IDebugService, IDebugSession, IInstructionBreakpoint, State, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, DISASSEMBLY_VIEW_ID, IDebugAndRunService, IDebugSession, IInstructionBreakpoint, State, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -81,7 +81,7 @@ export class DisassemblyView extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IDebugService private readonly _debugService: IDebugService,
+		@IDebugService private readonly _debugService: IDebugAndRunService,
 	) {
 		super(DISASSEMBLY_VIEW_ID, telemetryService, themeService, storageService);
 
@@ -470,7 +470,7 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 
 	constructor(
 		private readonly _disassemblyView: DisassemblyView,
-		@IDebugService private readonly _debugService: IDebugService
+		@IDebugService private readonly _debugService: IDebugAndRunService
 	) {
 	}
 
@@ -780,7 +780,7 @@ export class DisassemblyViewContribution implements IWorkbenchContribution {
 
 	constructor(
 		@IEditorService editorService: IEditorService,
-		@IDebugService debugService: IDebugService,
+		@IDebugService debugService: IDebugAndRunService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		contextKeyService.bufferChangeEvents(() => {

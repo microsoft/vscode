@@ -5,7 +5,7 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, IExpression, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, WATCH_VIEW_ID, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_ITEM_TYPE, CONTEXT_VARIABLE_IS_READONLY } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAndRunService, IExpression, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, WATCH_VIEW_ID, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_ITEM_TYPE, CONTEXT_VARIABLE_IS_READONLY } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -45,7 +45,7 @@ export class WatchExpressionsView extends ViewPane {
 
 	private watchExpressionsUpdatedScheduler: RunOnceScheduler;
 	private needsRefresh = false;
-	private tree!: WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>;
+	private tree!: WorkbenchAsyncDataTree<IDebugAndRunService | IExpression, IExpression, FuzzyScore>;
 	private watchExpressionsExist: IContextKey<boolean>;
 	private watchItemType: IContextKey<string | undefined>;
 	private variableReadonly: IContextKey<boolean>;
@@ -54,7 +54,7 @@ export class WatchExpressionsView extends ViewPane {
 	constructor(
 		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IDebugService private readonly debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugAndRunService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
@@ -88,7 +88,7 @@ export class WatchExpressionsView extends ViewPane {
 
 		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer);
 		const linkeDetector = this.instantiationService.createInstance(LinkDetector);
-		this.tree = <WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'WatchExpressions', treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, this.instantiationService.createInstance(VariablesRenderer, linkeDetector)],
+		this.tree = <WorkbenchAsyncDataTree<IDebugAndRunService | IExpression, IExpression, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'WatchExpressions', treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, this.instantiationService.createInstance(VariablesRenderer, linkeDetector)],
 			new WatchExpressionsDataSource(), {
 			accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
 			identityProvider: { getId: (element: IExpression) => element.getId() },
@@ -240,19 +240,19 @@ class WatchExpressionsDelegate implements IListVirtualDelegate<IExpression> {
 	}
 }
 
-function isDebugService(element: any): element is IDebugService {
+function isDebugService(element: any): element is IDebugAndRunService {
 	return typeof element.getConfigurationManager === 'function';
 }
 
-class WatchExpressionsDataSource implements IAsyncDataSource<IDebugService, IExpression> {
+class WatchExpressionsDataSource implements IAsyncDataSource<IDebugAndRunService, IExpression> {
 
-	hasChildren(element: IExpression | IDebugService): boolean {
+	hasChildren(element: IExpression | IDebugAndRunService): boolean {
 		return isDebugService(element) || element.hasChildren;
 	}
 
-	getChildren(element: IDebugService | IExpression): Promise<Array<IExpression>> {
+	getChildren(element: IDebugAndRunService | IExpression): Promise<Array<IExpression>> {
 		if (isDebugService(element)) {
-			const debugService = element as IDebugService;
+			const debugService = element as IDebugAndRunService;
 			const watchExpressions = debugService.getModel().getWatchExpressions();
 			const viewModel = debugService.getViewModel();
 			return Promise.all(watchExpressions.map(we => !!we.name && !useCachedEvaluation
@@ -272,7 +272,7 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 	constructor(
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IDebugService debugService: IDebugService,
+		@IDebugService debugService: IDebugAndRunService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IThemeService themeService: IThemeService,
 	) {
@@ -378,7 +378,7 @@ class WatchExpressionsAccessibilityProvider implements IListAccessibilityProvide
 
 class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
 
-	constructor(private debugService: IDebugService) { }
+	constructor(private debugService: IDebugAndRunService) { }
 
 	onDragOver(data: IDragAndDropData): boolean | ITreeDragOverReaction {
 		if (!(data instanceof ElementsDragAndDropData)) {

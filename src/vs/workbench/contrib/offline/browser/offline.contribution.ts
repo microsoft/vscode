@@ -9,7 +9,7 @@ import { Extensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } f
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { STATUS_BAR_FOREGROUND, STATUS_BAR_BORDER } from 'vs/workbench/common/theme';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAndRunService } from 'vs/workbench/contrib/debug/common/debug';
 import { localize } from 'vs/nls';
 import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
@@ -69,7 +69,7 @@ export class OfflineStatusBarController implements IWorkbenchContribution {
 	}
 
 	constructor(
-		@IDebugService private readonly debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugAndRunService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService
 	) {

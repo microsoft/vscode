@@ -6,7 +6,7 @@
 import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IDebugService, IDebugSession, IReplElement } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAndRunService, IDebugSession, IReplElement } from 'vs/workbench/contrib/debug/common/debug';
 
 export class UrlFinder extends Disposable {
 	private static readonly terminalCodesRegex = /(?:\u001B|\u009B)[\[\]()#;?]*(?:(?:(?:[a-zA-Z0-9]*(?:;[a-zA-Z0-9]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-PR-TZcf-ntqry=><~]))/g;
@@ -30,7 +30,7 @@ export class UrlFinder extends Disposable {
 	public readonly onDidMatchLocalUrl = this._onDidMatchLocalUrl.event;
 	private listeners: Map<ITerminalInstance | string, IDisposable> = new Map();
 
-	constructor(terminalService: ITerminalService, debugService: IDebugService) {
+	constructor(terminalService: ITerminalService, debugService: IDebugAndRunService) {
 		super();
 		// Terminal
 		terminalService.instances.forEach(instance => {
