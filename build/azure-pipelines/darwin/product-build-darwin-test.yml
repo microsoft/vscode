@@ -147,7 +147,7 @@ steps:
           set -e
           VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin-$(VSCODE_ARCH)" \
           yarn smoketest-no-compile --web --tracing --headless
-        timeoutInMinutes: 20
+        timeoutInMinutes: 40
         displayName: Run smoke tests (Browser, Chromium)
 
       - script: |

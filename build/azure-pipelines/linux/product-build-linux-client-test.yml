@@ -179,7 +179,7 @@ steps:
       - script: |
           set -e
           yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
-        timeoutInMinutes: 20
+        timeoutInMinutes: 40
         displayName: Run smoke tests (Browser, Chromium)
 
       - script: |
@@ -201,7 +201,7 @@ steps:
           set -e
           VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
           yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
-        timeoutInMinutes: 20
+        timeoutInMinutes: 40
         displayName: Run smoke tests (Browser, Chromium)
 
       - script: |

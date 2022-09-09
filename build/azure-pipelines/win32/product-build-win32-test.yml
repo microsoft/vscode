@@ -38,7 +38,7 @@ steps:
           $ErrorActionPreference = "Stop"
           exec { node test/unit/browser/index.js --sequential --browser chromium --tfs "Browser Unit Tests" }
         displayName: Run unit tests (Browser, Chromium)
-        timeoutInMinutes: 20
+        timeoutInMinutes: 40
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - powershell: |
