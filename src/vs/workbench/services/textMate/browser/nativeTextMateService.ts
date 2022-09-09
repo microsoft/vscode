@@ -107,7 +107,6 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 		}
 	}
 
-	// TODO: setTokens function from which we call the setTokens function on this._model
 	public setTokens(versionId: number, rawTokens: ArrayBuffer): void {
 		this._confirm(versionId);
 		const tokens = ContiguousMultilineTokensBuilder.deserialize(new Uint8Array(rawTokens));
@@ -138,7 +137,6 @@ export class TextMateWorkerHost {
 		return this._extensionResourceLoaderService.readExtensionResource(resource);
 	}
 
-	// TODO: setTokens
 	async setTokens(_resource: UriComponents, versionId: number, tokens: Uint8Array): Promise<void> {
 		const resource = URI.revive(_resource);
 		this.textMateService.setTokens(resource, versionId, tokens);
@@ -252,7 +250,6 @@ export class TextMateService extends AbstractTextMateService {
 		this._workerProxy = null;
 	}
 
-	// TODO: setTokens function
 	setTokens(resource: URI, versionId: number, tokens: ArrayBuffer): void {
 		const key = resource.toString();
 		if (!this._tokenizers[key]) {

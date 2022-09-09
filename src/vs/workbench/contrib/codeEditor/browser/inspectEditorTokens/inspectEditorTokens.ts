@@ -34,8 +34,6 @@ import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } 
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { Schemas } from 'vs/base/common/network';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-//! imported for Tree-Sitter Tokenization
-import { TreeSitterTokenizationService } from 'vs/editor/browser/services/treeSitterTokenizationService';
 
 const $ = dom.$;
 
@@ -275,9 +273,6 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	private _compute(grammar: IGrammar | null, semanticTokens: SemanticTokensResult | null, position: Position) {
 		const textMateTokenInfo = grammar && this._getTokensAtPosition(grammar, position);
 		const semanticTokenInfo = semanticTokens && this._getSemanticTokenAtPosition(semanticTokens, position);
-		console.log('inside the inspectEditorTokens file, we have the textMateTokenInfo : ', textMateTokenInfo);
-		console.log('inside the inspectEditorTokens file, we have the semanticTokenInfo : ', semanticTokenInfo);
-
 		if (!textMateTokenInfo && !semanticTokenInfo) {
 			dom.reset(this._domNode, 'No grammar or semantic tokens available.');
 			return;
@@ -489,27 +484,12 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		}
 	}
 
-	// ! function that returns the text mate scopes that are visible when the inspect tokens widget is used
 	private _getTokensAtPosition(grammar: IGrammar, position: Position): ITextMateTokenInfo {
-		console.log('the grammar : ', grammar);
-		console.log('position : ', position);
-
 		const lineNumber = position.lineNumber;
 		const stateBeforeLine = this._getStateBeforeLine(grammar, lineNumber);
 
 		const tokenizationResult1 = grammar.tokenizeLine(this._model.getLineContent(lineNumber), stateBeforeLine);
-		console.log('tokenizeLine : ', tokenizationResult1);
-
 		const tokenizationResult2 = grammar.tokenizeLine2(this._model.getLineContent(lineNumber), stateBeforeLine);
-		console.log('original tokenizeLine2 : ', tokenizationResult2);
-		// ! beginning of code: const myTokenizationResult2 = new TreeSitterTokenizationService(this._editor.);.
-		// ! replacing the above with the service I created using Tree-Sitter
-
-		/*
-		! tokenizeLine2 seems to contain information in the same format as the format that I store in the contiguousMultilineTokens
-		! tokenizeLine seems to contain information in the format which shows the actual strings that correspond to the scopes
-		! ^--- basically I want to create a service which provides the results of these two functions and substitute this wherever these two functions are used
-		*/
 
 		let token1Index = 0;
 		for (let i = tokenizationResult1.tokens.length - 1; i >= 0; i--) {

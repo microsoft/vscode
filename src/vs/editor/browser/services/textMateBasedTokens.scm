@@ -1,8 +1,6 @@
 (comment) @comment.block.ts
 
-
 (string) @string.quoted.double.ts
-
 
 (number) @constant.numeric.decimal.ts
 
@@ -115,6 +113,7 @@
 (update_expression argument: (identifier) @variable.other.readwrite.ts)
 (arrow_function body: (identifier) @variable.other.readwrite.ts)
 (shorthand_property_identifier) @variable.other.readwrite.ts
+(pair value: (identifier) @variable.other.readwrite.ts)
 
 (false) @constant.language.boolean.false.ts
 (true) @constant.language.boolean.true.ts
@@ -130,4 +129,4 @@
 
 (type_identifier) @entity.name.type.class.ts
 
-(pair key: (property_identifier) @meta.object-literal.key.ts value: (identifier) @variable.other.readwrite.ts)
+(pair key: (property_identifier) @meta.object-literal.key.ts)

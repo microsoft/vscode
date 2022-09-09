@@ -178,7 +178,6 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 						);
 						maxChangedLineNumber = lineNumber;
 					} else {
-						console.log('lineNumber in setTokens : ', lineNumber);
 						const lineHasChange = this._tokens.setTokens(
 							this._languageId,
 							lineNumber - 1,

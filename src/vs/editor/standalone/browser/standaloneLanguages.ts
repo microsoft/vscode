@@ -101,7 +101,6 @@ export class EncodedTokenizationSupportAdapter implements languages.ITokenizatio
 		throw new Error('Not supported!');
 	}
 
-	// TODO
 	public tokenizeEncoded(line: string, hasEOL: boolean, state: languages.IState): languages.EncodedTokenizationResult {
 		const result = this._actual.tokenizeEncoded(line, state);
 		return new languages.EncodedTokenizationResult(result.tokens, result.endState);

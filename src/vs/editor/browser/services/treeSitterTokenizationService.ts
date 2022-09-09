@@ -16,7 +16,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface ITreeSitterTokenizationService {
 	registerModelTrees(): void;
-	getTreeSitterParseTree(): TreeSitterParseTree;
 	dispose(): void
 }
 
@@ -27,9 +26,8 @@ export class TreeSitterTokenizationService implements ITreeSitterTokenizationSer
 	private _language: Language | undefined;
 	private readonly _disposableStore: DisposableStore = new DisposableStore();
 	private readonly _modelTrees: TreeSitterParseTree[] = [];
-	private _themeService: IThemeService;
+	private readonly _themeService: IThemeService;
 
-	// TODO: When I place the editor inside of the constructor, this throws an error, so presumably I don't need to use the editor
 	constructor(
 		@IThemeService _themeService: IThemeService,
 		@IModelService private readonly _modelService: IModelService
@@ -38,25 +36,23 @@ export class TreeSitterTokenizationService implements ITreeSitterTokenizationSer
 		this._themeService = _themeService;
 		init({
 			locateFile(_file: string, _folder: string) {
-				const value = FileAccess.asBrowserUri('../../../../../node_modules/web-tree-sitter/tree-sitter.wasm', require).toString(true);
-				return value;
+				return FileAccess.asBrowserUri('../../../../../node_modules/web-tree-sitter/tree-sitter.wasm', require).toString(true);
 			}
 		}).then(async () => {
-			const url = FileAccess.asBrowserUri('./tree-sitter-typescript.wasm', require).toString(true);
-			const result = await fetch(url);
+			const result = await fetch(FileAccess.asBrowserUri('./tree-sitter-typescript.wasm', require).toString(true));
 			const langData = new Uint8Array(await result.arrayBuffer());
 			this._language = await Language.load(langData);
 
-			// Registering the initial models
 			this.registerModelTrees();
 			this._disposableStore.add(_modelService.onModelAdded((model) => {
-				if (model.getLanguageId() === 'typescript' && this._language) {
-					this._modelTrees.push(new TreeSitterParseTree(model, this._language, this._themeService));
+				if (model.getLanguageId() === 'typescript') {
+					this._modelTrees.push(new TreeSitterParseTree(model, this._language!, this._themeService));
 				}
 			}));
-			this._disposableStore.add(_modelService.onModelLanguageChanged(({ model, oldLanguageId }) => {
-				if (model.getLanguageId() === 'typescript' && this._language) {
-					this._modelTrees.push(new TreeSitterParseTree(model, this._language, this._themeService));
+			this._disposableStore.add(_modelService.onModelLanguageChanged((event) => {
+				const model = event.model;
+				if (model.getLanguageId() === 'typescript') {
+					this._modelTrees.push(new TreeSitterParseTree(model, this._language!, this._themeService));
 				}
 			}))
 			this._disposableStore.add(_modelService.onModelRemoved((model) => {
@@ -70,35 +66,29 @@ export class TreeSitterTokenizationService implements ITreeSitterTokenizationSer
 		});
 	}
 
-	getTreeSitterParseTree(): TreeSitterParseTree {
-		//! for simplicity while testing return the first TreeSitterParseTree
-		//! Requires there to only be one model
-		console.log('this._modelTrees : ', this._modelTrees);
-		return this._modelTrees[0];
-	}
-
 	registerModelTrees() {
 		const models = this._modelService.getModels();
 		for (const model of models) {
-			if (model.getLanguageId() === 'typescript' && this._language) {
-				this._modelTrees.push(new TreeSitterParseTree(model, this._language, this._themeService));
+			if (model.getLanguageId() === 'typescript') {
+				this._modelTrees.push(new TreeSitterParseTree(model, this._language!, this._themeService));
 			}
 		}
 	}
 
 	dispose(): void {
 		this._disposableStore.dispose();
+		for (const tree of this._modelTrees) {
+			tree.dispose();
+		}
 	}
 }
 
 registerSingleton(ITreeSitterTokenizationService, TreeSitterTokenizationService, true);
 
 registerAction2(class extends Action2 {
-
 	constructor() {
 		super({ id: 'toggleTreeSitterTokenization', title: 'Toggle Tree-Sitter Tokenization', f1: true });
 	}
-
 	run(accessor: ServicesAccessor) {
 		const treeSitterTokenizationService = accessor.get(ITreeSitterTokenizationService);
 		treeSitterTokenizationService.registerModelTrees();

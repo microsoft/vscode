@@ -450,6 +450,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		isOverflowing = false;
 		len = lineContent.length;
 	}
+
 	let tokens = transformAndRemoveOverflowing(lineContent, input.containsRTL, input.lineTokens, input.fauxIndentLength, len);
 	if (input.renderControlCharacters && !input.isBasicASCII) {
 		// Calling `extractControlCharacters` before adding (possibly empty) line parts
@@ -483,7 +484,6 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		tokens = splitLargeTokens(lineContent, tokens, !input.isBasicASCII || input.fontLigatures);
 	}
 
-	// tokens will contain below the actual parts (or map to the colors)
 	return new ResolvedRenderLineInput(
 		input.useMonospaceOptimizations,
 		input.canUseHalfwidthRightwardsArrow,

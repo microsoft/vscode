@@ -18,20 +18,11 @@ import { SemanticTokensProviderStylingConstants } from 'vs/editor/common/service
 import { FontStyle, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
 
-// ! KNOWN COLORIZATION PROBLEMS AND OTHER PROBLEMS !
-// TODO: for pairs where the value is an arrow function, the key should be yellow not blue
-// TODO: take into account the case when we remove instead of adding, be able to detect it (see how newEndPosition can be used for that)
-
 export class TreeSitterParseTree {
-	private readonly _parser: Parser;
-	private _tree: Parser.Tree | undefined;
-	private readonly _disposableStore: DisposableStore = new DisposableStore();
-	private _captures: Parser.QueryCapture[];
-	private _matches: Parser.QueryMatch[];
-	private _captureNames: string[];
-	private _captureNameToNodeMap: Map<string, Parser.SyntaxNode[]>;
-	private _edits: Parser.Edit[];
 	public readonly id: string;
+	private readonly _parser: Parser;
+	private readonly _disposableStore: DisposableStore = new DisposableStore();
+
 	private _content;
 	private _contiguousMultilineToken: ContiguousMultilineTokens[];
 	private _beginningCaptureIndex: number;
@@ -39,7 +30,10 @@ export class TreeSitterParseTree {
 	private _startPositionRow: number;
 	private _endPositionRow: number;
 	private _newEndPositionRow: number;
+	private _edits: Parser.Edit[];
 	private _colorThemeData: ColorThemeData;
+	private _tree: Parser.Tree | undefined;
+	private _captures: Parser.QueryCapture[];
 
 	constructor(
 		private readonly _model: ITextModel,
@@ -49,20 +43,18 @@ export class TreeSitterParseTree {
 		this.id = this._model.id;
 		this._parser = new Parser();
 		this._parser.setLanguage(this._language);
+		this._content = '';
+		this._colorThemeData = _themeService.getColorTheme() as ColorThemeData;
 
 		this._captures = [];
-		this._matches = [];
-		this._captureNames = [];
-		this._captureNameToNodeMap = new Map<string, Parser.SyntaxNode[]>();
 		this._edits = [];
 		this._contiguousMultilineToken = [];
+
 		this._beginningCaptureIndex = 0;
 		this._timeoutForRender = 0;
 		this._startPositionRow = 0;
 		this._endPositionRow = this._model.getLineCount() - 1;
 		this._newEndPositionRow = this._model.getLineCount() - 1;
-		this._colorThemeData = _themeService.getColorTheme() as ColorThemeData;
-		this._content = '';
 
 		this.setTimeoutForRender(10);
 		const uriString = FileAccess.asBrowserUri(`./textMateBasedTokens.scm`, require).toString(true);
@@ -70,6 +62,7 @@ export class TreeSitterParseTree {
 		fetch(uriString).then((response) => {
 			response.text().then((content) => {
 				this._content = content;
+
 				this.parseTree().then((tree) => {
 					if (!tree) {
 						return;
@@ -82,13 +75,12 @@ export class TreeSitterParseTree {
 							this._endPositionRow = -Infinity;
 							this._newEndPositionRow = -Infinity;
 
-							const changes = e.changes;
-							for (const change of changes) {
+							for (const change of e.changes) {
 								const newEndPositionFromModel = this._model.getPositionAt(change.rangeOffset + change.text.length);
 								this._edits.push({
-									startPosition: { row: change.range.startLineNumber - 1, column: change.range.startColumn - 1 }, // -1 on row
-									oldEndPosition: { row: change.range.endLineNumber - 1, column: change.range.endColumn - 1 }, // -1 on row
-									newEndPosition: { row: newEndPositionFromModel.lineNumber - 1, column: newEndPositionFromModel.column - 1 }, // -1 on row
+									startPosition: { row: change.range.startLineNumber - 1, column: change.range.startColumn - 1 },
+									oldEndPosition: { row: change.range.endLineNumber - 1, column: change.range.endColumn - 1 },
+									newEndPosition: { row: newEndPositionFromModel.lineNumber - 1, column: newEndPositionFromModel.column - 1 },
 									startIndex: change.rangeOffset,
 									oldEndIndex: change.rangeOffset + change.rangeLength,
 									newEndIndex: change.rangeOffset + change.text.length
@@ -105,7 +97,6 @@ export class TreeSitterParseTree {
 									this._newEndPositionRow = newEndPositionFromModel.lineNumber - 1;
 								}
 							}
-							// this.getTextMateCaptures();
 							this.parseTree().then((tree) => {
 								if (!tree) {
 									return;
@@ -125,7 +116,7 @@ export class TreeSitterParseTree {
 		let that = this;
 		this._contiguousMultilineToken.splice(this._startPositionRow, this._endPositionRow - this._startPositionRow + 1); //? Do I need +1 there?
 
-		// In that case we have removed some code
+		// Case 1: we removed code
 		if (this._newEndPositionRow < this._endPositionRow) {
 			this._contiguousMultilineToken.map(token => {
 				if (token._startLineNumber >= this._endPositionRow + 2) {
@@ -133,16 +124,13 @@ export class TreeSitterParseTree {
 				}
 			})
 		}
-		if (this._newEndPositionRow > this._endPositionRow) {
+		// Case 2: we added code
+		else if (this._newEndPositionRow > this._endPositionRow) {
 			this._contiguousMultilineToken.map(token => {
 				if (token._startLineNumber >= this._endPositionRow + 2) {
 					token._startLineNumber = token._startLineNumber + (this._newEndPositionRow - this._startPositionRow);
 				}
 			})
-		}
-
-		for (const a of this._contiguousMultilineToken) {
-			console.log(a);
 		}
 		return new Promise(function (resolve, reject) {
 			that.runSetTokensWithThemeData(resolve, reject);
@@ -151,18 +139,19 @@ export class TreeSitterParseTree {
 
 	public runSetTokensWithThemeData(resolve: (value: boolean | PromiseLike<boolean>) => void, reject: (reason?: any) => void): void {
 		runWhenIdle(
-			() => {
+			(arg) => {
+				this._parser.setTimeoutMicros(arg.timeRemaining() * 1000);
 				let result;
 				try {
 					result = this.setTokensWithThemeDataWhenIdle();
+					if (!result) {
+						return this.runSetTokensWithThemeData(resolve, resolve);
+					} else {
+						resolve(result);
+						return;
+					}
 				} catch (e) {
 					reject(e);
-					return;
-				}
-				if (!result) {
-					return this.runSetTokensWithThemeData(resolve, resolve);
-				} else {
-					resolve(result);
 					return;
 				}
 			},
@@ -172,29 +161,24 @@ export class TreeSitterParseTree {
 
 	private setTokensWithThemeDataWhenIdle(): boolean | undefined {
 		let time1 = performance.now();
-		let numberCaptures = this._captures.length;
-
-		let beginningCaptureIndex = this._beginningCaptureIndex;
 		let newBeginningIndexFound = true;
-		const endRow = this._newEndPositionRow;
+		let numberCaptures = this._captures.length;
+		let beginningCaptureIndex = this._beginningCaptureIndex;
 
-		for (let i = this._startPositionRow; i <= endRow; i++) {
-			const array: Uint32Array[] = [];
-			const arrayOfTokens: number[] = [];
+		for (let i = this._startPositionRow; i <= this._newEndPositionRow; i++) {
+			const contiguousMultilineTokensArray: number[] = [];
 			let j = beginningCaptureIndex;
 
 			while (j < numberCaptures && this._captures[j].node.startPosition.row <= i) {
 
-				if (this._captures[j].node.startPosition.row === i && i === this._captures[j].node.endPosition.row) { // used to be <= and >=
+				if (i === this._captures[j].node.startPosition.row && i === this._captures[j].node.endPosition.row) {
 					if (!newBeginningIndexFound) {
 						newBeginningIndexFound = true;
 						beginningCaptureIndex = this._captures[j].node.startPosition.row;
 					}
 
 					const tokenStyle: TokenStyle | undefined = this._colorThemeData.resolveScopes([[this._captures[j].name]], {});
-					let metadata: number = 0;
-
-					let tokenStyleForeground = this._colorThemeData.getTokenColorIndex().get(tokenStyle?.foreground);
+					let metadata: number;
 
 					if (typeof tokenStyle === 'undefined') {
 						metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
@@ -217,6 +201,7 @@ export class TreeSitterParseTree {
 							metadata |= strikethroughBit | MetadataConsts.SEMANTIC_USE_STRIKETHROUGH;
 						}
 						if (tokenStyle.foreground) {
+							let tokenStyleForeground = this._colorThemeData.getTokenColorIndex().get(tokenStyle?.foreground);
 							const foregroundBits = tokenStyleForeground << MetadataConsts.FOREGROUND_OFFSET;
 							metadata |= foregroundBits | MetadataConsts.SEMANTIC_USE_FOREGROUND;
 						}
@@ -224,21 +209,20 @@ export class TreeSitterParseTree {
 							metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
 						}
 					}
-					let endColumn = this._captures[j].node.endPosition.column;
-					arrayOfTokens.push(endColumn, metadata);
+					contiguousMultilineTokensArray.push(this._captures[j].node.endPosition.column, metadata);
 				}
 				let time2 = performance.now();
-				if (time2 - time1 > this._timeoutForRender) {
+				if (time2 - time1 >= this._timeoutForRender) {
 					return;
 				}
 				j++;
 			}
 			newBeginningIndexFound = false;
-			array.push(new Uint32Array(arrayOfTokens));
-			this._contiguousMultilineToken.splice(i, 0, new ContiguousMultilineTokens(i + 1, array));
+
+			this._contiguousMultilineToken.splice(i, 0, new ContiguousMultilineTokens(i + 1, [new Uint32Array(contiguousMultilineTokensArray)]));
 			this._model.tokenization.setTokens(this._contiguousMultilineToken);
-			this._startPositionRow = i + 1;
 			this._beginningCaptureIndex = beginningCaptureIndex;
+			this._startPositionRow = i + 1;
 		}
 
 		this._model.tokenization.setTokens(this._contiguousMultilineToken);
@@ -247,15 +231,6 @@ export class TreeSitterParseTree {
 
 	public setTimeoutForRender(timeoutInMs: number) {
 		this._timeoutForRender = timeoutInMs;
-	}
-
-	public getMatches() {
-		if (!this._tree) {
-			return;
-		}
-		const query = this._language.query(this._content);
-		this._matches = query.matches(this._tree.rootNode);
-		query.delete();
 	}
 
 	public getTree() {
@@ -277,24 +252,23 @@ export class TreeSitterParseTree {
 							this._retrieveTextAtPosition(textModel, startIndex, startPoint, endIndex),
 						tree
 					);
+					if (!result) {
+						return this.runParse(textModel, resolve, tree);
+					} else {
+						resolve(result);
+					}
 				} catch (error) { }
-				if (!result) {
-					return this.runParse(textModel, resolve, tree);
-				} else {
-					resolve(result);
-				}
 			},
-			1000 // the time after which to actually run the parse, here it is one second
+			1000
 		);
 	}
 
 	public async parseTree(): Promise<Parser.Tree | void> {
-		let tree = this.getTree();
-		// Note: time out of 10 milliseconds is 10000 microseconds
 		this._parser.setTimeoutMicros(10000);
-		let result: Parser.Tree;
+		let tree = this.getTree();
+		// Initially synchronous
 		try {
-			result = this._parser.parse(
+			let result = this._parser.parse(
 				(startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) =>
 					this._retrieveTextAtPosition(this._model, startIndex, startPoint, endIndex),
 				tree
@@ -304,7 +278,9 @@ export class TreeSitterParseTree {
 					resolve(result);
 				})
 			}
-		} catch (error) {
+		}
+		// Else if parsing failed, asynchronous
+		catch (error) {
 			this._parser.reset();
 			tree = this.getTree();
 			const textModel = createTextModel('');
@@ -322,11 +298,6 @@ export class TreeSitterParseTree {
 		}
 		const query = this._language.query(this._content);
 		this._captures = query.captures(this._tree.rootNode);
-		this._captureNames = query.captureNames;
-		for (const captureName of this._captureNames) {
-			const syntaxNodes: Parser.SyntaxNode[] = this._captures.filter(node => node.name === captureName).map(capture => capture.node);
-			this._captureNameToNodeMap.set(captureName, syntaxNodes);
-		}
 		query.delete();
 	}
 
@@ -344,11 +315,8 @@ export class TreeSitterParseTree {
 		this._tree?.delete();
 		this._parser.delete();
 		this._disposableStore.clear();
-	}
-
-	//! Equivalent of the tokenizeLine2 function available from the Text-Mate Service
-	//! In order to find how to actually set the color (without hardcoding it like I do) find how tokenizeLine2 works in the Text-Mate API
-	public tokenizeLine2(lineNumber: number) {
-		//TODO
+		this._captures.length = 0;
+		this._edits.length = 0;
+		this._contiguousMultilineToken.length === 0;
 	}
 }

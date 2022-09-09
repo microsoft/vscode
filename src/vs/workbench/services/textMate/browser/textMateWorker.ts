@@ -81,8 +81,8 @@ class TextMateWorkerModel extends MirrorTextModel {
 				this._tokenizationStateStore.applyEdits(change.range, eolCount);
 			}
 		}
+		this._ensureTokens();
 		*/
-		// this._ensureTokens();
 	}
 
 	private _resetTokenization(): void {
@@ -117,7 +117,6 @@ class TextMateWorkerModel extends MirrorTextModel {
 			const text = this._lines[lineIndex];
 			const lineStartState = this._tokenizationStateStore.getBeginState(lineIndex);
 
-			// TODO: Search for all the references of tokenizeEncoded
 			const r = this._tokenizationStateStore.tokenizationSupport.tokenizeEncoded(text, true, lineStartState!);
 			LineTokens.convertToEndOffset(r.tokens, text.length);
 			builder.add(lineIndex + 1, r.tokens);
@@ -125,7 +124,6 @@ class TextMateWorkerModel extends MirrorTextModel {
 			lineIndex = this._tokenizationStateStore.invalidLineStartIndex - 1; // -1 because the outer loop increments it
 		}
 
-		// TODO: part of interest
 		this._worker._setTokens(this._uri, this._versionId, builder.serialize());
 	}
 }
@@ -223,7 +221,6 @@ export class TextMateWorker {
 		grammarFactory?.setTheme(theme, colorMap);
 	}
 
-	// TODO: _setTokens
 	public _setTokens(resource: URI, versionId: number, tokens: Uint8Array): void {
 		this._host.setTokens(resource, versionId, tokens);
 	}

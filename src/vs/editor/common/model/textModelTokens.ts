@@ -312,7 +312,7 @@ export class TextModelTokenization extends Disposable {
 	}
 
 	public forceTokenization(lineNumber: number): void {
-		const builder = new ContiguousMultilineTokensBuilder();
+		// const builder = new ContiguousMultilineTokensBuilder();
 		// this._updateTokensUntilLine(builder, lineNumber);
 		// this._tokenizationPart.setTokens(builder.finalize(), this._isTokenizationComplete());
 	}
