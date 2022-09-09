@@ -16,7 +16,8 @@ export function setup(logger: Logger) {
 		// Shared before/after handling
 		installAllHandlers(logger);
 
-
-		setupTaskQuickPickTests();
+		for (let i = 0; i < 50; i++) {
+			setupTaskQuickPickTests();
+		}
 	});
 }
