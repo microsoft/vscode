@@ -744,7 +744,9 @@ export class ExtensionsListView extends ViewPane {
 				break;
 			case SortBy.UpdateDate:
 				extensions = extensions.sort((e1, e2) =>
-					typeof e2.local?.installedTimestamp === 'number' && typeof e1.local?.installedTimestamp === 'number' ? e2.local.installedTimestamp - e1.local.installedTimestamp : NaN);
+					typeof e2.local?.installedTimestamp === 'number' && typeof e1.local?.installedTimestamp === 'number' ? e2.local.installedTimestamp - e1.local.installedTimestamp :
+						typeof e2.local?.installedTimestamp === 'number' ? 1 :
+							typeof e1.local?.installedTimestamp === 'number' ? -1 : NaN);
 				break;
 			case SortBy.AverageRating:
 			case SortBy.WeightedRating:
