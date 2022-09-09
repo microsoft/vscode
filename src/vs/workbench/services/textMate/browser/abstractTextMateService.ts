@@ -449,7 +449,6 @@ class TMTokenizationSupportWithLineLimit implements ITokenizationSupport {
 		throw new Error('Not supported!');
 	}
 
-	// TODO consider this too
 	tokenizeEncoded(line: string, hasEOL: boolean, state: StackElement): EncodedTokenizationResult {
 		// Do not attempt to tokenize if a line is too long
 		if (line.length >= this._maxTokenizationLineLength) {
