@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Location, getLocation, createScanner, SyntaxKind, ScanError, JSONScanner } from 'jsonc-parser';
+import { Location, getLocation, createScanner, SyntaxKind, ScanError, JSONScanner, Node } from 'jsonc-parser';
 import { BowerJSONContribution } from './bowerJSONContribution';
 import { PackageJSONContribution } from './packageJSONContribution';
 import { XHRRequest } from 'request-light';
 
 import {
 	CompletionItem, CompletionItemProvider, CompletionList, TextDocument, Position, Hover, HoverProvider,
-	CancellationToken, Range, DocumentSelector, languages, Disposable, Uri, MarkdownString
+	CancellationToken, Range, DocumentSelector, languages, Disposable, Uri, MarkdownString, DocumentLink, DocumentLinkProvider, ProviderResult
 } from 'vscode';
 
 export interface ISuggestionsCollector {
@@ -26,6 +26,7 @@ export interface IJSONContribution {
 	collectPropertySuggestions(resourceUri: Uri, location: Location, currentWord: string, addValue: boolean, isLast: boolean, result: ISuggestionsCollector): Thenable<any> | null;
 	collectValueSuggestions(resourceUri: Uri, location: Location, result: ISuggestionsCollector): Thenable<any> | null;
 	collectDefaultSuggestions(resourceUri: Uri, result: ISuggestionsCollector): Thenable<any>;
+	collectDocumentLinks?(document: TextDocument, rootNode: Node): Thenable<DocumentLink[]> | null;
 	resolveSuggestion?(resourceUri: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null;
 }
 
@@ -36,8 +37,22 @@ export function addJSONProviders(xhr: XHRRequest, npmCommandPath: string | undef
 		const selector = contribution.getDocumentSelector();
 		subscriptions.push(languages.registerCompletionItemProvider(selector, new JSONCompletionItemProvider(contribution), '"', ':'));
 		subscriptions.push(languages.registerHoverProvider(selector, new JSONHoverProvider(contribution)));
+		if (contribution.collectDocumentLinks) {
+			subscriptions.push(languages.registerHoverProvider(selector, new JSONHoverProvider(contribution)));
+		}
 	});
 	return Disposable.from(...subscriptions);
+}
+
+export class JSONLinksProvider implements DocumentLinkProvider {
+
+	constructor(private jsonContribution: IJSONContribution) {
+
+	}
+	provideDocumentLinks(document: TextDocument, _token: CancellationToken): ProviderResult<DocumentLink[]> {
+
+		// return this.jsonContribution.collectDocumentLinks!(document, )
+	}
 }
 
 export class JSONHoverProvider implements HoverProvider {
