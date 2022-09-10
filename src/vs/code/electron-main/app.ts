@@ -5,7 +5,6 @@
 
 import { app, BrowserWindow, dialog, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { statSync } from 'fs';
 import { hostname, release } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -364,7 +363,7 @@ export class CodeApplication extends Disposable {
 			event.preventDefault();
 
 			// Keep in array because more might come!
-			macOpenFileURIs.push(this.getWindowOpenableFromPathSync(path));
+			macOpenFileURIs.push(hasWorkspaceFileExtension(path) ? { workspaceUri: URI.file(path) } : { fileUri: URI.file(path) });
 
 			// Clear previous handler if any
 			if (runningTimeout !== undefined) {
@@ -1012,7 +1011,7 @@ export class CodeApplication extends Disposable {
 				return windowsMainService.open({
 					context: OpenContext.DOCK,
 					cli: args,
-					urisToOpen: macOpenFiles.map(file => this.getWindowOpenableFromPathSync(file)),
+					urisToOpen: macOpenFiles.map(path => (hasWorkspaceFileExtension(path) ? { workspaceUri: URI.file(path) } : { fileUri: URI.file(path) })),
 					noRecentEntry,
 					waitMarkerFileURI,
 					initialStartup: true,
@@ -1102,23 +1101,6 @@ export class CodeApplication extends Disposable {
 		}
 
 		return undefined;
-	}
-
-	private getWindowOpenableFromPathSync(path: string): IWindowOpenable {
-		try {
-			const fileStat = statSync(path);
-			if (fileStat.isDirectory()) {
-				return { folderUri: URI.file(path) };
-			}
-
-			if (hasWorkspaceFileExtension(path)) {
-				return { workspaceUri: URI.file(path) };
-			}
-		} catch (error) {
-			// ignore errors
-		}
-
-		return { fileUri: URI.file(path) };
 	}
 
 	private afterWindowOpen(accessor: ServicesAccessor, sharedProcess: SharedProcess): void {
