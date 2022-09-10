@@ -232,7 +232,8 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		await closeAllEditors();
 	});
 
-	test('#115855 onDidSaveNotebookDocument', async function () {
+	// TODO: Skipped due to notebook content provider removal
+	test.skip('#115855 onDidSaveNotebookDocument', async function () {
 		const resource = await createRandomNotebookFile();
 		const notebook = await vscode.workspace.openNotebookDocument(resource);
 

@@ -320,40 +320,6 @@ suite('Notebook Document', function () {
 		assert.ok(document.metadata.custom.extraNotebookMetadata, `Test metadata not found`);
 	});
 
-	test('document save API', async function () {
-		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const notebook = await vscode.workspace.openNotebookDocument(uri);
-
-		assert.strictEqual(notebook.uri.toString(), uri.toString());
-		assert.strictEqual(notebook.isDirty, false);
-		assert.strictEqual(notebook.isUntitled, false);
-		assert.strictEqual(notebook.cellCount, 1);
-		assert.strictEqual(notebook.notebookType, 'notebook.nbdtest');
-
-		const edit = new vscode.WorkspaceEdit();
-		edit.set(notebook.uri, [vscode.NotebookEdit.replaceCells(new vscode.NotebookRange(0, 0), [{
-			kind: vscode.NotebookCellKind.Markup,
-			languageId: 'markdown',
-			metadata: undefined,
-			outputs: [],
-			value: 'new_markdown'
-		}, {
-			kind: vscode.NotebookCellKind.Code,
-			languageId: 'fooLang',
-			metadata: undefined,
-			outputs: [],
-			value: 'new_code'
-		}])]);
-
-		const success = await vscode.workspace.applyEdit(edit);
-		assert.strictEqual(success, true);
-		assert.strictEqual(notebook.isDirty, true);
-
-		await notebook.save();
-		assert.strictEqual(notebook.isDirty, false);
-	});
-
-
 	test('setTextDocumentLanguage for notebook cells', async function () {
 
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
@@ -384,21 +350,6 @@ suite('Notebook Document', function () {
 		let cellDoc = await vscode.workspace.openTextDocument(firstCelUri);
 		cellDoc = await vscode.languages.setTextDocumentLanguage(cellDoc, 'css');
 		assert.strictEqual(cellDoc.languageId, 'css');
-	});
-
-	test('dirty state - complex', async function () {
-		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const document = await vscode.workspace.openNotebookDocument(resource);
-		assert.strictEqual(document.isDirty, false);
-
-		const edit = new vscode.WorkspaceEdit();
-		edit.set(document.uri, [vscode.NotebookEdit.replaceCells(new vscode.NotebookRange(0, document.cellCount), [])]);
-		assert.ok(await vscode.workspace.applyEdit(edit));
-
-		assert.strictEqual(document.isDirty, true);
-
-		await document.save();
-		assert.strictEqual(document.isDirty, false);
 	});
 
 	test('dirty state - serializer', async function () {
