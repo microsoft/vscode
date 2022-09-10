@@ -53,7 +53,9 @@ flakySuite('WorkspacesManagementMainService', () => {
 
 		isHotExitEnabled(): boolean { throw new Error('Method not implemented.'); }
 		getEmptyWindowBackups(): IEmptyWindowBackupInfo[] { throw new Error('Method not implemented.'); }
-		registerWorkspaceBackup(workspace: IWorkspaceBackupInfo, migrateFrom?: string | undefined): string { throw new Error('Method not implemented.'); }
+		registerWorkspaceBackup(workspaceInfo: IWorkspaceBackupInfo): string;
+		registerWorkspaceBackup(workspaceInfo: IWorkspaceBackupInfo, migrateFrom: string): Promise<string>;
+		registerWorkspaceBackup(workspaceInfo: unknown, migrateFrom?: unknown): string | Promise<string> { throw new Error('Method not implemented.'); }
 		registerFolderBackup(folder: IFolderBackupInfo): string { throw new Error('Method not implemented.'); }
 		registerEmptyWindowBackup(empty: IEmptyWindowBackupInfo): string { throw new Error('Method not implemented.'); }
 		async getDirtyWorkspaces(): Promise<(IWorkspaceBackupInfo | IFolderBackupInfo)[]> { return []; }
