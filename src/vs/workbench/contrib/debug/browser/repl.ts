@@ -13,6 +13,7 @@ import { IAction } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
+import { Emitter } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -62,7 +63,7 @@ import { debugConsoleClearAll, debugConsoleEvaluationPrompt } from 'vs/workbench
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { ReplFilter, ReplFilterActionViewItem, ReplFilterState } from 'vs/workbench/contrib/debug/browser/replFilter';
 import { ReplAccessibilityProvider, ReplDataSource, ReplDelegate, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplGroupRenderer, ReplRawObjectsRenderer, ReplSimpleElementsRenderer, ReplVariablesRenderer } from 'vs/workbench/contrib/debug/browser/replViewer';
-import { CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_REPL, CONTEXT_MULTI_SESSION_REPL, DEBUG_SCHEME, getStateLabel, IDebugConfiguration, IDebugService, IDebugSession, IReplElement, REPL_VIEW_ID, State } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_REPL, CONTEXT_MULTI_SESSION_REPL, DEBUG_SCHEME, getStateLabel, IDebugConfiguration, IDebugService, IDebugSession, IReplConfiguration, IReplElement, IReplOptions, REPL_VIEW_ID, State } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -91,6 +92,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	private history: HistoryNavigator<string>;
 	private tree!: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
+	private replOptions: ReplOptions;
 	private previousTreeScrollHeight: number = 0;
 	private replDelegate!: ReplDelegate;
 	private container!: HTMLElement;
@@ -141,6 +143,8 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.filterState = new ReplFilterState(this);
 		this.filter.filterQuery = this.filterState.filterText = this.storageService.get(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE, '');
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
+		this.replOptions = this._register(this.instantiationService.createInstance(ReplOptions, this.id, () => this.getBackgroundColor()));
+		this._register(this.replOptions.onDidChange(() => this.onDidStyleChange()));
 
 		codeEditorService.registerDecorationType('repl-decoration', DECORATION_KEY, {});
 		this.multiSessionRepl.set(this.isMultiSessionView);
@@ -191,24 +195,12 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				this.treeContainer.innerText = '';
 				dom.clearNode(this.treeContainer);
 				this.createReplTree();
-			} else if (e.affectsConfiguration('debug.console.lineHeight') || e.affectsConfiguration('debug.console.fontSize') || e.affectsConfiguration('debug.console.fontFamily')) {
-				this.onDidStyleChange();
 			}
 			if (e.affectsConfiguration('debug.console.acceptSuggestionOnEnter')) {
 				const config = this.configurationService.getValue<IDebugConfiguration>('debug');
 				this.replInput.updateOptions({
 					acceptSuggestionOnEnter: config.console.acceptSuggestionOnEnter === 'on' ? 'on' : 'off'
 				});
-			}
-		}));
-
-		this._register(this.themeService.onDidColorThemeChange(e => {
-			this.onDidStyleChange();
-		}));
-
-		this._register(this.viewDescriptorService.onDidChangeLocation(e => {
-			if (e.views.some(v => v.id === this.id)) {
-				this.onDidStyleChange();
 			}
 		}));
 
@@ -346,16 +338,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	private onDidStyleChange(): void {
 		if (this.styleElement) {
-			const debugConsole = this.configurationService.getValue<IDebugConfiguration>('debug').console;
-			const fontSize = debugConsole.fontSize;
-			const fontFamily = debugConsole.fontFamily === 'default' ? 'var(--monaco-monospace-font)' : `${debugConsole.fontFamily}`;
-			const lineHeight = debugConsole.lineHeight ? `${debugConsole.lineHeight}px` : '1.4em';
-			const backgroundColor = this.themeService.getColorTheme().getColor(this.getBackgroundColor());
-
 			this.replInput.updateOptions({
-				fontSize,
-				lineHeight: debugConsole.lineHeight,
-				fontFamily: debugConsole.fontFamily === 'default' ? EDITOR_FONT_DEFAULTS.fontFamily : debugConsole.fontFamily
+				fontSize: this.replOptions.replConfiguration.fontSize,
+				lineHeight: this.replOptions.replConfiguration.lineHeight,
+				fontFamily: this.replOptions.replConfiguration.fontFamily === 'default' ? EDITOR_FONT_DEFAULTS.fontFamily : this.replOptions.replConfiguration.fontFamily
 			});
 
 			const replInputLineHeight = this.replInput.getOption(EditorOption.lineHeight);
@@ -367,13 +353,14 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				}
 
 				.repl .repl-input-wrapper .monaco-editor .lines-content {
-					background-color: ${backgroundColor};
+					background-color: ${this.replOptions.replConfiguration.backgroundColor};
 				}
 			`;
-			this.container.style.setProperty(`--vscode-repl-font-family`, fontFamily);
-			this.container.style.setProperty(`--vscode-repl-font-size`, `${fontSize}px`);
-			this.container.style.setProperty(`--vscode-repl-font-size-for-twistie`, `${fontSize * 1.4 / 2 - 8}px`);
-			this.container.style.setProperty(`--vscode-repl-line-height`, lineHeight);
+			const cssFontFamily = this.replOptions.replConfiguration.fontFamily === 'default' ? 'var(--monaco-monospace-font)' : this.replOptions.replConfiguration.fontFamily;
+			this.container.style.setProperty(`--vscode-repl-font-family`, cssFontFamily);
+			this.container.style.setProperty(`--vscode-repl-font-size`, `${this.replOptions.replConfiguration.fontSize}px`);
+			this.container.style.setProperty(`--vscode-repl-font-size-for-twistie`, `${this.replOptions.replConfiguration.fontSizeForTwistie}px`);
+			this.container.style.setProperty(`--vscode-repl-line-height`, this.replOptions.replConfiguration.cssLineHeight);
 
 			this.tree.rerender();
 
@@ -566,7 +553,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	}
 
 	private createReplTree(): void {
-		this.replDelegate = new ReplDelegate(this.configurationService);
+		this.replDelegate = new ReplDelegate(this.configurationService, this.replOptions);
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
 		this.treeContainer.classList.toggle('word-wrap', wordWrap);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
@@ -747,6 +734,54 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.refreshScheduler.dispose();
 		this.modelChangeListener.dispose();
 		super.dispose();
+	}
+}
+
+class ReplOptions extends Disposable implements IReplOptions {
+	private static readonly lineHeightEm = 1.4;
+
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange = this._onDidChange.event;
+
+	private _replConfig!: IReplConfiguration;
+	public get replConfiguration(): IReplConfiguration {
+		return this._replConfig;
+	}
+
+	constructor(
+		viewId: string,
+		private readonly backgroundColorDelegate: () => string,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService
+	) {
+		super();
+
+		this._register(this.themeService.onDidColorThemeChange(e => this.update()));
+		this._register(this.viewDescriptorService.onDidChangeLocation(e => {
+			if (e.views.some(v => v.id === viewId)) {
+				this.update();
+			}
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('debug.console.lineHeight') || e.affectsConfiguration('debug.console.fontSize') || e.affectsConfiguration('debug.console.fontFamily')) {
+				this.update();
+			}
+		}));
+		this.update();
+	}
+
+	private update() {
+		const debugConsole = this.configurationService.getValue<IDebugConfiguration>('debug').console;
+		this._replConfig = {
+			fontSize: debugConsole.fontSize,
+			fontFamily: debugConsole.fontFamily,
+			lineHeight: debugConsole.lineHeight ? debugConsole.lineHeight : ReplOptions.lineHeightEm * debugConsole.fontSize,
+			cssLineHeight: debugConsole.lineHeight ? `${debugConsole.lineHeight}px` : `${ReplOptions.lineHeightEm}em`,
+			backgroundColor: this.themeService.getColorTheme().getColor(this.backgroundColorDelegate()),
+			fontSizeForTwistie: debugConsole.fontSize * ReplOptions.lineHeightEm / 2 - 8
+		};
+		this._onDidChange.fire();
 	}
 }
 
