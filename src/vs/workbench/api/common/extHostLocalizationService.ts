@@ -36,11 +36,11 @@ export abstract class AbstractExtHostLocalizationService implements ExtHostLocal
 	}
 
 	getBundle(extensionId: string): { [key: string]: string } {
-		return this.bundleCache.get(extensionId)!.contents;
+		return this.bundleCache.get(extensionId)?.contents ?? {};
 	}
 
-	getBundleUri(extensionId: string): URI {
-		return this.bundleCache.get(extensionId)!.uri;
+	getBundleUri(extensionId: string): URI | undefined {
+		return this.bundleCache.get(extensionId)?.uri;
 	}
 
 	abstract initializeLocalizedMessages(extension: IExtensionDescription): Promise<void>;

@@ -28,8 +28,8 @@ export class ExtHostLocalizationService extends AbstractExtHostLocalizationServi
 		// 	}
 		// }
 
-		if (extension.i18nBundleLocation) {
-			return path.join(originalFSPath(extension.extensionLocation), extension.i18nBundleLocation);
+		if (extension.l10nBundleLocation) {
+			return path.join(originalFSPath(extension.extensionLocation), extension.l10nBundleLocation);
 		}
 		return undefined;
 	}
@@ -38,7 +38,7 @@ export class ExtHostLocalizationService extends AbstractExtHostLocalizationServi
 		if (
 			Language.isDefault()
 			// TODO: support builtin extensions
-			|| !extension.i18nBundleLocation
+			|| !extension.l10nBundleLocation
 		) {
 			return;
 		}

@@ -16,8 +16,8 @@ export class ExtHostLocalizationService extends AbstractExtHostLocalizationServi
 		// 	return URI.joinPath(this.initData.nlsBaseUrl, extension.identifier.value, 'main');
 		// }
 
-		if (extension.i18nBundleLocation) {
-			return URI.joinPath(extension.extensionLocation, extension.i18nBundleLocation);
+		if (extension.l10nBundleLocation) {
+			return URI.joinPath(extension.extensionLocation, extension.l10nBundleLocation);
 		}
 		return undefined;
 	}
@@ -25,7 +25,7 @@ export class ExtHostLocalizationService extends AbstractExtHostLocalizationServi
 	async initializeLocalizedMessages(extension: IExtensionDescription): Promise<void> {
 		if (Language.isDefault()
 			// TODO: support builtin extensions
-			|| !extension.i18nBundleLocation
+			|| !extension.l10nBundleLocation
 		) {
 			return;
 		}

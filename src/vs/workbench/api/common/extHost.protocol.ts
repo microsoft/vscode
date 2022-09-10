@@ -2200,7 +2200,7 @@ export interface ExtHostTestingShape {
 export interface ExtHostLocalizationShape {
 	getMessage(extensionId: string, details: IStringDetails): string;
 	getBundle(extensionId: string): { [key: string]: string };
-	getBundleUri(extensionId: string): URI;
+	getBundleUri(extensionId: string): URI | undefined;
 	initializeLocalizedMessages(extension: IExtensionDescription): Promise<void>;
 }
 
