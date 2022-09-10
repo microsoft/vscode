@@ -665,7 +665,7 @@
         },
         {
           "command": "git.init",
-          "when": "config.git.enabled && !git.missing"
+          "when": "config.git.enabled && !git.missing && remoteName != 'codespaces'"
         },
         {
           "command": "git.openRepository",
@@ -2738,7 +2738,7 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
-        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0",
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0 && remoteName != 'codespaces'",
         "enablement": "git.state == initialized",
         "group": "5_scm@1"
       },
