@@ -412,19 +412,22 @@ flakySuite('WorkspacesManagementMainService', () => {
 		service.deleteUntitledWorkspaceSync(workspace);
 	});
 
-	test('getUntitledWorkspaceSync', async function () {
-		let untitled = service.getUntitledWorkspacesSync();
+	test('getUntitledWorkspace', async function () {
+		await service.initialize();
+		let untitled = service.getUntitledWorkspaces();
 		assert.strictEqual(untitled.length, 0);
 
 		const untitledOne = await createUntitledWorkspace([cwd, tmpDir]);
 		assert.ok(fs.existsSync(untitledOne.configPath.fsPath));
 
-		untitled = service.getUntitledWorkspacesSync();
+		await service.initialize();
+		untitled = service.getUntitledWorkspaces();
 		assert.strictEqual(1, untitled.length);
 		assert.strictEqual(untitledOne.id, untitled[0].workspace.id);
 
 		service.deleteUntitledWorkspaceSync(untitledOne);
-		untitled = service.getUntitledWorkspacesSync();
+		await service.initialize();
+		untitled = service.getUntitledWorkspaces();
 		assert.strictEqual(0, untitled.length);
 	});
 });
