@@ -266,7 +266,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 			return undefined; // return early if the workspace is not valid
 		}
 
-		const result = this.doEnterWorkspace(window, getWorkspaceIdentifier(path));
+		const result = await this.doEnterWorkspace(window, getWorkspaceIdentifier(path));
 		if (!result) {
 			return undefined;
 		}
@@ -306,7 +306,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		return true; // OK
 	}
 
-	private doEnterWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier): IEnterWorkspaceResult | undefined {
+	private async doEnterWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier): Promise<IEnterWorkspaceResult | undefined> {
 		if (!window.config) {
 			return undefined;
 		}
@@ -316,7 +316,11 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		// Register window for backups and migrate current backups over
 		let backupPath: string | undefined;
 		if (!window.config.extensionDevelopmentPath) {
-			backupPath = this.backupMainService.registerWorkspaceBackup({ workspace, remoteAuthority: window.remoteAuthority }, window.config.backupPath);
+			if (window.config.backupPath) {
+				backupPath = await this.backupMainService.registerWorkspaceBackup({ workspace, remoteAuthority: window.remoteAuthority }, window.config.backupPath);
+			} else {
+				backupPath = this.backupMainService.registerWorkspaceBackup({ workspace, remoteAuthority: window.remoteAuthority });
+			}
 		}
 
 		// if the window was opened on an untitled workspace, delete it.
