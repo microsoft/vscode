@@ -132,6 +132,10 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		pane?.terminalTabbedView?.focusTabs();
 	}
 
+	async focusActiveInstance(): Promise<void> {
+		return this.showPanel(true);
+	}
+
 	createGroup(slcOrInstance?: IShellLaunchConfig | ITerminalInstance): ITerminalGroup {
 		const group = this._instantiationService.createInstance(TerminalGroup, this._container, slcOrInstance);
 		// TODO: Move panel orientation change into this file so it's not fired many times

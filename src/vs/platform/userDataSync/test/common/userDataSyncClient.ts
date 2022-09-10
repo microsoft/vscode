@@ -148,7 +148,7 @@ export class UserDataSyncClient extends Disposable {
 	}
 
 	getSynchronizer(source: SyncResource): IUserDataSynchroniser {
-		return (this.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getEnabledSynchronizers().find(s => s.resource === source)!;
+		return (this.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getProfileSynchronizers()[0].enabled.find(s => s.resource === source)!;
 	}
 
 }

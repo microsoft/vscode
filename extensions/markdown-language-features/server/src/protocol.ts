@@ -25,4 +25,6 @@ export const getReferencesToFileInWorkspace = new RequestType<{ uri: string }, l
 export const getEditForFileRenames = new RequestType<Array<{ oldUri: string; newUri: string }>, lsp.WorkspaceEdit, any>('markdown/getEditForFileRenames');
 
 export const fs_watcher_onChange = new RequestType<{ id: number; uri: string; kind: 'create' | 'change' | 'delete' }, void, any>('markdown/fs/watcher/onChange');
+
+export const resolveLinkTarget = new RequestType<{ linkText: string; uri: string }, md.ResolvedDocumentLinkTarget, any>('markdown/resolveLinkTarget');
 //#endregion

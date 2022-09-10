@@ -12,7 +12,7 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionGalleryService, IExtensionManagementCLIService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { ExtensionManagementService, INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -27,7 +27,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IServerEnvironmentService, ServerEnvironmentService, ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
-import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
+import { ExtensionManagementCLI } from 'vs/platform/extensionManagement/common/extensionManagementCLI';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
 import { getErrorMessage } from 'vs/base/common/errors';
@@ -63,9 +63,8 @@ class CliMain extends Disposable {
 		const instantiationService = await this.initServices();
 		await instantiationService.invokeFunction(async accessor => {
 			const logService = accessor.get(ILogService);
-			const extensionManagementCLIService = accessor.get(IExtensionManagementCLIService);
 			try {
-				await this.doRun(extensionManagementCLIService);
+				await this.doRun(instantiationService.createInstance(ExtensionManagementCLI));
 			} catch (error) {
 				logService.error(error);
 				console.error(getErrorMessage(error));
@@ -112,33 +111,32 @@ class CliMain extends Disposable {
 		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
 		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
 		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
-		services.set(IExtensionManagementCLIService, new SyncDescriptor(ExtensionManagementCLIService));
 		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService));
 
 		return new InstantiationService(services);
 	}
 
-	private async doRun(extensionManagementCLIService: IExtensionManagementCLIService): Promise<void> {
+	private async doRun(extensionManagementCLI: ExtensionManagementCLI): Promise<void> {
 
 		// List Extensions
 		if (this.args['list-extensions']) {
-			return extensionManagementCLIService.listExtensions(!!this.args['show-versions'], this.args['category']);
+			return extensionManagementCLI.listExtensions(!!this.args['show-versions'], this.args['category']);
 		}
 
 		// Install Extension
 		else if (this.args['install-extension'] || this.args['install-builtin-extension']) {
 			const installOptions: InstallOptions = { isMachineScoped: !!this.args['do-not-sync'], installPreReleaseVersion: !!this.args['pre-release'] };
-			return extensionManagementCLIService.installExtensions(this.asExtensionIdOrVSIX(this.args['install-extension'] || []), this.args['install-builtin-extension'] || [], installOptions, !!this.args['force']);
+			return extensionManagementCLI.installExtensions(this.asExtensionIdOrVSIX(this.args['install-extension'] || []), this.args['install-builtin-extension'] || [], installOptions, !!this.args['force']);
 		}
 
 		// Uninstall Extension
 		else if (this.args['uninstall-extension']) {
-			return extensionManagementCLIService.uninstallExtensions(this.asExtensionIdOrVSIX(this.args['uninstall-extension']), !!this.args['force']);
+			return extensionManagementCLI.uninstallExtensions(this.asExtensionIdOrVSIX(this.args['uninstall-extension']), !!this.args['force']);
 		}
 
 		// Locate Extension
 		else if (this.args['locate-extension']) {
-			return extensionManagementCLIService.locateExtension(this.args['locate-extension']);
+			return extensionManagementCLI.locateExtension(this.args['locate-extension']);
 		}
 	}
 

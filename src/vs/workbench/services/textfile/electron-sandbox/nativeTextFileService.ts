@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { ITextFileService, ITextFileStreamContent, ITextFileContent, IReadTextFileOptions, TextFileEditorModelState, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { IFileService, ByteSize, getPlatformLimits, Arch } from 'vs/platform/files/common/files';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
@@ -122,4 +122,4 @@ export class NativeTextFileService extends AbstractTextFileService {
 	}
 }
 
-registerSingleton(ITextFileService, NativeTextFileService, false);
+registerSingleton(ITextFileService, NativeTextFileService, InstantiationType.Eager);

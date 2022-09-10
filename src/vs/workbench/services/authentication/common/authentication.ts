@@ -50,7 +50,7 @@ export interface IAuthenticationService {
 
 	readonly onDidChangeSessions: Event<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>;
 
-	// TODO @RMacfarlane completely remove this property
+	// TODO completely remove this property
 	declaredProviders: AuthenticationProviderInformation[];
 	readonly onDidChangeDeclaredProviders: Event<AuthenticationProviderInformation[]>;
 

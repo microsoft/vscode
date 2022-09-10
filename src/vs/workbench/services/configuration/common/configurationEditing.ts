@@ -21,7 +21,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenSettingsOptions, IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ITextModel } from 'vs/editor/common/model';
 import { IReference } from 'vs/base/common/lifecycle';
@@ -144,14 +143,14 @@ interface ConfigurationEditingOptions extends IConfigurationEditingOptions {
 	handleDirtyFile?: 'save' | 'revert';
 }
 
-export class ConfigurationEditingService {
+export class ConfigurationEditing {
 
 	public _serviceBrand: undefined;
 
 	private queue: Queue<void>;
-	private remoteSettingsResource: URI | null = null;
 
 	constructor(
+		private readonly remoteSettingsResource: URI | null,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
@@ -162,15 +161,9 @@ export class ConfigurationEditingService {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		this.queue = new Queue<void>();
-		remoteAgentService.getEnvironment().then(environment => {
-			if (environment) {
-				this.remoteSettingsResource = environment.settingsPath;
-			}
-		});
 	}
 
 	async writeConfiguration(target: EditableConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = {}): Promise<void> {

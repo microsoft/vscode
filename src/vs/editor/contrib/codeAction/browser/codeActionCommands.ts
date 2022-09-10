@@ -544,6 +544,7 @@ registerEditorCommand(new CodeActionContribution({
 		weight: weight + 100000,
 		primary: KeyCode.UpArrow,
 		secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
+		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KeyP] },
 	}
 }));
 
@@ -557,6 +558,7 @@ registerEditorCommand(new CodeActionContribution({
 		weight: weight + 100000,
 		primary: KeyCode.DownArrow,
 		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
+		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KeyN] }
 	}
 }));
 
@@ -584,5 +586,3 @@ registerEditorCommand(new CodeActionContribution({
 		primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	}
 }));
-
-
