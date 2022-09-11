@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { CheckboxUpdate, DataTransferDTO, ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
-import { ITreeItem, ITreeItemCheckbox, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand, TreeViewPaneHandleArg } from 'vs/workbench/common/views';
+import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand, TreeViewPaneHandleArg, ITreeItemCheckboxState } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { asPromise } from 'vs/base/common/async';
 import { TreeItemCollapsibleState, TreeItemCheckboxState, ThemeIcon, MarkdownString as MarkdownStringType, TreeItem } from 'vs/workbench/api/common/extHostTypes';
@@ -750,7 +750,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return command ? { ...this.commands.toInternal(command, disposable), originalId: command.command } : undefined;
 	}
 
-	private getCheckbox(extensionTreeItem: vscode.TreeItem2): ITreeItemCheckbox | undefined {
+	private getCheckbox(extensionTreeItem: vscode.TreeItem2): ITreeItemCheckboxState | undefined {
 		if (!extensionTreeItem.checkboxState) {
 			return undefined;
 		}

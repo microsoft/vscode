@@ -745,7 +745,7 @@ export interface ITreeItemLabel {
 
 export type TreeCommand = Command & { originalId?: string };
 
-export interface ITreeItemCheckbox {
+export interface ITreeItemCheckboxState {
 	isChecked: boolean;
 	tooltip?: string;
 }
@@ -780,7 +780,7 @@ export interface ITreeItem {
 
 	accessibilityInformation?: IAccessibilityInformation;
 
-	checkbox?: ITreeItemCheckbox;
+	checkbox?: ITreeItemCheckboxState;
 }
 
 export class ResolvableTreeItem implements ITreeItem {

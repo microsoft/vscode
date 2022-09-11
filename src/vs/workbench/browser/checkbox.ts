@@ -11,7 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { attachToggleStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITreeItem } from 'vs/workbench/common/views';
+import { ITreeItem, ITreeItemCheckboxState } from 'vs/workbench/common/views';
 
 export class CheckboxStateHandler extends Disposable {
 	private readonly _onDidChangeCheckboxState = this._register(new Emitter<ITreeItem[]>());
@@ -53,7 +53,7 @@ export class TreeItemCheckbox extends Disposable {
 		if (node.checkbox) {
 			this.toggle = new Toggle({
 				isChecked: node.checkbox.isChecked,
-				title: node.checkbox.tooltip ?? node.checkbox.isChecked ? localize('checked', 'Checked') : localize('unchecked', 'Unchecked'),
+				title: this.createCheckboxTitle(node.checkbox),
 				icon: node.checkbox.isChecked ? Codicon.check : undefined
 			});
 
@@ -78,9 +78,14 @@ export class TreeItemCheckbox extends Disposable {
 		if (this.toggle && node.checkbox) {
 			node.checkbox.isChecked = this.toggle.checked;
 			this.toggle.setIcon(this.toggle.checked ? Codicon.check : undefined);
-			this.toggle.setTitle(node.checkbox.tooltip ?? node.checkbox.isChecked ? localize('checked', 'Checked') : localize('unchecked', 'Unchecked'));
+			this.toggle.setTitle(this.createCheckboxTitle(node.checkbox));
 			this.checkboxStateHandler.setCheckboxState(node);
 		}
+	}
+
+	private createCheckboxTitle(checkbox: ITreeItemCheckboxState) {
+		return checkbox.tooltip ? checkbox.tooltip :
+			checkbox.isChecked ? localize('checked', 'Checked') : localize('unchecked', 'Unchecked');
 	}
 
 	private removeCheckbox() {
