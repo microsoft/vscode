@@ -250,7 +250,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	declare readonly _serviceBrand: undefined;
 
-	protected static DEFAULT_FLUSH_INTERVAL = 60 * 1000; // every minute
+	private static DEFAULT_FLUSH_INTERVAL = 60 * 1000; // every minute
 
 	private readonly _onDidChangeValue = this._register(new PauseableEmitter<IStorageValueChangeEvent>());
 	readonly onDidChangeValue = this._onDidChangeValue.event;

@@ -108,7 +108,7 @@ class StroageService extends AbstractStorageService {
 	private readonly profileStorage: IStorage;
 
 	constructor(profileStorageDatabase: IStorageDatabase) {
-		super({ flushInterval: AbstractStorageService.DEFAULT_FLUSH_INTERVAL, donotMarkPerf: true });
+		super({ flushInterval: 100, donotMarkPerf: true });
 		this.profileStorage = this._register(new Storage(profileStorageDatabase));
 	}
 
@@ -120,16 +120,7 @@ class StroageService extends AbstractStorageService {
 		return scope === StorageScope.PROFILE ? this.profileStorage : undefined;
 	}
 
-	protected getLogDetails(): string | undefined {
-		return undefined;
-	}
-
-	protected async switchToProfile(): Promise<void> {
-		// no-op when in-memory
-	}
-
-	protected async switchToWorkspace(): Promise<void> {
-		// no-op when in-memory
-	}
-
+	protected getLogDetails(): string | undefined { return undefined; }
+	protected async switchToProfile(): Promise<void> { }
+	protected async switchToWorkspace(): Promise<void> { }
 }

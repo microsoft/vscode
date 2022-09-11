@@ -181,7 +181,7 @@ export class ProfileStorageChangesListenerChannel extends Disposable implements 
 	}
 
 	private registerStorageChangeListeners(): IDisposable {
-		this.logService.trace('ProfileStorageChangesListenerChannel#registerStorageChangeListeners');
+		this.logService.debug('ProfileStorageChangesListenerChannel#registerStorageChangeListeners');
 		const disposables = new DisposableStore();
 		disposables.add(Event.debounce(this.storageMainService.applicationStorage.onDidChangeStorage, (keys: string[] | undefined, e) => {
 			if (keys) {
