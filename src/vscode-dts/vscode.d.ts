@@ -13220,7 +13220,7 @@ declare module 'vscode' {
 	export interface NotebookDocumentCellChange {
 
 		/**
-		 * The affected notebook.
+		 * The affected cell.
 		 */
 		readonly cell: NotebookCell;
 

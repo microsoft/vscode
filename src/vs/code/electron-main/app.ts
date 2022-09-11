@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, contentTracing, dialog, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, dialog, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { statSync } from 'fs';
 import { hostname, release } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { isEqualOrParent, randomPath } from 'vs/base/common/extpath';
+import { isEqualOrParent } from 'vs/base/common/extpath';
 import { once } from 'vs/base/common/functional';
 import { stripComments } from 'vs/base/common/json';
 import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -18,7 +18,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isAbsolute, join, posix } from 'vs/base/common/path';
 import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
-import { assertType, withNullAsUndefined } from 'vs/base/common/types';
+import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { getMachineId } from 'vs/base/node/id';
@@ -546,15 +546,10 @@ export class CodeApplication extends Disposable {
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
 
 		// Open Windows
-		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, profile, mainProcessElectronServer));
+		appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, profile, mainProcessElectronServer));
 
 		// Post Open Windows Tasks
 		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor, sharedProcess));
-
-		// Tracing: Stop tracing after windows are ready if enabled
-		if (this.environmentMainService.args.trace) {
-			appInstantiationService.invokeFunction(accessor => this.stopTracingEventually(accessor, windows));
-		}
 
 		// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
 		const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
@@ -1280,45 +1275,5 @@ export class CodeApplication extends Disposable {
 		} catch (error) {
 			this.logService.error(error);
 		}
-	}
-
-	private stopTracingEventually(accessor: ServicesAccessor, windows: ICodeWindow[]): void {
-		this.logService.info('Tracing: waiting for windows to get ready...');
-
-		const dialogMainService = accessor.get(IDialogMainService);
-
-		let recordingStopped = false;
-		const stopRecording = async (timeout: boolean) => {
-			if (recordingStopped) {
-				return;
-			}
-
-			recordingStopped = true; // only once
-
-			const path = await contentTracing.stopRecording(`${randomPath(this.environmentMainService.userHome.fsPath, this.productService.applicationName)}.trace.txt`);
-
-			if (!timeout) {
-				dialogMainService.showMessageBox({
-					title: this.productService.nameLong,
-					type: 'info',
-					message: localize('trace.message', "Successfully created trace."),
-					detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
-					buttons: [mnemonicButtonLabel(localize({ key: 'trace.ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
-					defaultId: 0,
-					noLink: true
-				}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
-			} else {
-				this.logService.info(`Tracing: data recorded (after 30s timeout) to ${path}`);
-			}
-		};
-
-		// Wait up to 30s before creating the trace anyways
-		const timeoutHandle = setTimeout(() => stopRecording(true), 30000);
-
-		// Wait for all windows to get ready and stop tracing then
-		Promise.all(windows.map(window => window.ready())).then(() => {
-			clearTimeout(timeoutHandle);
-			stopRecording(false);
-		});
 	}
 }

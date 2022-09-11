@@ -40,6 +40,7 @@ import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-m
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -565,6 +566,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	public async getOSColorScheme(): Promise<IColorScheme> {
 		return this.themeMainService.getColorScheme();
+	}
+
+
+	// WSL
+	public async hasWSLFeatureInstalled(): Promise<boolean> {
+		return isWindows && hasWSLFeatureInstalled();
 	}
 
 

@@ -2783,10 +2783,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _runTaskCommand(arg?: any): void {
 		const identifier = this._getTaskIdentifier(arg);
 		const type = arg && typeof arg !== 'string' && 'type' in arg ? arg.type : undefined;
-		const task = arg && typeof arg !== 'string' && 'task' in arg ? arg.task : arg === 'string' ? arg : undefined;
+		let task = arg && typeof arg !== 'string' && 'task' in arg ? arg.task : arg === 'string' ? arg : undefined;
 		if (identifier) {
 			this._getGroupedTasks({ task, type }).then(async (grouped) => {
 				const resolver = this._createResolver(grouped);
+				const tasks = grouped.all();
 				const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
 				if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 					folderURIs.push(this._contextService.getWorkspace().configuration!);
@@ -2802,14 +2803,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 				// match by label
 				if (!!task) {
-					const taskToRun = grouped.all().find(g => g._label === task);
+					const taskToRun = tasks.find(g => g._label === task);
 					if (taskToRun) {
 						this.run(taskToRun).then(undefined, () => { });
 						return;
 					}
 				}
+				if (task && !tasks.some(g => g._label.includes(task))) {
+					task = undefined;
+				}
 				// if task is defined, will be used as a filter
-				this._doRunTaskCommand(grouped.all(), type, task);
+				this._doRunTaskCommand(tasks, type, task);
 			});
 		}
 		this._doRunTaskCommand();
