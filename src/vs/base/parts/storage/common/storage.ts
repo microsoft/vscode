@@ -356,7 +356,7 @@ export class InMemoryStorageDatabase extends Disposable implements IStorageDatab
 		return this.items;
 	}
 
-	async updateItems(request: IUpdateRequest, trigger?: boolean): Promise<void> {
+	async updateItems(request: IUpdateRequest): Promise<void> {
 		request.insert?.forEach((value, key) => this.items.set(key, value));
 
 		request.delete?.forEach(key => this.items.delete(key));

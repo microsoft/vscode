@@ -225,7 +225,7 @@ export interface IStorageTargetChangeEvent {
 	readonly scope: StorageScope;
 }
 
-export interface IKeyTargets {
+interface IKeyTargets {
 	[key: string]: StorageTarget;
 }
 
