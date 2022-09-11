@@ -26,8 +26,8 @@ export interface IJSONContribution {
 	collectPropertySuggestions(resourceUri: Uri, location: Location, currentWord: string, addValue: boolean, isLast: boolean, result: ISuggestionsCollector): Thenable<any> | null;
 	collectValueSuggestions(resourceUri: Uri, location: Location, result: ISuggestionsCollector): Thenable<any> | null;
 	collectDefaultSuggestions(resourceUri: Uri, result: ISuggestionsCollector): Thenable<any>;
-	collectDocumentLinks?(document: TextDocument, rootNode: Node): Thenable<DocumentLink[]> | null;
 	resolveSuggestion?(resourceUri: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null;
+	collectDocumentLinks?(document: TextDocument, rootNode: Node): Thenable<DocumentLink[] | null>;
 }
 
 export function addJSONProviders(xhr: XHRRequest, npmCommandPath: string | undefined): Disposable {
@@ -37,8 +37,8 @@ export function addJSONProviders(xhr: XHRRequest, npmCommandPath: string | undef
 		const selector = contribution.getDocumentSelector();
 		subscriptions.push(languages.registerCompletionItemProvider(selector, new JSONCompletionItemProvider(contribution), '"', ':'));
 		subscriptions.push(languages.registerHoverProvider(selector, new JSONHoverProvider(contribution)));
-		if (contribution.collectDocumentLinks) {
-			subscriptions.push(languages.registerHoverProvider(selector, new JSONHoverProvider(contribution)));
+		if ('collectDocumentLinks' in contribution) {
+			subscriptions.push(languages.registerDocumentLinkProvider(selector, new JSONLinksProvider(contribution)));
 		}
 	});
 	return Disposable.from(...subscriptions);
@@ -50,8 +50,8 @@ export class JSONLinksProvider implements DocumentLinkProvider {
 
 	}
 	provideDocumentLinks(document: TextDocument, _token: CancellationToken): ProviderResult<DocumentLink[]> {
-		const rootNode = parseTree(document.getText())!
-		return this.jsonContribution.collectDocumentLinks!(document, rootNode,)
+		const rootNode = parseTree(document.getText())!;
+		return this.jsonContribution.collectDocumentLinks!(document, rootNode,);
 	}
 }
 

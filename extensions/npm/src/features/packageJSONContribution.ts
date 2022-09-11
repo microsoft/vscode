@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, MarkdownString, Uri } from 'vscode';
+import { CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, MarkdownString, Uri, TextDocument, DocumentLink, Range } from 'vscode';
 import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
 import { XHRRequest } from 'request-light';
-import { Location } from 'jsonc-parser';
+import { findNodeAtLocation, getNodeValue, Location, Node } from 'jsonc-parser';
 
 import * as cp from 'child_process';
 import * as nls from 'vscode-nls';
@@ -16,6 +16,8 @@ const localize = nls.loadMessageBundle();
 const LIMIT = 40;
 
 const USER_AGENT = 'Visual Studio Code';
+
+const scriptLinksCommandRegex = /((?<START>(^|&&|")\s?((pnpm|yarn|npm) run) )(?<NAME>[A-z\d:-]+))|((?<START2>(^|&&|")\s?(pnpm|yarn) )(?<NAME2>[A-z\d:-]+))/g;
 
 export class PackageJSONContribution implements IJSONContribution {
 
@@ -215,6 +217,54 @@ export class PackageJSONContribution implements IJSONContribution {
 			}
 		}
 		return null;
+	}
+
+	async collectDocumentLinks(document: TextDocument, rootNode: Node): Promise<DocumentLink[] | null> {
+		const links: DocumentLink[] = [];
+
+		const scriptsNodes = findNodeAtLocation(rootNode, ['scripts'])?.children;
+
+		if (scriptsNodes) {
+			for (const scriptNode of this.convertObjectNodeToValues(scriptsNodes)) {
+				const script: string = getNodeValue(scriptNode);
+				let match: RegExpExecArray | null;
+				while ((match = scriptLinksCommandRegex.exec(script))) {
+					const scriptRefName = match.groups!.NAME || match.groups!.NAME2!;
+					// 0 index for property, 1 for value
+					const targetScriptNode = scriptsNodes.find(node => node.children![0]!.value === scriptRefName)?.children?.[1];
+					if (!targetScriptNode) {
+						continue;
+					}
+					// +1 for opening quote
+					const getStringNodeStart = (node: Node) => node.offset + 1;
+					let startOffset = getStringNodeStart(scriptNode) + match.index + (match.groups!.START || match.groups!.START2!).length;
+					// in JSON quote always requires \ character for escaping
+					if (match[0]!.startsWith('"')) {
+						startOffset += 1;
+					}
+					const linkRange = this.rangeFromOffsets(document, startOffset, startOffset + scriptRefName.length);
+					const targetPos = document.positionAt(getStringNodeStart(targetScriptNode));
+					const fragment = `L${targetPos.line + 1},${targetPos.character + 1}`;
+					links.push({
+						range: linkRange,
+						tooltip: localize('json.npm.revealscript', 'Reveal script'),
+						target: document.uri.with({ fragment }),
+					});
+				}
+
+				scriptLinksCommandRegex.lastIndex = 0;
+			}
+		}
+
+		return links;
+	}
+
+	private rangeFromOffsets(document: TextDocument, start: number, end: number): Range {
+		return new Range(document.positionAt(start), document.positionAt(end));
+	}
+
+	private convertObjectNodeToValues(nodes: Node[]): Node[] {
+		return nodes.map(value => value.type === 'property' ? value.children![1] : undefined!).filter(a => a !== undefined);
 	}
 
 	private getDocumentation(description: string | undefined, version: string | undefined, homepage: string | undefined): MarkdownString {
