@@ -346,7 +346,7 @@ export class Storage extends Disposable implements IStorage {
 	}
 }
 
-export class InMemoryStorageDatabase extends Disposable implements IStorageDatabase {
+export class InMemoryStorageDatabase implements IStorageDatabase {
 
 	readonly onDidChangeItemsExternal = Event.None;
 

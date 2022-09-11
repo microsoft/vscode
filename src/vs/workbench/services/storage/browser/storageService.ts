@@ -268,6 +268,9 @@ class InMemoryIndexedDBStorageDatabase extends InMemoryStorageDatabase implement
 		(await this.getItems()).clear();
 	}
 
+	dispose(): void {
+		// No-op
+	}
 }
 
 interface IndexedDBStorageDatabaseOptions {

@@ -14,7 +14,7 @@ import { IUserDataProfile, toUserDataProfile } from 'vs/platform/userDataProfile
 
 export class TestStorageDatabase extends InMemoryStorageDatabase {
 
-	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
+	private readonly _onDidChangeItemsExternal = new Emitter<IStorageItemsChangeEvent>();
 	override readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
 
 	override async updateItems(request: IUpdateRequest): Promise<void> {
