@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Location, getLocation, createScanner, SyntaxKind, ScanError, JSONScanner, Node } from 'jsonc-parser';
+import { Location, getLocation, createScanner, SyntaxKind, ScanError, JSONScanner, Node, parseTree } from 'jsonc-parser';
 import { BowerJSONContribution } from './bowerJSONContribution';
 import { PackageJSONContribution } from './packageJSONContribution';
 import { XHRRequest } from 'request-light';
@@ -50,8 +50,8 @@ export class JSONLinksProvider implements DocumentLinkProvider {
 
 	}
 	provideDocumentLinks(document: TextDocument, _token: CancellationToken): ProviderResult<DocumentLink[]> {
-
-		// return this.jsonContribution.collectDocumentLinks!(document, )
+		const rootNode = parseTree(document.getText())!
+		return this.jsonContribution.collectDocumentLinks!(document, rootNode,)
 	}
 }
 
