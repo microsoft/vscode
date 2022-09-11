@@ -12,7 +12,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestEditorService, TestLifecycleService, TestTerminalEditorService, TestTerminalGroupService, TestTerminalInstanceService, TestTerminalProfileService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEditorService, TestLifecycleService, TestRemoteAgentService, TestTerminalEditorService, TestTerminalGroupService, TestTerminalInstanceService, TestTerminalProfileService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -22,7 +22,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
 
 suite('Workbench - TerminalService', () => {
 	let instantiationService: TestInstantiationService;

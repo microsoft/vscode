@@ -169,8 +169,11 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	private async _doExecuteCommand<T>(id: string, args: any[], retry: boolean): Promise<T> {
 
 		if (this._commands.has(id)) {
-			// we stay inside the extension host and support
-			// to pass any kind of parameters around
+			// - We stay inside the extension host and support
+			// 	 to pass any kind of parameters around.
+			// - We still emit the corresponding activation event
+			//   BUT we don't await that event
+			this.#proxy.$fireCommandActivationEvent(id);
 			return this._executeContributedCommand<T>(id, args, false);
 
 		} else {
@@ -206,7 +209,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			} catch (e) {
 				// Rerun the command when it wasn't known, had arguments, and when retry
 				// is enabled. We do this because the command might be registered inside
-				// the extension host now and can therfore accept the arguments as-is.
+				// the extension host now and can therefore accept the arguments as-is.
 				if (e instanceof Error && e.message === '$executeCommand:retry') {
 					return this._doExecuteCommand(id, args, false);
 				} else {
@@ -222,7 +225,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			throw new Error('Unknown command');
 		}
 		this._reportTelemetry(command, id);
-		let { callback, thisArg, description } = command;
+		const { callback, thisArg, description } = command;
 		if (description) {
 			for (let i = 0; i < description.args.length; i++) {
 				try {
@@ -269,8 +272,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			id: string;
 		};
 		type ExtensionActionTelemetryMeta = {
-			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'digitarald'; comment: 'The id of the extension handling the command, informing which extensions provide most-used functionality.' };
-			id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'digitarald'; comment: 'The id of the command, to understand which specific extension features are most popular.' };
+			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the extension handling the command, informing which extensions provide most-used functionality.' };
+			id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the command, to understand which specific extension features are most popular.' };
+			owner: 'digitarald';
+			comment: 'Used to gain insight on the most popular commands used from extensions';
 		};
 		this.#telemetry.$publicLog2<ExtensionActionTelemetry, ExtensionActionTelemetryMeta>('Extension:ActionExecuted', {
 			extensionId: command.extension.identifier.value,
@@ -302,8 +307,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescriptionDto }> {
 		const result: { [id: string]: string | ICommandHandlerDescription } = Object.create(null);
-		for (let [id, command] of this._commands) {
-			let { description } = command;
+		for (const [id, command] of this._commands) {
+			const { description } = command;
 			if (description) {
 				result[id] = description;
 			}

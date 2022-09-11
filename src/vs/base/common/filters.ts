@@ -316,7 +316,18 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
 				nextWordIndex++;
 			}
 		}
-		return result === null ? null : join({ start: j, end: j + 1 }, result);
+
+		if (!result) {
+			return null;
+		}
+
+		// If the characters don't exactly match, then they must be word separators (see charactersMatch(...)).
+		// We don't want to include this in the matches but we don't want to throw the target out all together so we return `result`.
+		if (word.charCodeAt(i) !== target.charCodeAt(j)) {
+			return result;
+		}
+
+		return join({ start: j, end: j + 1 }, result);
 	}
 }
 
@@ -472,8 +483,13 @@ function isSeparatorAtPos(value: string, index: number): boolean {
 		case CharCode.Colon:
 		case CharCode.DollarSign:
 		case CharCode.LessThan:
+		case CharCode.GreaterThan:
 		case CharCode.OpenParen:
+		case CharCode.CloseParen:
 		case CharCode.OpenSquareBracket:
+		case CharCode.CloseSquareBracket:
+		case CharCode.OpenCurlyBrace:
+		case CharCode.CloseCurlyBrace:
 			return true;
 		case undefined:
 			return false;

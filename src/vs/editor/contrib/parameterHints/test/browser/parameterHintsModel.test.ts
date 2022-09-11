@@ -10,8 +10,9 @@ import { URI } from 'vs/base/common/uri';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { Position } from 'vs/editor/common/core/position';
 import { Handler } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import * as languages from 'vs/editor/common/languages';
+import { ITextModel } from 'vs/editor/common/model';
 import { ParameterHintsModel } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
@@ -19,7 +20,6 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 
 const mockFile = URI.parse('test:somefile.ttt');
 const mockFileSelector = { scheme: 'test' };

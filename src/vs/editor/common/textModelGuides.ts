@@ -52,8 +52,11 @@ export class IndentGuide {
 		 * It starts at visibleColumn and continues until endColumn.
 		*/
 		public readonly horizontalLine: IndentGuideHorizontalLine | null,
+		/**
+		 * If set (!= -1), only show this guide for wrapped lines that don't contain this model column, but are after it.
+		*/
 		public readonly forWrappedLinesAfterColumn: number | -1,
-		public readonly forWrappedLinesBeforeColumn: number | -1
+		public readonly forWrappedLinesBeforeOrAtColumn: number | -1
 	) {
 		if ((visibleColumn !== -1) === (column !== -1)) {
 			throw new Error();

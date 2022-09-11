@@ -227,6 +227,7 @@ abstract class BaseSwitchWindow extends Action2 {
 			activeItem: picks[autoFocusIndex],
 			placeHolder,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: keybindingService.lookupKeybindings(this.desc.id) } : undefined,
+			hideInput: this.isQuickNavigate(),
 			onDidTriggerItemButton: async context => {
 				await nativeHostService.closeWindowById(context.item.payload);
 				context.removeItem();
@@ -265,7 +266,7 @@ export class QuickSwitchWindowAction extends BaseSwitchWindow {
 		super({
 			id: 'workbench.action.quickSwitchWindow',
 			title: { value: localize('quickSwitchWindow', "Quick Switch Window..."), original: 'Quick Switch Window...' },
-			f1: true
+			f1: false // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 		});
 	}
 

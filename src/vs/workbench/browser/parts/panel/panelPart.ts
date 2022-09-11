@@ -45,6 +45,7 @@ import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/bro
 import { IPartOptions } from 'vs/workbench/browser/part';
 import { StringSHA1 } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
+import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 
 interface ICachedPanel {
 	id: string;
@@ -208,6 +209,12 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		// Global Panel Actions
 		this.globalActions = this._register(this.instantiationService.createInstance(CompositeMenuActions, partId === Parts.PANEL_PART ? MenuId.PanelTitle : MenuId.AuxiliaryBarTitle, undefined, undefined));
 		this._register(this.globalActions.onDidChange(() => this.updateGlobalToolbarActions()));
+
+		Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry)
+			.registerKeys([{
+				key: this.pinnedPanelsKey,
+				description: localize('pinned view containers', "Panel entries visibility customizations")
+			}]);
 	}
 
 	protected abstract getActivityHoverOptions(): IActivityHoverOptions;
@@ -285,9 +292,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 	private async onDidDeregisterPanel(panelId: string): Promise<void> {
 		const disposable = this.panelDisposables.get(panelId);
-		if (disposable) {
-			disposable.dispose();
-		}
+		disposable?.dispose();
 		this.panelDisposables.delete(panelId);
 
 		const activeContainers = this.viewDescriptorService.getViewContainersByLocation(this.viewContainerLocation)
@@ -369,7 +374,17 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		}
 		if (viewContainerModel.activeViewDescriptors.length) {
 			contextKey.set(true);
-			this.compositeBar.addComposite({ id: viewContainer.id, name: viewContainer.title, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
+			this.compositeBar.addComposite({ id: viewContainer.id, name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
+
+			if (this.layoutService.isRestored() && this.layoutService.isVisible(this.partId)) {
+				const activeComposite = this.getActiveComposite();
+				if (activeComposite === undefined || activeComposite.getId() === viewContainer.id) {
+					this.compositeBar.activateComposite(viewContainer.id);
+				}
+			}
+
+			this.layoutCompositeBar();
+			this.layoutEmptyMessage();
 		} else if (viewContainer.hideIfEmpty) {
 			contextKey.set(false);
 			this.hideComposite(viewContainer.id);
@@ -400,7 +415,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		this._register(this.onDidPaneCompositeClose(this.onPanelClose, this));
 
 		// Extension registration
-		let disposables = this._register(new DisposableStore());
+		const disposables = this._register(new DisposableStore());
 		this._register(this.extensionService.onDidRegisterExtensions(() => {
 			disposables.clear();
 			this.onDidRegisterExtensions();
@@ -412,18 +427,20 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 	private onDidRegisterExtensions(): void {
 		this.extensionsRegistered = true;
-		this.removeNotExistingComposites();
 
-		this.saveCachedPanels();
-	}
-
-	private removeNotExistingComposites(): void {
+		// hide/remove composites
 		const panels = this.getPaneComposites();
-		for (const { id } of this.getCachedPanels()) { // should this value match viewlet (load on ctor)
+		for (const { id } of this.getCachedPanels()) {
 			if (panels.every(panel => panel.id !== id)) {
-				this.hideComposite(id);
+				if (this.viewDescriptorService.isViewContainerRemovedPermanently(id)) {
+					this.removeComposite(id);
+				} else {
+					this.hideComposite(id);
+				}
 			}
 		}
+
+		this.saveCachedPanels();
 	}
 
 	private hideComposite(compositeId: string): void {
@@ -700,9 +717,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 	private emptyPanelMessageElement: HTMLElement | undefined;
 	private layoutEmptyMessage(): void {
-		if (this.emptyPanelMessageElement) {
-			this.emptyPanelMessageElement.classList.toggle('visible', this.compositeBar.getVisibleComposites().length === 0);
-		}
+		this.emptyPanelMessageElement?.classList.toggle('visible', this.compositeBar.getVisibleComposites().length === 0);
 	}
 
 	private getViewContainer(id: string): ViewContainer | undefined {
@@ -714,9 +729,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		const primaryActions = this.globalActions.getPrimaryActions();
 		const secondaryActions = this.globalActions.getSecondaryActions();
 
-		if (this.globalToolBar) {
-			this.globalToolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
-		}
+		this.globalToolBar?.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction; pinnedAction: ToggleCompositePinnedAction } {
@@ -770,7 +783,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	private onDidStorageValueChange(e: IStorageValueChangeEvent): void {
-		if (e.key === this.pinnedPanelsKey && e.scope === StorageScope.GLOBAL
+		if (e.key === this.pinnedPanelsKey && e.scope === StorageScope.PROFILE
 			&& this.cachedPanelsValue !== this.getStoredCachedPanelsValue() /* This checks if current window changed the value or not */) {
 			this._cachedPanelsValue = undefined;
 			const newCompositeItems: ICompositeBarItem[] = [];
@@ -810,6 +823,8 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 				state.push({ id: compositeItem.id, name: viewContainerModel.title, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
 				placeholders.push({ id: compositeItem.id, name: this.getCompositeActions(compositeItem.id).activityAction.label });
+			} else {
+				state.push({ id: compositeItem.id, name: compositeItem.name, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
 			}
 		}
 
@@ -855,11 +870,11 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	private getStoredCachedPanelsValue(): string {
-		return this.storageService.get(this.pinnedPanelsKey, StorageScope.GLOBAL, '[]');
+		return this.storageService.get(this.pinnedPanelsKey, StorageScope.PROFILE, '[]');
 	}
 
 	private setStoredCachedViewletsValue(value: string): void {
-		this.storageService.store(this.pinnedPanelsKey, value, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(this.pinnedPanelsKey, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private getPlaceholderViewContainers(): IPlaceholderViewContainer[] {
@@ -1069,7 +1084,7 @@ registerThemingParticipant((theme, collector) => {
 					outline-width: 1px;
 					outline-style: solid;
 					border-bottom: none;
-					outline-offset: -2px;
+					outline-offset: -1px;
 				}
 
 				.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked):hover .action-label {

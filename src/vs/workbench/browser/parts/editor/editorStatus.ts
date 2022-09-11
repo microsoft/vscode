@@ -733,7 +733,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private onLanguageChange(editorWidget: ICodeEditor | undefined, editorInput: EditorInput | undefined): void {
-		let info: StateDelta = { type: 'languageId', languageId: undefined };
+		const info: StateDelta = { type: 'languageId', languageId: undefined };
 
 		// We only support text based editors
 		if (editorWidget && editorInput && toEditorWithLanguageSupport(editorInput)) {
@@ -837,7 +837,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			if (info.selections.length === 1) {
 				const editorPosition = editorWidget.getPosition();
 
-				let selectionClone = new Selection(
+				const selectionClone = new Selection(
 					info.selections[0].selectionStartLineNumber,
 					info.selections[0].selectionStartColumn,
 					info.selections[0].positionLineNumber,
@@ -1202,7 +1202,7 @@ export class ChangeLanguageAction extends Action {
 						if (resource) {
 							// Detect languages since we are in an untitled file
 							let languageId: string | undefined = withNullAsUndefined(this.languageService.guessLanguageIdByFilepathOrFirstLine(resource, textModel.getLineContent(1)));
-							if (!languageId) {
+							if (!languageId || languageId === 'unknown') {
 								detectedLanguage = await this.languageDetectionService.detectLanguage(resource);
 								languageId = detectedLanguage;
 							}
@@ -1242,22 +1242,24 @@ export class ChangeLanguageAction extends Action {
 					if (resource?.scheme === Schemas.untitled) {
 						type SetUntitledDocumentLanguageEvent = { to: string; from: string; modelPreference: string };
 						type SetUntitledDocumentLanguageClassification = {
+							owner: 'TylerLeonhardt';
+							comment: 'Helps understand what the automatic language detection does for untitled files';
 							to: {
 								classification: 'SystemMetaData';
 								purpose: 'FeatureInsight';
-								owner: 'JacksonKearl';
+								owner: 'TylerLeonhardt';
 								comment: 'Help understand effectiveness of automatic language detection';
 							};
 							from: {
 								classification: 'SystemMetaData';
 								purpose: 'FeatureInsight';
-								owner: 'JacksonKearl';
+								owner: 'TylerLeonhardt';
 								comment: 'Help understand effectiveness of automatic language detection';
 							};
 							modelPreference: {
 								classification: 'SystemMetaData';
 								purpose: 'FeatureInsight';
-								owner: 'JacksonKearl';
+								owner: 'TylerLeonhardt';
 								comment: 'Help understand effectiveness of automatic language detection';
 							};
 						};

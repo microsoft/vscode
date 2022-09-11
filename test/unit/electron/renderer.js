@@ -72,12 +72,12 @@ if (util.inspect && util.inspect['defaultOptions']) {
 	util.inspect['defaultOptions'].customInspect = false;
 }
 
-let _tests_glob = '**/test/**/*.test.js';
+const _tests_glob = '**/test/**/*.test.js';
 let loader;
 let _out;
 
 function initLoader(opts) {
-	let outdir = opts.build ? 'out-build' : 'out';
+	const outdir = opts.build ? 'out-build' : 'out';
 	_out = path.join(__dirname, `../../../${outdir}`);
 
 	// setup loader

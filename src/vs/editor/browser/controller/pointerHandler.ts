@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IPointerHandlerHelper, MouseHandler, createMouseMoveEventMerger } from 'vs/editor/browser/controller/mouseHandler';
+import { IPointerHandlerHelper, MouseHandler } from 'vs/editor/browser/controller/mouseHandler';
 import { IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorMouseEvent, EditorPointerEventFactory } from 'vs/editor/browser/editorDom';
 import { ViewController } from 'vs/editor/browser/view/viewController';
@@ -45,9 +45,7 @@ export class PointerEventHandler extends MouseHandler {
 		// PonterEvents
 		const pointerEvents = new EditorPointerEventFactory(this.viewHelper.viewDomNode);
 
-		this._register(pointerEvents.onPointerMoveThrottled(this.viewHelper.viewDomNode,
-			(e) => this._onMouseMove(e),
-			createMouseMoveEventMerger(this.mouseTargetFactory), MouseHandler.MOUSE_MOVE_MINIMUM_TIME));
+		this._register(pointerEvents.onPointerMove(this.viewHelper.viewDomNode, (e) => this._onMouseMove(e)));
 		this._register(pointerEvents.onPointerUp(this.viewHelper.viewDomNode, (e) => this._onMouseUp(e)));
 		this._register(pointerEvents.onPointerLeave(this.viewHelper.viewDomNode, (e) => this._onMouseLeave(e)));
 		this._register(pointerEvents.onPointerDown(this.viewHelper.viewDomNode, (e, pointerId) => this._onMouseDown(e, pointerId)));

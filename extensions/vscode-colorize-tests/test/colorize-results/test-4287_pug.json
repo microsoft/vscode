@@ -20,7 +20,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string.comment.buffered.block.pug: #0000FF",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string.comment.buffered.block.pug: #0000FF"
+			"hc_light": "string.comment.buffered.block.pug: #0F4A85"
 		}
 	}
 ]

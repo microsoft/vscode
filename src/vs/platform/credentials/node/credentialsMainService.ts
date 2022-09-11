@@ -10,6 +10,9 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { BaseCredentialsMainService, KeytarModule } from 'vs/platform/credentials/common/credentialsMainService';
 
 export class CredentialsWebMainService extends BaseCredentialsMainService {
+	// Since we fallback to the in-memory credentials provider, we do not need to surface any Keytar load errors
+	// to the user.
+	protected surfaceKeytarLoadError?: (err: any) => void;
 
 	constructor(
 		@ILogService logService: ILogService,

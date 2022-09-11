@@ -12,7 +12,8 @@ import { Mimes } from 'vs/base/common/mime';
 import { isWeb } from 'vs/base/common/platform';
 import { ConfigurationSyncStore } from 'vs/base/common/product';
 import { joinPath, relativePath } from 'vs/base/common/resources';
-import { isArray, isObject, isString } from 'vs/base/common/types';
+import { join } from 'vs/base/common/path';
+import { isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
@@ -20,10 +21,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { asJson, asText, IRequestService, isSuccess as isSuccessContext } from 'vs/platform/request/common/request';
+import { asJson, asTextOrError, IRequestService, isSuccess as isSuccessContext } from 'vs/platform/request/common/request';
 import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { CONFIGURATION_SYNC_STORE_KEY, HEADER_EXECUTION_ID, HEADER_OPERATION_ID, IAuthenticationProvider, IResourceRefHandle, IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStore, IUserDataSyncStoreClient, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, ServerResource, SYNC_SERVICE_URL_TYPE, UserDataSyncErrorCode, UserDataSyncStoreError, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
+import { CONFIGURATION_SYNC_STORE_KEY, HEADER_EXECUTION_ID, HEADER_OPERATION_ID, IAuthenticationProvider, IResourceRefHandle, IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStore, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, ServerResource, SYNC_SERVICE_URL_TYPE, UserDataSyncErrorCode, UserDataSyncStoreError, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 
 const SYNC_PREVIOUS_STORE = 'sync.previous.store';
 const DONOT_MAKE_REQUESTS_UNTIL_KEY = 'sync.donot-make-requests-until';
@@ -44,10 +45,10 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 	get userDataSyncStore(): UserDataSyncStore | undefined { return this._userDataSyncStore; }
 
 	protected get userDataSyncStoreType(): UserDataSyncStoreType | undefined {
-		return this.storageService.get(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL) as UserDataSyncStoreType;
+		return this.storageService.get(SYNC_SERVICE_URL_TYPE, StorageScope.APPLICATION) as UserDataSyncStoreType;
 	}
 	protected set userDataSyncStoreType(type: UserDataSyncStoreType | undefined) {
-		this.storageService.store(SYNC_SERVICE_URL_TYPE, type, StorageScope.GLOBAL, isWeb ? StorageTarget.USER /* sync in web */ : StorageTarget.MACHINE);
+		this.storageService.store(SYNC_SERVICE_URL_TYPE, type, StorageScope.APPLICATION, isWeb ? StorageTarget.USER /* sync in web */ : StorageTarget.MACHINE);
 	}
 
 	constructor(
@@ -57,7 +58,7 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 	) {
 		super();
 		this.updateUserDataSyncStore();
-		this._register(Event.filter(storageService.onDidChangeValue, e => e.key === SYNC_SERVICE_URL_TYPE && e.scope === StorageScope.GLOBAL && this.userDataSyncStoreType !== this.userDataSyncStore?.type)(() => this.updateUserDataSyncStore()));
+		this._register(Event.filter(storageService.onDidChangeValue, e => e.key === SYNC_SERVICE_URL_TYPE && e.scope === StorageScope.APPLICATION && this.userDataSyncStoreType !== this.userDataSyncStore?.type)(() => this.updateUserDataSyncStore()));
 	}
 
 	protected updateUserDataSyncStore(): void {
@@ -72,7 +73,7 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 		if (value
 			&& isString(value.url)
 			&& isObject(value.authenticationProviders)
-			&& Object.keys(value.authenticationProviders).every(authenticationProviderId => isArray(value!.authenticationProviders![authenticationProviderId].scopes))
+			&& Object.keys(value.authenticationProviders).every(authenticationProviderId => Array.isArray(value!.authenticationProviders![authenticationProviderId].scopes))
 		) {
 			const syncStore = value as ConfigurationSyncStore;
 			const canSwitch = !!syncStore.canSwitch && !configuredStore?.url;
@@ -115,16 +116,16 @@ export class UserDataSyncStoreManagementService extends AbstractUserDataSyncStor
 	) {
 		super(productService, configurationService, storageService);
 
-		const previousConfigurationSyncStore = this.storageService.get(SYNC_PREVIOUS_STORE, StorageScope.GLOBAL);
+		const previousConfigurationSyncStore = this.storageService.get(SYNC_PREVIOUS_STORE, StorageScope.APPLICATION);
 		if (previousConfigurationSyncStore) {
 			this.previousConfigurationSyncStore = JSON.parse(previousConfigurationSyncStore);
 		}
 
 		const syncStore = this.productService[CONFIGURATION_SYNC_STORE_KEY];
 		if (syncStore) {
-			this.storageService.store(SYNC_PREVIOUS_STORE, JSON.stringify(syncStore), StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(SYNC_PREVIOUS_STORE, JSON.stringify(syncStore), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		} else {
-			this.storageService.remove(SYNC_PREVIOUS_STORE, StorageScope.GLOBAL);
+			this.storageService.remove(SYNC_PREVIOUS_STORE, StorageScope.APPLICATION);
 		}
 	}
 
@@ -140,7 +141,7 @@ export class UserDataSyncStoreManagementService extends AbstractUserDataSyncStor
 	}
 }
 
-export class UserDataSyncStoreClient extends Disposable implements IUserDataSyncStoreClient {
+export class UserDataSyncStoreClient extends Disposable {
 
 	private userDataSyncStoreUrl: URI | undefined;
 
@@ -202,7 +203,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 	}
 
 	private initDonotMakeRequestsUntil(): void {
-		const donotMakeRequestsUntil = this.storageService.getNumber(DONOT_MAKE_REQUESTS_UNTIL_KEY, StorageScope.GLOBAL);
+		const donotMakeRequestsUntil = this.storageService.getNumber(DONOT_MAKE_REQUESTS_UNTIL_KEY, StorageScope.APPLICATION);
 		if (donotMakeRequestsUntil && Date.now() < donotMakeRequestsUntil) {
 			this.setDonotMakeRequestsUntil(new Date(donotMakeRequestsUntil));
 		}
@@ -219,23 +220,23 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 			}
 
 			if (this._donotMakeRequestsUntil) {
-				this.storageService.store(DONOT_MAKE_REQUESTS_UNTIL_KEY, this._donotMakeRequestsUntil.getTime(), StorageScope.GLOBAL, StorageTarget.MACHINE);
+				this.storageService.store(DONOT_MAKE_REQUESTS_UNTIL_KEY, this._donotMakeRequestsUntil.getTime(), StorageScope.APPLICATION, StorageTarget.MACHINE);
 				this.resetDonotMakeRequestsUntilPromise = createCancelablePromise(token => timeout(this._donotMakeRequestsUntil!.getTime() - Date.now(), token).then(() => this.setDonotMakeRequestsUntil(undefined)));
 				this.resetDonotMakeRequestsUntilPromise.then(null, e => null /* ignore error */);
 			} else {
-				this.storageService.remove(DONOT_MAKE_REQUESTS_UNTIL_KEY, StorageScope.GLOBAL);
+				this.storageService.remove(DONOT_MAKE_REQUESTS_UNTIL_KEY, StorageScope.APPLICATION);
 			}
 
 			this._onDidChangeDonotMakeRequestsUntil.fire();
 		}
 	}
 
-	async getAllRefs(resource: ServerResource): Promise<IResourceRefHandle[]> {
+	async getAllResourceRefs(path: string): Promise<IResourceRefHandle[]> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const uri = joinPath(this.userDataSyncStoreUrl, 'resource', resource);
+		const uri = joinPath(this.userDataSyncStoreUrl, 'resource', path);
 		const headers: IHeaders = {};
 
 		const context = await this.request(uri.toString(), { type: 'GET', headers }, [], CancellationToken.None);
@@ -244,37 +245,37 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		return result.map(({ url, created }) => ({ ref: relativePath(uri, uri.with({ path: url }))!, created: created * 1000 /* Server returns in seconds */ }));
 	}
 
-	async resolveContent(resource: ServerResource, ref: string): Promise<string | null> {
+	async resolveResourceContent(path: string, ref: string, headers: IHeaders = {}): Promise<string | null> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource, ref).toString();
-		const headers: IHeaders = {};
+		const url = joinPath(this.userDataSyncStoreUrl, 'resource', path, ref).toString();
+		headers = { ...headers };
 		headers['Cache-Control'] = 'no-cache';
 
 		const context = await this.request(url, { type: 'GET', headers }, [], CancellationToken.None);
-		const content = await asText(context);
+		const content = await asTextOrError(context);
 		return content;
 	}
 
-	async delete(resource: ServerResource): Promise<void> {
+	async deleteResource(path: string, ref: string | null): Promise<void> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource).toString();
+		const url = ref !== null ? joinPath(this.userDataSyncStoreUrl, 'resource', path, ref).toString() : joinPath(this.userDataSyncStoreUrl, 'resource', path).toString();
 		const headers: IHeaders = {};
 
 		await this.request(url, { type: 'DELETE', headers }, [], CancellationToken.None);
 	}
 
-	async read(resource: ServerResource, oldValue: IUserData | null, headers: IHeaders = {}): Promise<IUserData> {
+	async readResource(path: string, oldValue: IUserData | null, headers: IHeaders = {}): Promise<IUserData> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource, 'latest').toString();
+		const url = joinPath(this.userDataSyncStoreUrl, 'resource', path, 'latest').toString();
 		headers = { ...headers };
 		// Disable caching as they are cached by synchronisers
 		headers['Cache-Control'] = 'no-cache';
@@ -295,7 +296,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 				throw new UserDataSyncStoreError('Server did not return the ref', url, UserDataSyncErrorCode.NoRef, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
 			}
 
-			const content = await asText(context);
+			const content = await asTextOrError(context);
 			if (!content && context.res.statusCode === 304) {
 				throw new UserDataSyncStoreError('Empty response', url, UserDataSyncErrorCode.EmptyResponse, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
 			}
@@ -306,12 +307,12 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		return userData;
 	}
 
-	async write(resource: ServerResource, data: string, ref: string | null, headers: IHeaders = {}): Promise<string> {
+	async writeResource(path: string, data: string, ref: string | null, headers: IHeaders = {}): Promise<string> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource).toString();
+		const url = joinPath(this.userDataSyncStoreUrl, 'resource', path).toString();
 		headers = { ...headers };
 		headers['Content-Type'] = Mimes.text;
 		if (ref) {
@@ -352,7 +353,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 				throw new UserDataSyncStoreError('Server did not return the ref', url, UserDataSyncErrorCode.NoRef, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
 			}
 
-			const content = await asText(context);
+			const content = await asTextOrError(context);
 			if (!content && context.res.statusCode === 304) {
 				throw new UserDataSyncStoreError('Empty response', url, UserDataSyncErrorCode.EmptyResponse, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
 			}
@@ -362,7 +363,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 			}
 		}
 
-		const currentSessionId = this.storageService.get(USER_SESSION_ID_KEY, StorageScope.GLOBAL);
+		const currentSessionId = this.storageService.get(USER_SESSION_ID_KEY, StorageScope.APPLICATION);
 
 		if (currentSessionId && manifest && currentSessionId !== manifest.session) {
 			// Server session is different from client session so clear cached session.
@@ -376,7 +377,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 
 		if (manifest) {
 			// update session
-			this.storageService.store(USER_SESSION_ID_KEY, manifest.session, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(USER_SESSION_ID_KEY, manifest.session, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 
 		return manifest;
@@ -397,8 +398,8 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 	}
 
 	private clearSession(): void {
-		this.storageService.remove(USER_SESSION_ID_KEY, StorageScope.GLOBAL);
-		this.storageService.remove(MACHINE_SESSION_ID_KEY, StorageScope.GLOBAL);
+		this.storageService.remove(USER_SESSION_ID_KEY, StorageScope.APPLICATION);
+		this.storageService.remove(MACHINE_SESSION_ID_KEY, StorageScope.APPLICATION);
 	}
 
 	private async request(url: string, options: IRequestOptions, successCodes: number[], token: CancellationToken): Promise<IRequestContext> {
@@ -518,14 +519,14 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 	}
 
 	private addSessionHeaders(headers: IHeaders): void {
-		let machineSessionId = this.storageService.get(MACHINE_SESSION_ID_KEY, StorageScope.GLOBAL);
+		let machineSessionId = this.storageService.get(MACHINE_SESSION_ID_KEY, StorageScope.APPLICATION);
 		if (machineSessionId === undefined) {
 			machineSessionId = generateUuid();
-			this.storageService.store(MACHINE_SESSION_ID_KEY, machineSessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(MACHINE_SESSION_ID_KEY, machineSessionId, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 		headers['X-Machine-Session-Id'] = machineSessionId;
 
-		const userSessionId = this.storageService.get(USER_SESSION_ID_KEY, StorageScope.GLOBAL);
+		const userSessionId = this.storageService.get(USER_SESSION_ID_KEY, StorageScope.APPLICATION);
 		if (userSessionId !== undefined) {
 			headers['X-User-Session-Id'] = userSessionId;
 		}
@@ -548,6 +549,33 @@ export class UserDataSyncStoreService extends UserDataSyncStoreClient implements
 	) {
 		super(userDataSyncStoreManagementService.userDataSyncStore?.url, productService, requestService, logService, environmentService, fileService, storageService);
 		this._register(userDataSyncStoreManagementService.onDidChangeUserDataSyncStore(() => this.updateUserDataSyncStoreUrl(userDataSyncStoreManagementService.userDataSyncStore?.url)));
+	}
+
+	getAllRefs(resource: ServerResource, profile?: string): Promise<IResourceRefHandle[]> {
+		return this.getAllResourceRefs(profile ? this.getProfileResource(resource, profile) : resource);
+	}
+
+	read(resource: ServerResource, oldValue: IUserData | null, profile?: string, headers?: IHeaders): Promise<IUserData> {
+		return this.readResource(profile ? this.getProfileResource(resource, profile) : resource, oldValue, headers);
+	}
+
+	write(resource: ServerResource, content: string, ref: string | null, profile?: string, headers?: IHeaders): Promise<string> {
+		return this.writeResource(profile ? this.getProfileResource(resource, profile) : resource, content, ref, headers);
+	}
+
+	delete(resource: ServerResource, ref: string | null, profile?: string): Promise<void> {
+		return this.deleteResource(profile ? this.getProfileResource(resource, profile) : resource, ref);
+	}
+
+	resolveContent(resource: ServerResource, ref: string, profile?: string, headers?: IHeaders): Promise<string | null> {
+		return this.resolveResourceContent(profile ? this.getProfileResource(resource, profile) : resource, ref, headers);
+	}
+
+	private getProfileResource(resource: ServerResource, profile: string): string {
+		if (resource === 'profiles') {
+			throw new Error(`Invalid Resource Argument: ${resource}`);
+		}
+		return join('profiles', profile, resource);
 	}
 }
 

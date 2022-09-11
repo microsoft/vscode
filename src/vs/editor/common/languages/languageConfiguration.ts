@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { StandardTokenType } from 'vs/editor/common/languages';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { ScopedLineTokens } from 'vs/editor/common/languages/supports';
 
 /**

@@ -19,6 +19,8 @@ import { AbstractEditorNavigationQuickAccessProvider, IEditorNavigationQuickAcce
 import { localize } from 'vs/nls';
 import { IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { Position } from 'vs/editor/common/core/position';
+import { findLast } from 'vs/base/common/arrays';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	kind: SymbolKind;
@@ -155,7 +157,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 		// Set initial picks and update on type
 		let picksCts: CancellationTokenSource | undefined = undefined;
-		const updatePickerItems = async () => {
+		const updatePickerItems = async (positionToEnclose: Position | undefined) => {
 
 			// Cancel any previous ask for picks and busy
 			picksCts?.dispose(true);
@@ -175,6 +177,13 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 				if (items.length > 0) {
 					picker.items = items;
+					if (positionToEnclose && query.original.length === 0) {
+						const candidate = <IGotoSymbolQuickPickItem>findLast(items, item => Boolean(item.type !== 'separator' && item.range && Range.containsPosition(item.range.decoration, positionToEnclose)));
+						if (candidate) {
+							picker.activeItems = [candidate];
+						}
+					}
+
 				} else {
 					if (query.original.length > 0) {
 						this.provideLabelPick(picker, localize('noMatchingSymbolResults', "No matching editor symbols"));
@@ -188,19 +197,19 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 				}
 			}
 		};
-		disposables.add(picker.onDidChangeValue(() => updatePickerItems()));
-		updatePickerItems();
+		disposables.add(picker.onDidChangeValue(() => updatePickerItems(undefined)));
+		updatePickerItems(editor.getSelection()?.getPosition());
+
 
 		// Reveal and decorate when active item changes
-		// However, ignore the very first event so that
+		// However, ignore the very first two events so that
 		// opening the picker is not immediately revealing
 		// and decorating the first entry.
-		let ignoreFirstActiveEvent = true;
+		let ignoreFirstActiveEvent = 2;
 		disposables.add(picker.onDidChangeActive(() => {
 			const [item] = picker.activeItems;
 			if (item && item.range) {
-				if (ignoreFirstActiveEvent) {
-					ignoreFirstActiveEvent = false;
+				if (ignoreFirstActiveEvent-- > 0) {
 					return;
 				}
 

@@ -123,7 +123,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		this._model = null;
 
 		this._register(this._editor.onDidChangeModel(() => {
-			let shouldRestartFind = (this._editor.getModel() && this._state.isRevealed);
+			const shouldRestartFind = (this._editor.getModel() && this._state.isRevealed);
 
 			this.disposeModel();
 
@@ -251,7 +251,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 			this._state.change({ searchScope: null }, true);
 		} else {
 			if (this._editor.hasModel()) {
-				let selections = this._editor.getSelections();
+				const selections = this._editor.getSelections();
 				selections.map(selection => {
 					if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
 						selection = selection.setEndPosition(
@@ -291,13 +291,13 @@ export class CommonFindController extends Disposable implements IEditorContribut
 			return;
 		}
 
-		let stateChanges: INewFindReplaceState = {
+		const stateChanges: INewFindReplaceState = {
 			...newState,
 			isRevealed: true
 		};
 
 		if (opts.seedSearchStringFromSelection === 'single') {
-			let selectionSearchString = getSelectionSearchString(this._editor, opts.seedSearchStringFromSelection, opts.seedSearchStringFromNonEmptySelection);
+			const selectionSearchString = getSelectionSearchString(this._editor, opts.seedSearchStringFromSelection, opts.seedSearchStringFromNonEmptySelection);
 			if (selectionSearchString) {
 				if (this._state.isRegex) {
 					stateChanges.searchString = strings.escapeRegExpCharacters(selectionSearchString);
@@ -306,14 +306,14 @@ export class CommonFindController extends Disposable implements IEditorContribut
 				}
 			}
 		} else if (opts.seedSearchStringFromSelection === 'multiple' && !opts.updateSearchScope) {
-			let selectionSearchString = getSelectionSearchString(this._editor, opts.seedSearchStringFromSelection);
+			const selectionSearchString = getSelectionSearchString(this._editor, opts.seedSearchStringFromSelection);
 			if (selectionSearchString) {
 				stateChanges.searchString = selectionSearchString;
 			}
 		}
 
 		if (!stateChanges.searchString && opts.seedSearchStringFromGlobalClipboard) {
-			let selectionSearchString = await this.getGlobalBufferTerm();
+			const selectionSearchString = await this.getGlobalBufferTerm();
 
 			if (!this._editor.hasModel()) {
 				// the editor has lost its model in the meantime
@@ -333,7 +333,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		}
 
 		if (opts.updateSearchScope) {
-			let currentSelections = this._editor.getSelections();
+			const currentSelections = this._editor.getSelections();
 			if (currentSelections.some(selection => !selection.isEmpty())) {
 				stateChanges.searchScope = currentSelections;
 			}

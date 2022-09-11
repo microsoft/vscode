@@ -40,7 +40,7 @@ suite('SmartSelect', () => {
 	const languageId = 'mockJSMode';
 	let disposables: DisposableStore;
 	let modelService: IModelService;
-	let providers = new LanguageFeatureRegistry<SelectionRangeProvider>();
+	const providers = new LanguageFeatureRegistry<SelectionRangeProvider>();
 
 	setup(() => {
 		disposables = new DisposableStore();
@@ -65,11 +65,11 @@ suite('SmartSelect', () => {
 	});
 
 	async function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[], selectLeadingAndTrailingWhitespace = true): Promise<void> {
-		let uri = URI.file('test.js');
-		let model = modelService.createModel(text.join('\n'), new StaticLanguageSelector(languageId), uri);
-		let [actual] = await provideSelectionRanges(providers, model, [new Position(lineNumber, column)], { selectLeadingAndTrailingWhitespace }, CancellationToken.None);
-		let actualStr = actual!.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
-		let desiredStr = ranges.reverse().map(r => String(r));
+		const uri = URI.file('test.js');
+		const model = modelService.createModel(text.join('\n'), new StaticLanguageSelector(languageId), uri);
+		const [actual] = await provideSelectionRanges(providers, model, [new Position(lineNumber, column)], { selectLeadingAndTrailingWhitespace }, CancellationToken.None);
+		const actualStr = actual!.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
+		const desiredStr = ranges.reverse().map(r => String(r));
 
 		assert.deepStrictEqual(actualStr, desiredStr, `\nA: ${actualStr} VS \nE: ${desiredStr}`);
 		modelService.destroyModel(uri);
@@ -210,19 +210,19 @@ suite('SmartSelect', () => {
 	// -- bracket selections
 
 	async function assertRanges(provider: SelectionRangeProvider, value: string, ...expected: IRange[]): Promise<void> {
-		let index = value.indexOf('|');
+		const index = value.indexOf('|');
 		value = value.replace('|', '');
 
-		let model = modelService.createModel(value, new StaticLanguageSelector(languageId), URI.parse('fake:lang'));
-		let pos = model.getPositionAt(index);
-		let all = await provider.provideSelectionRanges(model, [pos], CancellationToken.None);
-		let ranges = all![0];
+		const model = modelService.createModel(value, new StaticLanguageSelector(languageId), URI.parse('fake:lang'));
+		const pos = model.getPositionAt(index);
+		const all = await provider.provideSelectionRanges(model, [pos], CancellationToken.None);
+		const ranges = all![0];
 
 		modelService.destroyModel(model.uri);
 
 		assert.strictEqual(expected.length, ranges!.length);
 		for (const range of ranges!) {
-			let exp = expected.shift() || null;
+			const exp = expected.shift() || null;
 			assert.ok(Range.equalsRange(range.range, exp), `A=${range.range} <> E=${exp}`);
 		}
 	}

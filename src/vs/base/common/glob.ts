@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from 'vs/base/common/arrays';
 import { isThenable } from 'vs/base/common/async';
 import { CharCode } from 'vs/base/common/charCode';
 import { isEqualOrParent } from 'vs/base/common/extpath';
@@ -491,7 +492,7 @@ function toRegExp(pattern: string): ParsedStringPattern {
 
 /**
  * Simplified glob matching. Supports a subset of glob patterns:
- * * `*` to match one or more characters in a path segment
+ * * `*` to match zero or more characters in a path segment
  * * `?` to match on one character in a path segment
  * * `**` to match any number of path segments, including none
  * * `{}` to group conditions (e.g. *.{ts,js} matches all TypeScript and JavaScript files)
@@ -510,7 +511,7 @@ export function match(arg1: string | IExpression | IRelativePattern, path: strin
 
 /**
  * Simplified glob matching. Supports a subset of glob patterns:
- * * `*` to match one or more characters in a path segment
+ * * `*` to match zero or more characters in a path segment
  * * `?` to match on one character in a path segment
  * * `**` to match any number of path segments, including none
  * * `{}` to group conditions (e.g. *.{ts,js} matches all TypeScript and JavaScript files)
@@ -796,4 +797,18 @@ function aggregateBasenameMatches(parsedPatterns: Array<ParsedStringPattern | Pa
 	aggregatedPatterns.push(aggregate);
 
 	return aggregatedPatterns;
+}
+
+export function patternsEquals(patternsA: Array<string | IRelativePattern> | undefined, patternsB: Array<string | IRelativePattern> | undefined): boolean {
+	return equals(patternsA, patternsB, (a, b) => {
+		if (typeof a === 'string' && typeof b === 'string') {
+			return a === b;
+		}
+
+		if (typeof a !== 'string' && typeof b !== 'string') {
+			return a.base === b.base && a.pattern === b.pattern;
+		}
+
+		return false;
+	});
 }

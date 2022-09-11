@@ -157,10 +157,10 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	//#region Resolve
 
 	async resolve(): Promise<void> {
-		this.trace('[untitled file working copy] resolve()');
+		this.trace('resolve()');
 
 		if (this.isResolved()) {
-			this.trace('[untitled file working copy] resolve() - exit (already resolved)');
+			this.trace('resolve() - exit (already resolved)');
 
 			// return early if the untitled file working copy is already
 			// resolved assuming that the contents have meanwhile changed
@@ -173,15 +173,15 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		// Check for backups or use initial value or empty
 		const backup = await this.workingCopyBackupService.resolve(this);
 		if (backup) {
-			this.trace('[untitled file working copy] resolve() - with backup');
+			this.trace('resolve() - with backup');
 
 			untitledContents = backup.value;
 		} else if (this.initialContents?.value) {
-			this.trace('[untitled file working copy] resolve() - with initial contents');
+			this.trace('resolve() - with initial contents');
 
 			untitledContents = this.initialContents.value;
 		} else {
-			this.trace('[untitled file working copy] resolve() - empty');
+			this.trace('resolve() - empty');
 
 			untitledContents = emptyStream();
 		}
@@ -200,7 +200,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	}
 
 	private async doCreateModel(contents: VSBufferReadableStream): Promise<void> {
-		this.trace('[untitled file working copy] doCreateModel()');
+		this.trace('doCreateModel()');
 
 		// Create model and dispose it when we get disposed
 		this._model = this._register(await this.modelFactory.createModel(this.resource, contents, CancellationToken.None));
@@ -267,7 +267,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	//#region Save
 
 	async save(options?: ISaveOptions): Promise<boolean> {
-		this.trace('[untitled file working copy] save()');
+		this.trace('save()');
 
 		const result = await this.saveDelegate(this, options);
 
@@ -285,7 +285,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	//#region Revert
 
 	async revert(): Promise<void> {
-		this.trace('[untitled file working copy] revert()');
+		this.trace('revert()');
 
 		// No longer dirty
 		this.setDirty(false);
@@ -302,7 +302,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	//#endregion
 
 	override dispose(): void {
-		this.trace('[untitled file working copy] dispose()');
+		this.trace('dispose()');
 
 		this._onWillDispose.fire();
 
@@ -310,6 +310,6 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	}
 
 	private trace(msg: string): void {
-		this.logService.trace(msg, this.resource.toString(), this.typeId);
+		this.logService.trace(`[untitled file working copy] ${msg}`, this.resource.toString(), this.typeId);
 	}
 }

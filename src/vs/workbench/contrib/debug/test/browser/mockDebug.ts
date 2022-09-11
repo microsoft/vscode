@@ -168,6 +168,8 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements IDebugSession {
+	readonly autoExpandLazyVariables = false;
+
 	getMemory(memoryReference: string): IMemoryRegion {
 		throw new Error('Method not implemented.');
 	}
@@ -186,6 +188,10 @@ export class MockSession implements IDebugSession {
 
 	get compoundRoot(): DebugCompoundRoot | undefined {
 		return undefined;
+	}
+
+	get saveBeforeRestart(): boolean {
+		return true;
 	}
 
 	get isSimpleUI(): boolean {

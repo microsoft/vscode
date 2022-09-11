@@ -135,13 +135,13 @@ flakySuite('WorkingCopyBackupService', () => {
 
 	let service: NodeTestWorkingCopyBackupService;
 
-	let workspaceResource = URI.file(isWindows ? 'c:\\workspace' : '/workspace');
-	let fooFile = URI.file(isWindows ? 'c:\\Foo' : '/Foo');
-	let customFile = URI.parse('customScheme://some/path');
-	let customFileWithFragment = URI.parse('customScheme2://some/path#fragment');
-	let barFile = URI.file(isWindows ? 'c:\\Bar' : '/Bar');
-	let fooBarFile = URI.file(isWindows ? 'c:\\Foo Bar' : '/Foo Bar');
-	let untitledFile = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
+	const workspaceResource = URI.file(isWindows ? 'c:\\workspace' : '/workspace');
+	const fooFile = URI.file(isWindows ? 'c:\\Foo' : '/Foo');
+	const customFile = URI.parse('customScheme://some/path');
+	const customFileWithFragment = URI.parse('customScheme2://some/path#fragment');
+	const barFile = URI.file(isWindows ? 'c:\\Bar' : '/Bar');
+	const fooBarFile = URI.file(isWindows ? 'c:\\Foo Bar' : '/Foo Bar');
+	const untitledFile = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 
 	setup(async () => {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'workingcopybackupservice');
@@ -401,7 +401,7 @@ flakySuite('WorkingCopyBackupService', () => {
 		});
 
 		test('text file with whitespace in name and type (with meta)', async () => {
-			let fileWithSpace = URI.file(isWindows ? 'c:\\Foo \n Bar' : '/Foo \n Bar');
+			const fileWithSpace = URI.file(isWindows ? 'c:\\Foo \n Bar' : '/Foo \n Bar');
 			const identifier = toTypedWorkingCopyId(fileWithSpace, ' test id \n');
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 			const meta = { etag: '678 \n k', orphaned: true };
@@ -414,7 +414,7 @@ flakySuite('WorkingCopyBackupService', () => {
 		});
 
 		test('text file with unicode character in name and type (with meta)', async () => {
-			let fileWithUnicode = URI.file(isWindows ? 'c:\\so𒀅meࠄ' : '/so𒀅meࠄ');
+			const fileWithUnicode = URI.file(isWindows ? 'c:\\so𒀅meࠄ' : '/so𒀅meࠄ');
 			const identifier = toTypedWorkingCopyId(fileWithUnicode, ' test so𒀅meࠄ id \n');
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 			const meta = { etag: '678so𒀅meࠄ', orphaned: true };
@@ -540,9 +540,11 @@ flakySuite('WorkingCopyBackupService', () => {
 			const backupId2 = toTypedWorkingCopyId(fooFile, 'type1');
 			const backupId3 = toTypedWorkingCopyId(fooFile, 'type2');
 
-			await service.backup(backupId1);
-			await service.backup(backupId2);
-			await service.backup(backupId3);
+			await Promise.all([
+				service.backup(backupId1),
+				service.backup(backupId2),
+				service.backup(backupId3)
+			]);
 
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 3);
 
@@ -609,9 +611,11 @@ flakySuite('WorkingCopyBackupService', () => {
 			const backupId2 = toTypedWorkingCopyId(fooFile, 'type1');
 			const backupId3 = toTypedWorkingCopyId(fooFile, 'type2');
 
-			await service.backup(backupId1);
-			await service.backup(backupId2);
-			await service.backup(backupId3);
+			await Promise.all([
+				service.backup(backupId1),
+				service.backup(backupId2),
+				service.backup(backupId3)
+			]);
 
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 3);
 
@@ -716,9 +720,11 @@ flakySuite('WorkingCopyBackupService', () => {
 
 	suite('getBackups', () => {
 		test('text file', async () => {
-			await service.backup(toUntypedWorkingCopyId(fooFile), bufferToReadable(VSBuffer.fromString('test')));
-			await service.backup(toTypedWorkingCopyId(fooFile, 'type1'), bufferToReadable(VSBuffer.fromString('test')));
-			await service.backup(toTypedWorkingCopyId(fooFile, 'type2'), bufferToReadable(VSBuffer.fromString('test')));
+			await Promise.all([
+				service.backup(toUntypedWorkingCopyId(fooFile), bufferToReadable(VSBuffer.fromString('test'))),
+				service.backup(toTypedWorkingCopyId(fooFile, 'type1'), bufferToReadable(VSBuffer.fromString('test'))),
+				service.backup(toTypedWorkingCopyId(fooFile, 'type2'), bufferToReadable(VSBuffer.fromString('test')))
+			]);
 
 			let backups = await service.getBackups();
 			assert.strictEqual(backups.length, 3);
@@ -742,9 +748,11 @@ flakySuite('WorkingCopyBackupService', () => {
 		});
 
 		test('untitled file', async () => {
-			await service.backup(toUntypedWorkingCopyId(untitledFile), bufferToReadable(VSBuffer.fromString('test')));
-			await service.backup(toTypedWorkingCopyId(untitledFile, 'type1'), bufferToReadable(VSBuffer.fromString('test')));
-			await service.backup(toTypedWorkingCopyId(untitledFile, 'type2'), bufferToReadable(VSBuffer.fromString('test')));
+			await Promise.all([
+				service.backup(toUntypedWorkingCopyId(untitledFile), bufferToReadable(VSBuffer.fromString('test'))),
+				service.backup(toTypedWorkingCopyId(untitledFile, 'type1'), bufferToReadable(VSBuffer.fromString('test'))),
+				service.backup(toTypedWorkingCopyId(untitledFile, 'type2'), bufferToReadable(VSBuffer.fromString('test')))
+			]);
 
 			const backups = await service.getBackups();
 			assert.strictEqual(backups.length, 3);

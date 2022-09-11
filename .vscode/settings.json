@@ -41,11 +41,6 @@
 			}
 		}
 	],
-	"eslint.options": {
-		"rulePaths": [
-			"./build/lib/eslint"
-		]
-	},
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"npm.exclude": "**/extensions/**",
 	"npm.packageManager": "yarn",
@@ -67,6 +62,13 @@
 		}
 	],
 	"git.ignoreLimitWarning": true,
+	"git.branchProtection": [
+		"main",
+		"release/*"
+	],
+	"git.branchProtectionPrompt": "alwaysCommitToNewBranch",
+	"git.branchRandomName.enable": true,
+	"git.mergeEditor": true,
 	"remote.extensionKind": {
 		"msjsdiag.debugger-for-chrome": "workspace"
 	},
@@ -95,14 +97,11 @@
 		"git",
 		"sash"
 	],
-	"explorer.experimental.fileNesting.patterns": {
-		"*.js": "$(capture).*.js",
-		"bootstrap.js": "bootstrap-*.js"
-	},
-	"explorer.experimental.fileNesting.enabled": true,
 	"editor.quickSuggestions": {
 		"other": "inline",
 		"comments": "inline",
 		"strings": "inline"
 	},
+	"githubPullRequests.assignCreated": "${user}",
+	"githubPullRequests.defaultMergeMethod": "squash"
 }

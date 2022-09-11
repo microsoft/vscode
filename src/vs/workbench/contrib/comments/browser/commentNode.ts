@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import * as languages from 'vs/editor/common/languages';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action, IActionRunner, IAction, Separator } from 'vs/base/common/actions';
+import { Action, IActionRunner, IAction, Separator, ActionRunner } from 'vs/base/common/actions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
@@ -40,6 +40,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IRange } from 'vs/editor/common/core/range';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
 
 export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
@@ -62,6 +63,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _timestampWidget: TimestampWidget | undefined;
 	private _contextKeyService: IContextKeyService;
 	private _commentContextValue: IContextKey<string>;
+	private _commentMenus: CommentMenus;
 
 	protected actionRunner?: IActionRunner;
 	protected toolbar: ToolBar | undefined;
@@ -97,6 +99,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._domNode = dom.$('div.review-comment');
 		this._contextKeyService = contextKeyService.createScoped(this._domNode);
 		this._commentContextValue = this._contextKeyService.createKey('comment', comment.contextValue);
+		this._commentMenus = this.commentService.getCommentMenus(this.owner);
 
 		this._domNode.tabIndex = -1;
 		const avatar = dom.append(this._domNode, dom.$('div.avatar-container'));
@@ -121,6 +124,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._clearTimeout = null;
 
 		this._register(dom.addDisposableListener(this._domNode, dom.EventType.CLICK, () => this.isEditing || this._onDidClick.fire(this)));
+		this._register(dom.addDisposableListener(this._domNode, dom.EventType.CONTEXT_MENU, e => {
+			return this.onContextMenu(e);
+		}));
+
 	}
 
 	private updateCommentBody(body: string | IMarkdownString) {
@@ -165,10 +172,11 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	private createHeader(commentDetailsContainer: HTMLElement): void {
 		const header = dom.append(commentDetailsContainer, dom.$(`div.comment-title.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
-		const author = dom.append(header, dom.$('strong.author'));
+		const infoContainer = dom.append(header, dom.$('comment-header-info'));
+		const author = dom.append(infoContainer, dom.$('strong.author'));
 		author.innerText = this.comment.userName;
-		this.createTimestamp(header);
-		this._isPendingLabel = dom.append(header, dom.$('span.isPending'));
+		this.createTimestamp(infoContainer);
+		this._isPendingLabel = dom.append(infoContainer, dom.$('span.isPending'));
 
 		if (this.comment.label) {
 			this._isPendingLabel.innerText = this.comment.label;
@@ -187,6 +195,14 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		const result = { primary, secondary };
 		fillInActions(contributedActions, result, false, g => /^inline/.test(g));
 		return result;
+	}
+
+	private get commentNodeContext() {
+		return {
+			thread: this.commentThread,
+			commentUniqueId: this.comment.uniqueIdInThread,
+			$mid: MarshalledId.CommentNode
+		};
 	}
 
 	private createToolbar() {
@@ -210,11 +226,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			orientation: ActionsOrientation.HORIZONTAL
 		});
 
-		this.toolbar.context = {
-			thread: this.commentThread,
-			commentUniqueId: this.comment.uniqueIdInThread,
-			$mid: MarshalledId.CommentNode
-		};
+		this.toolbar.context = this.commentNodeContext;
 
 		this.registerActionBarListeners(this._actionsToolbarContainer);
 		this._register(this.toolbar);
@@ -223,15 +235,14 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private createActionsToolbar() {
 		const actions: IAction[] = [];
 
-		let hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
+		const hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
 
 		if (hasReactionHandler) {
-			let toggleReactionAction = this.createReactionPicker(this.comment.commentReactions || []);
+			const toggleReactionAction = this.createReactionPicker(this.comment.commentReactions || []);
 			actions.push(toggleReactionAction);
 		}
 
-		let commentMenus = this.commentService.getCommentMenus(this.owner);
-		const menu = commentMenus.getCommentTitleActions(this.comment, this._contextKeyService);
+		const menu = this._commentMenus.getCommentTitleActions(this.comment, this._contextKeyService);
 		this._register(menu);
 		this._register(menu.onDidChange(e => {
 			const { primary, secondary } = this.getToolbarActions(menu);
@@ -260,24 +271,27 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		}
 
 		if (action.id === ReactionAction.ID) {
-			let item = new ReactionActionViewItem(action);
+			const item = new ReactionActionViewItem(action);
 			return item;
 		} else if (action instanceof MenuItemAction) {
 			return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
 		} else if (action instanceof SubmenuItemAction) {
 			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, undefined);
 		} else {
-			let item = new ActionViewItem({}, action, options);
+			const item = new ActionViewItem({}, action, options);
 			return item;
 		}
 	}
 
+	async submitComment(): Promise<void> {
+		if (this._commentEditor && this._commentFormActions) {
+			this._commentFormActions.triggerDefaultAction();
+		}
+	}
+
 	private createReactionPicker(reactionGroup: languages.CommentReaction[]): ToggleReactionsAction {
-		let toggleReactionActionViewItem: DropdownMenuActionViewItem;
-		let toggleReactionAction = this._register(new ToggleReactionsAction(() => {
-			if (toggleReactionActionViewItem) {
-				toggleReactionActionViewItem.show();
-			}
+		const toggleReactionAction = this._register(new ToggleReactionsAction(() => {
+			toggleReactionActionViewItem?.show();
 		}, nls.localize('commentToggleReaction', "Toggle Reaction")));
 
 		let reactionMenuActions: Action[] = [];
@@ -298,7 +312,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		toggleReactionAction.menuActions = reactionMenuActions;
 
-		toggleReactionActionViewItem = new DropdownMenuActionViewItem(
+		const toggleReactionActionViewItem: DropdownMenuActionViewItem = new DropdownMenuActionViewItem(
 			toggleReactionAction,
 			(<ToggleReactionsAction>toggleReactionAction).menuActions,
 			this.contextMenuService,
@@ -340,9 +354,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		});
 		this._register(this._reactionsActionBar);
 
-		let hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
+		const hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
 		this.comment.commentReactions!.filter(reaction => !!reaction.count).map(reaction => {
-			let action = new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && (reaction.canEdit || hasReactionHandler) ? 'active' : '', (reaction.canEdit || hasReactionHandler), async () => {
+			const action = new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && (reaction.canEdit || hasReactionHandler) ? 'active' : '', (reaction.canEdit || hasReactionHandler), async () => {
 				try {
 					await this.commentService.toggleReaction(this.owner, this.resource, this.commentThread, this.comment, reaction);
 				} catch (e) {
@@ -361,13 +375,11 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 				}
 			}, reaction.iconPath, reaction.count);
 
-			if (this._reactionsActionBar) {
-				this._reactionsActionBar.push(action, { label: true, icon: true });
-			}
+			this._reactionsActionBar?.push(action, { label: true, icon: true });
 		});
 
 		if (hasReactionHandler) {
-			let toggleReactionAction = this.createReactionPicker(this.comment.commentReactions || []);
+			const toggleReactionAction = this.createReactionPicker(this.comment.commentReactions || []);
 			this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
 		}
 	}
@@ -378,7 +390,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	private createCommentEditor(editContainer: HTMLElement): void {
 		const container = dom.append(editContainer, dom.$('.edit-textarea'));
-		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(), this.parentThread);
+		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(this.configurationService), this.parentThread);
 		const resource = URI.parse(`comment:commentinput-${this.comment.uniqueIdInThread}-${Date.now()}.md`);
 		this._commentEditorModel = this.modelService.createModel('', this.languageService.createByFilepathOrFirstLine(resource), resource, false);
 
@@ -396,7 +408,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		const lastColumn = this._commentEditorModel.getLineContent(lastLine).length + 1;
 		this._commentEditor.setSelection(new Selection(lastLine, lastColumn, lastLine, lastColumn));
 
-		let commentThread = this.commentThread;
+		const commentThread = this.commentThread;
 		commentThread.input = {
 			uri: this._commentEditor.getModel()!.uri,
 			value: this.commentBodyValue
@@ -413,9 +425,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this._commentEditorDisposables.push(this._commentEditor.onDidChangeModelContent(e => {
 			if (commentThread.input && this._commentEditor && this._commentEditor.getModel()!.uri === commentThread.input.uri) {
-				let newVal = this._commentEditor.getValue();
+				const newVal = this._commentEditor.getValue();
 				if (newVal !== commentThread.input.value) {
-					let input = commentThread.input;
+					const input = commentThread.input;
 					input.value = newVal;
 					commentThread.input = input;
 					this.commentService.setActiveCommentThread(commentThread);
@@ -434,9 +446,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		}
 		this._body.classList.remove('hidden');
 
-		if (this._commentEditorModel) {
-			this._commentEditorModel.dispose();
-		}
+		this._commentEditorModel?.dispose();
 
 		this._commentEditorDisposables.forEach(dispose => dispose.dispose());
 		this._commentEditorDisposables = [];
@@ -468,13 +478,11 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this._register(menu);
 		this._register(menu.onDidChange(() => {
-			if (this._commentFormActions) {
-				this._commentFormActions.setActions(menu);
-			}
+			this._commentFormActions?.setActions(menu);
 		}));
 
 		this._commentFormActions = new CommentFormActions(formActions, (action: IAction): void => {
-			let text = this._commentEditor!.getValue();
+			const text = this._commentEditor!.getValue();
 
 			action.run({
 				thread: this.commentThread,
@@ -526,15 +534,17 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this.updateCommentBody(newComment.body);
 		}
 
-		if (newComment.mode !== undefined && newComment.mode !== this.comment.mode) {
+		const isChangingMode: boolean = newComment.mode !== undefined && newComment.mode !== this.comment.mode;
+
+		this.comment = newComment;
+
+		if (isChangingMode) {
 			if (newComment.mode === languages.CommentMode.Editing) {
 				this.switchToEditMode();
 			} else {
 				this.removeCommentEditor();
 			}
 		}
-
-		this.comment = newComment;
 
 		if (newComment.label) {
 			this._isPendingLabel.innerText = newComment.label;
@@ -543,13 +553,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		}
 
 		// update comment reactions
-		if (this._reactionActionsContainer) {
-			this._reactionActionsContainer.remove();
-		}
+		this._reactionActionsContainer?.remove();
 
-		if (this._reactionsActionBar) {
-			this._reactionsActionBar.clear();
-		}
+		this._reactionsActionBar?.clear();
 
 		if (this.comment.commentReactions && this.comment.commentReactions.some(reaction => !!reaction.count)) {
 			this.createReactionsContainer(this._commentDetailsContainer);
@@ -566,6 +572,22 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		}
 	}
 
+
+	private onContextMenu(e: MouseEvent) {
+		const actions = this._commentMenus.getCommentThreadCommentContextActions(this._contextKeyService).getActions({ shouldForwardArgs: true }).map((value) => value[1]).flat();
+		if (!actions.length) {
+			return;
+		}
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => e,
+			getActions: () => actions,
+			actionRunner: new ActionRunner(),
+			getActionsContext: () => {
+				return this.commentNodeContext;
+			},
+		});
+	}
+
 	focus() {
 		this.domNode.focus();
 		if (!this._clearTimeout) {
@@ -578,7 +600,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 }
 
 function fillInActions(groups: [string, Array<MenuItemAction | SubmenuItemAction>][], target: IAction[] | { primary: IAction[]; secondary: IAction[] }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
-	for (let tuple of groups) {
+	for (const tuple of groups) {
 		let [group, actions] = tuple;
 		if (useAlternativeActions) {
 			actions = actions.map(a => (a instanceof MenuItemAction) && !!a.alt ? a.alt : a);

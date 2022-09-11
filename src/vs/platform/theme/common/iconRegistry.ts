@@ -7,6 +7,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
+import { isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -61,6 +62,28 @@ export interface IconFontDefinition {
 	readonly style?: string;
 	readonly src: IconFontSource[];
 }
+
+export namespace IconFontDefinition {
+	export function toJSONObject(iconFont: IconFontDefinition): any {
+		return {
+			weight: iconFont.weight,
+			style: iconFont.style,
+			src: iconFont.src.map(s => ({ format: s.format, location: s.location.toString() }))
+		};
+	}
+	export function fromJSONObject(json: any): IconFontDefinition | undefined {
+		const stringOrUndef = (s: any) => isString(s) ? s : undefined;
+		if (json && Array.isArray(json.src) && json.src.every((s: any) => isString(s.format) && isString(s.location))) {
+			return {
+				weight: stringOrUndef(json.weight),
+				style: stringOrUndef(json.style),
+				src: json.src.map((s: any) => ({ format: s.format, location: URI.parse(s.location) }))
+			};
+		}
+		return undefined;
+	}
+}
+
 
 export interface IconFontSource {
 	readonly location: URI;
@@ -166,9 +189,9 @@ class IconRegistry implements IIconRegistry {
 			}
 			return existing;
 		}
-		let iconContribution: IconContribution = { id, description, defaults, deprecationMessage };
+		const iconContribution: IconContribution = { id, description, defaults, deprecationMessage };
 		this.iconsById[id] = iconContribution;
-		let propertySchema: IJSONSchema = { $ref: '#/definitions/icons' };
+		const propertySchema: IJSONSchema = { $ref: '#/definitions/icons' };
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
 		}
@@ -240,7 +263,7 @@ class IconRegistry implements IIconRegistry {
 			return `codicon codicon-${i ? i.id : ''}`;
 		};
 
-		let reference = [];
+		const reference = [];
 
 		reference.push(`| preview     | identifier                        | default codicon ID                | description`);
 		reference.push(`| ----------- | --------------------------------- | --------------------------------- | --------------------------------- |`);
@@ -283,7 +306,7 @@ initialize();
 
 export const iconsSchemaId = 'vscode://schemas/icons';
 
-let schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+const schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 schemaRegistry.registerSchema(iconsSchemaId, iconRegistry.getIconSchema());
 
 const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(iconsSchemaId), 200);

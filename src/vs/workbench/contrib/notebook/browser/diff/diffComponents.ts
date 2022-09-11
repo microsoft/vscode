@@ -39,6 +39,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const fixedEditorPadding = {
 	top: 12,
@@ -93,7 +94,10 @@ export const fixedDiffEditorOptions: IDiffEditorConstructionOptions = {
 	renderIndicators: true,
 	readOnly: false,
 	isInEmbeddedEditor: true,
-	renderOverviewRuler: false
+	renderOverviewRuler: false,
+	wordWrap: 'off',
+	diffWordWrap: 'off',
+	diffAlgorithm: 'smart',
 };
 
 class PropertyHeader extends Disposable {
@@ -122,7 +126,8 @@ class PropertyHeader extends Disposable {
 		@IKeybindingService readonly keybindingService: IKeybindingService,
 		@INotificationService readonly notificationService: INotificationService,
 		@IMenuService readonly menuService: IMenuService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IThemeService readonly themeService: IThemeService,
 	) {
 		super();
 	}
@@ -154,7 +159,7 @@ class PropertyHeader extends Disposable {
 		this._toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextKeyService);
+					const item = new CodiconActionViewItem(action, undefined, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService);
 					return item;
 				}
 
@@ -546,8 +551,8 @@ abstract class AbstractElementRenderer extends Disposable {
 
 			this._metadataEditorContainer?.classList.add('diff');
 
-			const originalMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellUri(this.cell.originalDocument.uri, this.cell.original!.handle, Schemas.vscodeNotebookCellMetadata));
-			const modifiedMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellUri(this.cell.modifiedDocument.uri, this.cell.modified!.handle, Schemas.vscodeNotebookCellMetadata));
+			const originalMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellPropertyUri(this.cell.originalDocument.uri, this.cell.original!.handle, Schemas.vscodeNotebookCellMetadata));
+			const modifiedMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellPropertyUri(this.cell.modifiedDocument.uri, this.cell.modified!.handle, Schemas.vscodeNotebookCellMetadata));
 			this._metadataEditor.setModel({
 				original: originalMetadataModel.object.textEditorModel,
 				modified: modifiedMetadataModel.object.textEditorModel
@@ -609,7 +614,7 @@ abstract class AbstractElementRenderer extends Disposable {
 				? this.cell.modified!.handle
 				: this.cell.original!.handle;
 
-			const modelUri = CellUri.generateCellUri(uri, handle, Schemas.vscodeNotebookCellMetadata);
+			const modelUri = CellUri.generateCellPropertyUri(uri, handle, Schemas.vscodeNotebookCellMetadata);
 			const metadataModel = this.modelService.createModel(originalMetadataSource, mode, modelUri, false);
 			this._metadataEditor.setModel(metadataModel);
 			this._metadataEditorDisposeStore.add(metadataModel);

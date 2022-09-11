@@ -4,45 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as playwright from '@playwright/test';
-import { IDriver, IDisposable } from './driver';
 import type { LaunchOptions } from './code';
 import { PlaywrightDriver } from './playwrightDriver';
 import { IElectronConfiguration, resolveElectronConfiguration } from './electron';
 import { measureAndLog } from './logger';
+import { ChildProcess } from 'child_process';
 
-export async function launch(options: LaunchOptions): Promise<{ client: IDisposable; driver: IDriver }> {
+export async function launch(options: LaunchOptions): Promise<{ electronProcess: ChildProcess; driver: PlaywrightDriver }> {
 
 	// Resolve electron config and update
 	const { electronPath, args, env } = await resolveElectronConfiguration(options);
-	args.push('--enable-smoke-test-driver', 'true');
+	args.push('--enable-smoke-test-driver');
 
 	// Launch electron via playwright
 	const { electron, context, page } = await launchElectron({ electronPath, args, env }, options);
+	const electronProcess = electron.process();
 
 	return {
-		client: {
-			dispose: () => { /* there is no client to dispose for electron, teardown is triggered via exitApplication call */ }
-		},
-		driver: new PlaywrightDriver(electron, context, page, undefined /* no server */, options)
+		electronProcess,
+		driver: new PlaywrightDriver(electron, context, page, undefined /* no server process */, options)
 	};
 }
 
 async function launchElectron(configuration: IElectronConfiguration, options: LaunchOptions) {
 	const { logger, tracing } = options;
 
-	const electron = await measureAndLog(playwright._electron.launch({
+	const electron = await measureAndLog(() => playwright._electron.launch({
 		executablePath: configuration.electronPath,
 		args: configuration.args,
 		env: configuration.env as { [key: string]: string }
 	}), 'playwright-electron#launch', logger);
 
-	const window = await measureAndLog(electron.firstWindow(), 'playwright-electron#firstWindow', logger);
+	const window = await measureAndLog(() => electron.firstWindow(), 'playwright-electron#firstWindow', logger);
 
 	const context = window.context();
 
 	if (tracing) {
 		try {
-			await measureAndLog(context.tracing.start({ screenshots: true, /* remaining options are off for perf reasons */ }), 'context.tracing.start()', logger);
+			await measureAndLog(() => context.tracing.start({ screenshots: true, /* remaining options are off for perf reasons */ }), 'context.tracing.start()', logger);
 		} catch (error) {
 			logger.log(`Playwright (Electron): Failed to start playwright tracing (${error})`); // do not fail the build when this fails
 		}

@@ -1,11 +1,11 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-// Can be removed once https://github.com/electron/electron-rebuild/pull/703 is available.
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.downloadLibcxxObjects = exports.downloadLibcxxHeaders = void 0;
+// Can be removed once https://github.com/electron/electron-rebuild/pull/703 is available.
 const debug = require("debug");
 const extract = require("extract-zip");
 const fs = require("fs-extra");

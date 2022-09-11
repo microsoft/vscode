@@ -9,7 +9,7 @@ import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/pla
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
-let IService1 = createDecorator<IService1>('service1');
+const IService1 = createDecorator<IService1>('service1');
 
 interface IService1 {
 	readonly _serviceBrand: undefined;
@@ -21,7 +21,7 @@ class Service1 implements IService1 {
 	c = 1;
 }
 
-let IService2 = createDecorator<IService2>('service2');
+const IService2 = createDecorator<IService2>('service2');
 
 interface IService2 {
 	readonly _serviceBrand: undefined;
@@ -33,7 +33,7 @@ class Service2 implements IService2 {
 	d = true;
 }
 
-let IService3 = createDecorator<IService3>('service3');
+const IService3 = createDecorator<IService3>('service3');
 
 interface IService3 {
 	readonly _serviceBrand: undefined;
@@ -45,7 +45,7 @@ class Service3 implements IService3 {
 	s = 'farboo';
 }
 
-let IDependentService = createDecorator<IDependentService>('dependentService');
+const IDependentService = createDecorator<IDependentService>('dependentService');
 
 interface IDependentService {
 	readonly _serviceBrand: undefined;
@@ -125,7 +125,7 @@ class ServiceLoop2 implements IService2 {
 suite('Instantiation Service', () => {
 
 	test('service collection, cannot overwrite', function () {
-		let collection = new ServiceCollection();
+		const collection = new ServiceCollection();
 		let result = collection.set(IService1, null!);
 		assert.strictEqual(result, undefined);
 		result = collection.set(IService1, new Service1());
@@ -133,7 +133,7 @@ suite('Instantiation Service', () => {
 	});
 
 	test('service collection, add/has', function () {
-		let collection = new ServiceCollection();
+		const collection = new ServiceCollection();
 		collection.set(IService1, null!);
 		assert.ok(collection.has(IService1));
 
@@ -143,8 +143,8 @@ suite('Instantiation Service', () => {
 	});
 
 	test('@Param - simple clase', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection();
+		const service = new InstantiationService(collection);
 		collection.set(IService1, new Service1());
 		collection.set(IService2, new Service2());
 		collection.set(IService3, new Service3());
@@ -153,8 +153,8 @@ suite('Instantiation Service', () => {
 	});
 
 	test('@Param - fixed args', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection();
+		const service = new InstantiationService(collection);
 		collection.set(IService1, new Service1());
 		collection.set(IService2, new Service2());
 		collection.set(IService3, new Service3());
@@ -164,10 +164,10 @@ suite('Instantiation Service', () => {
 
 	test('service collection is live', function () {
 
-		let collection = new ServiceCollection();
+		const collection = new ServiceCollection();
 		collection.set(IService1, new Service1());
 
-		let service = new InstantiationService(collection);
+		const service = new InstantiationService(collection);
 		service.createInstance(Service1Consumer);
 
 		collection.set(IService2, new Service2());
@@ -199,50 +199,50 @@ suite('Instantiation Service', () => {
 	// });
 
 	test('SyncDesc - no dependencies', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection();
+		const service = new InstantiationService(collection);
 		collection.set(IService1, new SyncDescriptor<IService1>(Service1));
 
 		service.invokeFunction(accessor => {
 
-			let service1 = accessor.get(IService1);
+			const service1 = accessor.get(IService1);
 			assert.ok(service1);
 			assert.strictEqual(service1.c, 1);
 
-			let service2 = accessor.get(IService1);
+			const service2 = accessor.get(IService1);
 			assert.ok(service1 === service2);
 		});
 	});
 
 	test('SyncDesc - service with service dependency', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection();
+		const service = new InstantiationService(collection);
 		collection.set(IService1, new SyncDescriptor<IService1>(Service1));
 		collection.set(IDependentService, new SyncDescriptor<IDependentService>(DependentService));
 
 		service.invokeFunction(accessor => {
-			let d = accessor.get(IDependentService);
+			const d = accessor.get(IDependentService);
 			assert.ok(d);
 			assert.strictEqual(d.name, 'farboo');
 		});
 	});
 
 	test('SyncDesc - target depends on service future', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection();
+		const service = new InstantiationService(collection);
 		collection.set(IService1, new SyncDescriptor<IService1>(Service1));
 		collection.set(IDependentService, new SyncDescriptor<IDependentService>(DependentService));
 
-		let d = service.createInstance(DependentServiceTarget);
+		const d = service.createInstance(DependentServiceTarget);
 		assert.ok(d instanceof DependentServiceTarget);
 
-		let d2 = service.createInstance(DependentServiceTarget2);
+		const d2 = service.createInstance(DependentServiceTarget2);
 		assert.ok(d2 instanceof DependentServiceTarget2);
 	});
 
 	test('SyncDesc - explode on loop', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection();
+		const service = new InstantiationService(collection);
 		collection.set(IService1, new SyncDescriptor<IService1>(ServiceLoop1));
 		collection.set(IService2, new SyncDescriptor<IService2>(ServiceLoop2));
 
@@ -268,8 +268,8 @@ suite('Instantiation Service', () => {
 	});
 
 	test('Invoke - get services', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection();
+		const service = new InstantiationService(collection);
 		collection.set(IService1, new Service1());
 		collection.set(IService2, new Service2());
 
@@ -284,8 +284,8 @@ suite('Instantiation Service', () => {
 	});
 
 	test('Invoke - get service, optional', function () {
-		let collection = new ServiceCollection([IService1, new Service1()]);
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection([IService1, new Service1()]);
+		const service = new InstantiationService(collection);
 
 		function test(accessor: ServicesAccessor) {
 			assert.ok(accessor.get(IService1) instanceof Service1);
@@ -296,8 +296,8 @@ suite('Instantiation Service', () => {
 	});
 
 	test('Invoke - keeping accessor NOT allowed', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection();
+		const service = new InstantiationService(collection);
 		collection.set(IService1, new Service1());
 		collection.set(IService2, new Service2());
 
@@ -316,8 +316,8 @@ suite('Instantiation Service', () => {
 	});
 
 	test('Invoke - throw error', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection();
+		const service = new InstantiationService(collection);
 		collection.set(IService1, new Service1());
 		collection.set(IService2, new Service2());
 

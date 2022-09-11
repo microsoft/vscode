@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { StandardTokenType } from 'vs/editor/common/languages';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
@@ -21,11 +21,13 @@ export interface ITokenizationTextModelPart {
 	setTokens(tokens: ContiguousMultilineTokens[]): void;
 
 	/**
+	 * Replaces all semantic tokens with the provided `tokens`.
 	 * @internal
 	 */
 	setSemanticTokens(tokens: SparseMultilineTokens[] | null, isComplete: boolean): void;
 
 	/**
+	 * Merges the provided semantic tokens into existing semantic tokens.
 	 * @internal
 	 */
 	setPartialSemanticTokens(range: Range, tokens: SparseMultilineTokens[] | null): void;

@@ -5,15 +5,15 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditState, CellFocusMode, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookCellExecutionStateContext, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellExecutionStateContext, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_RESOURCE, NOTEBOOK_CELL_TYPE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class CellContextKeyPart extends CellPart {
 	private cellContextKeyManager: CellContextKeyManager;
@@ -44,6 +44,7 @@ export class CellContextKeyManager extends Disposable {
 	private cellContentCollapsed!: IContextKey<boolean>;
 	private cellOutputCollapsed!: IContextKey<boolean>;
 	private cellLineNumbers!: IContextKey<'on' | 'off' | 'inherit'>;
+	private cellResource!: IContextKey<string>;
 
 	private markdownEditMode!: IContextKey<boolean>;
 
@@ -69,6 +70,7 @@ export class CellContextKeyManager extends Disposable {
 			this.cellContentCollapsed = NOTEBOOK_CELL_INPUT_COLLAPSED.bindTo(this._contextKeyService);
 			this.cellOutputCollapsed = NOTEBOOK_CELL_OUTPUT_COLLAPSED.bindTo(this._contextKeyService);
 			this.cellLineNumbers = NOTEBOOK_CELL_LINE_NUMBERS.bindTo(this._contextKeyService);
+			this.cellResource = NOTEBOOK_CELL_RESOURCE.bindTo(this._contextKeyService);
 
 			if (element) {
 				this.updateForElement(element);
@@ -112,6 +114,7 @@ export class CellContextKeyManager extends Disposable {
 			this.updateForOutputs();
 
 			this.cellLineNumbers.set(this.element!.lineNumbers);
+			this.cellResource.set(this.element!.uri.toString());
 		});
 	}
 

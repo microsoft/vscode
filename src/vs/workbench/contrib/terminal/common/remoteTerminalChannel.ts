@@ -19,9 +19,10 @@ import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
 
@@ -88,8 +89,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	get onProcessOrphanQuestion(): Event<{ id: number }> {
 		return this._channel.listen<{ id: number }>('$onProcessOrphanQuestion');
 	}
-	get onExecuteCommand(): Event<{ reqId: number; commandId: string; commandArgs: any[] }> {
-		return this._channel.listen<{ reqId: number; commandId: string; commandArgs: any[] }>('$onExecuteCommand');
+	get onExecuteCommand(): Event<{ reqId: number; persistentProcessId: number; commandId: string; commandArgs: any[] }> {
+		return this._channel.listen<{ reqId: number; persistentProcessId: number; commandId: string; commandArgs: any[] }>('$onExecuteCommand');
 	}
 	get onDidRequestDetach(): Event<{ requestId: number; workspaceId: string; instanceId: number }> {
 		return this._channel.listen<{ requestId: number; workspaceId: string; instanceId: number }>('$onDidRequestDetach');
@@ -195,8 +196,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	attachToProcess(id: number): Promise<void> {
 		return this._channel.call('$attachToProcess', [id]);
 	}
-	detachFromProcess(id: number): Promise<void> {
-		return this._channel.call('$detachFromProcess', [id]);
+	detachFromProcess(id: number, forcePersist?: boolean): Promise<void> {
+		return this._channel.call('$detachFromProcess', [id, forcePersist]);
 	}
 	listProcesses(): Promise<IProcessDetails[]> {
 		return this._channel.call('$listProcesses');
@@ -297,6 +298,10 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 
 	reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void> {
 		return this._channel.call('$reviveTerminalProcesses', [state, dateTimeFormatLocate]);
+	}
+
+	getRevivedPtyNewId(id: number): Promise<number | undefined> {
+		return this._channel.call('$getRevivedPtyNewId', [id]);
 	}
 
 	serializeTerminalState(ids: number[]): Promise<string> {

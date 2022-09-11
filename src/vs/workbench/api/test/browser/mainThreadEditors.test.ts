@@ -9,7 +9,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ModelService } from 'vs/editor/common/services/modelService';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkspaceTextEditDto, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
+import { IWorkspaceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { mock } from 'vs/base/test/common/mock';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
@@ -17,7 +17,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IModelService } from 'vs/editor/common/services/model';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestLifecycleService, TestWorkingCopyService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { BulkEditService } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditService';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -46,7 +46,6 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestTextResourcePropertiesService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { extUri } from 'vs/base/common/resources';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -56,6 +55,8 @@ import { LanguageService } from 'vs/editor/common/services/languageService';
 import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { MainThreadBulkEdits } from 'vs/workbench/api/browser/mainThreadBulkEdits';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 suite('MainThreadEditors', () => {
 
@@ -112,8 +113,10 @@ suite('MainThreadEditors', () => {
 		services.set(IModelService, modelService);
 		services.set(ICodeEditorService, new TestCodeEditorService(themeService));
 		services.set(IFileService, new TestFileService());
+		services.set(IUriIdentityService, new SyncDescriptor(UriIdentityService));
 		services.set(IEditorService, new TestEditorService());
 		services.set(ILifecycleService, new TestLifecycleService());
+		services.set(IWorkingCopyService, new TestWorkingCopyService());
 		services.set(IEditorGroupsService, new TestEditorGroupsService());
 		services.set(ITextFileService, new class extends mock<ITextFileService>() {
 			override isDirty() { return false; }
@@ -179,9 +182,6 @@ suite('MainThreadEditors', () => {
 				return undefined;
 			}
 		});
-		services.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
-			override get extUri() { return extUri; }
-		});
 
 		const instaService = new InstantiationService(services);
 
@@ -194,13 +194,12 @@ suite('MainThreadEditors', () => {
 
 	test(`applyWorkspaceEdit returns false if model is changed by user`, () => {
 
-		let model = modelService.createModel('something', null, resource);
+		const model = modelService.createModel('something', null, resource);
 
-		let workspaceResourceEdit: IWorkspaceTextEditDto = {
-			_type: WorkspaceEditType.Text,
+		const workspaceResourceEdit: IWorkspaceTextEditDto = {
 			resource: resource,
-			modelVersionId: model.getVersionId(),
-			edit: {
+			versionId: model.getVersionId(),
+			textEdit: {
 				text: 'asdfg',
 				range: new Range(1, 1, 1, 1)
 			}
@@ -216,32 +215,30 @@ suite('MainThreadEditors', () => {
 
 	test(`issue #54773: applyWorkspaceEdit checks model version in race situation`, () => {
 
-		let model = modelService.createModel('something', null, resource);
+		const model = modelService.createModel('something', null, resource);
 
-		let workspaceResourceEdit1: IWorkspaceTextEditDto = {
-			_type: WorkspaceEditType.Text,
+		const workspaceResourceEdit1: IWorkspaceTextEditDto = {
 			resource: resource,
-			modelVersionId: model.getVersionId(),
-			edit: {
+			versionId: model.getVersionId(),
+			textEdit: {
 				text: 'asdfg',
 				range: new Range(1, 1, 1, 1)
 			}
 		};
-		let workspaceResourceEdit2: IWorkspaceTextEditDto = {
-			_type: WorkspaceEditType.Text,
+		const workspaceResourceEdit2: IWorkspaceTextEditDto = {
 			resource: resource,
-			modelVersionId: model.getVersionId(),
-			edit: {
+			versionId: model.getVersionId(),
+			textEdit: {
 				text: 'asdfg',
 				range: new Range(1, 1, 1, 1)
 			}
 		};
 
-		let p1 = bulkEdits.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit1] }).then((result) => {
+		const p1 = bulkEdits.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit1] }).then((result) => {
 			// first edit request succeeds
 			assert.strictEqual(result, true);
 		});
-		let p2 = bulkEdits.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit2] }).then((result) => {
+		const p2 = bulkEdits.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit2] }).then((result) => {
 			// second edit request fails
 			assert.strictEqual(result, false);
 		});
@@ -251,9 +248,9 @@ suite('MainThreadEditors', () => {
 	test(`applyWorkspaceEdit with only resource edit`, () => {
 		return bulkEdits.$tryApplyWorkspaceEdit({
 			edits: [
-				{ _type: WorkspaceEditType.File, oldUri: resource, newUri: resource, options: undefined },
-				{ _type: WorkspaceEditType.File, oldUri: undefined, newUri: resource, options: undefined },
-				{ _type: WorkspaceEditType.File, oldUri: resource, newUri: undefined, options: undefined }
+				{ oldResource: resource, newResource: resource, options: undefined },
+				{ oldResource: undefined, newResource: resource, options: undefined },
+				{ oldResource: resource, newResource: undefined, options: undefined }
 			]
 		}).then((result) => {
 			assert.strictEqual(result, true);

@@ -189,8 +189,10 @@ sw.addEventListener('fetch', (event) => {
 	}
 
 	// If we're making a request against the remote authority, we want to go
-	// back through VS Code itself so that we are authenticated properly
-	if (requestUrl.host === remoteAuthority) {
+	// through VS Code itself so that we are authenticated properly.  If the
+	// service worker is hosted on the same origin we will have cookies and
+	// authentication will not be an issue.
+	if (requestUrl.origin !== sw.origin && requestUrl.host === remoteAuthority) {
 		switch (event.request.method) {
 			case 'GET':
 			case 'HEAD':
@@ -266,11 +268,48 @@ async function processResourceRequest(event, requestUrlComponents) {
 		}
 
 		/** @type {Record<string, string>} */
-		const headers = {
-			'Content-Type': entry.mime,
-			'Content-Length': entry.data.byteLength.toString(),
+		const commonHeaders = {
 			'Access-Control-Allow-Origin': '*',
 		};
+
+		const byteLength = entry.data.byteLength;
+
+		const range = event.request.headers.get('range');
+		if (range) {
+			// To support seeking for videos, we need to handle range requests
+			const bytes = range.match(/^bytes\=(\d+)\-(\d+)?$/g);
+			if (bytes) {
+				// TODO: Right now we are always reading the full file content. This is a bad idea
+				// for large video files :)
+
+				const start = Number(bytes[1]);
+				const end = Number(bytes[2]) || byteLength - 1;
+				return new Response(entry.data.slice(start, end + 1), {
+					status: 206,
+					headers: {
+						...commonHeaders,
+						'Content-range': `bytes 0-${end}/${byteLength}`,
+					}
+				});
+			} else {
+				// We don't understand the requested bytes
+				return new Response(null, {
+					status: 416,
+					headers: {
+						...commonHeaders,
+						'Content-range': `*/${byteLength}`
+					}
+				});
+			}
+		}
+
+		/** @type {Record<string, string>} */
+		const headers = {
+			...commonHeaders,
+			'Content-Type': entry.mime,
+			'Content-Length': byteLength.toString(),
+		};
+
 		if (entry.etag) {
 			headers['ETag'] = entry.etag;
 			headers['Cache-Control'] = 'no-cache';
@@ -278,6 +317,18 @@ async function processResourceRequest(event, requestUrlComponents) {
 		if (entry.mtime) {
 			headers['Last-Modified'] = new Date(entry.mtime).toUTCString();
 		}
+
+		// support COI requests, see network.ts#COI.getHeadersFromQuery(...)
+		const coiRequest = new URL(event.request.url).searchParams.get('vscode-coi');
+		if (coiRequest === '3') {
+			headers['Cross-Origin-Opener-Policy'] = 'same-origin';
+			headers['Cross-Origin-Embedder-Policy'] = 'require-corp';
+		} else if (coiRequest === '2') {
+			headers['Cross-Origin-Embedder-Policy'] = 'require-corp';
+		} else if (coiRequest === '1') {
+			headers['Cross-Origin-Opener-Policy'] = 'same-origin';
+		}
+
 		const response = new Response(entry.data, {
 			status: 200,
 			headers

@@ -8,7 +8,7 @@ import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/com
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
-import * as errors from 'vs/base/common/errors';
+import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event, EventMultiplexer, Relay } from 'vs/base/common/event';
 import { combinedDisposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
@@ -516,7 +516,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken) {
 				if (that.isDisposed) {
-					return Promise.reject(errors.canceled());
+					return Promise.reject(new CancellationError());
 				}
 				return that.requestPromise(channelName, command, arg, cancellationToken);
 			},
@@ -535,14 +535,14 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		const request: IRawRequest = { id, type, channelName, name, arg };
 
 		if (cancellationToken.isCancellationRequested) {
-			return Promise.reject(errors.canceled());
+			return Promise.reject(new CancellationError());
 		}
 
 		let disposable: IDisposable;
 
 		const result = new Promise((c, e) => {
 			if (cancellationToken.isCancellationRequested) {
-				return e(errors.canceled());
+				return e(new CancellationError());
 			}
 
 			const doRequest = () => {
@@ -591,7 +591,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 					this.sendRequest({ id, type: RequestType.PromiseCancel });
 				}
 
-				e(errors.canceled());
+				e(new CancellationError());
 			};
 
 			const cancellationTokenListener = cancellationToken.onCancellationRequested(cancel);
@@ -640,18 +640,14 @@ export class ChannelClient implements IChannelClient, IDisposable {
 			case RequestType.Promise:
 			case RequestType.EventListen: {
 				const msgLength = this.send([request.type, request.id, request.channelName, request.name], request.arg);
-				if (this.logger) {
-					this.logger.logOutgoing(msgLength, request.id, RequestInitiator.LocalSide, `${requestTypeToStr(request.type)}: ${request.channelName}.${request.name}`, request.arg);
-				}
+				this.logger?.logOutgoing(msgLength, request.id, RequestInitiator.LocalSide, `${requestTypeToStr(request.type)}: ${request.channelName}.${request.name}`, request.arg);
 				return;
 			}
 
 			case RequestType.PromiseCancel:
 			case RequestType.EventDispose: {
 				const msgLength = this.send([request.type, request.id]);
-				if (this.logger) {
-					this.logger.logOutgoing(msgLength, request.id, RequestInitiator.LocalSide, requestTypeToStr(request.type));
-				}
+				this.logger?.logOutgoing(msgLength, request.id, RequestInitiator.LocalSide, requestTypeToStr(request.type));
 				return;
 			}
 		}
@@ -682,18 +678,14 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 		switch (type) {
 			case ResponseType.Initialize:
-				if (this.logger) {
-					this.logger.logIncoming(message.byteLength, 0, RequestInitiator.LocalSide, responseTypeToStr(type));
-				}
+				this.logger?.logIncoming(message.byteLength, 0, RequestInitiator.LocalSide, responseTypeToStr(type));
 				return this.onResponse({ type: header[0] });
 
 			case ResponseType.PromiseSuccess:
 			case ResponseType.PromiseError:
 			case ResponseType.EventFire:
 			case ResponseType.PromiseErrorObj:
-				if (this.logger) {
-					this.logger.logIncoming(message.byteLength, header[1], RequestInitiator.LocalSide, responseTypeToStr(type), body);
-				}
+				this.logger?.logIncoming(message.byteLength, header[1], RequestInitiator.LocalSide, responseTypeToStr(type), body);
 				return this.onResponse({ type: header[0], id: header[1], data: body });
 		}
 	}
@@ -707,9 +699,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 		const handler = this.handlers.get(response.id);
 
-		if (handler) {
-			handler(response);
-		}
+		handler?.(response);
 	}
 
 	@memoize
@@ -816,7 +806,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 
 				if (isFunction(routerOrClientFilter)) {
 					// when no router is provided, we go random client picking
-					let connection = getRandomElement(that.connections.filter(routerOrClientFilter));
+					const connection = getRandomElement(that.connections.filter(routerOrClientFilter));
 
 					connectionPromise = connection
 						// if we found a client, let's call on it
@@ -1181,7 +1171,7 @@ function prettyWithoutArrays(data: any): any {
 		return data;
 	}
 	if (data && typeof data === 'object' && typeof data.toString === 'function') {
-		let result = data.toString();
+		const result = data.toString();
 		if (result !== '[object Object]') {
 			return result;
 		}

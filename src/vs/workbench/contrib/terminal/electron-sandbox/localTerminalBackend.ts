@@ -163,7 +163,17 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 			this._ptys.set(id, pty);
 			return pty;
 		} catch (e) {
-			this._logService.trace(`Couldn't attach to process ${e.message}`);
+			this._logService.warn(`Couldn't attach to process ${e.message}`);
+		}
+		return undefined;
+	}
+
+	async attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+		try {
+			const newId = await this._localPtyService.getRevivedPtyNewId(id) ?? id;
+			return await this.attachToProcess(newId);
+		} catch (e) {
+			this._logService.warn(`Couldn't attach to process ${e.message}`);
 		}
 		return undefined;
 	}

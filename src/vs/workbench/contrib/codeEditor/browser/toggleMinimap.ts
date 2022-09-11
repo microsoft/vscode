@@ -20,7 +20,7 @@ export class ToggleMinimapAction extends Action2 {
 			title: {
 				value: localize('toggleMinimap', "Toggle Minimap"),
 				original: 'Toggle Minimap',
-				mnemonicTitle: localize({ key: 'miShowMinimap', comment: ['&& denotes a mnemonic'] }, "Show &&Minimap")
+				mnemonicTitle: localize({ key: 'miMinimap', comment: ['&& denotes a mnemonic'] }, "&&Minimap")
 			},
 			category: CATEGORIES.View,
 			f1: true,

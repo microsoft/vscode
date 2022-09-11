@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ensureAllNewCellsHaveCellIds } from './cellIdService';
 import { NotebookSerializer } from './notebookSerializer';
+import { ensureAllNewCellsHaveCellIds } from './cellIdService';
+import { notebookImagePasteSetup } from './notebookImagePaste';
+import { AttachmentCleaner } from './notebookAttachmentCleaner';
 
 // From {nbformat.INotebookMetadata} in @jupyterlab/coreutils
 type NotebookMetadata = {
@@ -77,11 +79,20 @@ export function activate(context: vscode.ExtensionContext) {
 		await vscode.window.showNotebookDocument(document);
 	}));
 
+	context.subscriptions.push(notebookImagePasteSetup());
+
+	const enabled = vscode.workspace.getConfiguration('ipynb').get('experimental.pasteImages.enabled', false);
+	if (enabled) {
+		const cleaner = new AttachmentCleaner();
+		context.subscriptions.push(cleaner);
+	}
+
 	// Update new file contribution
 	vscode.extensions.onDidChange(() => {
 		vscode.commands.executeCommand('setContext', 'jupyterEnabled', vscode.extensions.getExtension('ms-toolsai.jupyter'));
 	});
 	vscode.commands.executeCommand('setContext', 'jupyterEnabled', vscode.extensions.getExtension('ms-toolsai.jupyter'));
+
 
 	return {
 		exportNotebook: (notebook: vscode.NotebookData): string => {
@@ -94,7 +105,7 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 
 			const edit = new vscode.WorkspaceEdit();
-			edit.replaceNotebookMetadata(resource, {
+			edit.set(resource, [vscode.NotebookEdit.updateNotebookMetadata({
 				...document.metadata,
 				custom: {
 					...(document.metadata.custom ?? {}),
@@ -103,7 +114,7 @@ export function activate(context: vscode.ExtensionContext) {
 						...metadata
 					},
 				}
-			});
+			})]);
 			return vscode.workspace.applyEdit(edit);
 		},
 	};

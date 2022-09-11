@@ -52,7 +52,7 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 			pos = pos + by;
 		} else {
 			while (by > 0) {
-				let chCode = content.charCodeAt(pos);
+				const chCode = content.charCodeAt(pos);
 				if (chCode === ChCode.LINE_FEED) {
 					pos++; line++; char = 0;
 				} else {
@@ -72,7 +72,7 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 
 	function skipWhitespace(): void {
 		while (pos < len) {
-			let chCode = content.charCodeAt(pos);
+			const chCode = content.charCodeAt(pos);
 			if (chCode !== ChCode.SPACE && chCode !== ChCode.TAB && chCode !== ChCode.CARRIAGE_RETURN && chCode !== ChCode.LINE_FEED) {
 				break;
 			}
@@ -89,7 +89,7 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 	}
 
 	function advanceUntil(str: string): void {
-		let nextOccurence = content.indexOf(str, pos);
+		const nextOccurence = content.indexOf(str, pos);
 		if (nextOccurence !== -1) {
 			advancePosTo(nextOccurence + str.length);
 		} else {
@@ -99,14 +99,14 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 	}
 
 	function captureUntil(str: string): string {
-		let nextOccurence = content.indexOf(str, pos);
+		const nextOccurence = content.indexOf(str, pos);
 		if (nextOccurence !== -1) {
-			let r = content.substring(pos, nextOccurence);
+			const r = content.substring(pos, nextOccurence);
 			advancePosTo(nextOccurence + str.length);
 			return r;
 		} else {
 			// EOF
-			let r = content.substr(pos);
+			const r = content.substr(pos);
 			advancePosTo(len);
 			return r;
 		}
@@ -115,8 +115,8 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 	let state = State.ROOT_STATE;
 
 	let cur: any = null;
-	let stateStack: State[] = [];
-	let objStack: any[] = [];
+	const stateStack: State[] = [];
+	const objStack: any[] = [];
 	let curKey: string | null = null;
 
 	function pushState(newState: State, newCur: any): void {
@@ -143,7 +143,7 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 			if (curKey === null) {
 				return fail('missing <key>');
 			}
-			let newDict: { [key: string]: any } = {};
+			const newDict: { [key: string]: any } = {};
 			if (locationKeyName !== null) {
 				newDict[locationKeyName] = {
 					filename: filename,
@@ -159,7 +159,7 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 			if (curKey === null) {
 				return fail('missing <key>');
 			}
-			let newArr: any[] = [];
+			const newArr: any[] = [];
 			cur[curKey] = newArr;
 			curKey = null;
 			pushState(State.ARR_STATE, newArr);
@@ -168,7 +168,7 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 
 	const arrState = {
 		enterDict: function () {
-			let newDict: { [key: string]: any } = {};
+			const newDict: { [key: string]: any } = {};
 			if (locationKeyName !== null) {
 				newDict[locationKeyName] = {
 					filename: filename,
@@ -180,7 +180,7 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 			pushState(State.DICT_STATE, newDict);
 		},
 		enterArray: function () {
-			let newArr: any[] = [];
+			const newArr: any[] = [];
 			cur.push(newArr);
 			pushState(State.ARR_STATE, newArr);
 		}
@@ -369,7 +369,7 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 		if (tag.isClosed) {
 			return '';
 		}
-		let val = captureUntil('</');
+		const val = captureUntil('</');
 		advanceUntil('>');
 		return escapeVal(val);
 	}
@@ -434,7 +434,7 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 			return fail('unexpected closed tag');
 		}
 
-		let tag = parseOpenTag();
+		const tag = parseOpenTag();
 
 		switch (tag.name) {
 			case 'dict':

@@ -4,7 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
+
+interface IEvent<T, U = void> {
+	(listener: (arg1: T, arg2: U) => any): IDisposable;
+}
+
+export interface IMarker extends IDisposable {
+	/**
+	 * A unique identifier for this marker.
+	 */
+	readonly id: number;
+
+	/**
+	 * Whether this marker is disposed.
+	 */
+	readonly isDisposed: boolean;
+
+	/**
+	 * The actual line index in the buffer at this point in time. This is set to
+	 * -1 if the marker has been disposed.
+	 */
+	readonly line: number;
+
+	/**
+	 * Event listener to get notified when the marker gets disposed. Automatic disposal
+	 * might happen for a marker, that got invalidated by scrolling out or removal of
+	 * a line from the buffer.
+	 */
+	onDispose: IEvent<void>;
+}
+
 
 /**
  * Primarily driven by the shell integration feature, a terminal capability is the mechanism for
@@ -29,7 +60,14 @@ export const enum TerminalCapability {
 	 * may not be so good at remembering the position of commands that ran in the past. This state
 	 * may be enabled when something goes wrong or when using conpty for example.
 	 */
-	PartialCommandDetection
+	PartialCommandDetection,
+
+	/**
+	 * Manages buffer marks that can be used for terminal navigation. The source of
+	 * the request (task, debug, etc) provides an ID, optional marker, hoverMessage, and hidden property. When
+	 * hidden is not provided, a generic decoration is added to the buffer and overview ruler.
+	 */
+	BufferMarkDetection
 }
 
 /**
@@ -72,6 +110,7 @@ export interface ITerminalCapabilityImplMap {
 	[TerminalCapability.CommandDetection]: ICommandDetectionCapability;
 	[TerminalCapability.NaiveCwdDetection]: INaiveCwdDetectionCapability;
 	[TerminalCapability.PartialCommandDetection]: IPartialCommandDetectionCapability;
+	[TerminalCapability.BufferMarkDetection]: IBufferMarkCapability;
 }
 
 export interface ICwdDetectionCapability {
@@ -80,6 +119,23 @@ export interface ICwdDetectionCapability {
 	readonly cwds: string[];
 	getCwd(): string;
 	updateCwd(cwd: string): void;
+}
+
+export const enum CommandInvalidationReason {
+	Windows = 'windows',
+	NoProblemsReported = 'noProblemsReported'
+}
+
+export interface ICommandInvalidationRequest {
+	reason: CommandInvalidationReason;
+}
+
+export interface IBufferMarkCapability {
+	type: TerminalCapability.BufferMarkDetection;
+	markers(): IterableIterator<IMarker>;
+	onMarkAdded: Event<IMarkProperties>;
+	addMark(properties?: IMarkProperties): void;
+	getMark(id: string): IMarker | undefined;
 }
 
 export interface ICommandDetectionCapability {
@@ -92,27 +148,48 @@ export interface ICommandDetectionCapability {
 	readonly cwd: string | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
+	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
+	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
 	setCwd(value: string): void;
 	setIsWindowsPty(value: boolean): void;
+	setIsCommandStorageDisabled(): void;
 	/**
 	 * Gets the working directory for a line, this will return undefined if it's unknown in which
 	 * case the terminal's initial cwd should be used.
 	 */
 	getCwdForLine(line: number): string | undefined;
-	handlePromptStart(): void;
+	handlePromptStart(options?: IHandleCommandOptions): void;
 	handleContinuationStart(): void;
 	handleContinuationEnd(): void;
 	handleRightPromptStart(): void;
 	handleRightPromptEnd(): void;
-	handleCommandStart(): void;
-	handleCommandExecuted(): void;
-	handleCommandFinished(exitCode: number | undefined): void;
+	handleCommandStart(options?: IHandleCommandOptions): void;
+	handleCommandExecuted(options?: IHandleCommandOptions): void;
+	handleCommandFinished(exitCode?: number, options?: IHandleCommandOptions): void;
+	invalidateCurrentCommand(request: ICommandInvalidationRequest): void;
 	/**
 	 * Set the command line explicitly.
 	 */
 	setCommandLine(commandLine: string): void;
 	serialize(): ISerializedCommandDetectionCapability;
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
+}
+
+export interface IHandleCommandOptions {
+	/**
+	 * Whether to allow an empty command to be registered. This should be used to support certain
+	 * shell integration scripts/features where tracking the command line may not be possible.
+	 */
+	ignoreCommandLine?: boolean;
+	/**
+	 * The marker to use
+	 */
+	marker?: IMarker;
+
+	/**
+	 * Properties for the mark
+	 */
+	markProperties?: IMarkProperties;
 }
 
 export interface INaiveCwdDetectionCapability {
@@ -136,8 +213,9 @@ export interface ITerminalCommand {
 	endMarker?: IXtermMarker;
 	executedMarker?: IXtermMarker;
 	commandStartLineContent?: string;
+	markProperties?: IMarkProperties;
 	getOutput(): string | undefined;
-	hasOutput: boolean;
+	hasOutput(): boolean;
 }
 
 /**
@@ -151,4 +229,32 @@ export interface IXtermMarker {
 	onDispose: {
 		(listener: () => any): { dispose(): void };
 	};
+}
+
+export interface ISerializedCommand {
+	command: string;
+	cwd: string | undefined;
+	startLine: number | undefined;
+	startX: number | undefined;
+	endLine: number | undefined;
+	executedLine: number | undefined;
+	exitCode: number | undefined;
+	commandStartLineContent: string | undefined;
+	timestamp: number;
+	markProperties: IMarkProperties | undefined;
+}
+export interface IMarkProperties {
+	hoverMessage?: string;
+	disableCommandStorage?: boolean;
+	hidden?: boolean;
+	marker?: IMarker;
+	id?: string;
+}
+export interface ISerializedCommandDetectionCapability {
+	isWindowsPty: boolean;
+	commands: ISerializedCommand[];
+}
+export interface IPtyHostProcessReplayEvent {
+	events: ReplayEntry[];
+	commands: ISerializedCommandDetectionCapability;
 }

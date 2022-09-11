@@ -832,7 +832,7 @@ class CommandExecutor {
 
 		// Extract losing cursors
 		const losingCursors: number[] = [];
-		for (let losingCursorIndex in loserCursorsMap) {
+		for (const losingCursorIndex in loserCursorsMap) {
 			if (loserCursorsMap.hasOwnProperty(losingCursorIndex)) {
 				losingCursors.push(parseInt(losingCursorIndex, 10));
 			}

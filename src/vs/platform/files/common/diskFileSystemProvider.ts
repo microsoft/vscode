@@ -10,7 +10,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { normalize } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
-import { IFileChange, IWatchOptions } from 'vs/platform/files/common/files';
+import { IFileChange, IFileSystemProvider, IWatchOptions } from 'vs/platform/files/common/files';
 import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, INonRecursiveWatchRequest, IRecursiveWatcherOptions, isRecursiveWatchRequest, IUniversalWatchRequest, toFileChanges } from 'vs/platform/files/common/watcher';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
@@ -36,7 +36,10 @@ export interface IDiskFileSystemProviderOptions {
 	};
 }
 
-export abstract class AbstractDiskFileSystemProvider extends Disposable {
+export abstract class AbstractDiskFileSystemProvider extends Disposable implements
+	Pick<IFileSystemProvider, 'watch'>,
+	Pick<IFileSystemProvider, 'onDidChangeFile'>,
+	Pick<IFileSystemProvider, 'onDidWatchError'> {
 
 	constructor(
 		protected readonly logService: ILogService,

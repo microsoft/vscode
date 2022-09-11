@@ -7,7 +7,8 @@
 	font-family: 'codicon';
 	content: '\eb53';
 	background-image: none;
-	font-size: 150%;
+	font-size: 16px;
+	line-height: 37px !important;
 }
 
 .workspace-trust-editor {

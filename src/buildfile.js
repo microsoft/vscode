@@ -32,16 +32,17 @@ exports.base = [
 	{
 		name: 'vs/editor/common/services/editorSimpleWorker',
 		include: ['vs/base/common/worker/simpleWorker'],
-		prepend: ['vs/loader.js', 'vs/nls.js'],
-		append: ['vs/base/worker/workerMain'],
+		exclude: ['vs/nls'],
+		prepend: [
+			{ path: 'vs/loader.js' },
+			{ path: 'vs/nls.js', amdModuleId: 'vs/nls' },
+			{ path: 'vs/base/worker/workerMain.js' }
+		],
 		dest: 'vs/base/worker/workerMain.js'
 	},
 	{
 		name: 'vs/base/common/worker/simpleWorker',
-	},
-	{
-		name: 'vs/platform/extensions/node/extensionHostStarterWorker',
-		exclude: ['vs/base/common/worker/simpleWorker']
+		exclude: ['vs/nls'],
 	}
 ];
 
@@ -76,7 +77,6 @@ exports.code = [
 	createModuleDescription('vs/code/node/cliProcessMain', ['vs/code/node/cli']),
 	createModuleDescription('vs/code/electron-sandbox/issue/issueReporterMain'),
 	createModuleDescription('vs/code/electron-browser/sharedProcess/sharedProcessMain'),
-	createModuleDescription('vs/platform/driver/node/driver'),
 	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
 ];
 

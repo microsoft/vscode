@@ -129,7 +129,7 @@ class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookBreakpoints, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookBreakpoints, 'NotebookBreakpoints', LifecyclePhase.Restored);
 
 class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
 	private readonly _pausedCells = new Set<string>();
@@ -196,4 +196,4 @@ class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookCellPausing, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookCellPausing, 'NotebookCellPausing', LifecyclePhase.Restored);

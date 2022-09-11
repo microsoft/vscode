@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { stripIcons } from 'vs/base/common/iconLabels';
 import { localize } from 'vs/nls';
 import { TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 
@@ -44,7 +45,7 @@ export const testStateNames: { [K in TestResultState]: string } = {
 export const labelForTestInState = (label: string, state: TestResultState) => localize({
 	key: 'testing.treeElementLabel',
 	comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
-}, '{0} ({1})', label, testStateNames[state]);
+}, '{0} ({1})', stripIcons(label), testStateNames[state]);
 
 export const testConfigurationGroupNames: { [K in TestRunProfileBitset]: string } = {
 	[TestRunProfileBitset.Debug]: localize('testGroup.debug', 'Debug'),
@@ -89,4 +90,5 @@ export const enum TestCommandId {
 	ToggleAutoRun = 'testing.toggleautoRun',
 	ToggleInlineTestOutput = 'testing.toggleInlineTestOutput',
 	UnhideTestAction = 'testing.unhideTest',
+	UnhideAllTestsAction = 'testing.unhideAllTests',
 }

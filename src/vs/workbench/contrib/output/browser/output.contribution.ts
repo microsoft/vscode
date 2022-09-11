@@ -12,7 +12,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { OutputService, LogContentProvider } from 'vs/workbench/contrib/output/browser/outputServices';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK } from 'vs/workbench/contrib/output/common/output';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
 import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { LogViewer, LogViewerInput } from 'vs/workbench/contrib/output/browser/logViewer';
@@ -25,7 +25,6 @@ import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensio
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IOutputChannelDescriptor, IFileOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -35,7 +34,7 @@ import { CATEGORIES } from 'vs/workbench/common/actions';
 import { EditorExtensions } from 'vs/workbench/common/editor';
 
 // Register Service
-registerSingleton(IOutputService, OutputService);
+registerSingleton(IOutputService, OutputService, true);
 
 // Register Output Mode
 ModesRegistry.registerLanguage({
@@ -58,10 +57,10 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 	title: nls.localize('output', "Output"),
 	icon: outputViewIcon,
 	order: 1,
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: OUTPUT_VIEW_ID,
 	hideIfEmpty: true,
-}, ViewContainerLocation.Panel, { donotRegisterOpenCommand: true });
+}, ViewContainerLocation.Panel, { doNotRegisterOpenCommand: true });
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: OUTPUT_VIEW_ID,
@@ -103,7 +102,7 @@ class OutputContribution implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(OutputContribution, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(OutputContribution, 'OutputContribution', LifecyclePhase.Restored);
 
 registerAction2(class extends Action2 {
 	constructor() {

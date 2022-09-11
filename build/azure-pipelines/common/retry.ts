@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 export async function retry<T>(fn: () => Promise<T>): Promise<T> {
 	let lastError: Error | undefined;
 

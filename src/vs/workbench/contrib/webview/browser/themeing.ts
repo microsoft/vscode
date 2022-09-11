@@ -90,7 +90,8 @@ export class WebviewThemeDataProvider extends Disposable {
 enum ApiThemeClassName {
 	light = 'vscode-light',
 	dark = 'vscode-dark',
-	highContrast = 'vscode-high-contrast'
+	highContrast = 'vscode-high-contrast',
+	highContrastLight = 'vscode-high-contrast-light',
 }
 
 namespace ApiThemeClassName {
@@ -98,7 +99,8 @@ namespace ApiThemeClassName {
 		switch (theme.type) {
 			case ColorScheme.LIGHT: return ApiThemeClassName.light;
 			case ColorScheme.DARK: return ApiThemeClassName.dark;
-			default: return ApiThemeClassName.highContrast;
+			case ColorScheme.HIGH_CONTRAST_DARK: return ApiThemeClassName.highContrast;
+			case ColorScheme.HIGH_CONTRAST_LIGHT: return ApiThemeClassName.highContrastLight;
 		}
 	}
 }

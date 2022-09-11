@@ -70,7 +70,7 @@ export class TunnelService extends AbstractTunnelService {
 		});
 	}
 
-	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
+	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
 		const existing = this.getTunnelFromMap(remoteHost, remotePort);
 		if (existing) {
 			++existing.refcount;
@@ -105,4 +105,4 @@ export class TunnelService extends AbstractTunnelService {
 	}
 }
 
-registerSingleton(ITunnelService, TunnelService);
+registerSingleton(ITunnelService, TunnelService, false);

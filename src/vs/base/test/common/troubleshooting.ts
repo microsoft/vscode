@@ -47,13 +47,9 @@ export function endTrackingDisposables(): void {
 }
 
 export function beginLoggingFS(withStacks: boolean = false): void {
-	if ((<any>self).beginLoggingFS) {
-		(<any>self).beginLoggingFS(withStacks);
-	}
+	(<any>self).beginLoggingFS?.(withStacks);
 }
 
 export function endLoggingFS(): void {
-	if ((<any>self).endLoggingFS) {
-		(<any>self).endLoggingFS();
-	}
+	(<any>self).endLoggingFS?.();
 }

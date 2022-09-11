@@ -7,7 +7,7 @@ import { getClientArea, getTopLeftOffset } from 'vs/base/browser/dom';
 import { coalesce } from 'vs/base/common/arrays';
 import { language, locale } from 'vs/base/common/platform';
 import { IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver } from 'vs/platform/driver/common/driver';
-import localizedStrings from 'vs/platform/localizations/common/localizedStrings';
+import localizedStrings from 'vs/platform/languagePacks/common/localizedStrings';
 
 export class BrowserWindowDriver implements IWindowDriver {
 
@@ -204,6 +204,10 @@ export class BrowserWindowDriver implements IWindowDriver {
 		// that can implement `click` natively via the driver
 
 		throw new Error('Method not implemented.');
+	}
+
+	async exitApplication(): Promise<void> {
+		// No-op in web
 	}
 }
 

@@ -10,6 +10,13 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 
+export interface WebviewInputInitInfo {
+	readonly id: string;
+	readonly viewType: string;
+	readonly providedId: string | undefined;
+	readonly name: string;
+}
+
 export class WebviewInput extends EditorInput {
 
 	public static typeId = 'workbench.editors.webviewInput';
@@ -23,7 +30,7 @@ export class WebviewInput extends EditorInput {
 	}
 
 	public override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor;
 	}
 
 	private _name: string;
@@ -41,15 +48,22 @@ export class WebviewInput extends EditorInput {
 		});
 	}
 
+	public readonly id: string;
+	public readonly viewType: string;
+	public readonly providedId: string | undefined;
+
 	constructor(
-		public readonly id: string,
-		public readonly viewType: string,
-		name: string,
+		init: WebviewInputInitInfo,
 		webview: IOverlayWebview,
 		private readonly _iconManager: WebviewIconManager,
 	) {
 		super();
-		this._name = name;
+
+		this.id = init.id;
+		this.viewType = init.viewType;
+		this.providedId = init.providedId;
+
+		this._name = init.name;
 		this._webview = webview;
 	}
 

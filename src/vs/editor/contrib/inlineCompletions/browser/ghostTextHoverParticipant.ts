@@ -20,6 +20,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
+import { Command } from 'vs/editor/common/languages';
 
 export class InlineCompletionsHover implements IHoverPart {
 	constructor(
@@ -38,6 +39,10 @@ export class InlineCompletionsHover implements IHoverPart {
 
 	public hasMultipleSuggestions(): Promise<boolean> {
 		return this.controller.hasMultipleInlineCompletions();
+	}
+
+	public get commands(): Command[] {
+		return this.controller.activeModel?.activeInlineCompletionsModel?.completionSession.value?.commands || [];
 	}
 }
 
@@ -100,6 +105,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			this.renderScreenReaderText(context, part, disposableStore);
 		}
 
+		// TODO@hediet: deprecate MenuId.InlineCompletionsActions
 		const menu = disposableStore.add(this._menuService.createMenu(
 			MenuId.InlineCompletionsActions,
 			this._contextKeyService
@@ -130,6 +136,14 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 				action.setEnabled(hasMore);
 			}
 		});
+
+		for (const command of part.commands) {
+			context.statusBar.addAction({
+				label: command.title,
+				commandId: command.id,
+				run: () => this._commandService.executeCommand(command.id, ...(command.arguments || []))
+			});
+		}
 
 		for (const [_, group] of menu.getActions()) {
 			for (const action of group) {

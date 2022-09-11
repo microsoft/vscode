@@ -154,15 +154,16 @@ const copyRelativePathCommand = {
 // Editor Title Context Menu
 appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, copyPathCommand.title, ResourceContextKey.IsFileSystemResource, '1_cutcopypaste');
 appendEditorTitleContextMenuItem(COPY_RELATIVE_PATH_COMMAND_ID, copyRelativePathCommand.title, ResourceContextKey.IsFileSystemResource, '1_cutcopypaste');
-appendEditorTitleContextMenuItem(REVEAL_IN_EXPLORER_COMMAND_ID, nls.localize('revealInSideBar', "Reveal in Explorer View"), ResourceContextKey.IsFileSystemResource);
+appendEditorTitleContextMenuItem(REVEAL_IN_EXPLORER_COMMAND_ID, nls.localize('revealInSideBar', "Reveal in Explorer View"), ResourceContextKey.IsFileSystemResource, '2_files', 1);
 
-export function appendEditorTitleContextMenuItem(id: string, title: string, when: ContextKeyExpression | undefined, group?: string): void {
+export function appendEditorTitleContextMenuItem(id: string, title: string, when: ContextKeyExpression | undefined, group: string, order?: number): void {
 
 	// Menu
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
 		command: { id, title },
 		when,
-		group: group || '2_files'
+		group,
+		order
 	});
 }
 
@@ -576,7 +577,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 });
 
 // Empty Editor Group Context Menu
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: NEW_UNTITLED_FILE_COMMAND_ID, title: nls.localize('newFile', "New File") }, group: '1_file', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: NEW_UNTITLED_FILE_COMMAND_ID, title: nls.localize('newFile', "New Text File") }, group: '1_file', order: 10 });
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: 'workbench.action.quickOpen', title: nls.localize('openFile', "Open File...") }, group: '1_file', order: 20 });
 
 // File menu
@@ -585,7 +586,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '1_new',
 	command: {
 		id: NEW_UNTITLED_FILE_COMMAND_ID,
-		title: nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "&&New File")
+		title: nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "&&New Text File")
 	},
 	order: 1
 });

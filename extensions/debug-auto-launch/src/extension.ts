@@ -8,6 +8,12 @@ import { createServer, Server } from 'net';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 
+const enum State {
+	Disabled = 'disabled',
+	OnlyWithFlag = 'onlyWithFlag',
+	Smart = 'smart',
+	Always = 'always',
+}
 const localize = nls.loadMessageBundle();
 const TEXT_STATUSBAR_LABEL = {
 	[State.Disabled]: localize('status.text.auto.attach.disabled', 'Auto Attach: Disabled'),
@@ -62,12 +68,6 @@ const SETTINGS_CAUSE_REFRESH = new Set(
 	['autoAttachSmartPattern', SETTING_STATE].map(s => `${SETTING_SECTION}.${s}`),
 );
 
-const enum State {
-	Disabled = 'disabled',
-	OnlyWithFlag = 'onlyWithFlag',
-	Smart = 'smart',
-	Always = 'always',
-}
 
 let currentState: Promise<{ context: vscode.ExtensionContext; state: State | null }>;
 let statusItem: vscode.StatusBarItem | undefined; // and there is no status bar item
@@ -243,7 +243,7 @@ const createServerInner = async (ipcAddress: string) => {
 const createServerInstance = (ipcAddress: string) =>
 	new Promise<Server>((resolve, reject) => {
 		const s = createServer(socket => {
-			let data: Buffer[] = [];
+			const data: Buffer[] = [];
 			socket.on('data', async chunk => {
 				if (chunk[chunk.length - 1] !== 0) {
 					// terminated with NUL byte
@@ -392,7 +392,7 @@ async function getIpcAddress(context: vscode.ExtensionContext) {
 }
 
 function getJsDebugSettingKey() {
-	let o: { [key: string]: unknown } = {};
+	const o: { [key: string]: unknown } = {};
 	const config = vscode.workspace.getConfiguration(SETTING_SECTION);
 	for (const setting of SETTINGS_CAUSE_REFRESH) {
 		o[setting] = config.get(setting);

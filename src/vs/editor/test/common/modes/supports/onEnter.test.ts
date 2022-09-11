@@ -11,15 +11,15 @@ import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions'
 suite('OnEnter', () => {
 
 	test('uses brackets', () => {
-		let brackets: CharacterPair[] = [
+		const brackets: CharacterPair[] = [
 			['(', ')'],
 			['begin', 'end']
 		];
-		let support = new OnEnterSupport({
+		const support = new OnEnterSupport({
 			brackets: brackets
 		});
-		let testIndentAction = (beforeText: string, afterText: string, expected: IndentAction) => {
-			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, '', beforeText, afterText);
+		const testIndentAction = (beforeText: string, afterText: string, expected: IndentAction) => {
+			const actual = support.onEnter(EditorAutoIndentStrategy.Advanced, '', beforeText, afterText);
 			if (expected === IndentAction.None) {
 				assert.strictEqual(actual, null);
 			} else {
@@ -61,8 +61,8 @@ suite('OnEnter', () => {
 			]
 		});
 
-		let testIndentAction = (previousLineText: string, beforeText: string, afterText: string, expectedIndentAction: IndentAction | null, expectedAppendText: string | null, removeText: number = 0) => {
-			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, previousLineText, beforeText, afterText);
+		const testIndentAction = (previousLineText: string, beforeText: string, afterText: string, expectedIndentAction: IndentAction | null, expectedAppendText: string | null, removeText: number = 0) => {
+			const actual = support.onEnter(EditorAutoIndentStrategy.Advanced, previousLineText, beforeText, afterText);
 			if (expectedIndentAction === null) {
 				assert.strictEqual(actual, null, 'isNull:' + beforeText);
 			} else {
@@ -82,11 +82,11 @@ suite('OnEnter', () => {
 	});
 
 	test('uses regExpRules', () => {
-		let support = new OnEnterSupport({
+		const support = new OnEnterSupport({
 			onEnterRules: javascriptOnEnterRules
 		});
-		let testIndentAction = (previousLineText: string, beforeText: string, afterText: string, expectedIndentAction: IndentAction | null, expectedAppendText: string | null, removeText: number = 0) => {
-			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, previousLineText, beforeText, afterText);
+		const testIndentAction = (previousLineText: string, beforeText: string, afterText: string, expectedIndentAction: IndentAction | null, expectedAppendText: string | null, removeText: number = 0) => {
+			const actual = support.onEnter(EditorAutoIndentStrategy.Advanced, previousLineText, beforeText, afterText);
 			if (expectedIndentAction === null) {
 				assert.strictEqual(actual, null, 'isNull:' + beforeText);
 			} else {
@@ -170,11 +170,11 @@ suite('OnEnter', () => {
 	});
 
 	test('issue #141816', () => {
-		let support = new OnEnterSupport({
+		const support = new OnEnterSupport({
 			onEnterRules: javascriptOnEnterRules
 		});
-		let testIndentAction = (beforeText: string, afterText: string, expected: IndentAction) => {
-			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, '', beforeText, afterText);
+		const testIndentAction = (beforeText: string, afterText: string, expected: IndentAction) => {
+			const actual = support.onEnter(EditorAutoIndentStrategy.Advanced, '', beforeText, afterText);
 			if (expected === IndentAction.None) {
 				assert.strictEqual(actual, null);
 			} else {

@@ -188,17 +188,14 @@ export class Workbench extends Layout {
 		//
 		// NOTE: Please do NOT register services here. Use `registerSingleton()`
 		//       from `workbench.common.main.ts` if the service is shared between
-		//       native and web or `workbench.sandbox.main.ts` if the service
-		//       is native only.
-		//
-		//       DO NOT add services to `workbench.desktop.main.ts`, always add
-		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//       desktop and web or `workbench.desktop.main.ts` if the service
+		//       is desktop only.
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// All Contributed Services
 		const contributedServices = getSingletonServiceDescriptors();
-		for (let [id, descriptor] of contributedServices) {
+		for (const [id, descriptor] of contributedServices) {
 			serviceCollection.set(id, descriptor);
 		}
 
@@ -284,7 +281,7 @@ export class Workbench extends Layout {
 	}
 
 	private restoreFontInfo(storageService: IStorageService, configurationService: IConfigurationService): void {
-		const storedFontInfoRaw = storageService.get('editorFontInfo', StorageScope.GLOBAL);
+		const storedFontInfoRaw = storageService.get('editorFontInfo', StorageScope.APPLICATION);
 		if (storedFontInfoRaw) {
 			try {
 				const storedFontInfo = JSON.parse(storedFontInfoRaw);
@@ -302,7 +299,7 @@ export class Workbench extends Layout {
 	private storeFontInfo(storageService: IStorageService): void {
 		const serializedFontInfo = FontMeasurements.serializeFontInfo();
 		if (serializedFontInfo) {
-			storageService.store('editorFontInfo', JSON.stringify(serializedFontInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
+			storageService.store('editorFontInfo', JSON.stringify(serializedFontInfo), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 	}
 
@@ -336,7 +333,7 @@ export class Workbench extends Layout {
 		this.restoreFontInfo(storageService, configurationService);
 
 		// Create Parts
-		[
+		for (const { id, role, classes, options } of [
 			{ id: Parts.TITLEBAR_PART, role: 'contentinfo', classes: ['titlebar'] },
 			{ id: Parts.BANNER_PART, role: 'banner', classes: ['banner'] },
 			{ id: Parts.ACTIVITYBAR_PART, role: 'none', classes: ['activitybar', this.getSideBarPosition() === Position.LEFT ? 'left' : 'right'] }, // Use role 'none' for some parts to make screen readers less chatty #114892
@@ -345,11 +342,11 @@ export class Workbench extends Layout {
 			{ id: Parts.PANEL_PART, role: 'none', classes: ['panel', 'basepanel', positionToString(this.getPanelPosition())] },
 			{ id: Parts.AUXILIARYBAR_PART, role: 'none', classes: ['auxiliarybar', 'basepanel', this.getSideBarPosition() === Position.LEFT ? 'right' : 'left'] },
 			{ id: Parts.STATUSBAR_PART, role: 'status', classes: ['statusbar'] }
-		].forEach(({ id, role, classes, options }) => {
+		]) {
 			const partContainer = this.createPart(id, role, classes);
 
 			this.getPart(id).create(partContainer, options);
-		});
+		}
 
 		// Notification Handlers
 		this.createNotificationsHandlers(instantiationService, notificationService);
@@ -408,7 +405,7 @@ export class Workbench extends Layout {
 		}
 
 		// Transition into restored phase after layout has restored
-		// but do not wait indefinitly on this to account for slow
+		// but do not wait indefinitely on this to account for slow
 		// editors restoring. Since the workbench is fully functional
 		// even when the visible editors have not resolved, we still
 		// want contributions on the `Restored` phase to work before

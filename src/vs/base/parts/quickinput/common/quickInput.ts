@@ -18,6 +18,8 @@ export interface IQuickPickItemHighlights {
 	detail?: IMatch[];
 }
 
+export type QuickPickItem = IQuickPickSeparator | IQuickPickItem;
+
 export interface IQuickPickItem {
 	type?: 'item';
 	id?: string;
@@ -103,6 +105,13 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 * enables quick navigate in the picker to open an element without typing
 	 */
 	quickNavigate?: IQuickNavigateConfiguration;
+
+	/**
+	 * Hides the input box from the picker UI. This is typically used
+	 * in combination with quick-navigation where no search UI should
+	 * be presented.
+	 */
+	hideInput?: boolean;
 
 	/**
 	 * a context key to set when this picker is active
@@ -285,6 +294,13 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	matchOnLabel: boolean;
 
+	/**
+	 * The mode to filter label with. Fuzzy will use fuzzy searching and
+	 * contiguous will make filter entries that do not contain the exact string
+	 * (including whitespace). This defaults to `'fuzzy'`.
+	 */
+	matchOnLabelMode: 'fuzzy' | 'contiguous';
+
 	sortByLabel: boolean;
 
 	autoFocusOnList: boolean;
@@ -324,30 +340,73 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	hideInput: boolean;
 
 	hideCheckAll: boolean;
+
+	/**
+	 * A set of `Toggle` objects to add to the input box.
+	 */
+	toggles: IQuickInputToggle[] | undefined;
+}
+
+export interface IQuickInputToggle {
+	onChange: Event<boolean /* via keyboard */>;
 }
 
 export interface IInputBox extends IQuickInput {
 
+	/**
+	 * Value shown in the input box.
+	 */
 	value: string;
 
+	/**
+	 * Provide start and end values to be selected in the input box.
+	 */
 	valueSelection: Readonly<[number, number]> | undefined;
 
+	/**
+	 * Value shown as example for input.
+	 */
 	placeholder: string | undefined;
 
+	/**
+	 * Determines if the input value should be hidden while typing.
+	 */
 	password: boolean;
 
+	/**
+	 * Event called when the input value changes.
+	 */
 	readonly onDidChangeValue: Event<string>;
 
+	/**
+	 * Event called when the user submits the input.
+	 */
 	readonly onDidAccept: Event<void>;
 
+	/**
+	 * Buttons to show in addition to user input submission.
+	 */
 	buttons: ReadonlyArray<IQuickInputButton>;
 
+	/**
+	 * Event called when a button is selected.
+	 */
 	readonly onDidTriggerButton: Event<IQuickInputButton>;
 
+	/**
+	 * Text show below the input box.
+	 */
 	prompt: string | undefined;
 
+	/**
+	 * An optional validation message indicating a problem with the current input value.
+	 * Returning undefined clears the validation message.
+	 */
 	validationMessage: string | undefined;
 
+	/**
+	 * Severity of the input validation message.
+	 */
 	severity: Severity;
 }
 

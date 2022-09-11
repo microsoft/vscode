@@ -120,8 +120,12 @@ export class ExplorerItem {
 		this._isExcluded = value;
 	}
 
-	get hasChildren() {
-		return this.isDirectory || this.hasNests;
+	hasChildren(filter: (stat: ExplorerItem) => boolean): boolean {
+		if (this.hasNests) {
+			return this.nestedChildren?.some(c => filter(c)) ?? false;
+		} else {
+			return this.isDirectory;
+		}
 	}
 
 	get hasNests() {
@@ -174,17 +178,13 @@ export class ExplorerItem {
 
 	private updateName(value: string): void {
 		// Re-add to parent since the parent has a name map to children and the name might have changed
-		if (this._parent) {
-			this._parent.removeChild(this);
-		}
+		this._parent?.removeChild(this);
 		this._name = value;
-		if (this._parent) {
-			this._parent.addChild(this);
-		}
+		this._parent?.addChild(this);
 	}
 
 	getId(): string {
-		return this.resource.toString();
+		return this.root.resource.toString() + '::' + this.resource.toString();
 	}
 
 	toString(): string {
@@ -298,7 +298,7 @@ export class ExplorerItem {
 	}
 
 	fetchChildren(sortOrder: SortOrder): ExplorerItem[] | Promise<ExplorerItem[]> {
-		const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.experimental.fileNesting;
+		const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.fileNesting;
 
 		// fast path when the children can be resolved sync
 		if (nestingConfig.enabled && this.nestedChildren) {
@@ -369,7 +369,7 @@ export class ExplorerItem {
 	private _fileNester: ExplorerFileNestingTrie | undefined;
 	private get fileNester(): ExplorerFileNestingTrie {
 		if (!this.root._fileNester) {
-			const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.experimental.fileNesting;
+			const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.fileNesting;
 			const patterns = Object.entries(nestingConfig.patterns)
 				.filter(entry =>
 					typeof (entry[0]) === 'string' && typeof (entry[1]) === 'string' && entry[0] && entry[1])
@@ -407,12 +407,8 @@ export class ExplorerItem {
 	 * Moves this element under a new parent element.
 	 */
 	move(newParent: ExplorerItem): void {
-		if (this.nestedParent) {
-			this.nestedParent.removeChild(this);
-		}
-		if (this._parent) {
-			this._parent.removeChild(this);
-		}
+		this.nestedParent?.removeChild(this);
+		this._parent?.removeChild(this);
 		newParent.removeChild(this); // make sure to remove any previous version of the file if any
 		newParent.addChild(this);
 		this.updateResource(true);

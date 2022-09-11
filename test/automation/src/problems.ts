@@ -32,12 +32,12 @@ export class Problems {
 	}
 
 	static getSelectorInProblemsView(problemType: ProblemSeverity): string {
-		let selector = problemType === ProblemSeverity.WARNING ? 'codicon-warning' : 'codicon-error';
+		const selector = problemType === ProblemSeverity.WARNING ? 'codicon-warning' : 'codicon-error';
 		return `div[id="workbench.panel.markers"] .monaco-tl-contents .marker-icon.${selector}`;
 	}
 
 	static getSelectorInEditor(problemType: ProblemSeverity): string {
-		let selector = problemType === ProblemSeverity.WARNING ? 'squiggly-warning' : 'squiggly-error';
+		const selector = problemType === ProblemSeverity.WARNING ? 'squiggly-warning' : 'squiggly-error';
 		return `.view-overlays .cdr.${selector}`;
 	}
 }

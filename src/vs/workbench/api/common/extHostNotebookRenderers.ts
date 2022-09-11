@@ -8,7 +8,6 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ExtHostNotebookRenderersShape, IMainContext, MainContext, MainThreadNotebookRenderersShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostNotebookEditor } from 'vs/workbench/api/common/extHostNotebookEditor';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import * as vscode from 'vscode';
 
 
@@ -30,29 +29,16 @@ export class ExtHostNotebookRenderers implements ExtHostNotebookRenderersShape {
 			throw new Error(`Extensions may only call createRendererMessaging() for renderers they contribute (got ${rendererId})`);
 		}
 
-		// In the stable API, the editor is given as an empty object, and this map
-		// is used to maintain references. This can be removed after editor finalization.
-		const notebookEditorVisible = isProposedApiEnabled(manifest, 'notebookEditor');
-		const notebookEditorAliases = new WeakMap<{}, vscode.NotebookEditor>();
-
 		const messaging: vscode.NotebookRendererMessaging = {
 			onDidReceiveMessage: (listener, thisArg, disposables) => {
-				const wrappedListener = notebookEditorVisible ? listener : (evt: { editor: vscode.NotebookEditor; message: any }) => {
-					const obj = {};
-					notebookEditorAliases.set(obj, evt.editor);
-					listener({ editor: obj as vscode.NotebookEditor, message: evt.message });
-				};
-
-				return this.getOrCreateEmitterFor(rendererId).event(wrappedListener, thisArg, disposables);
+				return this.getOrCreateEmitterFor(rendererId).event(listener, thisArg, disposables);
 			},
 			postMessage: (message, editorOrAlias) => {
 				if (ExtHostNotebookEditor.apiEditorsToExtHost.has(message)) { // back compat for swapped args
 					[message, editorOrAlias] = [editorOrAlias, message];
 				}
 
-
-				const editor = notebookEditorVisible ? editorOrAlias : notebookEditorAliases.get(editorOrAlias!);
-				const extHostEditor = editor && ExtHostNotebookEditor.apiEditorsToExtHost.get(editor);
+				const extHostEditor = editorOrAlias && ExtHostNotebookEditor.apiEditorsToExtHost.get(editorOrAlias);
 				return this.proxy.$postMessage(extHostEditor?.id, rendererId, message);
 			},
 		};

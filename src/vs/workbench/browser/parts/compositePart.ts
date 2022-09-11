@@ -6,7 +6,7 @@
 import 'vs/css!./media/compositepart';
 import { localize } from 'vs/nls';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { IDisposable, dispose, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore, MutableDisposable, } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { isCancellationError } from 'vs/base/common/errors';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -16,7 +16,6 @@ import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassific
 import { Part, IPartOptions } from 'vs/workbench/browser/part';
 import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IComposite } from 'vs/workbench/common/composite';
-import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -32,6 +31,7 @@ import { Dimension, append, $, hide, show } from 'vs/base/browser/dom';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { AbstractProgressScope, ScopedProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 
 export interface ICompositeTitleLabel {
 
@@ -47,9 +47,9 @@ export interface ICompositeTitleLabel {
 }
 
 interface CompositeItem {
-	composite: Composite;
-	disposable: IDisposable;
-	progress: IProgressIndicator;
+	readonly composite: Composite;
+	readonly disposable: IDisposable;
+	readonly progress: IProgressIndicator;
 }
 
 export abstract class CompositePart<T extends Composite> extends Part {
@@ -172,7 +172,14 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Instantiate composite from registry otherwise
 		const compositeDescriptor = this.registry.getComposite(id);
 		if (compositeDescriptor) {
-			const compositeProgressIndicator = this.instantiationService.createInstance(CompositeProgressIndicator, assertIsDefined(this.progressBar), compositeDescriptor.id, !!isActive);
+			const that = this;
+			const compositeProgressIndicator = new ScopedProgressIndicator(assertIsDefined(this.progressBar), new class extends AbstractProgressScope {
+				constructor() {
+					super(compositeDescriptor!.id, !!isActive);
+					this._register(that.onDidCompositeOpen.event(e => this.onScopeOpened(e.composite.getId())));
+					this._register(that.onDidCompositeClose.event(e => this.onScopeClosed(e.getId())));
+				}
+			}());
 			const compositeInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 				[IEditorProgressService, compositeProgressIndicator] // provide the editor progress service for any editors instantiated within the composite
 			));
@@ -232,9 +239,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Take Composite on-DOM and show
 		const contentArea = this.getContentArea();
-		if (contentArea) {
-			contentArea.appendChild(compositeContainer);
-		}
+		contentArea?.appendChild(compositeContainer);
 		show(compositeContainer);
 
 		// Setup action runner
@@ -282,6 +287,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	protected onTitleAreaUpdate(compositeId: string): void {
+
 		// Title
 		const composite = this.instantiatedCompositeItems.get(compositeId);
 		if (composite) {
@@ -362,9 +368,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 
 		// Clear any running Progress
-		if (this.progressBar) {
-			this.progressBar.stop().hide();
-		}
+		this.progressBar?.stop().hide();
 
 		// Empty Actions
 		if (this.toolBar) {
@@ -477,9 +481,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.contentAreaSize = Dimension.lift(super.layoutContents(width, height).contentSize);
 
 		// Layout composite
-		if (this.activeComposite) {
-			this.activeComposite.layout(this.contentAreaSize);
-		}
+		this.activeComposite?.layout(this.contentAreaSize);
 	}
 
 	protected removeComposite(compositeId: string): boolean {
