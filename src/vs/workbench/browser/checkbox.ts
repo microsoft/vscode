@@ -38,23 +38,23 @@ export class TreeItemCheckbox extends Disposable {
 	}
 
 	public render(node: ITreeItem) {
-		if (node.checkboxChecked !== undefined) {
+		if (node.checkbox) {
 			if (!this.toggle) {
 				this.createCheckbox(node);
 			}
 			else {
-				this.toggle.checked = node.checkboxChecked;
+				this.toggle.checked = node.checkbox.isChecked;
 				this.toggle.setIcon(this.toggle.checked ? Codicon.check : undefined);
 			}
 		}
 	}
 
 	private createCheckbox(node: ITreeItem) {
-		if (node.checkboxChecked !== undefined) {
+		if (node.checkbox) {
 			this.toggle = new Toggle({
-				isChecked: node.checkboxChecked,
-				title: localize('check', "Check"),
-				icon: node.checkboxChecked ? Codicon.check : undefined
+				isChecked: node.checkbox.isChecked,
+				title: node.checkbox.tooltip ?? node.checkbox.isChecked ? localize('checked', 'Checked') : localize('unchecked', 'Unchecked'),
+				icon: node.checkbox.isChecked ? Codicon.check : undefined
 			});
 
 			this.toggle.domNode.classList.add(TreeItemCheckbox.checkboxClass);
@@ -75,10 +75,10 @@ export class TreeItemCheckbox extends Disposable {
 	}
 
 	private setCheckbox(node: ITreeItem) {
-		if (this.toggle && node.checkboxChecked !== undefined) {
-			node.checkboxChecked = this.toggle.checked;
+		if (this.toggle && node.checkbox) {
+			node.checkbox.isChecked = this.toggle.checked;
 			this.toggle.setIcon(this.toggle.checked ? Codicon.check : undefined);
-			this.toggle.checked = this.toggle.checked;
+			this.toggle.setTitle(node.checkbox.tooltip ?? node.checkbox.isChecked ? localize('checked', 'Checked') : localize('unchecked', 'Unchecked'));
 			this.checkboxStateHandler.setCheckboxState(node);
 		}
 	}

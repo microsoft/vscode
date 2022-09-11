@@ -10,7 +10,7 @@ import { MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent
 import { ResourceMap } from 'vs/base/common/map';
 import { Mimes, normalizeMimeType } from 'vs/base/common/mime';
 import { nextCharLength } from 'vs/base/common/strings';
-import { isString, isStringArray } from 'vs/base/common/types';
+import { isNumber, isObject, isString, isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -2519,7 +2519,10 @@ export class TreeItem {
 		}
 		if (treeItemThing.checkboxState !== undefined) {
 			checkProposedApiEnabled(extension, 'treeItemCheckbox');
-			if (treeItemThing.checkboxState !== TreeItemCheckboxState.Checked && treeItemThing.checkboxState !== TreeItemCheckboxState.Unchecked) {
+			const checkbox = isNumber(treeItemThing.checkboxState) ? treeItemThing.checkboxState :
+				isObject(treeItemThing.checkboxState) && isNumber(treeItemThing.checkboxState.checkbox) ? treeItemThing.checkboxState.checkbox : undefined;
+			const tooltip = !isNumber(treeItemThing.checkboxState) && isObject(treeItemThing.checkboxState) ? treeItemThing.checkboxState.tooltip : undefined;
+			if (checkbox === undefined || (checkbox !== TreeItemCheckboxState.Checked && checkbox !== TreeItemCheckboxState.Unchecked) || (tooltip !== undefined && !isString(tooltip))) {
 				console.log('INVALID tree item, invalid checkboxState', treeItemThing.checkboxState);
 				return false;
 			}
