@@ -231,6 +231,7 @@ export interface IKeyTargets {
 
 export interface IStorageServiceOptions {
 	flushInterval: number;
+	donotMarkPerf?: boolean;
 }
 
 export function loadKeyTargets(storage: IStorage): IKeyTargets {
@@ -249,7 +250,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	declare readonly _serviceBrand: undefined;
 
-	private static DEFAULT_FLUSH_INTERVAL = 60 * 1000; // every minute
+	protected static DEFAULT_FLUSH_INTERVAL = 60 * 1000; // every minute
 
 	private readonly _onDidChangeValue = this._register(new PauseableEmitter<IStorageValueChangeEvent>());
 	readonly onDidChangeValue = this._onDidChangeValue.event;
@@ -292,13 +293,17 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		if (!this.initializationPromise) {
 			this.initializationPromise = (async () => {
 
-				// Init all storage locations
-				mark('code/willInitStorage');
+				if (!this.options.donotMarkPerf) {
+					// Init all storage locations
+					mark('code/willInitStorage');
+				}
 				try {
 					// Ask subclasses to initialize storage
 					await this.doInitialize();
 				} finally {
-					mark('code/didInitStorage');
+					if (!this.options.donotMarkPerf) {
+						mark('code/didInitStorage');
+					}
 				}
 
 				// On some OS we do not get enough time to persist state on shutdown (e.g. when

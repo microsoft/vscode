@@ -4,13 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { InMemoryStorageDatabase, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
+import { InMemoryStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
 import { AbstractProfileStorageService, IProfileStorageService } from 'vs/platform/storage/common/profileStorageService';
 import { loadKeyTargets, StorageTarget, TARGET_KEY } from 'vs/platform/storage/common/storage';
 import { IUserDataProfile, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+
+export class TestStorageDatabase extends InMemoryStorageDatabase {
+
+	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
+	override readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
+
+	override async updateItems(request: IUpdateRequest): Promise<void> {
+		await super.updateItems(request);
+		if (request.insert || request.delete) {
+			this._onDidChangeItemsExternal.fire({ changed: request.insert, deleted: request.delete });
+		}
+	}
+}
 
 class InMemoryProfileStorageService extends AbstractProfileStorageService implements IProfileStorageService {
 
@@ -20,13 +33,9 @@ class InMemoryProfileStorageService extends AbstractProfileStorageService implem
 	async createStorageDatabase(profile: IUserDataProfile): Promise<InMemoryStorageDatabase> {
 		let database = this.databases.get(profile.id);
 		if (!database) {
-			this.databases.set(profile.id, database = new InMemoryStorageDatabase());
+			this.databases.set(profile.id, database = new TestStorageDatabase());
 		}
 		return database;
-	}
-
-	protected override async updateItems(storageDatabase: InMemoryStorageDatabase, updateRequest: IUpdateRequest): Promise<void> {
-		await storageDatabase.updateItems(updateRequest, true);
 	}
 
 	protected override async closeAndDispose(): Promise<void> { }

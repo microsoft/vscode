@@ -313,7 +313,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		}
 		const storageData = await this.profileStorageService.readStorageData(this.profile);
 		for (const [key, value] of storageData) {
-			if (value.target === StorageTarget.USER) {
+			if (value.value && value.target === StorageTarget.USER) {
 				storage[key] = { version: 1, value: value.value };
 			}
 		}

@@ -5,10 +5,9 @@
 
 import { Event } from 'vs/base/common/event';
 import { Disposable, isDisposable } from 'vs/base/common/lifecycle';
-import { isUndefinedOrNull } from 'vs/base/common/types';
-import { IStorageDatabase, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
+import { IStorage, IStorageDatabase, Storage } from 'vs/base/parts/storage/common/storage';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IKeyTargets, IStorageValueChangeEvent, StorageTarget, TARGET_KEY } from 'vs/platform/storage/common/storage';
+import { AbstractStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export interface IProfileStorageValueChanges {
@@ -22,7 +21,7 @@ export interface IProfileStorageChanges {
 }
 
 export interface IStorageValue {
-	readonly value: string;
+	readonly value: string | undefined;
 	readonly target: StorageTarget;
 }
 
@@ -59,15 +58,18 @@ export abstract class AbstractProfileStorageService extends Disposable implement
 	async readStorageData(profile: IUserDataProfile): Promise<Map<string, IStorageValue>> {
 		const result = new Map<string, IStorageValue>();
 		const storageDatabase = await this.createStorageDatabase(profile);
+		const storageService = new StroageService(storageDatabase);
 		try {
-			const items = await storageDatabase.getItems();
-			const keyTargets = this.loadKeyTargets(items);
-			for (const [key, value] of items) {
-				if (key !== TARGET_KEY) {
-					result.set(key, { value, target: keyTargets[key] });
+			await storageService.initialize();
+			const populate = (target: StorageTarget) => {
+				for (const key of storageService.keys(StorageScope.PROFILE, target)) {
+					result.set(key, { value: storageService.get(key, StorageScope.PROFILE), target });
 				}
-			}
+			};
+			populate(StorageTarget.USER);
+			populate(StorageTarget.MACHINE);
 		} finally {
+			storageService.dispose();
 			await this.closeAndDispose(storageDatabase);
 		}
 		return result;
@@ -75,52 +77,17 @@ export abstract class AbstractProfileStorageService extends Disposable implement
 
 	async updateStorageData(profile: IUserDataProfile, data: Map<string, string | undefined | null>, target: StorageTarget): Promise<void> {
 		const storageDatabase = await this.createStorageDatabase(profile);
+		const storageService = new StroageService(storageDatabase);
 		try {
-			const items = await storageDatabase.getItems();
-			const keyTargets = this.loadKeyTargets(items);
-			const toInsert = new Map<string, string>();
-			const toDelete = new Set<string>();
-			let updateTargets = false;
+			await storageService.initialize();
 			for (const [key, value] of data) {
-				if (isUndefinedOrNull(value)) {
-					toDelete.add(key);
-					if (typeof keyTargets[key] === 'number') {
-						delete keyTargets[key];
-						updateTargets = true;
-					}
-				} else {
-					toInsert.set(key, value);
-					if (keyTargets[key] !== target) {
-						updateTargets = true;
-						keyTargets[key] = target;
-					}
-				}
+				storageService.store(key, value, StorageScope.PROFILE, target);
 			}
-			if (updateTargets) {
-				toInsert.set(TARGET_KEY, JSON.stringify(keyTargets));
-			}
-			if (toInsert.size > 0 || toDelete.size > 0) {
-				await this.updateItems(storageDatabase, { insert: toInsert, delete: toDelete });
-			}
+			await storageService.flush();
 		} finally {
+			storageService.dispose();
 			await this.closeAndDispose(storageDatabase);
 		}
-	}
-
-	private loadKeyTargets(items: Map<string, string>): IKeyTargets {
-		const keysRaw = items.get(TARGET_KEY);
-		if (keysRaw) {
-			try {
-				return JSON.parse(keysRaw);
-			} catch (error) {
-				// Fail gracefully
-			}
-		}
-		return Object.create(null);
-	}
-
-	protected async updateItems(storageDatabase: IStorageDatabase, updateRequest: IUpdateRequest): Promise<void> {
-		await storageDatabase.updateItems(updateRequest);
 	}
 
 	protected async closeAndDispose(storageDatabase: IStorageDatabase): Promise<void> {
@@ -134,4 +101,35 @@ export abstract class AbstractProfileStorageService extends Disposable implement
 	}
 
 	protected abstract createStorageDatabase(profile: IUserDataProfile): Promise<IStorageDatabase>;
+}
+
+class StroageService extends AbstractStorageService {
+
+	private readonly profileStorage: IStorage;
+
+	constructor(profileStorageDatabase: IStorageDatabase) {
+		super({ flushInterval: AbstractStorageService.DEFAULT_FLUSH_INTERVAL, donotMarkPerf: true });
+		this.profileStorage = this._register(new Storage(profileStorageDatabase));
+	}
+
+	protected doInitialize(): Promise<void> {
+		return this.profileStorage.init();
+	}
+
+	protected getStorage(scope: StorageScope): IStorage | undefined {
+		return scope === StorageScope.PROFILE ? this.profileStorage : undefined;
+	}
+
+	protected getLogDetails(): string | undefined {
+		return undefined;
+	}
+
+	protected async switchToProfile(): Promise<void> {
+		// no-op when in-memory
+	}
+
+	protected async switchToWorkspace(): Promise<void> {
+		// no-op when in-memory
+	}
+
 }
