@@ -369,4 +369,8 @@ export class ApplicationStorageMainService extends AbstractStorageService implem
 	protected switchToWorkspace(): never {
 		throw new Error('Switching storage workspace is unsupported from main process');
 	}
+
+	getProfileStorageProfile(): never {
+		throw new Error('Profile storage is unsupported from main process');
+	}
 }

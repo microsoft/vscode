@@ -177,4 +177,8 @@ export class NativeStorageService extends AbstractStorageService {
 		// Handle data switch and eventing
 		this.switchData(oldItems, this.workspaceStorage, StorageScope.WORKSPACE, preserveData);
 	}
+
+	getProfileStorageProfile(): IUserDataProfile {
+		return this.profileStorageProfile;
+	}
 }

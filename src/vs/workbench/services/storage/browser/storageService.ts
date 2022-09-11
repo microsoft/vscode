@@ -238,6 +238,10 @@ export class BrowserStorageService extends AbstractStorageService {
 			this.workspaceStorageDatabase?.clear() ?? Promise.resolve()
 		]);
 	}
+
+	getProfileStorageProfile(): IUserDataProfile {
+		return this.profileStorageProfile;
+	}
 }
 
 interface IIndexedDBStorageDatabase extends IStorageDatabase, IDisposable {

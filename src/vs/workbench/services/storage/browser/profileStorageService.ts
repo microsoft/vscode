@@ -23,7 +23,7 @@ export class ProfileStorageService extends AbstractProfileStorageService impleme
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@ILogService private readonly logService: ILogService,
 	) {
-		super();
+		super(storageService);
 		this._register(Event.filter(storageService.onDidChangeTarget, e => e.scope === StorageScope.PROFILE)(e => this.onDidChangeStorageTargetInCurrentProfile()));
 		this._register(Event.filter(storageService.onDidChangeValue, e => e.scope === StorageScope.PROFILE)(e => this.onDidChangeStorageValueInCurrentProfile(e)));
 	}

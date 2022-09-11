@@ -6,7 +6,7 @@
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -43,9 +43,8 @@ import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyn
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IUserDataProfile, IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
-import { InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
-import { AbstractProfileStorageService, IProfileStorageService, IProfileStorageChanges } from 'vs/platform/storage/common/profileStorageService';
-import { TestStorageDatabase } from 'vs/platform/storage/test/common/profileStorageService.test';
+import { IProfileStorageService } from 'vs/platform/storage/common/profileStorageService';
+import { TestProfileStorageService } from 'vs/platform/storage/test/common/profileStorageService.test';
 
 export class UserDataSyncClient extends Disposable {
 
@@ -91,9 +90,9 @@ export class UserDataSyncClient extends Disposable {
 
 		const userDataProfilesService = this.instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
 
-		const profileStorageDatabase = new TestStorageDatabase();
-		this.instantiationService.stub(IStorageService, this._register(new InMemoryStorageService(undefined, profileStorageDatabase)));
-		this.instantiationService.stub(IProfileStorageService, this._register(new InMemoryProfileStorageService(profileStorageDatabase)));
+		const storageService = new TestStorageService(userDataProfilesService.defaultProfile);
+		this.instantiationService.stub(IStorageService, this._register(storageService));
+		this.instantiationService.stub(IProfileStorageService, this._register(new TestProfileStorageService(storageService)));
 
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, new NullPolicyService(), logService));
 		await configurationService.initialize();
@@ -304,19 +303,11 @@ export class TestUserDataSyncUtilService implements IUserDataSyncUtilService {
 
 }
 
-class InMemoryProfileStorageService extends AbstractProfileStorageService implements IProfileStorageService {
-
-	readonly onDidChange: Event<IProfileStorageChanges> = Event.None;
-
-	constructor(
-		private readonly profileStorageDatabase: InMemoryStorageDatabase
-	) {
+class TestStorageService extends InMemoryStorageService {
+	constructor(private readonly profileStorageProfile: IUserDataProfile) {
 		super();
 	}
-
-	protected async createStorageDatabase(profile: IUserDataProfile): Promise<InMemoryStorageDatabase> {
-		return this.profileStorageDatabase;
+	override getProfileStorageProfile(): IUserDataProfile | undefined {
+		return this.profileStorageProfile;
 	}
-
-	protected override async closeAndDispose(): Promise<void> { }
 }

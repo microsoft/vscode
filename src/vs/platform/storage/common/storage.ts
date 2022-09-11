@@ -141,6 +141,11 @@ export interface IStorageService {
 	log(): void;
 
 	/**
+	 * Returns the profile used for the profile storage
+	 */
+	getProfileStorageProfile(): IUserDataProfile | undefined;
+
+	/**
 	 * Switch storage to another workspace or profile. Optionally preserve the
 	 * current data to the new storage.
 	 */
@@ -612,6 +617,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	protected abstract switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void>;
 	protected abstract switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier | IUserDataProfile, preserveData: boolean): Promise<void>;
+	abstract getProfileStorageProfile(): IUserDataProfile | undefined;
 }
 
 export function isProfileUsingDefaultStorage(profile: IUserDataProfile): boolean {
@@ -620,20 +626,12 @@ export function isProfileUsingDefaultStorage(profile: IUserDataProfile): boolean
 
 export class InMemoryStorageService extends AbstractStorageService {
 
-	private readonly applicationStorage: Storage;
-	private readonly profileStorage: Storage;
-	private readonly workspaceStorage: Storage;
+	private readonly applicationStorage = this._register(new Storage(new InMemoryStorageDatabase()));
+	private readonly profileStorage = this._register(new Storage(new InMemoryStorageDatabase()));
+	private readonly workspaceStorage = this._register(new Storage(new InMemoryStorageDatabase()));
 
-	constructor(
-		applicationStorageDatabase?: InMemoryStorageDatabase,
-		profileStorageDatabase?: InMemoryStorageDatabase,
-		workspaceStorageDatabase?: InMemoryStorageDatabase,
-	) {
+	constructor() {
 		super();
-
-		this.applicationStorage = this._register(new Storage(applicationStorageDatabase ?? new InMemoryStorageDatabase()));
-		this.profileStorage = this._register(new Storage(profileStorageDatabase ?? new InMemoryStorageDatabase()));
-		this.workspaceStorage = this._register(new Storage(workspaceStorageDatabase ?? new InMemoryStorageDatabase()));
 
 		this._register(this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key)));
 		this._register(this.profileStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.PROFILE, key)));
@@ -670,6 +668,10 @@ export class InMemoryStorageService extends AbstractStorageService {
 
 	protected async switchToWorkspace(): Promise<void> {
 		// no-op when in-memory
+	}
+
+	getProfileStorageProfile(): IUserDataProfile | undefined {
+		return undefined;
 	}
 }
 

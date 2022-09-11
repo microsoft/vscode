@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, isDisposable } from 'vs/base/common/lifecycle';
 import { IStorage, IStorageDatabase, Storage } from 'vs/base/parts/storage/common/storage';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { AbstractStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { AbstractStorageService, IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export interface IProfileStorageValueChanges {
@@ -55,38 +55,62 @@ export abstract class AbstractProfileStorageService extends Disposable implement
 
 	abstract onDidChange: Event<IProfileStorageChanges>;
 
+	constructor(
+		@IStorageService protected readonly storageService: IStorageService
+	) {
+		super();
+	}
+
 	async readStorageData(profile: IUserDataProfile): Promise<Map<string, IStorageValue>> {
-		const result = new Map<string, IStorageValue>();
+		// Use current storage service if the profile is same
+		if (this.storageService.getProfileStorageProfile()?.id === profile.id) {
+			return this.getItems(this.storageService);
+		}
+
 		const storageDatabase = await this.createStorageDatabase(profile);
 		const storageService = new StroageService(storageDatabase);
 		try {
 			await storageService.initialize();
-			const populate = (target: StorageTarget) => {
-				for (const key of storageService.keys(StorageScope.PROFILE, target)) {
-					result.set(key, { value: storageService.get(key, StorageScope.PROFILE), target });
-				}
-			};
-			populate(StorageTarget.USER);
-			populate(StorageTarget.MACHINE);
+			return this.getItems(storageService);
 		} finally {
 			storageService.dispose();
 			await this.closeAndDispose(storageDatabase);
 		}
-		return result;
 	}
 
 	async updateStorageData(profile: IUserDataProfile, data: Map<string, string | undefined | null>, target: StorageTarget): Promise<void> {
+		// Use current storage service if the profile is same
+		if (this.storageService.getProfileStorageProfile()?.id === profile.id) {
+			return this.writeItems(this.storageService, data, target);
+		}
+
 		const storageDatabase = await this.createStorageDatabase(profile);
 		const storageService = new StroageService(storageDatabase);
 		try {
 			await storageService.initialize();
-			for (const [key, value] of data) {
-				storageService.store(key, value, StorageScope.PROFILE, target);
-			}
+			this.writeItems(storageService, data, target);
 			await storageService.flush();
 		} finally {
 			storageService.dispose();
 			await this.closeAndDispose(storageDatabase);
+		}
+	}
+
+	private getItems(storageService: IStorageService): Map<string, IStorageValue> {
+		const result = new Map<string, IStorageValue>();
+		const populate = (target: StorageTarget) => {
+			for (const key of storageService.keys(StorageScope.PROFILE, target)) {
+				result.set(key, { value: storageService.get(key, StorageScope.PROFILE), target });
+			}
+		};
+		populate(StorageTarget.USER);
+		populate(StorageTarget.MACHINE);
+		return result;
+	}
+
+	private writeItems(storageService: IStorageService, items: Map<string, string | undefined | null>, target: StorageTarget): void {
+		for (const [key, value] of items) {
+			storageService.store(key, value, StorageScope.PROFILE, target);
 		}
 	}
 
@@ -123,4 +147,5 @@ class StroageService extends AbstractStorageService {
 	protected getLogDetails(): string | undefined { return undefined; }
 	protected async switchToProfile(): Promise<void> { }
 	protected async switchToWorkspace(): Promise<void> { }
+	getProfileStorageProfile() { return undefined; }
 }

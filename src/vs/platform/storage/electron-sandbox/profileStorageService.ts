@@ -9,7 +9,7 @@ import { IStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractProfileStorageService, IProfileStorageChanges, IProfileStorageService } from 'vs/platform/storage/common/profileStorageService';
-import { isProfileUsingDefaultStorage } from 'vs/platform/storage/common/storage';
+import { isProfileUsingDefaultStorage, IStorageService } from 'vs/platform/storage/common/storage';
 import { ApplicationStorageDatabaseClient, ProfileStorageDatabaseClient } from 'vs/platform/storage/common/storageIpc';
 import { IUserDataProfile, IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
@@ -21,9 +21,10 @@ export class ProfileStorageService extends AbstractProfileStorageService impleme
 	constructor(
 		@IMainProcessService private readonly mainProcessService: IMainProcessService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
 	) {
-		super();
+		super(storageService);
 
 		const channel = mainProcessService.getChannel('profileStorageListener');
 		const disposable = this._register(new MutableDisposable());
