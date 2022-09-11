@@ -976,7 +976,7 @@ registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, false);
 registerSingleton(IContextKeyService, ContextKeyService, false);
 registerSingleton(IProgressService, StandaloneProgressService, false);
 registerSingleton(IEditorProgressService, StandaloneEditorProgressService, false);
-registerSingleton(IStorageService, InMemoryStorageService, false);
+registerSingleton(IStorageService, new SyncDescriptor(InMemoryStorageService));
 registerSingleton(IEditorWorkerService, EditorWorkerService, false);
 registerSingleton(IBulkEditService, StandaloneBulkEditService, false);
 registerSingleton(IWorkspaceTrustManagementService, StandaloneWorkspaceTrustManagementService, false);

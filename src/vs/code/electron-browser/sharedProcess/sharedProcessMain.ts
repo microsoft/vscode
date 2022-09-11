@@ -106,6 +106,8 @@ import { UserDataProfilesNativeService } from 'vs/platform/userDataProfile/elect
 import { SharedProcessRequestService } from 'vs/platform/request/electron-browser/sharedProcessRequestService';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 import { UserDataProfilesCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/userDataProfilesCleaner';
+import { IProfileStorageService } from 'vs/platform/storage/common/profileStorageService';
+import { ProfileStorageService } from 'vs/platform/storage/electron-sandbox/profileStorageService';
 
 class SharedProcessMain extends Disposable {
 
@@ -324,6 +326,9 @@ class SharedProcessMain extends Disposable {
 
 		// Diagnostics
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService, undefined, false /* proxied to other processes */));
+
+		// Profile Storage
+		services.set(IProfileStorageService, new SyncDescriptor(ProfileStorageService, undefined, true));
 
 		// Settings Sync
 		services.set(IUserDataSyncAccountService, new SyncDescriptor(UserDataSyncAccountService, undefined, true));

@@ -5,6 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { once } from 'vs/base/common/functional';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IStorage } from 'vs/base/parts/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -13,7 +14,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractStorageService, isProfileUsingDefaultStorage, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ApplicationStorageMain, ProfileStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain } from 'vs/platform/storage/electron-main/storageMain';
+import { ApplicationStorageMain, ProfileStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain, IStorageChangeEvent } from 'vs/platform/storage/electron-main/storageMain';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
@@ -35,6 +36,11 @@ export interface IStorageMainService {
 	 *       Rather use `IApplicationStorageMainService` for that purpose.
 	 */
 	applicationStorage: IStorageMain;
+
+	/**
+	 * Emitted whenever data is updated or deleted in the profile storage.
+	 */
+	readonly onDidChangeProfileStorageData: Event<IStorageChangeEvent & { storage: IStorageMain; profile: IUserDataProfile }>;
 
 	/**
 	 * Provides access to the profile storage shared across all windows
@@ -66,6 +72,9 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	declare readonly _serviceBrand: undefined;
 
 	private shutdownReason: ShutdownReason | undefined = undefined;
+
+	private readonly _onDidChangeProfileStorageData = this._register(new Emitter<IStorageChangeEvent & { storage: IStorageMain; profile: IUserDataProfile }>());
+	readonly onDidChangeProfileStorageData = this._onDidChangeProfileStorageData.event;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -180,6 +189,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 			profileStorage = this.createProfileStorage(profile);
 			this.mapProfileToStorage.set(profile.id, profileStorage);
+			profileStorage.onDidChangeStorage(e => this._onDidChangeProfileStorageData.fire({ ...e, storage: profileStorage!, profile }));
 
 			once(profileStorage.onDidCloseStorage)(() => {
 				this.logService.trace(`StorageMainService: closed profile storage (${profile.name})`);

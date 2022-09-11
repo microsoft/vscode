@@ -69,7 +69,7 @@ import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { SharedProcess } from 'vs/platform/sharedProcess/electron-main/sharedProcess';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { StorageDatabaseChannel } from 'vs/platform/storage/electron-main/storageIpc';
+import { ProfileStorageChangesListenerChannel, StorageDatabaseChannel } from 'vs/platform/storage/electron-main/storageIpc';
 import { ApplicationStorageMainService, IApplicationStorageMainService, IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService, machineIdKey, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
@@ -805,6 +805,10 @@ export class CodeApplication extends Disposable {
 		const storageChannel = this._register(new StorageDatabaseChannel(this.logService, accessor.get(IStorageMainService)));
 		mainProcessElectronServer.registerChannel('storage', storageChannel);
 		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
+
+		// Profile Storage Changes Listener (shared process)
+		const profileStorageListener = this._register(new ProfileStorageChangesListenerChannel(accessor.get(IStorageMainService), accessor.get(IUserDataProfilesMainService), this.logService));
+		sharedProcessClient.then(client => client.registerChannel('profileStorageListener', profileStorageListener));
 
 		// External Terminal
 		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService));

@@ -346,9 +346,10 @@ export class Storage extends Disposable implements IStorage {
 	}
 }
 
-export class InMemoryStorageDatabase implements IStorageDatabase {
+export class InMemoryStorageDatabase extends Disposable implements IStorageDatabase {
 
-	readonly onDidChangeItemsExternal = Event.None;
+	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
+	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
 
 	private readonly items = new Map<string, string>();
 
@@ -356,10 +357,14 @@ export class InMemoryStorageDatabase implements IStorageDatabase {
 		return this.items;
 	}
 
-	async updateItems(request: IUpdateRequest): Promise<void> {
+	async updateItems(request: IUpdateRequest, trigger?: boolean): Promise<void> {
 		request.insert?.forEach((value, key) => this.items.set(key, value));
 
 		request.delete?.forEach(key => this.items.delete(key));
+
+		if (trigger && (request.insert || request.delete)) {
+			this._onDidChangeItemsExternal.fire({ changed: request.insert, deleted: request.delete });
+		}
 	}
 
 	async close(): Promise<void> { }

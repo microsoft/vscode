@@ -14,7 +14,7 @@ import { isUserDataProfile, IUserDataProfile } from 'vs/platform/userDataProfile
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const IS_NEW_KEY = '__$__isNewStorageMarker';
-const TARGET_KEY = '__$__targetStorageMarker';
+export const TARGET_KEY = '__$__targetStorageMarker';
 
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
@@ -225,12 +225,24 @@ export interface IStorageTargetChangeEvent {
 	readonly scope: StorageScope;
 }
 
-interface IKeyTargets {
+export interface IKeyTargets {
 	[key: string]: StorageTarget;
 }
 
 export interface IStorageServiceOptions {
 	flushInterval: number;
+}
+
+export function loadKeyTargets(storage: IStorage): IKeyTargets {
+	const keysRaw = storage.get(TARGET_KEY);
+	if (keysRaw) {
+		try {
+			return JSON.parse(keysRaw);
+		} catch (error) {
+			// Fail gracefully
+		}
+	}
+	return Object.create(null);
 }
 
 export abstract class AbstractStorageService extends Disposable implements IStorageService {
@@ -475,16 +487,8 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	}
 
 	private loadKeyTargets(scope: StorageScope): { [key: string]: StorageTarget } {
-		const keysRaw = this.get(TARGET_KEY, scope);
-		if (keysRaw) {
-			try {
-				return JSON.parse(keysRaw);
-			} catch (error) {
-				// Fail gracefully
-			}
-		}
-
-		return Object.create(null);
+		const storage = this.getStorage(scope);
+		return storage ? loadKeyTargets(storage) : Object.create(null);
 	}
 
 	isNew(scope: StorageScope): boolean {
@@ -611,12 +615,20 @@ export function isProfileUsingDefaultStorage(profile: IUserDataProfile): boolean
 
 export class InMemoryStorageService extends AbstractStorageService {
 
-	private readonly applicationStorage = this._register(new Storage(new InMemoryStorageDatabase()));
-	private readonly profileStorage = this._register(new Storage(new InMemoryStorageDatabase()));
-	private readonly workspaceStorage = this._register(new Storage(new InMemoryStorageDatabase()));
+	private readonly applicationStorage: Storage;
+	private readonly profileStorage: Storage;
+	private readonly workspaceStorage: Storage;
 
-	constructor() {
+	constructor(
+		applicationStorageDatabase?: InMemoryStorageDatabase,
+		profileStorageDatabase?: InMemoryStorageDatabase,
+		workspaceStorageDatabase?: InMemoryStorageDatabase,
+	) {
 		super();
+
+		this.applicationStorage = this._register(new Storage(applicationStorageDatabase ?? new InMemoryStorageDatabase()));
+		this.profileStorage = this._register(new Storage(profileStorageDatabase ?? new InMemoryStorageDatabase()));
+		this.workspaceStorage = this._register(new Storage(workspaceStorageDatabase ?? new InMemoryStorageDatabase()));
 
 		this._register(this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key)));
 		this._register(this.profileStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.PROFILE, key)));
