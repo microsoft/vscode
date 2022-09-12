@@ -503,7 +503,10 @@ registerAction2(class CancelAllNotebook extends CancelNotebook {
 	constructor() {
 		super({
 			id: CANCEL_NOTEBOOK_COMMAND_ID,
-			title: localize('notebookActions.cancelNotebook', "Stop Execution"),
+			title: {
+				value: localize('notebookActions.cancelNotebook', "Stop Execution"),
+				original: 'Stop Execution'
+			},
 			icon: icons.stopIcon,
 			menu: [
 				{
@@ -536,7 +539,10 @@ registerAction2(class InterruptNotebook extends CancelNotebook {
 	constructor() {
 		super({
 			id: INTERRUPT_NOTEBOOK_COMMAND_ID,
-			title: localize('notebookActions.interruptNotebook', "Interrupt"),
+			title: {
+				value: localize('notebookActions.interruptNotebook', "Interrupt"),
+				original: 'Interrupt'
+			},
 			icon: icons.stopIcon,
 			menu: [
 				{
