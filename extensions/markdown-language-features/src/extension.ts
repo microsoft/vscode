@@ -14,7 +14,6 @@ import { githubSlugifier } from './slugify';
 import { IMdWorkspace, VsCodeMdWorkspace } from './workspace';
 
 export async function activate(context: vscode.ExtensionContext) {
-	vscode.window.showInformationMessage(await (await vscode.authentication.getSession('github-enterprise', ['repo'], { createIfNone: true })).accessToken);
 	const contributions = getMarkdownExtensionContributions(context);
 	context.subscriptions.push(contributions);
 
