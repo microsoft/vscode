@@ -80,6 +80,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -261,7 +262,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@ILogService private readonly _logService: ILogService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -2639,7 +2641,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return entries;
 	}
 	private async _showTwoLevelQuickPick(placeHolder: string, defaultEntry?: ITaskQuickPickEntry, type?: string, name?: string) {
-		return TaskQuickPick.show(this, this._configurationService, this._quickInputService, this._notificationService, this._dialogService, this._themeService, placeHolder, defaultEntry, type, name);
+		return this._instantiationService.createInstance(TaskQuickPick).show(placeHolder, defaultEntry, type, name);
 	}
 
 	private async _showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: ITaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: ITaskQuickPickEntry, additionalEntries?: ITaskQuickPickEntry[], type?: string, name?: string): Promise<ITaskQuickPickEntry | undefined | null> {
@@ -2783,10 +2785,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _runTaskCommand(arg?: any): void {
 		const identifier = this._getTaskIdentifier(arg);
 		const type = arg && typeof arg !== 'string' && 'type' in arg ? arg.type : undefined;
-		const task = arg && typeof arg !== 'string' && 'task' in arg ? arg.task : arg === 'string' ? arg : undefined;
+		let task = arg && typeof arg !== 'string' && 'task' in arg ? arg.task : arg === 'string' ? arg : undefined;
 		if (identifier) {
 			this._getGroupedTasks({ task, type }).then(async (grouped) => {
 				const resolver = this._createResolver(grouped);
+				const tasks = grouped.all();
 				const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
 				if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 					folderURIs.push(this._contextService.getWorkspace().configuration!);
@@ -2802,14 +2805,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 				// match by label
 				if (!!task) {
-					const taskToRun = grouped.all().find(g => g._label === task);
+					const taskToRun = tasks.find(g => g._label === task);
 					if (taskToRun) {
 						this.run(taskToRun).then(undefined, () => { });
 						return;
 					}
 				}
+				if (task && !tasks.some(g => g._label.includes(task))) {
+					task = undefined;
+				}
 				// if task is defined, will be used as a filter
-				this._doRunTaskCommand(grouped.all(), type, task);
+				this._doRunTaskCommand(tasks, type, task);
 			});
 		}
 		this._doRunTaskCommand();
@@ -3264,7 +3270,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (this._isTaskEntry(selection)) {
 			this._configureTask(selection.task);
 		} else if (this._isSettingEntry(selection)) {
-			const taskQuickPick = new TaskQuickPick(this, this._configurationService, this._quickInputService, this._notificationService, this._themeService, this._dialogService);
+			const taskQuickPick = this._instantiationService.createInstance(TaskQuickPick);
 			taskQuickPick.handleSettingOption(selection.settingType);
 		} else if (selection.folder && (this._contextService.getWorkbenchState() !== WorkbenchState.EMPTY)) {
 			this._openTaskFile(selection.folder.toResource('.vscode/tasks.json'), TaskSourceKind.Workspace);

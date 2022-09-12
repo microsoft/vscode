@@ -89,7 +89,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			throw new Error('Please sign in to store your edit session.');
 		}
 
-		return this.storeClient!.writeResource('editSessions', JSON.stringify(editSession), null, createSyncHeaders(generateUuid()));
+		return this.storeClient!.writeResource('editSessions', JSON.stringify(editSession), null, undefined, createSyncHeaders(generateUuid()));
 	}
 
 	/**
@@ -108,9 +108,9 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		const headers = createSyncHeaders(generateUuid());
 		try {
 			if (ref !== undefined) {
-				content = await this.storeClient?.resolveResourceContent('editSessions', ref, headers);
+				content = await this.storeClient?.resolveResourceContent('editSessions', ref, undefined, headers);
 			} else {
-				const result = await this.storeClient?.readResource('editSessions', null, headers);
+				const result = await this.storeClient?.readResource('editSessions', null, undefined, headers);
 				content = result?.content;
 				ref = result?.ref;
 			}
