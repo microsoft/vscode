@@ -5,7 +5,7 @@
 
 import type * as nbformat from '@jupyterlab/nbformat';
 import { NotebookCell, NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
-import { CellMetadata, CellOutputMetadata } from './common';
+import { CellOutputMetadata } from './common';
 import { textMimeTypes } from './deserializers';
 
 const textDecoder = new TextDecoder();
@@ -55,8 +55,12 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 }
 
 export function getCellMetadata(cell: NotebookCell | NotebookCellData) {
-	return cell.metadata?.custom as CellMetadata | undefined;
+	return {
+		...(cell.metadata?.custom ?? {}),
+		attachments: cell.metadata?.attachments
+	};
 }
+
 function createCodeCellFromNotebookCell(cell: NotebookCellData, preferredLanguage: string | undefined): nbformat.ICodeCell {
 	const cellMetadata = getCellMetadata(cell);
 	let metadata = cellMetadata?.metadata || {}; // This cannot be empty.
