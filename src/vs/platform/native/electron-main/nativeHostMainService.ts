@@ -146,7 +146,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private async doOpenWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options: IOpenWindowOptions = Object.create(null)): Promise<void> {
 		if (toOpen.length > 0) {
-			this.windowsMainService.open({
+			await this.windowsMainService.open({
 				context: OpenContext.API,
 				contextWindowId: windowId,
 				urisToOpen: toOpen,
@@ -166,7 +166,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	private async doOpenEmptyWindow(windowId: number | undefined, options?: IOpenEmptyWindowOptions): Promise<void> {
-		this.windowsMainService.openEmptyWindow({
+		await this.windowsMainService.openEmptyWindow({
 			context: OpenContext.API,
 			contextWindowId: windowId
 		}, options);
@@ -384,33 +384,33 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async pickFileFolderAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickFileFolder(options);
 		if (paths) {
-			this.doOpenPicked(await Promise.all(paths.map(async path => (await SymlinkSupport.existsDirectory(path)) ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) })), options, windowId);
+			await this.doOpenPicked(await Promise.all(paths.map(async path => (await SymlinkSupport.existsDirectory(path)) ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) })), options, windowId);
 		}
 	}
 
 	async pickFolderAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickFolder(options);
 		if (paths) {
-			this.doOpenPicked(paths.map(path => ({ folderUri: URI.file(path) })), options, windowId);
+			await this.doOpenPicked(paths.map(path => ({ folderUri: URI.file(path) })), options, windowId);
 		}
 	}
 
 	async pickFileAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickFile(options);
 		if (paths) {
-			this.doOpenPicked(paths.map(path => ({ fileUri: URI.file(path) })), options, windowId);
+			await this.doOpenPicked(paths.map(path => ({ fileUri: URI.file(path) })), options, windowId);
 		}
 	}
 
 	async pickWorkspaceAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickWorkspace(options);
 		if (paths) {
-			this.doOpenPicked(paths.map(path => ({ workspaceUri: URI.file(path) })), options, windowId);
+			await this.doOpenPicked(paths.map(path => ({ workspaceUri: URI.file(path) })), options, windowId);
 		}
 	}
 
-	private doOpenPicked(openable: IWindowOpenable[], options: INativeOpenDialogOptions, windowId: number | undefined): void {
-		this.windowsMainService.open({
+	private async doOpenPicked(openable: IWindowOpenable[], options: INativeOpenDialogOptions, windowId: number | undefined): Promise<void> {
+		await this.windowsMainService.open({
 			context: OpenContext.DIALOG,
 			contextWindowId: windowId,
 			cli: this.environmentMainService.args,
@@ -623,7 +623,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region macOS Touchbar
 
 	async newWindowTab(): Promise<void> {
-		this.windowsMainService.open({
+		await this.windowsMainService.open({
 			context: OpenContext.API,
 			cli: this.environmentMainService.args,
 			forceNewTabbedWindow: true,

@@ -63,9 +63,16 @@
 	color: var(--vscode-list-activeSelectionForeground) !important;
 }
 
+.codeActionWidget .monaco-list .monaco-list-row.code-action:hover:not(.option-disabled) {
+	background-color: var(--vscode-list-hoverBackground) !important;
+	outline: 1px dashed var(--vscode-menu-selectionBorder, transparent);
+	outline-offset: -1px;
+}
+
 .codeActionWidget .monaco-list .monaco-list-row.code-action.focused:not(.option-disabled)  {
-	outline: 0 solid !important;
 	background-color: var(--vscode-menu-selectionBackground) !important;
+	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
+	outline-offset: -1px;
 }
 
 .codeActionWidget .monaco-list-row.group-header {
@@ -97,6 +104,10 @@
 
 .codeActionWidget .monaco-list-row.code-action.option-disabled {
 	color: var(--vscode-disabledForeground);
+}
+
+.codeActionWidget .monaco-list-row.code-action:not(.option-disabled) .codicon {
+	color: inherit;
 }
 
 .codeActionWidget .monaco-list-row.code-action .title {
