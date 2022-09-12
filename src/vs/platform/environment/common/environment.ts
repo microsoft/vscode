@@ -86,7 +86,6 @@ export interface IEnvironmentService {
 	// --- telemetry
 	disableTelemetry: boolean;
 	telemetryLogResource: URI;
-	extensionTelemetryLogResource: URI;
 	serviceMachineIdResource: URI;
 
 	// --- Policy

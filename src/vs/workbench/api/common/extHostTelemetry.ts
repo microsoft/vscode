@@ -6,17 +6,16 @@
 import type * as vscode from 'vscode';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTelemetryShape, MainThreadTelemetryShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostTelemetryShape } from 'vs/workbench/api/common/extHost.protocol';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ILoggerService } from 'vs/platform/log/common/log';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
 import { mixin } from 'vs/base/common/objects';
+import { URI } from 'vs/base/common/uri';
 
 export class ExtHostTelemetry implements ExtHostTelemetryShape {
 	private readonly _onDidChangeTelemetryEnabled = new Emitter<boolean>();
@@ -29,16 +28,15 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 	private _level: TelemetryLevel = TelemetryLevel.NONE;
 	private _oldTelemetryEnablement: boolean | undefined;
 	private readonly _telemetryLoggers = new Map<string, ExtHostTelemetryLogger>();
-	private readonly _mainThreadTelemetryProxy: MainThreadTelemetryShape;
 
 	constructor(
-		@IExtHostRpcService rpc: IExtHostRpcService,
-		@IExtHostFileSystemInfo extHostFileSystemInfo: IExtHostFileSystemInfo,
 		@IExtHostInitDataService private readonly initData: IExtHostInitDataService,
 		@ILoggerService loggerService: ILoggerService,
 	) {
-		//const log = loggerService.createLogger(file, { always: true, donotRotate: true, donotUseFormatters: true });
-		this._mainThreadTelemetryProxy = rpc.getProxy(MainContext.MainThreadTelemetry);
+		console.log(this.initData.environment.extensionTelemetryLogResource);
+		const log = loggerService.createLogger(URI.revive(this.initData.environment.extensionTelemetryLogResource));
+		log.info('Below are logs for extension telemetry events sent to the telemetry output channel API once the log level is set to trace.');
+		log.info('===========================================================');
 	}
 
 	getTelemetryConfiguration(): boolean {
