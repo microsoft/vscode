@@ -130,7 +130,6 @@ steps:
       - script: |
           set -e
           yarn gulp \
-            compile-extension:markdown-language-features \
             compile-extension-media
         displayName: Build extensions for smoke tests
 
