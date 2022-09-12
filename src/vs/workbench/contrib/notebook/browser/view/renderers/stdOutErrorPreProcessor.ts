@@ -35,6 +35,7 @@ export function compressOutputItemStreams(mimeType: string, outputs: IOutputItem
 	return VSBuffer.concat(buffers.map(buffer => VSBuffer.wrap(buffer))).buffer;
 }
 const MOVE_CURSOR_1_LINE_COMMAND = `${String.fromCharCode(27)}[A`;
+const MOVE_CURSOR_1_LINE_COMMAND_BYTES = MOVE_CURSOR_1_LINE_COMMAND.split('').map(c => c.charCodeAt(0));
 const LINE_FEED = 10;
 function compressStreamBuffer(streams: Uint8Array[]) {
 	streams.forEach((stream, index) => {
@@ -45,7 +46,8 @@ function compressStreamBuffer(streams: Uint8Array[]) {
 		const previousStream = streams[index - 1];
 
 		// Remove the previous line if required.
-		if (stream.subarray(0, MOVE_CURSOR_1_LINE_COMMAND.length).toString() === MOVE_CURSOR_1_LINE_COMMAND) {
+		const command = stream.subarray(0, MOVE_CURSOR_1_LINE_COMMAND.length);
+		if (command[0] === MOVE_CURSOR_1_LINE_COMMAND_BYTES[0] && command[1] === MOVE_CURSOR_1_LINE_COMMAND_BYTES[0] && command[2] === MOVE_CURSOR_1_LINE_COMMAND_BYTES[0]) {
 			const lastIndexOfLineFeed = previousStream.lastIndexOf(LINE_FEED);
 			if (lastIndexOfLineFeed === -1) {
 				return;
