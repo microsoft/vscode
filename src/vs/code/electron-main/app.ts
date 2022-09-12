@@ -109,7 +109,6 @@ import { IExtensionsScannerService } from 'vs/platform/extensionManagement/commo
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
 import { UserDataTransientProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataTransientProfilesHandler';
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -326,12 +325,12 @@ export class CodeApplication extends Disposable {
 		});
 
 		// macOS dock activate
-		app.on('activate', (event, hasVisibleWindows) => {
+		app.on('activate', async (event, hasVisibleWindows) => {
 			this.logService.trace('app#activate');
 
 			// Mac only event: open new window when we get activated
 			if (!hasVisibleWindows) {
-				this.windowsMainService?.openEmptyWindow({ context: OpenContext.DOCK });
+				await this.windowsMainService?.openEmptyWindow({ context: OpenContext.DOCK });
 			}
 		});
 
@@ -372,8 +371,8 @@ export class CodeApplication extends Disposable {
 			}
 
 			// Handle paths delayed in case more are coming!
-			runningTimeout = setTimeout(() => {
-				this.windowsMainService?.open({
+			runningTimeout = setTimeout(async () => {
+				await this.windowsMainService?.open({
 					context: OpenContext.DOCK /* can also be opening from finder while app is running */,
 					cli: this.environmentMainService.args,
 					urisToOpen: macOpenFileURIs,
@@ -386,8 +385,8 @@ export class CodeApplication extends Disposable {
 			}, 100);
 		});
 
-		app.on('new-window-for-tab', () => {
-			this.windowsMainService?.openEmptyWindow({ context: OpenContext.DESKTOP }); //macOS native tab "+" button
+		app.on('new-window-for-tab', async () => {
+			await this.windowsMainService?.openEmptyWindow({ context: OpenContext.DESKTOP }); //macOS native tab "+" button
 		});
 
 		//#region Bootstrap IPC Handlers
@@ -537,15 +536,11 @@ export class CodeApplication extends Disposable {
 		// Setup Handlers
 		this.setUpHandlers(appInstantiationService);
 
-		// Ensure profile exists when passed in from CLI
-		const profilePromise = this.userDataProfilesMainService.checkAndCreateProfileFromCli(this.environmentMainService.args);
-		const profile = profilePromise ? await profilePromise : undefined;
-
 		// Init Channels
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
 
 		// Open Windows
-		appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, profile, mainProcessElectronServer));
+		await appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, mainProcessElectronServer));
 
 		// Post Open Windows Tasks
 		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor, sharedProcess));
@@ -834,7 +829,7 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel(ipcExtensionHostStarterChannelName, extensionHostStarterChannel);
 	}
 
-	private openFirstWindow(accessor: ServicesAccessor, profile: IUserDataProfile | undefined, mainProcessElectronServer: ElectronIPCServer): ICodeWindow[] {
+	private async openFirstWindow(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): Promise<ICodeWindow[]> {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		const urlService = accessor.get(IURLService);
 		const nativeHostMainService = accessor.get(INativeHostMainService);
@@ -922,7 +917,7 @@ export class CodeApplication extends Disposable {
 				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
 				logService.trace('app#handleURL: windowOpenableFromProtocolLink = ', windowOpenableFromProtocolLink);
 				if (windowOpenableFromProtocolLink) {
-					const [window] = windowsMainService.open({
+					const [window] = await windowsMainService.open({
 						context: OpenContext.API,
 						cli: { ...environmentService.args },
 						urisToOpen: [windowOpenableFromProtocolLink],
@@ -937,7 +932,7 @@ export class CodeApplication extends Disposable {
 				}
 
 				if (shouldOpenInNewWindow) {
-					const [window] = windowsMainService.open({
+					const [window] = await windowsMainService.open({
 						context: OpenContext.API,
 						cli: { ...environmentService.args },
 						forceNewWindow: true,
@@ -993,6 +988,9 @@ export class CodeApplication extends Disposable {
 				// remoteAuthority: will be determined based on pendingWindowOpenablesFromProtocolLinks
 			});
 		}
+
+		// Ensure profile exists when passed in from CLI
+		const profile = await this.userDataProfilesMainService.checkAndCreateProfileFromCli(this.environmentMainService.args);
 
 		// Start without file/folder arguments
 		if (!hasCliArgs && !hasFolderURIs && !hasFileURIs) {
