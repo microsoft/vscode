@@ -134,10 +134,10 @@ export class TerminalService implements ITerminalService {
 	get onDidChangeInstances(): Event<void> { return this._onDidChangeInstances.event; }
 	private readonly _onDidChangeInstanceTitle = new Emitter<ITerminalInstance | undefined>();
 	get onDidChangeInstanceTitle(): Event<ITerminalInstance | undefined> { return this._onDidChangeInstanceTitle.event; }
-	private readonly _onDidChangeInstanceIcon = new Emitter<ITerminalInstance | undefined>();
-	get onDidChangeInstanceIcon(): Event<ITerminalInstance | undefined> { return this._onDidChangeInstanceIcon.event; }
-	private readonly _onDidChangeInstanceColor = new Emitter<ITerminalInstance | undefined>();
-	get onDidChangeInstanceColor(): Event<ITerminalInstance | undefined> { return this._onDidChangeInstanceColor.event; }
+	private readonly _onDidChangeInstanceIcon = new Emitter<{ instance: ITerminalInstance; userInitiated: boolean }>();
+	get onDidChangeInstanceIcon(): Event<{ instance: ITerminalInstance; userInitiated: boolean }> { return this._onDidChangeInstanceIcon.event; }
+	private readonly _onDidChangeInstanceColor = new Emitter<{ instance: ITerminalInstance; userInitiated: boolean }>();
+	get onDidChangeInstanceColor(): Event<{ instance: ITerminalInstance; userInitiated: boolean }> { return this._onDidChangeInstanceColor.event; }
 	private readonly _onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>();
 	get onDidChangeActiveInstance(): Event<ITerminalInstance | undefined> { return this._onDidChangeActiveInstance.event; }
 	private readonly _onDidChangeInstancePrimaryStatus = new Emitter<ITerminalInstance>();
@@ -501,7 +501,7 @@ export class TerminalService implements ITerminalService {
 		// terminal ID will be stale and the process will be leaked.
 		this.onDidReceiveProcessId(() => this._saveState());
 		this.onDidChangeInstanceTitle(instance => this._updateTitle(instance));
-		this.onDidChangeInstanceIcon(instance => this._updateIcon(instance));
+		this.onDidChangeInstanceIcon(e => this._updateIcon(e.instance, e.userInitiated));
 	}
 
 	private _handleInstanceContextKeys(): void {
@@ -676,7 +676,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	@debounce(500)
-	private _updateTitle(instance?: ITerminalInstance): void {
+	private _updateTitle(instance: ITerminalInstance | undefined): void {
 		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.title || instance.isDisposed) {
 			return;
 		}
@@ -688,11 +688,11 @@ export class TerminalService implements ITerminalService {
 	}
 
 	@debounce(500)
-	private _updateIcon(instance?: ITerminalInstance): void {
+	private _updateIcon(instance: ITerminalInstance, userInitiated: boolean): void {
 		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.icon || instance.isDisposed) {
 			return;
 		}
-		this._primaryBackend?.updateIcon(instance.persistentProcessId, instance.icon, instance.color);
+		this._primaryBackend?.updateIcon(instance.persistentProcessId, userInitiated, instance.icon, instance.color);
 	}
 
 	refreshActiveGroup(): void {
