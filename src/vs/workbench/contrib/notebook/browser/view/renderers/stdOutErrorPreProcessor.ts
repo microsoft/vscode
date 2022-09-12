@@ -7,10 +7,6 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import type { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
-export function isStreamMime(mimeType: string) {
-	return ['application/vnd.code.notebook.stdout', 'application/x.notebook.stdout', 'application/x.notebook.stream', 'application/vnd.code.notebook.stderr', 'application/x.notebook.stderr'].includes(mimeType);
-}
-
 /**
  * Given a stream of individual stdout outputs, this function will return the compressed lines, escaping some of the common terminal escape codes.
  * E.g. some terminal escape codes would result in the previous line getting cleared, such if we had 3 lines and

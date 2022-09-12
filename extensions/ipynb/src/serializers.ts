@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as nbformat from '@jupyterlab/nbformat';
+import { TextDecoder } from 'util';
 import { NotebookCell, NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
 import { CellMetadata, CellOutputMetadata } from './common';
 import { textMimeTypes } from './deserializers';
@@ -271,7 +272,7 @@ type JupyterOutput =
 
 function convertStreamOutput(output: NotebookCellOutput): JupyterOutput {
 	const outputs: string[] = [];
-	const compressedStream = output.items.length ? compressOutputItemStreams(output.items[0].mime, output.items).toString() : '';
+	const compressedStream = output.items.length ? new TextDecoder().decode(compressOutputItemStreams(output.items[0].mime, output.items)) : '';
 	// Ensure each line is a separate entry in an array (ending with \n).
 	const lines = compressedStream.split('\n');
 	// If the last item in `outputs` is not empty and the first item in `lines` is not empty, then concate them.
