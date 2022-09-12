@@ -1947,7 +1947,7 @@ export interface ExtHostWindowShape {
 }
 
 export interface ExtHostLogLevelServiceShape {
-	$setLevel(level: LogLevel): void;
+	$setLevel(level: LogLevel, file?: URI): void;
 }
 
 export interface MainThreadLoggerShape {

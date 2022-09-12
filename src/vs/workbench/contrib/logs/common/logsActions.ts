@@ -13,6 +13,34 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { dirname, basename, isEqual } from 'vs/base/common/resources';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
+function getDescription(level: LogLevel, current: LogLevel): string | undefined {
+	if (DEFAULT_LOG_LEVEL === level && current === level) {
+		return nls.localize('default and current', "Default & Current");
+	}
+	if (DEFAULT_LOG_LEVEL === level) {
+		return nls.localize('default', "Default");
+	}
+	if (current === level) {
+		return nls.localize('current', "Current");
+	}
+	return undefined;
+}
+
+export async function selectLogLevel(currentLogLevel: LogLevel, quickInputService: IQuickInputService): Promise<LogLevel | undefined> {
+	const entries = [
+		{ label: nls.localize('trace', "Trace"), level: LogLevel.Trace, description: getDescription(LogLevel.Trace, currentLogLevel) },
+		{ label: nls.localize('debug', "Debug"), level: LogLevel.Debug, description: getDescription(LogLevel.Debug, currentLogLevel) },
+		{ label: nls.localize('info', "Info"), level: LogLevel.Info, description: getDescription(LogLevel.Info, currentLogLevel) },
+		{ label: nls.localize('warn', "Warning"), level: LogLevel.Warning, description: getDescription(LogLevel.Warning, currentLogLevel) },
+		{ label: nls.localize('err', "Error"), level: LogLevel.Error, description: getDescription(LogLevel.Error, currentLogLevel) },
+		{ label: nls.localize('critical', "Critical"), level: LogLevel.Critical, description: getDescription(LogLevel.Critical, currentLogLevel) },
+		{ label: nls.localize('off', "Off"), level: LogLevel.Off, description: getDescription(LogLevel.Off, currentLogLevel) },
+	];
+
+	const entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectLogLevel', "Select log level"), activeItem: entries[currentLogLevel] });
+	return entry?.level;
+}
+
 export class SetLogLevelAction extends Action {
 
 	static readonly ID = 'workbench.action.setLogLevel';
@@ -25,36 +53,11 @@ export class SetLogLevelAction extends Action {
 		super(id, label);
 	}
 
-	override run(): Promise<void> {
-		const current = this.logService.getLevel();
-		const entries = [
-			{ label: nls.localize('trace', "Trace"), level: LogLevel.Trace, description: this.getDescription(LogLevel.Trace, current) },
-			{ label: nls.localize('debug', "Debug"), level: LogLevel.Debug, description: this.getDescription(LogLevel.Debug, current) },
-			{ label: nls.localize('info', "Info"), level: LogLevel.Info, description: this.getDescription(LogLevel.Info, current) },
-			{ label: nls.localize('warn', "Warning"), level: LogLevel.Warning, description: this.getDescription(LogLevel.Warning, current) },
-			{ label: nls.localize('err', "Error"), level: LogLevel.Error, description: this.getDescription(LogLevel.Error, current) },
-			{ label: nls.localize('critical', "Critical"), level: LogLevel.Critical, description: this.getDescription(LogLevel.Critical, current) },
-			{ label: nls.localize('off', "Off"), level: LogLevel.Off, description: this.getDescription(LogLevel.Off, current) },
-		];
-
-		return this.quickInputService.pick(entries, { placeHolder: nls.localize('selectLogLevel', "Select log level"), activeItem: entries[this.logService.getLevel()] }).then(entry => {
-			if (entry) {
-				this.logService.setLevel(entry.level);
-			}
-		});
-	}
-
-	private getDescription(level: LogLevel, current: LogLevel): string | undefined {
-		if (DEFAULT_LOG_LEVEL === level && current === level) {
-			return nls.localize('default and current', "Default & Current");
+	override async run(): Promise<void> {
+		const selectedLogLevel = await selectLogLevel(this.logService.getLevel(), this.quickInputService);
+		if (selectedLogLevel !== undefined) {
+			this.logService.setLevel(selectedLogLevel);
 		}
-		if (DEFAULT_LOG_LEVEL === level) {
-			return nls.localize('default', "Default");
-		}
-		if (current === level) {
-			return nls.localize('current', "Current");
-		}
-		return undefined;
 	}
 }
 

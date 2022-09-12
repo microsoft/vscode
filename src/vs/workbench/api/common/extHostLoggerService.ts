@@ -7,7 +7,7 @@ import { ILogger, ILoggerOptions, AbstractMessageLogger, LogLevel, AbstractLogge
 import { MainThreadLoggerShape, MainContext, ExtHostLogLevelServiceShape as ExtHostLogLevelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 
 export class ExtHostLoggerService extends AbstractLoggerService implements ExtHostLogLevelServiceShape {
@@ -26,8 +26,15 @@ export class ExtHostLoggerService extends AbstractLoggerService implements ExtHo
 		this._onDidChangeLogLevel = this._register(emitter);
 	}
 
-	$setLevel(level: LogLevel): void {
-		this._onDidChangeLogLevel.fire(level);
+	$setLevel(level: LogLevel, file?: UriComponents): void {
+		if (file) {
+			const logger = this.getLogger(URI.revive(file));
+			if (logger) {
+				logger.setLevel(level);
+			}
+		} else {
+			this._onDidChangeLogLevel.fire(level);
+		}
 	}
 
 	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
