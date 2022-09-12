@@ -320,7 +320,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Change edge snapping accordingly
 		this.workbenchGrid.edgeSnapping = this.windowState.runtime.fullscreen;
 
-		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
+		// Changing fullscreen state of the window has an impact
+		// on custom title bar visibility, so we need to update
 		if (getTitleBarStyle(this.configurationService) === 'custom') {
 
 			// Propagate to grid
@@ -386,7 +387,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private updateWindowBorder(skipLayout: boolean = false) {
-		if (isWeb || getTitleBarStyle(this.configurationService) !== 'custom') {
+		if (
+			isWeb ||
+			isWindows || // not working well with zooming and window control overlays
+			getTitleBarStyle(this.configurationService) !== 'custom'
+		) {
 			return;
 		}
 

@@ -12,7 +12,7 @@ import { streamToBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
+import { COI, Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
@@ -115,6 +115,8 @@ interface WebviewActionContext {
 	webview?: string;
 	[key: string]: unknown;
 }
+
+const webviewIdContext = 'webviewId';
 
 export class WebviewElement extends Disposable implements IWebview, WebviewFindDelegate {
 
@@ -342,7 +344,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				getActions: () => {
 					const contextKeyService = this._contextKeyService!.createOverlay([
 						...Object.entries(data.context),
-						['webview', this.providedViewType],
+						[webviewIdContext, this.providedViewType],
 					]);
 
 					const result: IAction[] = [];
@@ -530,9 +532,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			params.purpose = options.purpose;
 		}
 
-		if (globalThis.crossOriginIsolated) {
-			params['vscode-coi'] = '3'; /*COOP+COEP*/
-		}
+
+		COI.addSearchParam(params, true, true);
 
 		const queryString = new URLSearchParams(params).toString();
 

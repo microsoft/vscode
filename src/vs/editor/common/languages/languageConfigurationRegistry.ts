@@ -474,4 +474,4 @@ export class ResolvedLanguageConfiguration {
 	}
 }
 
-registerSingleton(ILanguageConfigurationService, LanguageConfigurationService);
+registerSingleton(ILanguageConfigurationService, LanguageConfigurationService, false);

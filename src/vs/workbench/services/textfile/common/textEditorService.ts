@@ -22,13 +22,25 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export const ITextEditorService = createDecorator<ITextEditorService>('textEditorService');
 
 export interface ITextEditorService {
 
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * @deprecated this method should not be used, rather consider using
+	 * `IEditorResolverService` instead with `DEFAULT_EDITOR_ASSOCIATION.id`.
+	 */
+	createTextEditor(input: IUntypedEditorInput): EditorInput;
+
+	/**
+	 * @deprecated this method should not be used, rather consider using
+	 * `IEditorResolverService` instead with `DEFAULT_EDITOR_ASSOCIATION.id`.
+	 */
+	createTextEditor(input: IUntypedFileEditorInput): IFileEditorInput;
 
 	/**
 	 * A way to create text editor inputs from an untyped editor input. Depending
@@ -39,8 +51,8 @@ export interface ITextEditorService {
 	 *
 	 * @param input the untyped editor input to create a typed input from
 	 */
-	createTextEditor(input: IUntypedEditorInput): EditorInput;
-	createTextEditor(input: IUntypedFileEditorInput): IFileEditorInput;
+	resolveTextEditor(input: IUntypedEditorInput): Promise<EditorInput>;
+	resolveTextEditor(input: IUntypedFileEditorInput): Promise<IFileEditorInput>;
 }
 
 export class TextEditorService extends Disposable implements ITextEditorService {
@@ -81,6 +93,12 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 				createDiffEditorInput: diffEditor => ({ editor: this.createTextEditor(diffEditor) })
 			}
 		));
+	}
+
+	resolveTextEditor(input: IUntypedEditorInput): Promise<EditorInput>;
+	resolveTextEditor(input: IUntypedFileEditorInput): Promise<IFileEditorInput>;
+	async resolveTextEditor(input: IUntypedEditorInput | IUntypedFileEditorInput): Promise<EditorInput | IFileEditorInput> {
+		return this.createTextEditor(input);
 	}
 
 	createTextEditor(input: IUntypedEditorInput): EditorInput;
@@ -248,4 +266,4 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 	}
 }
 
-registerSingleton(ITextEditorService, TextEditorService, false /* do not change: https://github.com/microsoft/vscode/issues/137675 */);
+registerSingleton(ITextEditorService, TextEditorService, InstantiationType.Eager /* do not change: https://github.com/microsoft/vscode/issues/137675 */);

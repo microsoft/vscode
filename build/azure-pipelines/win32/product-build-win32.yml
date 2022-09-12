@@ -80,6 +80,7 @@ steps:
       "$(VSCODE_ARCH)" | Out-File -Encoding ascii -NoNewLine .build\arch
       "$env:ENABLE_TERRAPIN" | Out-File -Encoding ascii -NoNewLine .build\terrapin
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js > .build/yarnlockhash
+      node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
     displayName: Prepare yarn cache flags
 
   - task: Cache@2
@@ -91,7 +92,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: '"$(Agent.OS)" | product.json'
+      key: '"builtInDeps" | .build/builtindepshash'
       path: .build/builtInExtensions
     displayName: Restore built-in extensions
 
@@ -155,13 +156,14 @@ steps:
         $ErrorActionPreference = "Stop"
         exec { node build\lib\policies }
       displayName: Generate Group Policy definitions
+      retryCountOnTaskFailure: 3
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
         $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-        exec { yarn gulp "transpile-client" "transpile-extensions" }
+        exec { yarn gulp "transpile-client-swc" "transpile-extensions" }
       displayName: Transpile
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:

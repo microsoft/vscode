@@ -25,6 +25,12 @@ declare module 'vscode' {
 		protocol?: string;
 	}
 
+	export interface Tunnel extends TunnelDescription {
+		// Implementers of Tunnel should fire onDidDispose when dispose is called.
+		onDidDispose: Event<void>;
+		dispose(): void | Thenable<void>;
+	}
+
 	export namespace workspace {
 		/**
 		 * Forwards a port. If the current resolver implements RemoteAuthorityResolver:forwardPort then that will be used to make the tunnel.
@@ -40,7 +46,7 @@ declare module 'vscode' {
 		 * Gets an array of the currently available tunnels. This does not include environment tunnels, only tunnels that have been created by the user.
 		 * Note that these are of type TunnelDescription and cannot be disposed.
 		 */
-		// export let tunnels: Thenable<TunnelDescription[]>;
+		export let tunnels: Thenable<TunnelDescription[]>;
 
 		/**
 		 * Fired when the list of tunnels has changed.

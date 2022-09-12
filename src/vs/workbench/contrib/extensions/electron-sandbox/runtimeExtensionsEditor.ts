@@ -19,7 +19,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsSlowActions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ReportExtensionIssueAction } from 'vs/workbench/contrib/extensions/electron-sandbox/reportExtensionIssueAction';
+import { ReportExtensionIssueAction } from 'vs/workbench/contrib/extensions/common/reportExtensionIssueAction';
 import { AbstractRuntimeExtensionsEditor, IRuntimeExtension } from 'vs/workbench/contrib/extensions/browser/abstractRuntimeExtensionsEditor';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
@@ -109,12 +109,7 @@ export class RuntimeExtensionsEditor extends AbstractRuntimeExtensionsEditor {
 
 	protected _createReportExtensionIssueAction(element: IRuntimeExtension): Action | null {
 		if (element.marketplaceInfo) {
-			return this._instantiationService.createInstance(ReportExtensionIssueAction, {
-				description: element.description,
-				marketplaceInfo: element.marketplaceInfo,
-				status: element.status,
-				unresponsiveProfile: element.unresponsiveProfile
-			});
+			return this._instantiationService.createInstance(ReportExtensionIssueAction, element.description);
 		}
 		return null;
 	}

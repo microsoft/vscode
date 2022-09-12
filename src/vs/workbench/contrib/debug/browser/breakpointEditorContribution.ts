@@ -18,7 +18,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, BreakpointWidgetContext, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, State, IDebugSession, DebuggerUiMessage } from 'vs/workbench/contrib/debug/common/debug';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, disposeIfDisposable } from 'vs/base/common/lifecycle';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -261,7 +261,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 					getAnchor: () => anchor,
 					getActions: () => actions,
 					getActionsContext: () => breakpoints.length ? breakpoints[0] : undefined,
-					onHide: () => dispose(actions)
+					onHide: () => disposeIfDisposable(actions)
 				});
 			} else {
 				const breakpoints = this.debugService.getModel().getBreakpoints({ uri, lineNumber });
@@ -674,10 +674,16 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 			this.domNode.classList.add(...cssClass.split(' '));
 		}
 		this.toDispose.push(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, async e => {
-			if (this.breakpoint) {
-				await this.debugService.removeBreakpoints(this.breakpoint.getId());
-			} else {
-				await this.debugService.addBreakpoints(this.editor.getModel().uri, [{ lineNumber: this.range!.startLineNumber, column: this.range!.startColumn }]);
+			switch (this.breakpoint?.enabled) {
+				case undefined:
+					await this.debugService.addBreakpoints(this.editor.getModel().uri, [{ lineNumber: this.range!.startLineNumber, column: this.range!.startColumn }]);
+					break;
+				case true:
+					await this.debugService.removeBreakpoints(this.breakpoint.getId());
+					break;
+				case false:
+					this.debugService.enableOrDisableBreakpoints(true, this.breakpoint);
+					break;
 			}
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, e => {
@@ -688,7 +694,7 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 				getAnchor: () => anchor,
 				getActions: () => actions,
 				getActionsContext: () => this.breakpoint,
-				onHide: () => dispose(actions)
+				onHide: () => disposeIfDisposable(actions)
 			});
 		}));
 

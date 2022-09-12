@@ -5,6 +5,7 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { parse } from 'vs/base/common/marshalling';
@@ -12,7 +13,7 @@ import { Schemas } from 'vs/base/common/network';
 import { extname } from 'vs/base/common/resources';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -273,8 +274,8 @@ class InteractiveInputContentProvider implements ITextModelContentProvider {
 
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveInputContentProvider, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, 'InteractiveDocumentContribution', LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveInputContentProvider, 'InteractiveInputContentProvider', LifecyclePhase.Ready);
 
 export class InteractiveEditorSerializer implements IEditorSerializer {
 	public static readonly ID = InteractiveEditorInput.ID;
@@ -321,8 +322,8 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
 		InteractiveEditorSerializer.ID,
 		InteractiveEditorSerializer);
 
-registerSingleton(IInteractiveHistoryService, InteractiveHistoryService);
-registerSingleton(IInteractiveDocumentService, InteractiveDocumentService);
+registerSingleton(IInteractiveHistoryService, InteractiveHistoryService, false);
+registerSingleton(IInteractiveDocumentService, InteractiveDocumentService, false);
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -378,7 +379,8 @@ registerAction2(class extends Action2 {
 		const historyService = accessor.get(IInteractiveHistoryService);
 		const kernelService = accessor.get(INotebookKernelService);
 		const logService = accessor.get(ILogService);
-		const group = columnToEditorGroup(editorGroupService, typeof showOptions === 'number' ? showOptions : showOptions?.viewColumn);
+		const configurationService = accessor.get(IConfigurationService);
+		const group = columnToEditorGroup(editorGroupService, configurationService, typeof showOptions === 'number' ? showOptions : showOptions?.viewColumn);
 		const editorOptions = {
 			activation: EditorActivation.PRESERVE,
 			preserveFocus: typeof showOptions !== 'number' ? (showOptions?.preserveFocus ?? false) : false
@@ -461,15 +463,40 @@ registerAction2(class extends Action2 {
 				}
 			],
 			icon: icons.executeIcon,
-			f1: false
+			f1: false,
+			description: {
+				description: 'Execute the Contents of the Input Box',
+				args: [
+					{
+						name: 'resource',
+						description: 'Interactive resource Uri',
+						isOptional: true
+					}
+				]
+			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: UriComponents): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const bulkEditService = accessor.get(IBulkEditService);
 		const historyService = accessor.get(IInteractiveHistoryService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		let editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		if (context) {
+			if (context.scheme === Schemas.vscodeInteractive) {
+				const resourceUri = URI.revive(context);
+				const editors = editorService.findEditors(resourceUri).filter(id => id.editor instanceof InteractiveEditorInput && id.editor.resource?.toString() === resourceUri.toString());
+				if (editors.length) {
+					const editorInput = editors[0].editor as InteractiveEditorInput;
+					const currentGroup = editors[0].groupId;
+					const editor = await editorService.openEditor(editorInput, currentGroup);
+					editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+				}
+			}
+		}
+		else {
+			editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		}
 
 		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
@@ -702,6 +729,21 @@ registerAction2(class extends Action2 {
 		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
 			editorService.activeEditorPane?.focus();
 		}
+		else {
+			// find and open the most recent interactive window
+			const openEditors = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
+			const interactiveWindow = Iterable.find(openEditors, identifier => { return identifier.editor.typeId === InteractiveEditorInput.ID; });
+			if (interactiveWindow) {
+				const editorInput = interactiveWindow.editor as InteractiveEditorInput;
+				const currentGroup = interactiveWindow.groupId;
+				const editor = await editorService.openEditor(editorInput, currentGroup);
+				const editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+
+				if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+					editorService.activeEditorPane?.focus();
+				}
+			}
+		}
 	}
 });
 
@@ -770,4 +812,3 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		}
 	}
 });
-

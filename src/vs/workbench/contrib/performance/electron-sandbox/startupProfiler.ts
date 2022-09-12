@@ -5,7 +5,7 @@
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { localize } from 'vs/nls';
-import { dirname, basename, joinPath } from 'vs/base/common/resources';
+import { dirname, basename } from 'vs/base/common/resources';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
@@ -73,10 +73,10 @@ export class StartupProfiler implements IWorkbenchContribution {
 
 		markerFile.then(() => {
 			return this._fileService.resolve(dir).then(stat => {
-				return (stat.children ? stat.children.filter(value => value.resource.path.includes(prefix)) : []).map(stat => stat.resource.path);
+				return (stat.children ? stat.children.filter(value => value.resource.path.includes(prefix)) : []).map(stat => stat.resource);
 			});
 		}).then(files => {
-			const profileFiles = files.reduce((prev, cur) => `${prev}${this._labelService.getUriLabel(joinPath(dir, cur))}\n`, '\n');
+			const profileFiles = files.reduce((prev, cur) => `${prev}${this._labelService.getUriLabel(cur)}\n`, '\n');
 
 			return this._dialogService.confirm({
 				type: 'info',
@@ -87,8 +87,8 @@ export class StartupProfiler implements IWorkbenchContribution {
 			}).then(res => {
 				if (res.confirmed) {
 					Promise.all<any>([
-						this._nativeHostService.showItemInFolder(URI.joinPath(dir, files[0]).fsPath),
-						this._createPerfIssue(files)
+						this._nativeHostService.showItemInFolder(files[0].fsPath),
+						this._createPerfIssue(files.map(file => basename(file)))
 					]).then(() => {
 						// keep window stable until restart is selected
 						return this._dialogService.confirm({

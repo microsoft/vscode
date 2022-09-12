@@ -32,7 +32,7 @@ const version = (quality && quality !== 'stable') ? `${packageJson.version}-${qu
 
 const vscodeWebResourceIncludes = [
 	// Workbench
-	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,jpg,opus}',
+	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,jpg,mp3}',
 	'out-build/vs/code/browser/workbench/*.html',
 	'out-build/vs/base/browser/ui/codicons/codicon/**/*.ttf',
 	'out-build/vs/**/markdown.css',

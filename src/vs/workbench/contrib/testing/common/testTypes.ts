@@ -90,6 +90,10 @@ export interface RunTestForControllerRequest {
 	testIds: string[];
 }
 
+export interface RunTestForControllerResult {
+	error?: string;
+}
+
 /**
  * Location with a fully-instantiated Range and URI.
  */
@@ -365,6 +369,12 @@ export interface ITestItemUpdate {
 	extId: string;
 	expand?: TestItemExpandState;
 	item?: Partial<ITestItem>;
+
+	/**
+	 * The document version at the time the operation was made, if the test has
+	 * a URI and the document was open in the extension host.
+	 */
+	docv?: number;
 }
 
 export namespace ITestItemUpdate {
@@ -372,6 +382,7 @@ export namespace ITestItemUpdate {
 		extId: string;
 		expand?: TestItemExpandState;
 		item?: Partial<ITestItem.Serialized>;
+		docv?: number;
 	}
 
 	export const serialize = (u: ITestItemUpdate): Serialized => {
@@ -388,7 +399,7 @@ export namespace ITestItemUpdate {
 			if (u.item.sortText !== undefined) { item.sortText = u.item.sortText; }
 		}
 
-		return { extId: u.extId, expand: u.expand, item };
+		return { extId: u.extId, expand: u.expand, item, docv: u.docv };
 	};
 
 	export const deserialize = (u: Serialized): ITestItemUpdate => {
@@ -404,7 +415,7 @@ export namespace ITestItemUpdate {
 			if (u.item.sortText !== undefined) { item.sortText = u.item.sortText; }
 		}
 
-		return { extId: u.extId, expand: u.expand, item };
+		return { extId: u.extId, expand: u.expand, item, docv: u.docv };
 	};
 
 }

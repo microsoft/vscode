@@ -170,9 +170,9 @@ export interface IEditorOptions {
 	 */
 	scrollbar?: IEditorScrollbarOptions;
 	/**
-	 * Control the behavior of experimental options
+	 * Control the behavior of sticky scroll options
 	 */
-	experimental?: IEditorExperimentalOptions;
+	stickyScroll?: IEditorStickyScrollOptions;
 	/**
 	 * Control the behavior and rendering of the minimap.
 	 */
@@ -641,6 +641,10 @@ export interface IEditorOptions {
 	 */
 	showDeprecated?: boolean;
 	/**
+	 * Controls whether suggestions allow matches in the middle of the word instead of only at the beginning
+	 */
+	matchOnWordStartOnly?: boolean;
+	/**
 	 * Control the behavior and rendering of the inline hints.
 	 */
 	inlayHints?: IEditorInlayHintsOptions;
@@ -733,6 +737,10 @@ export interface IDiffEditorBaseOptions {
 	 * Control the wrapping of the diff editor.
 	 */
 	diffWordWrap?: 'off' | 'on' | 'inherit';
+	/**
+	 * Diff Algorithm
+	*/
+	diffAlgorithm?: 'smart' | 'experimental';
 }
 
 /**
@@ -2508,51 +2516,56 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 
 //#endregion
 
-//#region experimental
+//#region stickyScroll
 
-export interface IEditorExperimentalOptions {
+export interface IEditorStickyScrollOptions {
 	/**
-	 * Configuration options for editor sticky scroll
+	 * Enable the sticky scroll
 	 */
-	stickyScroll?: {
-		/**
-		 * Enable the sticky scroll
-		 */
-		enabled?: boolean;
-	};
+	enabled?: boolean;
+	/**
+	 * Maximum number of sticky lines to show
+	 */
+	maxLineCount?: number;
+
 }
 
-export interface EditorExperimentalOptions {
-	stickyScroll: {
-		enabled: boolean;
-	};
-}
+/**
+ * @internal
+ */
+export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOptions>>;
 
-class EditorExperimental extends BaseEditorOption<EditorOption.experimental, IEditorExperimentalOptions, EditorExperimentalOptions> {
+class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
 
 	constructor() {
-		const defaults: EditorExperimentalOptions = { stickyScroll: { enabled: false } };
+		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5 };
 		super(
-			EditorOption.experimental, 'experimental', defaults,
+			EditorOption.stickyScroll, 'stickyScroll', defaults,
 			{
-				'editor.experimental.stickyScroll.enabled': {
+				'editor.stickyScroll.enabled': {
 					type: 'boolean',
-					default: defaults.stickyScroll.enabled,
-					description: nls.localize('editor.experimental.stickyScroll', "Shows the nested current scopes during the scroll at the top of the editor.")
+					default: defaults.enabled,
+					description: nls.localize('editor.stickyScroll', "Shows the nested current scopes during the scroll at the top of the editor.")
+				},
+				'editor.stickyScroll.maxLineCount': {
+					type: 'number',
+					default: defaults.maxLineCount,
+					minimum: 1,
+					maximum: 10,
+					description: nls.localize('editor.stickyScroll.', "Defines the maximum number of sticky lines to show.")
 				},
 			}
 		);
 	}
 
-	public validate(_input: any): EditorExperimentalOptions {
+	public validate(_input: any): EditorStickyScrollOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
-		const input = _input as IEditorExperimentalOptions;
+		const input = _input as IEditorStickyScrollOptions;
 		return {
-			stickyScroll: {
-				enabled: boolean(input.stickyScroll?.enabled, this.defaultValue.stickyScroll.enabled)
-			}
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			maxLineCount: EditorIntOption.clampedInt(input.maxLineCount, this.defaultValue.maxLineCount, 1, 10),
 		};
 	}
 }
@@ -2609,8 +2622,8 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					enum: ['on', 'onUnlessPressed', 'offUnlessPressed', 'off'],
 					markdownEnumDescriptions: [
 						nls.localize('editor.inlayHints.on', "Inlay hints are enabled"),
-						nls.localize('editor.inlayHints.onUnlessPressed', "Inlay hints are showing by default and hide when holding `Ctrl+Alt`"),
-						nls.localize('editor.inlayHints.offUnlessPressed', "Inlay hints are hidden by default and show when holding `Ctrl+Alt`"),
+						nls.localize('editor.inlayHints.onUnlessPressed', "Inlay hints are showing by default and hide when holding {0}", platform.isMacintosh ? `Ctrl+Option` : `Ctrl+Alt`),
+						nls.localize('editor.inlayHints.offUnlessPressed', "Inlay hints are hidden by default and show when holding {0}", platform.isMacintosh ? `Ctrl+Option` : `Ctrl+Alt`),
 						nls.localize('editor.inlayHints.off', "Inlay hints are disabled"),
 					],
 				},
@@ -3916,6 +3929,10 @@ export interface ISuggestOptions {
 	 */
 	showDeprecated?: boolean;
 	/**
+	 * Controls whether suggestions allow matches in the middle of the word instead of only at the beginning
+	 */
+	matchOnWordStartOnly?: boolean;
+	/**
 	 * Show field-suggestions.
 	 */
 	showFields?: boolean;
@@ -4036,6 +4053,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			showFunctions: true,
 			showConstructors: true,
 			showDeprecated: true,
+			matchOnWordStartOnly: true,
 			showFields: true,
 			showVariables: true,
 			showClasses: true,
@@ -4141,6 +4159,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					type: 'boolean',
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showDeprecated', "When enabled IntelliSense shows `deprecated`-suggestions.")
+				},
+				'editor.suggest.matchOnWordStartOnly': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('editor.suggest.matchOnWordStartOnly', "When enabled IntelliSense filtering requires that the first character matches on a word start, e.g `c` on `Console` or `WebContext` but _not_ on `description`. When disabled IntelliSense will show more results but still sorts them by match quality.")
 				},
 				'editor.suggest.showFields': {
 					type: 'boolean',
@@ -4291,6 +4314,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: boolean(input.showConstructors, this.defaultValue.showConstructors),
 			showDeprecated: boolean(input.showDeprecated, this.defaultValue.showDeprecated),
+			matchOnWordStartOnly: boolean(input.matchOnWordStartOnly, this.defaultValue.matchOnWordStartOnly),
 			showFields: boolean(input.showFields, this.defaultValue.showFields),
 			showVariables: boolean(input.showVariables, this.defaultValue.showVariables),
 			showClasses: boolean(input.showClasses, this.defaultValue.showClasses),
@@ -4553,7 +4577,6 @@ export const enum EditorOption {
 	dragAndDrop,
 	dropIntoEditor,
 	emptySelectionClipboard,
-	experimental,
 	extraEditorClassName,
 	fastScrollSensitivity,
 	find,
@@ -4625,6 +4648,7 @@ export const enum EditorOption {
 	snippetSuggestions,
 	smartSelect,
 	smoothScrolling,
+	stickyScroll,
 	stickyTabStops,
 	stopRenderingLineAfter,
 	suggest,
@@ -4862,7 +4886,7 @@ export const EditorOptions = {
 	)),
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
 	dropIntoEditor: register(new EditorDropIntoEditor()),
-	experimental: register(new EditorExperimental()),
+	stickyScroll: register(new EditorStickyScroll()),
 	extraEditorClassName: register(new EditorStringOption(
 		EditorOption.extraEditorClassName, 'extraEditorClassName', '',
 	)),
@@ -5105,7 +5129,7 @@ export const EditorOptions = {
 	)),
 	revealHorizontalRightPadding: register(new EditorIntOption(
 		EditorOption.revealHorizontalRightPadding, 'revealHorizontalRightPadding',
-		30, 0, 1000,
+		15, 0, 1000,
 	)),
 	roundedSelection: register(new EditorBooleanOption(
 		EditorOption.roundedSelection, 'roundedSelection', true,

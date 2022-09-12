@@ -23,6 +23,7 @@ import { extUri } from 'vs/base/common/resources';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Codicon } from 'vs/base/common/codicons';
 import { generateUuid } from 'vs/base/common/uuid';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 export class CheckedStates<T extends object> {
 
@@ -316,7 +317,7 @@ export class BulkFileOperations {
 				for (const edit of file.originalEdits.values()) {
 					if (edit instanceof ResourceTextEdit) {
 						if (this.checked.isChecked(edit)) {
-							result.push(EditOperation.replaceMove(Range.lift(edit.textEdit.range), edit.textEdit.text));
+							result.push(EditOperation.replaceMove(Range.lift(edit.textEdit.range), !edit.textEdit.insertAsSnippet ? edit.textEdit.text : SnippetParser.asInsertText(edit.textEdit.text)));
 						}
 
 					} else if (!this.checked.isChecked(edit)) {

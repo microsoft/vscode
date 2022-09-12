@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFirefox } from 'vs/base/browser/browser';
-import { DataTransfers, IDragAndDropData, StaticDND } from 'vs/base/browser/dnd';
+import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { $, addDisposableListener, animate, getContentHeight, getContentWidth, getTopLeftOffset, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
@@ -37,6 +37,10 @@ interface IItem<T> {
 	dragStartDisposable: IDisposable;
 	checkedDisposable: IDisposable;
 }
+
+const StaticDND = {
+	CurrentDragAndDropData: undefined as IDragAndDropData | undefined
+};
 
 export interface IListViewDragAndDrop<T> extends IListDragAndDrop<T> {
 	getDragElements(element: T): T[];

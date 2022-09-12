@@ -170,3 +170,23 @@ registerEditorSettingMigration('quickSuggestions', (input, read, write) => {
 		write('quickSuggestions', newValue);
 	}
 });
+
+// Sticky Scroll
+
+registerEditorSettingMigration('experimental.stickyScroll.enabled', (value, read, write) => {
+	if (typeof value === 'boolean') {
+		write('experimental.stickyScroll.enabled', undefined);
+		if (typeof read('stickyScroll.enabled') === 'undefined') {
+			write('stickyScroll.enabled', value);
+		}
+	}
+});
+
+registerEditorSettingMigration('experimental.stickyScroll.maxLineCount', (value, read, write) => {
+	if (typeof value === 'number') {
+		write('experimental.stickyScroll.maxLineCount', undefined);
+		if (typeof read('stickyScroll.maxLineCount') === 'undefined') {
+			write('stickyScroll.maxLineCount', value);
+		}
+	}
+});

@@ -145,10 +145,19 @@ export function getLastSyncResourceUri(syncResource: SyncResource, environmentSe
 	return extUri.joinPath(environmentService.userDataSyncHome, syncResource, `lastSync${syncResource}.json`);
 }
 
+export type IUserDataResourceManifest = Record<ServerResource, string>;
+
+export interface IUserDataCollectionManifest {
+	[collectionId: string]: {
+		readonly latest: IUserDataResourceManifest;
+	};
+}
+
 export interface IUserDataManifest {
-	readonly latest?: Record<ServerResource, string>;
+	readonly latest?: IUserDataResourceManifest;
 	readonly session: string;
 	readonly ref: string;
+	readonly collections?: IUserDataCollectionManifest;
 }
 
 export interface IResourceRefHandle {
@@ -168,7 +177,9 @@ export interface IUserDataSyncStoreManagementService {
 	getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined>;
 }
 
-export interface IUserDataSyncStoreClient {
+export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
+export interface IUserDataSyncStoreService {
+	readonly _serviceBrand: undefined;
 	readonly onDidChangeDonotMakeRequestsUntil: Event<void>;
 	readonly donotMakeRequestsUntil: Date | undefined;
 
@@ -176,20 +187,18 @@ export interface IUserDataSyncStoreClient {
 	readonly onTokenSucceed: Event<void>;
 	setAuthToken(token: string, type: string): void;
 
-	// Sync requests
 	manifest(oldValue: IUserDataManifest | null, headers?: IHeaders): Promise<IUserDataManifest | null>;
-	read(resource: ServerResource, oldValue: IUserData | null, headers?: IHeaders): Promise<IUserData>;
-	write(resource: ServerResource, content: string, ref: string | null, headers?: IHeaders): Promise<string>;
+	readResource(resource: ServerResource, oldValue: IUserData | null, collection?: string, headers?: IHeaders): Promise<IUserData>;
+	writeResource(resource: ServerResource, content: string, ref: string | null, collection?: string, headers?: IHeaders): Promise<string>;
+	deleteResource(resource: ServerResource, ref: string | null, collection?: string): Promise<void>;
+	getAllResourceRefs(resource: ServerResource, collection?: string): Promise<IResourceRefHandle[]>;
+	resolveResourceContent(resource: ServerResource, ref: string, collection?: string, headers?: IHeaders): Promise<string | null>;
+
+	getAllCollections(headers?: IHeaders): Promise<string[]>;
+	createCollection(headers?: IHeaders): Promise<string>;
+	deleteCollection(collection?: string, headers?: IHeaders): Promise<void>;
+
 	clear(): Promise<void>;
-	delete(resource: ServerResource, ref: string | null): Promise<void>;
-
-	getAllRefs(resource: ServerResource): Promise<IResourceRefHandle[]>;
-	resolveContent(resource: ServerResource, ref: string, headers?: IHeaders): Promise<string | null>;
-}
-
-export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
-export interface IUserDataSyncStoreService extends IUserDataSyncStoreClient {
-	readonly _serviceBrand: undefined;
 }
 
 export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBackupStoreService>('IUserDataSyncBackupStoreService');
@@ -236,6 +245,7 @@ export const enum UserDataSyncErrorCode {
 	RequestProtocolNotSupported = 'RequestProtocolNotSupported',
 	RequestPathNotEscaped = 'RequestPathNotEscaped',
 	RequestHeadersNotObject = 'RequestHeadersNotObject',
+	NoCollection = 'NoCollection',
 	NoRef = 'NoRef',
 	EmptyResponse = 'EmptyResponse',
 	TurnedOff = 'TurnedOff',

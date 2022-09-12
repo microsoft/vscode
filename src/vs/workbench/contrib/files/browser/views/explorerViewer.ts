@@ -483,6 +483,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const styler = attachInputBoxStyler(inputBox, this.themeService);
 
 		const lastDot = value.lastIndexOf('.');
+		let currentSelectionState = 'prefix';
 
 		inputBox.value = value;
 		inputBox.focus();
@@ -520,7 +521,22 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				label.setFile(joinPath(parent, value || ' '), labelOptions); // update label icon while typing!
 			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-				if (e.equals(KeyCode.Enter)) {
+				if (e.equals(KeyCode.F2)) {
+					const dotIndex = inputBox.value.lastIndexOf('.');
+					if (stat.isDirectory || dotIndex === -1) {
+						return;
+					}
+					if (currentSelectionState === 'prefix') {
+						currentSelectionState = 'all';
+						inputBox.select({ start: 0, end: inputBox.value.length });
+					} else if (currentSelectionState === 'all') {
+						currentSelectionState = 'suffix';
+						inputBox.select({ start: dotIndex + 1, end: inputBox.value.length });
+					} else {
+						currentSelectionState = 'prefix';
+						inputBox.select({ start: 0, end: dotIndex });
+					}
+				} else if (e.equals(KeyCode.Enter)) {
 					if (!inputBox.validate()) {
 						done(true, true);
 					}

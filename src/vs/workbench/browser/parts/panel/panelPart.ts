@@ -427,18 +427,20 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 	private onDidRegisterExtensions(): void {
 		this.extensionsRegistered = true;
-		this.removeNotExistingComposites();
 
-		this.saveCachedPanels();
-	}
-
-	private removeNotExistingComposites(): void {
+		// hide/remove composites
 		const panels = this.getPaneComposites();
-		for (const { id } of this.getCachedPanels()) { // should this value match viewlet (load on ctor)
+		for (const { id } of this.getCachedPanels()) {
 			if (panels.every(panel => panel.id !== id)) {
-				this.hideComposite(id);
+				if (this.viewDescriptorService.isViewContainerRemovedPermanently(id)) {
+					this.removeComposite(id);
+				} else {
+					this.hideComposite(id);
+				}
 			}
 		}
+
+		this.saveCachedPanels();
 	}
 
 	private hideComposite(compositeId: string): void {
@@ -1082,7 +1084,7 @@ registerThemingParticipant((theme, collector) => {
 					outline-width: 1px;
 					outline-style: solid;
 					border-bottom: none;
-					outline-offset: -2px;
+					outline-offset: -1px;
 				}
 
 				.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked):hover .action-label {

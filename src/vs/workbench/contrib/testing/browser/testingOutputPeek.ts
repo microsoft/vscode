@@ -836,6 +836,7 @@ const diffEditorOptions: IDiffEditorConstructionOptions = {
 	renderSideBySide: true,
 	originalAriaLabel: localize('testingOutputExpected', 'Expected result'),
 	modifiedAriaLabel: localize('testingOutputActual', 'Actual result'),
+	diffAlgorithm: 'smart',
 };
 
 const isDiffable = (message: ITestMessage): message is ITestErrorMessage & { actualOutput: string; expectedOutput: string } =>
@@ -903,7 +904,8 @@ class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
 }
 
 class ScrollableMarkdownMessage extends Disposable {
-	private scrollable: DomScrollableElement;
+	private readonly scrollable: DomScrollableElement;
+	private readonly element: HTMLElement;
 
 	constructor(container: HTMLElement, markdown: MarkdownRenderer, message: IMarkdownString) {
 		super();
@@ -912,6 +914,7 @@ class ScrollableMarkdownMessage extends Disposable {
 		rendered.element.style.height = '100%';
 		rendered.element.style.userSelect = 'text';
 		container.appendChild(rendered.element);
+		this.element = rendered.element;
 
 		this.scrollable = this._register(new DomScrollableElement(rendered.element, {
 			className: 'preview-text',
@@ -927,7 +930,12 @@ class ScrollableMarkdownMessage extends Disposable {
 
 	public layout(height: number, width: number) {
 		// Remove padding of `.monaco-editor .zone-widget.test-output-peek .preview-text`
-		this.scrollable.setScrollDimensions({ width: width - 32, height: height - 16 });
+		this.scrollable.setScrollDimensions({
+			width: width - 32,
+			height: height - 16,
+			scrollWidth: this.element.scrollWidth,
+			scrollHeight: this.element.scrollHeight
+		});
 	}
 }
 
@@ -1403,11 +1411,10 @@ class OutputPeekTree extends Disposable {
 		const actions = this.treeActions.provideActionBar(evt.element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => evt.anchor,
-			getActions: () => actions.value.secondary.length
-				? [...actions.value.primary, new Separator(), ...actions.value.secondary]
-				: actions.value.primary,
-			getActionsContext: () => evt.element?.context,
-			onHide: () => actions.dispose(),
+			getActions: () => actions.secondary.length
+				? [...actions.primary, new Separator(), ...actions.secondary]
+				: actions.primary,
+			getActionsContext: () => evt.element?.context
 		});
 	}
 
@@ -1494,10 +1501,9 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 		templateData.icon.className = `computed-state ${icon ? ThemeIcon.asClassName(icon) : ''}`;
 
 		const actions = this.treeActions.provideActionBar(element);
-		templateData.elementDisposable.add(actions);
 		templateData.actionBar.clear();
 		templateData.actionBar.context = element;
-		templateData.actionBar.push(actions.value.primary, { icon: true, label: false });
+		templateData.actionBar.push(actions.primary, { icon: true, label: false });
 	}
 }
 
@@ -1592,11 +1598,11 @@ class TreeActionsProvider {
 			}
 
 			const result = { primary, secondary };
-			const actionsDisposable = createAndFillInActionBarActions(menu, {
+			createAndFillInActionBarActions(menu, {
 				shouldForwardArgs: true,
 			}, result, 'inline');
 
-			return { value: result, dispose: () => actionsDisposable.dispose };
+			return result;
 		} finally {
 			menu.dispose();
 		}

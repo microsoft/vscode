@@ -8,7 +8,6 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction } from 'vs/base/common/actions';
 import { disposableTimeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { createActionViewItem, createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -95,8 +94,6 @@ export class CellTitleToolbarPart extends CellPart {
 	private _titleMenu: IMenu;
 	private _deleteToolbar: ToolBar;
 	private _deleteMenu: IMenu;
-	private _toolbarActionsDisposables = this._register(new DisposableStore());
-	private _deleteActionsDisposables = this._register(new DisposableStore());
 	private readonly _onDidUpdateActions: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidUpdateActions: Event<void> = this._onDidUpdateActions.event;
 
@@ -126,8 +123,8 @@ export class CellTitleToolbarPart extends CellPart {
 			this._deleteToolbar.setActions(deleteActions.primary, deleteActions.secondary);
 		}
 
-		this.setupChangeListeners(this._toolbar, this._titleMenu, this._toolbarActionsDisposables);
-		this.setupChangeListeners(this._deleteToolbar, this._deleteMenu, this._deleteActionsDisposables);
+		this.setupChangeListeners(this._toolbar, this._titleMenu);
+		this.setupChangeListeners(this._deleteToolbar, this._deleteMenu);
 	}
 
 	override didRenderCell(element: ICellViewModel): void {
@@ -146,19 +143,19 @@ export class CellTitleToolbarPart extends CellPart {
 		this._deleteToolbar.context = toolbarContext;
 	}
 
-	private setupChangeListeners(toolbar: ToolBar, menu: IMenu, actionDisposables: DisposableStore): void {
+	private setupChangeListeners(toolbar: ToolBar, menu: IMenu): void {
 		// #103926
 		let dropdownIsVisible = false;
 		let deferredUpdate: (() => void) | undefined;
 
-		this.updateActions(toolbar, menu, actionDisposables);
+		this.updateActions(toolbar, menu);
 		this._register(menu.onDidChange(() => {
 			if (dropdownIsVisible) {
-				deferredUpdate = () => this.updateActions(toolbar, menu, actionDisposables);
+				deferredUpdate = () => this.updateActions(toolbar, menu);
 				return;
 			}
 
-			this.updateActions(toolbar, menu, actionDisposables);
+			this.updateActions(toolbar, menu);
 		}));
 		this._rootClassDelegate.toggle('cell-toolbar-dropdown-active', false);
 		this._register(toolbar.onDidChangeDropdownVisibility(visible => {
@@ -175,10 +172,9 @@ export class CellTitleToolbarPart extends CellPart {
 		}));
 	}
 
-	private updateActions(toolbar: ToolBar, menu: IMenu, actionDisposables: DisposableStore) {
-		actionDisposables.clear();
+	private updateActions(toolbar: ToolBar, menu: IMenu) {
+
 		const actions = getCellToolbarActions(menu);
-		actionDisposables.add(actions.disposable);
 
 		const hadFocus = DOM.isAncestor(document.activeElement, toolbar.getElement());
 		toolbar.setActions(actions.primary, actions.secondary);
@@ -196,17 +192,14 @@ export class CellTitleToolbarPart extends CellPart {
 	}
 }
 
-function getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[]; disposable: IDisposable } {
+function getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
 	const primary: IAction[] = [];
 	const secondary: IAction[] = [];
 	const result = { primary, secondary };
 
-	const disposable = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
+	createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
 
-	return {
-		...result,
-		disposable
-	};
+	return result;
 }
 
 function createToolbar(accessor: ServicesAccessor, container: HTMLElement, elementClass?: string): ToolBar {

@@ -184,3 +184,61 @@ export async function poll<T>(
 		trial++;
 	}
 }
+
+export type ValueCallback<T = unknown> = (value: T | Promise<T>) => void;
+
+/**
+ * Creates a promise whose resolution or rejection can be controlled imperatively.
+ */
+export class DeferredPromise<T> {
+
+	private completeCallback!: ValueCallback<T>;
+	private errorCallback!: (err: unknown) => void;
+	private rejected = false;
+	private resolved = false;
+
+	public get isRejected() {
+		return this.rejected;
+	}
+
+	public get isResolved() {
+		return this.resolved;
+	}
+
+	public get isSettled() {
+		return this.rejected || this.resolved;
+	}
+
+	public readonly p: Promise<T>;
+
+	constructor() {
+		this.p = new Promise<T>((c, e) => {
+			this.completeCallback = c;
+			this.errorCallback = e;
+		});
+	}
+
+	public complete(value: T) {
+		return new Promise<void>(resolve => {
+			this.completeCallback(value);
+			this.resolved = true;
+			resolve();
+		});
+	}
+
+	public error(err: unknown) {
+		return new Promise<void>(resolve => {
+			this.errorCallback(err);
+			this.rejected = true;
+			resolve();
+		});
+	}
+
+	public cancel() {
+		new Promise<void>(resolve => {
+			this.errorCallback(new Error('Canceled'));
+			this.rejected = true;
+			resolve();
+		});
+	}
+}
