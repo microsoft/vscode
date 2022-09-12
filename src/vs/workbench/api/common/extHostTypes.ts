@@ -1321,6 +1321,7 @@ export class CodeActionKind {
 	public static Refactor: CodeActionKind;
 	public static RefactorExtract: CodeActionKind;
 	public static RefactorInline: CodeActionKind;
+	public static RefactorMove: CodeActionKind;
 	public static RefactorRewrite: CodeActionKind;
 	public static Source: CodeActionKind;
 	public static SourceOrganizeImports: CodeActionKind;
@@ -1347,6 +1348,7 @@ CodeActionKind.QuickFix = CodeActionKind.Empty.append('quickfix');
 CodeActionKind.Refactor = CodeActionKind.Empty.append('refactor');
 CodeActionKind.RefactorExtract = CodeActionKind.Refactor.append('extract');
 CodeActionKind.RefactorInline = CodeActionKind.Refactor.append('inline');
+CodeActionKind.RefactorMove = CodeActionKind.Refactor.append('move');
 CodeActionKind.RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
 CodeActionKind.Source = CodeActionKind.Empty.append('source');
 CodeActionKind.SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
