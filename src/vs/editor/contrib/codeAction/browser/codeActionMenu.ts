@@ -55,11 +55,12 @@ enum CodeActionListItemKind {
 interface CodeActionListItemCodeAction {
 	readonly kind: CodeActionListItemKind.CodeAction;
 	readonly action: CodeActionItem;
+	readonly group: CodeActionGroup;
 }
 
 interface CodeActionListItemHeader {
 	readonly kind: CodeActionListItemKind.Header;
-	readonly headerTitle: string;
+	readonly group: CodeActionGroup;
 }
 
 type ICodeActionMenuItem = CodeActionListItemCodeAction | CodeActionListItemHeader;
@@ -74,6 +75,24 @@ interface ICodeActionMenuTemplateData {
 function stripNewlines(str: string): string {
 	return str.replace(/\r\n|\r|\n/g, ' ');
 }
+
+interface CodeActionGroup {
+	readonly kind: CodeActionKind;
+	readonly title: string;
+	readonly icon: Codicon;
+	readonly iconColor?: string;
+}
+
+const uncategorizedCodeActionGroup = Object.freeze<CodeActionGroup>({ kind: CodeActionKind.Empty, title: localize('codeAction.widget.id.more', 'More Actions...'), icon: Codicon.lightBulb, iconColor: 'var(--vscode-editorLightBulb-foreground)' });
+
+const codeActionGroups = Object.freeze<CodeActionGroup[]>([
+	{ kind: CodeActionKind.QuickFix, title: localize('codeAction.widget.id.quickfix', 'Quick Fix...'), icon: Codicon.lightBulb, },
+	{ kind: CodeActionKind.Extract, title: localize('codeAction.widget.id.extract', 'Extract...'), icon: Codicon.wrench, },
+	{ kind: CodeActionKind.Convert, title: localize('codeAction.widget.id.convert', 'Convert...'), icon: Codicon.zap, iconColor: 'var(--vscode-editorLightBulbAutoFix-foreground)' },
+	{ kind: CodeActionKind.SurroundWith, title: localize('codeAction.widget.id.surround', 'Surround With...'), icon: Codicon.symbolArray, },
+	{ kind: CodeActionKind.Source, title: localize('codeAction.widget.id.source', 'Source Action...'), icon: Codicon.lightBulb, iconColor: 'var(--vscode-editorLightBulb-foreground)' },
+	uncategorizedCodeActionGroup,
+]);
 
 class CodeActionItemRenderer implements IListRenderer<CodeActionListItemCodeAction, ICodeActionMenuTemplateData> {
 	constructor(
@@ -100,22 +119,8 @@ class CodeActionItemRenderer implements IListRenderer<CodeActionListItemCodeActi
 	}
 
 	renderElement(element: CodeActionListItemCodeAction, _index: number, data: ICodeActionMenuTemplateData): void {
-		// Icons and Label modification based on group
-		const kind = element.action.action.kind ? new CodeActionKind(element.action.action.kind) : CodeActionKind.None;
-		if (CodeActionKind.SurroundWith.contains(kind)) {
-			data.icon.className = Codicon.symbolArray.classNames;
-		} else if (CodeActionKind.Extract.contains(kind)) {
-			data.icon.className = Codicon.wrench.classNames;
-		} else if (CodeActionKind.Convert.contains(kind)) {
-			data.icon.className = Codicon.zap.classNames;
-			data.icon.style.color = `var(--vscode-editorLightBulbAutoFix-foreground)`;
-		} else if (CodeActionKind.QuickFix.contains(kind)) {
-			data.icon.className = Codicon.lightBulb.classNames;
-			data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
-		} else {
-			data.icon.className = Codicon.lightBulb.classNames;
-			data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
-		}
+		data.icon.className = element.group.icon.classNames;
+		data.icon.style.color = element.group.iconColor ?? '';
 
 		data.text.textContent = stripNewlines(element.action.action.title);
 
@@ -160,7 +165,7 @@ class HeaderRenderer implements IListRenderer<CodeActionListItemHeader, HeaderTe
 	}
 
 	renderElement(element: CodeActionListItemHeader, _index: number, templateData: HeaderTemplateData): void {
-		templateData.text.textContent = element.headerTitle;
+		templateData.text.textContent = element.group.title;
 	}
 
 	disposeTemplate(_templateData: HeaderTemplateData): void {
@@ -303,49 +308,28 @@ class CodeActionList extends Disposable {
 
 	private toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ICodeActionMenuItem[] {
 		if (!showHeaders) {
-			return inputCodeActions.map((action): ICodeActionMenuItem => ({ kind: CodeActionListItemKind.CodeAction, action }));
+			return inputCodeActions.map((action): ICodeActionMenuItem => ({ kind: CodeActionListItemKind.CodeAction, action, group: uncategorizedCodeActionGroup }));
 		}
 
-		// Groups code actions by their kind
-		const quickfixGroup: CodeActionItem[] = [];
-		const extractGroup: CodeActionItem[] = [];
-		const convertGroup: CodeActionItem[] = [];
-		const surroundGroup: CodeActionItem[] = [];
-		const sourceGroup: CodeActionItem[] = [];
-		const otherGroup: CodeActionItem[] = [];
+		// Group code actions
+		const menuEntries = codeActionGroups.map(group => ({ group, actions: [] as CodeActionItem[] }));
 
 		for (const action of inputCodeActions) {
 			const kind = action.action.kind ? new CodeActionKind(action.action.kind) : CodeActionKind.None;
-			if (CodeActionKind.SurroundWith.contains(kind)) {
-				surroundGroup.push(action);
-			} else if (CodeActionKind.QuickFix.contains(kind)) {
-				quickfixGroup.push(action);
-			} else if (CodeActionKind.Extract.contains(kind)) {
-				extractGroup.push(action);
-			} else if (CodeActionKind.Convert.contains(kind)) {
-				convertGroup.push(action);
-			} else if (CodeActionKind.Source.contains(kind)) {
-				sourceGroup.push(action);
-			} else {
-				otherGroup.push(action);
+			for (const menuEntry of menuEntries) {
+				if (menuEntry.group.kind.contains(kind)) {
+					menuEntry.actions.push(action);
+					break;
+				}
 			}
 		}
-
-		const menuEntries: ReadonlyArray<{ title: string; actions: CodeActionItem[] }> = [
-			{ title: localize('codeAction.widget.id.quickfix', 'Quick Fix...'), actions: quickfixGroup },
-			{ title: localize('codeAction.widget.id.extract', 'Extract...'), actions: extractGroup },
-			{ title: localize('codeAction.widget.id.convert', 'Convert...'), actions: convertGroup },
-			{ title: localize('codeAction.widget.id.surround', 'Surround With...'), actions: surroundGroup },
-			{ title: localize('codeAction.widget.id.source', 'Source Action...'), actions: sourceGroup },
-			{ title: localize('codeAction.widget.id.more', 'More Actions...'), actions: otherGroup },
-		];
 
 		const allMenuItems: ICodeActionMenuItem[] = [];
 		for (const menuEntry of menuEntries) {
 			if (menuEntry.actions.length) {
-				allMenuItems.push({ kind: CodeActionListItemKind.Header, headerTitle: menuEntry.title });
+				allMenuItems.push({ kind: CodeActionListItemKind.Header, group: menuEntry.group });
 				for (const action of menuEntry.actions) {
-					allMenuItems.push({ kind: CodeActionListItemKind.CodeAction, action });
+					allMenuItems.push({ kind: CodeActionListItemKind.CodeAction, action, group: menuEntry.group });
 				}
 			}
 		}
