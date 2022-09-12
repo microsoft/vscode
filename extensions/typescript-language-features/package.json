@@ -1531,7 +1531,7 @@
         "id": "jsWelcome",
         "title": "%walkthroughs.jsWelcome.title%",
         "description": "%walkthroughs.jsWelcome.description%",
-        "when": "isWindows && workspacePlatform == windows || isMac && workspacePlatform == mac || isLinux && workspacePlatform == linux",
+        "when": "false",
         "steps": [
           {
             "id": "walkthroughs.jsWelcome.downloadNode.forMacOrWindows",
