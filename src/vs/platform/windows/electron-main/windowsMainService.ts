@@ -769,38 +769,42 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private async doExtractPathsFromAPI(openConfig: IOpenConfiguration): Promise<IPathToOpen[]> {
-		const pathsToOpen: IPathToOpen[] = [];
-		const pathResolveOptions: IPathResolveOptions = { gotoLineMode: openConfig.gotoLineMode, remoteAuthority: openConfig.remoteAuthority };
-		for (const pathToOpen of coalesce(openConfig.urisToOpen || [])) {
+		const pathResolveOptions: IPathResolveOptions = {
+			gotoLineMode: openConfig.gotoLineMode,
+			remoteAuthority: openConfig.remoteAuthority
+		};
+
+		const pathsToOpen = await Promise.all(coalesce(openConfig.urisToOpen || []).map(async pathToOpen => {
 			const path = await this.resolveOpenable(pathToOpen, pathResolveOptions);
 
 			// Path exists
 			if (path) {
 				path.label = pathToOpen.label;
-				pathsToOpen.push(path);
+
+				return path;
 			}
 
 			// Path does not exist: show a warning box
-			else {
-				const uri = this.resourceFromOpenable(pathToOpen);
+			const uri = this.resourceFromOpenable(pathToOpen);
 
-				const options: MessageBoxOptions = {
-					title: this.productService.nameLong,
-					type: 'info',
-					buttons: [mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
-					defaultId: 0,
-					message: uri.scheme === Schemas.file ? localize('pathNotExistTitle', "Path does not exist") : localize('uriInvalidTitle', "URI can not be opened"),
-					detail: uri.scheme === Schemas.file ?
-						localize('pathNotExistDetail', "The path '{0}' does not exist on this computer.", getPathLabel(uri, { os: OS, tildify: this.environmentMainService })) :
-						localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString(true)),
-					noLink: true
-				};
+			const options: MessageBoxOptions = {
+				title: this.productService.nameLong,
+				type: 'info',
+				buttons: [mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
+				defaultId: 0,
+				message: uri.scheme === Schemas.file ? localize('pathNotExistTitle', "Path does not exist") : localize('uriInvalidTitle', "URI can not be opened"),
+				detail: uri.scheme === Schemas.file ?
+					localize('pathNotExistDetail', "The path '{0}' does not exist on this computer.", getPathLabel(uri, { os: OS, tildify: this.environmentMainService })) :
+					localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString(true)),
+				noLink: true
+			};
 
-				this.dialogMainService.showMessageBox(options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
-			}
-		}
+			this.dialogMainService.showMessageBox(options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
 
-		return pathsToOpen;
+			return undefined;
+		}));
+
+		return coalesce(pathsToOpen);
 	}
 
 	private async doExtractPathsFromCLI(cli: NativeParsedArgs): Promise<IPath[]> {
@@ -820,39 +824,39 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// folder uris
 		const folderUris = cli['folder-uri'];
 		if (folderUris) {
-			for (const rawFolderUri of folderUris) {
+			const resolvedFolderUris = await Promise.all(folderUris.map(rawFolderUri => {
 				const folderUri = this.cliArgToUri(rawFolderUri);
-				if (folderUri) {
-					const path = await this.resolveOpenable({ folderUri }, pathResolveOptions);
-					if (path) {
-						pathsToOpen.push(path);
-					}
+				if (!folderUri) {
+					return undefined;
 				}
-			}
+
+				return this.resolveOpenable({ folderUri }, pathResolveOptions);
+			}));
+
+			pathsToOpen.push(...coalesce(resolvedFolderUris));
 		}
 
 		// file uris
 		const fileUris = cli['file-uri'];
 		if (fileUris) {
-			for (const rawFileUri of fileUris) {
+			const resolvedFileUris = await Promise.all(fileUris.map(rawFileUri => {
 				const fileUri = this.cliArgToUri(rawFileUri);
-				if (fileUri) {
-					const path = await this.resolveOpenable(hasWorkspaceFileExtension(rawFileUri) ? { workspaceUri: fileUri } : { fileUri }, pathResolveOptions);
-					if (path) {
-						pathsToOpen.push(path);
-					}
+				if (!fileUri) {
+					return undefined;
 				}
-			}
+
+				return this.resolveOpenable(hasWorkspaceFileExtension(rawFileUri) ? { workspaceUri: fileUri } : { fileUri }, pathResolveOptions);
+			}));
+
+			pathsToOpen.push(...coalesce(resolvedFileUris));
 		}
 
 		// folder or file paths
-		const cliPaths = cli._;
-		for (const cliPath of cliPaths) {
-			const path = pathResolveOptions.remoteAuthority ? this.doResolvePathRemote(cliPath, pathResolveOptions) : await this.doResolveFilePath(cliPath, pathResolveOptions);
-			if (path) {
-				pathsToOpen.push(path);
-			}
-		}
+		const resolvedCliPaths = await Promise.all(cli._.map(cliPath => {
+			return pathResolveOptions.remoteAuthority ? this.doResolveRemotePath(cliPath, pathResolveOptions) : this.doResolveFilePath(cliPath, pathResolveOptions);
+		}));
+
+		pathsToOpen.push(...coalesce(resolvedCliPaths));
 
 		return pathsToOpen;
 	}
@@ -900,14 +904,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					lastSessionWindows.push(this.windowsStateHandler.state.lastActiveWindow);
 				}
 
-				const pathsToOpen: IPathToOpen[] = [];
-				for (const lastSessionWindow of lastSessionWindows) {
+				const pathsToOpen = await Promise.all(lastSessionWindows.map(async lastSessionWindow => {
 
 					// Workspaces
 					if (lastSessionWindow.workspace) {
 						const pathToOpen = await this.resolveOpenable({ workspaceUri: lastSessionWindow.workspace.configPath }, { remoteAuthority: lastSessionWindow.remoteAuthority, rejectTransientWorkspaces: true /* https://github.com/microsoft/vscode/issues/119695 */ });
 						if (isWorkspacePathToOpen(pathToOpen)) {
-							pathsToOpen.push(pathToOpen);
+							return pathToOpen;
 						}
 					}
 
@@ -915,17 +918,19 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					else if (lastSessionWindow.folderUri) {
 						const pathToOpen = await this.resolveOpenable({ folderUri: lastSessionWindow.folderUri }, { remoteAuthority: lastSessionWindow.remoteAuthority });
 						if (isSingleFolderWorkspacePathToOpen(pathToOpen)) {
-							pathsToOpen.push(pathToOpen);
+							return pathToOpen;
 						}
 					}
 
 					// Empty window, potentially editors open to be restored
 					else if (restoreWindowsSetting !== 'folders' && lastSessionWindow.backupPath) {
-						pathsToOpen.push({ backupPath: lastSessionWindow.backupPath, remoteAuthority: lastSessionWindow.remoteAuthority });
+						return { backupPath: lastSessionWindow.backupPath, remoteAuthority: lastSessionWindow.remoteAuthority };
 					}
-				}
 
-				return pathsToOpen;
+					return undefined;
+				}));
+
+				return coalesce(pathsToOpen);
 			}
 		}
 	}
@@ -1097,7 +1102,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return undefined;
 	}
 
-	private doResolvePathRemote(path: string, options: IPathResolveOptions): IPathToOpen<ITextEditorOptions> | undefined {
+	private doResolveRemotePath(path: string, options: IPathResolveOptions): IPathToOpen<ITextEditorOptions> | undefined {
 		const first = path.charCodeAt(0);
 		const remoteAuthority = options.remoteAuthority;
 
