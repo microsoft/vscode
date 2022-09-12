@@ -106,6 +106,10 @@
 	color: var(--vscode-disabledForeground);
 }
 
+.codeActionWidget .monaco-list-row.code-action.option-disabled .codicon {
+	opacity: 0.4;
+}
+
 .codeActionWidget .monaco-list-row.code-action:not(.option-disabled) .codicon {
 	color: inherit;
 }

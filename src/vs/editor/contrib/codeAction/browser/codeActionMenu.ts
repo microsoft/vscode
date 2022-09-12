@@ -12,17 +12,15 @@ import { IListEvent, IListMouseEvent, IListRenderer } from 'vs/base/browser/ui/l
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import 'vs/css!./media/action';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { CodeAction, Command } from 'vs/editor/common/languages';
+import { Command } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
+import { CodeActionItem, CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -31,6 +29,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { CodeActionKeybindingResolver } from './codeActionKeybindingResolver';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('codeActionMenuVisible', false, localize('codeActionMenuVisible', "Whether the code action list widget is visible"))
@@ -41,16 +40,6 @@ export const previewSelectedCodeActionCommand = 'previewSelectedCodeAction';
 
 interface CodeActionWidgetDelegate {
 	onSelectCodeAction: (action: CodeActionItem, trigger: CodeActionTrigger) => Promise<any>;
-}
-
-interface ResolveCodeActionKeybinding {
-	readonly kind: CodeActionKind;
-	readonly preferred: boolean;
-	readonly resolvedKeybinding: ResolvedKeybinding;
-}
-
-function stripNewlines(str: string): string {
-	return str.replace(/\r\n|\r|\n/g, ' ');
 }
 
 export interface CodeActionShowOptions {
@@ -66,13 +55,11 @@ enum CodeActionListItemKind {
 interface CodeActionListItemCodeAction {
 	readonly kind: CodeActionListItemKind.CodeAction;
 	readonly action: CodeActionItem;
-	readonly index: number;
 }
 
 interface CodeActionListItemHeader {
 	readonly kind: CodeActionListItemKind.Header;
 	readonly headerTitle: string;
-	readonly index: number;
 }
 
 type ICodeActionMenuItem = CodeActionListItemCodeAction | CodeActionListItemHeader;
@@ -82,6 +69,10 @@ interface ICodeActionMenuTemplateData {
 	readonly icon: HTMLElement;
 	readonly text: HTMLElement;
 	readonly keybinding: KeybindingLabel;
+}
+
+function stripNewlines(str: string): string {
+	return str.replace(/\r\n|\r|\n/g, ' ');
 }
 
 class CodeActionItemRenderer implements IListRenderer<CodeActionListItemCodeAction, ICodeActionMenuTemplateData> {
@@ -136,21 +127,11 @@ class CodeActionItemRenderer implements IListRenderer<CodeActionListItemCodeActi
 			dom.show(data.keybinding.element);
 		}
 
-		// Check if action has disabled reason
 		if (element.action.action.disabled) {
 			data.container.title = element.action.action.disabled;
-		} else {
-			const updateLabel = () => {
-				data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this.keybindingService.lookupKeybinding(acceptSelectedCodeActionCommand)?.getLabel(), this.keybindingService.lookupKeybinding(previewSelectedCodeActionCommand)?.getLabel());
-			};
-			updateLabel();
-		}
-
-		if (element.action.action.disabled) {
 			data.container.classList.add('option-disabled');
-			data.container.style.backgroundColor = 'transparent !important';
-			data.icon.style.opacity = '0.4';
 		} else {
+			data.container.title = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", this.keybindingService.lookupKeybinding(acceptSelectedCodeActionCommand)?.getLabel(), this.keybindingService.lookupKeybinding(previewSelectedCodeActionCommand)?.getLabel());
 			data.container.classList.remove('option-disabled');
 		}
 	}
@@ -197,9 +178,6 @@ class CodeActionList extends Disposable {
 	private readonly list: List<ICodeActionMenuItem>;
 
 	private readonly allMenuItems: ICodeActionMenuItem[];
-	private readonly viewItems: readonly CodeActionListItemCodeAction[];
-	private focusedEnabledItem?: number;
-	private currSelectedItem?: number;
 
 	constructor(
 		codeActions: readonly CodeActionItem[],
@@ -220,7 +198,6 @@ class CodeActionList extends Disposable {
 			new HeaderRenderer(),
 		], {
 			keyboardSupport: false,
-			mouseSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === CodeActionListItemKind.CodeAction) {
@@ -244,14 +221,9 @@ class CodeActionList extends Disposable {
 		this._register(this.list.onDidChangeSelection(e => this.onListSelection(e)));
 
 		this.allMenuItems = this.toMenuItems(codeActions, showHeaders);
-		this.viewItems = this.allMenuItems.filter(item => item.kind === CodeActionListItemKind.CodeAction && !item.action.action.disabled) as CodeActionListItemCodeAction[];
 		this.list.splice(0, this.list.length, this.allMenuItems);
 
-		if (this.viewItems.length >= 1) {
-			this.focusedEnabledItem = 0;
-			this.currSelectedItem = this.viewItems[0].index;
-			this.list.setFocus([this.currSelectedItem]);
-		}
+		this.focusNext();
 	}
 
 	public layout(minWidth: number): number {
@@ -284,84 +256,54 @@ class CodeActionList extends Disposable {
 	}
 
 	public focusPrevious() {
-		if (typeof this.focusedEnabledItem === 'undefined') {
-			this.focusedEnabledItem = this.viewItems[0].index;
-		} else if (this.viewItems.length < 1) {
-			return;
-		}
-
-		const startIndex = this.focusedEnabledItem;
-		let item: ICodeActionMenuItem;
-
-		do {
-			this.focusedEnabledItem = this.focusedEnabledItem - 1;
-			if (this.focusedEnabledItem < 0) {
-				this.focusedEnabledItem = this.viewItems.length - 1;
-			}
-			item = this.viewItems[this.focusedEnabledItem];
-			this.list.setFocus([item.index]);
-			this.currSelectedItem = item.index;
-		} while (this.focusedEnabledItem !== startIndex && item.action.action.disabled);
+		this.list.focusPrevious(1, true, undefined, element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled);
 	}
 
 	public focusNext() {
-		if (typeof this.focusedEnabledItem === 'undefined') {
-			this.focusedEnabledItem = this.viewItems.length - 1;
-		} else if (this.viewItems.length < 1) {
+		this.list.focusNext(1, true, undefined, element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled);
+	}
+
+	public acceptSelected() {
+		const focused = this.list.getFocus();
+		if (focused.length === 0) {
 			return;
 		}
 
-		const startIndex = this.focusedEnabledItem;
-		let item: ICodeActionMenuItem;
-
-		do {
-			this.focusedEnabledItem = (this.focusedEnabledItem + 1) % this.viewItems.length;
-			item = this.viewItems[this.focusedEnabledItem];
-			this.list.setFocus([item.index]);
-			this.currSelectedItem = item.index;
-		} while (this.focusedEnabledItem !== startIndex && item.action.action.disabled);
-	}
-
-	public onEnterSet() {
-		if (typeof this.currSelectedItem === 'number') {
-			this.list.setSelection([this.currSelectedItem]);
+		const focusIndex = focused[0];
+		const element = this.list.element(focusIndex);
+		if (element.kind !== CodeActionListItemKind.CodeAction || element.action.action.disabled) {
+			return;
 		}
+
+		this.list.setSelection([focusIndex]);
 	}
 
 	private onListSelection(e: IListEvent<ICodeActionMenuItem>): void {
-		for (const element of e.elements) {
-			if (element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled) {
-				this.onDidSelect(element.action);
-			}
+		if (!e.elements.length) {
+			return;
+		}
+
+		const element = e.elements[0];
+		if (element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled) {
+			this.onDidSelect(element.action);
+		} else {
+			this.list.setSelection([]);
 		}
 	}
 
 	private onListHover(e: IListMouseEvent<ICodeActionMenuItem>): void {
-		if (!e.element) {
-			this.currSelectedItem = undefined;
-			this.list.setFocus([]);
-		} else {
-			if (e.element.kind === CodeActionListItemKind.CodeAction && !e.element.action.action.disabled) {
-				this.list.setFocus([e.element.index]);
-				this.focusedEnabledItem = this.viewItems.indexOf(e.element);
-				this.currSelectedItem = e.element.index;
-			} else {
-				this.currSelectedItem = undefined;
-				this.list.setFocus([e.element.index]);
-			}
-		}
+		this.list.setFocus(typeof e.index === 'number' ? [e.index] : []);
 	}
 
 	private onListClick(e: IListMouseEvent<ICodeActionMenuItem>): void {
 		if (e.element && e.element.kind === CodeActionListItemKind.CodeAction && e.element.action.action.disabled) {
-			this.currSelectedItem = undefined;
 			this.list.setFocus([]);
 		}
 	}
 
 	private toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ICodeActionMenuItem[] {
 		if (!showHeaders) {
-			return inputCodeActions.map((action, index): ICodeActionMenuItem => ({ kind: CodeActionListItemKind.CodeAction, action, index }));
+			return inputCodeActions.map((action): ICodeActionMenuItem => ({ kind: CodeActionListItemKind.CodeAction, action }));
 		}
 
 		// Groups code actions by their kind
@@ -401,9 +343,9 @@ class CodeActionList extends Disposable {
 		const allMenuItems: ICodeActionMenuItem[] = [];
 		for (const menuEntry of menuEntries) {
 			if (menuEntry.actions.length) {
-				allMenuItems.push({ kind: CodeActionListItemKind.Header, headerTitle: menuEntry.title, index: allMenuItems.length });
+				allMenuItems.push({ kind: CodeActionListItemKind.Header, headerTitle: menuEntry.title });
 				for (const action of menuEntry.actions) {
-					allMenuItems.push({ kind: CodeActionListItemKind.CodeAction, action, index: allMenuItems.length });
+					allMenuItems.push({ kind: CodeActionListItemKind.CodeAction, action });
 				}
 			}
 		}
@@ -431,7 +373,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		readonly anchor: IAnchor;
 		readonly codeActions: CodeActionSet;
 	};
-	private _ctxMenuWidgetVisible: IContextKey<boolean>;
+
+	private readonly _ctxMenuWidgetVisible: IContextKey<boolean>;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -487,11 +430,11 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.codeActionList.value?.focusNext();
 	}
 
-	public onEnterSet() {
-		this.codeActionList.value?.onEnterSet();
+	public acceptSelected() {
+		this.codeActionList.value?.acceptSelected();
 	}
 
-	public hideCodeActionWidget() {
+	public hide() {
 		this._ctxMenuWidgetVisible.reset();
 		this.codeActionList.clear();
 		this._contextViewService.hideContextView();
@@ -513,7 +456,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			showingCodeActions,
 			this.shouldShowHeaders(),
 			action => {
-				this.hideCodeActionWidget();
+				this.hide();
 				this._delegate.onSelectCodeAction(action, trigger);
 			},
 			this._keybindingService);
@@ -563,12 +506,10 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		const width = this.codeActionList.value.layout(actionBarWidth);
 		widget.style.width = `${width}px`;
 
-		renderDisposables.add(this._editor.onDidLayoutChange(() => this.hideCodeActionWidget()));
+		renderDisposables.add(this._editor.onDidLayoutChange(() => this.hide()));
 
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
-		renderDisposables.add(focusTracker.onDidBlur(() => {
-			this.hideCodeActionWidget();
-		}));
+		renderDisposables.add(focusTracker.onDidBlur(() => this.hide()));
 
 		this._ctxMenuWidgetVisible.set(true);
 
@@ -581,7 +522,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	private toggleShowDisabled(newShowDisabled: boolean): void {
 		const previouslyShowingActions = this.currentShowingContext;
 
-		this.hideCodeActionWidget();
+		this.hide();
 
 		showDisabled = newShowDisabled;
 
@@ -674,79 +615,5 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			enabled: true,
 			run: () => this._commandService.executeCommand(command.id, ...(command.arguments ?? [])),
 		}));
-	}
-}
-
-export class CodeActionKeybindingResolver {
-	private static readonly codeActionCommands: readonly string[] = [
-		refactorCommandId,
-		codeActionCommandId,
-		sourceActionCommandId,
-		organizeImportsCommandId,
-		fixAllCommandId
-	];
-
-	constructor(
-		private readonly keybindingService: IKeybindingService,
-	) { }
-
-	public getResolver(): (action: CodeAction) => ResolvedKeybinding | undefined {
-		// Lazy since we may not actually ever read the value
-		const allCodeActionBindings = new Lazy<readonly ResolveCodeActionKeybinding[]>(() =>
-			this.keybindingService.getKeybindings()
-				.filter(item => CodeActionKeybindingResolver.codeActionCommands.indexOf(item.command!) >= 0)
-				.filter(item => item.resolvedKeybinding)
-				.map((item): ResolveCodeActionKeybinding => {
-					// Special case these commands since they come built-in with VS Code and don't use 'commandArgs'
-					let commandArgs = item.commandArgs;
-					if (item.command === organizeImportsCommandId) {
-						commandArgs = { kind: CodeActionKind.SourceOrganizeImports.value };
-					} else if (item.command === fixAllCommandId) {
-						commandArgs = { kind: CodeActionKind.SourceFixAll.value };
-					}
-
-					return {
-						resolvedKeybinding: item.resolvedKeybinding!,
-						...CodeActionCommandArgs.fromUser(commandArgs, {
-							kind: CodeActionKind.None,
-							apply: CodeActionAutoApply.Never
-						})
-					};
-				}));
-
-		return (action) => {
-			if (action.kind) {
-				const binding = this.bestKeybindingForCodeAction(action, allCodeActionBindings.getValue());
-				return binding?.resolvedKeybinding;
-			}
-			return undefined;
-		};
-	}
-
-	private bestKeybindingForCodeAction(
-		action: CodeAction,
-		candidates: readonly ResolveCodeActionKeybinding[],
-	): ResolveCodeActionKeybinding | undefined {
-		if (!action.kind) {
-			return undefined;
-		}
-		const kind = new CodeActionKind(action.kind);
-
-		return candidates
-			.filter(candidate => candidate.kind.contains(kind))
-			.filter(candidate => {
-				if (candidate.preferred) {
-					// If the candidate keybinding only applies to preferred actions, the this action must also be preferred
-					return action.isPreferred;
-				}
-				return true;
-			})
-			.reduceRight((currentBest, candidate) => {
-				if (!currentBest) {
-					return candidate;
-				}
-				// Select the more specific binding
-				return currentBest.kind.contains(candidate.kind) ? candidate : currentBest;
-			}, undefined as ResolveCodeActionKeybinding | undefined);
 	}
 }
