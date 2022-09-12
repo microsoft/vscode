@@ -40,7 +40,6 @@ export class TreeSitterForColorization extends TreeSitterTokenizationService {
 		this._startPositionRow = 0;
 		this._endPositionRow = this._model.getLineCount() - 1;
 		this._newEndPositionRow = this._model.getLineCount() - 1;
-
 		this.setTimeoutForRender(10);
 		const uriString = FileAccess.asBrowserUri(`./treeSitterForColorization.scm`, require).toString(true);
 
@@ -132,6 +131,7 @@ export class TreeSitterForColorization extends TreeSitterTokenizationService {
 					if (!result) {
 						return this.runSetTokensWithThemeData(resolve, resolve);
 					} else {
+						console.log('Finished rendering');
 						resolve(result);
 						return;
 					}

@@ -465,6 +465,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				if (surrounding) {
 					const filter = (otherRegion: FoldingRegion) => !otherRegion.containedBy(region!) && !region!.containedBy(otherRegion);
 					const toMaybeToggle = foldingModel.getRegionsInside(null, filter);
+					console.log('toMaybeToggle : ', toMaybeToggle);
 					for (const r of toMaybeToggle) {
 						if (r.isCollapsed) {
 							toToggle.push(r);
@@ -479,6 +480,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 					const recursive = e.event.middleButton || e.event.shiftKey;
 					if (recursive) {
 						for (const r of foldingModel.getRegionsInside(region)) {
+							console.log('r : ', r);
 							if (r.isCollapsed === isCollapsed) {
 								toToggle.push(r);
 							}
@@ -486,6 +488,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 					}
 					// when recursive, first only collapse all children. If all are already folded or there are no children, also fold parent.
 					if (isCollapsed || !recursive || toToggle.length === 0) {
+						console.log('region : ', region);
 						toToggle.push(region);
 					}
 				}

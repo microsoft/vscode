@@ -49,6 +49,7 @@ export class FoldingModel {
 	}
 
 	public toggleCollapseState(toggledRegions: FoldingRegion[]) {
+		console.log('Inside of toggleCollapseState for toggledRegions : ', toggledRegions);
 		if (!toggledRegions.length) {
 			return;
 		}
@@ -136,9 +137,16 @@ export class FoldingModel {
 				lastHiddenLine = endLineNumber;
 			}
 		}
+		console.log('newEditorDecorations in updatePost : ', newEditorDecorations);
+		console.log('newRegions in updatePost : ', newRegions);
+		console.log('this._editorDecorationIds in updatePost : ', this._editorDecorationIds)
 		// this._decorationProvider.changeDecorations(accessor => this._editorDecorationIds = accessor.deltaDecorations(this._editorDecorationIds, newEditorDecorations));
 		this._regions = newRegions;
 		this._updateEventEmitter.fire({ model: this });
+	}
+
+	public setRegions(_regions: FoldingRegions) {
+		this._regions = _regions;
 	}
 
 	private _currentFoldedOrManualRanges(blockedLineNumers: number[] = []): FoldRange[] {
@@ -323,6 +331,7 @@ export function toggleCollapseState(foldingModel: FoldingModel, levels: number, 
 			}
 		}
 	}
+	console.log('toToggle in toggleCollapseState : ', toToggle);
 	foldingModel.toggleCollapseState(toToggle);
 }
 

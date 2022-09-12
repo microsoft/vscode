@@ -86,7 +86,7 @@ export class TreeSitterController implements IEditorContribution {
 		const models = this._modelService.getModels();
 		for (const model of models) {
 			if (this._language) {
-				this._treeSittersForFolding.push(new TreeSitterForFolding(model, this._language, foldingDecorationProvider));
+				this._treeSittersForFolding.push(new TreeSitterForFolding(model, this._language, this._editor, foldingDecorationProvider));
 			}
 		}
 	}
