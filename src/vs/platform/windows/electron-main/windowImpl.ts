@@ -666,7 +666,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				// shutdown as much as possible by destroying the window
 				// and then calling the normal `quit` routine.
 				if (this.environmentMainService.args['enable-smoke-test-driver']) {
-					this.destroyWindow(false, false);
+					await this.destroyWindow(false, false);
 					this.lifecycleMainService.quit(); // still allow for an orderly shutdown
 					return;
 				}
@@ -703,7 +703,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					// Handle choice
 					if (result.response !== 1 /* keep waiting */) {
 						const reopen = result.response === 0;
-						this.destroyWindow(reopen, result.checkboxChecked);
+						await this.destroyWindow(reopen, result.checkboxChecked);
 					}
 				}
 
@@ -733,7 +733,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 					// Handle choice
 					const reopen = result.response === 0;
-					this.destroyWindow(reopen, result.checkboxChecked);
+					await this.destroyWindow(reopen, result.checkboxChecked);
 				}
 				break;
 		}
@@ -775,7 +775,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			// Delegate to windows service
-			const [window] = this.windowsMainService.open({
+			const [window] = await this.windowsMainService.open({
 				context: OpenContext.API,
 				userEnv: this._config.userEnv,
 				cli: {
