@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import type { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
@@ -31,7 +32,7 @@ export function compressOutputItemStreams(mimeType: string, outputs: IOutputItem
 		}
 	}
 	compressStreamBuffer(buffers);
-	return Buffer.concat(buffers);
+	return VSBuffer.concat(buffers.map(buffer => VSBuffer.wrap(buffer))).buffer;
 }
 const MOVE_CURSOR_1_LINE_COMMAND = `${String.fromCharCode(27)}[A`;
 const LINE_FEED = 10;
