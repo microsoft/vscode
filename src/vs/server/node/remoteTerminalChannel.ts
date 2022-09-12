@@ -185,7 +185,10 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 					: URI.revive(uriTransformer.transformIncoming(args.shellLaunchConfig.cwd))
 			),
 			env: args.shellLaunchConfig.env,
-			useShellEnvironment: args.shellLaunchConfig.useShellEnvironment
+			useShellEnvironment: args.shellLaunchConfig.useShellEnvironment,
+			reconnectionProperties: args.shellLaunchConfig.reconnectionProperties,
+			type: args.shellLaunchConfig.type,
+			isFeatureTerminal: args.shellLaunchConfig.isFeatureTerminal
 		};
 
 

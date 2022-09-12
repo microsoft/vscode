@@ -67,6 +67,10 @@
 	justify-content: flex-end;
 }
 
+.scm-view .monaco-editor .selected-text {
+	border-radius: 0;
+}
+
 /**
  * The following rules are very specific because of inline drop down menus
  * https://github.com/microsoft/vscode/issues/101410

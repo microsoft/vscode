@@ -188,6 +188,42 @@ class FromEventObservableSignal extends BaseObservable<void> {
 	}
 }
 
+export function observableSignal(
+	debugName: string
+): IObservableSignal {
+	return new ObservableSignal(debugName);
+}
+
+export interface IObservableSignal extends IObservable<void> {
+	trigger(tx: ITransaction | undefined): void;
+}
+
+class ObservableSignal extends BaseObservable<void> implements IObservableSignal {
+	constructor(
+		public readonly debugName: string
+	) {
+		super();
+	}
+
+	public trigger(tx: ITransaction | undefined): void {
+		if (!tx) {
+			transaction(tx => {
+				this.trigger(tx);
+			}, () => `Trigger signal ${this.debugName}`);
+			return;
+		}
+
+		for (const o of this.observers) {
+			tx.updateObserver(o, this);
+			o.handleChange(this, undefined);
+		}
+	}
+
+	public override get(): void {
+		// NO OP
+	}
+}
+
 export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: number, disposableStore: DisposableStore): IObservable<T | undefined> {
 	const debouncedObservable = observableValue<T | undefined>('debounced', undefined);
 

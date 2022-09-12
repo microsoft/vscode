@@ -432,4 +432,4 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DocumentSymbolsOutlineCreator, LifecyclePhase.Eventually);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DocumentSymbolsOutlineCreator, 'DocumentSymbolsOutlineCreator', LifecyclePhase.Eventually);

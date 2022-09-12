@@ -35,7 +35,7 @@ import { EditorExtensions } from 'vs/workbench/common/editor';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 // Register Service
-registerSingleton(IOutputService, OutputService);
+registerSingleton(IOutputService, OutputService, true);
 
 // Register Output Mode
 ModesRegistry.registerLanguage({
@@ -103,7 +103,7 @@ class OutputContribution implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(OutputContribution, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(OutputContribution, 'OutputContribution', LifecyclePhase.Restored);
 
 registerAction2(class extends Action2 {
 	constructor() {

@@ -18,7 +18,8 @@
     "scmSelectedProvider",
     "scmValidation",
     "tabInputTextMerge",
-    "timeline"
+    "timeline",
+    "contribMergeEditorMenus"
   ],
   "categories": [
     "Other"
@@ -369,6 +370,11 @@
         "category": "Git"
       },
       {
+        "command": "git.mergeAbort",
+        "title": "%command.mergeAbort%",
+        "category": "Git"
+      },
+      {
         "command": "git.rebase",
         "title": "%command.rebase%",
         "category": "Git"
@@ -609,6 +615,18 @@
         "command": "git.openMergeEditor",
         "title": "%command.git.openMergeEditor%",
         "category": "Git"
+      },
+      {
+        "command": "git.runGitMerge",
+        "title": "%command.git.runGitMerge%",
+        "category": "Git",
+        "enablement": "isMergeEditor"
+      },
+      {
+        "command": "git.runGitMergeDiff3",
+        "title": "%command.git.runGitMergeDiff3%",
+        "category": "Git",
+        "enablement": "isMergeEditor"
       }
     ],
     "keybindings": [
@@ -647,7 +665,7 @@
         },
         {
           "command": "git.init",
-          "when": "config.git.enabled && !git.missing"
+          "when": "config.git.enabled && !git.missing && remoteName != 'codespaces'"
         },
         {
           "command": "git.openRepository",
@@ -884,6 +902,10 @@
         {
           "command": "git.merge",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.mergeAbort",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && gitMergeInProgress"
         },
         {
           "command": "git.rebase",
@@ -1566,6 +1588,16 @@
           "command": "git.openMergeEditor",
           "group": "navigation@-10",
           "when": "config.git.enabled && !git.missing && !isInDiffEditor && !isMergeEditor && resource in git.mergeChanges"
+        }
+      ],
+      "mergeEditor/result/title": [
+        {
+          "command": "git.runGitMerge",
+          "when": "isMergeEditor"
+        },
+        {
+          "command": "git.runGitMergeDiff3",
+          "when": "isMergeEditor"
         }
       ],
       "scm/change/title": [
@@ -2699,14 +2731,14 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.folder%",
-        "when": "config.git.enabled && !git.missing && workbenchState == folder",
+        "when": "config.git.enabled && !git.missing && workbenchState == folder && remoteName != 'codespaces'",
         "enablement": "git.state == initialized",
         "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
-        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0",
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0 && remoteName != 'codespaces'",
         "enablement": "git.state == initialized",
         "group": "5_scm@1"
       },

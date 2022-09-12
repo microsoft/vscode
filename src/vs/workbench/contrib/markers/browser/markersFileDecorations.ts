@@ -107,4 +107,4 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 
 // register file decorations
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MarkersFileDecorations, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(MarkersFileDecorations, 'MarkersFileDecorations', LifecyclePhase.Restored);

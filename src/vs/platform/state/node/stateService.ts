@@ -104,12 +104,12 @@ export class FileStorage {
 		}
 	}
 
-	private async save(delay?: number): Promise<void> {
+	private async save(): Promise<void> {
 		if (this.closing) {
 			return; // already about to close
 		}
 
-		return this.flushDelayer.trigger(() => this.doSave(), delay);
+		return this.flushDelayer.trigger(() => this.doSave());
 	}
 
 	private async doSave(): Promise<void> {

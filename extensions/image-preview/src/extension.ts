@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { registerAudioPreviewSupport } from './audioPreview';
 import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 import { registerImagePreviewSupport } from './imagePreview';
-import { registerAudioPreviewSupport } from './audioPreview';
+import { registerVideoPreviewSupport } from './videoPreview';
 
 export function activate(context: vscode.ExtensionContext) {
 	const binarySizeStatusBarEntry = new BinarySizeStatusBarEntry();
@@ -14,4 +15,5 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(registerImagePreviewSupport(context, binarySizeStatusBarEntry));
 	context.subscriptions.push(registerAudioPreviewSupport(context, binarySizeStatusBarEntry));
+	context.subscriptions.push(registerVideoPreviewSupport(context, binarySizeStatusBarEntry));
 }

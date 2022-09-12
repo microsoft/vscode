@@ -264,47 +264,47 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 }
 
 export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined> {
-	if (!validate()) {
-		return Promise.resolve(undefined);
+	if (!validate() || !vscode.window.activeTextEditor) {
+		return fallbackTab();
 	}
-
-	const editor = vscode.window.activeTextEditor!;
-
-	args = args || {};
-	if (!args['language']) {
-		args['language'] = editor.document.languageId;
-	} else {
-		const excludedLanguages = vscode.workspace.getConfiguration('emmet')['excludeLanguages'] ?? [];
-		if (excludedLanguages.includes(args['language'])) {
-			return fallbackTab(args['language']);
-		}
-	}
-	const languageId: string = args['language'];
 
 	/**
 	 * Short circuit the parsing. If previous character is space, do not expand.
 	 */
-	if (editor.selections.length === 1 && editor.selection.isEmpty
+	if (vscode.window.activeTextEditor.selections.length === 1 &&
+		vscode.window.activeTextEditor.selection.isEmpty
 	) {
-		const anchor = editor.selection.anchor;
+		const anchor = vscode.window.activeTextEditor.selection.anchor;
 		if (anchor.character === 0) {
-			return fallbackTab(languageId);
+			return fallbackTab();
 		}
 
 		const prevPositionAnchor = anchor.translate(0, -1);
-		const prevText = editor.document.getText(new vscode.Range(prevPositionAnchor, anchor));
+		const prevText = vscode.window.activeTextEditor.document.getText(new vscode.Range(prevPositionAnchor, anchor));
 		if (prevText === ' ' || prevText === '\t') {
-			return fallbackTab(languageId);
+			return fallbackTab();
 		}
 	}
 
+	args = args || {};
+	if (!args['language']) {
+		args['language'] = vscode.window.activeTextEditor.document.languageId;
+	} else {
+		const excludedLanguages = vscode.workspace.getConfiguration('emmet')['excludeLanguages'] ? vscode.workspace.getConfiguration('emmet')['excludeLanguages'] : [];
+		if (excludedLanguages.indexOf(vscode.window.activeTextEditor.document.languageId) > -1) {
+			return fallbackTab();
+		}
+	}
 	const syntax = getSyntaxFromArgs(args);
 	if (!syntax) {
-		return fallbackTab(languageId);
+		return fallbackTab();
 	}
+
+	const editor = vscode.window.activeTextEditor;
+
 	// When tabbed on a non empty selection, do not treat it as an emmet abbreviation, and fallback to tab instead
-	if (vscode.workspace.getConfiguration('emmet', { languageId })['triggerExpansionOnTab'] === true && editor.selections.find(x => !x.isEmpty)) {
-		return fallbackTab(languageId);
+	if (vscode.workspace.getConfiguration('emmet')['triggerExpansionOnTab'] === true && editor.selections.find(x => !x.isEmpty)) {
+		return fallbackTab();
 	}
 
 	const abbreviationList: ExpandAbbreviationInput[] = [];
@@ -325,7 +325,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 		}
 
 		const currentLine = editor.document.lineAt(position.line).text;
-		const textTillPosition = currentLine.substring(0, position.character);
+		const textTillPosition = currentLine.substr(0, position.character);
 
 		// Expand cases like <div to <div></div> explicitly
 		// else we will end up with <<div></div>
@@ -415,12 +415,12 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	});
 
 	return expandAbbreviationInRange(editor, abbreviationList, allAbbreviationsSame).then(success => {
-		return success ? Promise.resolve(undefined) : fallbackTab(languageId);
+		return success ? Promise.resolve(undefined) : fallbackTab();
 	});
 }
 
-function fallbackTab(languageId: string): Thenable<boolean | undefined> {
-	if (vscode.workspace.getConfiguration('emmet', { languageId })['triggerExpansionOnTab'] === true) {
+function fallbackTab(): Thenable<boolean | undefined> {
+	if (vscode.workspace.getConfiguration('emmet')['triggerExpansionOnTab'] === true) {
 		return vscode.commands.executeCommand('tab');
 	}
 	return Promise.resolve(true);
@@ -470,13 +470,13 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 				&& propertyNode.separator
 				&& offset >= propertyNode.separatorToken.end
 				&& offset <= propertyNode.terminatorToken.start
-				&& !abbreviation.includes(':')) {
+				&& abbreviation.indexOf(':') === -1) {
 				return hexColorRegex.test(abbreviation) || abbreviation === '!';
 			}
 			if (!propertyNode.terminatorToken
 				&& propertyNode.separator
 				&& offset >= propertyNode.separatorToken.end
-				&& !abbreviation.includes(':')) {
+				&& abbreviation.indexOf(':') === -1) {
 				return hexColorRegex.test(abbreviation) || abbreviation === '!';
 			}
 			if (hexColorRegex.test(abbreviation) || abbreviation === '!') {
@@ -529,7 +529,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			const typeAttribute = (currentHtmlNode.attributes || []).filter(x => x.name.toString() === 'type')[0];
 			const typeValue = typeAttribute ? typeAttribute.value.toString() : '';
 
-			if (allowedMimeTypesInScriptTag.includes(typeValue)) {
+			if (allowedMimeTypesInScriptTag.indexOf(typeValue) > -1) {
 				return true;
 			}
 
