@@ -5,6 +5,7 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { parse } from 'vs/base/common/marshalling';
@@ -727,6 +728,21 @@ registerAction2(class extends Action2 {
 
 		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
 			editorService.activeEditorPane?.focus();
+		}
+		else {
+			// find and open the most recent interactive window
+			const openEditors = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
+			const interactiveWindow = Iterable.find(openEditors, identifier => { return identifier.editor.typeId === InteractiveEditorInput.ID; });
+			if (interactiveWindow) {
+				const editorInput = interactiveWindow.editor as InteractiveEditorInput;
+				const currentGroup = interactiveWindow.groupId;
+				const editor = await editorService.openEditor(editorInput, currentGroup);
+				const editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+
+				if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+					editorService.activeEditorPane?.focus();
+				}
+			}
 		}
 	}
 });
