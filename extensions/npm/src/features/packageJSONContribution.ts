@@ -226,7 +226,8 @@ export class PackageJSONContribution implements IJSONContribution {
 
 		if (scriptsNodes) {
 			for (const scriptNode of this.convertObjectNodeToValues(scriptsNodes)) {
-				const script: string = getNodeValue(scriptNode);
+				// ensure script's length matches real text length in JSON document
+				const script = (getNodeValue(scriptNode) as string).replaceAll("\\", "\\\\").replace(/\t|\n|\r/g, '\\$&').replaceAll('"', '\\"');
 				let match: RegExpExecArray | null;
 				while ((match = scriptLinksCommandRegex.exec(script))) {
 					const scriptRefName = match.groups!.NAME || match.groups!.NAME2!;
@@ -237,11 +238,7 @@ export class PackageJSONContribution implements IJSONContribution {
 					}
 					// +1 for opening quote
 					const getStringNodeStart = (node: Node) => node.offset + 1;
-					let startOffset = getStringNodeStart(scriptNode) + match.index + (match.groups!.START || match.groups!.START2!).length;
-					// in JSON quote always requires \ character for escaping
-					if (match[0]!.startsWith('"')) {
-						startOffset += 1;
-					}
+					const startOffset = getStringNodeStart(scriptNode) + match.index + (match.groups!.START || match.groups!.START2!).length;
 					const linkRange = this.rangeFromOffsets(document, startOffset, startOffset + scriptRefName.length);
 					const targetPos = document.positionAt(getStringNodeStart(targetScriptNode));
 					const fragment = `L${targetPos.line + 1},${targetPos.character + 1}`;
