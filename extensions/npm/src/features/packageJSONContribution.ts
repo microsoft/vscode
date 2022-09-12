@@ -227,7 +227,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		if (scriptsNodes) {
 			for (const scriptNode of this.convertObjectNodeToValues(scriptsNodes)) {
 				// ensure script's length matches real text length in JSON document
-				const script = (getNodeValue(scriptNode) as string).replaceAll("\\", "\\\\").replace(/[\n\r\t]/g, '\\$&').replaceAll('"', '\\"');
+				const script = (getNodeValue(scriptNode) as string).replaceAll('\\', '\\\\').replace(/[\n\r\t]/g, '\\$&').replaceAll('"', '\\"');
 				let match: RegExpExecArray | null;
 				while ((match = scriptLinksCommandRegex.exec(script))) {
 					const scriptRefName = match.groups!.NAME || match.groups!.NAME2!;
