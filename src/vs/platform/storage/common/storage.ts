@@ -235,8 +235,8 @@ interface IKeyTargets {
 }
 
 export interface IStorageServiceOptions {
-	flushInterval: number;
-	donotMarkPerf?: boolean;
+	readonly flushInterval: number;
+	readonly doNotMarkPerf?: boolean;
 }
 
 export function loadKeyTargets(storage: IStorage): IKeyTargets {
@@ -298,7 +298,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		if (!this.initializationPromise) {
 			this.initializationPromise = (async () => {
 
-				if (!this.options.donotMarkPerf) {
+				if (!this.options.doNotMarkPerf) {
 					// Init all storage locations
 					mark('code/willInitStorage');
 				}
@@ -306,7 +306,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 					// Ask subclasses to initialize storage
 					await this.doInitialize();
 				} finally {
-					if (!this.options.donotMarkPerf) {
+					if (!this.options.doNotMarkPerf) {
 						mark('code/didInitStorage');
 					}
 				}

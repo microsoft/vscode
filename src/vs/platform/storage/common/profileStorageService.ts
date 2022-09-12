@@ -53,7 +53,7 @@ export abstract class AbstractProfileStorageService extends Disposable implement
 
 	_serviceBrand: undefined;
 
-	abstract onDidChange: Event<IProfileStorageChanges>;
+	readonly abstract onDidChange: Event<IProfileStorageChanges>;
 
 	constructor(
 		@IStorageService protected readonly storageService: IStorageService
@@ -68,7 +68,7 @@ export abstract class AbstractProfileStorageService extends Disposable implement
 		}
 
 		const storageDatabase = await this.createStorageDatabase(profile);
-		const storageService = new StroageService(storageDatabase);
+		const storageService = new StorageService(storageDatabase);
 		try {
 			await storageService.initialize();
 			return this.getItems(storageService);
@@ -85,7 +85,7 @@ export abstract class AbstractProfileStorageService extends Disposable implement
 		}
 
 		const storageDatabase = await this.createStorageDatabase(profile);
-		const storageService = new StroageService(storageDatabase);
+		const storageService = new StorageService(storageDatabase);
 		try {
 			await storageService.initialize();
 			this.writeItems(storageService, data, target);
@@ -127,12 +127,12 @@ export abstract class AbstractProfileStorageService extends Disposable implement
 	protected abstract createStorageDatabase(profile: IUserDataProfile): Promise<IStorageDatabase>;
 }
 
-class StroageService extends AbstractStorageService {
+class StorageService extends AbstractStorageService {
 
 	private readonly profileStorage: IStorage;
 
 	constructor(profileStorageDatabase: IStorageDatabase) {
-		super({ flushInterval: 100, donotMarkPerf: true });
+		super({ flushInterval: 100, doNotMarkPerf: true });
 		this.profileStorage = this._register(new Storage(profileStorageDatabase));
 	}
 

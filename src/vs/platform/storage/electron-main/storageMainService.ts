@@ -189,7 +189,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 			profileStorage = this.createProfileStorage(profile);
 			this.mapProfileToStorage.set(profile.id, profileStorage);
-			profileStorage.onDidChangeStorage(e => this._onDidChangeProfileStorageData.fire({ ...e, storage: profileStorage!, profile }));
+			this._register(profileStorage.onDidChangeStorage(e => this._onDidChangeProfileStorageData.fire({ ...e, storage: profileStorage!, profile })));
 
 			once(profileStorage.onDidCloseStorage)(() => {
 				this.logService.trace(`StorageMainService: closed profile storage (${profile.name})`);
