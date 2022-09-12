@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as nbformat from '@jupyterlab/nbformat';
-import { TextDecoder } from 'util';
 import { NotebookCell, NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
 import { CellMetadata, CellOutputMetadata } from './common';
 import { textMimeTypes } from './deserializers';
