@@ -17,7 +17,7 @@ const LIMIT = 40;
 
 const USER_AGENT = 'Visual Studio Code';
 
-const scriptLinksCommandRegex = /((?<START>(^|&&|")\s?((pnpm|yarn|npm) run) )(?<NAME>[A-z\d:-]+))|((?<START2>(^|&&|")\s?(pnpm|yarn) )(?<NAME2>[A-z\d:-]+))/g;
+const scriptLinksCommandRegex = /((?<START>(^|&&|")\s?((pnpm|yarn|npm) run) )(?<NAME>[\wA-Z\d:-]+))|((?<START2>(^|&&|")\s?(pnpm|yarn) )(?<NAME2>[\wA-Z\d:-]+))/g;
 
 export class PackageJSONContribution implements IJSONContribution {
 
