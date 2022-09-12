@@ -296,7 +296,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				});
 			}
 
-			async run(accessor: ServicesAccessor, editSessionId?: string, silent?: boolean): Promise<void> {
+			async run(accessor: ServicesAccessor, editSessionId?: string): Promise<void> {
 				await that.progressService.withProgress(resumingProgressOptions, async () => {
 					type ResumeEvent = {};
 					type ResumeClassification = {
@@ -304,7 +304,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					};
 					that.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.resume');
 
-					await that.resumeEditSession(editSessionId, silent);
+					await that.resumeEditSession(editSessionId);
 				});
 			}
 		}));

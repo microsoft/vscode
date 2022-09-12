@@ -22,41 +22,65 @@ const localize = nls.loadMessageBundle();
 interface MdServerInitializationOptions extends LsConfiguration { }
 
 const organizeLinkDefKind = 'source.organizeLinkDefinitions';
-export async function startServer(connection: Connection) {
+
+export async function startVsCodeServer(connection: Connection) {
+	const logger = new LogFunctionLogger(connection.console.log.bind(connection.console));
+
+	const parser = new class implements md.IMdParser {
+		slugifier = md.githubSlugifier;
+
+		tokenize(document: md.ITextDocument): Promise<md.Token[]> {
+			return connection.sendRequest(protocol.parse, { uri: document.uri.toString() });
+		}
+	};
+
 	const documents = new TextDocuments(TextDocument);
 	const notebooks = new NotebookDocuments(documents);
 
-	const configurationManager = new ConfigurationManager(connection);
+	const workspaceFactory: WorkspaceFactory = ({ connection, config, workspaceFolders }) => {
+		const workspace = new VsCodeClientWorkspace(connection, config, documents, notebooks, logger);
+		workspace.workspaceFolders = (workspaceFolders ?? []).map(x => URI.parse(x.uri));
+		return workspace;
+	};
+
+	return startServer(connection, { documents, notebooks, logger, parser, workspaceFactory });
+}
+
+type WorkspaceFactory = (config: {
+	connection: Connection;
+	config: LsConfiguration;
+	workspaceFolders?: lsp.WorkspaceFolder[] | null;
+}) => md.IWorkspace;
+
+export async function startServer(connection: Connection, serverConfig: {
+	documents: TextDocuments<md.ITextDocument>;
+	notebooks?: NotebookDocuments<md.ITextDocument>;
+	logger: md.ILogger;
+	parser: md.IMdParser;
+	workspaceFactory: WorkspaceFactory;
+}) {
+	const { documents, notebooks } = serverConfig;
 
 	let mdLs: md.IMdLanguageService | undefined;
-	let workspace: VsCodeClientWorkspace | undefined;
 
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
-		const parser = new class implements md.IMdParser {
-			slugifier = md.githubSlugifier;
-
-			async tokenize(document: md.ITextDocument): Promise<md.Token[]> {
-				return await connection.sendRequest(protocol.parse, { uri: document.uri.toString() });
-			}
-		};
-
 		const initOptions = params.initializationOptions as MdServerInitializationOptions | undefined;
 		const config = getLsConfiguration(initOptions ?? {});
 
-		const logger = new LogFunctionLogger(connection.console.log.bind(connection.console));
-		workspace = new VsCodeClientWorkspace(connection, config, documents, notebooks, logger);
+		const configurationManager = new ConfigurationManager(connection);
+
+		const workspace = serverConfig.workspaceFactory({ connection, config, workspaceFolders: params.workspaceFolders });
 		mdLs = md.createLanguageService({
 			workspace,
-			parser,
-			logger,
+			parser: serverConfig.parser,
+			logger: serverConfig.logger,
 			markdownFileExtensions: config.markdownFileExtensions,
 			excludePaths: config.excludePaths,
 		});
 
 		registerCompletionsSupport(connection, documents, mdLs, configurationManager);
-		registerValidateSupport(connection, workspace, mdLs, configurationManager, logger);
+		registerValidateSupport(connection, workspace, mdLs, configurationManager, serverConfig.logger);
 
-		workspace.workspaceFolders = (params.workspaceFolders ?? []).map(x => URI.parse(x.uri));
 		return {
 			capabilities: {
 				diagnosticProvider: {
@@ -212,14 +236,14 @@ export async function startServer(connection: Connection) {
 	}));
 
 	documents.listen(connection);
-	notebooks.listen(connection);
+	notebooks?.listen(connection);
 	connection.listen();
 }
 
 
 function registerCompletionsSupport(
 	connection: Connection,
-	documents: TextDocuments<TextDocument>,
+	documents: TextDocuments<md.ITextDocument>,
 	ls: md.IMdLanguageService,
 	config: ConfigurationManager,
 ): IDisposable {

@@ -21,6 +21,8 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { getColorClass, getColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { TaskQuickPickEntryType } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
+import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
 export const QUICKOPEN_SKIP_CONFIG = 'task.quickOpen.skip';
@@ -42,16 +44,19 @@ const SHOW_ALL: string = nls.localize('taskQuickPick.showAll', "Show All Tasks..
 export const configureTaskIcon = registerIcon('tasks-list-configure', Codicon.gear, nls.localize('configureTaskIcon', 'Configuration icon in the tasks selection list.'));
 const removeTaskIcon = registerIcon('tasks-remove', Codicon.close, nls.localize('removeTaskIcon', 'Icon for remove in the tasks selection list.'));
 
+const runTaskStorageKey = 'runTaskStorageKey';
+
 export class TaskQuickPick extends Disposable {
 	private _sorter: TaskSorter;
 	private _topLevelEntries: QuickPickInput<ITaskTwoLevelQuickPickEntry>[] | undefined;
 	constructor(
-		private _taskService: ITaskService,
-		private _configurationService: IConfigurationService,
-		private _quickInputService: IQuickInputService,
-		private _notificationService: INotificationService,
-		private _themeService: IThemeService,
-		private _dialogService: IDialogService) {
+		@ITaskService private _taskService: ITaskService,
+		@IConfigurationService private _configurationService: IConfigurationService,
+		@IQuickInputService private _quickInputService: IQuickInputService,
+		@INotificationService private _notificationService: INotificationService,
+		@IThemeService private _themeService: IThemeService,
+		@IDialogService private _dialogService: IDialogService,
+		@IStorageService private _storageService: IStorageService) {
 		super();
 		this._sorter = this._taskService.createSorter();
 	}
@@ -225,8 +230,6 @@ export class TaskQuickPick extends Disposable {
 		picker.placeholder = placeHolder;
 		picker.matchOnDescription = true;
 		picker.ignoreFocusOut = false;
-		picker.show();
-
 		picker.onDidTriggerItemButton(async (context) => {
 			const task = context.item.task;
 			if (context.button.iconClass === ThemeIcon.asClassName(removeTaskIcon)) {
@@ -238,7 +241,7 @@ export class TaskQuickPick extends Disposable {
 				if (indexToRemove >= 0) {
 					picker.items = [...picker.items.slice(0, indexToRemove), ...picker.items.slice(indexToRemove + 1)];
 				}
-			} else {
+			} else if (context.button.iconClass === ThemeIcon.asClassName(configureTaskIcon)) {
 				this._quickInputService.cancel();
 				if (ContributedTask.is(task)) {
 					this._taskService.customize(task, undefined, true);
@@ -299,6 +302,7 @@ export class TaskQuickPick extends Disposable {
 
 	private async _doPickerFirstLevel(picker: IQuickPick<ITaskTwoLevelQuickPickEntry>, taskQuickPickEntries: QuickPickInput<ITaskTwoLevelQuickPickEntry>[]): Promise<Task | ConfiguringTask | string | null | undefined> {
 		picker.items = taskQuickPickEntries;
+		showWithPinnedItems(this._storageService, runTaskStorageKey, picker, true);
 		const firstLevelPickerResult = await new Promise<ITaskTwoLevelQuickPickEntry | undefined | null>(resolve => {
 			Event.once(picker.onDidAccept)(async () => {
 				resolve(picker.selectedItems ? picker.selectedItems[0] : undefined);
@@ -317,7 +321,7 @@ export class TaskQuickPick extends Disposable {
 			picker.value = name || '';
 			picker.items = await this._getEntriesForProvider(type);
 		}
-		picker.show();
+		showWithPinnedItems(this._storageService, runTaskStorageKey, picker, true);
 		picker.busy = false;
 		const secondLevelPickerResult = await new Promise<ITaskTwoLevelQuickPickEntry | undefined | null>(resolve => {
 			Event.once(picker.onDidAccept)(async () => {
@@ -399,12 +403,5 @@ export class TaskQuickPick extends Disposable {
 			this._notificationService.error(nls.localize('noProviderForTask', "There is no task provider registered for tasks of type \"{0}\".", task.type));
 		}
 		return resolvedTask;
-	}
-
-	static async show(taskService: ITaskService, configurationService: IConfigurationService,
-		quickInputService: IQuickInputService, notificationService: INotificationService,
-		dialogService: IDialogService, themeService: IThemeService, placeHolder: string, defaultEntry?: ITaskQuickPickEntry, type?: string, name?: string) {
-		const taskQuickPick = new TaskQuickPick(taskService, configurationService, quickInputService, notificationService, themeService, dialogService);
-		return taskQuickPick.show(placeHolder, defaultEntry, type, name);
 	}
 }

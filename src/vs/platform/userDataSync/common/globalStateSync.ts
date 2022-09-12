@@ -480,7 +480,7 @@ export class UserDataSyncStoreTypeSynchronizer {
 
 	private async doSync(userDataSyncStoreType: UserDataSyncStoreType, syncHeaders: IHeaders): Promise<void> {
 		// Read the global state from remote
-		const globalStateUserData = await this.userDataSyncStoreClient.readResource(SyncResource.GlobalState, null, syncHeaders);
+		const globalStateUserData = await this.userDataSyncStoreClient.readResource(SyncResource.GlobalState, null, undefined, syncHeaders);
 		const remoteGlobalState = this.parseGlobalState(globalStateUserData) || { storage: {} };
 
 		// Update the sync store type
@@ -489,7 +489,7 @@ export class UserDataSyncStoreTypeSynchronizer {
 		// Write the global state to remote
 		const machineId = await getServiceMachineId(this.environmentService, this.fileService, this.storageService);
 		const syncDataToUpdate: ISyncData = { version: GLOBAL_STATE_DATA_VERSION, machineId, content: stringify(remoteGlobalState, false) };
-		await this.userDataSyncStoreClient.writeResource(SyncResource.GlobalState, JSON.stringify(syncDataToUpdate), globalStateUserData.ref, syncHeaders);
+		await this.userDataSyncStoreClient.writeResource(SyncResource.GlobalState, JSON.stringify(syncDataToUpdate), globalStateUserData.ref, undefined, syncHeaders);
 	}
 
 	private parseGlobalState({ content }: IUserData): IGlobalState | null {
