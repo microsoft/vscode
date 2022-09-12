@@ -126,6 +126,7 @@ export const enum ExtensionEditorTab {
 	Dependencies = 'dependencies',
 	ExtensionPack = 'extensionPack',
 	RuntimeStatus = 'runtimeStatus',
+	Log = 'log',
 }
 
 export const ConfigurationKey = 'extensions';
