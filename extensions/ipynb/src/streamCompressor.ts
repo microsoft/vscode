@@ -16,7 +16,6 @@ export function compressOutputItemStreams(mimeType: string, outputs: NotebookCel
 
 	const buffers: Uint8Array[] = [];
 	let startAppending = false;
-
 	// Pick the first set of outputs with the same mime type.
 	for (const output of outputs) {
 		if (output.mime === mimeType) {
@@ -29,7 +28,14 @@ export function compressOutputItemStreams(mimeType: string, outputs: NotebookCel
 		}
 	}
 	compressStreamBuffer(buffers);
-	return Buffer.concat(buffers);
+	const totalBytes = buffers.reduce((p, c) => p + c.byteLength, 0);
+	const combinedBuffer = new Uint8Array(totalBytes);
+	let offset = 0;
+	for (const buffer of buffers) {
+		combinedBuffer.set(buffer, offset);
+		offset = offset + buffer.byteLength;
+	}
+	return combinedBuffer;
 }
 const MOVE_CURSOR_1_LINE_COMMAND = `${String.fromCharCode(27)}[A`;
 const LINE_FEED = 10;
