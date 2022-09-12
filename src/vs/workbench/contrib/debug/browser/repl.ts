@@ -588,7 +588,9 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 		this._register(this.tree.onDidChangeContentHeight(() => {
 			if (this.tree.scrollHeight !== this.previousTreeScrollHeight) {
-				const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight;
+				// Due to rounding, the scrollTop + renderHeight will not exactly match the scrollHeight.
+				// Consider the tree to be scrolled all the way down if it is within 2px of the bottom.
+				const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight - 2;
 				if (lastElementWasVisible) {
 					setTimeout(() => {
 						// Can't set scrollTop during this event listener, the list might overwrite the change
