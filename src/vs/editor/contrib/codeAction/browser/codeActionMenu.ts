@@ -198,7 +198,6 @@ class CodeActionList extends Disposable {
 			new HeaderRenderer(),
 		], {
 			keyboardSupport: false,
-			mouseSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === CodeActionListItemKind.CodeAction) {
@@ -280,10 +279,15 @@ class CodeActionList extends Disposable {
 	}
 
 	private onListSelection(e: IListEvent<ICodeActionMenuItem>): void {
-		for (const element of e.elements) {
-			if (element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled) {
-				this.onDidSelect(element.action);
-			}
+		if (!e.elements.length) {
+			return;
+		}
+
+		const element = e.elements[0];
+		if (element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled) {
+			this.onDidSelect(element.action);
+		} else {
+			this.list.setSelection([]);
 		}
 	}
 
