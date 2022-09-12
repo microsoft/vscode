@@ -47,7 +47,7 @@ function compressStreamBuffer(streams: Uint8Array[]) {
 
 		// Remove the previous line if required.
 		const command = stream.subarray(0, MOVE_CURSOR_1_LINE_COMMAND.length);
-		if (command[0] === MOVE_CURSOR_1_LINE_COMMAND_BYTES[0] && command[1] === MOVE_CURSOR_1_LINE_COMMAND_BYTES[0] && command[2] === MOVE_CURSOR_1_LINE_COMMAND_BYTES[0]) {
+		if (command[0] === MOVE_CURSOR_1_LINE_COMMAND_BYTES[0] && command[1] === MOVE_CURSOR_1_LINE_COMMAND_BYTES[1] && command[2] === MOVE_CURSOR_1_LINE_COMMAND_BYTES[2]) {
 			const lastIndexOfLineFeed = previousStream.lastIndexOf(LINE_FEED);
 			if (lastIndexOfLineFeed === -1) {
 				return;
