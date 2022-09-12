@@ -24,7 +24,7 @@ import { IDiffEditorOptions, EditorLayoutInfo, EditorOption, EditorOptions, Edit
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -2479,7 +2479,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			}
 			const hasCharChanges = (decorations.length > 0);
 
-			const sb = createStringBuilder(10000);
+			const sb = new StringBuilder(10000);
 			let maxCharsPerLine = 0;
 			let renderedLineCount = 0;
 			let viewLineCounts: number[] | null = null;
@@ -2597,7 +2597,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		renderControlCharacters: boolean,
 		fontLigatures: string,
 		tabSize: number,
-		sb: IStringBuilder,
+		sb: StringBuilder,
 		marginDomNode: HTMLElement
 	): number {
 

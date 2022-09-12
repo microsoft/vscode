@@ -35,13 +35,11 @@ export async function startClient(factory: LanguageClientConstructor, workspace:
 		},
 		diagnosticPullOptions: {
 			onChange: true,
-			onSave: true,
 			onTabs: true,
 			match(_documentSelector, resource) {
 				return looksLikeMarkdownPath(resource);
 			},
 		},
-
 	};
 
 	const client = factory('markdown', localize('markdownServer.name', 'Markdown Language Server'), clientOptions);
@@ -115,6 +113,10 @@ export async function startClient(factory: LanguageClientConstructor, workspace:
 
 	client.onRequest(proto.fs_watcher_delete, async (params): Promise<void> => {
 		watchers.delete(params.id);
+	});
+
+	vscode.commands.registerCommand('vscodeMarkdownLanguageservice.open', (uri, args) => {
+		return vscode.commands.executeCommand('vscode.open', uri, args);
 	});
 
 	await client.start();

@@ -457,7 +457,7 @@ export class CommandCenter {
 		);
 	}
 
-	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
+	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource({
 				providerLabel: provider => localize('clonefrom', "Clone from {0}", provider.name),
@@ -518,6 +518,11 @@ export class CommandCenter {
 				opts,
 				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive }, token)
 			);
+
+			if (options.ref !== undefined) {
+				const repository = this.model.getRepository(Uri.file(repositoryPath));
+				await repository?.checkout(options.ref);
+			}
 
 			const config = workspace.getConfiguration('git');
 			const openAfterClone = config.get<'always' | 'alwaysNewWindow' | 'whenNoFolderOpen' | 'prompt'>('openAfterClone');
@@ -596,8 +601,8 @@ export class CommandCenter {
 	}
 
 	@command('git.clone')
-	async clone(url?: string, parentPath?: string): Promise<void> {
-		await this.cloneRepository(url, parentPath);
+	async clone(url?: string, parentPath?: string, options?: { ref?: string }): Promise<void> {
+		await this.cloneRepository(url, parentPath, options);
 	}
 
 	@command('git.cloneRecursive')
@@ -1132,6 +1137,51 @@ export class CommandCenter {
 			await repository.add([uri]);
 			await commands.executeCommand('workbench.view.scm');
 		}
+	}
+
+	@command('git.runGitMerge')
+	async runGitMergeNoDiff3(): Promise<void> {
+		await this.runGitMerge(false);
+	}
+
+	@command('git.runGitMergeDiff3')
+	async runGitMergeDiff3(): Promise<void> {
+		await this.runGitMerge(true);
+	}
+
+	private async runGitMerge(diff3: boolean): Promise<void> {
+		const { activeTab } = window.tabGroups.activeTabGroup;
+		if (!activeTab) {
+			return;
+		}
+
+		const input = activeTab.input;
+		if (!(input instanceof TabInputTextMerge)) {
+			return;
+		}
+
+		const result = await this.git.mergeFile({
+			basePath: input.base.fsPath,
+			input1Path: input.input1.fsPath,
+			input2Path: input.input2.fsPath,
+			diff3,
+		});
+
+		const doc = workspace.textDocuments.find(doc => doc.uri.toString() === input.result.toString());
+		if (!doc) {
+			return;
+		}
+		const e = new WorkspaceEdit();
+
+		e.replace(
+			input.result,
+			new Range(
+				new Position(0, 0),
+				new Position(doc.lineCount, 0),
+			),
+			result
+		);
+		await workspace.applyEdit(e);
 	}
 
 	private async _stageChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
@@ -2150,6 +2200,11 @@ export class CommandCenter {
 		}
 
 		await choice.run(repository);
+	}
+
+	@command('git.mergeAbort', { repository: true })
+	async abortMerge(repository: Repository): Promise<void> {
+		await repository.mergeAbort();
 	}
 
 	@command('git.rebase', { repository: true })

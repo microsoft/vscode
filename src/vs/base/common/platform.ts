@@ -15,6 +15,7 @@ let _isWeb = false;
 let _isElectron = false;
 let _isIOS = false;
 let _isCI = false;
+let _isMobile = false;
 let _locale: string | undefined = undefined;
 let _language: string = LANGUAGE_DEFAULT;
 let _translationsConfigFile: string | undefined = undefined;
@@ -79,6 +80,7 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isMacintosh = _userAgent.indexOf('Macintosh') >= 0;
 	_isIOS = (_userAgent.indexOf('Macintosh') >= 0 || _userAgent.indexOf('iPad') >= 0 || _userAgent.indexOf('iPhone') >= 0) && !!navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
+	_isMobile = _userAgent?.indexOf('Mobi') >= 0;
 	_isWeb = true;
 
 	const configuredLocale = nls.getConfiguredDefaultLocale(
@@ -157,6 +159,7 @@ export const isElectron = _isElectron;
 export const isWeb = _isWeb;
 export const isWebWorker = (_isWeb && typeof globals.importScripts === 'function');
 export const isIOS = _isIOS;
+export const isMobile = _isMobile;
 /**
  * Whether we run inside a CI environment, such as
  * GH actions or Azure Pipelines.

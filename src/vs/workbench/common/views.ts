@@ -663,6 +663,8 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeSelection: Event<ITreeItem[]>;
 
+	readonly onDidChangeFocus: Event<ITreeItem>;
+
 	readonly onDidChangeVisibility: Event<boolean>;
 
 	readonly onDidChangeActions: Event<void>;
@@ -672,6 +674,8 @@ export interface ITreeView extends IDisposable {
 	readonly onDidChangeDescription: Event<string | undefined>;
 
 	readonly onDidChangeWelcomeState: Event<void>;
+
+	readonly onDidChangeCheckboxState: Event<ITreeItem[]>;
 
 	readonly container: any | undefined;
 
@@ -690,6 +694,8 @@ export interface ITreeView extends IDisposable {
 	expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void>;
 
 	setSelection(items: ITreeItem[]): void;
+
+	getSelection(): ITreeItem[];
 
 	setFocus(item: ITreeItem): void;
 
@@ -712,7 +718,8 @@ export interface ITreeViewDescriptor extends IViewDescriptor {
 
 export type TreeViewPaneHandleArg = {
 	$treeViewId: string;
-	$selectedTreeItems: boolean;
+	$selectedTreeItems?: boolean;
+	$focusedTreeItem?: boolean;
 };
 
 export type TreeViewItemHandleArg = {
@@ -767,6 +774,8 @@ export interface ITreeItem {
 	children?: ITreeItem[];
 
 	accessibilityInformation?: IAccessibilityInformation;
+
+	checkboxChecked?: boolean;
 }
 
 export class ResolvableTreeItem implements ITreeItem {

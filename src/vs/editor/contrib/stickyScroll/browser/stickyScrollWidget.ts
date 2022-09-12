@@ -6,7 +6,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import { IActiveCodeEditor, ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import * as dom from 'vs/base/browser/dom';
 import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { Position } from 'vs/editor/common/core/position';
@@ -46,6 +46,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _hoverOnLine: number;
 	private _hoverOnColumn: number;
 	private _stickyRangeProjectedOnEditor: IRange | null;
+	private _candidateDefinitionsLength: number;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -62,6 +63,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._hoverOnLine = -1;
 		this._hoverOnColumn = -1;
 		this._stickyRangeProjectedOnEditor = null;
+		this._candidateDefinitionsLength = -1;
 		this._lineHeight = this._editor.getOption(EditorOption.lineHeight);
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.lineHeight)) {
@@ -113,6 +115,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 						return;
 					}
 					if (candidateDefinitions.length !== 0) {
+						this._candidateDefinitionsLength = candidateDefinitions.length;
 						const childHTML: HTMLElement = targetMouseEvent.element;
 						if (currentHTMLChild !== childHTML) {
 							sessionStore.clear();
@@ -140,20 +143,22 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			sessionStore.clear();
 		}));
 		linkGestureStore.add(gesture.onExecute(async e => {
-			if (this._hoverOnLine !== -1) {
-				if (e.hasTriggerModifier) {
-					// Control click
-					this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor } as Location);
-				} else {
-					// Normal click
+			if ((e.target as unknown as CustomMouseEvent).detail !== this.getId()) {
+				return;
+			}
+			if (e.hasTriggerModifier) {
+				// Control click
+				if (this._candidateDefinitionsLength > 1) {
 					this._editor.revealPosition({ lineNumber: this._hoverOnLine, column: 1 });
 				}
+				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor } as Location);
+			} else {
+				// Normal click
+				this._editor.revealPosition({ lineNumber: this._hoverOnLine, column: 1 });
 			}
-
 		}));
 		return linkGestureStore;
 	}
-
 
 	public get lineNumbers(): number[] {
 		return this._lineNumbers;
@@ -205,7 +210,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
 				1, 1, 1, 500, 'none', true, true, null);
 
-		const sb = createStringBuilder(2000);
+		const sb = new StringBuilder(2000);
 		renderViewLine(renderLineInput, sb);
 
 		let newLine;

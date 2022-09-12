@@ -17,7 +17,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { index } from 'vs/base/common/arrays';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
-import { ILocalizedString, ICommandAction } from 'vs/platform/action/common/action';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 interface IAPIMenu {
 	readonly key: string;
@@ -267,6 +267,11 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false,
 	},
 	{
+		key: 'webview/context',
+		id: MenuId.WebviewContext,
+		description: localize('webview.context', "The webview context menu")
+	},
+	{
 		key: 'file/share',
 		id: MenuId.MenubarShare,
 		description: localize('menus.share', "Share submenu shown in the top level File menu."),
@@ -286,12 +291,11 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribEditorContentMenu'
 	},
 	{
-		key: 'webview/context',
-		id: MenuId.WebviewContext,
-		description: localize('webview.context', "The webview context menu"),
-		proposed: 'contribWebviewContext'
+		key: 'mergeEditor/result/title',
+		id: MenuId.MergeInputResultToolbar,
+		description: localize('menus.mergeEditorResult', "The result toolbar of the merge editor"),
+		proposed: 'contribMergeEditorMenus'
 	},
-
 ];
 
 namespace schema {
@@ -631,7 +635,7 @@ export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<
 
 commandsExtensionPoint.setHandler(extensions => {
 
-	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>, bucket: ICommandAction[]) {
+	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>) {
 
 		if (!schema.isValidCommand(userFriendlyCommand, extension.collector)) {
 			return;
@@ -655,7 +659,7 @@ commandsExtensionPoint.setHandler(extensions => {
 		if (MenuRegistry.getCommand(command)) {
 			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
 		}
-		bucket.push({
+		_commandRegistrations.add(MenuRegistry.addCommand({
 			id: command,
 			title,
 			source: extension.description.displayName ?? extension.description.name,
@@ -664,24 +668,22 @@ commandsExtensionPoint.setHandler(extensions => {
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
 			icon: absoluteIcon
-		});
+		}));
 	}
 
 	// remove all previous command registrations
 	_commandRegistrations.clear();
 
-	const newCommands: ICommandAction[] = [];
 	for (const extension of extensions) {
 		const { value } = extension;
 		if (Array.isArray(value)) {
 			for (const command of value) {
-				handleCommand(command, extension, newCommands);
+				handleCommand(command, extension);
 			}
 		} else {
-			handleCommand(value, extension, newCommands);
+			handleCommand(value, extension);
 		}
 	}
-	_commandRegistrations.add(MenuRegistry.addCommands(newCommands));
 });
 
 interface IRegisteredSubmenu {
@@ -761,8 +763,6 @@ menusExtensionPoint.setHandler(extensions => {
 	// remove all previous menu registrations
 	_menuRegistrations.clear();
 	_submenuMenuItems.clear();
-
-	const items: { id: MenuId; item: IMenuItem | ISubmenuItem }[] = [];
 
 	for (const extension of extensions) {
 		const { value, collector } = extension;
@@ -855,10 +855,8 @@ menusExtensionPoint.setHandler(extensions => {
 				}
 
 				item.when = ContextKeyExpr.deserialize(menuItem.when);
-				items.push({ id: menu.id, item });
+				_menuRegistrations.add(MenuRegistry.appendMenuItem(menu.id, item));
 			}
 		}
 	}
-
-	_menuRegistrations.add(MenuRegistry.appendMenuItems(items));
 });

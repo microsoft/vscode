@@ -92,7 +92,9 @@ export interface NativeParsedArgs {
 	editSessionId?: string;
 	'locate-shell-integration-path'?: string;
 	'profile'?: string;
-	'profile-transient'?: boolean;
+	'profile-temp'?: boolean;
+
+	'enable-coi'?: boolean;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;

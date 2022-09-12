@@ -21,7 +21,7 @@ export interface IUserDataProfilesMainService extends IUserDataProfilesService {
 	isEnabled(): boolean;
 	getOrSetProfileForWorkspace(workspaceIdentifier: WorkspaceIdentifier, profileToSet?: IUserDataProfile): IUserDataProfile;
 	setProfileForWorkspaceSync(workspaceIdentifier: WorkspaceIdentifier, profileToSet: IUserDataProfile): void;
-	checkAndCreateProfileFromCli(args: NativeParsedArgs): Promise<NativeParsedArgs> | undefined;
+	checkAndCreateProfileFromCli(args: NativeParsedArgs): Promise<IUserDataProfile> | undefined;
 	unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier, transient?: boolean): void;
 	readonly onWillCreateProfile: Event<WillCreateProfileEvent>;
 	readonly onWillRemoveProfile: Event<WillRemoveProfileEvent>;
@@ -39,41 +39,47 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		super(stateMainService, uriIdentityService, environmentService, fileService, logService);
 	}
 
+	override setEnablement(enabled: boolean): void {
+		super.setEnablement(enabled);
+		if (!this.enabled) {
+			// reset
+			this.saveStoredProfiles([]);
+			this.saveStoredProfileAssociations({});
+		}
+	}
+
 	isEnabled(): boolean {
 		return this.enabled;
 	}
 
-	checkAndCreateProfileFromCli(args: NativeParsedArgs): Promise<NativeParsedArgs> | undefined {
+	checkAndCreateProfileFromCli(args: NativeParsedArgs): Promise<IUserDataProfile> | undefined {
 		if (!this.isEnabled()) {
 			return undefined;
 		}
-		// Do not create the profile if folder/file arguments are not provided
-		if (!args._.length && !args['folder-uri'] && !args['file-uri']) {
-			return undefined;
-		}
 		if (args.profile) {
-			if (this.profiles.some(p => p.name === args.profile)) {
-				return undefined;
-			}
-			return this.createProfile(args.profile).then(() => args);
+			const profile = this.profiles.find(p => p.name === args.profile);
+			return profile ? Promise.resolve(profile) : this.createProfile(args.profile);
 		}
-		if (args['profile-transient']) {
-			return this.createTransientProfile()
-				.then(profile => {
-					// Set the profile name to use
-					args.profile = profile.name;
-					return args;
-				});
+		if (args['profile-temp']) {
+			return this.createTransientProfile();
 		}
 		return undefined;
 	}
 
 	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void {
-		this.stateMainService.setItem(UserDataProfilesMainService.PROFILES_KEY, storedProfiles);
+		if (storedProfiles.length) {
+			this.stateMainService.setItem(UserDataProfilesMainService.PROFILES_KEY, storedProfiles);
+		} else {
+			this.stateMainService.removeItem(UserDataProfilesMainService.PROFILES_KEY);
+		}
 	}
 
 	protected override saveStoredProfileAssociations(storedProfileAssociations: StoredProfileAssociations): void {
-		this.stateMainService.setItem(UserDataProfilesMainService.PROFILE_ASSOCIATIONS_KEY, storedProfileAssociations);
+		if (storedProfileAssociations.emptyWindow || storedProfileAssociations.workspaces) {
+			this.stateMainService.setItem(UserDataProfilesMainService.PROFILE_ASSOCIATIONS_KEY, storedProfileAssociations);
+		} else {
+			this.stateMainService.removeItem(UserDataProfilesMainService.PROFILE_ASSOCIATIONS_KEY);
+		}
 	}
 
 	protected override getStoredProfileAssociations(): StoredProfileAssociations {
