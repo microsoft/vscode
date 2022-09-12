@@ -19,7 +19,7 @@ import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/markers/browser/markersViewActions';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { basename, isEqual } from 'vs/base/common/resources';
+import { dirname, basename, isEqual } from 'vs/base/common/resources';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
@@ -50,6 +50,7 @@ import { Link } from 'vs/platform/opener/browser/link';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
+import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: IResourceLabel;
@@ -185,7 +186,7 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 		if (this.fileService.hasProvider(resourceMarkers.resource) || resourceMarkers.resource.scheme === network.Schemas.untitled) {
 			templateData.resourceLabel.setFile(resourceMarkers.resource, { matches: uriMatches });
 		} else {
-			templateData.resourceLabel.setResource({ name: resourceMarkers.name, description: this.labelService.getUriLabel(resourceMarkers.resource, { relative: true }), resource: resourceMarkers.resource }, { matches: uriMatches });
+			templateData.resourceLabel.setResource({ name: resourceMarkers.name, description: this.labelService.getUriLabel(dirname(resourceMarkers.resource), { relative: true }), resource: resourceMarkers.resource }, { matches: uriMatches });
 		}
 
 		this.updateCount(node, templateData);
@@ -456,7 +457,7 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 	}
 
 	private filterResourceMarkers(resourceMarkers: ResourceMarkers): TreeFilterResult<FilterData> {
-		if (resourceMarkers.resource.scheme === network.Schemas.walkThrough || resourceMarkers.resource.scheme === network.Schemas.walkThroughSnippet) {
+		if (unsupportedSchemas.has(resourceMarkers.resource.scheme)) {
 			return false;
 		}
 

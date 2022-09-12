@@ -170,6 +170,10 @@ export interface IEditorOptions {
 	 */
 	scrollbar?: IEditorScrollbarOptions;
 	/**
+	 * Control the behavior of sticky scroll options
+	 */
+	stickyScroll?: IEditorStickyScrollOptions;
+	/**
 	 * Control the behavior and rendering of the minimap.
 	 */
 	minimap?: IEditorMinimapOptions;
@@ -637,6 +641,10 @@ export interface IEditorOptions {
 	 */
 	showDeprecated?: boolean;
 	/**
+	 * Controls whether suggestions allow matches in the middle of the word instead of only at the beginning
+	 */
+	matchOnWordStartOnly?: boolean;
+	/**
 	 * Control the behavior and rendering of the inline hints.
 	 */
 	inlayHints?: IEditorInlayHintsOptions;
@@ -661,11 +669,11 @@ export interface IEditorOptions {
 	bracketPairColorization?: IBracketPairColorizationOptions;
 
 	/**
-	 * Enables dropping into the editor from an external source.
+	 * Controls dropping into the editor from an external source.
 	 *
-	 * This shows a preview of the drop location and triggers an `onDropIntoEditor` event.
+	 * When enabled, this shows a preview of the drop location and triggers an `onDropIntoEditor` event.
 	 */
-	enableDropIntoEditor?: boolean;
+	dropIntoEditor?: IDropIntoEditorOptions;
 }
 
 /**
@@ -729,6 +737,10 @@ export interface IDiffEditorBaseOptions {
 	 * Control the wrapping of the diff editor.
 	 */
 	diffWordWrap?: 'off' | 'on' | 'inherit';
+	/**
+	 * Diff Algorithm
+	*/
+	diffAlgorithm?: 'smart' | 'experimental';
 }
 
 /**
@@ -876,7 +888,7 @@ function applyUpdate<T>(value: T | undefined, update: T): ApplyUpdateResult<T> {
 	}
 	if (Array.isArray(value) || Array.isArray(update)) {
 		const arrayEquals = Array.isArray(value) && Array.isArray(update) && arrays.equals(value, update);
-		return new ApplyUpdateResult(update, arrayEquals);
+		return new ApplyUpdateResult(update, !arrayEquals);
 	}
 	let didChange = false;
 	for (const key in update) {
@@ -2504,6 +2516,62 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 
 //#endregion
 
+//#region stickyScroll
+
+export interface IEditorStickyScrollOptions {
+	/**
+	 * Enable the sticky scroll
+	 */
+	enabled?: boolean;
+	/**
+	 * Maximum number of sticky lines to show
+	 */
+	maxLineCount?: number;
+
+}
+
+/**
+ * @internal
+ */
+export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOptions>>;
+
+class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
+
+	constructor() {
+		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5 };
+		super(
+			EditorOption.stickyScroll, 'stickyScroll', defaults,
+			{
+				'editor.stickyScroll.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					description: nls.localize('editor.stickyScroll', "Shows the nested current scopes during the scroll at the top of the editor.")
+				},
+				'editor.stickyScroll.maxLineCount': {
+					type: 'number',
+					default: defaults.maxLineCount,
+					minimum: 1,
+					maximum: 10,
+					description: nls.localize('editor.stickyScroll.', "Defines the maximum number of sticky lines to show.")
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): EditorStickyScrollOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IEditorStickyScrollOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			maxLineCount: EditorIntOption.clampedInt(input.maxLineCount, this.defaultValue.maxLineCount, 1, 10),
+		};
+	}
+}
+
+//#endregion
+
 //#region inlayHints
 
 /**
@@ -2554,8 +2622,8 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					enum: ['on', 'onUnlessPressed', 'offUnlessPressed', 'off'],
 					markdownEnumDescriptions: [
 						nls.localize('editor.inlayHints.on', "Inlay hints are enabled"),
-						nls.localize('editor.inlayHints.onUnlessPressed', "Inlay hints are showing by default and hide when holding `Ctrl+Alt`"),
-						nls.localize('editor.inlayHints.offUnlessPressed', "Inlay hints are hidden by default and show when holding `Ctrl+Alt`"),
+						nls.localize('editor.inlayHints.onUnlessPressed', "Inlay hints are showing by default and hide when holding {0}", platform.isMacintosh ? `Ctrl+Option` : `Ctrl+Alt`),
+						nls.localize('editor.inlayHints.offUnlessPressed', "Inlay hints are hidden by default and show when holding {0}", platform.isMacintosh ? `Ctrl+Option` : `Ctrl+Alt`),
 						nls.localize('editor.inlayHints.off', "Inlay hints are disabled"),
 					],
 				},
@@ -3861,6 +3929,10 @@ export interface ISuggestOptions {
 	 */
 	showDeprecated?: boolean;
 	/**
+	 * Controls whether suggestions allow matches in the middle of the word instead of only at the beginning
+	 */
+	matchOnWordStartOnly?: boolean;
+	/**
 	 * Show field-suggestions.
 	 */
 	showFields?: boolean;
@@ -3981,6 +4053,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			showFunctions: true,
 			showConstructors: true,
 			showDeprecated: true,
+			matchOnWordStartOnly: true,
 			showFields: true,
 			showVariables: true,
 			showClasses: true,
@@ -4086,6 +4159,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					type: 'boolean',
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showDeprecated', "When enabled IntelliSense shows `deprecated`-suggestions.")
+				},
+				'editor.suggest.matchOnWordStartOnly': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('editor.suggest.matchOnWordStartOnly', "When enabled IntelliSense filtering requires that the first character matches on a word start, e.g `c` on `Console` or `WebContext` but _not_ on `description`. When disabled IntelliSense will show more results but still sorts them by match quality.")
 				},
 				'editor.suggest.showFields': {
 					type: 'boolean',
@@ -4236,6 +4314,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: boolean(input.showConstructors, this.defaultValue.showConstructors),
 			showDeprecated: boolean(input.showDeprecated, this.defaultValue.showDeprecated),
+			matchOnWordStartOnly: boolean(input.matchOnWordStartOnly, this.defaultValue.matchOnWordStartOnly),
 			showFields: boolean(input.showFields, this.defaultValue.showFields),
 			showVariables: boolean(input.showVariables, this.defaultValue.showVariables),
 			showClasses: boolean(input.showClasses, this.defaultValue.showClasses),
@@ -4387,6 +4466,53 @@ class EditorWrappingInfoComputer extends ComputedEditorOption<EditorOption.wrapp
 
 //#endregion
 
+//#region dropIntoEditor
+
+/**
+ * Configuration options for editor drop into behavior
+ */
+export interface IDropIntoEditorOptions {
+	/**
+	 * Enable the dropping into editor.
+	 * Defaults to true.
+	 */
+	enabled?: boolean;
+}
+
+/**
+ * @internal
+ */
+export type EditorDropIntoEditorOptions = Readonly<Required<IDropIntoEditorOptions>>;
+
+class EditorDropIntoEditor extends BaseEditorOption<EditorOption.dropIntoEditor, IDropIntoEditorOptions, EditorDropIntoEditorOptions> {
+
+	constructor() {
+		const defaults: EditorDropIntoEditorOptions = { enabled: true };
+		super(
+			EditorOption.dropIntoEditor, 'dropIntoEditor', defaults,
+			{
+				'editor.dropIntoEditor.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					markdownDescription: nls.localize('dropIntoEditor.enabled', "Controls whether you can drag and drop a file into a text editor by holding down `shift` (instead of opening the file in an editor)."),
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): EditorDropIntoEditorOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IDropIntoEditorOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled)
+		};
+	}
+}
+
+//#endregion
+
 const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
 const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace';
 const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'monospace\', monospace';
@@ -4449,7 +4575,7 @@ export const enum EditorOption {
 	disableMonospaceOptimizations,
 	domReadOnly,
 	dragAndDrop,
-	enableDropIntoEditor,
+	dropIntoEditor,
 	emptySelectionClipboard,
 	extraEditorClassName,
 	fastScrollSensitivity,
@@ -4522,6 +4648,7 @@ export const enum EditorOption {
 	snippetSuggestions,
 	smartSelect,
 	smoothScrolling,
+	stickyScroll,
 	stickyTabStops,
 	stopRenderingLineAfter,
 	suggest,
@@ -4758,9 +4885,8 @@ export const EditorOptions = {
 		{ description: nls.localize('dragAndDrop', "Controls whether the editor should allow moving selections via drag and drop.") }
 	)),
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
-	enableDropIntoEditor: register(new EditorBooleanOption(
-		EditorOption.enableDropIntoEditor, 'enableDropIntoEditor', true
-	)),
+	dropIntoEditor: register(new EditorDropIntoEditor()),
+	stickyScroll: register(new EditorStickyScroll()),
 	extraEditorClassName: register(new EditorStringOption(
 		EditorOption.extraEditorClassName, 'extraEditorClassName', '',
 	)),
@@ -5003,7 +5129,7 @@ export const EditorOptions = {
 	)),
 	revealHorizontalRightPadding: register(new EditorIntOption(
 		EditorOption.revealHorizontalRightPadding, 'revealHorizontalRightPadding',
-		30, 0, 1000,
+		15, 0, 1000,
 	)),
 	roundedSelection: register(new EditorBooleanOption(
 		EditorOption.roundedSelection, 'roundedSelection', true,

@@ -26,7 +26,7 @@ import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { EditorProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { localize } from 'vs/nls';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { combinedDisposable, dispose, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DeferredPromise, Promises, RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
@@ -52,6 +52,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isLinux, isNative, isWindows } from 'vs/base/common/platform';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -145,7 +146,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(themeService);
 
@@ -341,18 +343,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const updateContainerToolbar = () => {
 			const actions: { primary: IAction[]; secondary: IAction[] } = { primary: [], secondary: [] };
 
-			this.containerToolBarMenuDisposable.value = combinedDisposable(
+			// Clear old actions
+			this.containerToolBarMenuDisposable.value = toDisposable(() => containerToolbar.clear());
 
-				// Clear old actions
-				toDisposable(() => containerToolbar.clear()),
-
-				// Create new actions
-				createAndFillInActionBarActions(
-					containerToolbarMenu,
-					{ arg: { groupId: this.id }, shouldForwardArgs: true },
-					actions,
-					'navigation'
-				)
+			// Create new actions
+			createAndFillInActionBarActions(
+				containerToolbarMenu,
+				{ arg: { groupId: this.id }, shouldForwardArgs: true },
+				actions,
+				'navigation'
 			);
 
 			for (const action of [...actions.primary, ...actions.secondary]) {
@@ -385,7 +384,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Fill in contributed actions
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions);
+		createAndFillInContextMenuActions(menu, undefined, actions);
 
 		// Show it
 		this.contextMenuService.showContextMenu({
@@ -393,7 +392,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			getActions: () => actions,
 			onHide: () => {
 				this.focus();
-				dispose(actionsDisposable);
 			}
 		});
 	}
@@ -1604,10 +1602,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 					return editor.isDirty(); // veto if still dirty
 				} catch (error) {
+					this.logService.error(error);
+
 					// if that fails, since we are about to close the editor, we accept that
 					// the editor cannot be reverted and instead do a soft revert that just
 					// enables us to close the editor. With this, a user can always close a
 					// dirty editor even when reverting fails.
+
 					await editor.revert(this.id, { soft: true });
 
 					return editor.isDirty(); // veto if still dirty

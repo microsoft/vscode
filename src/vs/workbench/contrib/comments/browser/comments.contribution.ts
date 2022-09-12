@@ -38,4 +38,4 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	}
 });
 
-registerSingleton(ICommentService, CommentService);
+registerSingleton(ICommentService, CommentService, false);

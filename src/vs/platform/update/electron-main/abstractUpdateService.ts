@@ -59,7 +59,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	 * optimization, to avoid using extra CPU cycles before first window open.
 	 * https://github.com/microsoft/vscode/issues/89784
 	 */
-	initialize(): void {
+	async initialize(): Promise<void> {
 		if (!this.environmentMainService.isBuilt) {
 			return; // updates are never enabled when running out of sources
 		}

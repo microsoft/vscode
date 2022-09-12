@@ -3,20 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AppInsightsCore } from '@microsoft/1ds-core-js';
 import type { IPayloadData, IXHROverride } from '@microsoft/1ds-post-js';
 import * as https from 'https';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { AbstractOneDataSystemAppender } from 'vs/platform/telemetry/common/1dsAppender';
+import { AbstractOneDataSystemAppender, IAppInsightsCore } from 'vs/platform/telemetry/common/1dsAppender';
 
 
 export class OneDataSystemAppender extends AbstractOneDataSystemAppender {
 
 	constructor(
-		configurationService: IConfigurationService | undefined,
+		isInternalTelemetry: boolean,
 		eventPrefix: string,
 		defaultData: { [key: string]: any } | null,
-		iKeyOrClientFactory: string | (() => AppInsightsCore), // allow factory function for testing
+		iKeyOrClientFactory: string | (() => IAppInsightsCore), // allow factory function for testing
 	) {
 		// Override the way events get sent since node doesn't have XHTMLRequest
 		const customHttpXHROverride: IXHROverride = {
@@ -48,6 +46,6 @@ export class OneDataSystemAppender extends AbstractOneDataSystemAppender {
 			}
 		};
 
-		super(configurationService, eventPrefix, defaultData, iKeyOrClientFactory, customHttpXHROverride);
+		super(isInternalTelemetry, eventPrefix, defaultData, iKeyOrClientFactory, customHttpXHROverride);
 	}
 }

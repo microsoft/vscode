@@ -8,8 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { join } from 'vs/base/common/path';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { UriDto } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriDto } from 'vs/base/common/uri';
 import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { ICommandAction } from 'vs/platform/action/common/action';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
@@ -70,6 +69,7 @@ suite('WindowsFinder', () => {
 			handleTitleDoubleClick(): void { throw new Error('Method not implemented.'); }
 			updateTouchBar(items: UriDto<ICommandAction>[][]): void { throw new Error('Method not implemented.'); }
 			serializeWindowState(): IWindowState { throw new Error('Method not implemented'); }
+			updateWindowControls(options: { height?: number | undefined; backgroundColor?: string | undefined; foregroundColor?: string | undefined }): void { throw new Error('Method not implemented.'); }
 			dispose(): void { }
 		};
 	}

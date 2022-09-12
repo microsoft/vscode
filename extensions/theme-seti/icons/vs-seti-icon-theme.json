@@ -1694,6 +1694,7 @@
 		"tf": "_terraform",
 		"tf.json": "_terraform",
 		"tfvars": "_terraform",
+		"tfvars.json": "_terraform",
 		"dtx": "_tex_2",
 		"ins": "_tex_3",
 		"toml": "_config",
@@ -1942,7 +1943,8 @@
 		"vala": "_vala",
 		"vue": "_vue",
 		"postcss": "_css",
-		"django-html": "_html_3"
+		"django-html": "_html_3",
+		"blade": "_php"
 	},
 	"light": {
 		"file": "_default_light",
@@ -2093,6 +2095,7 @@
 			"tf": "_terraform_light",
 			"tf.json": "_terraform_light",
 			"tfvars": "_terraform_light",
+			"tfvars.json": "_terraform_light",
 			"dtx": "_tex_2_light",
 			"ins": "_tex_3_light",
 			"toml": "_config_light",
@@ -2258,7 +2261,8 @@
 			"vala": "_vala_light",
 			"vue": "_vue_light",
 			"postcss": "_css_light",
-			"django-html": "_html_3_light"
+			"django-html": "_html_3_light",
+			"blade": "_php_light"
 		},
 		"fileNames": {
 			"mix": "_hex_light",
@@ -2340,5 +2344,5 @@
 			"npm-debug.log": "_npm_ignored_light"
 		}
 	},
-	"version": "https://github.com/jesseweed/seti-ui/commit/4dd6c27e1f5aed8068c2451dbaf0db3364545937"
+	"version": "https://github.com/jesseweed/seti-ui/commit/2d10473b7575ec00c47eda751ea9caeec6b0b606"
 }

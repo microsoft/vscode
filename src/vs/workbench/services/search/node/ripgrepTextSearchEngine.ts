@@ -66,13 +66,9 @@ export class RipgrepTextSearchEngine {
 			const cancel = () => {
 				isDone = true;
 
-				if (rgProc) {
-					rgProc.kill();
-				}
+				rgProc?.kill();
 
-				if (ripgrepParser) {
-					ripgrepParser.cancel();
-				}
+				ripgrepParser?.cancel();
 			};
 
 			let limitHit = false;
@@ -96,7 +92,10 @@ export class RipgrepTextSearchEngine {
 			rgProc.stderr!.on('data', data => {
 				const message = data.toString();
 				this.outputChannel.appendLine(message);
-				stderr += message;
+
+				if (stderr.length + message.length < 1e6) {
+					stderr += message;
+				}
 			});
 
 			rgProc.on('close', () => {

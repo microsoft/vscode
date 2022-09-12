@@ -59,7 +59,7 @@ export class TaskTerminalStatus extends Disposable {
 		});
 		problemMatcher.onDidFindErrors(() => {
 			if (this._marker) {
-				terminal.addGenericMark(this._marker, { hoverMessage: nls.localize('task.watchFirstError', "Beginning of detected errors for this run"), disableCommandStorage: true });
+				terminal.addBufferMarker({ marker: this._marker, hoverMessage: nls.localize('task.watchFirstError', "Beginning of detected errors for this run"), disableCommandStorage: true });
 			}
 		});
 		problemMatcher.onDidRequestInvalidateLastMarker(() => {

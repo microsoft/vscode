@@ -108,7 +108,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			this.domNode = $('.untitled-hint');
 			this.domNode.style.width = 'max-content';
 
-			const hintMsg = localize({ key: 'message', comment: ['Presereve double-square brackets and their order'] }, '[[Select a language]], [[start with a snippet]], or [[open a different editor]] to get started.\nStart typing to dismiss or [[don\'t show]] this again.');
+			const hintMsg = localize({ key: 'message', comment: ['Presereve double-square brackets and their order'] }, '[[Select a language]], or [[open a different editor]] to get started.\nStart typing to dismiss or [[don\'t show]] this again.');
 			const hintHandler: IContentActionHandler = {
 				disposables: this.toDispose,
 				callback: (index, event) => {
@@ -117,12 +117,9 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 							languageOnClickOrTap(event.browserEvent);
 							break;
 						case '1':
-							snippetOnClickOrTab(event.browserEvent);
-							break;
-						case '2':
 							chooseEditorOnClickOrTap(event.browserEvent);
 							break;
-						case '3':
+						case '2':
 							dontShowOnClickOrTap();
 							break;
 					}
@@ -151,12 +148,6 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 				this.editor.focus();
 				await this.commandService.executeCommand(ChangeLanguageAction.ID, { from: 'hint' });
 				this.editor.focus();
-			};
-
-			const snippetOnClickOrTab = async (e: MouseEvent) => {
-				e.stopPropagation();
-				this.editor.focus();
-				this.commandService.executeCommand(ApplyFileSnippetAction.Id, { from: 'hint' });
 			};
 
 			const chooseEditorOnClickOrTap = async (e: MouseEvent) => {

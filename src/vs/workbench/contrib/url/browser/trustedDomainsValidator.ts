@@ -8,7 +8,7 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
+import { IOpenerService, matchesScheme, OpenOptions } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -45,7 +45,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
 	) {
-		this._openerService.registerValidator({ shouldOpen: r => this.validateLink(r) });
+		this._openerService.registerValidator({ shouldOpen: (uri, options) => this.validateLink(uri, options) });
 
 		this._readAuthenticationTrustedDomainsResult = new IdleValue(() =>
 			this._instantiationService.invokeFunction(readAuthenticationTrustedDomains));
@@ -64,12 +64,12 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		});
 	}
 
-	async validateLink(resource: URI | string): Promise<boolean> {
+	async validateLink(resource: URI | string, openOptions?: OpenOptions): Promise<boolean> {
 		if (!matchesScheme(resource, Schemas.http) && !matchesScheme(resource, Schemas.https)) {
 			return true;
 		}
 
-		if (this._workspaceTrustService.isWorkspaceTrusted() && !this._configurationService.getValue('workbench.trustedDomains.promptInTrustedWorkspace')) {
+		if (openOptions?.fromWorkspace && this._workspaceTrustService.isWorkspaceTrusted() && !this._configurationService.getValue('workbench.trustedDomains.promptInTrustedWorkspace')) {
 			return true;
 		}
 
@@ -200,7 +200,7 @@ export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {
 			return true;
 		}
 
-		if (testUrlMatchesGlob(url.toString(), trustedDomains[i])) {
+		if (testUrlMatchesGlob(url, trustedDomains[i])) {
 			return true;
 		}
 	}

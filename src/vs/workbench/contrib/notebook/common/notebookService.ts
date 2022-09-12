@@ -59,7 +59,7 @@ export interface INotebookService {
 	canResolve(viewType: string): Promise<boolean>;
 
 	readonly onWillRemoveViewType: Event<string>;
-
+	readonly onDidChangeOutputRenderers: Event<void>;
 	readonly onWillAddNotebookDocument: Event<NotebookTextModel>;
 	readonly onDidAddNotebookDocument: Event<NotebookTextModel>;
 

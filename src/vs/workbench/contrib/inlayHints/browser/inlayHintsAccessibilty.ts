@@ -185,9 +185,7 @@ registerAction2(class StartReadHints extends EditorAction2 {
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
 		const ctrl = InlayHintsAccessibility.get(editor);
-		if (ctrl) {
-			ctrl.startInlayHintsReading();
-		}
+		ctrl?.startInlayHintsReading();
 	}
 });
 
@@ -211,9 +209,7 @@ registerAction2(class StopReadHints extends EditorAction2 {
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
 		const ctrl = InlayHintsAccessibility.get(editor);
-		if (ctrl) {
-			ctrl.stopInlayHintsReading();
-		}
+		ctrl?.stopInlayHintsReading();
 	}
 });
 

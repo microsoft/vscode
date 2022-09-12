@@ -221,9 +221,7 @@ export class BreakpointsView extends ViewPane {
 
 	override focus(): void {
 		super.focus();
-		if (this.list) {
-			this.list.domFocus();
-		}
+		this.list?.domFocus();
 	}
 
 	renderInputBox(data: InputBoxData | undefined): void {
@@ -262,13 +260,12 @@ export class BreakpointsView extends ViewPane {
 		this.breakpointSupportsCondition.set(conditionSupported);
 
 		const secondary: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: e.element, shouldForwardArgs: false }, { primary: [], secondary }, 'inline');
+		createAndFillInContextMenuActions(this.menu, { arg: e.element, shouldForwardArgs: false }, { primary: [], secondary }, 'inline');
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => secondary,
-			getActionsContext: () => element,
-			onHide: () => dispose(actionsDisposable)
+			getActionsContext: () => element
 		});
 	}
 
@@ -289,7 +286,7 @@ export class BreakpointsView extends ViewPane {
 		const dbg = currentType ? this.debugService.getAdapterManager().getDebugger(currentType) : undefined;
 		const message = dbg?.uiMessages && dbg.uiMessages[DebuggerUiMessage.UnverifiedBreakpoints];
 		const debuggerHasUnverifiedBps = message && this.debugService.getModel().getBreakpoints().filter(bp => {
-			if (bp.verified) {
+			if (bp.verified || !bp.enabled) {
 				return false;
 			}
 
@@ -419,7 +416,6 @@ interface IBaseBreakpointTemplateData {
 	context: BreakpointItem;
 	actionBar: ActionBar;
 	toDispose: IDisposable[];
-	elementDisposable: IDisposable[];
 }
 
 interface IBaseBreakpointWithIconTemplateData extends IBaseBreakpointTemplateData {
@@ -490,7 +486,6 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		data.icon = $('.icon');
 		data.checkbox = createCheckbox();
 		data.toDispose = [];
-		data.elementDisposable = [];
 		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
@@ -534,14 +529,10 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		const session = this.debugService.getViewModel().focusedSession;
 		this.breakpointSupportsCondition.set(!session || !!session.capabilities.supportsConditionalBreakpoints);
 		this.breakpointItemType.set('breakpoint');
-		data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: breakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline'));
+		createAndFillInActionBarActions(this.menu, { arg: breakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline');
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
 		breakpointIdToActionBarDomeNode.set(breakpoint.getId(), data.actionBar.domNode);
-	}
-
-	disposeElement(_element: IBreakpoint, _index: number, templateData: IBreakpointTemplateData): void {
-		dispose(templateData.elementDisposable);
 	}
 
 	disposeTemplate(templateData: IBreakpointTemplateData): void {
@@ -572,7 +563,6 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 
 		data.checkbox = createCheckbox();
 		data.toDispose = [];
-		data.elementDisposable = [];
 		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
@@ -600,14 +590,10 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 		const primary: IAction[] = [];
 		this.breakpointSupportsCondition.set((exceptionBreakpoint as ExceptionBreakpoint).supportsCondition);
 		this.breakpointItemType.set('exceptionBreakpoint');
-		data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: exceptionBreakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline'));
+		createAndFillInActionBarActions(this.menu, { arg: exceptionBreakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline');
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
 		breakpointIdToActionBarDomeNode.set(exceptionBreakpoint.getId(), data.actionBar.domNode);
-	}
-
-	disposeElement(_element: IExceptionBreakpoint, _index: number, templateData: IExceptionBreakpointTemplateData): void {
-		dispose(templateData.elementDisposable);
 	}
 
 	disposeTemplate(templateData: IExceptionBreakpointTemplateData): void {
@@ -640,7 +626,6 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 		data.icon = $('.icon');
 		data.checkbox = createCheckbox();
 		data.toDispose = [];
-		data.elementDisposable = [];
 		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
@@ -681,14 +666,10 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 		const primary: IAction[] = [];
 		this.breakpointSupportsCondition.set(!session || !!session.capabilities.supportsConditionalBreakpoints);
 		this.breakpointItemType.set('functionBreakpoint');
-		data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: functionBreakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline'));
+		createAndFillInActionBarActions(this.menu, { arg: functionBreakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline');
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
 		breakpointIdToActionBarDomeNode.set(functionBreakpoint.getId(), data.actionBar.domNode);
-	}
-
-	disposeElement(_element: IFunctionBreakpoint, _index: number, templateData: IFunctionBreakpointTemplateData): void {
-		dispose(templateData.elementDisposable);
 	}
 
 	disposeTemplate(templateData: IFunctionBreakpointTemplateData): void {
@@ -781,7 +762,6 @@ class InstructionBreakpointsRenderer implements IListRenderer<IInstructionBreakp
 		data.icon = $('.icon');
 		data.checkbox = createCheckbox();
 		data.toDispose = [];
-		data.elementDisposable = [];
 		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
@@ -813,10 +793,6 @@ class InstructionBreakpointsRenderer implements IListRenderer<IInstructionBreakp
 		if (debugActive && !breakpoint.verified) {
 			data.breakpoint.classList.add('disabled');
 		}
-	}
-
-	disposeElement(_element: IInstructionBreakpoint, _index: number, templateData: IInstructionBreakpointTemplateData): void {
-		dispose(templateData.elementDisposable);
 	}
 
 	disposeTemplate(templateData: IInstructionBreakpointTemplateData): void {
@@ -1443,7 +1419,7 @@ registerAction2(class extends ViewAction<BreakpointsView> {
 			}
 		} else if (breakpoint instanceof FunctionBreakpoint) {
 			const contextMenuService = accessor.get(IContextMenuService);
-			const actions: IAction[] = [new Action('breakpoint.editCondition', localize('editCondition', "Edit Condition..."), undefined, true, async () => view.renderInputBox({ breakpoint, type: 'condition' })),
+			const actions: Action[] = [new Action('breakpoint.editCondition', localize('editCondition', "Edit Condition..."), undefined, true, async () => view.renderInputBox({ breakpoint, type: 'condition' })),
 			new Action('breakpoint.editCondition', localize('editHitCount', "Edit Hit Count..."), undefined, true, async () => view.renderInputBox({ breakpoint, type: 'hitCount' }))];
 			const domNode = breakpointIdToActionBarDomeNode.get(breakpoint.getId());
 

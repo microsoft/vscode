@@ -114,14 +114,13 @@ export class CommandCenterControl {
 				} else {
 					return createActionViewItem(instantiationService, action, { hoverDelegate });
 				}
-			}
+			},
+			allowContextMenu: true
 		});
 		const menu = this._disposables.add(menuService.createMenu(MenuId.CommandCenter, contextKeyService));
-		const menuDisposables = this._disposables.add(new DisposableStore());
 		const menuUpdater = () => {
-			menuDisposables.clear();
 			const actions: IAction[] = [];
-			menuDisposables.add(createAndFillInContextMenuActions(menu, undefined, actions));
+			createAndFillInContextMenuActions(menu, undefined, actions);
 			titleToolbar.setActions(actions);
 		};
 		menuUpdater();

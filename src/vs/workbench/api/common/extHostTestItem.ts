@@ -10,6 +10,7 @@ import { denamespaceTestTag, ITestItem, ITestItemContext } from 'vs/workbench/co
 import type * as vscode from 'vscode';
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { URI } from 'vs/base/common/uri';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 
 const testItemPropAccessor = <K extends keyof vscode.TestItem>(
 	api: IExtHostTestItemApi,
@@ -163,9 +164,10 @@ export class TestItemRootImpl extends TestItemImpl {
 }
 
 export class ExtHostTestItemCollection extends TestItemCollection<TestItemImpl> {
-	constructor(controllerId: string, controllerLabel: string) {
+	constructor(controllerId: string, controllerLabel: string, editors: ExtHostDocumentsAndEditors) {
 		super({
 			controllerId,
+			getDocumentVersion: (uri: URI) => editors.getDocument(uri)?.version,
 			getApiFor: getPrivateApiFor as (impl: TestItemImpl) => ITestItemApi<TestItemImpl>,
 			getChildren: (item) => item.children as ITestChildrenLike<TestItemImpl>,
 			root: new TestItemRootImpl(controllerId, controllerLabel),

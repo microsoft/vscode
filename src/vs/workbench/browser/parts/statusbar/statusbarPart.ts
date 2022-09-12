@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/statusbarpart';
 import { localize } from 'vs/nls';
-import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, disposeIfDisposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Part } from 'vs/workbench/browser/part';
 import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -19,7 +19,7 @@ import { contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/c
 import { EventHelper, createStyleSheet, addDisposableListener, EventType, clearNode } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { coalesce, equals } from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
@@ -456,7 +456,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			},
 			onHide: () => {
 				if (actions) {
-					dispose(actions);
+					disposeIfDisposable(actions);
 				}
 			}
 		});
@@ -544,7 +544,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 				}
 
 				/* Notification Beak */
-				.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before {
+				.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak > .status-bar-item-beak-container:before {
 					border-bottom-color: ${backgroundColor};
 				}
 			`;
@@ -618,4 +618,4 @@ registerThemingParticipant((theme, collector) => {
 	}
 });
 
-registerSingleton(IStatusbarService, StatusbarPart);
+registerSingleton(IStatusbarService, StatusbarPart, InstantiationType.Eager);

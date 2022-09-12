@@ -262,12 +262,9 @@ export abstract class EditorInput extends AbstractEditorInput {
 		// Untyped inputs: go into properties
 		const otherInputEditorId = otherInput.options?.override;
 
-		if (this.editorId === undefined) {
-			return false; // untyped inputs can only match for editors that have adopted `editorId`
-		}
-
-		if (this.editorId !== otherInputEditorId) {
-			return false; // untyped input uses another `editorId`
+		// If the overrides are both defined and don't match that means they're separate inputs
+		if (this.editorId !== otherInputEditorId && otherInputEditorId !== undefined && this.editorId !== undefined) {
+			return false;
 		}
 
 		return isEqual(this.resource, EditorResourceAccessor.getCanonicalUri(otherInput));

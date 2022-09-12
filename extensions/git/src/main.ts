@@ -28,6 +28,7 @@ import { OutputChannelLogger } from './log';
 import { createIPCServer, IPCServer } from './ipc/ipcServer';
 import { GitEditor } from './gitEditor';
 import { GitPostCommitCommandsProvider } from './postCommitCommands';
+import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -114,8 +115,8 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 		cc,
 		new GitFileSystemProvider(model),
 		new GitDecorations(model),
-		new GitProtocolHandler(),
-		new GitTimelineProvider(model, cc)
+		new GitTimelineProvider(model, cc),
+		new GitEditSessionIdentityProvider(model)
 	);
 
 	const postCommitCommandsProvider = new GitPostCommitCommandsProvider();
@@ -180,6 +181,8 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 
 	const outputChannelLogger = new OutputChannelLogger();
 	disposables.push(outputChannelLogger);
+
+	disposables.push(new GitProtocolHandler(outputChannelLogger));
 
 	const { name, version, aiKey } = require('../package.json') as { name: string; version: string; aiKey: string };
 	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
