@@ -10817,10 +10817,10 @@ typescript@^2.6.2:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
 
-typescript@^4.9.0-dev.20220825:
-  version "4.9.0-dev.20220825"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.9.0-dev.20220825.tgz#3ba3a74c3f3ba9d3dd9a80a5d785549f85018c05"
-  integrity sha512-X6bFdJycFPfp4CC8RqOZkCQauNIayamosrtovm6UlCjez9AKMQ1TQJiwReDybks9TGHR3LegEIvLIMWj+uiHYg==
+typescript@^4.9.0-dev.20220909:
+  version "4.9.0-dev.20220909"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.9.0-dev.20220909.tgz#cf90bff737ac177e6c4a86b04184a5ab91b93ac0"
+  integrity sha512-SC8F8fq2cOklfv72ROBl+qxx6HqRCTbMnj3pQp1rTUeTMLWOBym0a8YAcy7/nu/R+U7wuReUeFhZxhcItvfDCA==
 
 typical@^4.0.0:
   version "4.0.0"

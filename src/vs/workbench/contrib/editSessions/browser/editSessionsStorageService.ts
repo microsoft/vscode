@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -26,15 +26,11 @@ import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authe
 import { isWeb } from 'vs/base/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Codicon } from 'vs/base/common/codicons';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
 
 const configureContinueOnPreference = { iconClass: Codicon.settingsGear.classNames, tooltip: localize('configure continue on', 'Configure this preference in settings') };
-const turnOnEditSessionsTitle = localize('sign in', 'Turn on Edit Sessions...');
-
 export class EditSessionsWorkbenchService extends Disposable implements IEditSessionsStorageService {
 
 	_serviceBrand = undefined;
@@ -52,8 +48,6 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return this.existingSessionId !== undefined;
 	}
 
-	private globalActivityBadgeDisposable = this._register(new MutableDisposable());
-
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -67,8 +61,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		@IRequestService private readonly requestService: IRequestService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IActivityService private readonly activityService: IActivityService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 
@@ -78,13 +71,11 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		// If another window changes the preferred session storage, reset our cached auth state in memory
 		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
 
-		this.registerTurnOnAction();
+		this.registerSignInAction();
 		this.registerResetAuthenticationAction();
 
 		this.signedInContext = EDIT_SESSIONS_SIGNED_IN.bindTo(this.contextKeyService);
 		this.signedInContext.set(this.existingSessionId !== undefined);
-
-		this.updateGlobalActivityBadge();
 	}
 
 	/**
@@ -165,7 +156,6 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 		this.initialized = await this.doInitialize(fromContinueOn);
 		this.signedInContext.set(this.initialized);
-		this.updateGlobalActivityBadge();
 		return this.initialized;
 
 	}
@@ -408,14 +398,13 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 	}
 
-	private registerTurnOnAction() {
+	private registerSignInAction() {
 		const that = this;
-		const when = ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false);
-		this._register(registerAction2(class TurnOnEditSessionsAction extends Action2 {
+		this._register(registerAction2(class ResetEditSessionAuthenticationAction extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.signIn',
-					title: turnOnEditSessionsTitle,
+					title: localize('sign in', 'Turn on Edit Sessions...'),
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false),
 					menu: [{
@@ -424,35 +413,13 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 					{
 						id: MenuId.AccountsContext,
 						group: '2_editSessions',
-						when,
+						when: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false),
 					}]
 				});
 			}
 
 			async run() {
 				return await that.initialize(false);
-			}
-		}));
-
-		this._register(registerAction2(class TurnOnEditSessionsAndResumeAction extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.editSessions.actions.turnOnAndResume',
-					title: turnOnEditSessionsTitle,
-					menu: {
-						group: '6_editSessions',
-						id: MenuId.GlobalActivity,
-						// Do not push for edit sessions when there are no workspace folders open
-						when: ContextKeyExpr.and(when, WorkspaceFolderCountContext.notEqualsTo(0)),
-						order: 2
-					}
-				});
-			}
-
-			async run() {
-				if (await that.initialize(false)) {
-					await that.commandService.executeCommand('workbench.experimental.editSessions.actions.resumeLatest', undefined, true);
-				}
 			}
 		}));
 	}
@@ -492,14 +459,5 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 				}
 			}
 		}));
-	}
-
-	private updateGlobalActivityBadge() {
-		if (this.initialized) {
-			return this.globalActivityBadgeDisposable.clear();
-		}
-
-		const badge = new NumberBadge(1, () => turnOnEditSessionsTitle);
-		this.globalActivityBadgeDisposable.value = this.activityService.showGlobalActivity({ badge, priority: 1 });
 	}
 }

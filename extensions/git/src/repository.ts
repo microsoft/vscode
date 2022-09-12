@@ -1277,7 +1277,9 @@ export class Repository implements Disposable {
 			});
 
 			// Execute post-commit command
-			await this.commitCommandCenter.executePostCommitCommand(opts.postCommitCommand);
+			if (opts.postCommitCommand !== null) {
+				await this.commitCommandCenter.executePostCommitCommand(opts.postCommitCommand);
+			}
 		}
 	}
 
