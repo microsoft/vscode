@@ -120,16 +120,12 @@ export class GitHubServer implements IGitHubServer {
 			if (result.ok) {
 				try {
 					const json: { installed_version: string } = await result.json();
-					const [majorStr, minorStr, patchStr] = json.installed_version.split('.');
-					const major = parseInt(majorStr);
-					const minor = parseInt(minorStr);
-					const patch = parseInt(patchStr);
-					// TODO: use the right version
-					if (Number(major) > 3 ||
-						Number(major) === 3 && Number(minor) >= 6 ||
-						Number(major) === 3 && Number(minor) === 6 && Number(patch) >= 1
+					const [majorStr, minorStr, _patch] = json.installed_version.split('.');
+					const major = Number(majorStr);
+					const minor = Number(minorStr);
+					if (major >= 4 || major === 3 && minor >= 8
 					) {
-						// GHES 3.6.1 and above used vscode.dev/redirect as the route.
+						// GHES 3.8 and above used vscode.dev/redirect as the route.
 						// It only supports a single redirect endpoint, so we can't use
 						// insiders.vscode.dev/redirect when we're running in Insiders, unfortunately.
 						this._redirectEndpoint = 'https://vscode.dev/redirect';
