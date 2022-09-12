@@ -1859,13 +1859,19 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				if (!node) {
 					const internalDecorationId = (++this._lastDecorationId);
 					const decorationId = `${this._instanceId};${internalDecorationId}`;
+					console.log('decorationId : ', decorationId);
 					node = new IntervalNode(decorationId, 0, 0);
+					// no eager evaluation below
+					console.log('node on _deltaDecorationsImpl in (3): ', node);
+					console.log('new IntervalNode(decorationId, 0, 0) : ', new IntervalNode(decorationId, 0, 0));
 					this._decorations[decorationId] = node;
 				}
 
 				// (4) initialize node
+				console.log('newDecorations : ', newDecorations);
 				const newDecoration = newDecorations[newDecorationIndex];
 				const range = this._validateRangeRelaxedNoAllocations(newDecoration.range);
+				console.log('range : ', range);
 				const options = _normalizeOptions(newDecoration.options);
 				const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
 				const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
@@ -2061,6 +2067,11 @@ class DecorationsTrees {
 	}
 
 	public insert(node: IntervalNode): void {
+		console.log('node in insert function : ', node);
+		console.log('this._injectedTextDecorationsTree : ', this._injectedTextDecorationsTree);
+		// -> the tree of interest is the one marked with 0
+		console.log('this._decorationsTree0 : ', this._decorationsTree0);
+		console.log('this._decorationsTree1 : ', this._decorationsTree1);
 		if (isNodeInjectedText(node)) {
 			this._injectedTextDecorationsTree.insert(node);
 		} else if (isNodeInOverviewRuler(node)) {
@@ -2088,6 +2099,7 @@ class DecorationsTrees {
 		if (node.range === null) {
 			node.range = host.getRangeAt(node.cachedAbsoluteStart, node.cachedAbsoluteEnd);
 		}
+		console.log('node.range in getNodeRange');
 		return node.range;
 	}
 

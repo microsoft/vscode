@@ -3,94 +3,123 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Language, init } from 'web-tree-sitter';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IModelService } from 'vs/editor/common/services/model';
-import { FileAccess } from 'vs/base/common/network';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TreeSitterParseTree } from './treeSitterParserTree';
-import { Iterable } from 'vs/base/common/iterator';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import Parser = require('web-tree-sitter');
+import { ITextModel } from 'vs/editor/common/model';
+import { runWhenIdle } from 'vs/base/common/async';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
 export interface ITreeSitterTokenizationService {
-	registerModelTrees(): void;
+	parseTree(): Promise<Parser.Tree | void>;
+	getTextMateCaptures(): void;
 	dispose(): void
 }
 
-const ITreeSitterTokenizationService = createDecorator<ITreeSitterTokenizationService>('ITreeSitterTokenizationService');
-
 export class TreeSitterTokenizationService implements ITreeSitterTokenizationService {
 
-	private _language: Language | undefined;
-	private readonly _disposableStore: DisposableStore = new DisposableStore();
-	private readonly _modelTrees: TreeSitterParseTree[] = [];
-	private readonly _themeService: IThemeService;
+	public readonly id: string;
+	protected _content: string;
+	protected readonly _parser: Parser;
+	protected _edits: Parser.Edit[];
+	protected _tree: Parser.Tree | undefined;
+	protected _language: Parser.Language;
+	protected _model: ITextModel;
+	protected _captures: Parser.QueryCapture[];
 
-	constructor(
-		@IThemeService _themeService: IThemeService,
-		@IModelService private readonly _modelService: IModelService
-	) {
+	constructor(_model: ITextModel, _language: Parser.Language) {
+		this._model = _model;
+		this.id = this._model.id;
+		this._edits = []
+		this._parser = new Parser();
+		this._language = _language;
+		this._parser.setLanguage(this._language);
+		this._captures = [];
+		this._content = '';
+	}
 
-		this._themeService = _themeService;
-		init({
-			locateFile(_file: string, _folder: string) {
-				return FileAccess.asBrowserUri('../../../../../node_modules/web-tree-sitter/tree-sitter.wasm', require).toString(true);
+	public async parseTree(): Promise<Parser.Tree | void> {
+		this._parser.setTimeoutMicros(10000);
+		let tree = this.getTree();
+		// Initially synchronous
+		try {
+			let result = this._parser.parse(
+				(startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) =>
+					this._retrieveTextAtPosition(this._model, startIndex, startPoint, endIndex),
+				tree
+			);
+			if (result) {
+				return new Promise(function (resolve, _reject) {
+					resolve(result);
+				})
 			}
-		}).then(async () => {
-			const result = await fetch(FileAccess.asBrowserUri('./tree-sitter-typescript.wasm', require).toString(true));
-			const langData = new Uint8Array(await result.arrayBuffer());
-			this._language = await Language.load(langData);
+		}
+		// Else if parsing failed, asynchronous
+		catch (error) {
+			this._parser.reset();
+			tree = this.getTree();
+			const textModel = createTextModel('');
+			textModel.setValue(this._model.createSnapshot());
+			let that = this;
+			return new Promise(function (resolve, _reject) {
+				that._runParse(textModel, resolve, tree);
+			})
+		}
+	}
 
-			this.registerModelTrees();
-			this._disposableStore.add(_modelService.onModelAdded((model) => {
-				if (model.getLanguageId() === 'typescript' && this._language) {
-					this._modelTrees.push(new TreeSitterParseTree(model, this._language, this._themeService));
-				}
-			}));
-			this._disposableStore.add(_modelService.onModelLanguageChanged((event) => {
-				const model = event.model;
-				if (model.getLanguageId() === 'typescript' && this._language) {
-					this._modelTrees.push(new TreeSitterParseTree(model, this._language, this._themeService));
-				}
-			}))
-			this._disposableStore.add(_modelService.onModelRemoved((model) => {
-				if (model.getLanguageId() === 'typescript' && this._language) {
-					const treeSitterTreeToDispose = Iterable.find(this._modelTrees, tree => tree.id === model.id);
-					if (treeSitterTreeToDispose) {
-						treeSitterTreeToDispose.dispose();
+	public getTextMateCaptures(): void {
+		if (!this._tree) {
+			return;
+		}
+		const query = this._language.query(this._content);
+		this._captures = query.captures(this._tree.rootNode);
+		query.delete();
+	}
+
+	private getTree(): Parser.Tree | undefined {
+		for (const edit of this._edits) {
+			this._tree!.edit(edit);
+		}
+		this._edits.length = 0;
+		return this._tree;
+	}
+
+	private _runParse(textModel: ITextModel, resolve: (value: Parser.Tree | PromiseLike<Parser.Tree>) => void, tree: Parser.Tree | undefined) {
+		runWhenIdle(
+			(arg) => {
+				this._parser.setTimeoutMicros(arg.timeRemaining() * 1000);
+				let result;
+				try {
+					result = this._parser.parse(
+						(startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) =>
+							this._retrieveTextAtPosition(textModel, startIndex, startPoint, endIndex),
+						tree
+					);
+					if (!result) {
+						return this._runParse(textModel, resolve, tree);
+					} else {
+						resolve(result);
 					}
-				}
-			}));
-		});
+				} catch (error) { }
+			},
+			1000
+		);
 	}
 
-	registerModelTrees() {
-		const models = this._modelService.getModels();
-		for (const model of models) {
-			if (model.getLanguageId() === 'typescript' && this._language) {
-				this._modelTrees.push(new TreeSitterParseTree(model, this._language, this._themeService));
-			}
+	private _retrieveTextAtPosition(model: ITextModel, startIndex: number, _startPoint: Parser.Point | undefined, endIndex: number | undefined) {
+		const startPosition: Position = model.getPositionAt(startIndex);
+		let endPosition: Position;
+		if (typeof endIndex !== 'number') {
+			endIndex = startIndex + 5000;
 		}
+		endPosition = model.getPositionAt(endIndex);
+		return model.getValueInRange(Range.fromPositions(startPosition, endPosition));
 	}
 
-	dispose(): void {
-		this._disposableStore.dispose();
-		for (const tree of this._modelTrees) {
-			tree.dispose();
-		}
+	public dispose() {
+		this._tree?.delete();
+		this._parser.delete();
+		this._captures.length = 0;
+		this._edits.length = 0;
 	}
 }
-
-registerSingleton(ITreeSitterTokenizationService, TreeSitterTokenizationService, true);
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({ id: 'toggleTreeSitterTokenization', title: 'Toggle Tree-Sitter Tokenization', f1: true });
-	}
-	run(accessor: ServicesAccessor) {
-		const treeSitterTokenizationService = accessor.get(ITreeSitterTokenizationService);
-		treeSitterTokenizationService.registerModelTrees();
-	}
-});

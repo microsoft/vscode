@@ -136,7 +136,7 @@ export class FoldingModel {
 				lastHiddenLine = endLineNumber;
 			}
 		}
-		this._decorationProvider.changeDecorations(accessor => this._editorDecorationIds = accessor.deltaDecorations(this._editorDecorationIds, newEditorDecorations));
+		// this._decorationProvider.changeDecorations(accessor => this._editorDecorationIds = accessor.deltaDecorations(this._editorDecorationIds, newEditorDecorations));
 		this._regions = newRegions;
 		this._updateEventEmitter.fire({ model: this });
 	}

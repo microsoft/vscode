@@ -8,48 +8,33 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
 import { runWhenIdle } from 'vs/base/common/async';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
 import { FileAccess } from 'vs/base/common/network';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
 import { SemanticTokensProviderStylingConstants } from 'vs/editor/common/services/semanticTokensProviderStyling';
 import { FontStyle, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { TreeSitterTokenizationService } from 'vs/editor/browser/services/treeSitterTokenizationService';
 
-export class TreeSitterParseTree {
-	public readonly id: string;
-	private readonly _parser: Parser;
+export class TreeSitterForColorization extends TreeSitterTokenizationService {
+
 	private readonly _disposableStore: DisposableStore = new DisposableStore();
-
-	private _content;
 	private _contiguousMultilineToken: ContiguousMultilineTokens[];
 	private _beginningCaptureIndex: number;
 	private _timeoutForRender: number;
 	private _startPositionRow: number;
 	private _endPositionRow: number;
 	private _newEndPositionRow: number;
-	private _edits: Parser.Edit[];
 	private _colorThemeData: ColorThemeData;
-	private _tree: Parser.Tree | undefined;
-	private _captures: Parser.QueryCapture[];
 
 	constructor(
-		private readonly _model: ITextModel,
-		private readonly _language: Parser.Language,
+		_model: ITextModel,
+		_language: Parser.Language,
 		@IThemeService _themeService: IThemeService,
 	) {
-		this.id = this._model.id;
-		this._parser = new Parser();
-		this._parser.setLanguage(this._language);
-		this._content = '';
+		super(_model, _language);
 		this._colorThemeData = _themeService.getColorTheme() as ColorThemeData;
-
-		this._captures = [];
-		this._edits = [];
 		this._contiguousMultilineToken = [];
-
 		this._beginningCaptureIndex = 0;
 		this._timeoutForRender = 0;
 		this._startPositionRow = 0;
@@ -57,7 +42,7 @@ export class TreeSitterParseTree {
 		this._newEndPositionRow = this._model.getLineCount() - 1;
 
 		this.setTimeoutForRender(10);
-		const uriString = FileAccess.asBrowserUri(`./textMateBasedTokens.scm`, require).toString(true);
+		const uriString = FileAccess.asBrowserUri(`./treeSitterForColorization.scm`, require).toString(true);
 
 		fetch(uriString).then((response) => {
 			response.text().then((content) => {
@@ -116,7 +101,7 @@ export class TreeSitterParseTree {
 		let that = this;
 		this._contiguousMultilineToken.splice(this._startPositionRow, this._endPositionRow - this._startPositionRow + 1); //? Do I need +1 there?
 
-		// Case 1: we removed code
+		// Case 1: code was removed
 		if (this._newEndPositionRow < this._endPositionRow) {
 			this._contiguousMultilineToken.map(token => {
 				if (token._startLineNumber >= this._endPositionRow + 2) {
@@ -124,7 +109,7 @@ export class TreeSitterParseTree {
 				}
 			})
 		}
-		// Case 2: we added code
+		// Case 2: code was added
 		else if (this._newEndPositionRow > this._endPositionRow) {
 			this._contiguousMultilineToken.map(token => {
 				if (token._startLineNumber >= this._endPositionRow + 2) {
@@ -233,90 +218,9 @@ export class TreeSitterParseTree {
 		this._timeoutForRender = timeoutInMs;
 	}
 
-	public getTree() {
-		for (const edit of this._edits) {
-			this._tree!.edit(edit);
-		}
-		this._edits.length = 0;
-		return this._tree;
-	}
-
-	private runParse(textModel: ITextModel, resolve: (value: Parser.Tree | PromiseLike<Parser.Tree>) => void, tree: Parser.Tree | undefined) {
-		runWhenIdle(
-			(arg) => {
-				this._parser.setTimeoutMicros(arg.timeRemaining() * 1000);
-				let result;
-				try {
-					result = this._parser.parse(
-						(startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) =>
-							this._retrieveTextAtPosition(textModel, startIndex, startPoint, endIndex),
-						tree
-					);
-					if (!result) {
-						return this.runParse(textModel, resolve, tree);
-					} else {
-						resolve(result);
-					}
-				} catch (error) { }
-			},
-			1000
-		);
-	}
-
-	public async parseTree(): Promise<Parser.Tree | void> {
-		this._parser.setTimeoutMicros(10000);
-		let tree = this.getTree();
-		// Initially synchronous
-		try {
-			let result = this._parser.parse(
-				(startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) =>
-					this._retrieveTextAtPosition(this._model, startIndex, startPoint, endIndex),
-				tree
-			);
-			if (result) {
-				return new Promise(function (resolve, _reject) {
-					resolve(result);
-				})
-			}
-		}
-		// Else if parsing failed, asynchronous
-		catch (error) {
-			this._parser.reset();
-			tree = this.getTree();
-			const textModel = createTextModel('');
-			textModel.setValue(this._model.createSnapshot());
-			let that = this;
-			return new Promise(function (resolve, _reject) {
-				that.runParse(textModel, resolve, tree);
-			})
-		}
-	}
-
-	public getTextMateCaptures() {
-		if (!this._tree) {
-			return;
-		}
-		const query = this._language.query(this._content);
-		this._captures = query.captures(this._tree.rootNode);
-		query.delete();
-	}
-
-	private _retrieveTextAtPosition(model: ITextModel, startIndex: number, _startPoint: Parser.Point | undefined, endIndex: number | undefined) {
-		const startPosition: Position = model.getPositionAt(startIndex);
-		let endPosition: Position;
-		if (typeof endIndex !== 'number') {
-			endIndex = startIndex + 5000;
-		}
-		endPosition = model.getPositionAt(endIndex);
-		return model.getValueInRange(Range.fromPositions(startPosition, endPosition));
-	}
-
-	public dispose() {
-		this._tree?.delete();
-		this._parser.delete();
+	public override dispose() {
+		super.dispose();
 		this._disposableStore.clear();
-		this._captures.length = 0;
-		this._edits.length = 0;
 		this._contiguousMultilineToken.length === 0;
 	}
 }
