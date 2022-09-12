@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-EDTzzejMryXNJsvXPm3ha4m5Mi6h2Y//JRojh+K0+bY=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-j+I5FRqQBE2aQY6H/U/pjZI3buJy36yZ/upZTKZov3c=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -572,7 +572,7 @@
 			// make sure we block the browser from dispatching it. Instead VS Code
 			// handles these events and will dispatch a copy/paste back to the webview
 			// if needed
-			if (isUndoRedo(e) || isPrint(e) || isFindEvent(e)) {
+			if (isUndoRedo(e) || isPrint(e) || isFindEvent(e) || isSaveEvent(e)) {
 				e.preventDefault();
 			} else if (isCopyPasteOrCut(e)) {
 				if (onElectron) {
@@ -644,6 +644,15 @@
 		function isFindEvent(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
 			return hasMeta && e.key.toLowerCase() === 'f';
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isSaveEvent(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			return hasMeta && e.key.toLowerCase() === 's';
 		}
 
 		let isHandlingScroll = false;

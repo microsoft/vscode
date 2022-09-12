@@ -178,7 +178,7 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 		return configuredUseWindowControlsOverlay;
 	}
 
-	return true; // enabled by default
+	return false; // disable by default
 }
 
 export interface IPath<T = IEditorOptions> extends IPathData<T> {

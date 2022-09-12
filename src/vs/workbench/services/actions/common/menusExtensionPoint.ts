@@ -267,6 +267,11 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false,
 	},
 	{
+		key: 'webview/context',
+		id: MenuId.WebviewContext,
+		description: localize('webview.context', "The webview context menu")
+	},
+	{
 		key: 'file/share',
 		id: MenuId.MenubarShare,
 		description: localize('menus.share', "Share submenu shown in the top level File menu."),
@@ -284,12 +289,6 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.EditorContent,
 		description: localize('merge.toolbar', "The prominent button in an editor, overlays its content"),
 		proposed: 'contribEditorContentMenu'
-	},
-	{
-		key: 'webview/context',
-		id: MenuId.WebviewContext,
-		description: localize('webview.context', "The webview context menu"),
-		proposed: 'contribWebviewContext'
 	},
 	{
 		key: 'mergeEditor/result/title',

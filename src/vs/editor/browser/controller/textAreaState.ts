@@ -23,6 +23,7 @@ export interface ISimpleModel {
 	getLineCount(): number;
 	getLineMaxColumn(lineNumber: number): number;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
+	getValueLengthInRange(range: Range): number;
 }
 
 export interface ITypeData {
