@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { CheckboxUpdate, DataTransferDTO, ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
-import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand, TreeViewPaneHandleArg } from 'vs/workbench/common/views';
+import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand, TreeViewPaneHandleArg, ITreeItemCheckboxState } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { asPromise } from 'vs/base/common/async';
 import { TreeItemCollapsibleState, TreeItemCheckboxState, ThemeIcon, MarkdownString as MarkdownStringType, TreeItem } from 'vs/workbench/api/common/extHostTypes';
@@ -750,9 +750,20 @@ class ExtHostTreeView<T> extends Disposable {
 		return command ? { ...this.commands.toInternal(command, disposable), originalId: command.command } : undefined;
 	}
 
-	private getCheckbox(extensionTreeItem: vscode.TreeItem2): boolean | undefined {
-		return (extensionTreeItem.checkboxState !== undefined) ?
-			extensionTreeItem.checkboxState === TreeItemCheckboxState.Checked : undefined;
+	private getCheckbox(extensionTreeItem: vscode.TreeItem2): ITreeItemCheckboxState | undefined {
+		if (!extensionTreeItem.checkboxState) {
+			return undefined;
+		}
+		let checkboxState: TreeItemCheckboxState;
+		let tooltip: string | undefined = undefined;
+		if (typeof extensionTreeItem.checkboxState === 'number') {
+			checkboxState = extensionTreeItem.checkboxState;
+		}
+		else {
+			checkboxState = extensionTreeItem.checkboxState.state;
+			tooltip = extensionTreeItem.checkboxState.tooltip;
+		}
+		return { isChecked: checkboxState === TreeItemCheckboxState.Checked, tooltip };
 	}
 
 	private validateTreeItem(extensionTreeItem: vscode.TreeItem) {
@@ -780,7 +791,7 @@ class ExtHostTreeView<T> extends Disposable {
 			themeIcon: this.getThemeIcon(extensionTreeItem),
 			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState,
 			accessibilityInformation: extensionTreeItem.accessibilityInformation,
-			checkboxChecked: this.getCheckbox(extensionTreeItem)
+			checkbox: this.getCheckbox(extensionTreeItem),
 		};
 
 		return {
