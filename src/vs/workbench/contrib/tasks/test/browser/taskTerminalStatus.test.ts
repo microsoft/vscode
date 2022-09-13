@@ -60,10 +60,12 @@ suite('Task Terminal Status', () => {
 	let testTerminal: ITerminalInstance;
 	let testTask: Task;
 	let problemCollector: AbstractProblemCollector;
+	let audioCueService: TestAudioCueService;
 	setup(() => {
 		instantiationService = new TestInstantiationService();
 		taskService = new TestTaskService();
-		taskTerminalStatus = instantiationService.createInstance(TaskTerminalStatus, taskService, new TestAudioCueService());
+		audioCueService = new TestAudioCueService();
+		taskTerminalStatus = new TaskTerminalStatus(taskService as any, audioCueService as any);
 		testTerminal = instantiationService.createInstance(TestTerminal);
 		testTask = instantiationService.createInstance(TestTask);
 		problemCollector = instantiationService.createInstance(TestProblemCollector);
