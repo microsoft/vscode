@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { InMemoryStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
-import { AbstractProfileStorageService, IProfileStorageService } from 'vs/platform/storage/common/profileStorageService';
+import { AbstractUserDataSyncProfilesStorageService, IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
 import { InMemoryStorageService, loadKeyTargets, StorageTarget, TARGET_KEY } from 'vs/platform/storage/common/storage';
 import { IUserDataProfile, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
@@ -25,7 +25,7 @@ class TestStorageDatabase extends InMemoryStorageDatabase {
 	}
 }
 
-export class TestProfileStorageService extends AbstractProfileStorageService implements IProfileStorageService {
+export class TestUserDataSyncProfilesStorageService extends AbstractUserDataSyncProfilesStorageService implements IUserDataSyncProfilesStorageService {
 
 	readonly onDidChange = Event.None;
 	private databases = new Map<string, InMemoryStorageDatabase>();
@@ -45,11 +45,11 @@ suite('ProfileStorageService', () => {
 
 	const disposables = new DisposableStore();
 	const profile = toUserDataProfile('test', URI.file('foo'));
-	let testObject: TestProfileStorageService;
+	let testObject: TestUserDataSyncProfilesStorageService;
 	let storage: Storage;
 
 	setup(async () => {
-		testObject = disposables.add(new TestProfileStorageService(new InMemoryStorageService()));
+		testObject = disposables.add(new TestUserDataSyncProfilesStorageService(new InMemoryStorageService()));
 		storage = new Storage(await testObject.createStorageDatabase(profile));
 		await storage.init();
 	});

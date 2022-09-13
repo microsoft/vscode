@@ -178,7 +178,7 @@ export class NativeStorageService extends AbstractStorageService {
 		this.switchData(oldItems, this.workspaceStorage, StorageScope.WORKSPACE, preserveData);
 	}
 
-	getProfileStorageProfile(): IUserDataProfile {
-		return this.profileStorageProfile;
+	isProfileStorageFor(profile: IUserDataProfile): boolean {
+		return this.profileStorageProfile.id === profile.id;
 	}
 }

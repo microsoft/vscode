@@ -239,8 +239,8 @@ export class BrowserStorageService extends AbstractStorageService {
 		]);
 	}
 
-	getProfileStorageProfile(): IUserDataProfile {
-		return this.profileStorageProfile;
+	isProfileStorageFor(profile: IUserDataProfile): boolean {
+		return this.profileStorageProfile.id === profile.id;
 	}
 }
 

@@ -25,8 +25,8 @@ export interface IStorageValue {
 	readonly target: StorageTarget;
 }
 
-export const IProfileStorageService = createDecorator<IProfileStorageService>('IProfileStorageService');
-export interface IProfileStorageService {
+export const IUserDataSyncProfilesStorageService = createDecorator<IUserDataSyncProfilesStorageService>('IUserDataSyncProfilesStorageService');
+export interface IUserDataSyncProfilesStorageService {
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -49,7 +49,7 @@ export interface IProfileStorageService {
 	updateStorageData(profile: IUserDataProfile, data: Map<string, string | undefined | null>, target: StorageTarget): Promise<void>;
 }
 
-export abstract class AbstractProfileStorageService extends Disposable implements IProfileStorageService {
+export abstract class AbstractUserDataSyncProfilesStorageService extends Disposable implements IUserDataSyncProfilesStorageService {
 
 	_serviceBrand: undefined;
 
@@ -63,7 +63,7 @@ export abstract class AbstractProfileStorageService extends Disposable implement
 
 	async readStorageData(profile: IUserDataProfile): Promise<Map<string, IStorageValue>> {
 		// Use current storage service if the profile is same
-		if (this.storageService.getProfileStorageProfile()?.id === profile.id) {
+		if (this.storageService.isProfileStorageFor(profile)) {
 			return this.getItems(this.storageService);
 		}
 
@@ -80,7 +80,7 @@ export abstract class AbstractProfileStorageService extends Disposable implement
 
 	async updateStorageData(profile: IUserDataProfile, data: Map<string, string | undefined | null>, target: StorageTarget): Promise<void> {
 		// Use current storage service if the profile is same
-		if (this.storageService.getProfileStorageProfile()?.id === profile.id) {
+		if (this.storageService.isProfileStorageFor(profile)) {
 			return this.writeItems(this.storageService, data, target);
 		}
 
@@ -147,5 +147,5 @@ class StorageService extends AbstractStorageService {
 	protected getLogDetails(): string | undefined { return undefined; }
 	protected async switchToProfile(): Promise<void> { }
 	protected async switchToWorkspace(): Promise<void> { }
-	getProfileStorageProfile() { return undefined; }
+	isProfileStorageFor() { return false; }
 }

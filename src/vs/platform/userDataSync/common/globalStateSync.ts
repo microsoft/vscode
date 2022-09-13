@@ -28,7 +28,7 @@ import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
 import { ALL_SYNC_RESOURCES, Change, createSyncHeaders, getEnablementKey, IGlobalState, IRemoteUserData, IStorageValue, ISyncData, ISyncResourceHandle, IUserData, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, SYNC_SERVICE_URL_TYPE, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreType, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IProfileStorageService } from 'vs/platform/storage/common/profileStorageService';
+import { IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
 
 const argvStoragePrefx = 'globalState.argv.';
 const argvProperties: string[] = ['locale'];
@@ -77,7 +77,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	constructor(
 		private readonly profile: IUserDataProfile,
-		@IProfileStorageService private readonly profileStorageService: IProfileStorageService,
+		@IUserDataSyncProfilesStorageService private readonly userDataSyncProfilesStorageService: IUserDataSyncProfilesStorageService,
 		@IFileService fileService: IFileService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
@@ -95,7 +95,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			Event.any(
 				/* Locale change */
 				Event.filter(fileService.onDidFilesChange, e => e.contains(this.environmentService.argvResource)),
-				Event.filter(this.profileStorageService.onDidChange, e => {
+				Event.filter(this.userDataSyncProfilesStorageService.onDidChange, e => {
 					/* StorageTarget has changed in profile storage */
 					if (e.targetChanges.some(profile => this.profile.id === profile.id)) {
 						return true;
@@ -311,7 +311,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 				storage[`${argvStoragePrefx}${argvProperty}`] = { version: 1, value: argvValue[argvProperty] };
 			}
 		}
-		const storageData = await this.profileStorageService.readStorageData(this.profile);
+		const storageData = await this.userDataSyncProfilesStorageService.readStorageData(this.profile);
 		for (const [key, value] of storageData) {
 			if (value.value && value.target === StorageTarget.USER) {
 				storage[key] = { version: 1, value: value.value };
@@ -335,7 +335,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	private async writeLocalGlobalState({ added, removed, updated }: { added: IStringDictionary<IStorageValue>; updated: IStringDictionary<IStorageValue>; removed: string[] }): Promise<void> {
 		const argv: IStringDictionary<any> = {};
 		const updatedStorage = new Map<string, string | undefined>();
-		const storageData = await this.profileStorageService.readStorageData(this.profile);
+		const storageData = await this.userDataSyncProfilesStorageService.readStorageData(this.profile);
 		const handleUpdatedStorage = (keys: string[], storage?: IStringDictionary<IStorageValue>): void => {
 			for (const key of keys) {
 				if (key.startsWith(argvStoragePrefx)) {
@@ -364,7 +364,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		}
 		if (updatedStorage.size) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating global state...`);
-			await this.profileStorageService.updateStorageData(this.profile, updatedStorage, StorageTarget.USER);
+			await this.userDataSyncProfilesStorageService.updateStorageData(this.profile, updatedStorage, StorageTarget.USER);
 			this.logService.info(`${this.syncResourceLogLabel}: Updated global state`, [...updatedStorage.keys()]);
 		}
 	}
@@ -383,7 +383,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	private async getStorageKeys(lastSyncGlobalState: IGlobalState | null): Promise<StorageKeys> {
-		const storageData = await this.profileStorageService.readStorageData(this.profile);
+		const storageData = await this.userDataSyncProfilesStorageService.readStorageData(this.profile);
 		const user: string[] = [], machine: string[] = [];
 		for (const [key, value] of storageData) {
 			if (value.target === StorageTarget.USER) {

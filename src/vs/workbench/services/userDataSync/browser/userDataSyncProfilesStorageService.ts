@@ -7,13 +7,13 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractProfileStorageService, IProfileStorageChanges, IProfileStorageService } from 'vs/platform/storage/common/profileStorageService';
+import { AbstractUserDataSyncProfilesStorageService, IProfileStorageChanges, IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
 import { isProfileUsingDefaultStorage, IStorageService, IStorageValueChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IndexedDBStorageDatabase } from 'vs/workbench/services/storage/browser/storageService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
-export class ProfileStorageService extends AbstractProfileStorageService implements IProfileStorageService {
+export class UserDataSyncProfilesStorageService extends AbstractUserDataSyncProfilesStorageService implements IUserDataSyncProfilesStorageService {
 
 	private readonly _onDidChange = this._register(new Emitter<IProfileStorageChanges>());
 	readonly onDidChange: Event<IProfileStorageChanges> = this._onDidChange.event;
@@ -45,4 +45,4 @@ export class ProfileStorageService extends AbstractProfileStorageService impleme
 	}
 }
 
-registerSingleton(IProfileStorageService, ProfileStorageService, InstantiationType.Delayed);
+registerSingleton(IUserDataSyncProfilesStorageService, UserDataSyncProfilesStorageService, InstantiationType.Delayed);

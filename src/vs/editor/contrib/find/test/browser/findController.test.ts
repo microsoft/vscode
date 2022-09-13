@@ -82,7 +82,7 @@ suite('FindController', async () => {
 		keys: () => [],
 		log: () => { },
 		switch: () => { throw new Error(); },
-		getProfileStorageProfile() { return undefined; }
+		isProfileStorageFor() { return false; }
 	} as IStorageService);
 
 	if (platform.isMacintosh) {
@@ -514,7 +514,7 @@ suite('FindController query options persistence', async () => {
 		keys: () => [],
 		log: () => { },
 		switch: () => { throw new Error(); },
-		getProfileStorageProfile() { return undefined; }
+		isProfileStorageFor() { return false; }
 	} as IStorageService);
 
 	test('matchCase', async () => {

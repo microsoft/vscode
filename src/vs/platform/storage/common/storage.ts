@@ -141,9 +141,9 @@ export interface IStorageService {
 	log(): void;
 
 	/**
-	 * Returns the profile used for the profile storage
+	 * Returns true if the given profile is used for profile storage
 	 */
-	getProfileStorageProfile(): IUserDataProfile | undefined;
+	isProfileStorageFor(profile: IUserDataProfile): boolean;
 
 	/**
 	 * Switch storage to another workspace or profile. Optionally preserve the
@@ -617,7 +617,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	protected abstract switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void>;
 	protected abstract switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier | IUserDataProfile, preserveData: boolean): Promise<void>;
-	abstract getProfileStorageProfile(): IUserDataProfile | undefined;
+	abstract isProfileStorageFor(profile: IUserDataProfile): boolean;
 }
 
 export function isProfileUsingDefaultStorage(profile: IUserDataProfile): boolean {
@@ -670,8 +670,8 @@ export class InMemoryStorageService extends AbstractStorageService {
 		// no-op when in-memory
 	}
 
-	getProfileStorageProfile(): IUserDataProfile | undefined {
-		return undefined;
+	isProfileStorageFor(profiile: IUserDataProfile): boolean {
+		return false;
 	}
 }
 

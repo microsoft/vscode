@@ -69,7 +69,7 @@ import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { SharedProcess } from 'vs/platform/sharedProcess/electron-main/sharedProcess';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { ProfileStorageChangesListenerChannel, StorageDatabaseChannel } from 'vs/platform/storage/electron-main/storageIpc';
+import { StorageDatabaseChannel } from 'vs/platform/storage/electron-main/storageIpc';
 import { ApplicationStorageMainService, IApplicationStorageMainService, IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService, machineIdKey, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
@@ -111,6 +111,7 @@ import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/e
 import { UserDataTransientProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataTransientProfilesHandler';
 import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { ProfileStorageChangesListenerChannel } from 'vs/platform/userDataSync/electron-main/userDataSyncProfilesStorageIpc';
 
 /**
  * The main VS Code application. There will only ever be one instance,
