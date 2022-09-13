@@ -11,7 +11,7 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/com
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	DidUninstallExtensionEvent, InstallExtensionEvent, SortBy, InstallExtensionResult, getTargetPlatform, IExtensionInfo, UninstallExtensionEvent
+	DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, getTargetPlatform, IExtensionInfo, UninstallExtensionEvent, GallerySortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
@@ -217,7 +217,7 @@ suite('ExtensionsListView Tests', () => {
 		return testableView.show('').then(() => {
 			assert.ok(target.calledOnce);
 			const options: IQueryOptions = target.args[0][0];
-			assert.strictEqual(options.sortBy, SortBy.InstallCount);
+			assert.strictEqual(options.sortBy, GallerySortBy.InstallCount);
 		});
 	});
 
@@ -235,7 +235,7 @@ suite('ExtensionsListView Tests', () => {
 		return testableView.show('some extension @sort:rating').then(() => {
 			assert.ok(target.calledOnce);
 			const options: IQueryOptions = target.args[0][0];
-			assert.strictEqual(options.sortBy, SortBy.WeightedRating);
+			assert.strictEqual(options.sortBy, GallerySortBy.WeightedRating);
 		});
 	});
 
