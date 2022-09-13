@@ -1955,7 +1955,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private async _getGroupedTasks(filter?: ITaskFilter): Promise<TaskMap> {
 		const type = filter?.type;
-		const name = filter?.task;
 		const needsRecentTasksMigration = this._needsRecentTasksMigration();
 		await this._activateTaskProviders(filter?.type);
 		const validTypes: IStringDictionary<boolean> = Object.create(null);
@@ -2007,9 +2006,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 									this._outputChannel.append(nls.localize('unexpectedTaskType', "The task provider for \"{0}\" tasks unexpectedly provided a task of type \"{1}\".\n", this._providerTypes.get(handle), task.type));
 									if ((task.type !== 'shell') && (task.type !== 'process')) {
 										this._showOutput();
-									}
-									if (task.getDefinition(true)?._key === name || task._label === name) {
-										return done({ tasks: [task], extension: taskSet.extension });
 									}
 									break;
 								}
@@ -2698,7 +2694,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		picker.busy = true;
 		pickEntries.then(entries => {
 			picker.busy = false;
-			picker.items = entries.filter(e => e.type === type);
 		});
 		picker.show();
 
@@ -2785,17 +2780,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _runTaskCommand(arg?: any): void {
 		const identifier = this._getTaskIdentifier(arg);
 		const type = arg && typeof arg !== 'string' && 'type' in arg ? arg.type : undefined;
-		let task = arg && typeof arg !== 'string' && 'task' in arg ? arg.task : arg === 'string' ? arg : undefined;
-		if (identifier) {
-			this._getGroupedTasks({ task, type }).then(async (grouped) => {
-				const resolver = this._createResolver(grouped);
-				const tasks = grouped.all();
-				const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
-				if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-					folderURIs.push(this._contextService.getWorkspace().configuration!);
-				}
-				folderURIs.push(USER_TASKS_GROUP_KEY);
-				// match by identifier
+		const task = arg && typeof arg !== 'string' && 'task' in arg ? arg.task : arg === 'string' ? arg : undefined;
+		this._getGroupedTasks().then(async (grouped) => {
+			const tasks = grouped.all();
+			const resolver = this._createResolver(grouped);
+			const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
+			if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+				folderURIs.push(this._contextService.getWorkspace().configuration!);
+			}
+			folderURIs.push(USER_TASKS_GROUP_KEY);
+			if (identifier) {
 				for (const uri of folderURIs) {
 					const task = await resolver.resolve(uri, identifier);
 					if (task) {
@@ -2803,22 +2797,26 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						return;
 					}
 				}
-				// match by label
-				if (!!task) {
-					const taskToRun = tasks.find(g => g._label === task);
-					if (taskToRun) {
-						this.run(taskToRun).then(undefined, () => { });
-						return;
+			}
+			const exactMatchTask = tasks.find(t => task && (t.getDefinition(true)?.configurationProperties?.identifier === task || t.configurationProperties?.identifier === task || t._label === task));
+			const filteredTasks = tasks.filter(t => t._label.includes(task));
+			if (exactMatchTask) {
+				const id = exactMatchTask.configurationProperties?.identifier || exactMatchTask.getDefinition(true)?.configurationProperties?.identifier;
+				if (id) {
+					for (const uri of folderURIs) {
+						const task = await resolver.resolve(uri, id);
+						if (task) {
+							this.run(task, { attachProblemMatcher: true }, TaskRunSource.User).then(undefined, () => { });
+							return;
+						}
 					}
 				}
-				if (task && !tasks.some(g => g._label.includes(task))) {
-					task = undefined;
-				}
-				// if task is defined, will be used as a filter
-				this._doRunTaskCommand(tasks, type, task);
-			});
-		}
-		this._doRunTaskCommand();
+			} else if (filteredTasks?.length > 1) {
+				return this._doRunTaskCommand(tasks, type, task);
+			} else {
+				return this._doRunTaskCommand();
+			}
+		});
 	}
 
 	private _tasksAndGroupedTasks(filter?: ITaskFilter): { tasks: Promise<Task[]>; grouped: Promise<TaskMap> } {

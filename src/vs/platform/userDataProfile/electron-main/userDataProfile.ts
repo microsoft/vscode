@@ -58,7 +58,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		}
 		if (args.profile) {
 			const profile = this.profiles.find(p => p.name === args.profile);
-			return profile ? Promise.resolve(profile) : this.createProfile(args.profile);
+			return profile ? Promise.resolve(profile) : this.createNamedProfile(args.profile);
 		}
 		if (args['profile-temp']) {
 			return this.createTransientProfile();
