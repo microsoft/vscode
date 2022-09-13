@@ -125,7 +125,8 @@ export class TaskService extends AbstractTaskService {
 			logService,
 			themeService,
 			lifecycleService,
-			remoteAgentService
+			remoteAgentService,
+			instantiationService
 		);
 		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown(), 'veto.tasks')));
 	}

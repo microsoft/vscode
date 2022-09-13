@@ -377,7 +377,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			if (!this.isResolved()) {
 				return;
 			}
-			const success = await this._contentProvider.save(this.notebook.uri, CancellationToken.None);
+			const success = false;
 			this._logService.debug(`[notebook editor model] save(${versionId}) - document saved saved, start updating file stats`, this.resource.toString(true), success);
 			this._lastResolvedFileStat = await this._resolveStats(this.resource);
 			if (success) {
@@ -407,7 +407,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			return undefined;
 		}
 
-		const success = await this._contentProvider.saveAs(this.notebook.uri, targetResource, CancellationToken.None);
+		const success = false;
 		this._logService.debug(`[notebook editor model] saveAs - document saved, start updating file stats`, this.resource.toString(true), success);
 		this._lastResolvedFileStat = await this._resolveStats(this.resource);
 		if (!success) {

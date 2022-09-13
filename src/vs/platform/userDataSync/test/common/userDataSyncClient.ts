@@ -140,7 +140,7 @@ export class UserDataSyncClient extends Disposable {
 	}
 
 	read(resource: SyncResource): Promise<IUserData> {
-		return this.instantiationService.get(IUserDataSyncStoreService).read(resource, null);
+		return this.instantiationService.get(IUserDataSyncStoreService).readResource(resource, null);
 	}
 
 	manifest(): Promise<IUserDataManifest | null> {
@@ -214,6 +214,9 @@ export class UserDataSyncTestServer implements IRequestService {
 		}
 		if (options.type === 'DELETE' && segments.length === 1 && segments[0] === 'resource') {
 			return this.clear(options.headers);
+		}
+		if (options.type === 'DELETE' && segments.length === 1 && segments[0] === 'collection') {
+			return this.toResponse(204);
 		}
 		return this.toResponse(501);
 	}

@@ -66,11 +66,11 @@ export class CodeActionUi extends Disposable {
 	}
 
 	public hideCodeActionWidget() {
-		this._codeActionWidget.rawValue?.hideCodeActionWidget();
+		this._codeActionWidget.rawValue?.hide();
 	}
 
 	public onEnter() {
-		this._codeActionWidget.rawValue?.onEnterSet();
+		this._codeActionWidget.rawValue?.acceptSelected();
 	}
 
 	public onPreviewEnter() {

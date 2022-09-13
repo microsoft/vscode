@@ -7,6 +7,7 @@ import type * as nbformat from '@jupyterlab/nbformat';
 import { NotebookCell, NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
 import { CellMetadata, CellOutputMetadata } from './common';
 import { textMimeTypes } from './deserializers';
+import { compressOutputItemStreams } from './streamCompressor';
 
 const textDecoder = new TextDecoder();
 
@@ -270,21 +271,17 @@ type JupyterOutput =
 
 function convertStreamOutput(output: NotebookCellOutput): JupyterOutput {
 	const outputs: string[] = [];
-	output.items
-		.filter((opit) => opit.mime === CellOutputMimeTypes.stderr || opit.mime === CellOutputMimeTypes.stdout)
-		.map((opit) => textDecoder.decode(opit.data))
-		.forEach(value => {
-			// Ensure each line is a seprate entry in an array (ending with \n).
-			const lines = value.split('\n');
-			// If the last item in `outputs` is not empty and the first item in `lines` is not empty, then concate them.
-			// As they are part of the same line.
-			if (outputs.length && lines.length && lines[0].length > 0) {
-				outputs[outputs.length - 1] = `${outputs[outputs.length - 1]}${lines.shift()!}`;
-			}
-			for (const line of lines) {
-				outputs.push(line);
-			}
-		});
+	const compressedStream = output.items.length ? new TextDecoder().decode(compressOutputItemStreams(output.items[0].mime, output.items)) : '';
+	// Ensure each line is a separate entry in an array (ending with \n).
+	const lines = compressedStream.split('\n');
+	// If the last item in `outputs` is not empty and the first item in `lines` is not empty, then concate them.
+	// As they are part of the same line.
+	if (outputs.length && lines.length && lines[0].length > 0) {
+		outputs[outputs.length - 1] = `${outputs[outputs.length - 1]}${lines.shift()!}`;
+	}
+	for (const line of lines) {
+		outputs.push(line);
+	}
 
 	for (let index = 0; index < (outputs.length - 1); index++) {
 		outputs[index] = `${outputs[index]}\n`;

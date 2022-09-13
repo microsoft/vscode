@@ -31,6 +31,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExecuteCommandAction extends Action {
 
@@ -483,7 +484,8 @@ export class RevertAndCloseEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(id, label);
 	}
@@ -498,10 +500,13 @@ export class RevertAndCloseEditorAction extends Action {
 			try {
 				await this.editorService.revert({ editor, groupId: group.id });
 			} catch (error) {
+				this.logService.error(error);
+
 				// if that fails, since we are about to close the editor, we accept that
 				// the editor cannot be reverted and instead do a soft revert that just
 				// enables us to close the editor. With this, a user can always close a
 				// dirty editor even when reverting fails.
+
 				await this.editorService.revert({ editor, groupId: group.id }, { soft: true });
 			}
 
