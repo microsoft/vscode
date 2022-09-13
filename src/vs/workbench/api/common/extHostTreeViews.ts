@@ -760,7 +760,7 @@ class ExtHostTreeView<T> extends Disposable {
 			checkboxState = extensionTreeItem.checkboxState;
 		}
 		else {
-			checkboxState = extensionTreeItem.checkboxState.checkbox;
+			checkboxState = extensionTreeItem.checkboxState.state;
 			tooltip = extensionTreeItem.checkboxState.tooltip;
 		}
 		return { isChecked: checkboxState === TreeItemCheckboxState.Checked, tooltip };

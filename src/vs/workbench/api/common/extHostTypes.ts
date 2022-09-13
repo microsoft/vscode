@@ -2520,7 +2520,7 @@ export class TreeItem {
 		if (treeItemThing.checkboxState !== undefined) {
 			checkProposedApiEnabled(extension, 'treeItemCheckbox');
 			const checkbox = isNumber(treeItemThing.checkboxState) ? treeItemThing.checkboxState :
-				isObject(treeItemThing.checkboxState) && isNumber(treeItemThing.checkboxState.checkbox) ? treeItemThing.checkboxState.checkbox : undefined;
+				isObject(treeItemThing.checkboxState) && isNumber(treeItemThing.checkboxState.state) ? treeItemThing.checkboxState.state : undefined;
 			const tooltip = !isNumber(treeItemThing.checkboxState) && isObject(treeItemThing.checkboxState) ? treeItemThing.checkboxState.tooltip : undefined;
 			if (checkbox === undefined || (checkbox !== TreeItemCheckboxState.Checked && checkbox !== TreeItemCheckboxState.Unchecked) || (tooltip !== undefined && !isString(tooltip))) {
 				console.log('INVALID tree item, invalid checkboxState', treeItemThing.checkboxState);
