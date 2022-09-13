@@ -286,7 +286,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 
 	private _shouldLoadCanvas(): boolean {
-		return (this._configHelper.config.gpuAcceleration === 'auto' && (XtermTerminal._suggestedRendererType === undefined || XtermTerminal._suggestedRendererType === 'canvas')) || this._configHelper.config.gpuAcceleration === 'canvas';
+		return !isSafari && (this._configHelper.config.gpuAcceleration === 'auto' && (XtermTerminal._suggestedRendererType === undefined || XtermTerminal._suggestedRendererType === 'canvas')) || this._configHelper.config.gpuAcceleration === 'canvas';
 	}
 
 	forceRedraw() {
