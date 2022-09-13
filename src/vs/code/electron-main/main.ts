@@ -34,7 +34,7 @@ import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsServ
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { EnvironmentMainService, IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { addArg, parseMainProcessArgv } from 'vs/platform/environment/node/argvHelper';
-import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
+import { createWaitMarkerFileSync } from 'vs/platform/environment/node/wait';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -469,8 +469,9 @@ class CodeMain {
 		//
 		// Note: we are not doing this if the wait marker has been already
 		// added as argument. This can happen if Code was started from CLI.
+
 		if (args.wait && !args.waitMarkerFilePath) {
-			const waitMarkerFilePath = createWaitMarkerFile(args.verbose);
+			const waitMarkerFilePath = createWaitMarkerFileSync(args.verbose);
 			if (waitMarkerFilePath) {
 				addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
 				args.waitMarkerFilePath = waitMarkerFilePath;

@@ -276,8 +276,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		return this._channel.call('$updateTitle', [id, title, titleSource]);
 	}
 
-	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<string> {
-		return this._channel.call('$updateIcon', [id, icon, color]);
+	updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<string> {
+		return this._channel.call('$updateIcon', [id, userInitiated, icon, color]);
 	}
 
 	refreshProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]> {

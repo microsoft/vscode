@@ -332,6 +332,7 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'DELETE', url: `${target.url}/v1/resource`, headers: {} },
+			{ type: 'DELETE', url: `${target.url}/v1/collection`, headers: {} },
 		]);
 
 	});
