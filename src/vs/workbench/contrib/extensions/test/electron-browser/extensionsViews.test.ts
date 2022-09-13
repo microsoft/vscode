@@ -57,13 +57,13 @@ suite('ExtensionsListView Tests', () => {
 		uninstallEvent: Emitter<UninstallExtensionEvent>,
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 
-	const localEnabledTheme = aLocalExtension('first-enabled-extension', { categories: ['Themes', 'random'] }, { installTimestamp: 123456 });
-	const localEnabledLanguage = aLocalExtension('second-enabled-extension', { categories: ['Programming languages'] }, { installTimestamp: Date.now() });
-	const localDisabledTheme = aLocalExtension('first-disabled-extension', { categories: ['themes'] }, { installTimestamp: 234567 });
-	const localDisabledLanguage = aLocalExtension('second-disabled-extension', { categories: ['programming languages'] }, { installTimestamp: Date.now() - 50000 });
-	const localRandom = aLocalExtension('random-enabled-extension', { categories: ['random'] }, { installTimestamp: 345678 });
-	const builtInTheme = aLocalExtension('my-theme', { contributes: { themes: ['my-theme'] } }, { type: ExtensionType.System, installTimestamp: 222 });
-	const builtInBasic = aLocalExtension('my-lang', { contributes: { grammars: [{ language: 'my-language' }] } }, { type: ExtensionType.System, installTimestamp: 666666 });
+	const localEnabledTheme = aLocalExtension('first-enabled-extension', { categories: ['Themes', 'random'] }, { installedTimestamp: 123456 });
+	const localEnabledLanguage = aLocalExtension('second-enabled-extension', { categories: ['Programming languages'] }, { installedTimestamp: Date.now() });
+	const localDisabledTheme = aLocalExtension('first-disabled-extension', { categories: ['themes'] }, { installedTimestamp: 234567 });
+	const localDisabledLanguage = aLocalExtension('second-disabled-extension', { categories: ['programming languages'] }, { installedTimestamp: Date.now() - 50000 });
+	const localRandom = aLocalExtension('random-enabled-extension', { categories: ['random'] }, { installedTimestamp: 345678 });
+	const builtInTheme = aLocalExtension('my-theme', { contributes: { themes: ['my-theme'] } }, { type: ExtensionType.System, installedTimestamp: 222 });
+	const builtInBasic = aLocalExtension('my-lang', { contributes: { grammars: [{ language: 'my-language' }] } }, { type: ExtensionType.System, installedTimestamp: 666666 });
 
 	const workspaceRecommendationA = aGalleryExtension('workspace-recommendation-A');
 	const workspaceRecommendationB = aGalleryExtension('workspace-recommendation-B');
@@ -347,7 +347,9 @@ suite('ExtensionsListView Tests', () => {
 			assert.strictEqual(result.length, 1, 'Unexpected number of results for @disabled query with quoted category inlcuding space');
 			assert.strictEqual(result.get(0).name, localDisabledLanguage.manifest.name, 'Unexpected extension for @disabled query with quoted category including space.');
 		});
+	});
 
+	test('Test local query with sorting order', async () => {
 		await testableView.show('@recentlyUpdated').then(result => {
 			assert.strictEqual(result.length, 2, 'Unexpected number of results for @recentlyUpdated');
 			const actual = [result.get(0).name, result.get(1).name];
@@ -357,14 +359,7 @@ suite('ExtensionsListView Tests', () => {
 			}
 		});
 
-		await testableView.show('@sort:installs').then(result => {
-			assert.strictEqual(result.length, 5, 'Unexpected number of results for @sort:installs. Expected all localy installed Extension which are not builtin');
-			for (let i = 0; i < result.length; i++) {
-				assert.notEqual(result.get(i).local, undefined, 'Received none local extensions for @sort:installs query.');
-			}
-		});
-
-		await testableView.show('@sort:updateDate').then(result => {
+		await testableView.show('@installed @sort:updateDate').then(result => {
 			assert.strictEqual(result.length, 5, 'Unexpected number of results for @sort:updateDate. Expected all localy installed Extension which are not builtin');
 			const actual = [result.get(0).local?.installedTimestamp, result.get(1).local?.installedTimestamp, result.get(2).local?.installedTimestamp, result.get(3).local?.installedTimestamp, result.get(4).local?.installedTimestamp];
 			const expected = [localEnabledLanguage.installedTimestamp, localDisabledLanguage.installedTimestamp, localRandom.installedTimestamp, localDisabledTheme.installedTimestamp, localEnabledTheme.installedTimestamp];
