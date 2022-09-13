@@ -2148,6 +2148,10 @@ export interface ExtHostThemingShape {
 export interface MainThreadThemingShape extends IDisposable {
 }
 
+export interface MainThreadLocalizationShape extends IDisposable {
+	$fetchBundleContents(uriComponents: UriComponents): Promise<string>;
+}
+
 export interface TunnelDto {
 	remoteAddress: { port: number; host: string };
 	localAddress: { port: number; host: string } | string;
@@ -2327,6 +2331,7 @@ export const MainContext = {
 	MainThreadTunnelService: createProxyIdentifier<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadTimeline: createProxyIdentifier<MainThreadTimelineShape>('MainThreadTimeline'),
 	MainThreadTesting: createProxyIdentifier<MainThreadTestingShape>('MainThreadTesting'),
+	MainThreadLocalization: createProxyIdentifier<MainThreadLocalizationShape>('MainThreadLocalizationShape')
 };
 
 export const ExtHostContext = {

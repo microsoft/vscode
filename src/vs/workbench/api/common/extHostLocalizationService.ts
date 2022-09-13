@@ -8,15 +8,23 @@ import { format } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ExtHostLocalizationShape, IStringDetails } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ExtHostLocalizationShape, IStringDetails, MainContext, MainThreadLocalizationShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
-export abstract class AbstractExtHostLocalizationService implements ExtHostLocalizationShape {
+export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 	readonly _serviceBrand: undefined;
+
+	private _proxy: MainThreadLocalizationShape;
 
 	protected bundleCache: Map<string, { contents: { [key: string]: string }; uri: URI }> = new Map();
 
-	constructor(@IExtHostInitDataService protected readonly initData: IExtHostInitDataService) { }
+	constructor(
+		@IExtHostRpcService rpc: IExtHostRpcService,
+		@ILogService private readonly logService: ILogService
+	) {
+		this._proxy = rpc.getProxy(MainContext.MainThreadLocalization);
+	}
 
 	getMessage(extensionId: string, details: IStringDetails): string {
 		const { message, args, comment } = details;
@@ -30,7 +38,7 @@ export abstract class AbstractExtHostLocalizationService implements ExtHostLocal
 		}
 		const str = this.bundleCache.get(extensionId)?.contents[key];
 		if (!str) {
-			console.warn(`Using default string since no string found in i18n bundle that has the key: ${key}`);
+			this.logService.warn(`Using default string since no string found in i18n bundle that has the key: ${key}`);
 		}
 		return format(str ?? key, args);
 	}
@@ -43,8 +51,54 @@ export abstract class AbstractExtHostLocalizationService implements ExtHostLocal
 		return this.bundleCache.get(extensionId)?.uri;
 	}
 
-	abstract initializeLocalizedMessages(extension: IExtensionDescription): Promise<void>;
+	async initializeLocalizedMessages(extension: IExtensionDescription): Promise<void> {
+		if (Language.isDefault()
+			// TODO: support builtin extensions
+			|| !extension.l10nBundleLocation
+		) {
+			return;
+		}
+
+		if (this.bundleCache.has(extension.identifier.value)) {
+			return;
+		}
+
+		let contents: { [key: string]: string } | undefined;
+		const bundleLocation = this.getBundleLocation(extension);
+		if (!bundleLocation) {
+			this.logService.error(`No bundle location found for extension ${extension.identifier.value}`);
+			return;
+		}
+		const bundleUri = URI.joinPath(bundleLocation, `bundle.l10n.${Language.value()}.json`);
+
+		try {
+			const response = await this._proxy.$fetchBundleContents(bundleUri);
+			contents = JSON.parse(response);
+		} catch (e) {
+			this.logService.error(`Failed to load translations for ${extension.identifier.value} from ${bundleUri}: ${e.message}`);
+			return;
+		}
+
+		if (contents) {
+			this.bundleCache.set(extension.identifier.value, {
+				contents,
+				uri: bundleUri
+			});
+		}
+	}
+
+	private getBundleLocation(extension: IExtensionDescription): URI | undefined {
+		// TODO: support builtin extensions using IExtHostInitDataService
+		// if (extension.isBuiltin && this.initData.nlsBaseUrl) {
+		// 	return URI.joinPath(this.initData.nlsBaseUrl, extension.identifier.value, 'main');
+		// }
+
+		if (extension.l10nBundleLocation) {
+			return URI.joinPath(extension.extensionLocation, extension.l10nBundleLocation);
+		}
+		return undefined;
+	}
 }
 
 export const IExtHostLocalizationService = createDecorator<IExtHostLocalizationService>('IExtHostLocalizationService');
-export interface IExtHostLocalizationService extends AbstractExtHostLocalizationService { }
+export interface IExtHostLocalizationService extends ExtHostLocalizationService { }
