@@ -484,7 +484,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 	}
 
 	async getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]> {
-		const handles = await this.userDataSyncStoreService.getAllRefs(this.resource);
+		const handles = await this.userDataSyncStoreService.getAllResourceRefs(this.resource);
 		return handles.map(({ created, ref }) => ({ created, uri: this.toRemoteBackupResource(ref) }));
 	}
 
@@ -665,11 +665,11 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 
 	private async getUserData(refOrLastSyncData: string | IRemoteUserData | null): Promise<IUserData> {
 		if (isString(refOrLastSyncData)) {
-			const content = await this.userDataSyncStoreService.resolveContent(this.resource, refOrLastSyncData);
+			const content = await this.userDataSyncStoreService.resolveResourceContent(this.resource, refOrLastSyncData);
 			return { ref: refOrLastSyncData, content };
 		} else {
 			const lastSyncUserData: IUserData | null = refOrLastSyncData ? { ref: refOrLastSyncData.ref, content: refOrLastSyncData.syncData ? JSON.stringify(refOrLastSyncData.syncData) : null } : null;
-			return this.userDataSyncStoreService.read(this.resource, lastSyncUserData, undefined, this.syncHeaders);
+			return this.userDataSyncStoreService.readResource(this.resource, lastSyncUserData, undefined, this.syncHeaders);
 		}
 	}
 
@@ -677,7 +677,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		const machineId = await this.currentMachineIdPromise;
 		const syncData: ISyncData = { version: this.version, machineId, content };
 		try {
-			ref = await this.userDataSyncStoreService.write(this.resource, JSON.stringify(syncData), ref, undefined, this.syncHeaders);
+			ref = await this.userDataSyncStoreService.writeResource(this.resource, JSON.stringify(syncData), ref, undefined, this.syncHeaders);
 			return { ref, syncData };
 		} catch (error) {
 			if (error instanceof UserDataSyncError && error.code === UserDataSyncErrorCode.TooLarge) {

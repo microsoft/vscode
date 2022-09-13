@@ -28,7 +28,7 @@ export class TestInstantiationService extends InstantiationService {
 	}
 
 	public get<T>(service: ServiceIdentifier<T>): T {
-		return super._getOrCreateServiceInstance(service, Trace.traceCreation(TestInstantiationService));
+		return super._getOrCreateServiceInstance(service, Trace.traceCreation(false, TestInstantiationService));
 	}
 
 	public set<T>(service: ServiceIdentifier<T>, instance: T): T {

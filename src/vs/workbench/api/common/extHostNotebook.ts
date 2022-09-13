@@ -7,7 +7,6 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IRelativePattern } from 'vs/base/common/glob';
-import { hash } from 'vs/base/common/hash';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
@@ -20,7 +19,6 @@ import { ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookCellStatu
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { INotebookExclusiveDocumentFilter, INotebookContributionData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -75,7 +73,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		commands: ExtHostCommands,
 		private _textDocumentsAndEditors: ExtHostDocumentsAndEditors,
 		private _textDocuments: ExtHostDocuments,
-		private readonly _extensionStoragePaths: IExtensionStoragePaths,
 	) {
 		this._notebookProxy = mainContext.getProxy(MainContext.MainThreadNotebook);
 		this._notebookDocumentsProxy = mainContext.getProxy(MainContext.MainThreadNotebookDocuments);
@@ -157,14 +154,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 		this._notebookContentProviders.set(viewType, { extension, provider });
 
-		let listener: IDisposable | undefined;
-		if (provider.onDidChangeNotebookContentOptions) {
-			listener = provider.onDidChangeNotebookContentOptions(() => {
-				const internalOptions = typeConverters.NotebookDocumentContentOptions.from(provider.options);
-				this._notebookProxy.$updateNotebookProviderOptions(viewType, internalOptions);
-			});
-		}
-
 		this._notebookProxy.$registerNotebookProvider(
 			{ id: extension.identifier, location: extension.extensionLocation },
 			viewType,
@@ -173,7 +162,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		);
 
 		return new extHostTypes.Disposable(() => {
-			listener?.dispose();
 			this._notebookContentProviders.delete(viewType);
 			this._notebookProxy.$unregisterNotebookProvider(viewType);
 		});
@@ -355,36 +343,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			cells: data.cells.map(typeConverters.NotebookCellData.from),
 		});
 	}
-
-	async $saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean> {
-		const document = this.getNotebookDocument(URI.revive(uri));
-		const { provider } = this._getProviderData(viewType);
-		await provider.saveNotebook(document.apiNotebook, token);
-		return true;
-	}
-
-	async $saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean> {
-		const document = this.getNotebookDocument(URI.revive(uri));
-		const { provider } = this._getProviderData(viewType);
-		await provider.saveNotebookAs(URI.revive(target), document.apiNotebook, token);
-		return true;
-	}
-
-	private _backupIdPool: number = 0;
-
-	async $backupNotebook(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string> {
-		const document = this.getNotebookDocument(URI.revive(uri));
-		const provider = this._getProviderData(viewType);
-
-		const storagePath = this._extensionStoragePaths.workspaceValue(provider.extension) ?? this._extensionStoragePaths.globalValue(provider.extension);
-		const fileName = String(hash([document.uri.toString(), this._backupIdPool++]));
-		const backupUri = URI.joinPath(storagePath, fileName);
-
-		const backup = await provider.provider.backupNotebook(document.apiNotebook, { destination: backupUri }, cancellation);
-		document.updateBackup(backup);
-		return backup.id;
-	}
-
 
 	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, data: INotebookEditorAddData) {
 
