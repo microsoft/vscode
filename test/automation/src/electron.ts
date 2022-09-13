@@ -55,7 +55,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 
 		if (codePath) {
 			// running against a build: copy the test resolver extension
-			await measureAndLog(copyExtension(root, extensionsPath, 'vscode-test-resolver'), 'copyExtension(vscode-test-resolver)', logger);
+			await measureAndLog(() => copyExtension(root, extensionsPath, 'vscode-test-resolver'), 'copyExtension(vscode-test-resolver)', logger);
 		}
 		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
 		const remoteDataDir = `${userDataDir}-server`;
@@ -65,7 +65,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 			// running against a build: copy the test resolver extension into remote extensions dir
 			const remoteExtensionsDir = join(remoteDataDir, 'extensions');
 			mkdirp.sync(remoteExtensionsDir);
-			await measureAndLog(copyExtension(root, remoteExtensionsDir, 'vscode-notebook-tests'), 'copyExtension(vscode-notebook-tests)', logger);
+			await measureAndLog(() => copyExtension(root, remoteExtensionsDir, 'vscode-notebook-tests'), 'copyExtension(vscode-notebook-tests)', logger);
 		}
 
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;

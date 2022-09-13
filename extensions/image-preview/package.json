@@ -60,7 +60,7 @@
         "priority": "builtin",
         "selector": [
           {
-            "filenamePattern": "*.{mp4}"
+            "filenamePattern": "*.{mp4,webm}"
           }
         ]
       }

@@ -5,7 +5,7 @@
 
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { ITextFileService, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -66,4 +66,4 @@ export class BrowserTextFileService extends AbstractTextFileService {
 	}
 }
 
-registerSingleton(ITextFileService, BrowserTextFileService, false);
+registerSingleton(ITextFileService, BrowserTextFileService, InstantiationType.Eager);

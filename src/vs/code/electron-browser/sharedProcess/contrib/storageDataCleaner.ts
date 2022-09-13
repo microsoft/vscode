@@ -8,22 +8,21 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { join } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
-import { IBackupWorkspacesFormat } from 'vs/platform/backup/node/backup';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { StorageClient } from 'vs/platform/storage/common/storageIpc';
+import { EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/workspace/common/workspace';
+import { NON_EMPTY_WORKSPACE_ID_LENGTH } from 'vs/platform/workspaces/node/workspaces';
 
-export class StorageDataCleaner extends Disposable {
-
-	// Workspace/Folder storage names are MD5 hashes (128bits / 4 due to hex presentation)
-	private static readonly NON_EMPTY_WORKSPACE_ID_LENGTH = 128 / 4;
-
-	// Reserved empty window workspace storage name when in extension development
-	private static readonly EXTENSION_DEV_EMPTY_WINDOW_ID = 'ext-dev';
+export class UnusedWorkspaceStorageDataCleaner extends Disposable {
 
 	constructor(
-		private readonly backupWorkspacesPath: string,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IMainProcessService private readonly mainProcessService: IMainProcessService
 	) {
 		super();
 
@@ -34,31 +33,36 @@ export class StorageDataCleaner extends Disposable {
 	}
 
 	private async cleanUpStorage(): Promise<void> {
-		this.logService.trace('[storage cleanup]: Starting to clean up storage folders.');
+		this.logService.trace('[storage cleanup]: Starting to clean up workspace storage folders for unused empty workspaces.');
 
 		try {
-
-			// Leverage the backup workspace file to find out which empty workspace is currently in use to
-			// determine which empty workspace storage can safely be deleted
-			const contents = await Promises.readFile(this.backupWorkspacesPath, 'utf8');
-
-			const workspaces = JSON.parse(contents) as IBackupWorkspacesFormat;
-			const emptyWorkspaces = workspaces.emptyWorkspaceInfos.map(emptyWorkspace => emptyWorkspace.backupFolder);
-
-			// Read all workspace storage folders that exist & cleanup unused
 			const workspaceStorageFolders = await Promises.readdir(this.environmentService.workspaceStorageHome.fsPath);
+			const storageClient = new StorageClient(this.mainProcessService.getChannel('storage'));
+
 			await Promise.all(workspaceStorageFolders.map(async workspaceStorageFolder => {
-				if (
-					workspaceStorageFolder.length === StorageDataCleaner.NON_EMPTY_WORKSPACE_ID_LENGTH || 	// keep non-empty workspaces
-					workspaceStorageFolder === StorageDataCleaner.EXTENSION_DEV_EMPTY_WINDOW_ID ||			// keep empty extension dev workspaces
-					emptyWorkspaces.indexOf(workspaceStorageFolder) >= 0									// keep empty workspaces that are in use
-				) {
-					return;
+				const workspaceStoragePath = join(this.environmentService.workspaceStorageHome.fsPath, workspaceStorageFolder);
+
+				if (workspaceStorageFolder.length === NON_EMPTY_WORKSPACE_ID_LENGTH) {
+					return; // keep workspace storage for folders/workspaces that can be accessed still
 				}
 
-				this.logService.trace(`[storage cleanup]: Deleting workspace storage folder ${workspaceStorageFolder}.`);
+				if (workspaceStorageFolder === EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE.id) {
+					return; // keep workspace storage for empty extension development workspaces
+				}
 
-				await Promises.rm(join(this.environmentService.workspaceStorageHome.fsPath, workspaceStorageFolder));
+				const windows = await this.nativeHostService.getWindows();
+				if (windows.some(window => window.workspace?.id === workspaceStorageFolder)) {
+					return; // keep workspace storage for empty workspaces opened as window
+				}
+
+				const isStorageUsed = await storageClient.isUsed(workspaceStoragePath);
+				if (isStorageUsed) {
+					return; // keep workspace storage for empty workspaces that are in use
+				}
+
+				this.logService.trace(`[storage cleanup]: Deleting workspace storage folder ${workspaceStorageFolder} as it seems to be an unused empty workspace.`);
+
+				await Promises.rm(workspaceStoragePath);
 			}));
 		} catch (error) {
 			onUnexpectedError(error);

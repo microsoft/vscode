@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IExtensionGalleryService, IExtensionIdentifier, IGlobalExtensionEnablementService, ServerDidUninstallExtensionEvent, ServerInstallExtensionResult, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionIdentifier, IGlobalExtensionEnablementService, DidUninstallExtensionEvent, InstallExtensionResult, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
@@ -39,7 +39,6 @@ export class ExtensionsCleaner extends Disposable {
 		ExtensionStorageService.removeOutdatedExtensionVersions(extensionManagementService, storageService);
 		this._register(instantiationService.createInstance(ProfileExtensionsCleaner));
 	}
-
 }
 
 class ProfileExtensionsCleaner extends Disposable {
@@ -103,7 +102,7 @@ class ProfileExtensionsCleaner extends Disposable {
 		}
 	}
 
-	private async onDidInstallExtensions(installedExtensions: readonly ServerInstallExtensionResult[]): Promise<void> {
+	private async onDidInstallExtensions(installedExtensions: readonly InstallExtensionResult[]): Promise<void> {
 		for (const { local, profileLocation } of installedExtensions) {
 			if (!local || !profileLocation) {
 				continue;
@@ -112,7 +111,7 @@ class ProfileExtensionsCleaner extends Disposable {
 		}
 	}
 
-	private async onDidUninstallExtension(e: ServerDidUninstallExtensionEvent): Promise<void> {
+	private async onDidUninstallExtension(e: DidUninstallExtensionEvent): Promise<void> {
 		if (!e.profileLocation || !e.version) {
 			return;
 		}
@@ -184,5 +183,4 @@ class ProfileExtensionsCleaner extends Disposable {
 		const [id, version] = getIdAndVersion(key);
 		return version ? { identifier: { id }, version } : undefined;
 	}
-
 }

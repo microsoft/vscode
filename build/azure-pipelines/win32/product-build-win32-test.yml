@@ -14,6 +14,8 @@ steps:
       $ErrorActionPreference = "Stop"
       $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
       exec { yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install" }
+    timeoutInMinutes: 5
+    retryCountOnTaskFailure: 3
     displayName: Download Electron and Playwright
 
   - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:

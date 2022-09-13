@@ -1,6 +1,6 @@
 {
-	"$schema": "https://raw.githubusercontent.com/microsoft/vscode-github-triage-actions/master/classifier-deep/apply/apply-labels/deep-classifier-config.schema.json",
-	"vacation": ["RMacfarlane", "eamodio"],
+	"$schema": "https://raw.githubusercontent.com/microsoft/vscode-github-triage-actions/stable/classifier-deep/apply/apply-labels/deep-classifier-config.schema.json",
+	"vacation": [],
 	"assignees": {
 		"nameToOverrideAccuracyOf": {"accuracy": 0.8}
 	},
@@ -85,7 +85,7 @@
 		"html": {"assign": ["aeschli"]},
 		"i18n": {"assign": []},
 		"icon-brand": {"assign": []},
-		"icons-product": {"assign": ["misolori"]},
+		"icons-product": {"assign": ["daviddossett"]},
 		"inlay-hints": {"assign": ["jrieken", "hediet"]},
 		"inline-completions": {"assign": ["hediet"]},
 		"install-update": {"assign": []},
@@ -132,7 +132,7 @@
 		"rename": {"assign": ["jrieken"]},
 		"scm": {"assign": ["lszomoru"]},
 		"screencast-mode": {"assign": ["lszomoru"]},
-		"search": {"assign": ["roblourens"]},
+		"search": {"assign": ["roblourens", "andreamah"]},
 		"search-editor": {"assign": ["roblourens"]},
 		"search-replace": {"assign": ["sandy081"]},
 		"semantic-tokens": {"assign": ["alexdima", "aeschli"]},
@@ -158,7 +158,7 @@
 		"undo-redo": {"assign": ["alexdima"]},
 		"unit-test": {"assign": []},
 		"uri": {"assign": ["jrieken"]},
-		"ux": {"assign": ["misolori"]},
+		"ux": {"assign": ["daviddossett"]},
 		"variable-resolving": {"assign": []},
 		"vscode-build": {"assign": []},
 		"web": {"assign": []},

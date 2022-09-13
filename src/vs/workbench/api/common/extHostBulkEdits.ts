@@ -28,9 +28,13 @@ export class ExtHostBulkEdits {
 		};
 	}
 
-	applyWorkspaceEdit(edit: vscode.WorkspaceEdit, extension: IExtensionDescription): Promise<boolean> {
-		const allowSnippetTextEdit = isProposedApiEnabled(extension, 'snippetWorkspaceEdit');
-		const dto = WorkspaceEdit.from(edit, this._versionInformationProvider, allowSnippetTextEdit);
-		return this._proxy.$tryApplyWorkspaceEdit(dto);
+	applyWorkspaceEdit(edit: vscode.WorkspaceEdit, extension: IExtensionDescription, isRefactoring?: boolean): Promise<boolean> {
+		const allowIsRefactoring = isProposedApiEnabled(extension, 'workspaceEditIsRefactoring');
+		if (isRefactoring && !allowIsRefactoring) {
+			console.warn(`Extension '${extension.identifier.value}' uses a proposed API 'workspaceEditIsRefactoring' which is NOT enabled for it`);
+			isRefactoring = undefined;
+		}
+		const dto = WorkspaceEdit.from(edit, this._versionInformationProvider);
+		return this._proxy.$tryApplyWorkspaceEdit(dto, undefined, isRefactoring);
 	}
 }

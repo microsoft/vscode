@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.72.0",
-  "distro": "7d2a2b09824ca3c1da9a3a6036179462abec24a2",
+  "distro": "eea401154047e2d93bd99e942f52ddffe7bb657b",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -86,12 +86,12 @@
     "vscode-proxy-agent": "^0.12.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "7.0.1",
-    "xterm": "5.0.0-beta.48",
-    "xterm-addon-canvas": "0.2.0-beta.21",
-    "xterm-addon-search": "0.10.0-beta.5",
-    "xterm-addon-serialize": "0.8.0-beta.5",
+    "xterm": "5.0.0-beta.54",
+    "xterm-addon-canvas": "0.2.0-beta.23",
+    "xterm-addon-search": "0.10.0-beta.6",
+    "xterm-addon-serialize": "0.8.0-beta.6",
     "xterm-addon-unicode11": "0.4.0-beta.5",
-    "xterm-addon-webgl": "0.13.0-beta.46",
+    "xterm-addon-webgl": "0.13.0-beta.49",
     "xterm-headless": "5.0.0-beta.5",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
@@ -206,7 +206,7 @@
     "ts-loader": "^9.2.7",
     "ts-node": "^10.9.1",
     "tsec": "0.1.4",
-    "typescript": "^4.9.0-dev.20220825",
+    "typescript": "^4.9.0-dev.20220909",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "util": "^0.12.4",
@@ -230,7 +230,7 @@
     "@vscode/windows-registry": "1.0.6",
     "windows-foreground-love": "0.4.0",
     "windows-mutex": "0.4.1",
-    "windows-process-tree": "0.3.3"
+    "windows-process-tree": "0.3.4"
   },
   "resolutions": {
     "elliptic": "^6.5.3",
