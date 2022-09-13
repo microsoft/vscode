@@ -25,16 +25,16 @@ jobs:
     # timeout-minutes: 30
     steps:
       - uses: actions/checkout@v3
-        with:
-          repository: "gitpod-io/openvscode-server"
-          ref: ${{ env.UPDATE_BRANCH }}
-          fetch-depth: 0
-          token: ${{ secrets.VSCODE_GITHUB_TOKEN }}
+        # with:
+        #   repository: "gitpod-io/openvscode-server"
+        #   ref: ${{ env.UPDATE_BRANCH }}
+        #   fetch-depth: 0
+        #   token: ${{ secrets.VSCODE_GITHUB_TOKEN }}
 
       - name: Configure git credentials
         run: |
-          git config user.name Jean Pierre
-          git config user.email jeanpierre@gitpod.io
+          git config user.name Gal carmi
+          git config user.email galc@wix.com
 
       - name: Setup Build Environment
         run: |

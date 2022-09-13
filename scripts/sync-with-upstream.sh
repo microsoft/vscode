@@ -52,7 +52,11 @@ sync() {
 	git checkout $local_branch
 	echo "Rebasing $local_branch branch onto $upstream_branch from upstream"
 	git rebase --onto=$upstream_branch $(get_base_commit)~ $local_branch
-	if [[ $? -ne 0 ]]; then
+	local rebase_exit_code=$(echo $?)
+	if [[ $rebase_exit_code -eq 129 ]]; then
+		echo "You are already rebased on vscode main branch"
+		exit 0
+	elif [[ $rebase_exit_code -ne 0 ]]; then
 		echo "There are merge conflicts doing the rebase."
 		echo "Please resolve them or abort the rebase."
 		exit_script "Could not rebase succesfully"
@@ -65,25 +69,3 @@ cd $ROOT
 # Sync
 check_upstream
 sync
-
-if [[ "$only_sync" == "true" ]]; then
-	exit 0
-fi
-
-# Clean and build
-# git clean -dfx
-yarn && yarn server:init
-if [[ $? -ne 0 ]]; then
-	exit_script "There are some errors during compilation"
-fi
-
-# Configuration
-export NODE_ENV=development
-export VSCODE_DEV=1
-export VSCODE_CLI=1
-
-# Run smoke tests
-yarn smoketest --web --headless --verbose --electronArgs=$LINUX_EXTRA_ARGS
-if [[ $? -ne 0 ]]; then
-	exit_script "Some smoke test are failing"
-fi
