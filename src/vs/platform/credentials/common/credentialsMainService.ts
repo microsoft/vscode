@@ -61,13 +61,24 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 			this.logService.trace('Did not get a password from keytar for account:', account);
 			return password;
 		}
-		try {
-			let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);
-			if (!content || !hasNextChunk) {
-				this.logService.trace('Got password from keytar for account:', account);
-				return password;
-			}
 
+		let content: string | undefined;
+		let hasNextChunk: boolean | undefined;
+		try {
+			const parsed: ChunkedPassword = JSON.parse(password);
+			content = parsed.content;
+			hasNextChunk = parsed.hasNextChunk;
+		} catch {
+			// Ignore this similar to how we ignore parse errors in the delete
+			// because on non-windows this will not be a JSON string.
+		}
+
+		if (!content || !hasNextChunk) {
+			this.logService.trace('Got password from keytar for account:', account);
+			return password;
+		}
+
+		try {
 			let index = 1;
 			while (hasNextChunk) {
 				const nextChunk = await retry(() => keytar.getPassword(service, `${account}-${index}`), 50, 3);
@@ -153,8 +164,8 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 		}
 
 		let index = 0;
-		try {
-			if (content && hasNextChunk) {
+		if (content && hasNextChunk) {
+			try {
 				// need to delete additional chunks
 				index++;
 				while (hasNextChunk) {
@@ -166,9 +177,9 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 					hasNextChunk = result.hasNextChunk;
 					index++;
 				}
+			} catch (e) {
+				this.logService.error(e);
 			}
-		} catch (e) {
-			this.logService.error(e);
 		}
 
 		// Delete the first account to determine deletion success
