@@ -446,7 +446,7 @@ class CodeActionAdapter {
 					title: candidate.title,
 					command: candidate.command && this._commands.toInternal(candidate.command, disposables),
 					diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
-					edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit, undefined, isProposedApiEnabled(this._extension, 'snippetWorkspaceEdit')),
+					edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit, undefined),
 					kind: candidate.kind && candidate.kind.value,
 					isPreferred: candidate.isPreferred,
 					disabled: candidate.disabled?.reason
@@ -467,7 +467,7 @@ class CodeActionAdapter {
 		}
 		const resolvedItem = (await this._provider.resolveCodeAction(item, token)) ?? item;
 		return resolvedItem?.edit
-			? typeConvert.WorkspaceEdit.from(resolvedItem.edit, undefined, isProposedApiEnabled(this._extension, 'snippetWorkspaceEdit'))
+			? typeConvert.WorkspaceEdit.from(resolvedItem.edit, undefined)
 			: undefined;
 	}
 
@@ -522,7 +522,7 @@ class DocumentPasteEditProvider {
 
 		return {
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
-			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined, true) : undefined,
+			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined) : undefined,
 		};
 	}
 }
@@ -1804,7 +1804,7 @@ class DocumentOnDropEditAdapter {
 		}
 		return {
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
-			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined, true) : undefined,
+			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined) : undefined,
 		};
 	}
 }

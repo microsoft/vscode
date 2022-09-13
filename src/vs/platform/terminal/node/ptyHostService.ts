@@ -224,8 +224,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {
 		return this._proxy.updateTitle(id, title, titleSource);
 	}
-	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void> {
-		return this._proxy.updateIcon(id, icon, color);
+	updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void> {
+		return this._proxy.updateIcon(id, userInitiated, icon, color);
 	}
 	attachToProcess(id: number): Promise<void> {
 		return this._proxy.attachToProcess(id);

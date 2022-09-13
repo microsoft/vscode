@@ -230,7 +230,7 @@
     "@vscode/windows-registry": "1.0.6",
     "windows-foreground-love": "0.4.0",
     "windows-mutex": "0.4.1",
-    "windows-process-tree": "0.3.3"
+    "windows-process-tree": "0.3.4"
   },
   "resolutions": {
     "elliptic": "^6.5.3",

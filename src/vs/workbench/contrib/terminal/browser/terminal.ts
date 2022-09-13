@@ -144,8 +144,8 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	onDidMaximumDimensionsChange: Event<ITerminalInstance>;
 	onDidRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
 	onDidChangeInstanceTitle: Event<ITerminalInstance | undefined>;
-	onDidChangeInstanceIcon: Event<ITerminalInstance | undefined>;
-	onDidChangeInstanceColor: Event<ITerminalInstance | undefined>;
+	onDidChangeInstanceIcon: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
+	onDidChangeInstanceColor: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
 	onDidChangeInstancePrimaryStatus: Event<ITerminalInstance>;
 	onDidInputInstanceData: Event<ITerminalInstance>;
 	onDidRegisterProcessSupport: Event<void>;
@@ -524,7 +524,7 @@ export interface ITerminalInstance {
 	/**
 	 * An event that fires when the terminal instance's icon changes.
 	 */
-	onIconChanged: Event<ITerminalInstance>;
+	onIconChanged: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
 
 	/**
 	 * An event that fires when the terminal instance is disposed.
