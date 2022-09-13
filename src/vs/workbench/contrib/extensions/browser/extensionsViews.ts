@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { isCancellationError, getErrorMessage } from 'vs/base/common/errors';
 import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
-import { SortOrder, IQueryOptions, GallerySortBy, LocalSortBy, isLocalSort } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { SortOrder, IQueryOptions as IGalleryQueryOptions, SortBy as GallerySortBy } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionManagementServer, IExtensionManagementServerService, EnablementState, IWorkbenchExtensionManagementService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { areSameExtensions, getExtensionDependencies } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -90,7 +90,22 @@ interface IQueryResult {
 	readonly disposables: DisposableStore;
 }
 
+const enum LocalSortBy {
+	UpdateDate = 'UpdateDate',
+}
+
+function isLocalSortBy(value: any): value is LocalSortBy {
+	switch (value as LocalSortBy) {
+		case LocalSortBy.UpdateDate: return true;
+	}
+}
+
+type SortBy = LocalSortBy | GallerySortBy;
+type IQueryOptions = Omit<IGalleryQueryOptions, 'sortBy'> & { sortBy?: SortBy };
+
 export class ExtensionsListView extends ViewPane {
+
+	private static RECENT_UPDATE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 	private bodyTemplate: {
 		messageContainer: HTMLElement;
@@ -338,7 +353,8 @@ export class ExtensionsListView extends ViewPane {
 			options.sortBy = !options.sortBy ? GallerySortBy.PublishedDate : options.sortBy;
 		}
 
-		const model = await this.queryGallery(query, options, token);
+		const galleryQueryOptions: IGalleryQueryOptions = { ...options, sortBy: isLocalSortBy(options.sortBy) ? undefined : options.sortBy };
+		const model = await this.queryGallery(query, galleryQueryOptions, token);
 		return { model, disposables: new DisposableStore() };
 	}
 
@@ -650,8 +666,7 @@ export class ExtensionsListView extends ViewPane {
 	private filterRecentlyUpdatedExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
 		let { value, categories } = this.parseCategories(query.value);
 		const currentTime = Date.now();
-		// Only show extensions which have been updated during the last 7 days
-		local = local.filter(e => !e.isBuiltin && e.local?.installedTimestamp !== undefined && currentTime - e.local.installedTimestamp < 604800000);
+		local = local.filter(e => !e.isBuiltin && e.local?.installedTimestamp !== undefined && currentTime - e.local.installedTimestamp < ExtensionsListView.RECENT_UPDATE_DURATION);
 
 		value = value.replace(/@recentlyUpdated/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
@@ -690,11 +705,7 @@ export class ExtensionsListView extends ViewPane {
 		return hasChanged ? extensions : undefined;
 	}
 
-	private async queryGallery(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
-		if (options.sortBy && isLocalSort(options.sortBy)) {
-			options.sortBy = undefined;
-		}
-
+	private async queryGallery(query: Query, options: IGalleryQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
 		const hasUserDefinedSortOrder = options.sortBy !== undefined;
 		if (!hasUserDefinedSortOrder && !query.value.trim()) {
 			options.sortBy = GallerySortBy.InstallCount;

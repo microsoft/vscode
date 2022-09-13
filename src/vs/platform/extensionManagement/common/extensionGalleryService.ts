@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { getFallbackTargetPlarforms, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, GallerySortBy } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { getFallbackTargetPlarforms, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, SortBy } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
@@ -216,7 +216,7 @@ const DefaultPageSize = 10;
 interface IQueryState {
 	readonly pageNumber: number;
 	readonly pageSize: number;
-	readonly sortBy: GallerySortBy;
+	readonly sortBy: SortBy;
 	readonly sortOrder: SortOrder;
 	readonly flags: Flags;
 	readonly criteria: ICriterium[];
@@ -227,7 +227,7 @@ interface IQueryState {
 const DefaultQueryState: IQueryState = {
 	pageNumber: 1,
 	pageSize: DefaultPageSize,
-	sortBy: GallerySortBy.NoneOrRelevance,
+	sortBy: SortBy.NoneOrRelevance,
 	sortOrder: SortOrder.Default,
 	flags: Flags.None,
 	criteria: [],
@@ -315,7 +315,7 @@ class Query {
 		return new Query({ ...this.state, criteria });
 	}
 
-	withSortBy(sortBy: GallerySortBy): Query {
+	withSortBy(sortBy: SortBy): Query {
 		return new Query({ ...this.state, sortBy });
 	}
 
@@ -746,13 +746,13 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				query = query.withFilter(FilterType.SearchText, text);
 			}
 
-			query = query.withSortBy(GallerySortBy.NoneOrRelevance);
+			query = query.withSortBy(SortBy.NoneOrRelevance);
 		} else if (options.ids) {
 			query = query.withFilter(FilterType.ExtensionId, ...options.ids);
 		} else if (options.names) {
 			query = query.withFilter(FilterType.ExtensionName, ...options.names);
 		} else {
-			query = query.withSortBy(GallerySortBy.InstallCount);
+			query = query.withSortBy(SortBy.InstallCount);
 		}
 
 		if (typeof options.sortBy === 'number') {

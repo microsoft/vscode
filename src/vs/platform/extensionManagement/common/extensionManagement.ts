@@ -251,7 +251,7 @@ export interface ILocalExtension extends IExtension {
 	updated: boolean;
 }
 
-export const enum GallerySortBy {
+export const enum SortBy {
 	NoneOrRelevance = 0,
 	LastUpdatedDate = 1,
 	Title = 2,
@@ -260,16 +260,6 @@ export const enum GallerySortBy {
 	PublishedDate = 10,
 	AverageRating = 6,
 	WeightedRating = 12,
-}
-
-export enum LocalSortBy {
-	UpdateDate = 'UpdateDate',
-}
-
-export type SortBy = GallerySortBy | LocalSortBy;
-
-export function isLocalSort(sortBy: SortBy): sortBy is LocalSortBy {
-	return (Object.values(LocalSortBy) as SortBy[]).includes(sortBy);
 }
 
 export const enum SortOrder {
