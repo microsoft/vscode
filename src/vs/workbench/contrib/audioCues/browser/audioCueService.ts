@@ -153,6 +153,7 @@ export class Sound {
 	public static readonly break = Sound.register({ fileName: 'break.mp3' });
 	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.mp3' });
 	public static readonly taskEnded = Sound.register({ fileName: 'taskEnded.mp3' });
+	public static readonly terminalBell = Sound.register({ fileName: 'terminalBell.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -216,6 +217,12 @@ export class AudioCue {
 		name: localize('audioCues.taskEnded', 'Task Ended'),
 		sound: Sound.taskEnded,
 		settingsKey: 'audioCues.taskEnded'
+	});
+
+	public static readonly terminalBell = AudioCue.register({
+		name: localize('audioCues.terminalBell', 'Terminal Bell'),
+		sound: Sound.terminalBell,
+		settingsKey: 'audioCues.terminalBell'
 	});
 
 	private constructor(
