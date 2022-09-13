@@ -119,6 +119,10 @@ export async function startClient(factory: LanguageClientConstructor, workspace:
 		return vscode.commands.executeCommand('vscode.open', uri, args);
 	});
 
+	vscode.commands.registerCommand('vscodeMarkdownLanguageservice.rename', (uri, pos) => {
+		return vscode.commands.executeCommand('editor.action.rename', [vscode.Uri.from(uri), new vscode.Position(pos.line, pos.character)]);
+	});
+
 	await client.start();
 
 	return client;
