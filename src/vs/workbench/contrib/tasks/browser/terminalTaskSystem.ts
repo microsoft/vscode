@@ -49,6 +49,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -239,6 +240,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		private _logService: ILogService,
 		private _configurationService: IConfigurationService,
 		private _notificationService: INotificationService,
+		audioCueService: IAudioCueService,
 		taskService: ITaskService,
 		taskSystemInfoResolver: ITaskSystemInfoResolver,
 	) {
@@ -252,7 +254,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._sameTaskTerminals = Object.create(null);
 		this._onDidStateChange = new Emitter();
 		this._taskSystemInfoResolver = taskSystemInfoResolver;
-		this._register(this._terminalStatusManager = new TaskTerminalStatus(taskService));
+		this._register(this._terminalStatusManager = new TaskTerminalStatus(taskService, audioCueService));
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {

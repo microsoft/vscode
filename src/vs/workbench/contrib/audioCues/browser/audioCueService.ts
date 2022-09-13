@@ -152,6 +152,7 @@ export class Sound {
 	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.mp3' });
 	public static readonly break = Sound.register({ fileName: 'break.mp3' });
 	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.mp3' });
+	public static readonly taskEnded = Sound.register({ fileName: 'taskEnded.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -209,6 +210,12 @@ export class AudioCue {
 		name: localize('audioCues.noInlayHints', 'No Inlay Hints on Line'),
 		sound: Sound.error,
 		settingsKey: 'audioCues.noInlayHints'
+	});
+
+	public static readonly taskEnded = AudioCue.register({
+		name: localize('audioCues.taskEnded', 'Task Ended'),
+		sound: Sound.taskEnded,
+		settingsKey: 'audioCues.taskEnded'
 	});
 
 	private constructor(
