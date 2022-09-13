@@ -3438,7 +3438,7 @@ declare module 'vscode' {
 	export class SnippetTextEdit {
 
 		/**
-		 * Utility to create an replace snippet edit.
+		 * Utility to create a replace snippet edit.
 		 *
 		 * @param range A range.
 		 * @param snippet A snippet string.
