@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -53,6 +53,8 @@ import { IEditSessionIdentityService } from 'vs/platform/workspace/common/editSe
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService, false);
 registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, false);
@@ -90,6 +92,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 	private readonly shouldShowViewsContext: IContextKey<boolean>;
 
+	private static APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY = 'applicationLaunchedViaContinueOn';
+	private accountsMenuBadgeDisposable = this._register(new MutableDisposable());
+
 	constructor(
 		@IEditSessionsStorageService private readonly editSessionsStorageService: IEditSessionsStorageService,
 		@IFileService private readonly fileService: IFileService,
@@ -110,7 +115,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		@ICommandService private commandService: ICommandService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IActivityService private readonly activityService: IActivityService,
 	) {
 		super();
 
@@ -153,10 +160,38 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				// Note: at this point if the user is not signed into edit sessions,
 				// we don't want them to be prompted to sign in and should just return early
 				await this.resumeEditSession(undefined, true);
+			} else if (this.environmentService.continueOn !== undefined) {
+				// The application has previously launched via a protocol URL Continue On flow
+				const hasApplicationLaunchedFromContinueOnFlow = this.storageService.getBoolean(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, StorageScope.APPLICATION, false);
+
+				if (!this.editSessionsStorageService.isSignedIn &&
+					// and user has not yet been prompted to sign in on this machine
+					hasApplicationLaunchedFromContinueOnFlow === false
+				) {
+					await this.editSessionsStorageService.initialize(true).finally(() => this.environmentService.continueOn = undefined);
+					await this.resumeEditSession(undefined, true);
+					// store the fact that we prompted the user
+					this.storageService.store(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				} else if (!this.editSessionsStorageService.isSignedIn &&
+					// and user has been prompted to sign in on this machine
+					hasApplicationLaunchedFromContinueOnFlow === true
+				) {
+					// display a badge in the accounts menu but do not prompt the user to sign in again
+					this.updateAccountsMenuBadge();
+				}
 			}
 
 			performance.mark('code/didResumeEditSessionFromIdentifier');
 		});
+	}
+
+	private updateAccountsMenuBadge() {
+		if (this.editSessionsStorageService.isSignedIn) {
+			return this.accountsMenuBadgeDisposable.clear();
+		}
+
+		const badge = new NumberBadge(1, () => localize('check for pending edit sessions', 'Check for pending edit sessions'));
+		this.accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, priority: 1 });
 	}
 
 	private async autoStoreEditSession() {

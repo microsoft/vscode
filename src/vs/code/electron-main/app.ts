@@ -913,6 +913,13 @@ export class CodeApplication extends Disposable {
 				// or if no window is open (macOS only)
 				shouldOpenInNewWindow ||= isMacintosh && windowsMainService.getWindowCount() === 0;
 
+				// Pass along whether the application is being opened via a Continue On flow
+				if (params.get('continueOn') !== null) {
+					environmentService.continueOn = params.get('continueOn') ?? undefined;
+					params.delete('continueOn');
+					uri = uri.with({ query: params.toString() });
+				}
+
 				// Check for URIs to open in window
 				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
 				logService.trace('app#handleURL: windowOpenableFromProtocolLink = ', windowOpenableFromProtocolLink);
