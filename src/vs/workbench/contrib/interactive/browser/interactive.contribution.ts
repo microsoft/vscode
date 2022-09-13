@@ -137,14 +137,6 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 					transientOptions: contentOptions
 				};
 			},
-			save: async (uri: URI) => {
-				// trigger backup always
-				return false;
-			},
-			saveAs: async (uri: URI, target: URI, token: CancellationToken) => {
-				// return this._proxy.$saveNotebookAs(viewType, uri, target, token);
-				return false;
-			},
 			backup: async (uri: URI, token: CancellationToken) => {
 				const doc = notebookService.listNotebookDocuments().find(document => document.uri.toString() === uri.toString());
 				if (doc) {

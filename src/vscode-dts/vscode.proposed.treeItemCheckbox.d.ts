@@ -9,7 +9,7 @@ declare module 'vscode' {
 		/**
 		 * [TreeItemCheckboxState](#TreeItemCheckboxState) of the tree item.
 		 */
-		checkboxState?: TreeItemCheckboxState;
+		checkboxState?: TreeItemCheckboxState | { state: TreeItemCheckboxState; tooltip?: string };
 	}
 
 	/**
