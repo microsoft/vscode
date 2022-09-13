@@ -8,6 +8,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isWindows } from 'vs/base/common/platform';
+import { retry } from 'vs/base/common/async';
 
 interface ChunkedPassword {
 	content: string;
@@ -46,6 +47,7 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 	//#endregion
 
 	async getPassword(service: string, account: string): Promise<string | null> {
+		this.logService.trace('Getting password from keytar:', service, account);
 		let keytar: KeytarModule;
 		try {
 			keytar = await this.withKeytar();
@@ -54,33 +56,37 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 			return null;
 		}
 
-		const password = await keytar.getPassword(service, account);
-		if (password) {
-			try {
-				let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);
-				if (!content || !hasNextChunk) {
-					return password;
-				}
-
-				let index = 1;
-				while (hasNextChunk) {
-					const nextChunk = await keytar.getPassword(service, `${account}-${index}`);
-					const result: ChunkedPassword = JSON.parse(nextChunk!);
-					content += result.content;
-					hasNextChunk = result.hasNextChunk;
-					index++;
-				}
-
-				return content;
-			} catch {
+		const password = await retry(() => keytar.getPassword(service, account), 50, 3);
+		if (!password) {
+			this.logService.trace('Did not get a password from keytar for account:', account);
+			return password;
+		}
+		try {
+			let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);
+			if (!content || !hasNextChunk) {
+				this.logService.trace('Got password from keytar for account:', account);
 				return password;
 			}
-		}
 
-		return password;
+			let index = 1;
+			while (hasNextChunk) {
+				const nextChunk = await retry(() => keytar.getPassword(service, `${account}-${index}`), 50, 3);
+				const result: ChunkedPassword = JSON.parse(nextChunk!);
+				content += result.content;
+				hasNextChunk = result.hasNextChunk;
+				index++;
+			}
+
+			this.logService.trace(`Got ${index}-chunked password from keytar for account:`, account);
+			return content;
+		} catch (e) {
+			this.logService.error(e);
+			return password;
+		}
 	}
 
 	async setPassword(service: string, account: string, password: string): Promise<void> {
+		this.logService.trace('Setting password using keytar:', service, account);
 		let keytar: KeytarModule;
 		try {
 			keytar = await this.withKeytar();
@@ -88,28 +94,6 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 			this.surfaceKeytarLoadError?.(e);
 			throw e;
 		}
-
-		const MAX_SET_ATTEMPTS = 3;
-
-		// Sometimes Keytar has a problem talking to the keychain on the OS. To be more resilient, we retry a few times.
-		const setPasswordWithRetry = async (service: string, account: string, password: string) => {
-			let attempts = 0;
-			let error: any;
-			while (attempts < MAX_SET_ATTEMPTS) {
-				try {
-					await keytar.setPassword(service, account, password);
-					return;
-				} catch (e) {
-					error = e;
-					this.logService.warn('Error attempting to set a password: ', e?.message ?? e);
-					attempts++;
-					await new Promise(resolve => setTimeout(resolve, 200));
-				}
-			}
-
-			// throw last error
-			throw error;
-		};
 
 		if (isWindows && password.length > BaseCredentialsMainService.MAX_PASSWORD_LENGTH) {
 			let index = 0;
@@ -124,19 +108,21 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 					content: passwordChunk,
 					hasNextChunk: hasNextChunk
 				};
-
-				await setPasswordWithRetry(service, chunk ? `${account}-${chunk}` : account, JSON.stringify(content));
+				await retry(() => keytar.setPassword(service, chunk ? `${account}-${chunk}` : account, JSON.stringify(content)), 50, 3);
 				chunk++;
 			}
 
+			this.logService.trace(`Got${chunk ? ` ${chunk}-chunked` : ''} password from keytar for account:`, account);
 		} else {
-			await setPasswordWithRetry(service, account, password);
+			await retry(() => keytar.setPassword(service, account, password), 50, 3);
+			this.logService.trace('Got password from keytar for account:', account);
 		}
 
 		this._onDidChangePassword.fire({ service, account });
 	}
 
 	async deletePassword(service: string, account: string): Promise<boolean> {
+		this.logService.trace('Deleting password using keytar:', service, account);
 		let keytar: KeytarModule;
 		try {
 			keytar = await this.withKeytar();
@@ -147,14 +133,30 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 
 		const password = await keytar.getPassword(service, account);
 		if (!password) {
+			this.logService.trace('Did not get a password to delete from keytar for account:', account);
 			return false;
 		}
-		const didDelete = await keytar.deletePassword(service, account);
+
+		let content: string | undefined;
+		let hasNextChunk: boolean | undefined;
 		try {
-			let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);
+			const possibleChunk = JSON.parse(password);
+			content = possibleChunk.content;
+			hasNextChunk = possibleChunk.hasNextChunk;
+		} catch {
+			// When the password is saved the entire JSON payload is encrypted then stored, thus the result from getPassword might not be valid JSON
+			// https://github.com/microsoft/vscode/blob/c22cb87311b5eb1a3bf5600d18733f7485355dc0/src/vs/workbench/api/browser/mainThreadSecretState.ts#L83
+			// However in the chunked case we JSONify each chunk after encryption so for the chunked case we do expect valid JSON here
+			// https://github.com/microsoft/vscode/blob/708cb0c507d656b760f9d08115b8ebaf8964fd73/src/vs/platform/credentials/common/credentialsMainService.ts#L128
+			// Empty catch here just as in getPassword because we expect to handle both JSON cases and non JSON cases here it's not an error case to fail to parse
+			// https://github.com/microsoft/vscode/blob/708cb0c507d656b760f9d08115b8ebaf8964fd73/src/vs/platform/credentials/common/credentialsMainService.ts#L76
+		}
+
+		let index = 0;
+		try {
 			if (content && hasNextChunk) {
 				// need to delete additional chunks
-				let index = 1;
+				index++;
 				while (hasNextChunk) {
 					const accountWithIndex = `${account}-${index}`;
 					const nextChunk = await keytar.getPassword(service, accountWithIndex);
@@ -165,20 +167,19 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 					index++;
 				}
 			}
-		} catch {
-			// When the password is saved the entire JSON payload is encrypted then stored, thus the result from getPassword might not be valid JSON
-			// https://github.com/microsoft/vscode/blob/c22cb87311b5eb1a3bf5600d18733f7485355dc0/src/vs/workbench/api/browser/mainThreadSecretState.ts#L83
-			// However in the chunked case we JSONify each chunk after encryption so for the chunked case we do expect valid JSON here
-			// https://github.com/microsoft/vscode/blob/708cb0c507d656b760f9d08115b8ebaf8964fd73/src/vs/platform/credentials/common/credentialsMainService.ts#L128
-			// Empty catch here just as in getPassword because we expect to handle both JSON cases and non JSON cases here it's not an error case to fail to parse
-			// https://github.com/microsoft/vscode/blob/708cb0c507d656b760f9d08115b8ebaf8964fd73/src/vs/platform/credentials/common/credentialsMainService.ts#L76
+		} catch (e) {
+			this.logService.error(e);
 		}
 
-		if (didDelete) {
+		// Delete the first account to determine deletion success
+		if (await keytar.deletePassword(service, account)) {
 			this._onDidChangePassword.fire({ service, account });
+			this.logService.trace(`Deleted${index ? ` ${index}-chunked` : ''} password from keytar for account:`, account);
+			return true;
 		}
 
-		return didDelete;
+		this.logService.trace(`Keytar failed to delete${index ? ` ${index}-chunked` : ''} password for account:`, account);
+		return false;
 	}
 
 	async findPassword(service: string): Promise<string | null> {
@@ -190,7 +191,7 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 			return null;
 		}
 
-		return keytar.findPassword(service);
+		return await keytar.findPassword(service);
 	}
 
 	async findCredentials(service: string): Promise<Array<{ account: string; password: string }>> {
@@ -202,7 +203,7 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 			return [];
 		}
 
-		return keytar.findCredentials(service);
+		return await keytar.findCredentials(service);
 	}
 
 	public clear(): Promise<void> {

@@ -22,7 +22,7 @@ import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions,
 import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { debugConsoleEvaluationInput } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { IDebugConfiguration, IDebugService, IDebugSession, IExpression, IExpressionContainer, IReplElement, IReplElementSource } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugConfiguration, IDebugService, IDebugSession, IExpression, IExpressionContainer, IReplElement, IReplElementSource, IReplOptions } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, SimpleReplElement } from 'vs/workbench/contrib/debug/common/replModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -295,7 +295,10 @@ function isNestedVariable(element: IReplElement) {
 
 export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 
-	constructor(private configurationService: IConfigurationService) {
+	constructor(
+		private readonly configurationService: IConfigurationService,
+		private readonly replOptions: IReplOptions
+	) {
 		super();
 	}
 
@@ -310,8 +313,7 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 	}
 
 	protected estimateHeight(element: IReplElement, ignoreValueLength = false): number {
-		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
-		const rowHeight = Math.ceil(1.3 * config.console.fontSize);
+		const lineHeight = this.replOptions.replConfiguration.lineHeight;
 		const countNumberOfLines = (str: string) => Math.max(1, (str && str.match(/\r\n|\n/g) || []).length);
 		const hasValue = (e: any): e is { value: string } => typeof e.value === 'string';
 
@@ -321,10 +323,10 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 			const value = element.value;
 			const valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 70));
 
-			return valueRows * rowHeight;
+			return valueRows * lineHeight;
 		}
 
-		return rowHeight;
+		return lineHeight;
 	}
 
 	getTemplateId(element: IReplElement): string {

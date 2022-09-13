@@ -194,8 +194,8 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		return Boolean(this._outTextModel?.isDirty());
 	}
 
-	setLanguageId(languageId: string, _setExplicitly?: boolean): void {
-		this._model?.setLanguageId(languageId);
+	setLanguageId(languageId: string, source?: string): void {
+		this._model?.setLanguageId(languageId, source);
 	}
 
 	// implement get/set languageId

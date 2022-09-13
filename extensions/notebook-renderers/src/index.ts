@@ -16,7 +16,16 @@ interface HtmlRenderingHook {
 	 *
 	 * @return A new `HTMLElement` or `undefined` to continue using the provided element.
 	 */
-	postRender(outputItem: OutputItem, element: HTMLElement): HTMLElement | undefined;
+	postRender(outputItem: OutputItem, element: HTMLElement, signal: AbortSignal): HTMLElement | undefined | Promise<HTMLElement | undefined>;
+}
+
+interface JavaScriptRenderingHook {
+	/**
+	 * Invoked before the script is evaluated.
+	 *
+	 * @return A new string of JavaScript or `undefined` to continue using the provided string.
+	 */
+	preEvaluate(outputItem: OutputItem, element: string, signal: AbortSignal): string | undefined | Promise<string | undefined>;
 }
 
 function clearContainer(container: HTMLElement) {
@@ -72,7 +81,7 @@ const domEval = (container: Element) => {
 	}
 };
 
-function renderHTML(outputInfo: OutputItem, container: HTMLElement, hooks: Iterable<HtmlRenderingHook>): void {
+async function renderHTML(outputInfo: OutputItem, container: HTMLElement, signal: AbortSignal, hooks: Iterable<HtmlRenderingHook>): Promise<void> {
 	clearContainer(container);
 	let element: HTMLElement = document.createElement('div');
 	const htmlContent = outputInfo.text();
@@ -80,17 +89,29 @@ function renderHTML(outputInfo: OutputItem, container: HTMLElement, hooks: Itera
 	element.innerHTML = trustedHtml as string;
 
 	for (const hook of hooks) {
-		element = hook.postRender(outputInfo, element) ?? element;
+		element = (await hook.postRender(outputInfo, element, signal)) ?? element;
+		if (signal.aborted) {
+			return;
+		}
 	}
 
 	container.appendChild(element);
 	domEval(element);
 }
 
-function renderJavascript(outputInfo: OutputItem, container: HTMLElement): void {
+async function renderJavascript(outputInfo: OutputItem, container: HTMLElement, signal: AbortSignal, hooks: Iterable<JavaScriptRenderingHook>): Promise<void> {
+	let scriptText = outputInfo.text();
+
+	for (const hook of hooks) {
+		scriptText = (await hook.preEvaluate(outputInfo, scriptText, signal)) ?? scriptText;
+		if (signal.aborted) {
+			return;
+		}
+	}
+
 	const script = document.createElement('script');
 	script.type = 'module';
-	script.textContent = outputInfo.text();
+	script.textContent = scriptText;
 
 	const element = document.createElement('div');
 	const trustedHtml = ttPolicy?.createHTML(script.outerHTML) ?? script.outerHTML;
@@ -177,12 +198,12 @@ function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: Rendere
 	const text = outputInfo.text();
 	truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, contentNode);
 	container.appendChild(contentNode);
-
 }
 
 export const activate: ActivationFunction<void> = (ctx) => {
 	const disposables = new Map<string, IDisposable>();
 	const htmlHooks = new Set<HtmlRenderingHook>();
+	const jsHooks = new Set<JavaScriptRenderingHook>();
 
 	const latestContext = ctx as (RendererContext<void> & { readonly settings: { readonly lineLimit: number } });
 
@@ -229,27 +250,25 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	document.body.appendChild(style);
 
 	return {
-		renderOutputItem: (outputInfo, element) => {
+		renderOutputItem: async (outputInfo, element, signal?: AbortSignal) => {
 			switch (outputInfo.mime) {
 				case 'text/html':
-				case 'image/svg+xml':
-					{
-						if (!ctx.workspace.isTrusted) {
-							return;
-						}
-
-						renderHTML(outputInfo, element, htmlHooks);
+				case 'image/svg+xml': {
+					if (!ctx.workspace.isTrusted) {
+						return;
 					}
-					break;
-				case 'application/javascript':
-					{
-						if (!ctx.workspace.isTrusted) {
-							return;
-						}
 
-						renderJavascript(outputInfo, element);
-					}
+					await renderHTML(outputInfo, element, signal!, htmlHooks);
 					break;
+				}
+				case 'application/javascript': {
+					if (!ctx.workspace.isTrusted) {
+						return;
+					}
+
+					renderJavascript(outputInfo, element, signal!, jsHooks);
+					break;
+				}
 				case 'image/gif':
 				case 'image/png':
 				case 'image/jpeg':
@@ -298,6 +317,14 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			return {
 				dispose: () => {
 					htmlHooks.delete(hook);
+				}
+			};
+		},
+		experimental_registerJavaScriptRenderingHook: (hook: JavaScriptRenderingHook): IDisposable => {
+			jsHooks.add(hook);
+			return {
+				dispose: () => {
+					jsHooks.delete(hook);
 				}
 			};
 		}

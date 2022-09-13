@@ -19,7 +19,6 @@ export const allApiProposals = Object.freeze({
 	contribViewSize: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribViewSize.d.ts',
 	contribViewsRemote: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribViewsRemote.d.ts',
 	contribViewsWelcome: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribViewsWelcome.d.ts',
-	contribWebviewContext: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribWebviewContext.d.ts',
 	customEditorMove: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.customEditorMove.d.ts',
 	diffCommand: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.diffCommand.d.ts',
 	documentFiltersExclusive: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.documentFiltersExclusive.d.ts',
@@ -67,6 +66,7 @@ export const allApiProposals = Object.freeze({
 	treeItemCheckbox: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.treeItemCheckbox.d.ts',
 	treeViewReveal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.treeViewReveal.d.ts',
 	tunnels: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.tunnels.d.ts',
+	workspaceEditIsRefactoring: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.workspaceEditIsRefactoring.d.ts',
 	workspaceTrust: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.workspaceTrust.d.ts'
 });
 export type ApiProposalName = keyof typeof allApiProposals;

@@ -6,7 +6,6 @@
   "license": "MIT",
   "enabledApiProposals": [
     "authSession",
-    "badges",
     "contribViewsRemote",
     "customEditorMove",
     "diffCommand",

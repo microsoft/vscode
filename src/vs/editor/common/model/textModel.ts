@@ -1907,8 +1907,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this.tokenization.getLanguageId();
 	}
 
-	public setMode(languageId: string): void {
-		this.tokenization.setLanguageId(languageId);
+	public setMode(languageId: string, source?: string): void {
+		this.tokenization.setLanguageId(languageId, source);
 	}
 
 	public getLanguageIdAtPosition(lineNumber: number, column: number): string {
