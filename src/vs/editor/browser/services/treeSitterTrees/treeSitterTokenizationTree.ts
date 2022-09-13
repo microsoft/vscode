@@ -10,23 +10,22 @@ import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 
-export interface ITreeSitterTokenizationService {
+export interface ITreeSitterTokenizationTree {
 	parseTree(): Promise<Parser.Tree | void>;
-	getTextMateCaptures(): void;
+	getTreeSitterCaptures(queryString: string): Parser.QueryCapture[] | null;
 	dispose(): void
 }
 
-export class TreeSitterTokenizationService implements ITreeSitterTokenizationService {
+export class TreeSitterTokenizationTree implements ITreeSitterTokenizationTree {
 
 	public readonly id: string;
-	protected _content: string;
 	protected readonly _parser: Parser;
 	protected _edits: Parser.Edit[];
 	protected _tree: Parser.Tree | undefined;
 	protected _language: Parser.Language;
 	protected _model: ITextModel;
-	protected _captures: Parser.QueryCapture[];
 
+	// Since can not set the model directly in the constructor
 	constructor(_model: ITextModel, _language: Parser.Language) {
 		this._model = _model;
 		this.id = this._model.id;
@@ -34,8 +33,6 @@ export class TreeSitterTokenizationService implements ITreeSitterTokenizationSer
 		this._parser = new Parser();
 		this._language = _language;
 		this._parser.setLanguage(this._language);
-		this._captures = [];
-		this._content = '';
 	}
 
 	public async parseTree(): Promise<Parser.Tree | void> {
@@ -49,7 +46,9 @@ export class TreeSitterTokenizationService implements ITreeSitterTokenizationSer
 				tree
 			);
 			if (result) {
+				let that = this;
 				return new Promise(function (resolve, _reject) {
+					that._tree = result;
 					resolve(result);
 				})
 			}
@@ -67,13 +66,11 @@ export class TreeSitterTokenizationService implements ITreeSitterTokenizationSer
 		}
 	}
 
-	public getTextMateCaptures(): void {
-		if (!this._tree) {
-			return;
-		}
-		const query = this._language.query(this._content);
-		this._captures = query.captures(this._tree.rootNode);
+	public getTreeSitterCaptures(queryString: string): Parser.QueryCapture[] {
+		const query = this._language.query(queryString);
+		const captures = query.captures(this._tree!.rootNode);
 		query.delete();
+		return captures;
 	}
 
 	private getTree(): Parser.Tree | undefined {
@@ -98,6 +95,7 @@ export class TreeSitterTokenizationService implements ITreeSitterTokenizationSer
 					if (!result) {
 						return this._runParse(textModel, resolve, tree);
 					} else {
+						this._tree = result;
 						resolve(result);
 					}
 				} catch (error) { }
@@ -119,7 +117,6 @@ export class TreeSitterTokenizationService implements ITreeSitterTokenizationSer
 	public dispose() {
 		this._tree?.delete();
 		this._parser.delete();
-		this._captures.length = 0;
 		this._edits.length = 0;
 	}
 }

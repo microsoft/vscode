@@ -62,4 +62,4 @@ import 'vs/editor/common/standaloneStrings';
 
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicons are defined here and must be loaded
 
-import 'vs/editor/browser/services/treeSitterTokenizationContribution';
+import 'vs/editor/browser/services/treeSitterServices/treeSitterColorizationService';
