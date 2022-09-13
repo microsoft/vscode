@@ -132,8 +132,8 @@ export class InstantiationService implements IInstantiationService {
 	}
 
 	protected _getOrCreateServiceInstance<T>(id: ServiceIdentifier<T>, _trace: Trace): T {
-		if (this._globalGraphImplicitDependency) {
-			this._globalGraph?.insertEdge(this._globalGraphImplicitDependency, String(id));
+		if (this._globalGraph && this._globalGraphImplicitDependency) {
+			this._globalGraph.insertEdge(this._globalGraphImplicitDependency, String(id));
 		}
 		const thing = this._getServiceInstanceOrDescriptor(id);
 		if (thing instanceof SyncDescriptor) {
