@@ -15,7 +15,7 @@ export function renderLabelWithIcons(text: string): Array<HTMLSpanElement | stri
 	while ((match = labelWithIconsRegex.exec(text)) !== null) {
 		textStop = match.index || 0;
 		if (textStart < textStop) {
-			elements.push(text.substring(textStart, textStop).trim());
+			elements.push(text.substring(textStart, textStop));
 		}
 		textStart = (match.index || 0) + match[0].length;
 
@@ -24,7 +24,7 @@ export function renderLabelWithIcons(text: string): Array<HTMLSpanElement | stri
 	}
 
 	if (textStart < text.length) {
-		elements.push(text.substring(textStart).trim());
+		elements.push(text.substring(textStart));
 	}
 	return elements;
 }
