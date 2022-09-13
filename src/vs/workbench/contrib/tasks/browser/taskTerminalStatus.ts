@@ -40,7 +40,7 @@ const INFO_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID
 export class TaskTerminalStatus extends Disposable {
 	private terminalMap: Map<string, ITerminalData> = new Map();
 	private _marker: IMarker | undefined;
-	constructor(taskService: ITaskService, @IAudioCueService private readonly _audioCueService: IAudioCueService) {
+	constructor(@ITaskService taskService: ITaskService, @IAudioCueService private readonly _audioCueService: IAudioCueService) {
 		super();
 		this._register(taskService.onDidStateChange((event) => {
 			switch (event.kind) {
