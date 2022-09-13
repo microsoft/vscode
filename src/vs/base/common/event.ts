@@ -493,32 +493,36 @@ export interface EmitterOptions {
 }
 
 
-class EventProfiling {
+export class EventProfiling {
+
+	static readonly all = new Set<EventProfiling>();
 
 	private static _idPool = 0;
 
-	private _name: string;
+	readonly name: string;
+	public listenerCount: number = 0;
+	public invocationCount = 0;
+	public elapsedOverall = 0;
+	public durations: number[] = [];
+
 	private _stopWatch?: StopWatch;
-	private _listenerCount: number = 0;
-	private _invocationCount = 0;
-	private _elapsedOverall = 0;
 
 	constructor(name: string) {
-		this._name = `${name}_${EventProfiling._idPool++}`;
+		this.name = `${name}_${EventProfiling._idPool++}`;
+		EventProfiling.all.add(this);
 	}
 
 	start(listenerCount: number): void {
 		this._stopWatch = new StopWatch(true);
-		this._listenerCount = listenerCount;
+		this.listenerCount = listenerCount;
 	}
 
 	stop(): void {
 		if (this._stopWatch) {
 			const elapsed = this._stopWatch.elapsed();
-			this._elapsedOverall += elapsed;
-			this._invocationCount += 1;
-
-			console.info(`did FIRE ${this._name}: elapsed_ms: ${elapsed.toFixed(5)}, listener: ${this._listenerCount} (elapsed_overall: ${this._elapsedOverall.toFixed(2)}, invocations: ${this._invocationCount})`);
+			this.durations.push(elapsed);
+			this.elapsedOverall += elapsed;
+			this.invocationCount += 1;
 			this._stopWatch = undefined;
 		}
 	}

@@ -13,7 +13,8 @@ import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common
 import { EditorExtensions, IEditorSerializer, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { PerfviewContrib, PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { InstantiationService, Trace } from 'vs/platform/instantiation/common/instantiationService';
+import { EventProfiling } from 'vs/base/common/event';
 
 // -- startup performance view
 
@@ -58,11 +59,11 @@ registerAction2(class extends Action2 {
 });
 
 
-registerAction2(class extends Action2 {
+registerAction2(class PrintServiceCycles extends Action2 {
 
 	constructor() {
 		super({
-			id: 'instantiation.printAsyncCycles',
+			id: 'perf.insta.printAsyncCycles',
 			title: { value: localize('cycles', "Print Service Cycles"), original: 'Print Service Cycles' },
 			category: CATEGORIES.Developer,
 			f1: true
@@ -78,6 +79,52 @@ registerAction2(class extends Action2 {
 			} else {
 				console.warn(`YEAH, no more cycles`);
 			}
+		}
+	}
+});
+
+registerAction2(class PrintServiceTraces extends Action2 {
+
+	constructor() {
+		super({
+			id: 'perf.insta.printTraces',
+			title: { value: localize('insta.trace', "Print Service Traces"), original: 'Print Service Traces' },
+			category: CATEGORIES.Developer,
+			f1: true
+		});
+	}
+
+	run() {
+		if (Trace.all.size === 0) {
+			console.log('Enable via `instantiationService.ts#_enableAllTracing`');
+			return;
+		}
+
+		for (const item of Trace.all) {
+			console.log(item);
+		}
+	}
+});
+
+
+registerAction2(class PrintEventProfiling extends Action2 {
+
+	constructor() {
+		super({
+			id: 'perf.event.profiling',
+			title: { value: localize('emitter', "Print Emitter Profiles"), original: 'Print Emitter Profiles' },
+			category: CATEGORIES.Developer,
+			f1: true
+		});
+	}
+
+	run(): void {
+		if (EventProfiling.all.size === 0) {
+			console.log('USE `EmitterOptions._profName` to enable profiling');
+			return;
+		}
+		for (const item of EventProfiling.all) {
+			console.log(`${item.name}: ${item.invocationCount}invocations COST ${item.elapsedOverall}ms, ${item.listenerCount} listeners, avg cost is ${item.durations.reduce((a, b) => a + b, 0) / item.durations.length}ms`);
 		}
 	}
 });

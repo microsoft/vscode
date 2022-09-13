@@ -11,7 +11,9 @@ import { IInstantiationService, ServiceIdentifier, ServicesAccessor, _util } fro
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 // TRACING
-const _enableAllTracing = false;
+const _enableAllTracing = false
+	// || "TRUE" // DO NOT CHECK IN!
+	;
 
 class CyclicDependencyError extends Error {
 	constructor(graph: Graph<any>) {
@@ -288,6 +290,8 @@ const enum TraceType {
 
 export class Trace {
 
+	static all = new Set<string>();
+
 	private static readonly _None = new class extends Trace {
 		constructor() { super(-1, null); }
 		override stop() { }
@@ -295,7 +299,7 @@ export class Trace {
 	};
 
 	static traceInvocation(_enableTracing: boolean, ctor: any): Trace {
-		return !_enableTracing ? Trace._None : new Trace(TraceType.Invocation, ctor.name || (ctor.toString() as string).substring(0, 42).replace(/\n/g, ''));
+		return !_enableTracing ? Trace._None : new Trace(TraceType.Invocation, ctor.name || new Error().stack!.split('\n').slice(3, 4).join('\n'));
 	}
 
 	static traceCreation(_enableTracing: boolean, ctor: any): Trace {
@@ -348,7 +352,7 @@ export class Trace {
 		];
 
 		if (dur > 2 || causedCreation) {
-			console.log(lines.join('\n'));
+			Trace.all.add(lines.join('\n'));
 		}
 	}
 }
