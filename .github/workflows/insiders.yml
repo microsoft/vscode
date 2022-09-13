@@ -1,0 +1,147 @@
+name: Insiders
+on:
+  workflow_dispatch:
+    inputs:
+      parent_commit:
+        description: "Parent commit"
+        required: true
+        default: "upstream/main"
+      update_branch:
+        description: "The branch to update"
+        required: true
+        default: "main"
+  # schedule:
+  #   - cron: "0 23 * * 1-5"
+
+env:
+  # Default values will be used by cron job
+  PARENT_COMMIT: ${{ github.event.inputs.parent_commit || 'upstream/main' }}
+  UPDATE_BRANCH: ${{ github.event.inputs.update_branch || 'main' }}
+
+jobs:
+  sync-main:
+    name: Syncing openvscode-server
+    runs-on: ubuntu-latest
+    # timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: "gitpod-io/openvscode-server"
+          ref: ${{ env.UPDATE_BRANCH }}
+          fetch-depth: 0
+          token: ${{ secrets.VSCODE_GITHUB_TOKEN }}
+
+      - name: Configure git credentials
+        run: |
+          git config user.name Jean Pierre
+          git config user.email jeanpierre@gitpod.io
+
+      - name: Setup Build Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
+          sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+          sudo chmod +x /etc/init.d/xvfb
+          sudo update-rc.d xvfb defaults
+          sudo service xvfb start
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      - name: Sync with upstream (rebase)
+        run: |
+          ./scripts/sync-with-upstream.sh ${{ env.PARENT_COMMIT }} ${{ env.UPDATE_BRANCH }} "code web server initial commit" true
+
+      - name: Compute node modules cache key
+        id: nodeModulesCacheKey
+        run: echo "::set-output name=value::$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)"
+      - name: Cache node modules
+        id: cacheNodeModules
+        uses: actions/cache@v3
+        with:
+          path: "**/node_modules"
+          key: ${{ runner.os }}-cacheNodeModules23-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules23-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
+      - name: Execute yarn
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+        run: yarn --frozen-lockfile --network-timeout 180000
+
+      - name: Compile
+        run: |
+          yarn npm-run-all --max_old_space_size=4095 -lp compile playwright-install download-builtin-extensions
+
+      - name: Compile test suites
+        run: |
+          set -e
+          yarn --cwd test/smoke compile
+          yarn --cwd test/integration/browser compile
+
+      - name: Run integration tests
+        id: runIntegrationTests
+        run: |
+          ./scripts/test-web-integration.sh --browser chromium
+
+      - name: Run smoke tests
+        id: runSmokeTests
+        run: |
+          yarn smoketest-no-compile --web --headless --electronArgs="--disable-dev-shm-usage"
+
+      - name: Push changes
+        run: |
+          git push origin ${{ env.UPDATE_BRANCH }} --force-with-lease
+
+      - name: Write upstream parent commit to file
+        if: ${{ success() }}
+        run: |
+          echo "$(git rev-parse ${{ env.PARENT_COMMIT }})" > __upstream_commit.txt
+      - name: Upload parent commit file
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: upstream_commit
+          path: __upstream_commit.txt
+
+      # Store HEAD commit to make a insiders release (release.yml)
+      - name: Write the release commit to a file
+        if: ${{ success() }}
+        run: |
+          echo "$(git rev-parse HEAD)" > __release_commit.txt
+      - name: Upload release commit file
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: release_commit
+          path: __release_commit.txt
+
+      - name: Upload logs files
+        if: ${{ failure() && (steps.runSmokeTests.outcome == 'failure' || steps.runIntegrationTests.outcome == 'failure') }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: logs-linux-x64
+          path: .build/logs
+
+      - name: Get previous job's status
+        id: lastrun
+        uses: filiptronicek/get-last-job-status@main
+
+      - name: Slack Notification
+        if: ${{ (success() && steps.lastrun.outputs.status == 'failed') || failure() }}
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_COLOR: ${{ job.status }}
