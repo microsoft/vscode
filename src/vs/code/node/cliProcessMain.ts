@@ -116,7 +116,10 @@ class CliMain extends Disposable {
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Init folders
-		await Promise.all([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath].map(path => path ? Promises.mkdir(path, { recursive: true }) : undefined));
+		await Promise.all([
+			environmentService.appSettingsHome.fsPath,
+			environmentService.extensionsPath
+		].map(path => path ? Promises.mkdir(path, { recursive: true }) : undefined));
 
 		// Log
 		const logLevel = getLogLevel(environmentService);
