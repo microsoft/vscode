@@ -35,7 +35,7 @@ export function getDocumentContext(documentUri: string, workspaceFolders: Worksp
 				}
 			}
 			const baseUri = URI.parse(base);
-			const baseUriDir = Utils.dirname(baseUri);
+			const baseUriDir = baseUri.path.endsWith('/') ? baseUri : Utils.dirname(baseUri);
 			return Utils.resolvePath(baseUriDir, ref).toString(true);
 		},
 	};
