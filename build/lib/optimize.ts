@@ -153,7 +153,7 @@ function toBundleStream(src: string, bundledFileHeader: string, bundles: bundle.
 	}));
 }
 
-export interface IOptimizeTaskOpts {
+export interface IOptimizeAMDTaskOpts {
 	/**
 	 * The folder to read files from.
 	 */
@@ -184,11 +184,11 @@ export interface IOptimizeTaskOpts {
 	 */
 	bundleInfo: boolean;
 	/**
-	 * (out folder name)
+	 * The folder to write files to.
 	 */
 	out: string;
 	/**
-	 * (out folder name)
+	 * Language configuration.
 	 */
 	languages?: Language[];
 	/**
@@ -205,7 +205,7 @@ const DEFAULT_FILE_HEADER = [
 	' *--------------------------------------------------------*/'
 ].join('\n');
 
-export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
+export function optimizeAMDTask(opts: IOptimizeAMDTaskOpts): () => NodeJS.ReadWriteStream {
 	const src = opts.src;
 	const entryPoints = opts.entryPoints;
 	const resources = opts.resources;
@@ -265,6 +265,56 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 				fileHeader: bundledFileHeader,
 				languages: opts.languages
 			}) : es.through())
+			.pipe(gulp.dest(out));
+	};
+}
+
+export interface IOptimizeCommonJSTaskOpts {
+	/**
+	 * The paths to consider for optimizing.
+	 */
+	entryPoints: string[];
+	/**
+	 * The folder to read files from.
+	 */
+	src: string;
+	/**
+	 * ESBuild `platform` option: https://esbuild.github.io/api/#platform
+	 */
+	platform: 'browser' | 'node' | 'neutral';
+	/**
+	 * ESBuild `external` option: https://esbuild.github.io/api/#external
+	 */
+	external: string[];
+	/**
+	 * The folder to write files to.
+	 */
+	out: string;
+}
+
+export function optimizeCommonJSTask(opts: IOptimizeCommonJSTaskOpts): () => NodeJS.ReadWriteStream {
+	const esbuild = require('esbuild') as typeof import('esbuild');
+
+	const src = opts.src;
+	const entryPoints = opts.entryPoints;
+	const out = opts.out;
+
+	return function () {
+		return gulp.src(entryPoints, { base: `${src}`, allowEmpty: true })
+			.pipe(es.map((f: any, cb) => {
+				esbuild.build({
+					entryPoints: [f.path],
+					bundle: true,
+					platform: opts.platform,
+					write: false,
+					external: opts.external
+				}).then(res => {
+					const jsFile = res.outputFiles[0];
+					f.contents = Buffer.from(jsFile.contents);
+
+					cb(undefined, f);
+				});
+			}))
 			.pipe(gulp.dest(out));
 	};
 }

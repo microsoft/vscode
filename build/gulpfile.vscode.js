@@ -90,13 +90,37 @@ const vscodeResources = [
 
 const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 	util.rimraf('out-vscode'),
-	common.optimizeTask({
+	common.optimizeAMDTask({
 		src: 'out-build',
 		entryPoints: vscodeEntryPoints,
 		resources: vscodeResources,
 		loaderConfig: common.loaderConfig(),
 		out: 'out-vscode',
 		bundleInfo: undefined
+	}),
+	// TODO: we explicitly run this task after
+	// `optimizeAMDTask` on the `out-vscode` folder
+	// to pick up modifications to some of the
+	// dependent files, specifically `loader.js`.
+	common.optimizeCommonJSTask({
+		src: 'out-vscode',
+		// TODO: we limit CommonJS optimization to selected
+		// enty points. we can add more but each needs
+		// individual testing and verification
+		entryPoints: [
+			'out-vscode/main.js',
+			'out-vscode/cli.js'
+		],
+		out: 'out-vscode',
+		platform: 'node',
+		external: [
+			'electron',
+			'minimist',
+			// TODO: we cannot inline `product.json` because
+			// it is being changed during build time at a later
+			// point in time (such as `checksums`)
+			'../product.json'
+		]
 	})
 ));
 gulp.task(optimizeVSCodeTask);

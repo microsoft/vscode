@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.minifyTask = exports.optimizeTask = exports.loaderConfig = void 0;
+exports.minifyTask = exports.optimizeCommonJSTask = exports.optimizeAMDTask = exports.loaderConfig = void 0;
 const es = require("event-stream");
 const gulp = require("gulp");
 const concat = require("gulp-concat");
@@ -135,7 +135,7 @@ const DEFAULT_FILE_HEADER = [
     ' * Copyright (C) Microsoft Corporation. All rights reserved.',
     ' *--------------------------------------------------------*/'
 ].join('\n');
-function optimizeTask(opts) {
+function optimizeAMDTask(opts) {
     const src = opts.src;
     const entryPoints = opts.entryPoints;
     const resources = opts.resources;
@@ -187,7 +187,31 @@ function optimizeTask(opts) {
             .pipe(gulp.dest(out));
     };
 }
-exports.optimizeTask = optimizeTask;
+exports.optimizeAMDTask = optimizeAMDTask;
+function optimizeCommonJSTask(opts) {
+    const esbuild = require('esbuild');
+    const src = opts.src;
+    const entryPoints = opts.entryPoints;
+    const out = opts.out;
+    return function () {
+        return gulp.src(entryPoints, { base: `${src}`, allowEmpty: true })
+            .pipe(es.map((f, cb) => {
+            esbuild.build({
+                entryPoints: [f.path],
+                bundle: true,
+                platform: opts.platform,
+                write: false,
+                external: opts.external
+            }).then(res => {
+                const jsFile = res.outputFiles[0];
+                f.contents = Buffer.from(jsFile.contents);
+                cb(undefined, f);
+            });
+        }))
+            .pipe(gulp.dest(out));
+    };
+}
+exports.optimizeCommonJSTask = optimizeCommonJSTask;
 function minifyTask(src, sourceMapBaseUrl) {
     const esbuild = require('esbuild');
     const sourceMappingURL = sourceMapBaseUrl ? ((f) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
