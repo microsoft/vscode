@@ -5,11 +5,11 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
-import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher } from './api/git';
+import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
@@ -155,6 +155,28 @@ class AddRemoteItem implements QuickPickItem {
 
 	async run(repository: Repository): Promise<void> {
 		await this.cc.addRemote(repository);
+	}
+}
+
+class RemoteItem implements QuickPickItem {
+	get label() { return `$(cloud) ${this.remote.name}`; }
+	get description(): string | undefined { return this.remote.fetchUrl; }
+	get remoteName(): string { return this.remote.name; }
+
+	constructor(private readonly repository: Repository, private readonly remote: Remote) { }
+
+	async run(): Promise<void> {
+		await this.repository.fetch({ remote: this.remote.name });
+	}
+}
+
+class FetchAllRemotesItem implements QuickPickItem {
+	get label(): string { return localize('fetch all remotes', "{0} Fetch all remotes", '$(cloud-download)'); }
+
+	constructor(private readonly repository: Repository) { }
+
+	async run(): Promise<void> {
+		await this.repository.fetch({ all: true });
 	}
 }
 
@@ -2294,7 +2316,40 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.fetchDefault();
+		if (repository.remotes.length === 1) {
+			await repository.fetchDefault();
+			return;
+		}
+
+		const remoteItems: RemoteItem[] = repository.remotes.map(r => new RemoteItem(repository, r));
+
+		if (repository.HEAD?.upstream?.remote) {
+			// Move default remote to the top
+			const defaultRemoteIndex = remoteItems
+				.findIndex(r => r.remoteName === repository.HEAD!.upstream!.remote);
+
+			if (defaultRemoteIndex !== -1) {
+				remoteItems.splice(0, 0, ...remoteItems.splice(defaultRemoteIndex, 1));
+			}
+		}
+
+		const quickpick = window.createQuickPick();
+		quickpick.placeholder = localize('select a remote to fetch', 'Select a remote to fetch');
+		quickpick.canSelectMany = false;
+		quickpick.items = [...remoteItems, { label: '', kind: QuickPickItemKind.Separator }, new FetchAllRemotesItem(repository)];
+
+		quickpick.show();
+		const remoteItem = await new Promise<RemoteItem | FetchAllRemotesItem | undefined>(resolve => {
+			quickpick.onDidAccept(() => resolve(quickpick.activeItems[0] as RemoteItem | FetchAllRemotesItem));
+			quickpick.onDidHide(() => resolve(undefined));
+		});
+		quickpick.hide();
+
+		if (!remoteItem) {
+			return;
+		}
+
+		await remoteItem.run();
 	}
 
 	@command('git.fetchPrune', { repository: true })

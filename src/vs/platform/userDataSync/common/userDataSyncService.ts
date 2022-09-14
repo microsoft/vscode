@@ -824,7 +824,7 @@ class ProfileSynchronizer extends Disposable {
 			case SyncResource.Keybindings: return this.instantiationService.createInstance(KeybindingsSynchroniser, this.profile.keybindingsResource);
 			case SyncResource.Snippets: return this.instantiationService.createInstance(SnippetsSynchroniser, this.profile.snippetsHome);
 			case SyncResource.Tasks: return this.instantiationService.createInstance(TasksSynchroniser, this.profile.tasksResource);
-			case SyncResource.GlobalState: return this.instantiationService.createInstance(GlobalStateSynchroniser);
+			case SyncResource.GlobalState: return this.instantiationService.createInstance(GlobalStateSynchroniser, this.profile);
 			case SyncResource.Extensions: return this.instantiationService.createInstance(ExtensionsSynchroniser, this.profile.extensionsResource);
 		}
 	}
