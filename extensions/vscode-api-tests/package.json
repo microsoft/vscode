@@ -37,6 +37,7 @@
     "taskPresentationGroup",
     "terminalDataWriteEvent",
     "terminalDimensions",
+    "envShellEvent",
     "testCoverage",
     "testObserver",
     "textSearchProvider",
