@@ -32,8 +32,12 @@ export class TreeSitterService implements ITreeSitterService {
 		@IModelService _modelService: IModelService
 	) {
 		for (const model of _modelService.getModels()) {
-			model.onDidChangeContent(() => {
-
+			model.onDidChangeContent((contentChangeEvent: IModelContentChangedEvent) => {
+				if (!this._trees.has(model.uri)) {
+					this._trees.set(model.uri, new TreeSitterTree(model, this._language!));
+				}
+				const tree = this._trees.get(model.uri);
+				tree!.registerTreeEdits(contentChangeEvent);
 			})
 		}
 	}
@@ -66,11 +70,6 @@ export class TreeSitterService implements ITreeSitterService {
 			this._trees.set(model.uri, new TreeSitterTree(model, this._language!));
 		}
 		const tree = this._trees.get(model.uri);
-		/*
-		if (contentChangeEvent) {
-			tree!.registerTreeEdits(contentChangeEvent);
-		}
-		*/
 		return tree!.parseTree().then((parsedTree) => {
 			const query = this._language!.query(queryString);
 			const captures = query.captures(parsedTree.rootNode);
