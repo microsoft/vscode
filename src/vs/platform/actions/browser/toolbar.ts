@@ -5,7 +5,7 @@
 
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { IToolBarOptions, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
+import { IAction, Separator, SubmenuAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { coalesceInPlace } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -13,6 +13,7 @@ import { createAndFillInActionBarActions, createAndFillInContextMenuActions } fr
 import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const enum HiddenItemStrategy {
 	Hide = 0,
@@ -29,8 +30,16 @@ export interface IToolBarRenderOptions {
 
 export type IWorkbenchToolBarOptions = Exclude<IToolBarOptions, { allowContextMenu: boolean }> & {
 	contextMenu?: MenuId;
+
 	toolbarOptions?: IToolBarRenderOptions;
+
 	menuOptions?: IMenuActionOptions;
+
+	/**
+	 * When set the `workbenchActionExecuted` is automatically send for each invoked action. The `from` property
+	 * of the event will the passed `telemetrySource`-value
+	 */
+	telemetrySource?: string;
 };
 
 export class WorkbenchToolBar extends ToolBar {
@@ -44,10 +53,12 @@ export class WorkbenchToolBar extends ToolBar {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		options = { ...options, ...WorkbenchToolBar._mandatoryOptions };
 		super(container, contextMenuService, options);
 
+		// update logic
 		const sessionDisposable = new DisposableStore();
 		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService));
 
@@ -136,6 +147,11 @@ export class WorkbenchToolBar extends ToolBar {
 
 		this._store.add(menu.onDidChange(updateToolbar));
 		updateToolbar();
+
+		// telemetry logic
+		if (options.telemetrySource) {
+			this.actionRunner.onDidRun(e => telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: options!.telemetrySource! }));
+		}
 	}
 
 	/**
