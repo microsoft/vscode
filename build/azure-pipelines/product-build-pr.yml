@@ -29,7 +29,7 @@ jobs:
       pool:
         name: vscode-1es-vscode-linux-20.04
         demands:
-          - ImageVersionOverride -equals 20220905.1
+          - ImageVersionOverride -equals 40.0.0
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64
@@ -43,7 +43,7 @@ jobs:
       pool:
         name: vscode-1es-vscode-linux-20.04
         demands:
-          - ImageVersionOverride -equals 20220905.1
+          - ImageVersionOverride -equals 40.0.0
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64
@@ -63,7 +63,7 @@ jobs:
       pool:
         name: vscode-1es-vscode-linux-20.04
         demands:
-          - ImageVersionOverride -equals 20220905.1
+          - ImageVersionOverride -equals 40.0.0
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64
@@ -83,7 +83,7 @@ jobs:
       pool:
         name: vscode-1es-vscode-linux-20.04
         demands:
-          - ImageVersionOverride -equals 20220905.1
+          - ImageVersionOverride -equals 40.0.0
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64
@@ -104,7 +104,7 @@ jobs:
       pool:
         name: vscode-1es-vscode-linux-20.04
         demands:
-          - ImageVersionOverride -equals 20220905.1
+          - ImageVersionOverride -equals 40.0.0
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64
