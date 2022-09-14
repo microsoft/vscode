@@ -16,7 +16,7 @@ export const ITreeSitterService = createDecorator<ITreeSitterService>('ITreeSitt
 
 export interface ITreeSitterService {
 	readonly _serviceBrand: undefined;
-	fetchLanguage(): Promise<Parser.Language>;
+	fetchLanguage(): Promise<void>;
 	getTreeSitterCaptures(model: ITextModel, queryString: string, contentChangeEvent?: IModelContentChangedEvent): Promise<Parser.QueryCapture[] | void>;
 	dispose(): void
 }
@@ -30,13 +30,13 @@ export class TreeSitterService implements ITreeSitterService {
 
 	constructor() { }
 
-	public async fetchLanguage(): Promise<Parser.Language> {
+	public async fetchLanguage(): Promise<void> {
 		return fetch(FileAccess.asBrowserUri('./tree-sitter-typescript.wasm', require).toString(true)).then(async (result) => {
-			return result.arrayBuffer().then((arrayBuffer) => {
+			return result.arrayBuffer().then(async (arrayBuffer) => {
 				return Parser.Language.load(new Uint8Array(arrayBuffer)).then((language) => {
 					this._language = language;
 					return new Promise(function (resolve, _reject) {
-						resolve(language);
+						resolve();
 					})
 				})
 			})

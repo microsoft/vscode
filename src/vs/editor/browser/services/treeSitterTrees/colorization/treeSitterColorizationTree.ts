@@ -43,7 +43,7 @@ export class TreeSitterColorizationTree {
 		const uriString = FileAccess.asBrowserUri(`./treeSitterColorizationQueries.scm`, require).toString(true);
 		fetch(uriString).then((response) => {
 			response.text().then((query) => {
-				_treeSitterService.fetchLanguage().then((language) => {
+				_treeSitterService.fetchLanguage().then(() => {
 					_treeSitterService.getTreeSitterCaptures(this._model, query).then((queryCaptures) => {
 						if (!queryCaptures) {
 							return;
