@@ -22,8 +22,6 @@ export interface INotebookContentProvider {
 	options: TransientOptions;
 
 	open(uri: URI, backupId: string | VSBuffer | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<{ data: NotebookData; transientOptions: TransientOptions }>;
-	save(uri: URI, token: CancellationToken): Promise<boolean>;
-	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
 	backup(uri: URI, token: CancellationToken): Promise<string | VSBuffer>;
 }
 

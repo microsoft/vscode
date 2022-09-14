@@ -30,6 +30,7 @@ export class NotebookEditorContextKeys {
 	private readonly _disposables = new DisposableStore();
 	private readonly _viewModelDisposables = new DisposableStore();
 	private readonly _cellOutputsListeners: IDisposable[] = [];
+	private readonly _selectedKernelDisposables = new DisposableStore();
 
 	constructor(
 		private readonly _editor: INotebookEditorDelegate,
@@ -174,6 +175,13 @@ export class NotebookEditorContextKeys {
 		this._interruptibleKernel.set(selected?.implementsInterrupt ?? false);
 		this._notebookKernelSelected.set(Boolean(selected));
 		this._notebookKernel.set(selected?.id ?? '');
+
+		this._selectedKernelDisposables.clear();
+		if (selected) {
+			this._selectedKernelDisposables.add(selected.onDidChange(() => {
+				this._interruptibleKernel.set(selected?.implementsInterrupt ?? false);
+			}));
+		}
 	}
 
 	private _updateForNotebookOptions(): void {
