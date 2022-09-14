@@ -9179,6 +9179,11 @@ declare module 'vscode' {
 		export const shell: string;
 
 		/**
+		 * An {@link Event} which fires when the default shell changes.
+		 */
+		export const onDidChangeShell: Event<string>;
+
+		/**
 		 * The UI kind property indicates from which UI extensions
 		 * are accessed from. For example, extensions could be accessed
 		 * from a desktop application or a web browser.
