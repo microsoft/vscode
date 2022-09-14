@@ -128,7 +128,6 @@
 	font-size: var(--notebook-cell-output-font-size);
 	user-select: text;
 	-webkit-user-select: text;
-	-ms-user-select: text;
 	cursor: auto;
 	box-sizing: border-box;
 	z-index: var(--z-index-notebook-output);
