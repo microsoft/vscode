@@ -7,11 +7,11 @@ import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
@@ -27,6 +27,9 @@ import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderComman
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 	constructor(
@@ -131,11 +134,49 @@ class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchC
 	}
 }
 
+/**
+ * Sets the 'wslFeatureInstalled' context key if the WSL feature is or was installed on this machine.
+ */
+class WSLContextKeyInitializer extends Disposable implements IWorkbenchContribution {
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@INativeHostService nativeHostService: INativeHostService,
+		@IStorageService storageService: IStorageService,
+		@ILifecycleService lifecycleService: ILifecycleService
+	) {
+		super();
+
+		const contextKeyId = 'wslFeatureInstalled';
+		const storageKey = 'remote.wslFeatureInstalled';
+
+		const defaultValue = storageService.getBoolean(storageKey, StorageScope.APPLICATION, undefined);
+
+		const hasWSLFeatureContext = new RawContextKey<boolean>(contextKeyId, !!defaultValue, nls.localize('wslFeatureInstalled', "Whether the platform has the WSL feature installed"));
+		const contextKey = hasWSLFeatureContext.bindTo(contextKeyService);
+
+		if (defaultValue === undefined) {
+			lifecycleService.when(LifecyclePhase.Eventually).then(async () => {
+				nativeHostService.hasWSLFeatureInstalled().then(res => {
+					if (res) {
+						contextKey.set(true);
+						// once detected, set to true
+						storageService.store(storageKey, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+					}
+				});
+			});
+		}
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, 'RemoteAgentDiagnosticListener', LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteExtensionHostEnvironmentUpdater, 'RemoteExtensionHostEnvironmentUpdater', LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, 'RemoteTelemetryEnablementUpdater', LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, 'RemoteEmptyWorkbenchPresentation', LifecyclePhase.Ready);
+if (isWindows) {
+	workbenchContributionsRegistry.registerWorkbenchContribution(WSLContextKeyInitializer, 'WSLContextKeyInitializer', LifecyclePhase.Ready);
+}
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({

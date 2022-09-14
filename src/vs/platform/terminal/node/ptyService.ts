@@ -225,8 +225,8 @@ export class PtyService extends Disposable implements IPtyService {
 		this._throwIfNoPty(id).setTitle(title, titleSource);
 	}
 
-	async updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string; color?: { id: string } }, color?: string): Promise<void> {
-		this._throwIfNoPty(id).setIcon(icon, color);
+	async updateIcon(id: number, userInitiated: boolean, icon: URI | { light: URI; dark: URI } | { id: string; color?: { id: string } }, color?: string): Promise<void> {
+		this._throwIfNoPty(id).setIcon(userInitiated, icon, color);
 	}
 
 	async refreshProperty<T extends ProcessPropertyType>(id: number, type: T): Promise<IProcessPropertyMap[T]> {
@@ -496,12 +496,14 @@ export class PersistentTerminalProcess extends Disposable {
 		this._titleSource = titleSource;
 	}
 
-	setIcon(icon: TerminalIcon, color?: string): void {
+	setIcon(userInitiated: boolean, icon: TerminalIcon, color?: string): void {
 		if (!this._icon || 'id' in icon && 'id' in this._icon && icon.id !== this._icon.id ||
 			!this.color || color !== this._color) {
 
 			this._serializer.freeRawReviveBuffer();
-			this._interactionState.setValue(InteractionState.Session, 'setIcon');
+			if (userInitiated) {
+				this._interactionState.setValue(InteractionState.Session, 'setIcon');
+			}
 		}
 		this._icon = icon;
 		this._color = color;

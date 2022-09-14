@@ -13,9 +13,9 @@ export class Query {
 	}
 
 	static suggestions(query: string): string[] {
-		const commands = ['installed', 'outdated', 'enabled', 'disabled', 'builtin', 'featured', 'popular', 'recommended', 'workspaceUnsupported', 'deprecated', 'sort', 'category', 'tag', 'ext', 'id'] as const;
+		const commands = ['installed', 'outdated', 'enabled', 'disabled', 'builtin', 'featured', 'popular', 'recommended', 'recentlyUpdated', 'recentlyPublished', 'workspaceUnsupported', 'deprecated', 'sort', 'category', 'tag', 'ext', 'id'] as const;
 		const subcommands = {
-			'sort': ['installs', 'rating', 'name', 'publishedDate'],
+			'sort': ['installs', 'rating', 'name', 'publishedDate', 'updateDate'],
 			'category': EXTENSION_CATEGORIES.map(c => `"${c.toLowerCase()}"`),
 			'tag': [''],
 			'ext': [''],

@@ -48,8 +48,13 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 		this.onDidResetWorkspaces = this.channel.listen<void>('onDidResetWorkspaces');
 	}
 
-	async createProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> {
-		const result = await this.channel.call<UriDto<IUserDataProfile>>('createProfile', [name, useDefaultFlags, workspaceIdentifier]);
+	async createNamedProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> {
+		const result = await this.channel.call<UriDto<IUserDataProfile>>('createNamedProfile', [name, useDefaultFlags, workspaceIdentifier]);
+		return reviveProfile(result, this.profilesHome.scheme);
+	}
+
+	async createProfile(id: string, name: string, useDefaultFlags?: UseDefaultProfileFlags, transient?: boolean, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> {
+		const result = await this.channel.call<UriDto<IUserDataProfile>>('createProfile', [id, name, useDefaultFlags, transient, workspaceIdentifier]);
 		return reviveProfile(result, this.profilesHome.scheme);
 	}
 
@@ -66,8 +71,8 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 		return this.channel.call('removeProfile', [profile]);
 	}
 
-	async updateProfile(profile: IUserDataProfile, name: string, useDefaultFlags?: UseDefaultProfileFlags): Promise<IUserDataProfile> {
-		const result = await this.channel.call<UriDto<IUserDataProfile>>('updateProfile', [profile, name, useDefaultFlags]);
+	async updateProfile(profile: IUserDataProfile, name: string, useDefaultFlags?: UseDefaultProfileFlags, transient?: boolean): Promise<IUserDataProfile> {
+		const result = await this.channel.call<UriDto<IUserDataProfile>>('updateProfile', [profile, name, useDefaultFlags, transient]);
 		return reviveProfile(result, this.profilesHome.scheme);
 	}
 

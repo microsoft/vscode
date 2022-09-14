@@ -135,7 +135,7 @@ const Extract_Interface = Object.freeze<CodeActionKind>({
 });
 
 const Move_NewFile = Object.freeze<CodeActionKind>({
-	kind: vscode.CodeActionKind.Refactor.append('move').append('newFile'),
+	kind: vscode.CodeActionKind.RefactorMove.append('newFile'),
 	matches: refactor => refactor.name.startsWith('Move to a new file')
 });
 

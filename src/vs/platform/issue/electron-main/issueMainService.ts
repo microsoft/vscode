@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, BrowserWindowConstructorOptions, Display, IpcMainEvent, screen } from 'electron';
+import { BrowserWindow, BrowserWindowConstructorOptions, contentTracing, Display, IpcMainEvent, screen } from 'electron';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { arch, release, type } from 'os';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -25,6 +25,8 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { IWindowState } from 'vs/platform/window/electron-main/window';
+import { randomPath } from 'vs/base/common/extpath';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export const IIssueMainService = createDecorator<IIssueMainService>('issueMainService');
 
@@ -35,9 +37,11 @@ interface IBrowserWindowOptions {
 	alwaysOnTop: boolean;
 }
 
-export interface IIssueMainService extends ICommonIssueService { }
+export interface IIssueMainService extends ICommonIssueService {
+	stopTracing(): Promise<void>;
+}
 
-export class IssueMainService implements ICommonIssueService {
+export class IssueMainService implements IIssueMainService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -423,5 +427,27 @@ export class IssueMainService implements ICommonIssueService {
 
 			throw error;
 		}
+	}
+
+	async stopTracing(): Promise<void> {
+		if (!this.environmentMainService.args.trace) {
+			return; // requires tracing to be on
+		}
+
+		const path = await contentTracing.stopRecording(`${randomPath(this.environmentMainService.userHome.fsPath, this.productService.applicationName)}.trace.txt`);
+
+		// Inform user to report an issue
+		await this.dialogMainService.showMessageBox({
+			title: this.productService.nameLong,
+			type: 'info',
+			message: localize('trace.message', "Successfully created the trace file"),
+			detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
+			buttons: [mnemonicButtonLabel(localize({ key: 'trace.ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
+			defaultId: 0,
+			noLink: true
+		}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+
+		// Show item in explorer
+		this.nativeHostMainService.showItemInFolder(undefined, path);
 	}
 }
