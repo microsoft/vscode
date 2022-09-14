@@ -1536,6 +1536,25 @@ export class Repository {
 		await this.exec(args);
 	}
 
+	async fastForwardBranch(options: { remote: string; ref: string; readonly cancellationToken?: CancellationToken }): Promise<void> {
+		const args = ['fetch', options.remote, `${options.ref}:${options.ref}`];
+		const spawnOptions: SpawnOptions = {
+			cancellationToken: options.cancellationToken,
+			env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
+		};
+
+		try {
+			await this.exec(args, spawnOptions);
+		} catch (err) {
+			if (/! \[rejected\].*\(non-fast-forward\)/m.test(err.stderr || '')) {
+				// The local branch has outgoing changes and it cannot be fast-forwarded.
+				return;
+			}
+
+			throw err;
+		}
+	}
+
 	async renameBranch(name: string): Promise<void> {
 		const args = ['branch', '-m', name];
 		await this.exec(args);
@@ -1708,19 +1727,6 @@ export class Repository {
 
 			throw err;
 		}
-	}
-
-	async fetchBranch(options: { remote: string; ref: string; readonly cancellationToken?: CancellationToken }): Promise<void> {
-		const args = ['fetch'];
-		const spawnOptions: SpawnOptions = {
-			cancellationToken: options.cancellationToken,
-			env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
-		};
-
-		args.push(options.remote);
-		args.push(`${options.ref}:${options.ref}`);
-
-		await this.exec(args, spawnOptions);
 	}
 
 	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {

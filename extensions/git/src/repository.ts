@@ -334,6 +334,7 @@ export const enum Operation {
 	GetCommitTemplate = 'GetCommitTemplate',
 	DeleteBranch = 'DeleteBranch',
 	RenameBranch = 'RenameBranch',
+	FastForwardBranch = 'FastForwardBranch',
 	DeleteRef = 'DeleteRef',
 	Merge = 'Merge',
 	Rebase = 'Rebase',
@@ -1341,6 +1342,26 @@ export class Repository implements Disposable {
 		await this.run(Operation.RenameBranch, () => this.repository.renameBranch(name));
 	}
 
+	@throttle
+	async fastForwardBranch(name: string): Promise<void> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const fetchBeforeCheckout = config.get<boolean>('fetchBeforeCheckout', false) === true;
+
+		if (!fetchBeforeCheckout) {
+			return;
+		}
+
+		// Get branch details
+		const branch = await this.getBranch(name);
+		if (!branch.upstream?.remote || !branch.name) {
+			return;
+		}
+
+		// Fast-forward the branch if possible
+		const options = { remote: branch.upstream.remote, ref: branch.name };
+		await this.run(Operation.FastForwardBranch, async () => this.repository.fastForwardBranch(options));
+	}
+
 	async cherryPick(commitHash: string): Promise<void> {
 		await this.run(Operation.CherryPick, () => this.repository.cherryPick(commitHash));
 	}
@@ -1426,33 +1447,6 @@ export class Repository implements Disposable {
 	@throttle
 	async fetchAll(cancellationToken?: CancellationToken): Promise<void> {
 		await this._fetch({ all: true, cancellationToken });
-	}
-
-	@throttle
-	async fetchBranch(name: string): Promise<void> {
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const fetchBeforeCheckout = config.get<boolean>('fetchBeforeCheckout', false) === true;
-
-		if (!fetchBeforeCheckout) {
-			return;
-		}
-
-		// Get branch details
-		let branch = await this.getBranch(name);
-		if (!branch.upstream?.remote || !branch.name) {
-			return;
-		}
-
-		// Fetch the branch to refresh ahead/behind
-		await this.fetch({ remote: branch.upstream.remote, ref: branch.name });
-
-		branch = await this.getBranch(name);
-		if (branch.behind === 0 || branch.ahead !== 0) {
-			return;
-		}
-
-		const options = { remote: branch.upstream!.remote, ref: branch.name! };
-		await this.run(Operation.Fetch, async () => this.repository.fetchBranch(options));
 	}
 
 	async fetch(options: FetchOptions): Promise<void> {
@@ -1884,7 +1878,7 @@ export class Repository implements Disposable {
 			} catch (err) {
 				const shouldRetry = attempt <= 10 && (
 					(err.gitErrorCode === GitErrorCodes.RepositoryIsLocked)
-					|| ((operation === Operation.Pull || operation === Operation.Sync || operation === Operation.Fetch) && (err.gitErrorCode === GitErrorCodes.CantLockRef || err.gitErrorCode === GitErrorCodes.CantRebaseMultipleBranches))
+					|| ((operation === Operation.Pull || operation === Operation.Sync || operation === Operation.Fetch || operation === Operation.FastForwardBranch) && (err.gitErrorCode === GitErrorCodes.CantLockRef || err.gitErrorCode === GitErrorCodes.CantRebaseMultipleBranches))
 				);
 
 				if (shouldRetry) {

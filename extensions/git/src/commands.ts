@@ -37,7 +37,7 @@ class CheckoutItem implements QuickPickItem {
 			return;
 		}
 
-		await this.repository.fetchBranch(this.ref.name);
+		await this.repository.fastForwardBranch(this.ref.name);
 		await this.repository.checkout(this.ref.name, opts);
 	}
 }
