@@ -520,7 +520,7 @@ export class CommandCenter {
 			);
 
 			if (options.ref !== undefined) {
-				const repository = this.model.getRepository(Uri.file(repositoryPath));
+				const repository = await this.model.openRepository(repositoryPath).then(() => this.model.getRepository(repositoryPath));
 				await repository?.checkout(options.ref);
 			}
 
