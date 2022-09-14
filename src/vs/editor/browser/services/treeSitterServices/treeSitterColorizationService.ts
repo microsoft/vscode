@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Language, init } from 'web-tree-sitter';
+import { init } from 'web-tree-sitter';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IModelService } from 'vs/editor/common/services/model';
 import { FileAccess } from 'vs/base/common/network';
@@ -13,20 +13,24 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TreeSitterColorizationTree } from 'vs/editor/browser/services/treeSitterTrees/colorization/treeSitterColorizationTree';
 import { Iterable } from 'vs/base/common/iterator';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ITreeSitterService } from 'vs/editor/browser/services/treeSitterServices/treeSitterService';
 
 const ITreeSitterColorizationService = createDecorator<ITreeSitterColorizationService>('ITreeSitterColorizationService');
 
 export interface ITreeSitterColorizationService {
-	registerTreeSittersForColorization(): void
+	readonly _serviceBrand: undefined;
+	registerTreeSittersForColorization(): void,
+	dispose(): void
 }
 
 export class TreeSitterColorizationService implements ITreeSitterColorizationService {
 
-	private _language: Language | undefined;
+	readonly _serviceBrand: undefined;
 	private readonly _disposableStore: DisposableStore = new DisposableStore();
 	private readonly _treeSittersColorizationTrees: TreeSitterColorizationTree[] = [];
 
 	constructor(
+		@ITreeSitterService private readonly _treeSitterService: ITreeSitterService,
 		@IModelService private readonly _modelService: IModelService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
@@ -36,23 +40,19 @@ export class TreeSitterColorizationService implements ITreeSitterColorizationSer
 				return FileAccess.asBrowserUri('../../../../../../node_modules/web-tree-sitter/tree-sitter.wasm', require).toString(true);
 			}
 		}).then(async () => {
-			const result = await fetch(FileAccess.asBrowserUri('./tree-sitter-typescript.wasm', require).toString(true));
-			const langData = new Uint8Array(await result.arrayBuffer());
-			this._language = await Language.load(langData);
-
 			this._disposableStore.add(_modelService.onModelAdded((model) => {
-				if (model.getLanguageId() === 'typescript' && this._language) {
-					this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._language, this._themeService));
+				if (model.getLanguageId() === 'typescript') {
+					this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService));
 				}
 			}));
 			this._disposableStore.add(_modelService.onModelLanguageChanged((event) => {
 				const model = event.model;
-				if (model.getLanguageId() === 'typescript' && this._language) {
-					this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._language, this._themeService));
+				if (model.getLanguageId() === 'typescript') {
+					this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService));
 				}
 			}))
 			this._disposableStore.add(_modelService.onModelRemoved((model) => {
-				if (model.getLanguageId() === 'typescript' && this._language) {
+				if (model.getLanguageId() === 'typescript') {
 					const treeSitterTreeToDispose = Iterable.find(this._treeSittersColorizationTrees, tree => tree.id === model.id);
 					if (treeSitterTreeToDispose) {
 						treeSitterTreeToDispose.dispose();
@@ -65,8 +65,8 @@ export class TreeSitterColorizationService implements ITreeSitterColorizationSer
 	registerTreeSittersForColorization() {
 		const models = this._modelService.getModels();
 		for (const model of models) {
-			if (model.getLanguageId() === 'typescript' && this._language) {
-				this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._language, this._themeService));
+			if (model.getLanguageId() === 'typescript') {
+				this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService));
 			}
 		}
 	}
@@ -90,4 +90,3 @@ registerAction2(class extends Action2 {
 		treeSitterTokenizationService.registerTreeSittersForColorization();
 	}
 });
-
