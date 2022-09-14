@@ -138,8 +138,9 @@ export const enum SyncResource {
 	Tasks = 'tasks',
 	Extensions = 'extensions',
 	GlobalState = 'globalState',
+	Profiles = 'profiles',
 }
-export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Tasks, SyncResource.Extensions, SyncResource.GlobalState];
+export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Tasks, SyncResource.Extensions, SyncResource.GlobalState, SyncResource.Profiles];
 
 export function getLastSyncResourceUri(syncResource: SyncResource, environmentService: IEnvironmentService, extUri: IExtUri): URI {
 	return extUri.joinPath(environmentService.userDataSyncHome, syncResource, `lastSync${syncResource}.json`);
@@ -309,6 +310,12 @@ export namespace UserDataSyncError {
 //#endregion
 
 // #region User Data Synchroniser
+
+export interface ISyncUserDataProfile {
+	readonly id: string;
+	readonly collection: string;
+	readonly name: string;
+}
 
 export interface ISyncExtension {
 	identifier: IExtensionIdentifier;

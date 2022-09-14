@@ -539,3 +539,13 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	protected getStoredProfileAssociations(): StoredProfileAssociations { return {}; }
 	protected saveStoredProfileAssociations(storedProfileAssociations: StoredProfileAssociations): void { throw new Error('not implemented'); }
 }
+
+export class InMemoryUserDataProfilesService extends UserDataProfilesService {
+	private storedProfiles: StoredUserDataProfile[] = [];
+	protected override getStoredProfiles(): StoredUserDataProfile[] { return this.storedProfiles; }
+	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void { this.storedProfiles = storedProfiles; }
+
+	private storedProfileAssociations: StoredProfileAssociations = {};
+	protected override getStoredProfileAssociations(): StoredProfileAssociations { return this.storedProfileAssociations; }
+	protected override saveStoredProfileAssociations(storedProfileAssociations: StoredProfileAssociations): void { this.storedProfileAssociations = storedProfileAssociations; }
+}
