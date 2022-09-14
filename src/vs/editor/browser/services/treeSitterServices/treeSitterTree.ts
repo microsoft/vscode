@@ -31,7 +31,7 @@ export class TreeSitterTree {
 		})
 	}
 
-	public registerTreeEdits(contentChangeEvent: IModelContentChangedEvent) {
+	public registerTreeEdits(contentChangeEvent: IModelContentChangedEvent): void {
 		for (const change of contentChangeEvent.changes) {
 			const newEndPositionFromModel = this._model.getPositionAt(change.rangeOffset + change.text.length);
 			this._edits.push({
