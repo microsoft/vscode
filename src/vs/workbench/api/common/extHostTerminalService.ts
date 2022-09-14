@@ -377,8 +377,8 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	readonly onDidChangeTerminalState = this._onDidChangeTerminalState.event;
 	protected readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent>;
 	get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData.event; }
-	protected readonly _onDidChangeShell: Emitter<string> = new Emitter();
-	get onDidChangeShell(): Event<string> { return this._onDidChangeShell.event; }
+	protected readonly _onDidChangeShell = new Emitter<string>();
+	readonly onDidChangeShell = this._onDidChangeShell.event;
 
 	constructor(
 		supportsProcesses: boolean,
