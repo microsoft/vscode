@@ -6,17 +6,15 @@
 import { reset } from 'vs/base/browser/dom';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
-import { createActionViewItem, createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { Action2, IMenuService, MenuId, MenuItemAction, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { createActionViewItem, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { HiddenItemStrategy, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { Action2, MenuId, MenuItemAction, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -37,17 +35,19 @@ export class CommandCenterControl {
 	constructor(
 		windowTitle: WindowTitle,
 		hoverDelegate: IHoverDelegate,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IMenuService menuService: IMenuService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		this.element.classList.add('command-center');
 
-		const titleToolbar = new ToolBar(this.element, contextMenuService, {
+		const titleToolbar = instantiationService.createInstance(WorkbenchToolBar, this.element, MenuId.CommandCenter, {
+			contextMenu: MenuId.TitleBarContext,
+			toolbarOptions: {
+				primaryGroup: () => true,
+				hiddenItemStrategy: HiddenItemStrategy.Hide
+			},
 			actionViewItemProvider: (action) => {
 
 				if (action instanceof MenuItemAction && action.id === 'workbench.action.quickOpen') {
@@ -114,20 +114,9 @@ export class CommandCenterControl {
 				} else {
 					return createActionViewItem(instantiationService, action, { hoverDelegate });
 				}
-			},
-			allowContextMenu: true
+			}
 		});
-		const menu = this._disposables.add(menuService.createMenu(MenuId.CommandCenter, contextKeyService));
-		const menuUpdater = () => {
-			const actions: IAction[] = [];
-			createAndFillInContextMenuActions(menu, undefined, actions);
-			titleToolbar.setActions(actions);
-		};
-		menuUpdater();
-		this._disposables.add(menu.onDidChange(menuUpdater));
-		this._disposables.add(keybindingService.onDidUpdateKeybindings(() => {
-			menuUpdater();
-		}));
+
 		this._disposables.add(quickInputService.onShow(this._setVisibility.bind(this, false)));
 		this._disposables.add(quickInputService.onHide(this._setVisibility.bind(this, true)));
 
