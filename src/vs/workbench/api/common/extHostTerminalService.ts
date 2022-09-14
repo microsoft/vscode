@@ -812,10 +812,9 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public $acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void {
-		const oldProfile = this._defaultProfile;
 		this._defaultProfile = profile;
 		this._defaultAutomationProfile = automationProfile;
-		if (!oldProfile || oldProfile.path !== profile.path) {
+		if (oldProfile?.path !== profile.path) {
 			this._onDidChangeShell.fire(profile.path);
 		}
 	}
