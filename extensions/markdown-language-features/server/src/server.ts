@@ -79,7 +79,7 @@ export async function startServer(connection: Connection, serverConfig: {
 		});
 
 		registerCompletionsSupport(connection, documents, mdLs, configurationManager);
-		registerValidateSupport(connection, workspace, mdLs, configurationManager, serverConfig.logger);
+		registerValidateSupport(connection, workspace, documents, mdLs, configurationManager, serverConfig.logger);
 
 		return {
 			capabilities: {
