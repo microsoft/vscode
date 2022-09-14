@@ -44,7 +44,7 @@ export class TestUserDataSyncProfilesStorageService extends AbstractUserDataSync
 suite('ProfileStorageService', () => {
 
 	const disposables = new DisposableStore();
-	const profile = toUserDataProfile('test', URI.file('foo'));
+	const profile = toUserDataProfile('test', 'test', URI.file('foo'));
 	let testObject: TestUserDataSyncProfilesStorageService;
 	let storage: Storage;
 

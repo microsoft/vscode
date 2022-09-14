@@ -141,9 +141,9 @@ export interface IStorageService {
 	log(): void;
 
 	/**
-	 * Returns true if the given profile is used for profile storage
+	 * Returns true if the storage service handles the provided scope.
 	 */
-	isProfileStorageFor(profile: IUserDataProfile): boolean;
+	hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean;
 
 	/**
 	 * Switch storage to another workspace or profile. Optionally preserve the
@@ -236,7 +236,6 @@ interface IKeyTargets {
 
 export interface IStorageServiceOptions {
 	readonly flushInterval: number;
-	readonly doNotMarkPerf?: boolean;
 }
 
 export function loadKeyTargets(storage: IStorage): IKeyTargets {
@@ -248,6 +247,7 @@ export function loadKeyTargets(storage: IStorage): IKeyTargets {
 			// Fail gracefully
 		}
 	}
+
 	return Object.create(null);
 }
 
@@ -298,17 +298,12 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		if (!this.initializationPromise) {
 			this.initializationPromise = (async () => {
 
-				if (!this.options.doNotMarkPerf) {
-					// Init all storage locations
-					mark('code/willInitStorage');
-				}
+				// Init all storage locations
+				mark('code/willInitStorage');
 				try {
-					// Ask subclasses to initialize storage
-					await this.doInitialize();
+					await this.doInitialize(); // Ask subclasses to initialize storage
 				} finally {
-					if (!this.options.doNotMarkPerf) {
-						mark('code/didInitStorage');
-					}
+					mark('code/didInitStorage');
 				}
 
 				// On some OS we do not get enough time to persist state on shutdown (e.g. when
@@ -498,6 +493,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	private loadKeyTargets(scope: StorageScope): { [key: string]: StorageTarget } {
 		const storage = this.getStorage(scope);
+
 		return storage ? loadKeyTargets(storage) : Object.create(null);
 	}
 
@@ -609,6 +605,8 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	// --- abstract
 
+	abstract hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean;
+
 	protected abstract doInitialize(): Promise<void>;
 
 	protected abstract getStorage(scope: StorageScope): IStorage | undefined;
@@ -617,7 +615,6 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	protected abstract switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void>;
 	protected abstract switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier | IUserDataProfile, preserveData: boolean): Promise<void>;
-	abstract isProfileStorageFor(profile: IUserDataProfile): boolean;
 }
 
 export function isProfileUsingDefaultStorage(profile: IUserDataProfile): boolean {
@@ -670,7 +667,7 @@ export class InMemoryStorageService extends AbstractStorageService {
 		// no-op when in-memory
 	}
 
-	isProfileStorageFor(profiile: IUserDataProfile): boolean {
+	hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean {
 		return false;
 	}
 }

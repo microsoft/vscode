@@ -14,7 +14,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractStorageService, isProfileUsingDefaultStorage, IS_NEW_KEY, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { isUserDataProfile, IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
@@ -43,7 +43,7 @@ export class BrowserStorageService extends AbstractStorageService {
 	}
 
 	constructor(
-		private readonly payload: IAnyWorkspaceIdentifier,
+		private readonly workspace: IAnyWorkspaceIdentifier,
 		private readonly userDataProfileService: IUserDataProfileService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -117,7 +117,7 @@ export class BrowserStorageService extends AbstractStorageService {
 	}
 
 	private async createWorkspaceStorage(): Promise<void> {
-		const workspaceStorageIndexedDB = await IndexedDBStorageDatabase.createWorkspaceStorage(this.payload.id, this.logService);
+		const workspaceStorageIndexedDB = await IndexedDBStorageDatabase.createWorkspaceStorage(this.workspace.id, this.logService);
 
 		this.workspaceStorageDatabase = this._register(workspaceStorageIndexedDB);
 		this.workspaceStorage = this._register(new Storage(this.workspaceStorageDatabase));
@@ -239,8 +239,12 @@ export class BrowserStorageService extends AbstractStorageService {
 		]);
 	}
 
-	isProfileStorageFor(profile: IUserDataProfile): boolean {
-		return this.profileStorageProfile.id === profile.id;
+	hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean {
+		if (isUserDataProfile(scope)) {
+			return this.profileStorageProfile.id === scope.id;
+		}
+
+		return this.workspace.id === scope.id;
 	}
 }
 

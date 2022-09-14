@@ -310,7 +310,7 @@ class TestStorageService extends InMemoryStorageService {
 	constructor(private readonly profileStorageProfile: IUserDataProfile) {
 		super();
 	}
-	override isProfileStorageFor(profile: IUserDataProfile): boolean {
+	override hasScope(profile: IUserDataProfile): boolean {
 		return this.profileStorageProfile.id === profile.id;
 	}
 }

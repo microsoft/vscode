@@ -80,6 +80,8 @@ import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyn
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
+import { UserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/electron-sandbox/userDataSyncProfilesStorageService';
+import { IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
@@ -106,8 +108,6 @@ import { UserDataProfilesNativeService } from 'vs/platform/userDataProfile/elect
 import { SharedProcessRequestService } from 'vs/platform/request/electron-browser/sharedProcessRequestService';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 import { UserDataProfilesCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/userDataProfilesCleaner';
-import { UserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/electron-sandbox/userDataSyncProfilesStorageService';
-import { IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
 
 class SharedProcessMain extends Disposable {
 

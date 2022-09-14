@@ -46,7 +46,7 @@ export class ProfileStorageChangesListenerChannel extends Disposable implements 
 			}
 			return keys;
 		}, 100)(keys => this.onDidChangeApplicationStorage(keys)));
-		disposables.add(Event.debounce(this.storageMainService.onDidChangeProfileStorageData, (changes: Map<string, { profile: IUserDataProfile; keys: string[]; storage: IStorageMain }> | undefined, e) => {
+		disposables.add(Event.debounce(this.storageMainService.onDidChangeProfileStorage, (changes: Map<string, { profile: IUserDataProfile; keys: string[]; storage: IStorageMain }> | undefined, e) => {
 			if (!changes) {
 				changes = new Map<string, { profile: IUserDataProfile; keys: string[]; storage: IStorageMain }>();
 			}

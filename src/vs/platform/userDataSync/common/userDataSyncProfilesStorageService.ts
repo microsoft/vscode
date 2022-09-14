@@ -63,7 +63,7 @@ export abstract class AbstractUserDataSyncProfilesStorageService extends Disposa
 
 	async readStorageData(profile: IUserDataProfile): Promise<Map<string, IStorageValue>> {
 		// Use current storage service if the profile is same
-		if (this.storageService.isProfileStorageFor(profile)) {
+		if (this.storageService.hasScope(profile)) {
 			return this.getItems(this.storageService);
 		}
 
@@ -80,7 +80,7 @@ export abstract class AbstractUserDataSyncProfilesStorageService extends Disposa
 
 	async updateStorageData(profile: IUserDataProfile, data: Map<string, string | undefined | null>, target: StorageTarget): Promise<void> {
 		// Use current storage service if the profile is same
-		if (this.storageService.isProfileStorageFor(profile)) {
+		if (this.storageService.hasScope(profile)) {
 			return this.writeItems(this.storageService, data, target);
 		}
 
@@ -132,7 +132,7 @@ class StorageService extends AbstractStorageService {
 	private readonly profileStorage: IStorage;
 
 	constructor(profileStorageDatabase: IStorageDatabase) {
-		super({ flushInterval: 100, doNotMarkPerf: true });
+		super({ flushInterval: 100 });
 		this.profileStorage = this._register(new Storage(profileStorageDatabase));
 	}
 
@@ -147,5 +147,5 @@ class StorageService extends AbstractStorageService {
 	protected getLogDetails(): string | undefined { return undefined; }
 	protected async switchToProfile(): Promise<void> { }
 	protected async switchToWorkspace(): Promise<void> { }
-	isProfileStorageFor() { return false; }
+	hasScope() { return false; }
 }

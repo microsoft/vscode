@@ -24,6 +24,11 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
 
+export interface IProfileStorageChangeEvent extends IStorageChangeEvent {
+	readonly storage: IStorageMain;
+	readonly profile: IUserDataProfile;
+}
+
 export interface IStorageMainService {
 
 	readonly _serviceBrand: undefined;
@@ -35,12 +40,12 @@ export interface IStorageMainService {
 	 * Note: DO NOT use this for reading/writing from the main process!
 	 *       Rather use `IApplicationStorageMainService` for that purpose.
 	 */
-	applicationStorage: IStorageMain;
+	readonly applicationStorage: IStorageMain;
 
 	/**
-	 * Emitted whenever data is updated or deleted in the profile storage.
+	 * Emitted whenever data is updated or deleted in profile scoped storage.
 	 */
-	readonly onDidChangeProfileStorageData: Event<IStorageChangeEvent & { storage: IStorageMain; profile: IUserDataProfile }>;
+	readonly onDidChangeProfileStorage: Event<IProfileStorageChangeEvent>;
 
 	/**
 	 * Provides access to the profile storage shared across all windows
@@ -73,8 +78,8 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	private shutdownReason: ShutdownReason | undefined = undefined;
 
-	private readonly _onDidChangeProfileStorageData = this._register(new Emitter<IStorageChangeEvent & { storage: IStorageMain; profile: IUserDataProfile }>());
-	readonly onDidChangeProfileStorageData = this._onDidChangeProfileStorageData.event;
+	private readonly _onDidChangeProfileStorage = this._register(new Emitter<IProfileStorageChangeEvent>());
+	readonly onDidChangeProfileStorage = this._onDidChangeProfileStorage.event;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -189,12 +194,18 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 			profileStorage = this.createProfileStorage(profile);
 			this.mapProfileToStorage.set(profile.id, profileStorage);
-			this._register(profileStorage.onDidChangeStorage(e => this._onDidChangeProfileStorageData.fire({ ...e, storage: profileStorage!, profile })));
+
+			const listener = this._register(profileStorage.onDidChangeStorage(e => this._onDidChangeProfileStorage.fire({
+				...e,
+				storage: profileStorage!,
+				profile
+			})));
 
 			once(profileStorage.onDidCloseStorage)(() => {
 				this.logService.trace(`StorageMainService: closed profile storage (${profile.name})`);
 
 				this.mapProfileToStorage.delete(profile.id);
+				listener.dispose();
 			});
 		}
 
@@ -370,7 +381,7 @@ export class ApplicationStorageMainService extends AbstractStorageService implem
 		throw new Error('Switching storage workspace is unsupported from main process');
 	}
 
-	isProfileStorageFor(): never {
-		throw new Error('Profile storage is unsupported from main process');
+	hasScope(): never {
+		throw new Error('Main process is never profile or workspace scoped');
 	}
 }
