@@ -7,7 +7,6 @@ import { MainContext, MainThreadLocalizationShape } from 'vs/workbench/api/commo
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { retry } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 
 @extHostNamedCustomer(MainContext.MainThreadLocalization)
@@ -21,7 +20,7 @@ export class MainThreadLocalization extends Disposable implements MainThreadLoca
 	}
 
 	async $fetchBundleContents(uriComponents: UriComponents): Promise<string> {
-		const contents = await retry(() => this.fileService.readFile(URI.revive(uriComponents)), 50, 3);
+		const contents = await this.fileService.readFile(URI.revive(uriComponents));
 		return contents.value.toString();
 	}
 }

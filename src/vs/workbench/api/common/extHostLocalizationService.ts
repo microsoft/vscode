@@ -15,9 +15,9 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 	readonly _serviceBrand: undefined;
 
-	private _proxy: MainThreadLocalizationShape;
+	private readonly _proxy: MainThreadLocalizationShape;
 
-	protected bundleCache: Map<string, { contents: { [key: string]: string }; uri: URI }> = new Map();
+	private readonly bundleCache: Map<string, { contents: { [key: string]: string }; uri: URI }> = new Map();
 
 	constructor(
 		@IExtHostRpcService rpc: IExtHostRpcService,

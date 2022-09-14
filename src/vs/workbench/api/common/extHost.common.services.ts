@@ -30,7 +30,7 @@ import { ExtHostVariableResolverProviderService, IExtHostVariableResolverProvide
 import { ExtHostTelemetryLogService, IExtHostTelemetryLogService } from 'vs/workbench/api/common/extHostTelemetryLogService';
 import { ExtHostLocalizationService, IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
 
-registerSingleton(IExtHostLocalizationService, ExtHostLocalizationService, false);
+registerSingleton(IExtHostLocalizationService, ExtHostLocalizationService, true);
 registerSingleton(ILoggerService, ExtHostLoggerService, true);
 registerSingleton(ILogService, ExtHostLogService, true);
 registerSingleton(IExtHostApiDeprecationService, ExtHostApiDeprecationService, false);
