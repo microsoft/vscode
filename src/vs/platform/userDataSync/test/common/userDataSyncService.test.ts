@@ -32,6 +32,8 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Profiles
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 			// Settings
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '0' } },
@@ -67,6 +69,8 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Profiles
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 			// Keybindings
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '0' } },
@@ -98,6 +102,8 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Profiles
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 			// Settings
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			// Keybindings
@@ -133,6 +139,7 @@ suite('UserDataSyncService', () => {
 
 		assert.deepStrictEqual(target.requests, [
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
@@ -157,6 +164,7 @@ suite('UserDataSyncService', () => {
 		const fileService = testClient.instantiationService.get(IFileService);
 		const environmentService = testClient.instantiationService.get(IEnvironmentService);
 		const userDataProfilesService = testClient.instantiationService.get(IUserDataProfilesService);
+		await userDataProfilesService.createNamedProfile('1');
 		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
 		await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
 		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
@@ -170,6 +178,9 @@ suite('UserDataSyncService', () => {
 
 		assert.deepStrictEqual(target.requests, [
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/collection`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/profiles`, headers: { 'If-Match': '0' } },
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '1' } },
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
@@ -216,6 +227,7 @@ suite('UserDataSyncService', () => {
 		const fileService = client.instantiationService.get(IFileService);
 		const environmentService = client.instantiationService.get(IEnvironmentService);
 		const userDataProfilesService = client.instantiationService.get(IUserDataProfilesService);
+		await userDataProfilesService.createNamedProfile('1');
 		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
 		await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
 		await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
@@ -227,6 +239,9 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Profiles
+			{ type: 'POST', url: `${target.url}/v1/collection`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/profiles`, headers: { 'If-Match': '0' } },
 			// Settings
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '1' } },
 			// Keybindings
@@ -291,6 +306,7 @@ suite('UserDataSyncService', () => {
 		const fileService = client.instantiationService.get(IFileService);
 		const environmentService = client.instantiationService.get(IEnvironmentService);
 		const userDataProfilesService = client.instantiationService.get(IUserDataProfilesService);
+		await userDataProfilesService.createNamedProfile('1');
 		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
 		await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
 		await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'html.json'), VSBuffer.fromString(`{ "a": "changed" }`));
@@ -304,6 +320,8 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Profiles
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: { 'If-None-Match': '0' } },
 			// Settings
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: { 'If-None-Match': '1' } },
 			// Keybindings
@@ -356,6 +374,8 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Profiles
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 			// Settings
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '0' } },
@@ -391,7 +411,7 @@ suite('UserDataSyncService', () => {
 		await (await testObject.createSyncTask(null)).run();
 
 		disposable.dispose();
-		assert.deepStrictEqual(actualStatuses, [SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle]);
+		assert.deepStrictEqual(actualStatuses, [SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle]);
 	});
 
 	test('test sync conflicts status', async () => {
