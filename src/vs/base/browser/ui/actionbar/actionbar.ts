@@ -68,7 +68,6 @@ export class ActionBar extends Disposable implements IActionRunner {
 		keys: KeyCode[];
 		keyDown: boolean;
 	};
-	private _actionIds: string[];
 
 	// View Items
 	viewItems: IActionViewItem[];
@@ -120,7 +119,6 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this._register(this._actionRunner.onDidRun(e => this._onDidRun.fire(e)));
 		this._register(this._actionRunner.onBeforeRun(e => this._onBeforeRun.fire(e)));
 
-		this._actionIds = [];
 		this.viewItems = [];
 		this.viewItemDisposables = new Map<IActionViewItem, IDisposable>();
 		this.focusedItem = undefined;
@@ -305,11 +303,32 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	hasAction(action: IAction): boolean {
-		return this._actionIds.includes(action.id);
+		return this.viewItems.findIndex(candidate => candidate.action.id === action.id) !== -1;
 	}
 
-	getAction(index: number): IAction {
-		return this.viewItems[index].action;
+	getAction(indexOrElement: number | HTMLElement): IAction | undefined {
+
+		// by index
+		if (typeof indexOrElement === 'number') {
+			return this.viewItems[indexOrElement]?.action;
+		}
+
+		// by element
+		if (indexOrElement instanceof HTMLElement) {
+			while (indexOrElement.parentElement !== this.actionsList) {
+				if (!indexOrElement.parentElement) {
+					return undefined;
+				}
+				indexOrElement = indexOrElement.parentElement;
+			}
+			for (let i = 0; i < this.actionsList.childNodes.length; i++) {
+				if (this.actionsList.childNodes[i] === indexOrElement) {
+					return this.viewItems[i].action;
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	push(arg: IAction | ReadonlyArray<IAction>, options: IActionOptions = {}): void {
@@ -351,11 +370,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
 				this.actionsList.appendChild(actionViewItemElement);
 				this.viewItems.push(item);
-				this._actionIds.push(action.id);
 			} else {
 				this.actionsList.insertBefore(actionViewItemElement, this.actionsList.children[index]);
 				this.viewItems.splice(index, 0, item);
-				this._actionIds.splice(index, 0, action.id);
 				index++;
 			}
 		});
@@ -394,17 +411,15 @@ export class ActionBar extends Disposable implements IActionRunner {
 			this.viewItemDisposables.get(this.viewItems[index])?.dispose();
 			this.viewItemDisposables.delete(this.viewItems[index]);
 			dispose(this.viewItems.splice(index, 1));
-			this._actionIds.splice(index, 1);
 			this.refreshRole();
 		}
 	}
 
 	clear(): void {
 		dispose(this.viewItems);
-		this.viewItemDisposables.forEach(d => d.dispose());
+		dispose(this.viewItemDisposables.values());
 		this.viewItemDisposables.clear();
 		this.viewItems = [];
-		this._actionIds = [];
 		DOM.clearNode(this.actionsList);
 		this.refreshRole();
 	}
@@ -561,11 +576,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	override dispose(): void {
 		dispose(this.viewItems);
 		this.viewItems = [];
-
-		this._actionIds = [];
-
 		this.getContainer().remove();
-
 		super.dispose();
 	}
 }

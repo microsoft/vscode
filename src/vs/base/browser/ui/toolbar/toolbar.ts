@@ -148,8 +148,8 @@ export class ToolBar extends Disposable {
 		return itemsWidth;
 	}
 
-	getItemAction(index: number) {
-		return this.actionBar.getAction(index);
+	getItemAction(indexOrElement: number | HTMLElement) {
+		return this.actionBar.getAction(indexOrElement);
 	}
 
 	getItemWidth(index: number): number {
