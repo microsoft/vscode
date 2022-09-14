@@ -131,8 +131,7 @@ steps:
 
       - script: |
           set -e
-          yarn gulp \
-            compile-extension-media
+          yarn gulp compile-extension-media
         displayName: Build extensions for smoke tests
 
       - script: |
