@@ -108,6 +108,7 @@ import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } fro
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
 import { UserDataTransientProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataTransientProfilesHandler';
+import { ProfileStorageChangesListenerChannel } from 'vs/platform/userDataSync/electron-main/userDataSyncProfilesStorageIpc';
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 
 /**
@@ -805,6 +806,10 @@ export class CodeApplication extends Disposable {
 		const storageChannel = this._register(new StorageDatabaseChannel(this.logService, accessor.get(IStorageMainService)));
 		mainProcessElectronServer.registerChannel('storage', storageChannel);
 		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
+
+		// Profile Storage Changes Listener (shared process)
+		const profileStorageListener = this._register(new ProfileStorageChangesListenerChannel(accessor.get(IStorageMainService), accessor.get(IUserDataProfilesMainService), this.logService));
+		sharedProcessClient.then(client => client.registerChannel('profileStorageListener', profileStorageListener));
 
 		// External Terminal
 		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService));
