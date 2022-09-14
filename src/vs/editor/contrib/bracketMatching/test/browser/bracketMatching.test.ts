@@ -213,20 +213,23 @@ suite('bracket matching', () => {
 	test('Removes brackets', () => {
 		const editor = createCodeEditorWithBrackets('var x = (3 + (5-7)); y();');
 		const bracketMatchingController = disposables.add(editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController));
+		function removeBrackets() {
+			bracketMatchingController.replaceBrackets('', '');
+		}
 
 		// position before the bracket
 		editor.setPosition(new Position(1, 9));
-		bracketMatchingController.removeBrackets();
+		removeBrackets();
 		assert.deepStrictEqual(editor.getModel().getValue(), 'var x = 3 + (5-7); y();');
 		editor.getModel().setValue('var x = (3 + (5-7)); y();');
 
 		// position between brackets
 		editor.setPosition(new Position(1, 16));
-		bracketMatchingController.removeBrackets();
+		removeBrackets();
 		assert.deepStrictEqual(editor.getModel().getValue(), 'var x = (3 + 5-7); y();');
-		bracketMatchingController.removeBrackets();
+		removeBrackets();
 		assert.deepStrictEqual(editor.getModel().getValue(), 'var x = 3 + 5-7; y();');
-		bracketMatchingController.removeBrackets();
+		removeBrackets();
 		assert.deepStrictEqual(editor.getModel().getValue(), 'var x = 3 + 5-7; y();');
 	});
 });
