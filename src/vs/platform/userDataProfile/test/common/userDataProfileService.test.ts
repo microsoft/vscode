@@ -13,7 +13,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
 import product from 'vs/platform/product/common/product';
-import { StoredProfileAssociations, StoredUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { InMemoryUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
@@ -23,17 +23,6 @@ class TestEnvironmentService extends AbstractNativeEnvironmentService {
 		super(Object.create(null), Object.create(null), { _serviceBrand: undefined, ...product });
 	}
 	override get userRoamingDataHome() { return this._appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
-}
-
-class TestUserDataProfilesService extends UserDataProfilesService {
-
-	private storedProfiles: StoredUserDataProfile[] = [];
-	protected override getStoredProfiles(): StoredUserDataProfile[] { return this.storedProfiles; }
-	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void { this.storedProfiles = storedProfiles; }
-
-	private storedProfileAssociations: StoredProfileAssociations = {};
-	protected override getStoredProfileAssociations(): StoredProfileAssociations { return this.storedProfileAssociations; }
-	protected override saveStoredProfileAssociations(storedProfileAssociations: StoredProfileAssociations): void { this.storedProfileAssociations = storedProfileAssociations; }
 }
 
 suite('UserDataProfileService (Common)', () => {
@@ -50,7 +39,7 @@ suite('UserDataProfileService (Common)', () => {
 		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, fileSystemProvider));
 
 		environmentService = new TestEnvironmentService(joinPath(ROOT, 'User'));
-		testObject = new TestUserDataProfilesService(environmentService, fileService, new UriIdentityService(fileService), logService);
+		testObject = new InMemoryUserDataProfilesService(environmentService, fileService, new UriIdentityService(fileService), logService);
 		testObject.setEnablement(true);
 	});
 
