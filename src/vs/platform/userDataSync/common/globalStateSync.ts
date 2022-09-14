@@ -27,7 +27,8 @@ import { edit } from 'vs/platform/userDataSync/common/content';
 import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
 import { ALL_SYNC_RESOURCES, Change, createSyncHeaders, getEnablementKey, IGlobalState, IRemoteUserData, IStorageValue, ISyncData, ISyncResourceHandle, IUserData, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, SYNC_SERVICE_URL_TYPE, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreType, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
 
 const argvStoragePrefx = 'globalState.argv.';
 const argvProperties: string[] = ['locale'];
@@ -56,8 +57,6 @@ function stringify(globalState: IGlobalState, format: boolean): string {
 const GLOBAL_STATE_DATA_VERSION = 1;
 
 /**
- * TODO: @sandy081: Sync only global state of default profile
- *
  * Synchronises global state that includes
  * 	- Global storage with user scope
  * 	- Locale from argv properties
@@ -77,6 +76,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	private readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
 
 	constructor(
+		private readonly profile: IUserDataProfile,
+		@IUserDataSyncProfilesStorageService private readonly userDataSyncProfilesStorageService: IUserDataSyncProfilesStorageService,
 		@IFileService fileService: IFileService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
@@ -85,7 +86,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super(SyncResource.GlobalState, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
@@ -94,10 +95,17 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			Event.any(
 				/* Locale change */
 				Event.filter(fileService.onDidFilesChange, e => e.contains(this.environmentService.argvResource)),
-				/* Global storage with user target has changed */
-				Event.filter(storageService.onDidChangeValue, e => e.scope === StorageScope.PROFILE && e.target !== undefined ? e.target === StorageTarget.USER : storageService.keys(StorageScope.PROFILE, StorageTarget.USER).includes(e.key)),
-				/* Storage key target has changed */
-				this.storageService.onDidChangeTarget
+				Event.filter(this.userDataSyncProfilesStorageService.onDidChange, e => {
+					/* StorageTarget has changed in profile storage */
+					if (e.targetChanges.some(profile => this.profile.id === profile.id)) {
+						return true;
+					}
+					/* User storage data has changed in profile storage */
+					if (e.valueChanges.some(({ profile, changes }) => this.profile.id === profile.id && changes.some(change => change.target === StorageTarget.USER))) {
+						return true;
+					}
+					return false;
+				}),
 			)((() => this.triggerLocalChange()))
 		);
 	}
@@ -117,7 +125,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			this.logService.trace(`${this.syncResourceLogLabel}: Remote ui state does not exist. Synchronizing ui state for the first time.`);
 		}
 
-		const storageKeys = this.getStorageKeys(lastSyncGlobalState);
+		const storageKeys = await this.getStorageKeys(lastSyncGlobalState);
 		const { local, remote } = merge(localGlobalState.storage, remoteGlobalState ? remoteGlobalState.storage : null, lastSyncGlobalState ? lastSyncGlobalState.storage : null, storageKeys, this.logService);
 		const previewResult: IGlobalStateResourceMergeResult = {
 			content: null,
@@ -151,7 +159,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			return true;
 		}
 		const localGlobalState = await this.getLocalGlobalState();
-		const storageKeys = this.getStorageKeys(lastSyncGlobalState);
+		const storageKeys = await this.getStorageKeys(lastSyncGlobalState);
 		const { remote } = merge(localGlobalState.storage, lastSyncGlobalState.storage, lastSyncGlobalState.storage, storageKeys, this.logService);
 		return remote !== null;
 	}
@@ -303,10 +311,10 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 				storage[`${argvStoragePrefx}${argvProperty}`] = { version: 1, value: argvValue[argvProperty] };
 			}
 		}
-		for (const key of this.storageService.keys(StorageScope.PROFILE, StorageTarget.USER)) {
-			const value = this.storageService.get(key, StorageScope.PROFILE);
-			if (value) {
-				storage[key] = { version: 1, value };
+		const storageData = await this.userDataSyncProfilesStorageService.readStorageData(this.profile);
+		for (const [key, value] of storageData) {
+			if (value.value && value.target === StorageTarget.USER) {
+				storage[key] = { version: 1, value: value.value };
 			}
 		}
 		return { storage };
@@ -326,7 +334,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	private async writeLocalGlobalState({ added, removed, updated }: { added: IStringDictionary<IStorageValue>; updated: IStringDictionary<IStorageValue>; removed: string[] }): Promise<void> {
 		const argv: IStringDictionary<any> = {};
-		const updatedStorage: IStringDictionary<any> = {};
+		const updatedStorage = new Map<string, string | undefined>();
+		const storageData = await this.userDataSyncProfilesStorageService.readStorageData(this.profile);
 		const handleUpdatedStorage = (keys: string[], storage?: IStringDictionary<IStorageValue>): void => {
 			for (const key of keys) {
 				if (key.startsWith(argvStoragePrefx)) {
@@ -335,12 +344,12 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 				}
 				if (storage) {
 					const storageValue = storage[key];
-					if (storageValue.value !== String(this.storageService.get(key, StorageScope.PROFILE))) {
-						updatedStorage[key] = storageValue.value;
+					if (storageValue.value !== storageData.get(key)?.value) {
+						updatedStorage.set(key, storageValue.value);
 					}
 				} else {
-					if (this.storageService.get(key, StorageScope.PROFILE) !== undefined) {
-						updatedStorage[key] = undefined;
+					if (storageData.get(key) !== undefined) {
+						updatedStorage.set(key, undefined);
 					}
 				}
 			}
@@ -353,13 +362,10 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			await this.updateArgv(argv);
 			this.logService.info(`${this.syncResourceLogLabel}: Updated locale`);
 		}
-		const updatedStorageKeys: string[] = Object.keys(updatedStorage);
-		if (updatedStorageKeys.length) {
+		if (updatedStorage.size) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating global state...`);
-			for (const key of Object.keys(updatedStorage)) {
-				this.storageService.store(key, updatedStorage[key], StorageScope.PROFILE, StorageTarget.USER);
-			}
-			this.logService.info(`${this.syncResourceLogLabel}: Updated global state`, Object.keys(updatedStorage));
+			await this.userDataSyncProfilesStorageService.updateStorageData(this.profile, updatedStorage, StorageTarget.USER);
+			this.logService.info(`${this.syncResourceLogLabel}: Updated global state`, [...updatedStorage.keys()]);
 		}
 	}
 
@@ -376,11 +382,18 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		}
 	}
 
-	private getStorageKeys(lastSyncGlobalState: IGlobalState | null): StorageKeys {
-		const user = this.storageService.keys(StorageScope.PROFILE, StorageTarget.USER);
-		const machine = this.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE);
+	private async getStorageKeys(lastSyncGlobalState: IGlobalState | null): Promise<StorageKeys> {
+		const storageData = await this.userDataSyncProfilesStorageService.readStorageData(this.profile);
+		const user: string[] = [], machine: string[] = [];
+		for (const [key, value] of storageData) {
+			if (value.target === StorageTarget.USER) {
+				user.push(key);
+			} else if (value.target === StorageTarget.MACHINE) {
+				machine.push(key);
+			}
+		}
 		const registered = [...user, ...machine];
-		const unregistered = lastSyncGlobalState?.storage ? Object.keys(lastSyncGlobalState.storage).filter(key => !key.startsWith(argvStoragePrefx) && !registered.includes(key) && this.storageService.get(key, StorageScope.PROFILE) !== undefined) : [];
+		const unregistered = lastSyncGlobalState?.storage ? Object.keys(lastSyncGlobalState.storage).filter(key => !key.startsWith(argvStoragePrefx) && !registered.includes(key) && storageData.get(key) !== undefined) : [];
 
 		if (!isWeb) {
 			// Following keys are synced only in web. Do not sync these keys in other platforms
