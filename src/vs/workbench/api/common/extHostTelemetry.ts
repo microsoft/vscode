@@ -13,7 +13,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
-import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
+import { cleanData, cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
 import { mixin } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 
@@ -139,6 +139,8 @@ export class ExtHostTelemetryLogger {
 			data = mixin(data, this._appender.additionalCommonProperties);
 		}
 
+		data = cleanData(data, []);
+
 		return data;
 	}
 
@@ -163,6 +165,7 @@ export class ExtHostTelemetryLogger {
 		if (typeof eventNameOrException === 'string') {
 			this.logEvent(eventNameOrException, data);
 		} else {
+			// TODO @lramos15, implement cleaning for and logging for this case
 			this._appender.logException(eventNameOrException, data);
 		}
 	}
