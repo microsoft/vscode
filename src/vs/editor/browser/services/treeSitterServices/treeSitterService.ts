@@ -17,9 +17,13 @@ export const ITreeSitterService = createDecorator<ITreeSitterService>('ITreeSitt
 
 export interface ITreeSitterService {
 	readonly _serviceBrand: undefined;
-	getTreeSitterCaptures(model: ITextModel, queryString: string, contentChangeEvent?: IModelContentChangedEvent): Promise<Parser.QueryCapture[] | void>;
+	getTreeSitterCaptures(model: ITextModel, queryString: string, contentChangeEvent?: IModelContentChangedEvent): Promise<Parser.QueryCapture[]>;
 	dispose(): void
 }
+
+const supportedLanguages = new Map<string, string>([
+	['typescript', './tree-sitter-typescript.wasm']
+]);
 
 export class TreeSitterService implements ITreeSitterService {
 
@@ -31,19 +35,17 @@ export class TreeSitterService implements ITreeSitterService {
 	constructor(
 		@IModelService _modelService: IModelService
 	) {
-		for (const model of _modelService.getModels()) {
-			model.onDidChangeContent((contentChangeEvent: IModelContentChangedEvent) => {
-				if (!this._trees.has(model.uri)) {
-					this._trees.set(model.uri, new TreeSitterTree(model, this._language!));
-				}
-				const tree = this._trees.get(model.uri);
-				tree!.registerTreeEdits(contentChangeEvent);
-			})
-		}
+		_modelService.onModelRemoved((model) => {
+			if (this._trees.has(model.uri)) {
+				const treeSitterTree = this._trees.get(model.uri);
+				this._trees.delete(model.uri);
+				treeSitterTree!.dispose();
+			}
+		})
 	}
 
-	private async fetchLanguage(): Promise<Parser.Language> {
-		return fetch(FileAccess.asBrowserUri('./tree-sitter-typescript.wasm', require).toString(true)).then(async (result) => {
+	private async fetchLanguage(language: string): Promise<Parser.Language> {
+		return fetch(FileAccess.asBrowserUri(supportedLanguages.get(language)!, require).toString(true)).then(async (result) => {
 			return result.arrayBuffer().then(async (arrayBuffer) => {
 				return Parser.Language.load(new Uint8Array(arrayBuffer)).then((language) => {
 					return new Promise(function (resolve, _reject) {
@@ -55,8 +57,11 @@ export class TreeSitterService implements ITreeSitterService {
 	}
 
 	public async getTreeSitterCaptures(model: ITextModel, queryString: string): Promise<Parser.QueryCapture[]> {
+		if (!supportedLanguages.has(model.getLanguageId())) {
+			throw new Error('Unsupported language in tree-sitter');
+		}
 		if (!this._language) {
-			return this.fetchLanguage().then((language) => {
+			return this.fetchLanguage(model.getLanguageId()).then((language) => {
 				this._language = language;
 				return this._getTreeSitterCaptures(model, queryString);
 			})

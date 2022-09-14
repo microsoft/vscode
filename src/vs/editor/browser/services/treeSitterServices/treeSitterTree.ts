@@ -29,6 +29,9 @@ export class TreeSitterTree {
 				this._tree = tree;
 			}
 		})
+		this._model.onDidChangeContent((contentChangeEvent: IModelContentChangedEvent) => {
+			this.registerTreeEdits(contentChangeEvent);
+		})
 	}
 
 	public registerTreeEdits(contentChangeEvent: IModelContentChangedEvent): void {
@@ -47,7 +50,7 @@ export class TreeSitterTree {
 
 	public async parseTree(): Promise<Parser.Tree> {
 		this._parser.setTimeoutMicros(10000);
-		let tree = this.getTree();
+		let tree = this.updateAndGetTree();
 		// Initially synchronous
 		try {
 			let result = this._parser.parse(
@@ -69,7 +72,7 @@ export class TreeSitterTree {
 		// Else if parsing failed, asynchronous
 		catch (error) {
 			this._parser.reset();
-			tree = this.getTree();
+			tree = this.updateAndGetTree();
 			const textModel = createTextModel('');
 			textModel.setValue(this._model.createSnapshot());
 			let that = this;
@@ -83,7 +86,7 @@ export class TreeSitterTree {
 		}
 	}
 
-	private getTree(): Parser.Tree | undefined {
+	private updateAndGetTree(): Parser.Tree | undefined {
 		for (const edit of this._edits) {
 			this._tree!.edit(edit);
 		}
