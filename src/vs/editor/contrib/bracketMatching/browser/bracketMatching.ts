@@ -271,7 +271,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			this._editor.revealRange(newSelections[0]);
 		}
 	}
-	public replaceBrackets(openingContent: string, closingContent: string,): void {
+	public replaceBrackets(openingContent: string, closingContent: string): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
