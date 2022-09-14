@@ -309,8 +309,8 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 
 	private updateOptions(): void {
 		const outputChannels = [];
-		const extensionLogChannels = [];
 		const logChannels = [];
+		const extensionLogChannels = [];
 		this.selectionOptionItems = [];
 		for (const descriptor of this.outputService.getChannelDescriptors()) {
 			if (descriptor.log) {
@@ -327,16 +327,16 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 		for (const descriptor of outputChannels) {
 			this.selectionOptionItems.push({ text: descriptor.label, isDisabled: false, channel: descriptor });
 		}
-		if (outputChannels.length && extensionLogChannels.length) {
-			this.selectionOptionItems.push({ text: SwitchOutputActionViewItem.SEPARATOR, isDisabled: true });
-		}
-		for (const descriptor of extensionLogChannels) {
-			this.selectionOptionItems.push({ text: nls.localize('logChannel', "Log ({0})", descriptor.label), isDisabled: false, channel: descriptor });
-		}
-		if (extensionLogChannels.length && logChannels.length) {
+		if (outputChannels.length && logChannels.length) {
 			this.selectionOptionItems.push({ text: SwitchOutputActionViewItem.SEPARATOR, isDisabled: true });
 		}
 		for (const descriptor of logChannels) {
+			this.selectionOptionItems.push({ text: nls.localize('logChannel', "Log ({0})", descriptor.label), isDisabled: false, channel: descriptor });
+		}
+		if (logChannels.length && extensionLogChannels.length) {
+			this.selectionOptionItems.push({ text: SwitchOutputActionViewItem.SEPARATOR, isDisabled: true });
+		}
+		for (const descriptor of extensionLogChannels) {
 			this.selectionOptionItems.push({ text: nls.localize('logChannel', "Log ({0})", descriptor.label), isDisabled: false, channel: descriptor });
 		}
 
