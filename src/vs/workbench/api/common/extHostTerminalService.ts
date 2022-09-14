@@ -37,6 +37,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	onDidChangeTerminalDimensions: Event<vscode.TerminalDimensionsChangeEvent>;
 	onDidChangeTerminalState: Event<vscode.Terminal>;
 	onDidWriteTerminalData: Event<vscode.TerminalDataWriteEvent>;
+	onDidChangeShell: Event<string>;
 
 	createTerminal(name?: string, shellPath?: string, shellArgs?: readonly string[] | string): vscode.Terminal;
 	createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal;
@@ -376,6 +377,8 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	readonly onDidChangeTerminalState = this._onDidChangeTerminalState.event;
 	protected readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent>;
 	get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData.event; }
+	protected readonly _onDidChangeShell: Emitter<string> = new Emitter();
+	get onDidChangeShell(): Event<string> { return this._onDidChangeShell.event; }
 
 	constructor(
 		supportsProcesses: boolean,
@@ -809,8 +812,12 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public $acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void {
+		const oldProfile = this._defaultProfile;
 		this._defaultProfile = profile;
 		this._defaultAutomationProfile = automationProfile;
+		if (!oldProfile || oldProfile.path !== profile.path) {
+			this._onDidChangeShell.fire(profile.path);
+		}
 	}
 
 	private _setEnvironmentVariableCollection(extensionIdentifier: string, collection: EnvironmentVariableCollection): void {
