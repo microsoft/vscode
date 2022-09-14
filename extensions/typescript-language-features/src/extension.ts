@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
 import { registerBaseCommands } from './commands/index';
+import { JsWalkthroughState } from './commands/jsWalkthrough';
 import { ExperimentationService } from './experimentationService';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
@@ -38,6 +39,9 @@ export function activate(
 	const activeJsTsEditorTracker = new ActiveJsTsEditorTracker();
 	context.subscriptions.push(activeJsTsEditorTracker);
 
+	const jsWalkthroughState = new JsWalkthroughState();
+	context.subscriptions.push(jsWalkthroughState);
+
 	const lazyClientHost = createLazyClientHost(context, onCaseInsensitiveFileSystem(), {
 		pluginManager,
 		commandManager,
@@ -51,7 +55,7 @@ export function activate(
 		onCompletionAccepted.fire(item);
 	});
 
-	registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker);
+	registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker, jsWalkthroughState);
 
 	// Currently no variables in use.
 	new ExperimentationService(context);
