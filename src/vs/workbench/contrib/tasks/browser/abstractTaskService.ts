@@ -2694,8 +2694,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		picker.busy = true;
 		pickEntries.then(entries => {
 			picker.busy = false;
+			picker.items = entries;
+			picker.show();
 		});
-		picker.show();
 
 		return new Promise<ITaskQuickPickEntry | undefined | null>(resolve => {
 			this._register(picker.onDidAccept(async () => {
