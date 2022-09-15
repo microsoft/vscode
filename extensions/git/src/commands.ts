@@ -526,7 +526,8 @@ export class CommandCenter {
 						location: ProgressLocation.Notification,
 						title: localize('checking out ref', "Checking out ref '{0}'...", options.ref)
 					}, async () => {
-						const repository = await this.model.openRepository(repositoryPath).then(() => this.model.getRepository(repositoryPath));
+						await this.model.openRepository(repositoryPath);
+						const repository = this.model.getRepository(repositoryPath);
 						await repository?.checkout(refToCheckoutAfterClone);
 					});
 			}
