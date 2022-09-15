@@ -254,7 +254,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 		const date = new Date().toISOString();
 
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, date }));
+			.pipe(json({ commit, date, version }));
 
 		const license = gulp.src(['remote/LICENSE'], { base: 'remote', allowEmpty: true });
 
