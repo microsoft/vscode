@@ -267,7 +267,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				if (ref !== undefined && uri !== 'noDestinationUri') {
 					const encodedRef = encodeURIComponent(ref);
 					uri = uri.with({
-						query: uri.query.length > 0 ? (uri + `&${queryParamName}=${encodedRef}`) : `${queryParamName}=${encodedRef}`
+						query: uri.query.length > 0 ? (uri.query + `&${queryParamName}=${encodedRef}`) : `${queryParamName}=${encodedRef}`
 					});
 
 					// Open the URI
@@ -296,7 +296,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				});
 			}
 
-			async run(accessor: ServicesAccessor, editSessionId?: string, silent?: boolean): Promise<void> {
+			async run(accessor: ServicesAccessor, editSessionId?: string): Promise<void> {
 				await that.progressService.withProgress(resumingProgressOptions, async () => {
 					type ResumeEvent = {};
 					type ResumeClassification = {
@@ -304,7 +304,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					};
 					that.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.resume');
 
-					await that.resumeEditSession(editSessionId, silent);
+					await that.resumeEditSession(editSessionId);
 				});
 			}
 		}));
@@ -550,7 +550,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	private async shouldContinueOnWithEditSession(): Promise<boolean> {
 		// If the user is already signed in, we should store edit session
 		if (this.editSessionsStorageService.isSignedIn) {
-			return true;
+			return this.hasEditSession();
 		}
 
 		// If the user has been asked before and said no, don't use edit sessions

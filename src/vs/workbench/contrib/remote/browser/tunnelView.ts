@@ -1627,6 +1627,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	},
 	when: ContextKeyExpr.and(isForwardedOrDetectedExpr, isNotMultiSelectionExpr)
 }));
+const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '._open',
 	order: 1,
@@ -1635,7 +1636,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 		title: OpenPortInPreviewAction.LABEL,
 	},
 	when: ContextKeyExpr.and(
-		ContextKeyExpr.or(WebContextKey.negate(), isNotPrivateExpr),
+		ContextKeyExpr.or(WebContextKey.negate(), isNotPrivateExpr, openPreviewEnabledContext), //todo
 		isForwardedOrDetectedExpr,
 		isNotMultiSelectionExpr)
 }));
@@ -1775,7 +1776,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 		icon: openPreviewIcon
 	},
 	when: ContextKeyExpr.and(
-		ContextKeyExpr.or(WebContextKey.negate(), isNotPrivateExpr),
+		ContextKeyExpr.or(WebContextKey.negate(), isNotPrivateExpr, openPreviewEnabledContext),
 		isForwardedOrDetectedExpr)
 }));
 

@@ -121,6 +121,8 @@ export interface ICommonNativeHostService {
 
 	getOSColorScheme(): Promise<IColorScheme>;
 
+	hasWSLFeatureInstalled(): Promise<boolean>;
+
 	// Process
 	killProcess(pid: number, code: string): Promise<void>;
 

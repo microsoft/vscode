@@ -267,6 +267,13 @@
 
 .scm-view .button-container > .monaco-button-dropdown > .monaco-button.monaco-text-button {
 	border-radius: 2px 0 0 2px;
+	min-width: 0;
+}
+
+.scm-view .button-container > .monaco-button-dropdown > .monaco-button.monaco-text-button > span:not(.codicon) {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .scm-view .scm-editor.hidden {

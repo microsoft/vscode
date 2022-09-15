@@ -6,7 +6,6 @@
   "license": "MIT",
   "enabledApiProposals": [
     "authSession",
-    "badges",
     "contribViewsRemote",
     "customEditorMove",
     "diffCommand",
@@ -23,7 +22,6 @@
     "notebookControllerKind",
     "notebookDebugOptions",
     "notebookDeprecated",
-    "notebookEditorEdit",
     "notebookLiveShare",
     "notebookMessaging",
     "notebookMime",
@@ -37,6 +35,7 @@
     "taskPresentationGroup",
     "terminalDataWriteEvent",
     "terminalDimensions",
+    "envShellEvent",
     "testCoverage",
     "testObserver",
     "textSearchProvider",
@@ -45,7 +44,8 @@
     "treeItemCheckbox",
     "treeViewReveal",
     "workspaceTrust",
-    "telemetry"
+    "telemetry",
+    "localization"
   ],
   "private": true,
   "activationEvents": [],

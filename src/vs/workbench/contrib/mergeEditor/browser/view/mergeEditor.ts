@@ -326,7 +326,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 						input2Line !== undefined ? input2Line + input2LinesAdded : -1;
 					const baseLine_ = baseLine + baseLinesAdded;
 
-					const max = Math.max(baseViewZoneAccessor ? baseLine_ : 0, input1Line_, input2Line_, 1);
+					const max = Math.max(baseViewZoneAccessor ? baseLine_ : 0, input1Line_, input2Line_);
 
 					if (input1Line !== undefined) {
 						const diffInput1 = max - input1Line_;
