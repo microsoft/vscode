@@ -36,13 +36,13 @@ export interface IToolBarOptions {
  */
 export class ToolBar extends Disposable {
 	private options: IToolBarOptions;
-	private actionBar: ActionBar;
+	protected readonly actionBar: ActionBar;
 	private toggleMenuAction: ToggleMenuAction;
 	private toggleMenuActionViewItem: DropdownMenuActionViewItem | undefined;
 	private submenuActionViewItems: DropdownMenuActionViewItem[] = [];
 	private hasSecondaryActions: boolean = false;
-	private lookupKeybindings: boolean;
-	private element: HTMLElement;
+	private readonly lookupKeybindings: boolean;
+	private readonly element: HTMLElement;
 
 	private _onDidChangeDropdownVisibility = this._register(new EventMultiplexer<boolean>());
 	readonly onDidChangeDropdownVisibility = this._onDidChangeDropdownVisibility.event;

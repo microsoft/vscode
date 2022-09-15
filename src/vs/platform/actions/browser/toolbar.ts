@@ -193,7 +193,10 @@ export class WorkbenchToolBar extends ToolBar {
 
 		// telemetry logic
 		if (options?.telemetrySource) {
-			this.actionRunner.onDidRun(e => telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: options!.telemetrySource! }));
+			this._store.add(this.actionBar.onDidRun(e => telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>(
+				'workbenchActionExecuted',
+				{ id: e.action.id, from: options!.telemetrySource! })
+			));
 		}
 	}
 
