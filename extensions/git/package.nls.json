@@ -200,6 +200,7 @@
 	"config.rebaseWhenSync": "Force git to use rebase when running the sync command.",
 	"config.confirmEmptyCommits": "Always confirm the creation of empty commits for the 'Git: Commit Empty' command.",
 	"config.fetchOnPull": "When enabled, fetch all branches when pulling. Otherwise, fetch just the current one.",
+	"config.fetchBeforeCheckout": "Controls whether a branch that does not have outgoing commits is fast-forwarded before it is checked out.",
 	"config.pullTags": "Fetch all tags when pulling.",
 	"config.pruneOnFetch": "Prune when fetching.",
 	"config.autoStash": "Stash any changes before pulling and restore them after successful pull.",

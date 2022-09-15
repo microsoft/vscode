@@ -1363,6 +1363,27 @@ export class Repository implements Disposable {
 		await this.run(Operation.RenameBranch, () => this.repository.renameBranch(name));
 	}
 
+	@throttle
+	async fastForwardBranch(name: string): Promise<void> {
+		// Get branch details
+		const branch = await this.getBranch(name);
+		if (!branch.upstream?.remote || !branch.upstream?.name || !branch.name) {
+			return;
+		}
+
+		try {
+			// Fast-forward the branch if possible
+			const options = { remote: branch.upstream.remote, ref: `${branch.upstream.name}:${branch.name}` };
+			await this.run(Operation.Fetch, async () => this.repository.fetch(options));
+		} catch (err) {
+			if (err.gitErrorCode === GitErrorCodes.BranchFastForwardRejected) {
+				return;
+			}
+
+			throw err;
+		}
+	}
+
 	async cherryPick(commitHash: string): Promise<void> {
 		await this.run(Operation.CherryPick, () => this.repository.cherryPick(commitHash));
 	}

@@ -112,7 +112,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		switch (capability.type) {
 			case TerminalCapability.BufferMarkDetection:
-				disposables = [capability.onMarkAdded(mark => this.registerMarkDecoration({ hoverMessage: mark.hoverMessage }))];
+				disposables = [capability.onMarkAdded(mark => this.registerMarkDecoration(mark))];
 				break;
 			case TerminalCapability.CommandDetection:
 				disposables = this._getCommandDetectionListeners(capability);
