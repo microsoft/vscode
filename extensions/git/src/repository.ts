@@ -1365,13 +1365,6 @@ export class Repository implements Disposable {
 
 	@throttle
 	async fastForwardBranch(name: string): Promise<void> {
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const fetchBeforeCheckout = config.get<boolean>('fetchBeforeCheckout', false) === true;
-
-		if (!fetchBeforeCheckout) {
-			return;
-		}
-
 		// Get branch details
 		const branch = await this.getBranch(name);
 		if (!branch.upstream?.remote || !branch.upstream?.name || !branch.name) {
