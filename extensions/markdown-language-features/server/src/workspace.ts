@@ -61,11 +61,18 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 			}
 		});
 
-		documents.onDidClose(e => {
+		documents.onDidClose(async e => {
 			const uri = URI.parse(e.document.uri);
 			this._documentCache.delete(uri);
 
-			if (this.isRelevantMarkdownDocument(e.document)) {
+			if (!this.isRelevantMarkdownDocument(e.document)) {
+				return;
+			}
+
+			// When the document has closed, the file on disk may still exist.
+			// In this case, we want to replace the existing entry with the one from disk
+			const doc = await this.openMarkdownDocumentFromFs(uri);
+			if (!doc) {
 				this._onDidDeleteMarkdownDocument.fire(uri);
 			}
 		});
@@ -179,6 +186,10 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 			return matchingDocument;
 		}
 
+		return this.openMarkdownDocumentFromFs(resource);
+	}
+
+	private async openMarkdownDocumentFromFs(resource: URI): Promise<md.ITextDocument | undefined> {
 		if (!looksLikeMarkdownPath(this.config, resource)) {
 			return undefined;
 		}

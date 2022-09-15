@@ -260,10 +260,8 @@ export interface CredentialsProvider {
 	getCredentials(host: Uri): ProviderResult<Credentials>;
 }
 
-export type CommitCommand = Command & { description?: string };
-
 export interface PostCommitCommandsProvider {
-	getCommands(repository: Repository): CommitCommand[];
+	getCommands(repository: Repository): Command[];
 }
 
 export interface PushErrorHandler {

@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const vscode = acquireVsCodeApi();
+declare module 'vscode' {
 
-const notebook = acquireNotebookRendererApi();
+	// See https://github.com/microsoft/vscode/issues/160694
+	export namespace env {
 
-notebook.onDidCreateOutput(({ element, mimeType }) => {
-	const div = document.createElement('div');
-	div.innerText = `Hello ${mimeType}!`;
-	element.appendChild(div);
-});
+		/**
+		 * An {@link Event} which fires when the default shell changes.
+		 */
+		export const onDidChangeShell: Event<string>;
+	}
+}
