@@ -2340,6 +2340,12 @@
           "default": false,
           "description": "%config.rebaseWhenSync%"
         },
+        "git.fetchBeforeCheckout": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.fetchBeforeCheckout%"
+        },
         "git.fetchOnPull": {
           "type": "boolean",
           "scope": "resource",
@@ -2576,7 +2582,7 @@
         },
         "git.mergeEditor": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "%config.mergeEditor%",
           "scope": "window"
         }

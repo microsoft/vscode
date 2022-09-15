@@ -121,7 +121,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 	private hasSyncResourceStateVersionChanged: boolean = false;
 	protected readonly syncResourceLogLabel: string;
 
-	private syncHeaders: IHeaders = {};
+	protected syncHeaders: IHeaders = {};
 
 	constructor(
 		readonly resource: SyncResource,

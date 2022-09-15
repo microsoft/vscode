@@ -2144,6 +2144,10 @@ export interface ExtHostThemingShape {
 export interface MainThreadThemingShape extends IDisposable {
 }
 
+export interface MainThreadLocalizationShape extends IDisposable {
+	$fetchBundleContents(uriComponents: UriComponents): Promise<string>;
+}
+
 export interface TunnelDto {
 	remoteAddress: { port: number; host: string };
 	localAddress: { port: number; host: string } | string;
@@ -2191,6 +2195,19 @@ export interface ExtHostTestingShape {
 	$configureRunProfile(controllerId: string, configId: number): void;
 	/** Asks the controller to refresh its tests */
 	$refreshTests(controllerId: string, token: CancellationToken): Promise<void>;
+}
+
+export interface ExtHostLocalizationShape {
+	getMessage(extensionId: string, details: IStringDetails): string;
+	getBundle(extensionId: string): { [key: string]: string };
+	getBundleUri(extensionId: string): URI | undefined;
+	initializeLocalizedMessages(extension: IExtensionDescription): Promise<void>;
+}
+
+export interface IStringDetails {
+	message: string;
+	args?: string[];
+	comment?: string[];
 }
 
 export interface ITestControllerPatch {
@@ -2310,6 +2327,7 @@ export const MainContext = {
 	MainThreadTunnelService: createProxyIdentifier<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadTimeline: createProxyIdentifier<MainThreadTimelineShape>('MainThreadTimeline'),
 	MainThreadTesting: createProxyIdentifier<MainThreadTestingShape>('MainThreadTesting'),
+	MainThreadLocalization: createProxyIdentifier<MainThreadLocalizationShape>('MainThreadLocalizationShape')
 };
 
 export const ExtHostContext = {
@@ -2364,4 +2382,5 @@ export const ExtHostContext = {
 	ExtHostTimeline: createProxyIdentifier<ExtHostTimelineShape>('ExtHostTimeline'),
 	ExtHostTesting: createProxyIdentifier<ExtHostTestingShape>('ExtHostTesting'),
 	ExtHostTelemetry: createProxyIdentifier<ExtHostTelemetryShape>('ExtHostTelemetry'),
+	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization'),
 };
