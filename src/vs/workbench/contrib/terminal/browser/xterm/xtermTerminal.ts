@@ -36,7 +36,7 @@ import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/dec
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ContextualActionAddon } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
+import { ContextualActionAddon, IContextualAction } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
 
 
 // How long in milliseconds should an average frame take to render for a notification to appear
@@ -106,6 +106,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 	private readonly _onDidRequestRunCommand = new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>();
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
+	private readonly _onDidRequestFreePort = new Emitter<string>();
+	readonly onDidRequestFreePort = this._onDidRequestFreePort.event;
 	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number } | undefined>();
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
 	private readonly _onDidChangeSelection = new Emitter<void>();
@@ -113,6 +115,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 	get markTracker(): IMarkTracker { return this._markNavigationAddon; }
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
+	get contextualAction(): IContextualAction | undefined { return this._contextualActionAddon; }
 
 	private _target: TerminalLocation | undefined;
 	set target(location: TerminalLocation | undefined) {
@@ -221,10 +224,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.loadAddon(this._shellIntegrationAddon);
 	}
 
-	quickFix(): void {
-		this._contextualActionAddon?.show();
-	}
-
 	private _activateContextualActionAddon(): void {
 		if (this._contextualActionAddon) {
 			return;
@@ -233,6 +232,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this._capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(command => addon.evaluate(command));
 		this._contextualActionAddon = addon;
 		this._contextualActionAddon.onDidRequestRerunCommand(command => this._onDidRequestRunCommand.fire({ command, noNewLine: true }));
+		this._contextualActionAddon.onDidRequestFreePort(port => this._onDidRequestFreePort.fire(port));
 		this.raw.loadAddon(this._contextualActionAddon);
 	}
 

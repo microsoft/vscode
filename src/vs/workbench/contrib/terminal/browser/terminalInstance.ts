@@ -567,10 +567,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._register(this.findWidget.focusTracker.onDidBlur(() => this._container?.classList.toggle('find-focused', false)));
 	}
 
-	quickFix(): void {
-		this.xterm?.quickFix();
-	}
-
 	private _getIcon(): TerminalIcon | undefined {
 		if (!this._icon) {
 			this._icon = this._processManager.processState >= ProcessState.Launching
@@ -713,6 +709,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.copySelection(true, e.command);
 			} else {
 				this.sendText(e.command.command, e.noNewLine ? false : true);
+			}
+		});
+		this.xterm.onDidRequestFreePort(async port => {
+			try {
+				await this._processManager.freePortKillProcess(port);
+				this.xterm?.contextualAction?.resolveFreePortRequest();
+			} catch (e) {
+				this.xterm?.contextualAction?.resolveFreePortRequest(e);
 			}
 		});
 		// Write initial text, deferring onLineFeed listener when applicable to avoid firing

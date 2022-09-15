@@ -413,6 +413,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]>;
 	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): void;
 	getBackendOS(): Promise<OperatingSystem>;
+	freePortKillProcess(port: string): void;
 }
 
 export const enum ProcessState {

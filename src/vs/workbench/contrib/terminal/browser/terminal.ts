@@ -17,6 +17,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { IContextualAction } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
 import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IMarker } from 'xterm';
@@ -903,11 +904,6 @@ export interface ITerminalInstance {
 	 * Activates the most recent link of the given type.
 	 */
 	openRecentLink(type: 'localFile' | 'url'): Promise<void>;
-
-	/**
-	 * Triggers the quick fix menu to open, if any
-	 */
-	quickFix(): void;
 }
 
 export interface IXtermTerminal {
@@ -921,6 +917,12 @@ export interface IXtermTerminal {
 	 * Reports the status of shell integration and fires events relating to it.
 	 */
 	readonly shellIntegration: IShellIntegration;
+
+	/**
+	 * Enables opening the contextual actions, if any, that are available
+	 * and registering of command finished listeners
+	 */
+	readonly contextualAction: IContextualAction | undefined;
 
 	readonly onDidChangeSelection: Event<void>;
 
@@ -978,11 +980,6 @@ export interface IXtermTerminal {
 	 * Returns a reverse iterator of buffer lines as strings
 	 */
 	getBufferReverseIterator(): IterableIterator<string>;
-
-	/**
-	 * Triggers the quick fix menu to open, if any
-	 */
-	quickFix(): void;
 }
 
 export interface IInternalXtermTerminal {

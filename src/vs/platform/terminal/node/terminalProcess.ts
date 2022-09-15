@@ -17,6 +17,7 @@ import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
 import { findExecutable, getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
@@ -190,6 +191,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: e })));
 			});
 		}
+	}
+	onRestoreCommands?: Event<ISerializedCommandDetectionCapability> | undefined;
+	detach?(forcePersist?: boolean | undefined): Promise<void> {
+		throw new Error('Method not implemented.');
 	}
 
 	async start(): Promise<ITerminalLaunchError | undefined> {
