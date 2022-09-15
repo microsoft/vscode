@@ -150,17 +150,16 @@ steps:
       continueOnError: true
       condition: succeededOrFailed()
 
+    - powershell: |
+        yarn gulp compile-extension-media
+      displayName: Build extensions for smoke tests
+
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
           exec { yarn --cwd test/smoke compile }
         displayName: Compile smoke tests
-
-      - script: |
-          set -e
-          yarn gulp compile-extension-media
-        displayName: Build extensions for smoke tests
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1

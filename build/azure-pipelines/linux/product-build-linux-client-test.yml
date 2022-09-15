@@ -165,16 +165,16 @@ steps:
       continueOnError: true
       condition: succeededOrFailed()
 
+    - script: |
+        set -e
+        yarn gulp compile-extension-media
+      displayName: Build extensions for smoke tests
+
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: |
           set -e
           yarn --cwd test/smoke compile
         displayName: Compile smoke tests
-
-      - script: |
-          set -e
-          yarn gulp compile-extension-media
-        displayName: Build extensions for smoke tests
 
       - script: |
           set -e
