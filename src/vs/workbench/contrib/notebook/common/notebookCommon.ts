@@ -949,3 +949,92 @@ export interface NotebookExtensionDescription {
 	readonly id: ExtensionIdentifier;
 	readonly location: UriComponents | undefined;
 }
+
+/**
+ * Whether the provided mime type is a text streamn like `stdout`, `stderr`.
+ */
+export function isTextStreamMime(mimeType: string) {
+	return ['application/vnd.code.notebook.stdout', 'application/x.notebook.stdout', 'application/x.notebook.stream', 'application/vnd.code.notebook.stderr', 'application/x.notebook.stderr'].includes(mimeType);
+}
+
+
+
+/**
+ * Given a stream of individual stdout outputs, this function will return the compressed lines, escaping some of the common terminal escape codes.
+ * E.g. some terminal escape codes would result in the previous line getting cleared, such if we had 3 lines and
+ * last line contained such a code, then the result string would be just the first two lines.
+ */
+const textDecoder = new TextDecoder();
+export function compressOutputItemStreams(mimeType: string, outputs: Uint8Array[]) {
+	const buffers: Uint8Array[] = [];
+	let startAppending = false;
+
+	// Pick the first set of outputs with the same mime type.
+	for (const output of outputs) {
+		if ((buffers.length === 0 || startAppending)) {
+			buffers.push(output);
+			startAppending = true;
+		}
+	}
+	compressStreamBuffer(buffers);
+	const value = textDecoder.decode(VSBuffer.concat(buffers.map(buffer => VSBuffer.wrap(buffer))).buffer);
+	return VSBuffer.fromString(formatStreamText(value));
+}
+const MOVE_CURSOR_1_LINE_COMMAND = `${String.fromCharCode(27)}[A`;
+const MOVE_CURSOR_1_LINE_COMMAND_BYTES = MOVE_CURSOR_1_LINE_COMMAND.split('').map(c => c.charCodeAt(0));
+const LINE_FEED = 10;
+function compressStreamBuffer(streams: Uint8Array[]) {
+	streams.forEach((stream, index) => {
+		if (index === 0 || stream.length < MOVE_CURSOR_1_LINE_COMMAND.length) {
+			return;
+		}
+
+		const previousStream = streams[index - 1];
+
+		// Remove the previous line if required.
+		const command = stream.subarray(0, MOVE_CURSOR_1_LINE_COMMAND.length);
+		if (command[0] === MOVE_CURSOR_1_LINE_COMMAND_BYTES[0] && command[1] === MOVE_CURSOR_1_LINE_COMMAND_BYTES[1] && command[2] === MOVE_CURSOR_1_LINE_COMMAND_BYTES[2]) {
+			const lastIndexOfLineFeed = previousStream.lastIndexOf(LINE_FEED);
+			if (lastIndexOfLineFeed === -1) {
+				return;
+			}
+			streams[index - 1] = previousStream.subarray(0, lastIndexOfLineFeed);
+			streams[index] = stream.subarray(MOVE_CURSOR_1_LINE_COMMAND.length);
+		}
+	});
+	return streams;
+}
+
+
+
+// Took this from jupyter/notebook
+// https://github.com/jupyter/notebook/blob/b8b66332e2023e83d2ee04f83d8814f567e01a4e/notebook/static/base/js/utils.js
+// Remove characters that are overridden by backspace characters
+function fixBackspace(txt: string) {
+	let tmp = txt;
+	do {
+		txt = tmp;
+		// Cancel out anything-but-newline followed by backspace
+		tmp = txt.replace(/[^\n]\x08/gm, '');
+	} while (tmp.length < txt.length);
+	return txt;
+}
+
+// Remove chunks that should be overridden by the effect of
+// carriage return characters
+// From https://github.com/jupyter/notebook/blob/master/notebook/static/base/js/utils.js
+function fixCarriageReturn(txt: string) {
+	txt = txt.replace(/\r+\n/gm, '\n'); // \r followed by \n --> newline
+	while (txt.search(/\r[^$]/g) > -1) {
+		const base = txt.match(/^(.*)\r+/m)![1];
+		let insert = txt.match(/\r+(.*)$/m)![1];
+		insert = insert + base.slice(insert.length, base.length);
+		txt = txt.replace(/\r+.*$/m, '\r').replace(/^.*\r/m, insert);
+	}
+	return txt;
+}
+
+function formatStreamText(str: string): string {
+	// Do the same thing jupyter is doing
+	return fixCarriageReturn(fixBackspace(str));
+}

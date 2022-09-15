@@ -16,7 +16,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
-import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellInternalMetadataChangedEvent, CellKind, compressOutputItemStreams, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, isTextStreamMime, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
@@ -296,6 +296,15 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			output.appendData(items);
 		} else {
 			output.replaceData(items);
+		}
+		if (output.outputs.every(item => isTextStreamMime(item.mime))) {
+			const mime = output.outputs[0].mime;
+			const compressed = compressOutputItemStreams(output.outputs[0].mime, output.outputs.map(item => item.data.buffer));
+			output.outputs.length = 0;
+			output.outputs.push({
+				mime,
+				data: compressed
+			});
 		}
 
 		this._onDidChangeOutputItems.fire();

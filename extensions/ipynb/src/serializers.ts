@@ -280,7 +280,7 @@ function convertStreamOutput(output: NotebookCellOutput): JupyterOutput {
 		.filter((opit) => opit.mime === CellOutputMimeTypes.stderr || opit.mime === CellOutputMimeTypes.stdout)
 		.map((opit) => textDecoder.decode(opit.data))
 		.forEach(value => {
-			// Ensure each line is a seprate entry in an array (ending with \n).
+			// Ensure each line is a separate entry in an array (ending with \n).
 			const lines = value.split('\n');
 			// If the last item in `outputs` is not empty and the first item in `lines` is not empty, then concate them.
 			// As they are part of the same line.

@@ -110,6 +110,14 @@ export class ExtHostCell {
 				output.items.length = 0;
 			}
 			output.items.push(...newItems);
+			if (output.items.every(item => notebookCommon.isTextStreamMime(item.mime))) {
+				const compressed = notebookCommon.compressOutputItemStreams(newOutputItems[0].mime, output.items.map(item => item.data));
+				output.items.length = 0;
+				output.items.push({
+					mime: newOutputItems[0].mime,
+					data: compressed.buffer
+				});
+			}
 		}
 	}
 
