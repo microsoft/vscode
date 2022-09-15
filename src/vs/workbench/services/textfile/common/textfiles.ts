@@ -468,7 +468,7 @@ export interface ILanguageSupport {
 	/**
 	 * Sets the language id of the object.
 	 */
-	setLanguageId(languageId: string, setExplicitly?: boolean): void;
+	setLanguageId(languageId: string, source?: string): void;
 }
 
 export interface ITextFileEditorModelSaveEvent extends IWorkingCopySaveEvent {

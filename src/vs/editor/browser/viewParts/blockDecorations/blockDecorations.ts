@@ -83,7 +83,9 @@ export class BlockDecorations extends ViewPart {
 				this.domNode.appendChild(block);
 			}
 			const top = ctx.getVerticalOffsetForLineNumber(decoration.range.startLineNumber, true);
-			const bottom = ctx.getVerticalOffsetAfterLineNumber(decoration.range.endLineNumber, true);
+			const bottom = decoration.range.isEmpty()
+				? ctx.getVerticalOffsetForLineNumber(decoration.range.startLineNumber, false)
+				: ctx.getVerticalOffsetAfterLineNumber(decoration.range.endLineNumber, true);
 
 			block.setClassName('blockDecorations-block ' + decoration.options.blockClassName);
 			block.setLeft(ctx.scrollLeft);

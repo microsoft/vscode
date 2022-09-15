@@ -115,7 +115,7 @@ export class InputCodeEditorView extends CodeEditorView {
 
 		for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
 			const range = modifiedBaseRange.getInputRange(this.inputNumber);
-			if (!range || !range.isEmpty) {
+			if (!range) {
 				continue;
 			}
 
@@ -134,9 +134,9 @@ export class InputCodeEditorView extends CodeEditorView {
 			blockClassNames.push(inputClassName);
 
 			result.push({
-				range: range.toInclusiveRange()!,
+				range: range.toInclusiveRangeOrEmpty(),
 				options: {
-					isWholeLine: true,
+					showIfCollapsed: true,
 					blockClassName: blockClassNames.join(' '),
 					description: 'Merge Editor',
 					minimap: {
@@ -370,7 +370,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 
 					contextMenuService.showContextMenu({
 						getAnchor: () => checkBox.domNode,
-						getActions: item.getContextMenuActions,
+						getActions: () => item.getContextMenuActions(),
 					});
 
 				} else if (e.button === /* Middle */ 1) {

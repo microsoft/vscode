@@ -15,7 +15,7 @@ import { IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import { ctxIsMergeEditor, ctxMergeEditorLayout } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 abstract class MergeEditorAction extends Action2 {
@@ -152,7 +152,7 @@ export class SetMixedLayout extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
-			activeEditorPane.setLayout('mixed');
+			activeEditorPane.setLayoutKind('mixed');
 		}
 	}
 }
@@ -176,25 +176,25 @@ export class SetColumnLayout extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
-			activeEditorPane.setLayout('columns');
+			activeEditorPane.setLayoutKind('columns');
 		}
 	}
 }
 
-export class SetMixedLayoutWithBase extends Action2 {
+export class ShowHideBase extends Action2 {
 	constructor() {
 		super({
-			id: 'merge.mixedLayoutWithBase',
+			id: 'merge.showBase',
 			title: {
-				value: localize('layout.mixedWithBase', 'Mixed Layout With Base At Top'),
-				original: 'Mixed Layout With Based At Top',
+				value: localize('layout.showBase', 'Show Base'),
+				original: 'Show Base',
 			},
-			toggled: ctxMergeEditorLayout.isEqualTo('mixedWithBase'),
+			toggled: ctxMergeEditorShowBase.isEqualTo(true),
 			menu: [
 				{
 					id: MenuId.EditorTitle,
 					when: ctxIsMergeEditor,
-					group: '1_merge',
+					group: '2_merge',
 					order: 9,
 				},
 			],
@@ -205,36 +205,7 @@ export class SetMixedLayoutWithBase extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
-			activeEditorPane.setLayout('mixedWithBase');
-		}
-	}
-}
-
-export class SetMixedLayoutWithBaseColumns extends Action2 {
-	constructor() {
-		super({
-			id: 'merge.mixedLayoutWithBaseColumns',
-			title: {
-				value: localize('layout.mixedWithBaseColumns', 'Mixed Layout With Base'),
-				original: 'Mixed Layout With Based',
-			},
-			toggled: ctxMergeEditorLayout.isEqualTo('mixedWithBaseColumns'),
-			menu: [
-				{
-					id: MenuId.EditorTitle,
-					when: ctxIsMergeEditor,
-					group: '1_merge',
-					order: 9,
-				},
-			],
-			precondition: ctxIsMergeEditor,
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		const { activeEditorPane } = accessor.get(IEditorService);
-		if (activeEditorPane instanceof MergeEditor) {
-			activeEditorPane.setLayout('mixedWithBaseColumns');
+			activeEditorPane.toggleBase();
 		}
 	}
 }

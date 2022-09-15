@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.watchApiProposalNamesTask = exports.compileApiProposalNamesTask = exports.watchTask = exports.compileTask = exports.transpileTask = exports.transpileClientSWC = void 0;
+exports.watchApiProposalNamesTask = exports.compileApiProposalNamesTask = exports.watchTask = exports.compileTask = exports.transpileTask = void 0;
 const es = require("event-stream");
 const fs = require("fs");
 const gulp = require("gulp");
@@ -18,28 +18,7 @@ const ansiColors = require("ansi-colors");
 const os = require("os");
 const File = require("vinyl");
 const task = require("./task");
-const swc_1 = require("./swc");
 const watch = require('./watch');
-// --- SWC: transpile -------------------------------------
-function transpileClientSWC(src, out) {
-    return function () {
-        // run SWC sync and put files straight onto the disk
-        const swcPromise = (0, swc_1.createSwcClientStream)().exec();
-        // copy none TS resources, like CSS, images, onto the disk
-        const bom = require('gulp-bom');
-        const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
-        const tsFilter = util.filter(data => !/\.ts$/.test(data.path));
-        const srcStream = gulp.src(`${src}/**`, { base: `${src}` });
-        const copyStream = srcStream
-            .pipe(utf8Filter)
-            .pipe(bom()) // this is required to preserve BOM in test files that loose it otherwise
-            .pipe(utf8Filter.restore)
-            .pipe(tsFilter);
-        const copyPromise = util.streamToPromise(copyStream.pipe(gulp.dest(out)));
-        return Promise.all([swcPromise, copyPromise]);
-    };
-}
-exports.transpileClientSWC = transpileClientSWC;
 // --- gulp-tsb: compile and transpile --------------------------------
 const reporter = (0, reporter_1.createReporter)();
 function getTypeScriptCompilerOptions(src) {
@@ -64,7 +43,11 @@ function createCompile(src, build, emitError, transpileOnly) {
     if (!build) {
         overrideOptions.inlineSourceMap = true;
     }
-    const compilation = tsb.create(projectPath, overrideOptions, { verbose: false, transpileOnly }, err => reporter(err));
+    const compilation = tsb.create(projectPath, overrideOptions, {
+        verbose: false,
+        transpileOnly: Boolean(transpileOnly),
+        transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
+    }, err => reporter(err));
     function pipeline(token) {
         const bom = require('gulp-bom');
         const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
@@ -95,9 +78,9 @@ function createCompile(src, build, emitError, transpileOnly) {
     };
     return pipeline;
 }
-function transpileTask(src, out) {
+function transpileTask(src, out, swc) {
     return function () {
-        const transpile = createCompile(src, false, true, true);
+        const transpile = createCompile(src, false, true, { swc });
         const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
         return srcPipe
             .pipe(transpile())

@@ -2675,9 +2675,6 @@ export class SCMActionButton implements IDisposable {
 				title: button.command.tooltip,
 				supportIcons: true
 			});
-			if (button.description) {
-				(this.button as ButtonWithDropdown).description = button.description;
-			}
 		} else if (button.description) {
 			// ButtonWithDescription
 			this.button = new ButtonWithDescription(this.container, { supportIcons: true, title: button.command.tooltip });

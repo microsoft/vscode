@@ -155,9 +155,9 @@ export const enum WindowError {
 	UNRESPONSIVE = 1,
 
 	/**
-	 * Maps to the `render-proces-gone` event on a `WebContents`.
+	 * Maps to the `render-process-gone` event on a `WebContents`.
 	 */
-	CRASHED = 2,
+	PROCESS_GONE = 2,
 
 	/**
 	 * Maps to the `did-fail-load` event on a `WebContents`.

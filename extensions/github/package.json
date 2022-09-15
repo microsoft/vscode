@@ -59,7 +59,7 @@
       "commandPalette": [
         {
           "command": "github.publish",
-          "when": "git-base.gitEnabled"
+          "when": "git-base.gitEnabled && remoteName != 'codespaces'"
         },
         {
           "command": "github.copyVscodeDevLink",
@@ -131,7 +131,7 @@
     "watch": "gulp watch-extension:github"
   },
   "dependencies": {
-    "@octokit/rest": "^18.0.1",
+    "@octokit/rest": "19.0.4",
     "tunnel": "^0.0.6",
     "vscode-nls": "^5.1.0"
   },

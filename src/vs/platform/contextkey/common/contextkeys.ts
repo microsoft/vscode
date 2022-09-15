@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isIOS, isLinux, isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
+import { isIOS, isLinux, isMacintosh, isMobile, isWeb, isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
@@ -14,6 +14,7 @@ export const IsWindowsContext = new RawContextKey<boolean>('isWindows', isWindow
 export const IsWebContext = new RawContextKey<boolean>('isWeb', isWeb, localize('isWeb', "Whether the platform is a web browser"));
 export const IsMacNativeContext = new RawContextKey<boolean>('isMacNative', isMacintosh && !isWeb, localize('isMacNative', "Whether the operating system is macOS on a non-browser platform"));
 export const IsIOSContext = new RawContextKey<boolean>('isIOS', isIOS, localize('isIOS', "Whether the operating system is iOS"));
+export const IsMobileContext = new RawContextKey<boolean>('isMobile', isMobile, localize('isMobile', "Whether the platform is a mobile web browser"));
 
 export const IsDevelopmentContext = new RawContextKey<boolean>('isDevelopment', false, true);
 export const ProductQualityContext = new RawContextKey<string>('productQualityType', '', localize('productQualityType', "Quality type of VS Code"));
