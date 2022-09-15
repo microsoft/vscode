@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, EventEmitter, ExtensionContext, SecretStorage, SecretStorageChangeEvent, LogLevel } from 'vscode';
+import { Event, EventEmitter, ExtensionContext, SecretStorage, SecretStorageChangeEvent } from 'vscode';
 
 export interface IDidChangeInOtherWindowEvent<T> {
 	added: string[];
@@ -59,16 +59,16 @@ export class BetterTokenStorage<T> {
 								const secret = this.parseSecret(p.value.value);
 								tokens.set(p.value.key, secret);
 							} else if (p.status === 'rejected') {
-								this.context.log(LogLevel.Error, p.reason);
+								this.context.logger.error(p.reason);
 							} else {
-								this.context.log(LogLevel.Error, 'Key was not found in SecretStorage.');
+								this.context.logger.error('Key was not found in SecretStorage.');
 							}
 						});
 						resolve(tokens);
 					}));
 				},
 				err => {
-					this.context.log(LogLevel.Error, err);
+					this.context.logger.error(err);
 					resolve(new Map());
 				});
 		});
@@ -107,7 +107,7 @@ export class BetterTokenStorage<T> {
 			Promise.allSettled(promises).then(results => {
 				results.forEach(r => {
 					if (r.status === 'rejected') {
-						this.context.log(LogLevel.Error, r.reason);
+						this.context.logger.error(r.reason);
 					}
 				});
 				resolve(tokens);
@@ -131,7 +131,7 @@ export class BetterTokenStorage<T> {
 			]).then(results => {
 				results.forEach(r => {
 					if (r.status === 'rejected') {
-						this.context.log(LogLevel.Error, r.reason);
+						this.context.logger.error(r.reason);
 					}
 				});
 				resolve(tokens);
@@ -234,10 +234,10 @@ export class BetterTokenStorage<T> {
 					return tokens;
 				},
 				err => {
-					this.context.log(LogLevel.Error, err);
+					this.context.logger.error(err);
 					resolve(tokens);
 				}).then(resolve, err => {
-					this.context.log(LogLevel.Error, err);
+					this.context.logger.error(err);
 					resolve(tokens);
 				});
 		});

@@ -18,7 +18,7 @@ export class Keychain {
 			return await this.context.secrets.store(this.serviceId, token);
 		} catch (e) {
 			// Ignore
-			this.context.log(vscode.LogLevel.Error, `Setting token failed: ${e}`);
+			this.context.logger.error(`Setting token failed: ${e}`);
 		}
 	}
 
@@ -26,12 +26,12 @@ export class Keychain {
 		try {
 			const secret = await this.context.secrets.get(this.serviceId);
 			if (secret && secret !== '[]') {
-				this.context.log(vscode.LogLevel.Trace, 'Token acquired from secret storage.');
+				this.context.logger.trace('Token acquired from secret storage.');
 			}
 			return secret;
 		} catch (e) {
 			// Ignore
-			this.context.log(vscode.LogLevel.Error, `Getting token failed: ${e}`);
+			this.context.logger.error(`Getting token failed: ${e}`);
 			return Promise.resolve(undefined);
 		}
 	}
@@ -41,7 +41,7 @@ export class Keychain {
 			return await this.context.secrets.delete(this.serviceId);
 		} catch (e) {
 			// Ignore
-			this.context.log(vscode.LogLevel.Error, `Deleting token failed: ${e}`);
+			this.context.logger.error(`Deleting token failed: ${e}`);
 			return Promise.resolve(undefined);
 		}
 	}

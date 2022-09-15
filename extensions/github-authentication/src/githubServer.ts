@@ -30,7 +30,7 @@ class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.
 	}
 
 	public handleUri(uri: vscode.Uri) {
-		this.context.log(vscode.LogLevel.Trace, 'Handling Uri...');
+		this.context.logger.trace('Handling Uri...');
 		this.fire(uri);
 	}
 }
@@ -52,7 +52,7 @@ interface IGitHubDeviceCodeResponse {
 
 async function getScopes(token: string, serverUri: vscode.Uri, context: vscode.ExtensionContext): Promise<string[]> {
 	try {
-		context.log(vscode.LogLevel.Info, 'Getting token scopes...');
+		context.logger.info('Getting token scopes...');
 		const result = await fetch(serverUri.toString(), {
 			headers: {
 				Authorization: `token ${token}`,
@@ -64,11 +64,11 @@ async function getScopes(token: string, serverUri: vscode.Uri, context: vscode.E
 			const scopes = result.headers.get('X-OAuth-Scopes');
 			return scopes ? scopes.split(',').map(scope => scope.trim()) : [];
 		} else {
-			context.log(vscode.LogLevel.Error, `Getting scopes failed: ${result.statusText}`);
+			context.logger.error(`Getting scopes failed: ${result.statusText}`);
 			throw new Error(result.statusText);
 		}
 	} catch (ex) {
-		context.log(vscode.LogLevel.Error, ex.message);
+		context.logger.error(ex.message);
 		throw new Error(NETWORK_ERROR);
 	}
 }
@@ -76,7 +76,7 @@ async function getScopes(token: string, serverUri: vscode.Uri, context: vscode.E
 async function getUserInfo(token: string, serverUri: vscode.Uri, context: vscode.ExtensionContext): Promise<{ id: string; accountName: string }> {
 	let result: Response;
 	try {
-		context.log(vscode.LogLevel.Info, 'Getting user info...');
+		context.logger.info('Getting user info...');
 		result = await fetch(serverUri.toString(), {
 			headers: {
 				Authorization: `token ${token}`,
@@ -84,17 +84,17 @@ async function getUserInfo(token: string, serverUri: vscode.Uri, context: vscode
 			}
 		});
 	} catch (ex) {
-		context.log(vscode.LogLevel.Error, ex.message);
+		context.logger.error(ex.message);
 		throw new Error(NETWORK_ERROR);
 	}
 
 	if (result.ok) {
 		try {
 			const json = await result.json();
-			context.log(vscode.LogLevel.Info, 'Got account info!');
+			context.logger.info('Got account info!');
 			return { id: json.id, accountName: json.login };
 		} catch (e) {
-			context.log(vscode.LogLevel.Error, `Unexpected error parsing response from GitHub: ${e.message ?? e}`);
+			context.logger.error(`Unexpected error parsing response from GitHub: ${e.message ?? e}`);
 			throw e;
 		}
 	} else {
@@ -108,7 +108,7 @@ async function getUserInfo(token: string, serverUri: vscode.Uri, context: vscode
 		} catch (err) {
 			// noop
 		}
-		context.log(vscode.LogLevel.Error, `Getting account info failed: ${errorMessage}`);
+		context.logger.error(`Getting account info failed: ${errorMessage}`);
 		throw new Error(errorMessage);
 	}
 }
@@ -147,7 +147,7 @@ export class GitHubServer implements IGitHubServer {
 	}
 
 	public async login(scopes: string): Promise<string> {
-		this._context.log(vscode.LogLevel.Info, `Logging in for the following scopes: ${scopes}`);
+		this._context.logger.info(`Logging in for the following scopes: ${scopes}`);
 
 		// Used for showing a friendlier message to the user when the explicitly cancel a flow.
 		let userCancelled: boolean | undefined;
@@ -175,7 +175,7 @@ export class GitHubServer implements IGitHubServer {
 			try {
 				return await this.doLoginWithoutLocalServer(scopes, nonce, callbackUri);
 			} catch (e) {
-				this._context.log(vscode.LogLevel.Error, e);
+				this._context.logger.error(e);
 				userCancelled = e.message ?? e === 'User Cancelled';
 			}
 		}
@@ -186,7 +186,7 @@ export class GitHubServer implements IGitHubServer {
 				await promptToContinue();
 				return await this.doLoginWithLocalServer(scopes);
 			} catch (e) {
-				this._context.log(vscode.LogLevel.Error, e);
+				this._context.logger.error(e);
 				userCancelled = e.message ?? e === 'User Cancelled';
 			}
 		}
@@ -196,7 +196,7 @@ export class GitHubServer implements IGitHubServer {
 				await promptToContinue();
 				return await this.doLoginDeviceCodeFlow(scopes);
 			} catch (e) {
-				this._context.log(vscode.LogLevel.Error, e);
+				this._context.logger.error(e);
 				userCancelled = e.message ?? e === 'User Cancelled';
 			}
 		} else if (!supported) {
@@ -204,7 +204,7 @@ export class GitHubServer implements IGitHubServer {
 				await promptToContinue();
 				return await this.doLoginWithPat(scopes);
 			} catch (e) {
-				this._context.log(vscode.LogLevel.Error, e);
+				this._context.logger.error(e);
 				userCancelled = e.message ?? e === 'User Cancelled';
 			}
 		}
@@ -213,7 +213,7 @@ export class GitHubServer implements IGitHubServer {
 	}
 
 	private async doLoginWithoutLocalServer(scopes: string, nonce: string, callbackUri: vscode.Uri): Promise<string> {
-		this._context.log(vscode.LogLevel.Info, `Trying without local server... (${scopes})`);
+		this._context.logger.info(`Trying without local server... (${scopes})`);
 		return await vscode.window.withProgress<string>({
 			location: vscode.ProgressLocation.Notification,
 			title: localize('signingIn', "Signing in to github.com..."),
@@ -254,7 +254,7 @@ export class GitHubServer implements IGitHubServer {
 	}
 
 	private async doLoginWithLocalServer(scopes: string): Promise<string> {
-		this._context.log(vscode.LogLevel.Info, `Trying with local server... (${scopes})`);
+		this._context.logger.info(`Trying with local server... (${scopes})`);
 		return await vscode.window.withProgress<string>({
 			location: vscode.ProgressLocation.Notification,
 			title: localize('signingInAnotherWay', "Signing in to github.com..."),
@@ -291,7 +291,7 @@ export class GitHubServer implements IGitHubServer {
 	}
 
 	private async doLoginDeviceCodeFlow(scopes: string): Promise<string> {
-		this._context.log(vscode.LogLevel.Info, `Trying device code flow... (${scopes})`);
+		this._context.logger.info(`Trying device code flow... (${scopes})`);
 
 		// Get initial device code
 		const uri = `https://github.com/login/device/code?client_id=${CLIENT_ID}&scope=${scopes}`;
@@ -328,7 +328,7 @@ export class GitHubServer implements IGitHubServer {
 	}
 
 	private async doLoginWithPat(scopes: string): Promise<string> {
-		this._context.log(vscode.LogLevel.Info, `Trying to retrieve PAT... (${scopes})`);
+		this._context.logger.info(`Trying to retrieve PAT... (${scopes})`);
 		const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
 		if (!token) { throw new Error('User Cancelled'); }
 
@@ -425,7 +425,7 @@ export class GitHubServer implements IGitHubServer {
 				// 2. Before finishing 1, you trigger a sign in with a different set of scopes
 				// In this scenario we should just return and wait for the next UriHandler event
 				// to run as we are probably still waiting on the user to hit 'Continue'
-				this._context.log(vscode.LogLevel.Info, 'Nonce not found in accepted nonces. Skipping this execution...');
+				this._context.logger.info('Nonce not found in accepted nonces. Skipping this execution...');
 				return;
 			}
 
@@ -433,7 +433,7 @@ export class GitHubServer implements IGitHubServer {
 		};
 
 	private async exchangeCodeForToken(code: string): Promise<string> {
-		this._context.log(vscode.LogLevel.Info, 'Exchanging code for token...');
+		this._context.logger.info('Exchanging code for token...');
 
 		const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
 		const endpointUrl = proxyEndpoints?.github ? `${proxyEndpoints.github}login/oauth/access_token` : GITHUB_TOKEN_URL;
@@ -452,7 +452,7 @@ export class GitHubServer implements IGitHubServer {
 
 		if (result.ok) {
 			const json = await result.json();
-			this._context.log(vscode.LogLevel.Info, 'Token exchange success!');
+			this._context.logger.info('Token exchange success!');
 			return json.access_token;
 		} else {
 			const text = await result.text();
@@ -552,7 +552,7 @@ export class GitHubEnterpriseServer implements IGitHubServer {
 	dispose() { }
 
 	public async login(scopes: string): Promise<string> {
-		this._context.log(vscode.LogLevel.Info, `Logging in for the following scopes: ${scopes}`);
+		this._context.logger.info(`Logging in for the following scopes: ${scopes}`);
 
 		const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
 		if (!token) { throw new Error('Sign in failed: No token provided'); }

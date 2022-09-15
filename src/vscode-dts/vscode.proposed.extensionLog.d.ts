@@ -5,20 +5,17 @@
 
 declare module 'vscode' {
 
-	export enum LogLevel {
-		Trace = 0,
-		Debug = 1,
-		Info = 2,
-		Warning = 3,
-		Error = 4,
-		Critical = 5,
-		Off = 6,
+	export interface Logger {
+		trace(message: string, ...args: any[]): void;
+		debug(message: string, ...args: any[]): void;
+		info(message: string, ...args: any[]): void;
+		warn(message: string, ...args: any[]): void;
+		error(message: string | Error, ...args: any[]): void;
+		critical(message: string | Error, ...args: any[]): void;
 	}
 
 	export interface ExtensionContext {
-
-		log(level: LogLevel, message: string, ...args: any[]): void;
-		log(level: LogLevel.Error | LogLevel.Critical, e: Error, ...args: any[]): void;
-
+		readonly logger: Logger;
 	}
+
 }

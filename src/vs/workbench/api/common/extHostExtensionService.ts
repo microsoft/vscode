@@ -560,15 +560,25 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 					return messagePassingProtocol;
 				},
-				log(logLevel: LogLevel, message: string | Error, ...args: any[]) {
-					if (!extensionLogger) {
-						const logFile = URI.joinPath(that._initData.logsLocation, extensionDescription.identifier.value);
-						const name = extensionDescription.displayName || extensionDescription.identifier.value;
-						extensionLogger = that._loggerService.createLogger(logFile, { name });
-						that._extHostOutputService.registerExtensionLogChannel(name, logFile, extensionDescription);
-					}
-					log(extensionLogger, logLevel, message as any, ...args);
-				}
+				get logger() {
+					const _log = (logLevel: LogLevel, message: string, ...args: any[]) => {
+						if (!extensionLogger) {
+							const logFile = URI.joinPath(that._initData.logsLocation, extensionDescription.identifier.value);
+							const name = extensionDescription.displayName || extensionDescription.identifier.value;
+							extensionLogger = that._loggerService.createLogger(logFile, { name });
+							that._extHostOutputService.registerExtensionLogChannel(name, logFile, extensionDescription);
+						}
+						log(extensionLogger, logLevel, message as any, ...args);
+					};
+					return {
+						trace: (message: string, ...args: any[]): void => _log(LogLevel.Trace, message, ...args),
+						debug: (message: string, ...args: any[]): void => _log(LogLevel.Debug, message, ...args),
+						info: (message: string, ...args: any[]): void => _log(LogLevel.Info, message, ...args),
+						warn: (message: string, ...args: any[]): void => _log(LogLevel.Warning, message, ...args),
+						error: (message: string, ...args: any[]): void => _log(LogLevel.Error, message, ...args),
+						critical: (message: string, ...args: any[]): void => _log(LogLevel.Critical, message, ...args),
+					};
+				},
 			});
 		});
 	}
