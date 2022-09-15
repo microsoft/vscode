@@ -12,7 +12,6 @@
 	position: absolute;
 	user-select: none;
 	-webkit-user-select: none;
-	-ms-user-select: none;
 }
 
 .monaco-diff-editor .diff-review-summary {

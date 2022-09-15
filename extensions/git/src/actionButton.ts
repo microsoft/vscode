@@ -5,7 +5,7 @@
 
 import * as nls from 'vscode-nls';
 import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace } from 'vscode';
-import { Branch, CommitCommand, Status } from './api/git';
+import { Branch, Status } from './api/git';
 import { CommitCommandsCenter } from './postCommitCommands';
 import { Repository, Operation } from './repository';
 import { dispose } from './util';
@@ -97,12 +97,11 @@ export class ActionButtonCommand {
 		return {
 			command: primaryCommand,
 			secondaryCommands: this.getCommitActionButtonSecondaryCommands(),
-			description: primaryCommand.description ?? primaryCommand.title,
 			enabled: (this.state.repositoryHasChangesToCommit || this.state.isRebaseInProgress) && !this.state.isCommitInProgress && !this.state.isMergeInProgress
 		};
 	}
 
-	private getCommitActionButtonPrimaryCommand(): CommitCommand {
+	private getCommitActionButtonPrimaryCommand(): Command {
 		// Rebase Continue
 		if (this.state.isRebaseInProgress) {
 			return {
@@ -127,8 +126,7 @@ export class ActionButtonCommand {
 		const commandGroups: Command[][] = [];
 		for (const commands of this.postCommitCommandCenter.getSecondaryCommands()) {
 			commandGroups.push(commands.map(c => {
-				// Use the description as title if present
-				return { command: 'git.commit', title: c.description ?? c.title, tooltip: c.tooltip, arguments: c.arguments };
+				return { command: 'git.commit', title: c.title, tooltip: c.tooltip, arguments: c.arguments };
 			}));
 		}
 
