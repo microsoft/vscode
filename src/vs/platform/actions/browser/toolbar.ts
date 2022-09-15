@@ -198,7 +198,7 @@ export class WorkbenchToolBar extends ToolBar {
 	}
 
 	/**
-	 * @deprecated The WorkbenchToolBar does not support this method because it wrorks with menus.
+	 * @deprecated The WorkbenchToolBar does not support this method because it works with menus.
 	 */
 	override setActions(): void {
 		throw new BugIndicatingError('This toolbar is populated from a menu.');
