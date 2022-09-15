@@ -11,7 +11,7 @@ import { EnablementState, IExtensionManagementServer } from 'vs/workbench/servic
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionType, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { IView, IViewPaneContainer } from 'vs/workbench/common/views';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -101,6 +101,8 @@ export interface IExtensionsWorkbenchService {
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
 	getExtensions(extensionInfos: IExtensionInfo[], token: CancellationToken): Promise<IExtension[]>;
 	getExtensions(extensionInfos: IExtensionInfo[], options: IExtensionQueryOptions, token: CancellationToken): Promise<IExtension[]>;
+	requireReload(): Promise<IExtension[]>;
+	getReloadRequiredState(extension: IExtension, runningExtensions: Readonly<IRelaxedExtensionDescription>[]): ReloadRequiredState;
 	canInstall(extension: IExtension): Promise<boolean>;
 	install(vsix: URI, installOptions?: InstallVSIXOptions): Promise<IExtension>;
 	install(extension: IExtension, installOptions?: InstallOptions, progressLocation?: ProgressLocation): Promise<IExtension>;
@@ -126,6 +128,12 @@ export const enum ExtensionEditorTab {
 	Dependencies = 'dependencies',
 	ExtensionPack = 'extensionPack',
 	RuntimeStatus = 'runtimeStatus',
+}
+
+export interface ReloadRequiredState {
+	enabled: boolean;
+	label: string;
+	tooltip: string;
 }
 
 export const ConfigurationKey = 'extensions';

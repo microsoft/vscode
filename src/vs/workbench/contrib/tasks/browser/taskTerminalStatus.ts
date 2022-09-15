@@ -15,6 +15,7 @@ import { ITerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalS
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { IMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -39,7 +40,7 @@ const INFO_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID
 export class TaskTerminalStatus extends Disposable {
 	private terminalMap: Map<string, ITerminalData> = new Map();
 	private _marker: IMarker | undefined;
-	constructor(taskService: ITaskService) {
+	constructor(@ITaskService taskService: ITaskService, @IAudioCueService private readonly _audioCueService: IAudioCueService) {
 		super();
 		this._register(taskService.onDidStateChange((event) => {
 			switch (event.kind) {
@@ -47,9 +48,16 @@ export class TaskTerminalStatus extends Disposable {
 				case TaskEventKind.Active: this.eventActive(event); break;
 				case TaskEventKind.Inactive: this.eventInactive(event); break;
 				case TaskEventKind.ProcessEnded: this.eventEnd(event); break;
+				case TaskEventKind.End: this._playEndSound(event.exitCode); break;
 			}
 		}));
 	}
+
+	private _playEndSound(exitCode?: number): void {
+		//TODO: determine sound based on exit code
+		this._audioCueService.playAudioCue(AudioCue.taskEnded);
+	}
+
 
 	addTerminal(task: Task, terminal: ITerminalInstance, problemMatcher: AbstractProblemCollector) {
 		const status: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, severity: Severity.Info };

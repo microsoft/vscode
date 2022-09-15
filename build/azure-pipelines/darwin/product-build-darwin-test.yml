@@ -75,7 +75,6 @@ steps:
           compile-extension:typescript-language-features \
           compile-extension:vscode-api-tests \
           compile-extension:vscode-colorize-tests \
-          compile-extension:vscode-notebook-tests \
           compile-extension:vscode-test-resolver
       displayName: Build integration tests
 
@@ -129,6 +128,11 @@ steps:
           set -e
           yarn --cwd test/smoke compile
         displayName: Compile smoke tests
+
+      - script: |
+          set -e
+          yarn gulp compile-extension-media
+        displayName: Build extensions for smoke tests
 
       - script: |
           set -e

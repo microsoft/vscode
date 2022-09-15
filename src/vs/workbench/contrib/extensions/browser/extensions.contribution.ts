@@ -976,7 +976,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}, {
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
-				order: 1,
+				order: 2,
 			}],
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('builtin filter', "Built-in")
@@ -985,20 +985,20 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
-			id: 'workbench.extensions.action.recentlyUpdatedExtensions',
-			title: { value: localize('recentlyUpdatedExtensions', "Show Recently Updated Extensions"), original: 'Show Recently Updated Extensions' },
+			id: 'workbench.extensions.action.extensionUpdates',
+			title: { value: localize('extensionUpdates', "Show Extension Updates"), original: 'Show Extension Updates' },
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
 			}, {
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
-				order: 7,
+				order: 1,
 			}],
 			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('recently updated filter', "Recently Updated")
+				[extensionsFilterSubMenu.id]: localize('extension updates filter', "Updates")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@recentlyUpdated'))
+			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@updates'))
 		});
 
 		this.registerExtensionAction({
@@ -1011,31 +1011,13 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}, {
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
-				order: 6,
+				order: 5,
 				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER),
 			}],
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('workspace unsupported filter', "Workspace Unsupported")
 			},
 			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@workspaceUnsupported'))
-		});
-
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.showInstalledExtensions',
-			title: { value: localize('showInstalledExtensions', "Show Installed Extensions"), original: 'Show Installed Extensions' },
-			category: ExtensionsLocalizedLabel,
-			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER)
-			}, {
-				id: extensionsFilterSubMenu,
-				group: '3_installed',
-				order: 2,
-			}],
-			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('installed filter', "Installed")
-			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@installed '))
 		});
 
 		this.registerExtensionAction({
@@ -1073,24 +1055,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				[extensionsFilterSubMenu.id]: localize('disabled filter', "Disabled")
 			},
 			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@disabled '))
-		});
-
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.listOutdatedExtensions',
-			title: { value: localize('showOutdatedExtensions', "Show Outdated Extensions"), original: 'Show Outdated Extensions' },
-			category: ExtensionsLocalizedLabel,
-			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER))
-			}, {
-				id: extensionsFilterSubMenu,
-				group: '3_installed',
-				order: 5,
-			}],
-			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('outdated filter', "Outdated")
-			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@outdated '))
 		});
 
 		const extensionsSortSubMenu = new MenuId('extensionsSortSubMenu');

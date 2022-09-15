@@ -21,7 +21,7 @@ async function start() {
 	// Do a quick parse to determine if a server or the cli needs to be started
 	const parsedArgs = minimist(process.argv.slice(2), {
 		boolean: ['start-server', 'list-extensions', 'print-ip-address', 'help', 'version', 'accept-server-license-terms'],
-		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'pick-port', 'compatibility'],
+		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'compatibility'],
 		alias: { help: 'h', version: 'v' }
 	});
 	['host', 'port', 'accept-server-license-terms'].forEach(e => {
@@ -55,13 +55,17 @@ async function start() {
 	 * @typedef { import('./vs/server/node/remoteExtensionHostAgentServer').IServerAPI } IServerAPI
 	 */
 	/** @type {IServerAPI | null} */
-	const _remoteExtensionHostAgentServer = null;
+	let _remoteExtensionHostAgentServer = null;
 	/** @type {Promise<IServerAPI> | null} */
 	let _remoteExtensionHostAgentServerPromise = null;
 	/** @returns {Promise<IServerAPI>} */
 	const getRemoteExtensionHostAgentServer = () => {
 		if (!_remoteExtensionHostAgentServerPromise) {
-			_remoteExtensionHostAgentServerPromise = loadCode().then((mod) => mod.createServer(address));
+			_remoteExtensionHostAgentServerPromise = loadCode().then(async (mod) => {
+				const server = await mod.createServer(address);
+				_remoteExtensionHostAgentServer = server;
+				return server;
+			});
 		}
 		return _remoteExtensionHostAgentServerPromise;
 	};
@@ -119,7 +123,7 @@ async function start() {
 	const nodeListenOptions = (
 		parsedArgs['socket-path']
 			? { path: sanitizeStringArg(parsedArgs['socket-path']) }
-			: { host, port: await parsePort(host, sanitizeStringArg(parsedArgs['port']), sanitizeStringArg(parsedArgs['pick-port'])) }
+			: { host, port: await parsePort(host, sanitizeStringArg(parsedArgs['port'])) }
 	);
 	server.listen(nodeListenOptions, async () => {
 		let output = Array.isArray(product.serverGreeting) && product.serverGreeting.length ? `\n\n${product.serverGreeting.join('\n')}\n\n` : ``;
@@ -127,7 +131,7 @@ async function start() {
 		if (typeof nodeListenOptions.port === 'number' && parsedArgs['print-ip-address']) {
 			const ifaces = os.networkInterfaces();
 			Object.keys(ifaces).forEach(function (ifname) {
-				ifaces[ifname].forEach(function (iface) {
+				ifaces[ifname]?.forEach(function (iface) {
 					if (!iface.internal && iface.family === 'IPv4') {
 						output += `IP Address: ${iface.address}\n`;
 					}
@@ -171,28 +175,25 @@ function sanitizeStringArg(val) {
 }
 
 /**
- * If `--pick-port` and `--port` is specified, connect to that port.
+ * If `--port` is specified and describes a single port, connect to that port.
  *
- * If not and a port range is specified through `--pick-port`
+ * If `--port`describes a port range
  * then find a free port in that range. Throw error if no
  * free port available in range.
- *
- * If only `--port` is provided then connect to that port.
  *
  * In absence of specified ports, connect to port 8000.
  * @param {string | undefined} host
  * @param {string | undefined} strPort
- * @param {string | undefined} strPickPort
  * @returns {Promise<number>}
  * @throws
  */
-async function parsePort(host, strPort, strPickPort) {
+async function parsePort(host, strPort) {
 	let specificPort;
 	if (strPort) {
 		let range;
 		if (strPort.match(/^\d+$/)) {
 			specificPort = parseInt(strPort, 10);
-			if (specificPort === 0 || !strPickPort) {
+			if (specificPort === 0) {
 				return specificPort;
 			}
 		} else if (range = parseRange(strPort)) {
@@ -205,25 +206,6 @@ async function parsePort(host, strPort, strPickPort) {
 
 		} else {
 			console.warn(`--port "${strPort}" is not a valid number or range. Ranges must be in the form 'from-to' with 'from' an integer larger than 0 and not larger than 'end'.`);
-			process.exit(1);
-		}
-	}
-	// pick-port is deprecated and will be removed soon
-	if (strPickPort) {
-		const range = parseRange(strPickPort);
-		if (range) {
-			if (range.start <= specificPort && specificPort <= range.end) {
-				return specificPort;
-			} else {
-				const port = await findFreePort(host, range.start, range.end);
-				if (port !== undefined) {
-					return port;
-				}
-				console.log(`--pick-port: Could not find free port in range: ${range.start} - ${range.end}.`);
-				process.exit(1);
-			}
-		} else {
-			console.log(`--pick-port "${strPickPort}" is not a valid range. Ranges must be in the form 'from-to' with 'from' an integer larger than 0 and not larger than 'end'.`);
 			process.exit(1);
 		}
 	}

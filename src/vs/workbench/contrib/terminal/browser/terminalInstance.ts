@@ -55,6 +55,7 @@ import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticip
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
@@ -376,7 +377,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@ICommandService private readonly _commandService: ICommandService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IAudioCueService private readonly _audioCueService: IAudioCueService
 	) {
 		super();
 
@@ -730,6 +732,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						icon: Codicon.bell,
 						tooltip: nls.localize('bellStatus', "Bell")
 					}, this._configHelper.config.bellDuration);
+					this._audioCueService.playSound(AudioCue.terminalBell.sound);
 				}
 			});
 		}, 1000);

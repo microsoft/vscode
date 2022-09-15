@@ -41,7 +41,7 @@ import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/pl
 import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSyncEnablementService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { IUserDataProfile, IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { InMemoryUserDataProfilesService, IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
 import { TestUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/test/common/userDataSyncProfilesStorageService.test';
@@ -77,7 +77,8 @@ export class UserDataSyncClient extends Disposable {
 					insidersUrl: this.testServer.url,
 					canSwitch: false,
 					authenticationProviders: { 'test': { scopes: [] } }
-				}
+				},
+				enableSyncingProfiles: true
 			}
 		});
 
@@ -88,7 +89,9 @@ export class UserDataSyncClient extends Disposable {
 		const uriIdentityService = this.instantiationService.createInstance(UriIdentityService);
 		this.instantiationService.stub(IUriIdentityService, uriIdentityService);
 
-		const userDataProfilesService = this.instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		const userDataProfilesService = new InMemoryUserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
+		this.instantiationService.stub(IUserDataProfilesService, userDataProfilesService);
+		userDataProfilesService.setEnablement(true);
 
 		const storageService = new TestStorageService(userDataProfilesService.defaultProfile);
 		this.instantiationService.stub(IStorageService, this._register(storageService));
@@ -178,6 +181,7 @@ export class UserDataSyncTestServer implements IRequestService {
 	reset(): void { this._requests = []; this._responses = []; this._requestsWithAllHeaders = []; }
 
 	private manifestRef = 0;
+	private collectionCounter = 1;
 
 	constructor(private readonly rateLimit = Number.MAX_SAFE_INTEGER, private readonly retryAfter?: number) { }
 
@@ -219,8 +223,11 @@ export class UserDataSyncTestServer implements IRequestService {
 		if (options.type === 'DELETE' && segments.length === 1 && segments[0] === 'resource') {
 			return this.clear(options.headers);
 		}
-		if (options.type === 'DELETE' && segments.length === 1 && segments[0] === 'collection') {
+		if (options.type === 'DELETE' && segments[0] === 'collection') {
 			return this.toResponse(204);
+		}
+		if (options.type === 'POST' && segments.length === 1 && segments[0] === 'collection') {
+			return this.toResponse(200, {}, `${this.collectionCounter++}`);
 		}
 		return this.toResponse(501);
 	}
@@ -270,6 +277,7 @@ export class UserDataSyncTestServer implements IRequestService {
 	async clear(headers?: IHeaders): Promise<IRequestContext> {
 		this.data.clear();
 		this.session = null;
+		this.collectionCounter = 1;
 		return this.toResponse(204);
 	}
 

@@ -33,13 +33,18 @@ class CheckoutItem implements QuickPickItem {
 	constructor(protected repository: Repository, protected ref: Ref) { }
 
 	async run(opts?: { detached?: boolean }): Promise<void> {
-		const ref = this.ref.name;
-
-		if (!ref) {
+		if (!this.ref.name) {
 			return;
 		}
 
-		await this.repository.checkout(ref, opts);
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const fetchBeforeCheckout = config.get<boolean>('fetchBeforeCheckout', false) === true;
+
+		if (fetchBeforeCheckout) {
+			await this.repository.fastForwardBranch(this.ref.name!);
+		}
+
+		await this.repository.checkout(this.ref.name, opts);
 	}
 }
 
@@ -48,6 +53,14 @@ class CheckoutTagItem extends CheckoutItem {
 	override get label(): string { return `$(tag) ${this.ref.name || this.shortCommit}`; }
 	override get description(): string {
 		return localize('tag at', "Tag at {0}", this.shortCommit);
+	}
+
+	override async run(opts?: { detached?: boolean }): Promise<void> {
+		if (!this.ref.name) {
+			return;
+		}
+
+		await this.repository.checkout(this.ref.name, opts);
 	}
 }
 
@@ -541,9 +554,17 @@ export class CommandCenter {
 				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive }, token)
 			);
 
-			if (options.ref !== undefined) {
-				const repository = this.model.getRepository(Uri.file(repositoryPath));
-				await repository?.checkout(options.ref);
+			const refToCheckoutAfterClone = options.ref;
+			if (refToCheckoutAfterClone !== undefined) {
+				await window.withProgress(
+					{
+						location: ProgressLocation.Notification,
+						title: localize('checking out ref', "Checking out ref '{0}'...", options.ref)
+					}, async () => {
+						await this.model.openRepository(repositoryPath);
+						const repository = this.model.getRepository(repositoryPath);
+						await repository?.checkout(refToCheckoutAfterClone);
+					});
 			}
 
 			const config = workspace.getConfiguration('git');
