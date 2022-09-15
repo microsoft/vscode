@@ -207,7 +207,11 @@ function optimizeLoaderTask(src, out, bundleLoader, bundledFileHeader = '', exte
 exports.optimizeLoaderTask = optimizeLoaderTask;
 function optimizeTask(opts) {
     return function () {
-        return es.merge(optimizeAMDTask(opts.amd), opts.commonJS ? optimizeCommonJSTask(opts.commonJS) : es.through()).pipe(gulp.dest(opts.out));
+        const optimizers = [optimizeAMDTask(opts.amd)];
+        if (opts.commonJS) {
+            optimizers.push(optimizeCommonJSTask(opts.commonJS));
+        }
+        return es.merge(...optimizers).pipe(gulp.dest(opts.out));
     };
 }
 exports.optimizeTask = optimizeTask;

@@ -314,10 +314,12 @@ export interface IOptimizeTaskOpts {
 
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
 	return function () {
-		return es.merge(
-			optimizeAMDTask(opts.amd),
-			opts.commonJS ? optimizeCommonJSTask(opts.commonJS) : es.through()
-		).pipe(gulp.dest(opts.out));
+		const optimizers = [optimizeAMDTask(opts.amd)];
+		if (opts.commonJS) {
+			optimizers.push(optimizeCommonJSTask(opts.commonJS));
+		}
+
+		return es.merge(...optimizers).pipe(gulp.dest(opts.out));
 	};
 }
 
