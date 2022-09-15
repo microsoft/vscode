@@ -119,6 +119,7 @@ suite('HTML Embedded Support', () => {
 	test('Script content', function (): any {
 		assertEmbeddedLanguageContent('<html><script>var i = 0;</script></html>', 'javascript', '              var i = 0;                ');
 		assertEmbeddedLanguageContent('<script type="text/javascript">var i = 0;</script>', 'javascript', '                               var i = 0;         ');
+		assertEmbeddedLanguageContent('<script><!--this comment should not give error--></script>', 'javascript', '        /* this comment should not give error */         ');
 
 		assertEmbeddedLanguageContent('<div onKeyUp="foo()" onkeydown="bar()"/>', 'javascript', '              foo();            bar();  ');
 		assertEmbeddedLanguageContent('<div onKeyUp="return"/>', 'javascript', '              return;  ');

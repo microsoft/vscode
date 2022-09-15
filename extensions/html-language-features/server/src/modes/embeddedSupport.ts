@@ -173,7 +173,12 @@ function getEmbeddedDocument(document: TextDocument, contents: EmbeddedRegion[],
 			lastSuffix = getSuffix(c);
 		}
 	}
-	result = substituteWithWhitespace(result, currentPos, oldContent.length, oldContent, lastSuffix, '');
+	if (languageId === 'javascript') {
+		result = substituteWithWhitespace(result, currentPos, oldContent.length, oldContent, lastSuffix, '').replace(`<!--`, `/* `).replace(`-->`, ` */`);
+	}
+	else {
+		result = substituteWithWhitespace(result, currentPos, oldContent.length, oldContent, lastSuffix, '');
+	}
 	return TextDocument.create(document.uri, languageId, document.version, result);
 }
 
