@@ -334,7 +334,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 		this._currentCommand.commandStartMarker = options?.marker || this._terminal.registerMarker(0);
 
-		// Clear executed as it much happen after command start
+		// Clear executed as it must happen after command start
 		this._currentCommand.commandExecutedMarker?.dispose();
 		this._currentCommand.commandExecutedMarker = undefined;
 		this._currentCommand.commandExecutedX = undefined;
