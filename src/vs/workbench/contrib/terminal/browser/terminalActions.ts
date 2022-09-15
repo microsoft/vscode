@@ -152,7 +152,7 @@ export function registerTerminalActions() {
 				category,
 				precondition: TerminalContextKeys.processSupported,
 				keybinding: {
-					primary: KeyMod.WinCtrl | KeyCode.Period,
+					primary: KeyMod.CtrlCmd | KeyCode.Period,
 					when: TerminalContextKeys.focus,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
