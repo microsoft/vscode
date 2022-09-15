@@ -95,8 +95,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 	private _onDidRun = this._register(new Emitter<IRunEvent>());
 	readonly onDidRun = this._onDidRun.event;
 
-	private _onBeforeRun = this._register(new Emitter<IRunEvent>());
-	readonly onBeforeRun = this._onBeforeRun.event;
+	private _onWillRun = this._register(new Emitter<IRunEvent>());
+	readonly onWillRun = this._onWillRun.event;
 
 	constructor(container: HTMLElement, options: IActionBarOptions = {}) {
 		super();
@@ -117,7 +117,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		this._register(this._actionRunner.onDidRun(e => this._onDidRun.fire(e)));
-		this._register(this._actionRunner.onBeforeRun(e => this._onBeforeRun.fire(e)));
+		this._register(this._actionRunner.onWillRun(e => this._onWillRun.fire(e)));
 
 		this.viewItems = [];
 		this.viewItemDisposables = new Map<IActionViewItem, IDisposable>();
