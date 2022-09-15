@@ -10,7 +10,7 @@ import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as types from 'vs/base/common/types';
 import 'vs/css!./actionbar';
 
@@ -62,6 +62,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	private readonly options: IActionBarOptions;
 
 	private _actionRunner: IActionRunner;
+	private _actionRunnerDisposables = this._register(new DisposableStore());
 	private _context: unknown;
 	private readonly _orientation: ActionsOrientation;
 	private readonly _triggerKeys: {
@@ -113,11 +114,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 			this._actionRunner = this.options.actionRunner;
 		} else {
 			this._actionRunner = new ActionRunner();
-			this._register(this._actionRunner);
+			this._actionRunnerDisposables.add(this._actionRunner);
 		}
 
-		this._register(this._actionRunner.onDidRun(e => this._onDidRun.fire(e)));
-		this._register(this._actionRunner.onWillRun(e => this._onWillRun.fire(e)));
+		this._actionRunnerDisposables.add(this._actionRunner.onDidRun(e => this._onDidRun.fire(e)));
+		this._actionRunnerDisposables.add(this._actionRunner.onWillRun(e => this._onWillRun.fire(e)));
 
 		this.viewItems = [];
 		this.viewItemDisposables = new Map<IActionViewItem, IDisposable>();
@@ -292,10 +293,14 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	set actionRunner(actionRunner: IActionRunner) {
-		if (actionRunner) {
-			this._actionRunner = actionRunner;
-			this.viewItems.forEach(item => item.actionRunner = actionRunner);
-		}
+		this._actionRunner = actionRunner;
+
+		// when setting a new `IActionRunner` make sure to dispose old listeners and
+		// start to forward events from the new listener
+		this._actionRunnerDisposables.clear();
+		this._actionRunnerDisposables.add(this._actionRunner.onDidRun(e => this._onDidRun.fire(e)));
+		this._actionRunnerDisposables.add(this._actionRunner.onWillRun(e => this._onWillRun.fire(e)));
+		this.viewItems.forEach(item => item.actionRunner = actionRunner);
 	}
 
 	getContainer(): HTMLElement {
