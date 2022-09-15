@@ -13,6 +13,7 @@ import { createAndFillInActionBarActions, createAndFillInContextMenuActions } fr
 import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const enum HiddenItemStrategy {
@@ -21,18 +22,51 @@ export const enum HiddenItemStrategy {
 }
 
 export interface IToolBarRenderOptions {
+	/**
+	 * Determines what groups are considered primary. Defaults to `navigation`. Items of the primary
+	 * group are rendered with buttons and the rest is rendered in the secondary popup-menu.
+	 */
 	primaryGroup?: string | ((actionGroup: string) => boolean);
+
+	/**
+	 * Limits the number of items that make it in the primary group. The rest overflows into the
+	 * secondary menu.
+	 */
 	primaryMaxCount?: number;
+
+	/**
+	 * Inlinse submenus with just a single item
+	 */
 	shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean;
+
+	/**
+	 * Should the primary group allow for separators.
+	 */
 	useSeparatorsInPrimaryActions?: boolean;
+
+	/**
+	 * Items of the primary group can be hidden. When this happens the item can
+	 * - move in to the secondary popup-menu, or
+	 * - not be shown at all
+	 */
 	hiddenItemStrategy?: HiddenItemStrategy;
 }
 
-export type IWorkbenchToolBarOptions = Exclude<IToolBarOptions, { allowContextMenu: boolean }> & {
-	contextMenu?: MenuId;
+export type IWorkbenchToolBarOptions = IToolBarOptions & {
 
+	/**
+	 * Optional options to configure how the toolbar renderes items.
+	 */
 	toolbarOptions?: IToolBarRenderOptions;
 
+	/**
+	 * Optional menu id which items are used for the context menu of the toolbar.
+	 */
+	contextMenu?: MenuId;
+
+	/**
+	 * Optional options how menu actions are created and invoked
+	 */
 	menuOptions?: IMenuActionOptions;
 
 	/**
@@ -40,11 +74,14 @@ export type IWorkbenchToolBarOptions = Exclude<IToolBarOptions, { allowContextMe
 	 * of the event will the passed `telemetrySource`-value
 	 */
 	telemetrySource?: string;
+
+	/** This is controlled by the WorkbenchToolBar */
+	allowContextMenu?: never;
+	/** This is controlled by the WorkbenchToolBar */
+	getKeyBinding?: never;
 };
 
 export class WorkbenchToolBar extends ToolBar {
-
-	private static readonly _mandatoryOptions: IWorkbenchToolBarOptions = { allowContextMenu: true };
 
 	constructor(
 		container: HTMLElement,
@@ -53,13 +90,19 @@ export class WorkbenchToolBar extends ToolBar {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		options = { ...options, ...WorkbenchToolBar._mandatoryOptions };
-		super(container, contextMenuService, options);
+		super(container, contextMenuService, {
+			...options,
+			allowContextMenu: true,
+			getKeyBinding(action) {
+				return keybindingService.lookupKeybinding(action.id) ?? undefined;
+			},
+		});
 
 		// update logic
-		const sessionDisposable = new DisposableStore();
+		const sessionDisposable = this._store.add(new DisposableStore());
 		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService));
 
 		const updateToolbar = () => {
@@ -129,7 +172,7 @@ export class WorkbenchToolBar extends ToolBar {
 					if (options?.contextMenu) {
 						const menu = menuService.createMenu(options.contextMenu, contextKeyService);
 						const contextMenuActions: IAction[] = [];
-						createAndFillInContextMenuActions(menu, options?.menuOptions, contextMenuActions);
+						createAndFillInContextMenuActions(menu, { ...options?.menuOptions, renderShortTitle: true, }, contextMenuActions);
 						menu.dispose();
 
 						if (contextMenuActions.length > 0) {
@@ -149,7 +192,7 @@ export class WorkbenchToolBar extends ToolBar {
 		updateToolbar();
 
 		// telemetry logic
-		if (options.telemetrySource) {
+		if (options?.telemetrySource) {
 			this.actionRunner.onDidRun(e => telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: options!.telemetrySource! }));
 		}
 	}
