@@ -26,6 +26,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { timeout } from 'vs/base/common/async';
 
 export async function showRunRecentQuickPick(
 	accessor: ServicesAccessor,
@@ -289,8 +290,12 @@ async function runCommand(instance: ITerminalInstance, commandLine: string, addN
 	// there is no content in the prompt
 	if (instance.capabilities.get(TerminalCapability.CommandDetection)?.hasInput !== false) {
 		await instance.sendText('\x03', false);
+		// Wait a little before running the command to avoid the sequences being echoed while the ^C
+		// is being evaluated
+		await timeout(100);
 	}
-	await instance.sendText(commandLine, addNewLine, true);
+	// Use bracketed paste mode only when not running the command
+	await instance.sendText(commandLine, addNewLine, !addNewLine);
 }
 
 class TerminalOutputProvider implements ITextModelContentProvider {

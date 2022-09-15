@@ -80,9 +80,9 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		if (!this._isInputting || !this._currentCommand?.commandStartMarker) {
 			return undefined;
 		}
-		if (this._terminal.buffer.active.cursorY === this._currentCommand.commandStartMarker?.line) {
+		if (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY === this._currentCommand.commandStartMarker?.line) {
 			const line = this._terminal.buffer.active.getLine(this._terminal.buffer.active.cursorY)?.translateToString(true, this._currentCommand.commandStartX);
-			if (!line) {
+			if (line === undefined) {
 				return undefined;
 			}
 			return line.length > 0;
