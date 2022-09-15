@@ -903,6 +903,11 @@ export interface ITerminalInstance {
 	 * Activates the most recent link of the given type.
 	 */
 	openRecentLink(type: 'localFile' | 'url'): Promise<void>;
+
+	/**
+	 * Triggers the quick fix menu to open, if any
+	 */
+	quickFix(): void;
 }
 
 export interface IXtermTerminal {
@@ -973,6 +978,11 @@ export interface IXtermTerminal {
 	 * Returns a reverse iterator of buffer lines as strings
 	 */
 	getBufferReverseIterator(): IterableIterator<string>;
+
+	/**
+	 * Triggers the quick fix menu to open, if any
+	 */
+	quickFix(): void;
 }
 
 export interface IInternalXtermTerminal {

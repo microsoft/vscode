@@ -36,6 +36,7 @@ import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/dec
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ContextualActionAddon } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
 
 
 // How long in milliseconds should an average frame take to render for a notification to appear
@@ -90,6 +91,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	// Always on addons
 	private _markNavigationAddon: MarkNavigationAddon;
 	private _shellIntegrationAddon: ShellIntegrationAddon;
+	private _contextualActionAddon: ContextualActionAddon | undefined;
 	private _decorationAddon: DecorationAddon;
 
 	// Optional addons
@@ -102,7 +104,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
 
-	private readonly _onDidRequestRunCommand = new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean }>();
+	private readonly _onDidRequestRunCommand = new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>();
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
 	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number } | undefined>();
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
@@ -206,7 +208,32 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e));
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = new ShellIntegrationAddon(disableShellIntegrationReporting, this._telemetryService, this._logService);
+		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
+			this._activateContextualActionAddon();
+		} else {
+			this._capabilities.onDidAddCapability((c) => {
+				if (c === TerminalCapability.CommandDetection) {
+					this._activateContextualActionAddon();
+				}
+			});
+		}
+
 		this.raw.loadAddon(this._shellIntegrationAddon);
+	}
+
+	quickFix(): void {
+		this._contextualActionAddon?.show();
+	}
+
+	private _activateContextualActionAddon(): void {
+		if (this._contextualActionAddon) {
+			return;
+		}
+		const addon = this._instantiationService.createInstance(ContextualActionAddon);
+		this._capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(command => addon.evaluate(command));
+		this._contextualActionAddon = addon;
+		this._contextualActionAddon.onDidRequestRerunCommand(command => this._onDidRequestRunCommand.fire({ command, noNewLine: true }));
+		this.raw.loadAddon(this._contextualActionAddon);
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
@@ -151,10 +150,6 @@ export interface ICommandDetectionCapability {
 	readonly onCommandFinished: Event<ITerminalCommand>;
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
-	readonly onRequestCreateContextMenu: Event<{
-		getAnchor(): HTMLElement;
-		getActions(): readonly IAction[];
-	}>;
 	setCwd(value: string): void;
 	setIsWindowsPty(value: boolean): void;
 	setIsCommandStorageDisabled(): void;
@@ -178,14 +173,6 @@ export interface ICommandDetectionCapability {
 	setCommandLine(commandLine: string): void;
 	serialize(): ISerializedCommandDetectionCapability;
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
-	/**
-	 * Registers a listener on onCommandFinished scoped to a particular command or regular
-	 * expression.
-	 * @param matcher A matcher that is either a string (exact match) or a regular expression that
-	 * will fire the listener for commands that match.
-	 * @param callback The callback to trigger when a matching command finished.
-	 */
-	registerCommandFinishedListener(matcher: string | RegExp, callback: (command: ITerminalCommand) => void): IDisposable;
 }
 
 export interface IHandleCommandOptions {

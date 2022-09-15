@@ -2,19 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { IAction } from 'vs/base/common/actions';
 import { timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
-import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-//TODO
-// eslint-disable-next-line local/code-import-patterns
-import * as cp from 'child_process';
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
-import type { IBuffer, IBufferCell, IBufferLine, IDisposable, IMarker, Terminal } from 'xterm-headless';
+import type { IBuffer, IBufferLine, IDisposable, IMarker, Terminal } from 'xterm-headless';
 
 export interface ICurrentPartialCommand {
 	previousCommandMarker?: IMarker;
@@ -65,8 +60,6 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	private _dimensions: ITerminalDimensions;
 	private __isCommandStorageDisabled: boolean = false;
 	private _handleCommandStartOptions?: IHandleCommandOptions;
-	private _stringCommandListeners: Map<string, ((command: ITerminalCommand) => void)[]> = new Map();
-	private _regexpCommandFinishedListeners: { regexp: RegExp; callback: (command: ITerminalCommand) => void }[] = [];
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
@@ -79,8 +72,6 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	}
 	get cwd(): string | undefined { return this._cwd; }
 
-	private _decorationMarkerIds = new Set<string>();
-
 	private readonly _onCommandStarted = new Emitter<ITerminalCommand>();
 	readonly onCommandStarted = this._onCommandStarted.event;
 	private readonly _onBeforeCommandFinished = new Emitter<ITerminalCommand>();
@@ -91,8 +82,6 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
 	private readonly _onCurrentCommandInvalidated = new Emitter<ICommandInvalidationRequest>();
 	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
-	private readonly _onRequestCreateContextMenu = new Emitter<{ getAnchor(): HTMLElement; getActions(): readonly IAction[] }>();
-	readonly onRequestCreateContextMenu = this._onRequestCreateContextMenu.event;
 	constructor(
 		private readonly _terminal: Terminal,
 		@ILogService private readonly _logService: ILogService
@@ -104,26 +93,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._terminal.onResize(e => this._handleResize(e));
 		this._terminal.onCursorMove(() => this._handleCursorMove());
 		this._setupClearListeners();
-		this._setupContextAwareListeners();
-		//TODO: register all of these
-		this.onCommandFinished(command => this._applyMatchingCallbacks(command));
 	}
 
-	private _applyMatchingCallbacks(command: ITerminalCommand): void {
-		// TODO: This wouldn't handle commands containing escaped spaces correctly
-		const newCommand = command.command.split(' ')[0];
-		const listeners = this._stringCommandListeners.get(newCommand);
-		if (listeners) {
-			for (const listener of listeners) {
-				listener(command);
-			}
-		}
-		for (const listener of this._regexpCommandFinishedListeners) {
-			if (newCommand.match(listener.regexp)) {
-				listener.callback(command);
-			}
-		}
-	}
 
 	private _handleResize(e: { cols: number; rows: number }) {
 		if (this._isWindowsPty) {
@@ -182,140 +153,6 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			// We don't want to override xterm.js' default behavior, just augment it
 			return false;
 		});
-	}
-
-	private _setupContextAwareListeners(): void {
-		this.registerCommandFinishedListener('gti', e => {
-			// Check exitCode is truthy
-			console.log('gti run, did you mean git?');
-			console.log('ITerminalCommand', e);
-
-			// Search for start of term
-			if (!e.marker?.line) {
-				return;
-			}
-			const line = this._terminal.buffer.active.getLine(e.marker.line);
-			if (!line) {
-				return;
-			}
-			const term = 'gti';
-			let start = 0;
-			let letter = 0;
-			let cell: IBufferCell | undefined;
-			for (let i = 0; i < line.length; i++) {
-				cell = line.getCell(i, cell);
-				if (!cell) {
-					continue;
-				}
-				if (cell.getChars() === term[letter]) {
-					if (letter === 0) {
-						start = i;
-					}
-					letter++;
-					if (letter === term.length) {
-						break;
-					}
-				} else {
-					letter = 0;
-				}
-				// if (line.getCell(start)?.getChars();
-			}
-			if (letter === term.length) {
-				// TODO: pass in action which writes to the terminal the correct term
-				console.log(`Found "${term}"! line: ${e.marker.line}, start: ${start}`);
-				this._registerContextualDecoration(e.marker, undefined, start, term.length, true);
-			}
-			// console.log('output', e.getOutput());
-		});
-
-		this.registerCommandFinishedListener(/.+/, command => {
-			const output = command.getOutput();
-			//TODO: support this for tasks
-			//TODO: narrow this down more
-			// if (command.exitCode === 1) {
-			// TODO: add other possible regexps
-			const match = output?.match(/.*address already in use \d\.\d.\d\.\d:(\d\d\d\d).*/);
-			if (match && match.length === 2 && command.endMarker) {
-				console.log(`address in use for port ${match[1]}`);
-				const actions: IAction[] = [];
-				const labelRun = localize("terminal.freePort", 'Free port');
-				actions.push({
-					class: undefined, tooltip: labelRun, id: 'terminal.freePort', label: labelRun, enabled: true,
-					run: async () => {
-						const procs = await new Promise<string>((resolve, reject) => {
-							cp.exec(`lsof -nP -iTCP -sTCP:LISTEN | grep ${match[1]}`, {}, (err, stdout) => {
-								if (err) {
-									return reject('Problem occurred when listing active processes');
-								}
-								resolve(stdout);
-							});
-						});
-						const procLines = procs.split('\n');
-						if (procLines.length >= 1) {
-							const regex = /\s+(\d+)\s+/;
-							const matches = procLines[0].match(regex);
-							if (matches && matches.length > 1) {
-								console.log('found pid', matches[1]);
-								await new Promise<string>((resolve, reject) => {
-									cp.exec(`kill ${matches[1]}`, {}, (err, stdout) => {
-										if (err) {
-											console.log('error', err);
-											return reject(`Problem occurred when killing the process w id: ${matches[1]}`);
-										}
-										console.log(`killed process ${matches[1]}`);
-										resolve(stdout);
-									});
-								});
-							}
-						}
-					}
-				});
-
-				this._registerContextualDecoration(command.endMarker, actions);
-			}
-			// }
-		});
-	}
-
-	private _registerContextualDecoration(marker: IMarker, actions?: IAction[], x?: number, width?: number, border?: boolean): void {
-		if ('registerDecoration' in this._terminal) {
-			const d = (this._terminal as any).registerDecoration({
-				marker,
-				x,
-				width,
-				layer: 'top',
-				actions
-			});
-			d.onRender((e: HTMLElement) => {
-				if (!this._decorationMarkerIds.has(d.marker.id)) {
-					e.style.border = border ? '1px solid #f00' : '';
-					const inner = document.createElement('div');
-					inner.classList.add('codicon-light-bulb', 'codicon', 'terminal-command-decoration', 'xterm-decoration');
-					inner.style.position = 'absolute';
-					inner.style.bottom = '100%';
-					inner.style.left = '0';
-					inner.style.color = '#ffcc00';
-					e.appendChild(inner);
-					if (actions) {
-						this._decorationMarkerIds.add(d.marker.id);
-						this._onRequestCreateContextMenu.fire({ getAnchor: () => e, getActions: () => actions });
-					}
-				}
-			});
-		}
-	}
-
-	registerCommandFinishedListener(matcher: string | RegExp, callback: (command: ITerminalCommand) => void): IDisposable {
-		if (typeof matcher === 'string') {
-			const listeners = this._stringCommandListeners.get(matcher) || [];
-			listeners.push(callback);
-			this._stringCommandListeners.set(matcher, listeners);
-		} else {
-			this._regexpCommandFinishedListeners.push({ regexp: matcher, callback });
-		}
-
-		// TODO: Return disposable
-		return null as any;
 	}
 
 	private _preHandleResizeWindows(e: { cols: number; rows: number }) {
