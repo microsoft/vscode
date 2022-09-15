@@ -264,8 +264,8 @@ export async function showRunRecentQuickPick(
 		} else { // command
 			text = result.rawLabel;
 		}
-		instance.sendText(text, !quickPick.keyMods.alt, true);
 		quickPick.hide();
+		runCommand(instance, text, !quickPick.keyMods.alt);
 		if (quickPick.keyMods.alt) {
 			instance.focus();
 		}
@@ -281,6 +281,16 @@ export async function showRunRecentQuickPick(
 			r();
 		});
 	});
+}
+
+async function runCommand(instance: ITerminalInstance, commandLine: string, addNewLine: boolean): Promise<void> {
+	// Determine whether to send ETX (ctrl+c) before running the command. This should always
+	// happen unless command detection can reliably say that a command is being entered and
+	// there is no content in the prompt
+	if (instance.capabilities.get(TerminalCapability.CommandDetection)?.hasInput !== false) {
+		await instance.sendText('\x03', false);
+	}
+	await instance.sendText(commandLine, addNewLine, true);
 }
 
 class TerminalOutputProvider implements ITextModelContentProvider {
