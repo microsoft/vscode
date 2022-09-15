@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { v4 as uuid } from 'uuid';
 import { Keychain } from './common/keychain';
-import { GitHubEnterpriseServer, GitHubServer, IGitHubServer } from './githubServer';
+import { GitHubServer, IGitHubServer } from './githubServer';
 import { arrayEquals } from './common/utils';
 import { ExperimentationTelemetry } from './experimentationService';
 import TelemetryReporter from '@vscode/extension-telemetry';
@@ -43,15 +43,12 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		const { name, version, aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
 		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(name, version, aiKey));
 
-		if (this.type === AuthProviderType.github) {
-			this._githubServer = new GitHubServer(
-				// We only can use the Device Code flow when we have a full node environment because of CORS.
-				context.extension.extensionKind === vscode.ExtensionKind.Workspace || vscode.env.uiKind === vscode.UIKind.Desktop,
-				this._logger,
-				this._telemetryReporter);
-		} else {
-			this._githubServer = new GitHubEnterpriseServer(this._logger, this._telemetryReporter);
-		}
+		this._githubServer = new GitHubServer(
+			this.type,
+			// We only can use the Device Code flow when we have a full node environment because of CORS.
+			context.extension.extensionKind === vscode.ExtensionKind.Workspace || vscode.env.uiKind === vscode.UIKind.Desktop,
+			this._logger,
+			this._telemetryReporter);
 
 		// Contains the current state of the sessions we have available.
 		this._sessionsPromise = this.readSessions().then((sessions) => {

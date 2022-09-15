@@ -30,6 +30,7 @@ export interface INotebookKernelChangeEvent {
 	kind?: true;
 	supportedLanguages?: true;
 	hasExecutionOrder?: true;
+	hasInterruptHandler?: true;
 }
 
 export interface INotebookKernel {

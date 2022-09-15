@@ -1570,6 +1570,10 @@ export class Repository {
 		}
 	}
 
+	async mergeAbort(): Promise<void> {
+		await this.exec(['merge', '--abort']);
+	}
+
 	async tag(name: string, message?: string): Promise<void> {
 		let args = ['tag'];
 

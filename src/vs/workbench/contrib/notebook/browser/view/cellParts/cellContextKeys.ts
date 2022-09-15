@@ -58,22 +58,24 @@ export class CellContextKeyManager extends Disposable {
 	) {
 		super();
 
-		this.cellType = NOTEBOOK_CELL_TYPE.bindTo(this._contextKeyService);
-		this.cellEditable = NOTEBOOK_CELL_EDITABLE.bindTo(this._contextKeyService);
-		this.cellFocused = NOTEBOOK_CELL_FOCUSED.bindTo(this._contextKeyService);
-		this.cellEditorFocused = NOTEBOOK_CELL_EDITOR_FOCUSED.bindTo(this._contextKeyService);
-		this.markdownEditMode = NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.bindTo(this._contextKeyService);
-		this.cellRunState = NOTEBOOK_CELL_EXECUTION_STATE.bindTo(this._contextKeyService);
-		this.cellExecuting = NOTEBOOK_CELL_EXECUTING.bindTo(this._contextKeyService);
-		this.cellHasOutputs = NOTEBOOK_CELL_HAS_OUTPUTS.bindTo(this._contextKeyService);
-		this.cellContentCollapsed = NOTEBOOK_CELL_INPUT_COLLAPSED.bindTo(this._contextKeyService);
-		this.cellOutputCollapsed = NOTEBOOK_CELL_OUTPUT_COLLAPSED.bindTo(this._contextKeyService);
-		this.cellLineNumbers = NOTEBOOK_CELL_LINE_NUMBERS.bindTo(this._contextKeyService);
-		this.cellResource = NOTEBOOK_CELL_RESOURCE.bindTo(this._contextKeyService);
+		this._contextKeyService.bufferChangeEvents(() => {
+			this.cellType = NOTEBOOK_CELL_TYPE.bindTo(this._contextKeyService);
+			this.cellEditable = NOTEBOOK_CELL_EDITABLE.bindTo(this._contextKeyService);
+			this.cellFocused = NOTEBOOK_CELL_FOCUSED.bindTo(this._contextKeyService);
+			this.cellEditorFocused = NOTEBOOK_CELL_EDITOR_FOCUSED.bindTo(this._contextKeyService);
+			this.markdownEditMode = NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.bindTo(this._contextKeyService);
+			this.cellRunState = NOTEBOOK_CELL_EXECUTION_STATE.bindTo(this._contextKeyService);
+			this.cellExecuting = NOTEBOOK_CELL_EXECUTING.bindTo(this._contextKeyService);
+			this.cellHasOutputs = NOTEBOOK_CELL_HAS_OUTPUTS.bindTo(this._contextKeyService);
+			this.cellContentCollapsed = NOTEBOOK_CELL_INPUT_COLLAPSED.bindTo(this._contextKeyService);
+			this.cellOutputCollapsed = NOTEBOOK_CELL_OUTPUT_COLLAPSED.bindTo(this._contextKeyService);
+			this.cellLineNumbers = NOTEBOOK_CELL_LINE_NUMBERS.bindTo(this._contextKeyService);
+			this.cellResource = NOTEBOOK_CELL_RESOURCE.bindTo(this._contextKeyService);
 
-		if (element) {
-			this.updateForElement(element);
-		}
+			if (element) {
+				this.updateForElement(element);
+			}
+		});
 
 		this._register(this._notebookExecutionStateService.onDidChangeCellExecution(e => {
 			if (this.element && e.affectsCell(this.element.uri)) {
@@ -104,36 +106,40 @@ export class CellContextKeyManager extends Disposable {
 			this.cellType.set('code');
 		}
 
-		this.updateForFocusState();
-		this.updateForExecutionState();
-		this.updateForEditState();
-		this.updateForCollapseState();
-		this.updateForOutputs();
+		this._contextKeyService.bufferChangeEvents(() => {
+			this.updateForFocusState();
+			this.updateForExecutionState();
+			this.updateForEditState();
+			this.updateForCollapseState();
+			this.updateForOutputs();
 
-		this.cellLineNumbers.set(this.element!.lineNumbers);
-		this.cellResource.set(this.element!.uri.toString());
+			this.cellLineNumbers.set(this.element!.lineNumbers);
+			this.cellResource.set(this.element!.uri.toString());
+		});
 	}
 
 	private onDidChangeState(e: CellViewModelStateChangeEvent) {
-		if (e.internalMetadataChanged) {
-			this.updateForExecutionState();
-		}
+		this._contextKeyService.bufferChangeEvents(() => {
+			if (e.internalMetadataChanged) {
+				this.updateForExecutionState();
+			}
 
-		if (e.editStateChanged) {
-			this.updateForEditState();
-		}
+			if (e.editStateChanged) {
+				this.updateForEditState();
+			}
 
-		if (e.focusModeChanged) {
-			this.updateForFocusState();
-		}
+			if (e.focusModeChanged) {
+				this.updateForFocusState();
+			}
 
-		if (e.cellLineNumberChanged) {
-			this.cellLineNumbers.set(this.element!.lineNumbers);
-		}
+			if (e.cellLineNumberChanged) {
+				this.cellLineNumbers.set(this.element!.lineNumbers);
+			}
 
-		if (e.inputCollapsedChanged || e.outputCollapsedChanged) {
-			this.updateForCollapseState();
-		}
+			if (e.inputCollapsedChanged || e.outputCollapsedChanged) {
+				this.updateForCollapseState();
+			}
+		});
 	}
 
 	private updateForFocusState() {
