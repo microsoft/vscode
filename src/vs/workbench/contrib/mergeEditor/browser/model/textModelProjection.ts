@@ -49,7 +49,7 @@ export class TextModelProjection extends Disposable {
 
 	constructor(
 		public readonly targetDocument: ITextModel,
-		sourceDocument: ITextModel,
+		private readonly sourceDocument: ITextModel,
 		disposable: IDisposable,
 		projectionConfiguration: ProjectionConfiguration
 	) {
@@ -78,6 +78,7 @@ export class TextModelProjection extends Disposable {
 		let lineDelta = 0;
 		const blockQueue = new ArrayQueue(this.currentBlocks);
 		let lastLineNumber = 0;
+		const sourceDocument = this.sourceDocument;
 		return {
 			transform(position) {
 				if (position.lineNumber < lastLineNumber) {
@@ -93,6 +94,9 @@ export class TextModelProjection extends Disposable {
 					if (position.lineNumber + lineDelta > next.lineRange.startLineNumber) {
 						blockQueue.dequeue();
 						lineDelta += next.lineRange.lineCount - 1;
+					} else if (position.lineNumber + lineDelta === next.lineRange.startLineNumber && position.column === 2) {
+						const targetLineNumber = position.lineNumber + lineDelta + next.lineRange.lineCount - 1;
+						return new Position(targetLineNumber, sourceDocument.getLineMaxColumn(targetLineNumber));
 					} else {
 						break;
 					}

@@ -674,10 +674,16 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 			this.domNode.classList.add(...cssClass.split(' '));
 		}
 		this.toDispose.push(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, async e => {
-			if (this.breakpoint) {
-				await this.debugService.removeBreakpoints(this.breakpoint.getId());
-			} else {
-				await this.debugService.addBreakpoints(this.editor.getModel().uri, [{ lineNumber: this.range!.startLineNumber, column: this.range!.startColumn }]);
+			switch (this.breakpoint?.enabled) {
+				case undefined:
+					await this.debugService.addBreakpoints(this.editor.getModel().uri, [{ lineNumber: this.range!.startLineNumber, column: this.range!.startColumn }]);
+					break;
+				case true:
+					await this.debugService.removeBreakpoints(this.breakpoint.getId());
+					break;
+				case false:
+					this.debugService.enableOrDisableBreakpoints(true, this.breakpoint);
+					break;
 			}
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, e => {

@@ -11,7 +11,7 @@ import { localize } from 'vs/nls';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CLIOutput, IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
+import { ExtensionManagementCLI } from 'vs/platform/extensionManagement/common/extensionManagementCLI';
 import { getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -61,13 +61,13 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 		return;
 	}
 
-	const cliService = instantiationService.createChild(new ServiceCollection([IExtensionManagementService, remoteExtensionManagementService])).createInstance(RemoteExtensionCLIManagementService);
+	const cliService = instantiationService.createChild(new ServiceCollection([IExtensionManagementService, remoteExtensionManagementService])).createInstance(RemoteExtensionManagementCLI);
 
 	const lines: string[] = [];
 	const output = { log: lines.push.bind(lines), error: lines.push.bind(lines) };
 
 	if (args.list) {
-		await cliService.listExtensions(!!args.list.showVersions, args.list.category, output);
+		await cliService.listExtensions(!!args.list.showVersions, args.list.category, undefined, output);
 	} else {
 		const revive = (inputs: (string | UriComponents)[]) => inputs.map(input => isString(input) ? input : URI.revive(input));
 		if (Array.isArray(args.install) && args.install.length) {
@@ -79,7 +79,7 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 		}
 		if (Array.isArray(args.uninstall) && args.uninstall.length) {
 			try {
-				await cliService.uninstallExtensions(revive(args.uninstall), !!args.force, output);
+				await cliService.uninstallExtensions(revive(args.uninstall), !!args.force, undefined, output);
 			} catch (e) {
 				lines.push(e.message);
 			}
@@ -88,7 +88,7 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 	return lines.join('\n');
 });
 
-class RemoteExtensionCLIManagementService extends ExtensionManagementCLIService {
+class RemoteExtensionManagementCLI extends ExtensionManagementCLI {
 
 	private _location: string | undefined;
 

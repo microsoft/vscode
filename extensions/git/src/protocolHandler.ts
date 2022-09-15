@@ -74,7 +74,7 @@ export class GitProtocolHandler implements UriHandler {
 			const errorMessage = localize('no git', 'Could not clone your repository as Git is not installed.');
 			const downloadGit = localize('download git', 'Download Git');
 
-			if (await window.showErrorMessage(errorMessage, downloadGit) === downloadGit) {
+			if (await window.showErrorMessage(errorMessage, { modal: true }, downloadGit) === downloadGit) {
 				commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-download-git'));
 			}
 

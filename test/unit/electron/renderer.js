@@ -84,7 +84,6 @@ function initLoader(opts) {
 	loader = require(`${_out}/vs/loader`);
 	const loaderConfig = {
 		nodeRequire: require,
-		nodeMain: __filename,
 		catchError: true,
 		baseUrl: bootstrap.fileUriFromPath(path.join(__dirname, '../../../src'), { isWindows: process.platform === 'win32' }),
 		paths: {

@@ -20,7 +20,7 @@ gulp.task(compileApiProposalNamesTask);
 gulp.task(watchApiProposalNamesTask);
 
 // SWC Client Transpile
-const transpileClientSWCTask = task.define('transpile-client-swc', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), transpileClientSWC('src', 'out')));
+const transpileClientSWCTask = task.define('transpile-client-swc', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), transpileTask('src', 'out', true)));
 gulp.task(transpileClientSWCTask);
 
 // Transpile only

@@ -41,8 +41,10 @@ import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/pl
 import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSyncEnablementService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { InMemoryUserDataProfilesService, IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
+import { IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
+import { TestUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/test/common/userDataSyncProfilesStorageService.test';
 
 export class UserDataSyncClient extends Disposable {
 
@@ -75,7 +77,8 @@ export class UserDataSyncClient extends Disposable {
 					insidersUrl: this.testServer.url,
 					canSwitch: false,
 					authenticationProviders: { 'test': { scopes: [] } }
-				}
+				},
+				enableSyncingProfiles: true
 			}
 		});
 
@@ -86,9 +89,13 @@ export class UserDataSyncClient extends Disposable {
 		const uriIdentityService = this.instantiationService.createInstance(UriIdentityService);
 		this.instantiationService.stub(IUriIdentityService, uriIdentityService);
 
-		const userDataProfilesService = this.instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		const userDataProfilesService = new InMemoryUserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
+		this.instantiationService.stub(IUserDataProfilesService, userDataProfilesService);
+		userDataProfilesService.setEnablement(true);
 
-		this.instantiationService.stub(IStorageService, this._register(new InMemoryStorageService()));
+		const storageService = new TestStorageService(userDataProfilesService.defaultProfile);
+		this.instantiationService.stub(IStorageService, this._register(storageService));
+		this.instantiationService.stub(IUserDataSyncProfilesStorageService, this._register(new TestUserDataSyncProfilesStorageService(storageService)));
 
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, new NullPolicyService(), logService));
 		await configurationService.initialize();
@@ -140,7 +147,7 @@ export class UserDataSyncClient extends Disposable {
 	}
 
 	read(resource: SyncResource): Promise<IUserData> {
-		return this.instantiationService.get(IUserDataSyncStoreService).read(resource, null);
+		return this.instantiationService.get(IUserDataSyncStoreService).readResource(resource, null);
 	}
 
 	manifest(): Promise<IUserDataManifest | null> {
@@ -148,7 +155,7 @@ export class UserDataSyncClient extends Disposable {
 	}
 
 	getSynchronizer(source: SyncResource): IUserDataSynchroniser {
-		return (this.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getEnabledSynchronizers().find(s => s.resource === source)!;
+		return (this.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getProfileSynchronizers()[0].enabled.find(s => s.resource === source)!;
 	}
 
 }
@@ -174,6 +181,7 @@ export class UserDataSyncTestServer implements IRequestService {
 	reset(): void { this._requests = []; this._responses = []; this._requestsWithAllHeaders = []; }
 
 	private manifestRef = 0;
+	private collectionCounter = 1;
 
 	constructor(private readonly rateLimit = Number.MAX_SAFE_INTEGER, private readonly retryAfter?: number) { }
 
@@ -214,6 +222,12 @@ export class UserDataSyncTestServer implements IRequestService {
 		}
 		if (options.type === 'DELETE' && segments.length === 1 && segments[0] === 'resource') {
 			return this.clear(options.headers);
+		}
+		if (options.type === 'DELETE' && segments[0] === 'collection') {
+			return this.toResponse(204);
+		}
+		if (options.type === 'POST' && segments.length === 1 && segments[0] === 'collection') {
+			return this.toResponse(200, {}, `${this.collectionCounter++}`);
 		}
 		return this.toResponse(501);
 	}
@@ -263,6 +277,7 @@ export class UserDataSyncTestServer implements IRequestService {
 	async clear(headers?: IHeaders): Promise<IRequestContext> {
 		this.data.clear();
 		this.session = null;
+		this.collectionCounter = 1;
 		return this.toResponse(204);
 	}
 
@@ -299,3 +314,11 @@ export class TestUserDataSyncUtilService implements IUserDataSyncUtilService {
 
 }
 
+class TestStorageService extends InMemoryStorageService {
+	constructor(private readonly profileStorageProfile: IUserDataProfile) {
+		super();
+	}
+	override hasScope(profile: IUserDataProfile): boolean {
+		return this.profileStorageProfile.id === profile.id;
+	}
+}
