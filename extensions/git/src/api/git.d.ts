@@ -350,5 +350,6 @@ export const enum GitErrorCodes {
 	PatchDoesNotApply = 'PatchDoesNotApply',
 	NoPathFound = 'NoPathFound',
 	UnknownPath = 'UnknownPath',
-	EmptyCommitMessage = 'EmptyCommitMessage'
+	EmptyCommitMessage = 'EmptyCommitMessage',
+	BranchFastForwardRejected = 'BranchFastForwardRejected'
 }

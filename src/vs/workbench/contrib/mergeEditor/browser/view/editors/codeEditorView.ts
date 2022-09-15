@@ -5,8 +5,6 @@
 
 import { h } from 'vs/base/browser/dom';
 import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { autorun, derived, IObservable, observableFromEvent } from 'vs/base/common/observable';
@@ -15,10 +13,8 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
@@ -134,22 +130,14 @@ export class TitleMenu extends Disposable {
 	constructor(
 		menuId: MenuId,
 		targetHtmlElement: HTMLElement,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
-		const titleMenu = menuService.createMenu(menuId, contextKeyService);
-		const toolBar = new ToolBar(targetHtmlElement, contextMenuService);
-		const toolBarUpdate = () => {
-			const secondary: IAction[] = [];
-			createAndFillInActionBarActions(titleMenu, { renderShortTitle: true }, secondary);
-			toolBar.setActions([], secondary);
-		};
-		this._store.add(toolBar);
-		this._store.add(titleMenu);
-		this._store.add(titleMenu.onDidChange(toolBarUpdate));
-		toolBarUpdate();
+		const toolbar = instantiationService.createInstance(WorkbenchToolBar, targetHtmlElement, menuId, {
+			menuOptions: { renderShortTitle: true },
+			toolbarOptions: { primaryGroup: () => false }
+		});
+		this._store.add(toolbar);
 	}
 }
