@@ -42,7 +42,7 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 				let text = '';
 				if (fileName === currentTextDocument.uri) {
 					if (fileName.endsWith('html')) {
-						text = currentTextDocument.getText().replace(`<!--`, `/*`).replace(`-->`, `*/`);
+						text = currentTextDocument.getText().replace(`<!--`, `/* `).replace(`-->`, ` */`);
 					}
 					else {
 						text = currentTextDocument.getText();
