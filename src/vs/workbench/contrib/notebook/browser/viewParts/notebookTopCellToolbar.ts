@@ -5,7 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { HiddenItemStrategy, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -44,8 +44,9 @@ export class ListTopCellToolbar extends Disposable {
 				shouldForwardArgs: true
 			},
 			toolbarOptions: {
-				primaryGroup: g => /^inline/.test(g)
-			}
+				primaryGroup: g => /^inline/.test(g),
+				hiddenItemStrategy: HiddenItemStrategy.Hide,
+			},
 		}));
 
 		this.toolbar.context = <INotebookActionContext>{
