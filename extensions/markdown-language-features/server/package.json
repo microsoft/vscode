@@ -1,7 +1,7 @@
 {
   "name": "vscode-markdown-languageserver",
   "description": "Markdown language server",
-  "version": "0.0.0-alpha-3",
+  "version": "0.0.0-alpha-5",
   "author": "Microsoft Corporation",
   "license": "MIT",
   "engines": {

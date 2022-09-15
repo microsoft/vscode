@@ -2340,6 +2340,12 @@
           "default": false,
           "description": "%config.rebaseWhenSync%"
         },
+        "git.fetchBeforeCheckout": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.fetchBeforeCheckout%"
+        },
         "git.fetchOnPull": {
           "type": "boolean",
           "scope": "resource",

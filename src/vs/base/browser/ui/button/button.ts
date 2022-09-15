@@ -198,21 +198,24 @@ export class Button extends Disposable implements IButton {
 	set label(value: string) {
 		this._element.classList.add('monaco-text-button');
 		if (this.options.supportIcons) {
-			// Remove empty segments
-			const segments = renderLabelWithIcons(value)
-				.filter(segment => {
-					return (typeof (segment) === 'string' && segment.trim() === '') ? false : true;
-				});
-
-			// Convert string segments to <span> nodes
-			const content = segments.map(segment => {
+			const content: HTMLSpanElement[] = [];
+			for (let segment of renderLabelWithIcons(value)) {
 				if (typeof (segment) === 'string') {
+					segment = segment.trim();
+
+					// Ignore empty segment
+					if (segment === '') {
+						continue;
+					}
+
+					// Convert string segments to <span> nodes
 					const node = document.createElement('span');
-					node.textContent = segment.trim();
-					return node;
+					node.textContent = segment;
+					content.push(node);
+				} else {
+					content.push(segment);
 				}
-				return segment;
-			});
+			}
 
 			reset(this._element, ...content);
 		} else {
