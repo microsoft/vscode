@@ -1536,25 +1536,6 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async fastForwardBranch(options: { remote: string; ref: string; readonly cancellationToken?: CancellationToken }): Promise<void> {
-		const args = ['fetch', options.remote, `${options.ref}:${options.ref}`];
-		const spawnOptions: SpawnOptions = {
-			cancellationToken: options.cancellationToken,
-			env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
-		};
-
-		try {
-			await this.exec(args, spawnOptions);
-		} catch (err) {
-			if (/! \[rejected\].*\(non-fast-forward\)/m.test(err.stderr || '')) {
-				// The local branch has outgoing changes and it cannot be fast-forwarded.
-				return;
-			}
-
-			throw err;
-		}
-	}
-
 	async renameBranch(name: string): Promise<void> {
 		const args = ['branch', '-m', name];
 		await this.exec(args);
@@ -1727,6 +1708,9 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.NoRemoteRepositorySpecified;
 			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
+			} else if (/! \[rejected\].*\(non-fast-forward\)/m.test(err.stderr || '')) {
+				// The local branch has outgoing changes and it cannot be fast-forwarded.
+				err.gitErrorCode = GitErrorCodes.BranchFastForwardRejected;
 			}
 
 			throw err;
