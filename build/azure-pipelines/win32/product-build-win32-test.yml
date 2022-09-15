@@ -85,7 +85,6 @@ steps:
           compile-extension:typescript-language-features `
           compile-extension:vscode-api-tests `
           compile-extension:vscode-colorize-tests `
-          compile-extension:vscode-notebook-tests `
           compile-extension:vscode-test-resolver `
         }
       displayName: Build integration tests
@@ -157,6 +156,11 @@ steps:
           $ErrorActionPreference = "Stop"
           exec { yarn --cwd test/smoke compile }
         displayName: Compile smoke tests
+
+      - script: |
+          set -e
+          yarn gulp compile-extension-media
+        displayName: Build extensions for smoke tests
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
