@@ -10,7 +10,6 @@ import { PluginManager } from '../utils/plugins';
 import { CommandManager } from './commandManager';
 import { ConfigurePluginCommand } from './configurePlugin';
 import { JavaScriptGoToProjectConfigCommand, TypeScriptGoToProjectConfigCommand } from './goToProjectConfiguration';
-import { CreateNewJSFileCommand, DebugJsFileCommand, JsWalkthroughState } from './jsWalkthrough';
 import { LearnMoreAboutRefactoringsCommand } from './learnMoreAboutRefactorings';
 import { OpenTsServerLogCommand } from './openTsServerLog';
 import { ReloadJavaScriptProjectsCommand, ReloadTypeScriptProjectsCommand } from './reloadProject';
@@ -23,7 +22,6 @@ export function registerBaseCommands(
 	lazyClientHost: Lazy<TypeScriptServiceClientHost>,
 	pluginManager: PluginManager,
 	activeJsTsEditorTracker: ActiveJsTsEditorTracker,
-	jsWalkthroughState: JsWalkthroughState
 ): void {
 	commandManager.register(new ReloadTypeScriptProjectsCommand(lazyClientHost));
 	commandManager.register(new ReloadJavaScriptProjectsCommand(lazyClientHost));
@@ -35,6 +33,4 @@ export function registerBaseCommands(
 	commandManager.register(new ConfigurePluginCommand(pluginManager));
 	commandManager.register(new LearnMoreAboutRefactoringsCommand());
 	commandManager.register(new TSServerRequestCommand(lazyClientHost));
-	commandManager.register(new CreateNewJSFileCommand(jsWalkthroughState));
-	commandManager.register(new DebugJsFileCommand(jsWalkthroughState));
 }
