@@ -154,17 +154,19 @@ exports.createVSCodeWebFileContentMapper = createVSCodeWebFileContentMapper;
 const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 	util.rimraf('out-vscode-web'),
 	optimize.optimizeTask(
-		'out-vscode-web',
 		{
-			src: 'out-build',
-			entryPoints: _.flatten(vscodeWebEntryPoints),
-			otherSources: [],
-			resources: vscodeWebResources,
-			loaderConfig: optimize.loaderConfig(),
-			externalLoaderInfo: util.createExternalLoaderConfig(product.webEndpointUrl, commit, quality),
-			inlineAmdImages: true,
-			bundleInfo: undefined,
-			fileContentMapper: createVSCodeWebFileContentMapper('.build/web/extensions', product)
+			out: 'out-vscode-web',
+			amd: {
+				src: 'out-build',
+				entryPoints: _.flatten(vscodeWebEntryPoints),
+				otherSources: [],
+				resources: vscodeWebResources,
+				loaderConfig: optimize.loaderConfig(),
+				externalLoaderInfo: util.createExternalLoaderConfig(product.webEndpointUrl, commit, quality),
+				inlineAmdImages: true,
+				bundleInfo: undefined,
+				fileContentMapper: createVSCodeWebFileContentMapper('.build/web/extensions', product)
+			}
 		}
 	)
 ));
