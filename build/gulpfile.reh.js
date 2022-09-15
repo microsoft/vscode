@@ -378,7 +378,6 @@ function tweakProductForServerWeb(product) {
 					],
 					platform: 'node',
 					external: [
-						'electron',
 						'minimist',
 						// TODO: we cannot inline `product.json` because
 						// it is being changed during build time at a later
