@@ -54,7 +54,7 @@ export function activate(
 	registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker);
 
 	// Currently no variables in use.
-	new ExperimentationService(context);
+	context.subscriptions.push(new ExperimentationService(context));
 
 	import('./task/taskProvider').then(module => {
 		context.subscriptions.push(module.register(lazyClientHost.map(x => x.serviceClient)));
