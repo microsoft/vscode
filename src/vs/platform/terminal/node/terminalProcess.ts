@@ -277,7 +277,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			throw new Error('IShellLaunchConfig.executable not set');
 		}
 
-		const cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd!;
+		const cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd;
 		const envPaths: string[] | undefined = (slc.env && slc.env.PATH) ? slc.env.PATH.split(path.delimiter) : undefined;
 		const executable = await findExecutable(slc.executable!, cwd, envPaths, this._executableEnv);
 		if (!executable) {
