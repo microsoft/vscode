@@ -58,14 +58,9 @@ const serverResources = [
 	'out-build/bootstrap-fork.js',
 	'out-build/bootstrap-amd.js',
 	'out-build/bootstrap-node.js',
-	'out-build/paths.js',
 
 	// Performance
 	'out-build/vs/base/common/performance.js',
-
-	// main entry points
-	'out-build/server-cli.js',
-	'out-build/server-main.js',
 
 	// Watcher
 	'out-build/vs/platform/files/**/*.exe',
