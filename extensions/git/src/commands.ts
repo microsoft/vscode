@@ -554,9 +554,17 @@ export class CommandCenter {
 				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive }, token)
 			);
 
-			if (options.ref !== undefined) {
-				const repository = this.model.getRepository(Uri.file(repositoryPath));
-				await repository?.checkout(options.ref);
+			const refToCheckoutAfterClone = options.ref;
+			if (refToCheckoutAfterClone !== undefined) {
+				await window.withProgress(
+					{
+						location: ProgressLocation.Notification,
+						title: localize('checking out ref', "Checking out ref '{0}'...", options.ref)
+					}, async () => {
+						await this.model.openRepository(repositoryPath);
+						const repository = this.model.getRepository(repositoryPath);
+						await repository?.checkout(refToCheckoutAfterClone);
+					});
 			}
 
 			const config = workspace.getConfiguration('git');
