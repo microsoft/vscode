@@ -347,11 +347,11 @@ suite('SearchResult', () => {
 		const testObject = getPopulatedSearchResult();
 
 		const folderMatch = testObject.folderMatches()[0];
-		const fileMatch = testObject.folderMatches()[1].matches()[0];
-		const match = testObject.folderMatches()[1].matches()[1].matches()[0];
+		const fileMatch = testObject.folderMatches()[1].fileMatches()[0];
+		const match = testObject.folderMatches()[1].fileMatches()[1].matches()[0];
 
 		const arrayToRemove = [folderMatch, fileMatch, match];
-		const expectedArrayResult = folderMatch.matches().concat([fileMatch, match.parent()]);
+		const expectedArrayResult = folderMatch.fileMatches().concat([fileMatch, match.parent()]);
 
 		testObject.onChange(target);
 		testObject.batchRemove(arrayToRemove);
@@ -375,10 +375,10 @@ suite('SearchResult', () => {
 		const testObject = getPopulatedSearchResult();
 
 		const folderMatch = testObject.folderMatches()[0];
-		const fileMatch = testObject.folderMatches()[1].matches()[0];
-		const match = testObject.folderMatches()[1].matches()[1].matches()[0];
+		const fileMatch = testObject.folderMatches()[1].fileMatches()[0];
+		const match = testObject.folderMatches()[1].fileMatches()[1].matches()[0];
 
-		const firstExpectedMatch = folderMatch.matches()[0];
+		const firstExpectedMatch = folderMatch.fileMatches()[0];
 
 		const arrayToRemove = [folderMatch, fileMatch, match];
 

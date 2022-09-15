@@ -117,12 +117,12 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 			if (workspaceFolder && isEqual(workspaceFolder.uri, folderMatch.resource)) {
 				templateData.label.setFile(folderMatch.resource, { fileKind: FileKind.ROOT_FOLDER, hidePath: true });
 			} else {
-				templateData.label.setFile(folderMatch.resource, { fileKind: FileKind.FOLDER });
+				templateData.label.setFile(folderMatch.resource, { fileKind: FileKind.FOLDER, hidePath: this.searchView.isTreeViewVisible });
 			}
 		} else {
 			templateData.label.setLabel(nls.localize('searchFolderMatch.other.label', "Other files"));
 		}
-		const count = folderMatch.fileCount();
+		const count = this.searchView.isTreeViewVisible ? folderMatch.count() : folderMatch.recursiveCount();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchFileMatches', "{0} files found", count) : nls.localize('searchFileMatch', "{0} file found", count));
 
@@ -184,7 +184,7 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 	renderElement(node: ITreeNode<FileMatch, any>, index: number, templateData: IFileMatchTemplate): void {
 		const fileMatch = node.element;
 		templateData.el.setAttribute('data-resource', fileMatch.resource.toString());
-		templateData.label.setFile(fileMatch.resource, { hideIcon: false, fileDecorations: { colors: true, badges: true } });
+		templateData.label.setFile(fileMatch.resource, { hidePath: this.searchView.isTreeViewVisible, hideIcon: false, fileDecorations: { colors: true, badges: true } });
 		const count = fileMatch.count();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));

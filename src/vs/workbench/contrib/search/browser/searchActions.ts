@@ -291,21 +291,40 @@ export function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 		 */
 		const navigator = viewer.navigate();
 		let node = navigator.first();
-		let collapseFileMatchLevel = false;
+		let canCollapseFileMatchLevel = false;
+		let canCollapseFirstLevel = false;
+
 		if (node instanceof FolderMatch) {
 			while (node = navigator.next()) {
 				if (node instanceof Match) {
-					collapseFileMatchLevel = true;
+					canCollapseFileMatchLevel = true;
 					break;
+				}
+				const immediateParent = node.parent();
+				if (searchView.isTreeViewVisible && !canCollapseFirstLevel && !(immediateParent instanceof SearchResult) && !(immediateParent.parent() instanceof SearchResult)) {
+					canCollapseFirstLevel = true;
 				}
 			}
 		}
 
-		if (collapseFileMatchLevel) {
+		if (canCollapseFileMatchLevel) {
 			node = navigator.first();
 			do {
 				if (node instanceof FileMatch) {
 					viewer.collapse(node);
+				}
+			} while (node = navigator.next());
+		} else if (canCollapseFirstLevel) {
+
+			node = navigator.first();
+			do {
+				if (!node) {
+					break;
+				}
+
+				const immediateParent = node.parent();
+				if (!(immediateParent instanceof SearchResult) && !(immediateParent.parent() instanceof SearchResult)) {
+					viewer.collapse(immediateParent);
 				}
 			} while (node = navigator.next());
 		} else {
@@ -690,7 +709,15 @@ function matchToString(match: Match, indent = 0): string {
 
 	return formattedLines.join('\n');
 }
+function fileFolderMatchToString(match: FileMatch | FolderMatch | FolderMatchWithResource, labelService: ILabelService): { text: string; count: number } {
 
+	if (match instanceof FileMatch) {
+
+		return fileMatchToString(match, labelService);
+	} else {
+		return folderMatchToString(match, labelService);
+	}
+}
 const lineDelimiter = isWindows ? '\r\n' : '\n';
 function fileMatchToString(fileMatch: FileMatch, labelService: ILabelService): { text: string; count: number } {
 	const matchTextRows = fileMatch.matches()
@@ -704,19 +731,19 @@ function fileMatchToString(fileMatch: FileMatch, labelService: ILabelService): {
 }
 
 function folderMatchToString(folderMatch: FolderMatchWithResource | FolderMatch, labelService: ILabelService): { text: string; count: number } {
-	const fileResults: string[] = [];
+	const results: string[] = [];
 	let numMatches = 0;
 
 	const matches = folderMatch.matches().sort(searchMatchComparer);
 
 	matches.forEach(match => {
-		const fileResult = fileMatchToString(match, labelService);
-		numMatches += fileResult.count;
-		fileResults.push(fileResult.text);
+		const result = fileFolderMatchToString(match, labelService);
+		numMatches += result.count;
+		results.push(result.text);
 	});
 
 	return {
-		text: fileResults.join(lineDelimiter + lineDelimiter),
+		text: results.join(lineDelimiter + lineDelimiter),
 		count: numMatches
 	};
 }

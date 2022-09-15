@@ -77,7 +77,7 @@ import { createEditorFromSearchResult } from 'vs/workbench/contrib/searchEditor/
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from 'vs/workbench/services/search/common/search';
 import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
@@ -154,6 +154,8 @@ export class SearchView extends ViewPane {
 
 	private treeAccessibilityProvider: SearchAccessibilityProvider;
 
+	private treeViewKey: IContextKey<boolean>;
+
 	constructor(
 		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
@@ -203,6 +205,7 @@ export class SearchView extends ViewPane {
 		this.hasReplacePatternKey = Constants.ViewHasReplacePatternKey.bindTo(this.contextKeyService);
 		this.hasFilePatternKey = Constants.ViewHasFilePatternKey.bindTo(this.contextKeyService);
 		this.hasSomeCollapsibleResultKey = Constants.ViewHasSomeCollapsibleKey.bindTo(this.contextKeyService);
+		this.treeViewKey = Constants.InTreeViewKey.bindTo(this.contextKeyService);
 
 		// scoped
 		this.contextKeyService = this._register(this.contextKeyService.createScoped(this.container));
@@ -242,6 +245,22 @@ export class SearchView extends ViewPane {
 		this.triggerQueryDelayer = this._register(new Delayer<void>(0));
 
 		this.treeAccessibilityProvider = this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel);
+		this.isTreeViewVisible = (this.searchConfig.defaultViewMode === ViewMode.Tree);
+	}
+
+	get isTreeViewVisible(): boolean {
+		return this.treeViewKey.get() ?? false;
+	}
+
+	private set isTreeViewVisible(visible: boolean) {
+		this.treeViewKey.set(visible);
+	}
+	setTreeView(visible: boolean): void {
+		if (visible === this.isTreeViewVisible) {
+			return;
+		}
+		this.isTreeViewVisible = visible;
+		this.refreshTree();
 	}
 
 	private get state(): SearchUIState {
@@ -550,24 +569,31 @@ export class SearchView extends ViewPane {
 
 	private createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ITreeElement<RenderableMatch>> {
 		const sortOrder = this.searchConfig.sortOrder;
-		const matches = folderMatch.matches().sort((a, b) => searchMatchComparer(a, b, sortOrder));
 
-		return Iterable.map(matches, fileMatch => {
-			const children = this.createFileIterator(fileMatch);
+		const matchArray = this.isTreeViewVisible ? folderMatch.matches() : folderMatch.downstreamFileMatches();
+		const matches = matchArray.sort((a, b) => searchMatchComparer(a, b, sortOrder));
 
+		return Iterable.map(matches, match => {
+			let children;
+			if (match instanceof FileMatch) {
+				children = this.createFileIterator(match);
+			} else {
+				children = this.createFolderIterator(match, collapseResults);
+			}
 			let nodeExists = true;
-			try { this.tree.getNode(fileMatch); } catch (e) { nodeExists = false; }
+			try { this.tree.getNode(match); } catch (e) { nodeExists = false; }
 
 			const collapsed = nodeExists ? undefined :
-				(collapseResults === 'alwaysCollapse' || (fileMatch.matches().length > 10 && collapseResults !== 'alwaysExpand'));
+				(collapseResults === 'alwaysCollapse' || (match instanceof FileMatch && (match.matches().length > 10 && collapseResults !== 'alwaysExpand')));
 
-			return <ITreeElement<RenderableMatch>>{ element: fileMatch, children, collapsed };
+			return <ITreeElement<RenderableMatch>>{ element: match, children, collapsed };
 		});
 	}
 
 	private createFileIterator(fileMatch: FileMatch): Iterable<ITreeElement<RenderableMatch>> {
 		const matches = fileMatch.matches().sort(searchMatchComparer);
-		return Iterable.map(matches, r => (<ITreeElement<RenderableMatch>>{ element: r }));
+		const map = Iterable.map(matches, r => (<ITreeElement<RenderableMatch>>{ element: r }));
+		return map;
 	}
 
 	private createIterator(match: FolderMatch | FileMatch | SearchResult, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ITreeElement<RenderableMatch>> {
