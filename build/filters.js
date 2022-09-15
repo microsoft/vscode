@@ -82,7 +82,6 @@ module.exports.indentationFilter = [
 	'!test/monaco/out/**',
 	'!test/smoke/out/**',
 	'!extensions/typescript-language-features/test-workspace/**',
-	'!extensions/typescript-language-features/resources/walkthroughs/**',
 	'!extensions/markdown-math/notebook-out/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
