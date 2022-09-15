@@ -20,7 +20,7 @@ const _ = require('underscore');
 const util = require('./lib/util');
 const task = require('./lib/task');
 const buildfile = require('../src/buildfile');
-const common = require('./lib/optimize');
+const optimize = require('./lib/optimize');
 const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 const packageJson = require('../package.json');
@@ -85,21 +85,18 @@ const vscodeResources = [
 
 const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 	util.rimraf('out-vscode'),
-	common.optimizeTask(
+	optimize.optimizeTask(
 		{
 			out: 'out-vscode',
 			amd: {
 				src: 'out-build',
 				entryPoints: vscodeEntryPoints,
 				resources: vscodeResources,
-				loaderConfig: common.loaderConfig(),
+				loaderConfig: optimize.loaderConfig(),
 				bundleInfo: undefined
 			},
 			commonJS: {
 				src: 'out-build',
-				// TODO: we limit CommonJS optimization to selected
-				// enty points. we can add more but each needs
-				// individual testing and verification
 				entryPoints: [
 					'out-build/main.js',
 					'out-build/cli.js'
@@ -123,7 +120,7 @@ const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${
 const minifyVSCodeTask = task.define('minify-vscode', task.series(
 	optimizeVSCodeTask,
 	util.rimraf('out-vscode-min'),
-	common.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
+	optimize.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
 ));
 gulp.task(minifyVSCodeTask);
 

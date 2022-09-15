@@ -10,7 +10,7 @@ const path = require('path');
 const es = require('event-stream');
 const util = require('./lib/util');
 const task = require('./lib/task');
-const common = require('./lib/optimize');
+const optimize = require('./lib/optimize');
 const product = require('../product.json');
 const rename = require('gulp-rename');
 const replace = require('gulp-replace');
@@ -357,7 +357,7 @@ function tweakProductForServerWeb(product) {
 ['reh', 'reh-web'].forEach(type => {
 	const optimizeTask = task.define(`optimize-vscode-${type}`, task.series(
 		util.rimraf(`out-vscode-${type}`),
-		common.optimizeTask(
+		optimize.optimizeTask(
 			{
 				out: `out-vscode-${type}`,
 				amd: {
@@ -365,10 +365,26 @@ function tweakProductForServerWeb(product) {
 					entryPoints: _.flatten(type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints),
 					otherSources: [],
 					resources: type === 'reh' ? serverResources : serverWithWebResources,
-					loaderConfig: common.loaderConfig(),
+					loaderConfig: optimize.loaderConfig(),
 					inlineAmdImages: true,
 					bundleInfo: undefined,
 					fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
+				},
+				commonJS: {
+					src: 'out-build',
+					entryPoints: [
+						'out-build/server-main.js',
+						'out-build/server-cli.js'
+					],
+					platform: 'node',
+					external: [
+						'electron',
+						'minimist',
+						// TODO: we cannot inline `product.json` because
+						// it is being changed during build time at a later
+						// point in time (such as `checksums`)
+						'../product.json'
+					]
 				}
 			}
 		)
@@ -377,7 +393,7 @@ function tweakProductForServerWeb(product) {
 	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
 		optimizeTask,
 		util.rimraf(`out-vscode-${type}-min`),
-		common.minifyTask(`out-vscode-${type}`, `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
+		optimize.minifyTask(`out-vscode-${type}`, `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
 	));
 	gulp.task(minifyTask);
 
