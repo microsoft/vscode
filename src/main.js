@@ -24,7 +24,7 @@ const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath
 const { stripComments } = require('./vs/base/common/stripComments');
 /** @type {Partial<IProductConfiguration>} */
 const product = require('../product.json');
-const { app, protocol, crashReporter } = require('electron');
+const { app, protocol, crashReporter, Menu } = require('electron');
 
 // Enable portable support
 const portable = bootstrapNode.configurePortable(product);
@@ -43,6 +43,9 @@ const codeCachePath = getCodeCachePath();
 // Configure static command line arguments
 const argvConfig = configureCommandlineSwitchesSync(args);
 
+// Disable default menu (https://github.com/electron/electron/issues/35512)
+Menu.setApplicationMenu(null);
+
 // Configure crash reporter
 perf.mark('code/willStartCrashReporter');
 // If a crash-reporter-directory is specified we store the crash reports
@@ -53,8 +56,7 @@ perf.mark('code/willStartCrashReporter');
 // * --disable-crash-reporter command line parameter is not set
 //
 // Disable crash reporting in all other cases.
-if (args['crash-reporter-directory'] ||
-	(argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter'])) {
+if (args['crash-reporter-directory'] || (argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter'])) {
 	configureCrashReporter();
 }
 perf.mark('code/didStartCrashReporter');
@@ -390,7 +392,7 @@ function configureCrashReporter() {
 	// Start crash reporter for all processes
 	const productName = (product.crashReporter ? product.crashReporter.productName : undefined) || product.nameShort;
 	const companyName = (product.crashReporter ? product.crashReporter.companyName : undefined) || 'Microsoft';
-	const uploadToServer = !process.env['VSCODE_DEV'] && submitURL && !crashReporterDirectory;
+	const uploadToServer = Boolean(!process.env['VSCODE_DEV'] && submitURL && !crashReporterDirectory);
 	crashReporter.start({
 		companyName,
 		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
@@ -413,7 +415,7 @@ function getJSFlags(cliArgs) {
 	}
 
 	// Support max-memory flag
-	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'])) {
+	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'] ?? '')) {
 		jsFlags.push(`--max_old_space_size=${cliArgs['max-memory']}`);
 	}
 

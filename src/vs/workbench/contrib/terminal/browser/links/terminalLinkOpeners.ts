@@ -66,12 +66,18 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 		const fileNameEndIndex: number = index !== -1 ? index + fileName.length : link.length;
 
 		// Sanitize the link text such that the folders and file name do not contain whitespace.
-		link = link.slice(0, fileNameEndIndex).replace(/\s/g, '_') + link.slice(fileNameEndIndex);
+		let sanitizedLink = link.slice(0, fileNameEndIndex).replace(/\s/g, '_') + link.slice(fileNameEndIndex);
+
+		// Remove / suffixes from Windows paths such that the windows link regex works
+		// (eg. /c:/file -> c:/file)
+		if (this._os === OperatingSystem.Windows && sanitizedLink.match(/^\/[a-z]:\//i)) {
+			sanitizedLink = sanitizedLink.slice(1);
+		}
 
 		// The local link regex only works for non file:// links, check these for a simple
 		// `:line:col` suffix
-		if (link.startsWith('file://')) {
-			const simpleMatches = link.match(/:(\d+)(:(\d+))?$/);
+		if (sanitizedLink.startsWith('file://')) {
+			const simpleMatches = sanitizedLink.match(/:(\d+)(:(\d+))?$/);
 			if (simpleMatches) {
 				if (simpleMatches[1] !== undefined) {
 					lineColumnInfo.lineNumber = parseInt(simpleMatches[1]);
@@ -83,7 +89,7 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 			return lineColumnInfo;
 		}
 
-		const matches: string[] | null = getLocalLinkRegex(this._os).exec(link);
+		const matches: string[] | null = getLocalLinkRegex(this._os).exec(sanitizedLink);
 		if (!matches) {
 			return lineColumnInfo;
 		}
@@ -132,7 +138,7 @@ export class TerminalLocalFolderOutsideWorkspaceLinkOpener implements ITerminalL
 }
 
 export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
-	private readonly _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
+	protected _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
 
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
@@ -229,13 +235,32 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		if (!resourceMatch) {
 			const results = await this._searchService.fileSearch(
 				this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
-					// Remove optional :row:col from the link as openEditor supports it
 					filePattern: sanitizedLink,
 					maxResults: 2
 				})
 			);
-			if (results.results.length === 1) {
-				resourceMatch = { uri: results.results[0].resource };
+			if (results.results.length > 0) {
+				if (results.results.length === 1) {
+					// If there's exactly 1 search result, return it regardless of whether it's
+					// exact or partial.
+					resourceMatch = { uri: results.results[0].resource };
+				} else if (!isAbsolute) {
+					// For non-absolute links, exact link matching is allowed only if there is a single an exact
+					// file match. For example searching for `foo.txt` when there is no cwd information
+					// available (ie. only the initial cwd) should open the file directly only if there is a
+					// single file names `foo.txt` anywhere within the folder. These same rules apply to
+					// relative paths with folders such as `src/foo.txt`.
+					const results = await this._searchService.fileSearch(
+						this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
+							filePattern: `**/${sanitizedLink}`
+						})
+					);
+					// Find an exact match if it exists
+					const exactMatches = results.results.filter(e => e.resource.toString().endsWith(sanitizedLink));
+					if (exactMatches.length === 1) {
+						resourceMatch = { uri: exactMatches[0].resource };
+					}
+				}
 			}
 		}
 		return resourceMatch;
@@ -243,16 +268,6 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 
 	private async _tryOpenExactLink(text: string, link: ITerminalSimpleLink): Promise<boolean> {
 		const sanitizedLink = text.replace(/:\d+(:\d+)?$/, '');
-		// For links made up of only a file name (no folder), disallow exact link matching. For
-		// example searching for `foo.txt` when there is no cwd information available (ie. only the
-		// initial cwd) should NOT search  as it's ambiguous if there are multiple matches.
-		//
-		// However, for a link like `src/foo.txt`, if there's an exact match for `src/foo.txt` in
-		// any folder we want to take it, even if there are partial matches like `src2/foo.txt`
-		// available.
-		if (!sanitizedLink.match(/[\\/]/)) {
-			return false;
-		}
 		try {
 			const result = await this._getExactMatch(sanitizedLink);
 			if (result) {

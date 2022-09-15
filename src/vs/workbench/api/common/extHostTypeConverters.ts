@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { asArray, coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { encodeBase64, VSBuffer } from 'vs/base/common/buffer';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ResourceSet } from 'vs/base/common/map';
@@ -40,7 +40,7 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
 import { once } from 'vs/base/common/functional';
-import { VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { IDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
 
 export namespace Command {
 
@@ -569,7 +569,7 @@ export namespace WorkspaceEdit {
 		getNotebookDocumentVersion(uri: URI): number | undefined;
 	}
 
-	export function from(value: vscode.WorkspaceEdit, versionInfo?: IVersionInformationProvider, allowSnippetTextEdit?: boolean): extHostProtocol.IWorkspaceEditDto {
+	export function from(value: vscode.WorkspaceEdit, versionInfo?: IVersionInformationProvider): extHostProtocol.IWorkspaceEditDto {
 		const result: extHostProtocol.IWorkspaceEditDto = {
 			edits: []
 		};
@@ -592,7 +592,7 @@ export namespace WorkspaceEdit {
 					result.edits.push(<languages.IWorkspaceFileEdit>{
 						oldResource: entry.from,
 						newResource: entry.to,
-						options: entry.options,
+						options: { ...entry.options, contentsBase64: entry.options?.contents && encodeBase64(VSBuffer.wrap(entry.options.contents)) },
 						metadata: entry.metadata
 					});
 
@@ -605,11 +605,6 @@ export namespace WorkspaceEdit {
 						metadata: entry.metadata
 					});
 				} else if (entry._type === types.FileEditType.Snippet) {
-					// snippet text edits
-					if (!allowSnippetTextEdit) {
-						console.warn(`DROPPING snippet text edit because proposal IS NOT ENABLED`, entry);
-						continue;
-					}
 					result.edits.push(<languages.IWorkspaceTextEdit>{
 						resource: entry.uri,
 						textEdit: {
@@ -1763,7 +1758,7 @@ export namespace TestItem {
 			extId: TestId.fromExtHostTestItem(item, ctrlId).toString(),
 			label: item.label,
 			uri: URI.revive(item.uri),
-			busy: false,
+			busy: item.busy,
 			tags: item.tags.map(t => TestTag.namespace(ctrlId, t.id)),
 			range: editorRange.Range.lift(Range.from(item.range)),
 			description: item.description || null,
@@ -1794,7 +1789,7 @@ export namespace TestItem {
 			},
 			range: Range.to(item.range || undefined),
 			canResolveChildren: false,
-			busy: false,
+			busy: item.busy,
 			description: item.description || undefined,
 			sortText: item.sortText || undefined,
 		};
@@ -1976,7 +1971,7 @@ export namespace DataTransferItem {
 						data: once(() => resolveFileData()),
 					};
 				}
-			}('');
+			}('', item.id);
 		} else {
 			return new types.DataTransferItem(item.asString);
 		}
@@ -1984,9 +1979,9 @@ export namespace DataTransferItem {
 }
 
 export namespace DataTransfer {
-	export function toDataTransfer(value: extHostProtocol.DataTransferDTO, resolveFileData: (dataItemIndex: number) => Promise<Uint8Array>): types.DataTransfer {
-		const init = value.items.map(([type, item], index) => {
-			return [type, DataTransferItem.toDataTransferItem(item, () => resolveFileData(index))] as const;
+	export function toDataTransfer(value: extHostProtocol.DataTransferDTO, resolveFileData: (itemId: string) => Promise<Uint8Array>): types.DataTransfer {
+		const init = value.items.map(([type, item]) => {
+			return [type, DataTransferItem.toDataTransferItem(item, () => resolveFileData(item.id))] as const;
 		});
 		return new types.DataTransfer(init);
 	}
@@ -1995,11 +1990,13 @@ export namespace DataTransfer {
 		const newDTO: extHostProtocol.DataTransferDTO = { items: [] };
 
 		const promises: Promise<any>[] = [];
+
 		value.forEach((value, key) => {
 			promises.push((async () => {
 				const stringValue = await value.asString();
 				const fileValue = value.asFile();
 				newDTO.items.push([key, {
+					id: (value as IDataTransferItem | types.DataTransferItem).id,
 					asString: stringValue,
 					fileData: fileValue ? { name: fileValue.name, uri: fileValue.uri } : undefined,
 				}]);

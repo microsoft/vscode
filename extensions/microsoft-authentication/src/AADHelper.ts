@@ -259,6 +259,9 @@ export class AzureActiveDirectoryService {
 		if (!scopes.includes('profile')) {
 			scopes.push('profile');
 		}
+		if (!scopes.includes('offline_access')) {
+			scopes.push('offline_access');
+		}
 		scopes = scopes.sort();
 		const scopeData: IScopeData = {
 			scopes,

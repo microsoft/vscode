@@ -10,6 +10,7 @@ import { localize } from 'vs/nls';
  */
 export const terminalStrings = {
 	terminal: localize('terminal', "Terminal"),
+	new: localize('terminal.new', "New Terminal"),
 	doNotShowAgain: localize('doNotShowAgain', 'Do Not Show Again'),
 	currentSessionCategory: localize('currentSessionCategory', 'current session'),
 	previousSessionCategory: localize('previousSessionCategory', 'previous session'),

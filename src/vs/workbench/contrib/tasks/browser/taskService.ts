@@ -31,10 +31,6 @@ export class TaskService extends AbstractTaskService {
 					this._taskRunningState.set(taskSystem.isActiveSync());
 					this._onDidStateChange.fire(event);
 				}),
-				taskSystem.onDidReconnectToTerminals((event) => {
-					this._taskRunningState.set(taskSystem.isActiveSync());
-					this._onDidReconnectToTerminals.fire(event);
-				})
 			];
 		return this._taskSystem;
 	}

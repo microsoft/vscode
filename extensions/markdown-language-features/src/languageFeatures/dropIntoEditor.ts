@@ -53,16 +53,20 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTr
 		}
 	}
 
+	return createUriListSnippet(document, uris);
+}
+
+export function createUriListSnippet(document: vscode.TextDocument, uris: readonly vscode.Uri[]): vscode.SnippetString | undefined {
 	if (!uris.length) {
-		return;
+		return undefined;
 	}
 
-	const docUri = getParentDocumentUri(document);
+	const dir = getDocumentDir(document);
 
 	const snippet = new vscode.SnippetString();
 	uris.forEach((uri, i) => {
-		const mdPath = docUri.scheme === uri.scheme && docUri.authority === uri.authority
-			? encodeURI(path.relative(URI.Utils.dirname(docUri).fsPath, uri.fsPath).replace(/\\/g, '/'))
+		const mdPath = dir && dir.scheme === uri.scheme && dir.authority === uri.authority
+			? encodeURI(path.relative(dir.fsPath, uri.fsPath).replace(/\\/g, '/'))
 			: uri.toString(false);
 
 		const ext = URI.Utils.extname(uri).toLowerCase();
@@ -74,8 +78,15 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTr
 			snippet.appendText(' ');
 		}
 	});
-
 	return snippet;
+}
+
+function getDocumentDir(document: vscode.TextDocument): vscode.Uri | undefined {
+	const docUri = getParentDocumentUri(document);
+	if (docUri.scheme === Schemes.untitled) {
+		return vscode.workspace.workspaceFolders?.[0]?.uri;
+	}
+	return URI.Utils.dirname(docUri);
 }
 
 function getParentDocumentUri(document: vscode.TextDocument): vscode.Uri {

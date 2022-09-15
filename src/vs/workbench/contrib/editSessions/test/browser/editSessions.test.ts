@@ -17,7 +17,7 @@ import { ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { mock } from 'vs/base/test/common/mock';
 import * as sinon from 'sinon';
 import * as assert from 'assert';
@@ -81,6 +81,9 @@ suite('Edit session sync', () => {
 						toResource: (relativePath: string) => joinPath(folderUri, relativePath)
 					}]
 				};
+			}
+			override getWorkbenchState() {
+				return WorkbenchState.FOLDER;
 			}
 		});
 

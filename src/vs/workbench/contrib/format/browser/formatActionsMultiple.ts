@@ -240,6 +240,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	DefaultFormatter,
+	'DefaultFormatter',
 	LifecyclePhase.Restored
 );
 

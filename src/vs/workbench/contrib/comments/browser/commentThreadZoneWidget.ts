@@ -97,6 +97,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private readonly _onDidClose = new Emitter<ReviewZoneWidget | undefined>();
 	private readonly _onDidCreateThread = new Emitter<ReviewZoneWidget>();
 	private _isExpanded?: boolean;
+	private _initialCollapsibleState?: languages.CommentThreadCollapsibleState;
 	private _commentGlyph?: CommentGlyphWidget;
 	private readonly _globalToDispose = new DisposableStore();
 	private _commentThreadDisposables: IDisposable[] = [];
@@ -134,7 +135,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._commentOptions = controller.options;
 		}
 
-		this._isExpanded = _commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded;
+		this._initialCollapsibleState = _commentThread.initialCollapsibleState;
+		this._isExpanded = _commentThread.initialCollapsibleState === languages.CommentThreadCollapsibleState.Expanded;
 		this._commentThreadDisposables = [];
 		this.create();
 
@@ -173,7 +175,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	public reveal(commentUniqueId?: number, focus: boolean = false) {
 		if (!this._isExpanded) {
-			this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
+			this.show({ lineNumber: this._commentThread.range.endLineNumber, column: 1 }, 2);
 		}
 
 		if (commentUniqueId !== undefined) {
@@ -253,6 +255,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 
 		this.hide();
+		return Promise.resolve();
+	}
+
+	public expand(): Promise<void> {
+		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
+		const lineNumber = this._commentThread.range.endLineNumber;
+
+		this.show({ lineNumber, column: 1 }, 2);
 		return Promise.resolve();
 	}
 
@@ -368,6 +378,15 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				return;
 			}
 		}));
+
+		if (this._initialCollapsibleState === undefined) {
+			const onDidChangeInitialCollapsibleState = this._commentThread.onDidChangeInitialCollapsibleState(state => {
+				this._initialCollapsibleState = state;
+				this._commentThread.collapsibleState = state;
+				onDidChangeInitialCollapsibleState.dispose();
+			});
+			this._commentThreadDisposables.push(onDidChangeInitialCollapsibleState);
+		}
 
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeState(() => {

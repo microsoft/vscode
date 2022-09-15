@@ -33,6 +33,7 @@ export interface IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
 
 	createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean): Promise<IUserDataProfile>;
+	createAndEnterTransientProfile(): Promise<IUserDataProfile>;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
 	renameProfile(profile: IUserDataProfile, name: string): Promise<void>;
 	switchProfile(profile: IUserDataProfile): Promise<void>;
@@ -75,6 +76,6 @@ export const PROFILES_TTILE = { value: localize('settings profiles', "Settings P
 export const PROFILES_CATEGORY = PROFILES_TTILE.value;
 export const PROFILE_EXTENSION = 'code-profile';
 export const PROFILE_FILTER = [{ name: localize('profile', "Settings Profile"), extensions: [PROFILE_EXTENSION] }];
-export const PROFILES_ENABLEMENT_CONTEXT = ContextKeyExpr.and(ProductQualityContext.notEqualsTo('stable'), ContextKeyDefinedExpr.create(`config.${PROFILES_ENABLEMENT_CONFIG}`));
+export const PROFILES_ENABLEMENT_CONTEXT = ContextKeyExpr.or(ProductQualityContext.notEqualsTo('stable'), ContextKeyDefinedExpr.create(`config.${PROFILES_ENABLEMENT_CONFIG}`));
 export const CURRENT_PROFILE_CONTEXT = new RawContextKey<string>('currentSettingsProfile', '');
 export const HAS_PROFILES_CONTEXT = new RawContextKey<boolean>('hasSettingsProfiles', false);

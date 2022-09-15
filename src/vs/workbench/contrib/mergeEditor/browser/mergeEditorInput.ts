@@ -178,7 +178,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 				&& isEqual(this.result, otherInput.result);
 		}
 		if (isResourceMergeEditorInput(otherInput)) {
-			return this.editorId === otherInput.options?.override
+			return (this.editorId === otherInput.options?.override || otherInput.options?.override === undefined)
 				&& isEqual(this.base, otherInput.base.resource)
 				&& isEqual(this.input1.uri, otherInput.input1.resource)
 				&& isEqual(this.input2.uri, otherInput.input2.resource)
@@ -194,8 +194,8 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		return Boolean(this._outTextModel?.isDirty());
 	}
 
-	setLanguageId(languageId: string, _setExplicitly?: boolean): void {
-		this._model?.setLanguageId(languageId);
+	setLanguageId(languageId: string, source?: string): void {
+		this._model?.setLanguageId(languageId, source);
 	}
 
 	// implement get/set languageId
@@ -265,7 +265,7 @@ class MergeEditorCloseHandler implements IEditorCloseHandler {
 
 		const actions: string[] = [
 			localize('saveWithConflict', "Save with Conflicts"),
-			localize('discard', "Don't save"),
+			localize('discard', "Don't Save"),
 			localize('cancel', "Cancel"),
 		];
 

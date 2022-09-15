@@ -22,7 +22,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { ActionButtonCommand } from './actionButton';
-import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
+import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -336,6 +336,7 @@ export const enum Operation {
 	RenameBranch = 'RenameBranch',
 	DeleteRef = 'DeleteRef',
 	Merge = 'Merge',
+	MergeAbort = 'MergeAbort',
 	Rebase = 'Rebase',
 	Ignore = 'Ignore',
 	Tag = 'Tag',
@@ -832,12 +833,31 @@ export class Repository implements Disposable {
 			this.inputBox.value = rebaseCommit.message;
 		}
 
+		const shouldUpdateContext = !!this._rebaseCommit !== !!rebaseCommit;
 		this._rebaseCommit = rebaseCommit;
-		commands.executeCommand('setContext', 'gitRebaseInProgress', !!this._rebaseCommit);
+
+		if (shouldUpdateContext) {
+			commands.executeCommand('setContext', 'gitRebaseInProgress', !!this._rebaseCommit);
+		}
 	}
 
 	get rebaseCommit(): Commit | undefined {
 		return this._rebaseCommit;
+	}
+
+	private _mergeInProgress: boolean = false;
+
+	set mergeInProgress(value: boolean) {
+		if (this._mergeInProgress === value) {
+			return;
+		}
+
+		this._mergeInProgress = value;
+		commands.executeCommand('setContext', 'gitMergeInProgress', value);
+	}
+
+	get mergeInProgress() {
+		return this._mergeInProgress;
 	}
 
 	private _operations = new OperationsImpl();
@@ -871,6 +891,7 @@ export class Repository implements Disposable {
 	private didWarnAboutLimit = false;
 
 	private isBranchProtectedMatcher: picomatch.Matcher | undefined;
+	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
 	private disposables: Disposable[] = [];
 
@@ -999,7 +1020,10 @@ export class Repository implements Disposable {
 		statusBar.onDidChange(() => this._sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
 		this._sourceControl.statusBarCommands = statusBar.commands;
 
-		const actionButton = new ActionButtonCommand(this, postCommitCommandsProviderRegistry);
+		this.commitCommandCenter = new CommitCommandsCenter(globalState, this, postCommitCommandsProviderRegistry);
+		this.disposables.push(this.commitCommandCenter);
+
+		const actionButton = new ActionButtonCommand(this, this.commitCommandCenter);
 		this.disposables.push(actionButton);
 		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button);
 		this._sourceControl.actionButton = actionButton.button;
@@ -1251,6 +1275,11 @@ export class Repository implements Disposable {
 				await this.repository.commit(message, opts);
 				this.closeDiffEditors(indexResources, workingGroupResources);
 			});
+
+			// Execute post-commit command
+			if (opts.postCommitCommand !== null) {
+				await this.commitCommandCenter.executePostCommitCommand(opts.postCommitCommand);
+			}
 		}
 	}
 
@@ -1334,6 +1363,27 @@ export class Repository implements Disposable {
 		await this.run(Operation.RenameBranch, () => this.repository.renameBranch(name));
 	}
 
+	@throttle
+	async fastForwardBranch(name: string): Promise<void> {
+		// Get branch details
+		const branch = await this.getBranch(name);
+		if (!branch.upstream?.remote || !branch.upstream?.name || !branch.name) {
+			return;
+		}
+
+		try {
+			// Fast-forward the branch if possible
+			const options = { remote: branch.upstream.remote, ref: `${branch.upstream.name}:${branch.name}` };
+			await this.run(Operation.Fetch, async () => this.repository.fetch(options));
+		} catch (err) {
+			if (err.gitErrorCode === GitErrorCodes.BranchFastForwardRejected) {
+				return;
+			}
+
+			throw err;
+		}
+	}
+
 	async cherryPick(commitHash: string): Promise<void> {
 		await this.run(Operation.CherryPick, () => this.repository.cherryPick(commitHash));
 	}
@@ -1356,6 +1406,10 @@ export class Repository implements Disposable {
 
 	async merge(ref: string): Promise<void> {
 		await this.run(Operation.Merge, () => this.repository.merge(ref));
+	}
+
+	async mergeAbort(): Promise<void> {
+		await this.run(Operation.MergeAbort, async () => await this.repository.mergeAbort());
 	}
 
 	async rebase(branch: string): Promise<void> {
@@ -1889,7 +1943,9 @@ export class Repository implements Disposable {
 
 		const limit = scopedConfig.get<number>('statusLimit', 10000);
 
+		const start = new Date().getTime();
 		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges });
+		const totalTime = new Date().getTime() - start;
 
 		if (didHitLimit) {
 			/* __GDPR__
@@ -1897,10 +1953,11 @@ export class Repository implements Disposable {
 					"owner": "lszomoru",
 					"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Setting indicating whether submodules are ignored" },
 					"limit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Setting indicating the limit of status entries" },
-					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of status entries" }
+					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of status entries" },
+					"totalTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of ms the operation took" }
 				}
 			*/
-			this.telemetryReporter.sendTelemetryEvent('statusLimit', { ignoreSubmodules: String(ignoreSubmodules) }, { limit, statusLength });
+			this.telemetryReporter.sendTelemetryEvent('statusLimit', { ignoreSubmodules: String(ignoreSubmodules) }, { limit, statusLength, totalTime });
 		}
 
 		const config = workspace.getConfiguration('git');
@@ -1944,6 +2001,22 @@ export class Repository implements Disposable {
 			}
 		}
 
+		if (totalTime > 5000) {
+			/* __GDPR__
+				"statusSlow" : {
+					"owner": "digitarald",
+					"comment": "Reports when git status is slower than 5s",
+					"expiration": "1.73",
+					"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Setting indicating whether submodules are ignored" },
+					"didHitLimit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Total number of status entries" },
+					"didWarnAboutLimit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "True when the user was warned about slow git status" },
+					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of status entries" },
+					"totalTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of ms the operation took" }
+				}
+			*/
+			this.telemetryReporter.sendTelemetryEvent('statusSlow', { ignoreSubmodules: String(ignoreSubmodules), didHitLimit: String(didHitLimit), didWarnAboutLimit: String(this.didWarnAboutLimit) }, { statusLength, totalTime });
+		}
+
 		let HEAD: Branch | undefined;
 
 		try {
@@ -1964,13 +2037,14 @@ export class Repository implements Disposable {
 		if (sort !== 'alphabetically' && sort !== 'committerdate') {
 			sort = 'alphabetically';
 		}
-		const [refs, remotes, submodules, rebaseCommit] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit()]);
+		const [refs, remotes, submodules, rebaseCommit, mergeInProgress] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit(), this.isMergeInProgress()]);
 
 		this._HEAD = HEAD;
 		this._refs = refs!;
 		this._remotes = remotes!;
 		this._submodules = submodules!;
 		this.rebaseCommit = rebaseCommit;
+		this.mergeInProgress = mergeInProgress;
 
 		const index: Resource[] = [];
 		const workingTree: Resource[] = [];
@@ -2030,7 +2104,7 @@ export class Repository implements Disposable {
 		this.setCountBadge();
 
 		// set mergeChanges context
-		commands.executeCommand('setContext', 'git.mergeChanges', merge.map(item => item.resourceUri.toString()));
+		commands.executeCommand('setContext', 'git.mergeChanges', merge.map(item => item.resourceUri));
 
 		this._onDidChangeStatus.fire();
 
@@ -2082,6 +2156,11 @@ export class Repository implements Disposable {
 		} catch (err) {
 			return undefined;
 		}
+	}
+
+	private isMergeInProgress(): Promise<boolean> {
+		const mergeHeadPath = path.join(this.repository.root, '.git', 'MERGE_HEAD');
+		return new Promise<boolean>(resolve => fs.exists(mergeHeadPath, resolve));
 	}
 
 	private async maybeAutoStash<T>(runOperation: () => Promise<T>): Promise<T> {

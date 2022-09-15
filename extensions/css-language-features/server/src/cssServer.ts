@@ -74,7 +74,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		if (!Array.isArray(workspaceFolders)) {
 			workspaceFolders = [];
 			if (params.rootPath) {
-				workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString() });
+				workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString(true) });
 			}
 		}
 

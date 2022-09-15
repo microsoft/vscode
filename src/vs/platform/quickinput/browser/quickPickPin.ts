@@ -19,18 +19,22 @@ const buttonClasses = [pinButtonClass, pinnedButtonClass];
  * Shows the quickpick once formatted.
  */
 export async function showWithPinnedItems(storageService: IStorageService, storageKey: string, quickPick: IQuickPick<IQuickPickItem>, filterDuplicates?: boolean): Promise<void> {
+	const itemsWithoutPinned = quickPick.items;
+	let itemsWithPinned = _formatPinnedItems(storageKey, quickPick, storageService, undefined, filterDuplicates);
 	quickPick.onDidTriggerItemButton(async buttonEvent => {
 		const expectedButton = buttonEvent.button.iconClass && buttonClasses.includes(buttonEvent.button.iconClass);
 		if (expectedButton) {
-			quickPick.items = await _formatPinnedItems(storageKey, quickPick, storageService, buttonEvent.item, filterDuplicates);
+			quickPick.items = itemsWithoutPinned;
+			itemsWithPinned = _formatPinnedItems(storageKey, quickPick, storageService, buttonEvent.item, filterDuplicates);
+			quickPick.items = quickPick.value ? itemsWithoutPinned : itemsWithPinned;
 		}
 	});
 	quickPick.onDidChangeValue(async value => {
-		// don't show pinned items in the search results
-		quickPick.items = value ? quickPick.items.filter(i => i.type !== 'separator' && !i.buttons?.find(b => b.iconClass === pinnedButtonClass)) : quickPick.items;
+		// Return pinned items if there is no search value
+		quickPick.items = value ? itemsWithoutPinned : itemsWithPinned;
 	});
-	quickPick.items = await _formatPinnedItems(storageKey, quickPick, storageService, undefined, filterDuplicates);
-	await quickPick.show();
+	quickPick.items = quickPick.value ? itemsWithoutPinned : itemsWithPinned;
+	quickPick.show();
 }
 
 function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPickItem>, storageService: IStorageService, changedItem?: IQuickPickItem, filterDuplicates?: boolean): QuickPickItem[] {

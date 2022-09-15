@@ -21,7 +21,7 @@ export class ToggleStickyScroll extends Action2 {
 			},
 			// Hardcoding due to import violation
 			category: { value: localize('view', "View"), original: 'View' },
-			toggled: ContextKeyExpr.equals('config.editor.experimental.stickyScroll.enabled', true),
+			toggled: ContextKeyExpr.equals('config.editor.stickyScroll.enabled', true),
 			menu: [
 				{ id: MenuId.CommandPalette },
 				{ id: MenuId.MenubarViewMenu, group: '5_editor', order: 6 },
@@ -31,7 +31,7 @@ export class ToggleStickyScroll extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-		const newValue = !configurationService.getValue('editor.experimental.stickyScroll.enabled');
-		return configurationService.updateValue('editor.experimental.stickyScroll.enabled', newValue);
+		const newValue = !configurationService.getValue('editor.stickyScroll.enabled');
+		return configurationService.updateValue('editor.stickyScroll.enabled', newValue);
 	}
 }

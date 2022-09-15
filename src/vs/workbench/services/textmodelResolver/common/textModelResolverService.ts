@@ -193,8 +193,23 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly resourceModelCollection: ResourceModelCollection & ReferenceCollection<Promise<IResolvedTextEditorModel>> /* TS Fail */ = this.instantiationService.createInstance(ResourceModelCollection);
-	private readonly asyncModelCollection = new AsyncReferenceCollection(this.resourceModelCollection);
+	private _resourceModelCollection: ResourceModelCollection & ReferenceCollection<Promise<IResolvedTextEditorModel>> /* TS Fail */ | undefined = undefined;
+	private get resourceModelCollection() {
+		if (!this._resourceModelCollection) {
+			this._resourceModelCollection = this.instantiationService.createInstance(ResourceModelCollection);
+		}
+
+		return this._resourceModelCollection;
+	}
+
+	private _asyncModelCollection: AsyncReferenceCollection<IResolvedTextEditorModel> | undefined = undefined;
+	private get asyncModelCollection() {
+		if (!this._asyncModelCollection) {
+			this._asyncModelCollection = new AsyncReferenceCollection(this.resourceModelCollection);
+		}
+
+		return this._asyncModelCollection;
+	}
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,

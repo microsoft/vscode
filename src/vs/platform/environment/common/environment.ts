@@ -140,6 +140,8 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	// --- use keytar for credentials
 	disableKeytar?: boolean;
 
+	crossOriginIsolated?: boolean;
+
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//
 	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.

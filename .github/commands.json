@@ -12,6 +12,18 @@
 		"addLabel": "*question"
 	},
 	{
+		"type": "comment",
+		"name": "dev-question",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "updateLabels",
+		"addLabel": "*dev-question"
+	},
+	{
 		"type": "label",
 		"name": "*question",
 		"action": "close",
@@ -23,7 +35,7 @@
 		"name": "*dev-question",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "We have a great developer community [over on slack](https://aka.ms/vscode-dev-community) where extension authors help each other. This is a great place for you to ask questions and find support.\n\nHappy Coding!"
+		"comment": "We have a great extension developer community over on [GitHub discussions](https://github.com/microsoft/vscode-discussions/discussions) and [Slack](https://aka.ms/vscode-dev-community) where extension authors help each other. This is a great place for you to ask questions and find support.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
@@ -63,7 +75,7 @@
 		"name": "*caused-by-extension",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue is caused by an extension, please file it with the repository (or contact) the extension has linked in its overview in VS Code or the [marketplace](https://aka.ms/vscodemarketplace) for VS Code. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
+		"comment": "This issue is caused by an extension, please file it with the repository (or contact) the extension has linked in its overview in VS Code or the [marketplace](https://aka.ms/vscodemarketplace) for VS Code. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). If you don't know which extension is causing the problem, you can run `Help: Start extension bisect` from the command palette (F1) to help identify the problem extension.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
@@ -71,21 +83,6 @@
 		"action": "close",
 		"reason": "not_planned",
 		"comment": "The described behavior is how it is expected to work. If you disagree, please explain what is expected and what is not in more detail. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
-	},
-	{
-		"type": "label",
-		"name": "notebook",
-		"regex": "notebook.*",
-		"assign": [
-			"rebornix"
-		]
-	},
-	{
-		"type": "label",
-		"name": "notebook-triage",
-		"regex": "notebook.*",
-		"action": "updateLabels",
-		"addLabel": "notebook-triage"
 	},
 	{
 		"type": "label",
