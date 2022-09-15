@@ -41,7 +41,12 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 			getScriptSnapshot: (fileName: string) => {
 				let text = '';
 				if (fileName === currentTextDocument.uri) {
-					text = currentTextDocument.getText();
+					if (fileName.endsWith('html')) {
+						text = currentTextDocument.getText().replace(`<!--`, `/*`).replace(`-->`, `*/`);
+					}
+					else {
+						text = currentTextDocument.getText();
+					}
 				} else {
 					text = libs.loadLibrary(fileName);
 				}
