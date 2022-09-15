@@ -357,17 +357,21 @@ function tweakProductForServerWeb(product) {
 ['reh', 'reh-web'].forEach(type => {
 	const optimizeTask = task.define(`optimize-vscode-${type}`, task.series(
 		util.rimraf(`out-vscode-${type}`),
-		common.optimizeAMDTask({
-			src: 'out-build',
-			entryPoints: _.flatten(type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints),
-			otherSources: [],
-			resources: type === 'reh' ? serverResources : serverWithWebResources,
-			loaderConfig: common.loaderConfig(),
-			out: `out-vscode-${type}`,
-			inlineAmdImages: true,
-			bundleInfo: undefined,
-			fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
-		})
+		common.optimizeTask(
+			{
+				out: `out-vscode-${type}`,
+				amd: {
+					src: 'out-build',
+					entryPoints: _.flatten(type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints),
+					otherSources: [],
+					resources: type === 'reh' ? serverResources : serverWithWebResources,
+					loaderConfig: common.loaderConfig(),
+					inlineAmdImages: true,
+					bundleInfo: undefined,
+					fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
+				}
+			}
+		)
 	));
 
 	const minifyTask = task.define(`minify-vscode-${type}`, task.series(

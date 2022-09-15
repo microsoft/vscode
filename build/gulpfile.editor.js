@@ -40,7 +40,6 @@ const editorEntryPoints = [
 		exclude: ['vs/nls'],
 		prepend: [
 			{ path: 'vs/loader.js' },
-			{ path: 'vs/nls.js', amdModuleId: 'vs/nls' },
 			{ path: 'vs/base/worker/workerMain.js' }
 		],
 		dest: 'vs/base/worker/workerMain.js'
@@ -86,24 +85,27 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 
 const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true));
 
-const optimizeEditorAMDTask = task.define('optimize-editor-amd', common.optimizeAMDTask({
-	src: 'out-editor-build',
-	entryPoints: editorEntryPoints,
-	resources: editorResources,
-	loaderConfig: {
-		paths: {
-			'vs': 'out-editor-build/vs',
-			'vs/css': 'out-editor-build/vs/css.build',
-			'vs/nls': 'out-editor-build/vs/nls.build',
-			'vscode': 'empty:'
+const optimizeEditorAMDTask = task.define('optimize-editor-amd', common.optimizeTask(
+	{
+		out: 'out-editor',
+		amd: {
+			src: 'out-editor-build',
+			entryPoints: editorEntryPoints,
+			resources: editorResources,
+			loaderConfig: {
+				paths: {
+					'vs': 'out-editor-build/vs',
+					'vs/css': 'out-editor-build/vs/css.build',
+					'vs/nls': 'out-editor-build/vs/nls.build',
+					'vscode': 'empty:'
+				}
+			},
+			header: BUNDLED_FILE_HEADER,
+			bundleInfo: true,
+			languages
 		}
-	},
-	bundleLoader: false,
-	header: BUNDLED_FILE_HEADER,
-	bundleInfo: true,
-	out: 'out-editor',
-	languages: languages
-}));
+	}
+));
 
 const minifyEditorAMDTask = task.define('minify-editor-amd', common.minifyTask('out-editor'));
 
