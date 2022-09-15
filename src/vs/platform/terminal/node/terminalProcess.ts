@@ -284,13 +284,21 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			return { message: localize('launchFail.executableDoesNotExist', "Path to shell executable \"{0}\" does not exist", slc.executable) };
 		}
 
-		const result = await Promises.stat(executable);
-		if (!result.isFile() && !result.isSymbolicLink()) {
-			return { message: localize('launchFail.executableIsNotFileOrSymlink', "Path to shell executable \"{0}\" is not a file or a symlink", slc.executable) };
+		try {
+			const result = await Promises.stat(executable);
+			if (!result.isFile() && !result.isSymbolicLink()) {
+				return { message: localize('launchFail.executableIsNotFileOrSymlink', "Path to shell executable \"{0}\" is not a file or a symlink", slc.executable) };
+			}
+			// Set the executable explicitly here so that node-pty doesn't need to search the
+			// $PATH too.
+			slc.executable = executable;
+		} catch (err) {
+			if (err?.code === 'EACCES') {
+				// Swallow
+			} else {
+				throw err;
+			}
 		}
-		// Set the executable explicitly here so that node-pty doesn't need to search the
-		// $PATH too.
-		slc.executable = executable;
 		return undefined;
 	}
 
