@@ -49,7 +49,6 @@ async function launchServer(options: LaunchOptions) {
 		`--extensions-dir=${extensionsPath}`,
 		`--server-data-dir=${agentFolder}`,
 		'--accept-server-license-terms',
-		'--log=trace',
 		`--logsPath=${logsPath}`
 	];
 
