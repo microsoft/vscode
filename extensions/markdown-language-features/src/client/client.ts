@@ -10,7 +10,7 @@ import { IMdParser } from '../markdownEngine';
 import * as proto from './protocol';
 import { looksLikeMarkdownPath, markdownFileExtensions } from '../util/file';
 import { VsCodeMdWorkspace } from './workspace';
-import { FileWatcherManager } from './fileWatcherManager';
+import { FileWatcherManager } from './fileWatchingManager';
 import { IDisposable } from '../util/dispose';
 
 const localize = nls.loadMessageBundle();
