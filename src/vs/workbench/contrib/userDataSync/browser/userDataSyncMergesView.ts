@@ -16,7 +16,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { Codicon } from 'vs/base/common/codicons';
-import { IUserDataSyncWorkbenchService, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, SYNC_MERGES_VIEW_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { IUserDataSyncWorkbenchService, getSyncAreaLabel, IUserDataSyncPreview, IResourcePreview, SYNC_MERGES_VIEW_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { isEqual, basename } from 'vs/base/common/resources';
 import { IDecorationsProvider, IDecorationData, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -39,6 +39,7 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export class UserDataSyncMergesViewPane extends TreeViewPane {
 
@@ -66,14 +67,15 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@INotificationService notificationService: INotificationService
+		@INotificationService notificationService: INotificationService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, notificationService);
 		this.userDataSyncPreview = userDataSyncWorkbenchService.userDataSyncPreview;
 
-		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.updateSyncButtonEnablement()));
-		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.treeView.refresh()));
-		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.closeDiffEditors()));
+		this._register(this.userDataSyncPreview.onDidChangeResourcePreviews(() => this.updateSyncButtonEnablement()));
+		this._register(this.userDataSyncPreview.onDidChangeResourcePreviews(() => this.treeView.refresh()));
+		this._register(this.userDataSyncPreview.onDidChangeResourcePreviews(() => this.closeDiffEditors()));
 		this._register(decorationsService.registerDecorationsProvider(this._register(new UserDataSyncResourcesDecorationProvider(this.userDataSyncPreview))));
 
 		this.registerActions();
@@ -108,26 +110,26 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		this.buttonsContainer.style.height = `${buttonContainerHeight}px`;
 		this.buttonsContainer.style.width = `${width}px`;
 
-		const numberOfChanges = this.userDataSyncPreview.resources.filter(r => r.syncResource !== SyncResource.GlobalState && (r.localChange !== Change.None || r.remoteChange !== Change.None)).length;
+		const numberOfChanges = this.userDataSyncPreview.resourcePreviews.filter(r => r.profileSyncResource.syncResource !== SyncResource.GlobalState && (r.localChange !== Change.None || r.remoteChange !== Change.None)).length;
 		const messageHeight = 66 /* max 3 lines */;
 		super.layoutTreeView(Math.min(height - buttonContainerHeight, ((22 * numberOfChanges) + messageHeight)), width);
 	}
 
 	private updateSyncButtonEnablement(): void {
-		this.syncButton.enabled = this.userDataSyncPreview.resources.every(c => c.syncResource === SyncResource.GlobalState || c.mergeState === MergeState.Accepted);
+		this.syncButton.enabled = this.userDataSyncPreview.resourcePreviews.every(c => c.profileSyncResource.syncResource === SyncResource.GlobalState || c.mergeState === MergeState.Accepted);
 	}
 
 	private async getTreeItems(): Promise<ITreeItem[]> {
 		this.treeItems.clear();
 		const roots: ITreeItem[] = [];
-		for (const resource of this.userDataSyncPreview.resources) {
-			if (resource.syncResource !== SyncResource.GlobalState && (resource.localChange !== Change.None || resource.remoteChange !== Change.None)) {
+		for (const resource of this.userDataSyncPreview.resourcePreviews) {
+			if (resource.profileSyncResource.syncResource !== SyncResource.GlobalState && (resource.localChange !== Change.None || resource.remoteChange !== Change.None)) {
 				const handle = JSON.stringify(resource);
 				const treeItem = {
 					handle,
 					resourceUri: resource.remote,
 					label: { label: basename(resource.remote), strikethrough: resource.mergeState === MergeState.Accepted && (resource.localChange === Change.Deleted || resource.remoteChange === Change.Deleted) },
-					description: getSyncAreaLabel(resource.syncResource),
+					description: getSyncAreaLabel(resource.profileSyncResource.syncResource),
 					collapsibleState: TreeItemCollapsibleState.None,
 					command: { id: `workbench.actions.sync.showChanges`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeViewId: '', $treeItemHandle: handle }] },
 					contextValue: `sync-resource-${resource.mergeState}`
@@ -139,10 +141,10 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		return roots;
 	}
 
-	private toUserDataSyncResourceGroup(handle: string): IUserDataSyncResource {
-		const parsed: IUserDataSyncResource = JSON.parse(handle);
+	private toUserDataSyncResourceGroup(handle: string): IResourcePreview {
+		const parsed: IResourcePreview = JSON.parse(handle);
 		return {
-			syncResource: parsed.syncResource,
+			profileSyncResource: { syncResource: parsed.profileSyncResource.syncResource, profile: reviveProfile(parsed.profileSyncResource.profile, this.userDataProfilesService.profilesHome.scheme) },
 			local: URI.revive(parsed.local),
 			remote: URI.revive(parsed.remote),
 			merged: URI.revive(parsed.merged),
@@ -244,29 +246,29 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 				});
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				const previewResource: IUserDataSyncResource = that.toUserDataSyncResourceGroup(handle.$treeItemHandle);
+				const previewResource: IResourcePreview = that.toUserDataSyncResourceGroup(handle.$treeItemHandle);
 				return that.open(previewResource);
 			}
 		}));
 	}
 
-	private async acceptLocal(userDataSyncResource: IUserDataSyncResource): Promise<void> {
+	private async acceptLocal(userDataSyncResource: IResourcePreview): Promise<void> {
 		await this.withProgress(async () => {
-			await this.userDataSyncPreview.accept(userDataSyncResource.syncResource, userDataSyncResource.local);
+			await this.userDataSyncPreview.accept(userDataSyncResource.profileSyncResource, userDataSyncResource.local);
 		});
 		await this.reopen(userDataSyncResource);
 	}
 
-	private async acceptRemote(userDataSyncResource: IUserDataSyncResource): Promise<void> {
+	private async acceptRemote(userDataSyncResource: IResourcePreview): Promise<void> {
 		await this.withProgress(async () => {
-			await this.userDataSyncPreview.accept(userDataSyncResource.syncResource, userDataSyncResource.remote);
+			await this.userDataSyncPreview.accept(userDataSyncResource.profileSyncResource, userDataSyncResource.remote);
 		});
 		await this.reopen(userDataSyncResource);
 	}
 
-	private async mergeResource(previewResource: IUserDataSyncResource): Promise<void> {
+	private async mergeResource(previewResource: IResourcePreview): Promise<void> {
 		await this.withProgress(() => this.userDataSyncPreview.merge(previewResource.merged));
-		previewResource = this.userDataSyncPreview.resources.find(({ local }) => isEqual(local, previewResource.local))!;
+		previewResource = this.userDataSyncPreview.resourcePreviews.find(({ local }) => isEqual(local, previewResource.local))!;
 		await this.reopen(previewResource);
 		if (previewResource.mergeState === MergeState.Conflict) {
 			await this.dialogService.show(Severity.Warning, localize('conflicts detected', "Conflicts Detected"), undefined, {
@@ -275,7 +277,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		}
 	}
 
-	private async discardResource(previewResource: IUserDataSyncResource): Promise<void> {
+	private async discardResource(previewResource: IResourcePreview): Promise<void> {
 		this.close(previewResource);
 		return this.withProgress(() => this.userDataSyncPreview.discard(previewResource.merged));
 	}
@@ -294,13 +296,13 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 	}
 
 	private async cancel(): Promise<void> {
-		for (const resource of this.userDataSyncPreview.resources) {
+		for (const resource of this.userDataSyncPreview.resourcePreviews) {
 			this.close(resource);
 		}
 		await this.userDataSyncPreview.cancel();
 	}
 
-	private async open(previewResource: IUserDataSyncResource): Promise<void> {
+	private async open(previewResource: IResourcePreview): Promise<void> {
 		if (previewResource.mergeState === MergeState.Accepted) {
 			if (previewResource.localChange !== Change.Deleted && previewResource.remoteChange !== Change.Deleted) {
 				// Do not open deleted preview
@@ -331,9 +333,9 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		}
 	}
 
-	private async reopen(previewResource: IUserDataSyncResource): Promise<void> {
+	private async reopen(previewResource: IResourcePreview): Promise<void> {
 		this.close(previewResource);
-		const resource = this.userDataSyncPreview.resources.find(({ local }) => isEqual(local, previewResource.local));
+		const resource = this.userDataSyncPreview.resourcePreviews.find(({ local }) => isEqual(local, previewResource.local));
 		if (resource) {
 			// select the resource
 			await this.treeView.refresh();
@@ -343,7 +345,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		}
 	}
 
-	private close(previewResource: IUserDataSyncResource): void {
+	private close(previewResource: IResourcePreview): void {
 		for (const input of this.editorService.editors) {
 			if (input instanceof DiffEditorInput) {
 				// Close all diff editors
@@ -359,7 +361,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 	}
 
 	private closeDiffEditors() {
-		for (const previewResource of this.userDataSyncPreview.resources) {
+		for (const previewResource of this.userDataSyncPreview.resourcePreviews) {
 			if (previewResource.mergeState === MergeState.Accepted) {
 				for (const input of this.editorService.editors) {
 					if (input instanceof DiffEditorInput) {
@@ -374,7 +376,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 	}
 
 	private closeAll() {
-		for (const previewResource of this.userDataSyncPreview.resources) {
+		for (const previewResource of this.userDataSyncPreview.resourcePreviews) {
 			this.close(previewResource);
 		}
 	}
@@ -394,11 +396,11 @@ class UserDataSyncResourcesDecorationProvider extends Disposable implements IDec
 
 	constructor(private readonly userDataSyncPreview: IUserDataSyncPreview) {
 		super();
-		this._register(userDataSyncPreview.onDidChangeResources(c => this._onDidChange.fire(c.map(({ remote }) => remote))));
+		this._register(userDataSyncPreview.onDidChangeResourcePreviews(c => this._onDidChange.fire(c.map(({ remote }) => remote))));
 	}
 
 	provideDecorations(resource: URI): IDecorationData | undefined {
-		const userDataSyncResource = this.userDataSyncPreview.resources.find(c => isEqual(c.remote, resource));
+		const userDataSyncResource = this.userDataSyncPreview.resourcePreviews.find(c => isEqual(c.remote, resource));
 		if (userDataSyncResource) {
 			switch (userDataSyncResource.mergeState) {
 				case MergeState.Conflict:
@@ -482,7 +484,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 			this._register(this.acceptChangesButton.onClick(async () => {
 				const model = this.editor.getModel();
 				if (model) {
-					await this.userDataSyncWorkbenchService.userDataSyncPreview.accept(userDataSyncResource.syncResource, model.uri, model.getValue());
+					await this.userDataSyncWorkbenchService.userDataSyncPreview.accept(userDataSyncResource.profileSyncResource, model.uri, model.getValue());
 				}
 			}));
 
@@ -490,8 +492,8 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		}
 	}
 
-	private getUserDataSyncResource(resource: URI): IUserDataSyncResource | undefined {
-		return this.userDataSyncWorkbenchService.userDataSyncPreview.resources.find(r => isEqual(resource, r.local) || isEqual(resource, r.remote) || isEqual(resource, r.merged));
+	private getUserDataSyncResource(resource: URI): IResourcePreview | undefined {
+		return this.userDataSyncWorkbenchService.userDataSyncPreview.resourcePreviews.find(r => isEqual(resource, r.local) || isEqual(resource, r.remote) || isEqual(resource, r.merged));
 	}
 
 	private disposeAcceptChangesWidgetRenderer(): void {

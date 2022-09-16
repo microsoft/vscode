@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Connection, FullDocumentDiagnosticReport, UnchangedDocumentDiagnosticReport } from 'vscode-languageserver';
+import { Connection, FullDocumentDiagnosticReport, TextDocuments, UnchangedDocumentDiagnosticReport } from 'vscode-languageserver';
 import * as md from 'vscode-markdown-languageservice';
 import { disposeAll } from 'vscode-markdown-languageservice/out/util/dispose';
 import { Disposable } from 'vscode-notebook-renderer/events';
@@ -45,6 +45,7 @@ function getDiagnosticsOptions(config: ConfigurationManager): md.DiagnosticOptio
 export function registerValidateSupport(
 	connection: Connection,
 	workspace: md.IWorkspace,
+	documents: TextDocuments<md.ITextDocument>,
 	ls: md.IMdLanguageService,
 	config: ConfigurationManager,
 	logger: md.ILogger,
@@ -93,6 +94,10 @@ export function registerValidateSupport(
 	subs.push(config.onDidChangeConfiguration(() => {
 		updateDiagnosticsSetting();
 		connection.languages.diagnostics.refresh();
+	}));
+
+	subs.push(documents.onDidClose(e => {
+		manager.disposeDocumentResources(URI.parse(e.document.uri));
 	}));
 
 	return {

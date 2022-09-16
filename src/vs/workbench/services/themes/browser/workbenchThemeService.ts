@@ -24,7 +24,7 @@ import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { registerColorThemeSchemas } from 'vs/workbench/services/themes/common/colorThemeSchema';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
@@ -863,4 +863,7 @@ registerColorThemeSchemas();
 registerFileIconThemeSchemas();
 registerProductIconThemeSchemas();
 
-registerSingleton(IWorkbenchThemeService, WorkbenchThemeService, false);
+// The WorkbenchThemeService should stay eager as the constructor restores the
+// last used colors / icons from storage. This needs to happen as quickly as possible
+// for a flicker-free startup experience.
+registerSingleton(IWorkbenchThemeService, WorkbenchThemeService, InstantiationType.Eager);

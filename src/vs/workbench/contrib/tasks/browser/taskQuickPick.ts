@@ -258,6 +258,9 @@ export class TaskQuickPick extends Disposable {
 				}
 			}
 		});
+		if (name) {
+			picker.value = name;
+		}
 		let firstLevelTask: Task | ConfiguringTask | string | undefined | null = startAtType;
 		if (!firstLevelTask) {
 			// First show recent tasks configured tasks. Other tasks will be available at a second level
@@ -267,15 +270,18 @@ export class TaskQuickPick extends Disposable {
 				return this._toTask(topLevelEntriesResult.isSingleConfigured);
 			}
 			const taskQuickPickEntries: QuickPickInput<ITaskTwoLevelQuickPickEntry>[] = topLevelEntriesResult.entries;
-			if (name) {
-				picker.value = name;
-			}
 			firstLevelTask = await this._doPickerFirstLevel(picker, taskQuickPickEntries);
 		}
 		do {
+
 			if (Types.isString(firstLevelTask)) {
+				if (name) {
+					await this._doPickerFirstLevel(picker, (await this.getTopLevelEntries(defaultEntry)).entries);
+					picker.dispose();
+					return undefined;
+				}
+				const selectedEntry = await this.doPickerSecondLevel(picker, firstLevelTask);
 				// Proceed to second level of quick pick
-				const selectedEntry = await this.doPickerSecondLevel(picker, firstLevelTask, name);
 				if (selectedEntry && !selectedEntry.settingType && selectedEntry.task === null) {
 					// The user has chosen to go back to the first level
 					firstLevelTask = await this._doPickerFirstLevel(picker, (await this.getTopLevelEntries(defaultEntry)).entries);
@@ -321,7 +327,7 @@ export class TaskQuickPick extends Disposable {
 			picker.value = name || '';
 			picker.items = await this._getEntriesForProvider(type);
 		}
-		showWithPinnedItems(this._storageService, runTaskStorageKey, picker, true);
+		await picker.show();
 		picker.busy = false;
 		const secondLevelPickerResult = await new Promise<ITaskTwoLevelQuickPickEntry | undefined | null>(resolve => {
 			Event.once(picker.onDidAccept)(async () => {

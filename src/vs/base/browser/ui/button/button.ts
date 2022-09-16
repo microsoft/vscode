@@ -198,7 +198,26 @@ export class Button extends Disposable implements IButton {
 	set label(value: string) {
 		this._element.classList.add('monaco-text-button');
 		if (this.options.supportIcons) {
-			reset(this._element, ...renderLabelWithIcons(value));
+			const content: HTMLSpanElement[] = [];
+			for (let segment of renderLabelWithIcons(value)) {
+				if (typeof (segment) === 'string') {
+					segment = segment.trim();
+
+					// Ignore empty segment
+					if (segment === '') {
+						continue;
+					}
+
+					// Convert string segments to <span> nodes
+					const node = document.createElement('span');
+					node.textContent = segment;
+					content.push(node);
+				} else {
+					content.push(segment);
+				}
+			}
+
+			reset(this._element, ...content);
 		} else {
 			this._element.textContent = value;
 		}
@@ -263,7 +282,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.element.classList.add('monaco-button-dropdown');
 		container.appendChild(this.element);
 
-		this.button = this._register(new ButtonWithDescription(this.element, options));
+		this.button = this._register(new Button(this.element, options));
 		this._register(this.button.onDidClick(e => this._onDidClick.fire(e)));
 		this.action = this._register(new Action('primaryAction', this.button.label, undefined, true, async () => this._onDidClick.fire(undefined)));
 
@@ -298,10 +317,6 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 
 	set icon(icon: CSSIcon) {
 		this.button.icon = icon;
-	}
-
-	set description(value: string) {
-		(this.button as ButtonWithDescription).description = value;
 	}
 
 	set enabled(enabled: boolean) {

@@ -402,7 +402,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			true,
 			undefined, () => undefined,
 			undefined,
-			true
+			false
 		);
 	}
 

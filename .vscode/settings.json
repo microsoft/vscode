@@ -68,6 +68,7 @@
 	],
 	"git.branchProtectionPrompt": "alwaysCommitToNewBranch",
 	"git.branchRandomName.enable": true,
+	"git.fetchBeforeCheckout": true,
 	"git.mergeEditor": true,
 	"remote.extensionKind": {
 		"msjsdiag.debugger-for-chrome": "workspace"

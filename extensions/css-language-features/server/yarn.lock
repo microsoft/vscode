@@ -12,15 +12,15 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-16.11.6.tgz#6bef7a2a0ad684cf6e90fcfe31cecabd9ce0a3ae"
   integrity sha512-ua7PgUoeQFjmWPcoo9khiPum3Pd60k4/2ZGXt18sm2Slk0W0xZTqt5Y0Ny1NyBiN1EVQ/+FaF9NcY4Qe6rwk5w==
 
-vscode-css-languageservice@^6.1.0:
-  version "6.1.0"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-6.1.0.tgz#fa5408307de1bee817b65efaff284da8a2eca987"
-  integrity sha512-GFXmy6EVceVc/OPKENnoW31EiIksekz9yruczIAkA0eX5BSkNh/ojgeCzwW1ERRFpDymVZj0aLYKSrYZmvU6VA==
+vscode-css-languageservice@^6.1.1:
+  version "6.1.1"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-6.1.1.tgz#36daefd96e56b7453da16ff8c16f4ee693f32521"
+  integrity sha512-7d2NCq2plT0njAKmGZ11uof95y2fwbgq8QuToE3kX9uYQfVmejHX2/lFGKbK5AV5+Ja0L80UZoU0QspwqMKMHA==
   dependencies:
     vscode-languageserver-textdocument "^1.0.7"
     vscode-languageserver-types "^3.17.2"
     vscode-nls "^5.2.0"
-    vscode-uri "^3.0.3"
+    vscode-uri "^3.0.4"
 
 vscode-jsonrpc@8.1.0-next.1:
   version "8.1.0-next.1"
@@ -57,7 +57,12 @@ vscode-nls@^5.2.0:
   resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-5.2.0.tgz#3cb6893dd9bd695244d8a024bdf746eea665cc3f"
   integrity sha512-RAaHx7B14ZU04EU31pT+rKz2/zSl7xMsfIZuo8pd+KZO6PXtQmpevpq3vxvWNcrGbdmhM/rr5Uw5Mz+NBfhVng==
 
-vscode-uri@^3.0.3:
-  version "3.0.3"
-  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-3.0.3.tgz#a95c1ce2e6f41b7549f86279d19f47951e4f4d84"
-  integrity sha512-EcswR2S8bpR7fD0YPeS7r2xXExrScVMxg4MedACaWHEtx9ftCF/qHG1xGkolzTPcEmjTavCQgbVzHUIdTMzFGA==
+vscode-uri@^3.0.4:
+  version "3.0.4"
+  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-3.0.4.tgz#703c6dd7c0b727ee1c34a1287434138fb52d054f"
+  integrity sha512-aEmKD6H8Sg8gaQAUrnadG0BMeWXtiWhRsj1a94n2FYsMkDpgnK7BRVzZjOUYIvkv2B+bp5Bmt4ImZCpYbnJwkg==
+
+vscode-uri@^3.0.5:
+  version "3.0.5"
+  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-3.0.5.tgz#3dd5a9e154e7c9a40de5eaa450a0ce59b435e584"
+  integrity sha512-bBp2pi1o6ynwlnGL8Tt6UBL1w3VsVZtHCU/Sl73bRfqjno3jMcVSCybdY+hj+31A8FQOELZJWwY+shLVLtcNew==

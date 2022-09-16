@@ -93,6 +93,7 @@ import { combinedDisposable } from 'vs/base/common/lifecycle';
 import { checkProposedApiEnabled, ExtensionIdentifierSet, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtHostTelemetryLogService } from 'vs/workbench/api/common/extHostTelemetryLogService';
+import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -151,13 +152,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostSearch = rpcProtocol.set(ExtHostContext.ExtHostSearch, accessor.get(IExtHostSearch));
 	const extHostTask = rpcProtocol.set(ExtHostContext.ExtHostTask, accessor.get(IExtHostTask));
 	const extHostOutputService = rpcProtocol.set(ExtHostContext.ExtHostOutputService, accessor.get(IExtHostOutputService));
+	const extHostLocalization = rpcProtocol.set(ExtHostContext.ExtHostLocalization, accessor.get(IExtHostLocalizationService));
 
 	// manually create and register addressable instances
 	const extHostUrls = rpcProtocol.set(ExtHostContext.ExtHostUrls, new ExtHostUrls(rpcProtocol));
 	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors, extHostLogService));
 	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadBulkEdits)));
-	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extensionStoragePaths));
+	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments));
 	const extHostNotebookDocuments = rpcProtocol.set(ExtHostContext.ExtHostNotebookDocuments, new ExtHostNotebookDocuments(extHostNotebook));
 	const extHostNotebookEditors = rpcProtocol.set(ExtHostContext.ExtHostNotebookEditors, new ExtHostNotebookEditors(extHostLogService, extHostNotebook));
 	const extHostNotebookKernels = rpcProtocol.set(ExtHostContext.ExtHostNotebookKernels, new ExtHostNotebookKernels(rpcProtocol, initData, extHostNotebook, extHostCommands, extHostLogService));
@@ -308,6 +310,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get clipboard(): vscode.Clipboard { return extHostClipboard.value; },
 			get shell() {
 				return extHostTerminalService.getDefaultShell(false);
+			},
+			get onDidChangeShell() {
+				checkProposedApiEnabled(extension, 'envShellEvent');
+				return extHostTerminalService.onDidChangeShell;
 			},
 			get isTelemetryEnabled() {
 				return extHostTelemetry.getTelemetryConfiguration();
@@ -859,8 +865,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			saveAll: (includeUntitled?) => {
 				return extHostWorkspace.saveAll(includeUntitled);
 			},
-			applyEdit(edit: vscode.WorkspaceEdit, isRefactoring?: boolean): Thenable<boolean> {
-				return extHostBulkEdits.applyWorkspaceEdit(edit, extension, isRefactoring);
+			applyEdit(edit: vscode.WorkspaceEdit, metadata?: vscode.WorkspaceEditMetadata): Thenable<boolean> {
+				return extHostBulkEdits.applyWorkspaceEdit(edit, extension, metadata);
 			},
 			createFileSystemWatcher: (pattern, ignoreCreate, ignoreChange, ignoreDelete): vscode.FileSystemWatcher => {
 				return extHostFileSystemEvent.createFileSystemWatcher(extHostWorkspace, extension, pattern, ignoreCreate, ignoreChange, ignoreDelete);
@@ -1163,6 +1169,28 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			}
 		};
 
+		// namespace: l10n
+		const l10n: typeof vscode.l10n = {
+			t(...params: [message: string, ...args: string[]] | [{ message: string; args: string[]; comment: string[] }]): string {
+				checkProposedApiEnabled(extension, 'localization');
+
+				if (typeof params[0] === 'string') {
+					const key = params.shift() as string;
+					return extHostLocalization.getMessage(extension.identifier.value, { message: key, args: params as string[] });
+				}
+
+				return extHostLocalization.getMessage(extension.identifier.value, params[0]);
+			},
+			get bundle() {
+				checkProposedApiEnabled(extension, 'localization');
+				return extHostLocalization.getBundle(extension.identifier.value);
+			},
+			get uri() {
+				checkProposedApiEnabled(extension, 'localization');
+				return extHostLocalization.getBundleUri(extension.identifier.value);
+			}
+		};
+
 		return <typeof vscode>{
 			version: initData.version,
 			// namespaces
@@ -1172,6 +1200,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			debug,
 			env,
 			extensions,
+			l10n,
 			languages,
 			notebooks,
 			scm,
