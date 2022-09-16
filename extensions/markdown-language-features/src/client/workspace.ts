@@ -4,25 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ITextDocument } from './types/textDocument';
-import { Disposable } from './util/dispose';
-import { isMarkdownFile, looksLikeMarkdownPath } from './util/file';
-import { InMemoryDocument } from './util/inMemoryDocument';
-import { ResourceMap } from './util/resourceMap';
-
-/**
- * Provides set of markdown files in the current workspace.
- */
-export interface IMdWorkspace {
-	getOrLoadMarkdownDocument(resource: vscode.Uri): Promise<ITextDocument | undefined>;
-}
+import { ITextDocument } from '../types/textDocument';
+import { Disposable } from '../util/dispose';
+import { isMarkdownFile, looksLikeMarkdownPath } from '../util/file';
+import { InMemoryDocument } from './inMemoryDocument';
+import { ResourceMap } from '../util/resourceMap';
 
 /**
  * Provides set of markdown files known to VS Code.
  *
  * This includes both opened text documents and markdown files in the workspace.
  */
-export class VsCodeMdWorkspace extends Disposable implements IMdWorkspace {
+export class VsCodeMdWorkspace extends Disposable {
 
 	private _watcher: vscode.FileSystemWatcher | undefined;
 

@@ -445,6 +445,12 @@ export class CommandCenter {
 
 	@command('git.openMergeEditor')
 	async openMergeEditor(uri: unknown) {
+		if (uri === undefined) {
+			// fallback to active editor...
+			if (window.tabGroups.activeTabGroup.activeTab?.input instanceof TabInputText) {
+				uri = window.tabGroups.activeTabGroup.activeTab.input.uri;
+			}
+		}
 		if (!(uri instanceof Uri)) {
 			return;
 		}

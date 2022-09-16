@@ -227,6 +227,11 @@ export interface IMenuService {
 	 * Reset **all** menu item hidden states.
 	 */
 	resetHiddenStates(): void;
+
+	/**
+	 * Reset the menu's hidden states.
+	 */
+	resetHiddenStates(menuId: MenuId | undefined): void;
 }
 
 export type ICommandsMap = Map<string, ICommandAction>;
@@ -368,6 +373,7 @@ export class SubmenuItemAction extends SubmenuAction {
 
 	constructor(
 		readonly item: ISubmenuItem,
+		readonly hideActions: IMenuItemHide | undefined,
 		private readonly _menuService: IMenuService,
 		private readonly _contextKeyService: IContextKeyService,
 		private readonly _options?: IMenuActionOptions

@@ -9,8 +9,7 @@ import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, SubmenuAction, ActionRunner } from 'vs/base/common/actions';
+import { IAction, SubmenuAction, ActionRunner } from 'vs/base/common/actions';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -22,7 +21,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, DraggedTreeItemsIdentifier, fillEditorsDragData, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
@@ -39,6 +37,7 @@ import { withNullAsUndefined, withUndefinedAsNull, assertIsDefined } from 'vs/ba
 import { isFirefox } from 'vs/base/browser/browser';
 import { isCancellationError } from 'vs/base/common/errors';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -93,7 +92,7 @@ export abstract class TitleControl extends Themable {
 
 	protected breadcrumbsControl: BreadcrumbsControl | undefined = undefined;
 
-	private editorActionsToolbar: ToolBar | undefined;
+	private editorActionsToolbar: WorkbenchToolBar | undefined;
 
 	private resourceContext: ResourceContextKey;
 
@@ -120,7 +119,6 @@ export abstract class TitleControl extends Themable {
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IQuickInputService protected quickInputService: IQuickInputService,
@@ -182,14 +180,17 @@ export abstract class TitleControl extends Themable {
 		const context: IEditorCommandsContext = { groupId: this.group.id };
 
 		// Toolbar Widget
-		this.editorActionsToolbar = this._register(new ToolBar(container, this.contextMenuService, {
+
+		this.editorActionsToolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, container, {
 			actionViewItemProvider: action => this.actionViewItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('ariaLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action),
 			actionRunner: this._register(new EditorCommandsContextActionRunner(context)),
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
-			renderDropdownAsChildElement: this.renderDropdownAsChildElement
+			renderDropdownAsChildElement: this.renderDropdownAsChildElement,
+			telemetrySource: 'editorPart',
+			resetMenu: MenuId.EditorTitle
 		}));
 
 		// Context
@@ -202,9 +203,6 @@ export abstract class TitleControl extends Themable {
 			if (e.error && !isCancellationError(e.error)) {
 				this.notificationService.error(e.error);
 			}
-
-			// Log in telemetry
-			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'editorPart' });
 		}));
 	}
 

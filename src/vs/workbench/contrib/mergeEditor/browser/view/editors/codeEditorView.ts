@@ -13,7 +13,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
@@ -134,7 +134,7 @@ export class TitleMenu extends Disposable {
 	) {
 		super();
 
-		const toolbar = instantiationService.createInstance(WorkbenchToolBar, targetHtmlElement, menuId, {
+		const toolbar = instantiationService.createInstance(MenuWorkbenchToolBar, targetHtmlElement, menuId, {
 			menuOptions: { renderShortTitle: true },
 			toolbarOptions: { primaryGroup: () => false }
 		});

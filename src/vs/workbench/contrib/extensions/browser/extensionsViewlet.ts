@@ -301,6 +301,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			name: localize('recently updated', "Recently Updated"),
 			ctorDescriptor: new SyncDescriptor(RecentlyUpdatedExtensionsView, [{}]),
 			when: ContextKeyExpr.or(SearchExtensionUpdatesContext, ContextKeyExpr.has('searchRecentlyUpdatedExtensions')),
+			order: 2,
 		});
 
 		/*
@@ -328,9 +329,10 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.searchOutdated',
-			name: localize('outdated', "Outdated"),
+			name: localize('updates', "Updates"),
 			ctorDescriptor: new SyncDescriptor(OutdatedExtensionsView, [{}]),
 			when: ContextKeyExpr.or(SearchExtensionUpdatesContext, ContextKeyExpr.has('searchOutdatedExtensions')),
+			order: 1,
 		});
 
 		/*

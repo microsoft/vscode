@@ -10,9 +10,9 @@
   "main": "./out/node/cssServerMain",
   "browser": "./dist/browser/cssServerMain",
   "dependencies": {
-    "vscode-css-languageservice": "^6.1.0",
+    "vscode-css-languageservice": "^6.1.1",
     "vscode-languageserver": "^8.1.0-next.1",
-    "vscode-uri": "^3.0.3"
+    "vscode-uri": "^3.0.5"
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",

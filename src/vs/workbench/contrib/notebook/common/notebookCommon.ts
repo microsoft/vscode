@@ -124,12 +124,14 @@ export interface NotebookCellDefaultCollapseConfig {
 export type InteractiveWindowCollapseCodeCells = 'always' | 'never' | 'fromEditor';
 
 export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
+export type CellContentMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
 export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
 
 export interface TransientOptions {
 	transientOutputs: boolean;
 	transientCellMetadata: TransientCellMetadata;
 	transientDocumentMetadata: TransientDocumentMetadata;
+	cellContentMetadata: CellContentMetadata;
 }
 
 /** Note: enum values are used for sorting */

@@ -3,7 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+declare module 'vscode' {
+	// TODO@rebornix: add github issue link
 
-const Logger = vscode.window.createOutputChannel('Microsoft Authentication', { log: true });
-export default Logger;
+	export interface NotebookDocumentContentOptions {
+		/**
+		 * Controls if a cell metadata property should be reverted when the cell content
+		 * is reverted in notebook diff editor.
+		 */
+		cellContentMetadata?: { [key: string]: boolean | undefined };
+	}
+}
