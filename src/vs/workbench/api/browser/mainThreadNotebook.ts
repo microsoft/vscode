@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { INotebookCellStatusBarItemProvider, INotebookContributionData, NotebookData as NotebookData, NotebookExtensionDescription, TransientCellMetadata, TransientDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellContentMetadata, INotebookCellStatusBarItemProvider, INotebookContributionData, NotebookData as NotebookData, NotebookExtensionDescription, TransientCellMetadata, TransientDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookContentProvider, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape } from '../common/extHost.protocol';
@@ -86,7 +86,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		this._notebookProviders.set(viewType, { controller, disposable });
 	}
 
-	async $updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata }): Promise<void> {
+	async $updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata; cellContentMetadata: CellContentMetadata }): Promise<void> {
 		const provider = this._notebookProviders.get(viewType);
 
 		if (provider && options) {

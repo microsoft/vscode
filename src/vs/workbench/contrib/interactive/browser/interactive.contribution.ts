@@ -87,7 +87,8 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		const contentOptions = {
 			transientOutputs: true,
 			transientCellMetadata: {},
-			transientDocumentMetadata: {}
+			transientDocumentMetadata: {},
+			cellContentMetadata: {}
 		};
 
 		const controller: INotebookContentProvider = {

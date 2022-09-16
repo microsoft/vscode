@@ -37,8 +37,11 @@ export function activate(context: vscode.ExtensionContext) {
 			breakpointMargin: true,
 			custom: false,
 			attachments: false
+		},
+		cellContentMetadata: {
+			attachments: true
 		}
-	}));
+	} as vscode.NotebookDocumentContentOptions));
 
 	vscode.languages.registerCodeLensProvider({ pattern: '**/*.ipynb' }, {
 		provideCodeLenses: (document) => {
