@@ -78,7 +78,7 @@ async function main() {
 
 	startServer(serverArgs);
 	if (openSystemBrowser) {
-		opn(`http://${HOST}:${PORT}/`);
+		// opn(`http://${HOST}:${PORT}/`);
 	}
 }
 
