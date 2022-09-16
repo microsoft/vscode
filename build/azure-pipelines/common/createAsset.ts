@@ -250,8 +250,6 @@ async function main(): Promise<void> {
 
 	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, aadCredentials: credential });
 	const scripts = client.database('builds').container(quality).scripts;
-
-	// TODO: How can we test to see that this has been run before?
 	await retry(() => scripts.storedProcedure('createAsset').execute('', [commit, asset, true]));
 
 	console.log(`  Done ✔️`);
