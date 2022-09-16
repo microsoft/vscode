@@ -212,6 +212,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e));
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = new ShellIntegrationAddon(disableShellIntegrationReporting, this._telemetryService, this._logService);
+		this.raw.loadAddon(this._shellIntegrationAddon);
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
 			this._activateContextualActionAddon();
 		} else {
@@ -221,8 +222,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 				}
 			});
 		}
-
-		this.raw.loadAddon(this._shellIntegrationAddon);
 	}
 
 	private _activateContextualActionAddon(): void {
