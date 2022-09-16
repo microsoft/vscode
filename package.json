@@ -116,7 +116,7 @@
     "@types/sinon": "^10.0.2",
     "@types/sinon-test": "^2.4.2",
     "@types/trusted-types": "^1.0.6",
-    "@types/vscode-notebook-renderer": "^1.60.0",
+    "@types/vscode-notebook-renderer": "^1.72.0",
     "@types/webpack": "^4.41.25",
     "@types/wicg-file-system-access": "^2020.9.5",
     "@types/windows-foreground-love": "^0.3.0",
