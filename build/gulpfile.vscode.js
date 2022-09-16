@@ -83,8 +83,20 @@ const vscodeResources = [
 	'!**/test/**'
 ];
 
+// Do not change the order of these files! They will
+// be inlined into the target window file in this order
+// and they depend on each other in this way.
+const windowBootstrapFiles = [
+	'out-build/bootstrap.js',
+	'out-build/vs/loader.js',
+	'out-build/bootstrap-window.js'
+];
+
 const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 	util.rimraf('out-vscode'),
+	// Optimize: bundles source files automatically based on
+	// AMD and CommonJS import statements based on the passed
+	// in entry points.
 	optimize.optimizeTask(
 		{
 			out: 'out-vscode',
@@ -112,7 +124,15 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 				]
 			}
 		}
-	)
+	),
+	// Concat: bundles source files manually via simple concatenation
+	// for the entry points of our windows. 
+	util.concatAll([
+		{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/workbench/workbench.js'], out: 'out-vscode/vs/code/electron-sandbox/workbench/workbench.js' },
+		{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/issue/issueReporter.js'], out: 'out-vscode/vs/code/electron-sandbox/issue/issueReporter.js' },
+		{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js'], out: 'out-vscode/vs/code/electron-sandbox/processExplorer/processExplorer.js' },
+		{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js'], out: 'out-vscode/vs/code/electron-browser/sharedProcess/sharedProcess.js' }
+	])
 ));
 gulp.task(optimizeVSCodeTask);
 
