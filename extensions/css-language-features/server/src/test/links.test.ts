@@ -68,6 +68,16 @@ suite('Links', () => {
 		);
 	});
 
+	test('url links - untitled', async function () {
+
+		const testUri = 'untitled:untitled-1';
+		const folders = [{ name: 'x', uri: getTestResource('') }];
+
+		await assertLinks('@import url("base.css|");")',
+			[{ offset: 12, value: '"base.css"', target: 'untitled:base.css' }], testUri, folders
+		);
+	});
+
 	test('node module resolving', async function () {
 
 		const testUri = getTestResource('about.css');
