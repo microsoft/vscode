@@ -31,16 +31,14 @@ import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from 'v
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IAction } from 'vs/base/common/actions';
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
@@ -58,6 +56,7 @@ import { NOTEBOOK_KERNEL } from 'vs/workbench/contrib/notebook/common/notebookCo
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isEqual } from 'vs/base/common/resources';
+import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -94,8 +93,6 @@ export class InteractiveEditor extends EditorPane {
 	#contextKeyService: IContextKeyService;
 	#notebookKernelService: INotebookKernelService;
 	#keybindingService: IKeybindingService;
-	#menuService: IMenuService;
-	#contextMenuService: IContextMenuService;
 	#editorGroupService: IEditorGroupsService;
 	#notebookExecutionStateService: INotebookExecutionStateService;
 	#extensionService: IExtensionService;
@@ -123,8 +120,6 @@ export class InteractiveEditor extends EditorPane {
 		@ILanguageService languageService: ILanguageService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IMenuService menuService: IMenuService,
-		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
@@ -142,8 +137,6 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookKernelService = notebookKernelService;
 		this.#languageService = languageService;
 		this.#keybindingService = keybindingService;
-		this.#menuService = menuService;
-		this.#contextMenuService = contextMenuService;
 		this.#editorGroupService = editorGroupService;
 		this.#notebookExecutionStateService = notebookExecutionStateService;
 		this.#extensionService = extensionService;
@@ -186,21 +179,12 @@ export class InteractiveEditor extends EditorPane {
 	}
 
 	#setupRunButtonToolbar(runButtonContainer: HTMLElement) {
-		const menu = this._register(this.#menuService.createMenu(MenuId.InteractiveInputExecute, this.#contextKeyService));
-		this.#runbuttonToolbar = this._register(new ToolBar(runButtonContainer, this.#contextMenuService, {
-			getKeyBinding: action => this.#keybindingService.lookupKeybinding(action.id),
+		this.#runbuttonToolbar = this._register(this.#instantiationService.createInstance(MenuWorkbenchToolBar, runButtonContainer, MenuId.InteractiveInputExecute, {
 			actionViewItemProvider: action => {
 				return createActionViewItem(this.#instantiationService, action);
 			},
 			renderDropdownAsChildElement: true
 		}));
-
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result);
-		this.#runbuttonToolbar.setActions([...primary, ...secondary]);
 	}
 
 	#createLayoutStyles(): void {

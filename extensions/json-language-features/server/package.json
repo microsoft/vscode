@@ -16,7 +16,7 @@
     "request-light": "^0.5.8",
     "vscode-json-languageservice": "^5.1.0",
     "vscode-languageserver": "^8.1.0-next.1",
-    "vscode-uri": "^3.0.3"
+    "vscode-uri": "^3.0.5"
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
