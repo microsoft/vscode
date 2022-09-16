@@ -49,8 +49,6 @@ export type IWorkbenchToolBarOptions = IToolBarOptions & {
 
 	/** This is controlled by the WorkbenchToolBar */
 	allowContextMenu?: never;
-	/** This is controlled by the WorkbenchToolBar */
-	getKeyBinding?: never;
 };
 
 /**
@@ -75,11 +73,12 @@ export class WorkbenchToolBar extends ToolBar {
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(container, _contextMenuService, {
+			// defaults
+			getKeyBinding: (action) => keybindingService.lookupKeybinding(action.id) ?? undefined,
+			// options (override defaults)
 			..._options,
+			// mandatory (overide options)
 			allowContextMenu: true,
-			getKeyBinding(action) {
-				return keybindingService.lookupKeybinding(action.id) ?? undefined;
-			},
 		});
 
 		// telemetry logic
@@ -103,6 +102,7 @@ export class WorkbenchToolBar extends ToolBar {
 		for (let i = 0; i < primary.length; i++) {
 			const action = primary[i];
 			if (!(action instanceof MenuItemAction)) {
+				// console.warn(`Action ${action.id}/${action.label} is not a MenuItemAction`);
 				continue;
 			}
 			if (!action.hideActions) {
