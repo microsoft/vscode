@@ -5,10 +5,11 @@
 
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { IToolBarOptions, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction, Separator, SubmenuAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { IAction, Separator, SubmenuAction, toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { coalesceInPlace } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -141,9 +142,18 @@ export class WorkbenchToolBar extends ToolBar {
 				let actions = toggleActions;
 
 				// add "hide foo" actions
+				let hideAction: IAction;
 				if (action instanceof MenuItemAction && action.hideActions) {
-					actions = [action.hideActions.hide, new Separator(), ...toggleActions];
+					hideAction = action.hideActions.hide;
+				} else {
+					hideAction = toAction({
+						id: 'label',
+						label: localize('hide', "Hide"),
+						enabled: false,
+						run() { }
+					});
 				}
+				actions = [hideAction, new Separator(), ...toggleActions];
 
 				// add context menu actions (iff appicable)
 				if (this._options?.contextMenu) {
