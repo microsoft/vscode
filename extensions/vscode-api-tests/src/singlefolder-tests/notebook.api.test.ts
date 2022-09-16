@@ -251,44 +251,6 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 	});
 });
 
-(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('statusbar', () => {
-	const emitter = new vscode.EventEmitter<vscode.NotebookCell>();
-	const onDidCallProvide = emitter.event;
-	const suiteDisposables: vscode.Disposable[] = [];
-	suiteTeardown(async function () {
-		assertNoRpc();
-
-		await revertAllDirty();
-		await closeAllEditors();
-
-		disposeAll(suiteDisposables);
-		suiteDisposables.length = 0;
-	});
-
-	suiteSetup(() => {
-		suiteDisposables.push(vscode.notebooks.registerNotebookCellStatusBarItemProvider('notebookCoreTest', {
-			async provideCellStatusBarItems(cell: vscode.NotebookCell, _token: vscode.CancellationToken): Promise<vscode.NotebookCellStatusBarItem[]> {
-				emitter.fire(cell);
-				return [];
-			}
-		}));
-
-		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', apiTestContentProvider));
-	});
-
-	test('provideCellStatusBarItems called on metadata change', async function () {
-		const provideCalled = asPromise(onDidCallProvide);
-		const notebook = await openRandomNotebookDocument();
-		await vscode.window.showNotebookDocument(notebook);
-		await provideCalled;
-
-		const edit = new vscode.WorkspaceEdit();
-		edit.set(notebook.uri, [vscode.NotebookEdit.updateCellMetadata(0, { inputCollapsed: true })]);
-		await vscode.workspace.applyEdit(edit);
-		await provideCalled;
-	});
-});
-
 suite('Notebook & LiveShare', function () {
 
 	const suiteDisposables: vscode.Disposable[] = [];
