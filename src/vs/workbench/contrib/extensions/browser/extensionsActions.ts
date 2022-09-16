@@ -1489,7 +1489,6 @@ export class ReloadAction extends ExtensionAction {
 	private static readonly DisabledClass = `${ReloadAction.EnabledClass} disabled`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
-	private _runningExtensions: IExtensionDescription[] | null = null;
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -1499,18 +1498,14 @@ export class ReloadAction extends ExtensionAction {
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
-		this._register(this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this));
-		this.updateRunningExtensions();
-	}
-
-	private updateRunningExtensions(): void {
-		this.extensionService.getExtensions().then(runningExtensions => { this._runningExtensions = runningExtensions; this.update(); });
+		this._register(this.extensionService.onDidChangeExtensions(this.update));
+		this.update();
 	}
 
 	update(): void {
 		this.enabled = false;
 		this.tooltip = '';
-		if (!this.extension || !this._runningExtensions) {
+		if (!this.extension) {
 			return;
 		}
 		const state = this.extension.state;
@@ -1521,10 +1516,10 @@ export class ReloadAction extends ExtensionAction {
 			return;
 		}
 
-		const reloadTooltip = this.extensionsWorkbenchService.getReloadStatus(this.extension, this._runningExtensions);
+		const reloadTooltip = this.extensionsWorkbenchService.getReloadStatus(this.extension);
 		this.enabled = reloadTooltip !== undefined;
-		this.label = reloadTooltip ? localize('reload required', 'Reload Required') : '';
-		this.tooltip = reloadTooltip ? reloadTooltip : '';
+		this.label = reloadTooltip !== undefined ? localize('reload required', 'Reload Required') : '';
+		this.tooltip = reloadTooltip !== undefined ? reloadTooltip : '';
 
 		this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
 	}

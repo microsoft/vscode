@@ -804,7 +804,7 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 	private async onServiceChange(): Promise<void> {
 		this.badgeHandle.clear();
 
-		const extensionsReloadRequired = await this.extensionsWorkbenchService.getExtensionsRequireReload();
+		const extensionsReloadRequired = this.extensionsWorkbenchService.installed.filter(e => this.extensionsWorkbenchService.getReloadStatus(e) !== undefined);
 		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !extensionsReloadRequired.includes(e) ? 1 : 0), 0);
 		const newBadgeNumber = outdated + extensionsReloadRequired.length;
 		if (newBadgeNumber > 0) {

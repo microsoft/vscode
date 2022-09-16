@@ -34,7 +34,7 @@ import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, TargetPlatform, ExtensionIdentifier, IExtensionIdentifier, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, TargetPlatform, ExtensionIdentifier, IExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { FileAccess } from 'vs/base/common/network';
@@ -74,6 +74,7 @@ export class Extension implements IExtension {
 		public local: ILocalExtension | undefined,
 		public gallery: IGalleryExtension | undefined,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
@@ -257,6 +258,10 @@ export class Extension implements IExtension {
 			&& this.gallery.properties.targetPlatform !== TargetPlatform.WEB
 			&& this.local.targetPlatform !== this.gallery.properties.targetPlatform
 			&& semver.eq(this.latestVersion, this.version);
+	}
+
+	get reloadRequired(): boolean {
+		return this.extensionsWorkbenchService.getReloadStatus(this) !== undefined;
 	}
 
 	get telemetryData(): any {
@@ -679,6 +684,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private readonly webExtensions: Extensions | null = null;
 	private updatesCheckDelayer: ThrottledDelayer<void>;
 	private autoUpdateDelayer: ThrottledDelayer<void>;
+	private runningExtensions: IExtensionDescription[] | null = null;
 
 	private readonly _onChange: Emitter<IExtension | undefined> = new Emitter<IExtension | undefined>();
 	get onChange(): Event<IExtension | undefined> { return this._onChange.event; }
@@ -782,6 +788,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}));
 
 		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
+
+		this._register(this.extensionService.onDidChangeExtensions(this.updateRunningExtensions));
+		this.updateRunningExtensions();
 	}
 	private _reportTelemetry() {
 		const extensionIds = this.installed.filter(extension =>
@@ -790,6 +799,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				extension.enablementState === EnablementState.EnabledGlobally))
 			.map(extension => ExtensionIdentifier.toKey(extension.identifier.id));
 		this.telemetryService.publicLog2<InstalledExtensionsEvent, ExtensionsLoadClassification>('installedExtensions', { extensionIds: extensionIds.join(';'), count: extensionIds.length });
+	}
+
+	private updateRunningExtensions(): void {
+		this.extensionService.getExtensions().then(runningExtensions => { this.runningExtensions = runningExtensions; });
 	}
 
 	get local(): IExtension[] {
@@ -970,22 +983,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return undefined;
 	}
 
-	public async getExtensionsRequireReload(): Promise<IExtension[]> {
-		const runningExtensions = await this.extensionService.getExtensions();
-		return this.installed.filter(e => this.requiresReload(e, runningExtensions) !== undefined);
-	}
-
-	public getReloadStatus(extension: IExtension, runningExtensions: Readonly<IRelaxedExtensionDescription>[]): string | undefined {
-		return this.requiresReload(extension, runningExtensions);
-	}
-
-	private requiresReload(extension: IExtension, runningExtensions: Readonly<IRelaxedExtensionDescription>[]): string | undefined {
-		if (!runningExtensions || !extension) {
+	getReloadStatus(extension: IExtension): string | undefined {
+		if (!this.runningExtensions || !extension) {
 			return undefined;
 		}
 
 		const isUninstalled = extension.state === ExtensionState.Uninstalled;
-		const runningExtension = runningExtensions.find(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, extension!.identifier));
+		const runningExtension = this.runningExtensions.find(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, extension!.identifier));
 
 		if (isUninstalled) {
 			const canRemoveRunningExtension = runningExtension && this.extensionService.canRemoveExtension(runningExtension);
