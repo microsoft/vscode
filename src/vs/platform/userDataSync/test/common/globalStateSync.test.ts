@@ -9,8 +9,10 @@ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
 import { IGlobalState, ISyncData, IUserDataSyncStoreService, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
 
@@ -37,7 +39,7 @@ suite('GlobalStateSync', () => {
 
 	test('when global state does not exist', async () => {
 		assert.deepStrictEqual(await testObject.getLastSyncUserData(), null);
-		let manifest = await testClient.manifest();
+		let manifest = await testClient.getResourceManifest();
 		server.reset();
 		await testObject.sync(manifest);
 
@@ -51,23 +53,23 @@ suite('GlobalStateSync', () => {
 		assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
 		assert.strictEqual(lastSyncUserData!.syncData, null);
 
-		manifest = await testClient.manifest();
+		manifest = await testClient.getResourceManifest();
 		server.reset();
 		await testObject.sync(manifest);
 		assert.deepStrictEqual(server.requests, []);
 
-		manifest = await testClient.manifest();
+		manifest = await testClient.getResourceManifest();
 		server.reset();
 		await testObject.sync(manifest);
 		assert.deepStrictEqual(server.requests, []);
 	});
 
 	test('when global state is created after first sync', async () => {
-		await testObject.sync(await testClient.manifest());
+		await testObject.sync(await testClient.getResourceManifest());
 		updateUserStorage('a', 'value1', testClient);
 
 		let lastSyncUserData = await testObject.getLastSyncUserData();
-		const manifest = await testClient.manifest();
+		const manifest = await testClient.getResourceManifest();
 		server.reset();
 		await testObject.sync(manifest);
 
@@ -87,9 +89,9 @@ suite('GlobalStateSync', () => {
 		updateMachineStorage('b', 'value1', testClient);
 		await updateLocale(testClient);
 
-		await testObject.sync(await testClient.manifest());
+		await testObject.sync(await testClient.getResourceManifest());
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
-		assert.deepStrictEqual(testObject.conflicts, []);
+		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
@@ -102,9 +104,9 @@ suite('GlobalStateSync', () => {
 		await updateLocale(client2);
 		await client2.sync();
 
-		await testObject.sync(await testClient.manifest());
+		await testObject.sync(await testClient.getResourceManifest());
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
-		assert.deepStrictEqual(testObject.conflicts, []);
+		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 
 		assert.strictEqual(readStorage('a', testClient), 'value1');
 		assert.strictEqual(await readLocale(testClient), 'en');
@@ -115,9 +117,9 @@ suite('GlobalStateSync', () => {
 		await client2.sync();
 
 		updateUserStorage('b', 'value2', testClient);
-		await testObject.sync(await testClient.manifest());
+		await testObject.sync(await testClient.getResourceManifest());
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
-		assert.deepStrictEqual(testObject.conflicts, []);
+		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 
 		assert.strictEqual(readStorage('a', testClient), 'value1');
 		assert.strictEqual(readStorage('b', testClient), 'value2');
@@ -133,10 +135,10 @@ suite('GlobalStateSync', () => {
 		await client2.sync();
 
 		updateUserStorage('a', 'value2', client2);
-		await testObject.sync(await testClient.manifest());
+		await testObject.sync(await testClient.getResourceManifest());
 
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
-		assert.deepStrictEqual(testObject.conflicts, []);
+		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 
 		assert.strictEqual(readStorage('a', testClient), 'value1');
 
@@ -148,12 +150,12 @@ suite('GlobalStateSync', () => {
 
 	test('sync adding a storage value', async () => {
 		updateUserStorage('a', 'value1', testClient);
-		await testObject.sync(await testClient.manifest());
+		await testObject.sync(await testClient.getResourceManifest());
 
 		updateUserStorage('b', 'value2', testClient);
-		await testObject.sync(await testClient.manifest());
+		await testObject.sync(await testClient.getResourceManifest());
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
-		assert.deepStrictEqual(testObject.conflicts, []);
+		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 
 		assert.strictEqual(readStorage('a', testClient), 'value1');
 		assert.strictEqual(readStorage('b', testClient), 'value2');
@@ -166,12 +168,12 @@ suite('GlobalStateSync', () => {
 
 	test('sync updating a storage value', async () => {
 		updateUserStorage('a', 'value1', testClient);
-		await testObject.sync(await testClient.manifest());
+		await testObject.sync(await testClient.getResourceManifest());
 
 		updateUserStorage('a', 'value2', testClient);
-		await testObject.sync(await testClient.manifest());
+		await testObject.sync(await testClient.getResourceManifest());
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
-		assert.deepStrictEqual(testObject.conflicts, []);
+		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 
 		assert.strictEqual(readStorage('a', testClient), 'value2');
 
@@ -184,17 +186,38 @@ suite('GlobalStateSync', () => {
 	test('sync removing a storage value', async () => {
 		updateUserStorage('a', 'value1', testClient);
 		updateUserStorage('b', 'value2', testClient);
-		await testObject.sync(await testClient.manifest());
+		await testObject.sync(await testClient.getResourceManifest());
 
 		removeStorage('b', testClient);
-		await testObject.sync(await testClient.manifest());
+		await testObject.sync(await testClient.getResourceManifest());
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
-		assert.deepStrictEqual(testObject.conflicts, []);
+		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 
 		assert.strictEqual(readStorage('a', testClient), 'value1');
 		assert.strictEqual(readStorage('b', testClient), undefined);
 
 		const { content } = await testClient.read(testObject.resource);
+		assert.ok(content !== null);
+		const actual = parseGlobalState(content!);
+		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' } });
+	});
+
+	test('sync profile state', async () => {
+		const client2 = disposableStore.add(new UserDataSyncClient(server));
+		await client2.setUp(true);
+		const profile = await client2.instantiationService.get(IUserDataProfilesService).createNamedProfile('profile1');
+		await updateLocale(client2);
+		await updateUserStorageForProfile('a', 'value1', profile, testClient);
+		await client2.sync();
+
+		await testClient.sync();
+
+		const syncedProfile = testClient.instantiationService.get(IUserDataProfilesService).profiles.find(p => p.id === profile.id)!;
+		const profileStorage = await testClient.instantiationService.get(IUserDataSyncProfilesStorageService).readStorageData(syncedProfile);
+		assert.strictEqual(profileStorage.get('a')?.value, 'value1');
+		assert.strictEqual(await readLocale(testClient), 'en');
+
+		const { content } = await testClient.read(testObject.resource, '1');
 		assert.ok(content !== null);
 		const actual = parseGlobalState(content!);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' } });
@@ -211,9 +234,16 @@ suite('GlobalStateSync', () => {
 		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'en' })));
 	}
 
-	function updateUserStorage(key: string, value: string, client: UserDataSyncClient): void {
+	function updateUserStorage(key: string, value: string, client: UserDataSyncClient, profile?: IUserDataProfile): void {
 		const storageService = client.instantiationService.get(IStorageService);
 		storageService.store(key, value, StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	async function updateUserStorageForProfile(key: string, value: string, profile: IUserDataProfile, client: UserDataSyncClient): Promise<void> {
+		const storageService = client.instantiationService.get(IUserDataSyncProfilesStorageService);
+		const data = new Map<string, string>();
+		data.set(key, value);
+		await storageService.updateStorageData(profile, data, StorageTarget.USER);
 	}
 
 	function updateMachineStorage(key: string, value: string, client: UserDataSyncClient): void {
