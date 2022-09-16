@@ -101,8 +101,8 @@ export interface IExtensionsWorkbenchService {
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
 	getExtensions(extensionInfos: IExtensionInfo[], token: CancellationToken): Promise<IExtension[]>;
 	getExtensions(extensionInfos: IExtensionInfo[], options: IExtensionQueryOptions, token: CancellationToken): Promise<IExtension[]>;
-	requireReload(): Promise<IExtension[]>;
-	getReloadRequiredState(extension: IExtension, runningExtensions: Readonly<IRelaxedExtensionDescription>[]): ReloadRequiredState;
+	getExtensionsRequireReload(): Promise<IExtension[]>;
+	getReloadStatus(extension: IExtension, runningExtensions: Readonly<IRelaxedExtensionDescription>[]): string | undefined;
 	canInstall(extension: IExtension): Promise<boolean>;
 	install(vsix: URI, installOptions?: InstallVSIXOptions): Promise<IExtension>;
 	install(extension: IExtension, installOptions?: InstallOptions, progressLocation?: ProgressLocation): Promise<IExtension>;
@@ -119,12 +119,6 @@ export interface IExtensionsWorkbenchService {
 	// Sync APIs
 	isExtensionIgnoredToSync(extension: IExtension): boolean;
 	toggleExtensionIgnoredToSync(extension: IExtension): Promise<void>;
-}
-
-export interface ReloadRequiredState {
-	enabled: boolean;
-	label: string;
-	tooltip: string;
 }
 
 export const enum ExtensionEditorTab {

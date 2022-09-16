@@ -1521,10 +1521,10 @@ export class ReloadAction extends ExtensionAction {
 			return;
 		}
 
-		const reloadState = this.extensionsWorkbenchService.getReloadRequiredState(this.extension, this._runningExtensions);
-		this.enabled = reloadState.enabled;
-		this.label = reloadState.label;
-		this.tooltip = reloadState.tooltip;
+		const reloadTooltip = this.extensionsWorkbenchService.getReloadStatus(this.extension, this._runningExtensions);
+		this.enabled = reloadTooltip !== undefined;
+		this.label = reloadTooltip ? localize('reload required', 'Reload Required') : '';
+		this.tooltip = reloadTooltip ? reloadTooltip : '';
 
 		this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
 	}

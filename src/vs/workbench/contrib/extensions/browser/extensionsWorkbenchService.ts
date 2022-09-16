@@ -23,7 +23,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { URI } from 'vs/base/common/uri';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, ReloadRequiredState } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
@@ -970,24 +970,18 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return undefined;
 	}
 
-	public async requireReload(): Promise<IExtension[]> {
+	public async getExtensionsRequireReload(): Promise<IExtension[]> {
 		const runningExtensions = await this.extensionService.getExtensions();
-		return this.installed.filter(e => this.requiresReload(e, runningExtensions).enabled);
+		return this.installed.filter(e => this.requiresReload(e, runningExtensions) !== undefined);
 	}
 
-	public getReloadRequiredState(extension: IExtension, runningExtensions: Readonly<IRelaxedExtensionDescription>[]): ReloadRequiredState {
+	public getReloadStatus(extension: IExtension, runningExtensions: Readonly<IRelaxedExtensionDescription>[]): string | undefined {
 		return this.requiresReload(extension, runningExtensions);
 	}
 
-	private requiresReload(extension: IExtension, runningExtensions: Readonly<IRelaxedExtensionDescription>[]) {
-		const reloadableState = {
-			enabled: false,
-			label: '',
-			tooltip: '',
-		};
-
+	private requiresReload(extension: IExtension, runningExtensions: Readonly<IRelaxedExtensionDescription>[]): string | undefined {
 		if (!runningExtensions || !extension) {
-			return reloadableState;
+			return undefined;
 		}
 
 		const isUninstalled = extension.state === ExtensionState.Uninstalled;
@@ -997,12 +991,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			const canRemoveRunningExtension = runningExtension && this.extensionService.canRemoveExtension(runningExtension);
 			const isSameExtensionRunning = runningExtension && (!extension.server || extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)));
 			if (!canRemoveRunningExtension && isSameExtensionRunning) {
-				reloadableState.enabled = true;
-				reloadableState.label = nls.localize('reloadRequired', "Reload Required");
-				reloadableState.tooltip = nls.localize('postUninstallTooltip', "Please reload Visual Studio Code to complete the uninstallation of this extension.");
 				alert(nls.localize('uninstallExtensionComplete', "Please reload Visual Studio Code to complete the uninstallation of the extension {0}.", extension.displayName));
+				return nls.localize('postUninstallTooltip', "Please reload Visual Studio Code to complete the uninstallation of this extension.");
 			}
-			return reloadableState;
+			return undefined;
 		}
 		if (extension.local) {
 			const isSameExtensionRunning = runningExtension && extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension));
@@ -1013,35 +1005,26 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				if (isEnabled) {
 					// No Reload is required if extension can run without reload
 					if (this.extensionService.canAddExtension(toExtensionDescription(extension.local))) {
-						return reloadableState;
+						return undefined;
 					}
 					const runningExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension));
 
 					if (isSameExtensionRunning) {
 						// Different version or target platform of same extension is running. Requires reload to run the current version
 						if (extension.version !== runningExtension.version || extension.local.targetPlatform !== runningExtension.targetPlatform) {
-							reloadableState.enabled = true;
-							reloadableState.label = nls.localize('reloadRequired', "Reload Required");
-							reloadableState.tooltip = nls.localize('postUpdateTooltip', "Please reload Visual Studio Code to enable the updated extension.");
-							return reloadableState;
+							return nls.localize('postUpdateTooltip', "Please reload Visual Studio Code to enable the updated extension.");
 						}
 
 						const extensionInOtherServer = this.installed.filter(e => areSameExtensions(e.identifier, extension!.identifier) && e.server !== extension!.server)[0];
 						if (extensionInOtherServer) {
 							// This extension prefers to run on UI/Local side but is running in remote
 							if (runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer && this.extensionManifestPropertiesService.prefersExecuteOnUI(extension.local!.manifest)) {
-								reloadableState.enabled = true;
-								reloadableState.label = nls.localize('reloadRequired', "Reload Required");
-								reloadableState.tooltip = nls.localize('enable locally', "Please reload Visual Studio Code to enable this extension locally.");
-								return reloadableState;
+								return nls.localize('enable locally', "Please reload Visual Studio Code to enable this extension locally.");
 							}
 
 							// This extension prefers to run on Workspace/Remote side but is running in local
 							if (runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer && this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(extension.local!.manifest)) {
-								reloadableState.enabled = true;
-								reloadableState.label = nls.localize('reloadRequired', "Reload Required");
-								reloadableState.tooltip = nls.localize('enable remote', "Please reload Visual Studio Code to enable this extension in {0}.", this.extensionManagementServerService.remoteExtensionManagementServer?.label);
-								return reloadableState;
+								return nls.localize('enable remote', "Please reload Visual Studio Code to enable this extension in {0}.", this.extensionManagementServerService.remoteExtensionManagementServer?.label);
 							}
 						}
 
@@ -1050,38 +1033,29 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 						if (extension.server === this.extensionManagementServerService.localExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer) {
 							// This extension prefers to run on UI/Local side but is running in remote
 							if (this.extensionManifestPropertiesService.prefersExecuteOnUI(extension.local!.manifest)) {
-								reloadableState.enabled = true;
-								reloadableState.label = nls.localize('reloadRequired', "Reload Required");
-								reloadableState.tooltip = nls.localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
+								return nls.localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
 							}
 						}
 						if (extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer) {
 							// This extension prefers to run on Workspace/Remote side but is running in local
 							if (this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(extension.local!.manifest)) {
-								reloadableState.enabled = true;
-								reloadableState.label = nls.localize('reloadRequired', "Reload Required");
-								reloadableState.tooltip = nls.localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
+								return nls.localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
 							}
 						}
 					}
-					return reloadableState;
+					return undefined;
 				} else {
 					if (isSameExtensionRunning) {
-						reloadableState.enabled = true;
-						reloadableState.label = nls.localize('reloadRequired', "Reload Required");
-						reloadableState.tooltip = nls.localize('postDisableTooltip', "Please reload Visual Studio Code to disable this extension.");
+						return nls.localize('postDisableTooltip', "Please reload Visual Studio Code to disable this extension.");
 					}
 				}
-				return reloadableState;
+				return undefined;
 			}
 
 			// Extension is not running
 			else {
 				if (isEnabled && !this.extensionService.canAddExtension(toExtensionDescription(extension.local))) {
-					reloadableState.enabled = true;
-					reloadableState.label = nls.localize('reloadRequired', "Reload Required");
-					reloadableState.tooltip = nls.localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
-					return reloadableState;
+					return nls.localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
 				}
 
 				const otherServer = extension.server ? extension.server === this.extensionManagementServerService.localExtensionManagementServer ? this.extensionManagementServerService.remoteExtensionManagementServer : this.extensionManagementServerService.localExtensionManagementServer : null;
@@ -1089,16 +1063,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					const extensionInOtherServer = this.local.filter(e => areSameExtensions(e.identifier, extension!.identifier) && e.server === otherServer)[0];
 					// Same extension in other server exists and
 					if (extensionInOtherServer && extensionInOtherServer.local && this.extensionEnablementService.isEnabled(extensionInOtherServer.local)) {
-						reloadableState.enabled = true;
-						reloadableState.label = nls.localize('reloadRequired', "Reload Required");
-						reloadableState.tooltip = nls.localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
 						alert(nls.localize('installExtensionCompletedAndReloadRequired', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", extension.displayName));
-						return reloadableState;
+						return nls.localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
 					}
 				}
 			}
 		}
-		return reloadableState;
+		return undefined;
 	}
 
 	private getPrimaryExtension(extensions: IExtension[]): IExtension {
