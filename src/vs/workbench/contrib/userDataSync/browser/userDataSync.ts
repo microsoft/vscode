@@ -27,7 +27,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
 	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService,
-	getSyncResourceFromLocalPreview, IResourcePreview, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStore
+	getSyncResourceFromLocalPreview, IResourcePreview, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStore, IUserDataSyncResourceConflicts, IUserDataSyncResource, IUserDataSyncResourceError
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
@@ -59,6 +59,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ctxIsMergeResultEditor, ctxMergeBaseUri } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { distinct } from 'vs/base/common/arrays';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -201,63 +202,67 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.updateGlobalActivityBadge();
 	}
 
-	private readonly conflictsDisposables = new Map<SyncResource, IDisposable>();
-	private onDidChangeConflicts(conflicts: [SyncResource, IResourcePreview[]][]) {
+	private toKey({ syncResource: resource, profile }: IUserDataSyncResource): string {
+		return `${profile.id}:${resource}`;
+	}
+
+	private readonly conflictsDisposables = new Map<string, IDisposable>();
+	private onDidChangeConflicts(conflicts: IUserDataSyncResourceConflicts[]) {
 		if (!this.userDataSyncEnablementService.isEnabled()) {
 			return;
 		}
 		this.updateGlobalActivityBadge();
 		if (conflicts.length) {
-			const conflictsSources: SyncResource[] = conflicts.map(([syncResource]) => syncResource);
-			this.conflictsSources.set(conflictsSources.join(','));
-			if (conflictsSources.indexOf(SyncResource.Snippets) !== -1) {
+			this.conflictsSources.set(conflicts.map(({ syncResource: resource }) => resource).join(','));
+			if (conflicts.some(({ syncResource: resource }) => resource === SyncResource.Snippets)) {
 				this.registerShowSnippetsConflictsAction();
 			}
 
 			// Clear and dispose conflicts those were cleared
-			this.conflictsDisposables.forEach((disposable, conflictsSource) => {
-				if (conflictsSources.indexOf(conflictsSource) === -1) {
+			for (const [key, disposable] of this.conflictsDisposables.entries()) {
+				if (!conflicts.some(conflict => this.toKey(conflict) === key)) {
 					disposable.dispose();
-					this.conflictsDisposables.delete(conflictsSource);
+					this.conflictsDisposables.delete(key);
 				}
-			});
+			}
 
-			for (const [syncResource, conflicts] of this.userDataSyncService.conflicts) {
-				const conflictsEditorInputs = this.getConflictsEditorInputs(syncResource);
+			for (const conflict of this.userDataSyncService.conflicts) {
+				const key = this.toKey(conflict);
+				const conflictsEditorInputs = this.getConflictsEditorInputs(conflict);
 
 				// close stale conflicts editor previews
 				if (conflictsEditorInputs.length) {
 					conflictsEditorInputs.forEach(input => {
-						if (!conflicts.some(({ previewResource }) => isEqual(previewResource, input.primary.resource))) {
+						if (!conflict.conflicts.some(({ previewResource }) => isEqual(previewResource, input.primary.resource))) {
 							input.dispose();
 						}
 					});
 				}
 
 				// Show conflicts notification if not shown before
-				else if (!this.conflictsDisposables.has(syncResource)) {
-					const conflictsArea = getSyncAreaLabel(syncResource);
+				else if (!this.conflictsDisposables.has(key)) {
+					const conflictsArea = getSyncAreaLabel(conflict.syncResource);
 					const handle = this.notificationService.prompt(Severity.Warning, localize('conflicts detected', "Unable to sync due to conflicts in {0}. Please resolve them to continue.", conflictsArea.toLowerCase()),
 						[
 							{
 								label: localize('replace remote', "Replace Remote"),
 								run: () => {
-									this.telemetryService.publicLog2<{ source: string; action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: syncResource, action: 'acceptLocal' });
-									this.acceptLocal(syncResource, conflicts);
+									this.telemetryService.publicLog2<{ source: string; action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: conflict.syncResource, action: 'acceptLocal' });
+									this.acceptLocal(conflict, conflict.conflicts);
 								}
 							},
 							{
 								label: localize('replace local', "Replace Local"),
 								run: () => {
-									this.telemetryService.publicLog2<{ source: string; action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: syncResource, action: 'acceptRemote' });
-									this.acceptRemote(syncResource, conflicts);
+									this.telemetryService.publicLog2<{ source: string; action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: conflict.syncResource, action: 'acceptRemote' });
+									this.acceptRemote(conflict, conflict.conflicts);
 								}
 							},
 							{
 								label: localize('show conflicts', "Show Conflicts"),
 								run: () => {
-									this.telemetryService.publicLog2<{ source: string; action?: string }, SyncConflictsClassification>('sync/showConflicts', { source: syncResource });
-									this.handleConflicts([syncResource, conflicts]);
+									this.telemetryService.publicLog2<{ source: string; action?: string }, SyncConflictsClassification>('sync/showConflicts', { source: conflict.syncResource });
+									this.handleConflicts(conflict);
 								}
 							}
 						],
@@ -265,18 +270,18 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 							sticky: true
 						}
 					);
-					this.conflictsDisposables.set(syncResource, toDisposable(() => {
+					this.conflictsDisposables.set(key, toDisposable(() => {
 
 						// close the conflicts warning notification
 						handle.close();
 
 						// close opened conflicts editor previews
-						const conflictsEditorInputs = this.getConflictsEditorInputs(syncResource);
+						const conflictsEditorInputs = this.getConflictsEditorInputs(conflict);
 						if (conflictsEditorInputs.length) {
 							conflictsEditorInputs.forEach(input => input.dispose());
 						}
 
-						this.conflictsDisposables.delete(syncResource);
+						this.conflictsDisposables.delete(key);
 					}));
 				}
 			}
@@ -288,7 +293,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private async acceptRemote(syncResource: SyncResource, conflicts: IResourcePreview[]) {
+	private async acceptRemote(syncResource: IUserDataSyncResource, conflicts: IResourcePreview[]) {
 		try {
 			for (const conflict of conflicts) {
 				await this.userDataSyncService.accept(syncResource, conflict.remoteResource, undefined, this.userDataSyncEnablementService.isEnabled());
@@ -298,7 +303,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private async acceptLocal(syncResource: SyncResource, conflicts: IResourcePreview[]): Promise<void> {
+	private async acceptLocal(syncResource: IUserDataSyncResource, conflicts: IResourcePreview[]): Promise<void> {
 		try {
 			for (const conflict of conflicts) {
 				await this.userDataSyncService.accept(syncResource, conflict.localResource, undefined, this.userDataSyncEnablementService.isEnabled());
@@ -404,19 +409,20 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		});
 	}
 
-	private readonly invalidContentErrorDisposables = new Map<SyncResource, IDisposable>();
-	private onSynchronizerErrors(errors: [SyncResource, UserDataSyncError][]): void {
+	private readonly invalidContentErrorDisposables = new Map<string, IDisposable>();
+	private onSynchronizerErrors(errors: IUserDataSyncResourceError[]): void {
 		if (errors.length) {
-			for (const [source, error] of errors) {
+			for (const { profile, syncResource: resource, error } of errors) {
 				switch (error.code) {
 					case UserDataSyncErrorCode.LocalInvalidContent:
-						this.handleInvalidContentError(source);
+						this.handleInvalidContentError({ profile, syncResource: resource });
 						break;
 					default: {
-						const disposable = this.invalidContentErrorDisposables.get(source);
+						const key = `${profile.id}:${resource}`;
+						const disposable = this.invalidContentErrorDisposables.get(key);
 						if (disposable) {
 							disposable.dispose();
-							this.invalidContentErrorDisposables.delete(source);
+							this.invalidContentErrorDisposables.delete(key);
 						}
 					}
 				}
@@ -427,8 +433,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private handleInvalidContentError(source: SyncResource): void {
-		if (this.invalidContentErrorDisposables.has(source)) {
+	private handleInvalidContentError({ profile, syncResource: source }: IUserDataSyncResource): void {
+		const key = `${profile.id}:${source}`;
+		if (this.invalidContentErrorDisposables.has(key)) {
 			return;
 		}
 		if (source !== SyncResource.Settings && source !== SyncResource.Keybindings && source !== SyncResource.Tasks) {
@@ -451,10 +458,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					() => source === SyncResource.Settings ? this.preferencesService.openUserSettings({ jsonEditor: true }) : this.preferencesService.openGlobalKeybindingSettings(true))]
 			}
 		});
-		this.invalidContentErrorDisposables.set(source, toDisposable(() => {
+		this.invalidContentErrorDisposables.set(key, toDisposable(() => {
 			// close the error warning notification
 			handle.close();
-			this.invalidContentErrorDisposables.delete(source);
+			this.invalidContentErrorDisposables.delete(key);
 		}));
 	}
 
@@ -466,7 +473,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		let priority: number | undefined = undefined;
 
 		if (this.userDataSyncService.conflicts.length && this.userDataSyncEnablementService.isEnabled()) {
-			badge = new NumberBadge(this.userDataSyncService.conflicts.reduce((result, [, conflicts]) => { return result + conflicts.length; }, 0), () => localize('has conflicts', "{0}: Conflicts Detected", SYNC_TITLE));
+			badge = new NumberBadge(this.userDataSyncService.conflicts.reduce((result, { conflicts }) => { return result + conflicts.length; }, 0), () => localize('has conflicts', "{0}: Conflicts Detected", SYNC_TITLE));
 		} else if (this.turningOnSync) {
 			badge = new ProgressBadge(() => localize('turning on syncing', "Turning on Settings Sync..."));
 			clazz = 'progress-badge';
@@ -703,28 +710,35 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private getConflictsEditorInputs(syncResource: SyncResource): DiffEditorInput[] {
+	private getConflictsEditorInputs(syncResource: IUserDataSyncResource): DiffEditorInput[] {
 		return this.editorService.editors.filter(input => {
 			const resource = input instanceof DiffEditorInput ? input.primary.resource : input.resource;
-			return resource && getSyncResourceFromLocalPreview(resource!, this.environmentService) === syncResource;
+			if (!resource) {
+				return false;
+			}
+			const syncResourceFromPreview = getSyncResourceFromLocalPreview(resource, this.userDataProfilesService, this.environmentService);
+			if (!syncResourceFromPreview) {
+				return false;
+			}
+			return syncResourceFromPreview.syncResource === syncResource.syncResource && syncResourceFromPreview.profile.id === syncResource.profile.id;
 		}) as DiffEditorInput[];
 	}
 
 	private getAllConflictsEditorInputs(): EditorInput[] {
 		return this.editorService.editors.filter(input => {
 			const resource = input instanceof DiffEditorInput ? input.primary.resource : input.resource;
-			return resource && getSyncResourceFromLocalPreview(resource!, this.environmentService) !== undefined;
+			return resource && getSyncResourceFromLocalPreview(resource, this.userDataProfilesService, this.environmentService) !== undefined;
 		});
 	}
 
 	private async handleSyncResourceConflicts(resource: SyncResource): Promise<void> {
-		const syncResourceCoflicts = this.userDataSyncService.conflicts.filter(([syncResource]) => syncResource === resource)[0];
+		const syncResourceCoflicts = this.userDataSyncService.conflicts.find(conflict => conflict.syncResource === resource);
 		if (syncResourceCoflicts) {
 			this.handleConflicts(syncResourceCoflicts);
 		}
 	}
 
-	private async handleConflicts([syncResource, conflicts]: [SyncResource, IResourcePreview[]]): Promise<void> {
+	private async handleConflicts({ conflicts }: IUserDataSyncResourceConflicts): Promise<void> {
 		for (const conflict of conflicts) {
 			const remoteResourceName = localize({ key: 'remoteResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(conflict.remoteResource));
 			const localResourceName = localize('localResourceName', "{0} (Local)", basename(conflict.remoteResource));
@@ -1012,7 +1026,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private registerShowSnippetsConflictsAction(): void {
 		this._snippetsConflictsActionsDisposable.clear();
 		const resolveSnippetsConflictsWhenContext = ContextKeyExpr.regex(CONTEXT_CONFLICTS_SOURCES.keys()[0], /.*snippets.*/i);
-		const conflicts: IResourcePreview[] | undefined = this.userDataSyncService.conflicts.filter(([syncResource]) => syncResource === SyncResource.Snippets)[0]?.[1];
+		const conflicts: IResourcePreview[] | undefined = this.userDataSyncService.conflicts.find(({ syncResource: resource }) => resource === SyncResource.Snippets)?.conflicts;
 		this._snippetsConflictsActionsDisposable.add(CommandsRegistry.registerCommand(resolveSnippetsConflictsCommand.id, () => this.handleSyncResourceConflicts(SyncResource.Snippets)));
 		this._snippetsConflictsActionsDisposable.add(MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',
@@ -1076,7 +1090,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					disposables.add(quickPick);
 					const items: Array<QuickPickItem> = [];
 					if (that.userDataSyncService.conflicts.length) {
-						for (const [syncResource] of that.userDataSyncService.conflicts) {
+						const syncResources = distinct(that.userDataSyncService.conflicts.map(({ syncResource: resource }) => resource));
+						for (const syncResource of syncResources) {
 							switch (syncResource) {
 								case SyncResource.Settings:
 									items.push({ id: resolveSettingsConflictsCommand.id, label: resolveSettingsConflictsCommand.title });
@@ -1300,10 +1315,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				await that.userDataSyncService.accept(this.getSyncResource(previewResource), previewResource, content.value, true);
 			}
 
-			private getSyncResource(previewResource: URI): SyncResource {
-				const conflict = that.userDataSyncService.conflicts.find(([, conflicts]) => conflicts.some(conflict => isEqual(conflict.previewResource, previewResource)));
+			private getSyncResource(previewResource: URI): IUserDataSyncResource {
+				const conflict = that.userDataSyncService.conflicts.find(({ conflicts }) => conflicts.some(conflict => isEqual(conflict.previewResource, previewResource)));
 				if (conflict) {
-					return conflict[0];
+					return conflict;
 				}
 				throw new Error(`Unknown resource: ${previewResource.toString()}`);
 			}

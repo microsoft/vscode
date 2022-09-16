@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IAuthenticationProvider, SyncStatus, SyncResource, Change, MergeState } from 'vs/platform/userDataSync/common/userDataSync';
+import { IAuthenticationProvider, SyncStatus, SyncResource, Change, MergeState, IUserDataSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
@@ -19,10 +19,10 @@ export interface IUserDataSyncAccount {
 }
 
 export interface IUserDataSyncPreview {
-	readonly onDidChangeResources: Event<ReadonlyArray<IUserDataSyncResource>>;
-	readonly resources: ReadonlyArray<IUserDataSyncResource>;
+	readonly onDidChangeResourcePreviews: Event<ReadonlyArray<IResourcePreview>>;
+	readonly resourcePreviews: ReadonlyArray<IResourcePreview>;
 
-	accept(syncResource: SyncResource, resource: URI, content?: string | null): Promise<void>;
+	accept(profileSyncResource: IUserDataSyncResource, resource: URI, content?: string | null): Promise<void>;
 	merge(resource?: URI): Promise<void>;
 	discard(resource?: URI): Promise<void>;
 	pull(): Promise<void>;
@@ -31,8 +31,8 @@ export interface IUserDataSyncPreview {
 	cancel(): Promise<void>;
 }
 
-export interface IUserDataSyncResource {
-	readonly syncResource: SyncResource;
+export interface IResourcePreview {
+	readonly profileSyncResource: IUserDataSyncResource;
 	readonly local: URI;
 	readonly remote: URI;
 	readonly merged: URI;

@@ -36,7 +36,7 @@ import { CommandCenterControl } from 'vs/workbench/browser/parts/titlebar/comman
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -72,7 +72,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private appIconBadge: HTMLElement | undefined;
 	protected menubar?: HTMLElement;
 	protected layoutControls: HTMLElement | undefined;
-	private layoutToolbar: WorkbenchToolBar | undefined;
+	private layoutToolbar: MenuWorkbenchToolBar | undefined;
 	protected lastLayoutDimensions: Dimension | undefined;
 
 	private hoverDelegate: IHoverDelegate;
@@ -269,7 +269,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.layoutControls = append(this.rootContainer, $('div.layout-controls-container'));
 			this.layoutControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
 
-			this.layoutToolbar = this.instantiationService.createInstance(WorkbenchToolBar, this.layoutControls, MenuId.LayoutControlMenu, {
+			this.layoutToolbar = this.instantiationService.createInstance(MenuWorkbenchToolBar, this.layoutControls, MenuId.LayoutControlMenu, {
 				contextMenu: MenuId.TitleBarContext,
 				toolbarOptions: { primaryGroup: () => true },
 				actionViewItemProvider: action => {
