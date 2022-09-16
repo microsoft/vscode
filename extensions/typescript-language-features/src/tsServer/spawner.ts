@@ -55,6 +55,7 @@ export class TypeScriptServerSpawner {
 		delegate: TsServerDelegate,
 	): ITypeScriptServer {
 		let primaryServer: ITypeScriptServer;
+            console.log("passed out long")
 		const serverType = this.getCompositeServerType(version, capabilities, configuration);
 		const shouldUseSeparateDiagnosticsServer = this.shouldUseSeparateDiagnosticsServer(configuration);
 
@@ -130,6 +131,7 @@ export class TypeScriptServerSpawner {
 		pluginManager: PluginManager,
 		cancellerFactory: OngoingRequestCancellerFactory,
 	): ITypeScriptServer {
+            console.log('ooband logging')
 		const apiVersion = version.apiVersion || API.defaultVersion;
 
 		const canceller = cancellerFactory.create(kind, this._tracer);
