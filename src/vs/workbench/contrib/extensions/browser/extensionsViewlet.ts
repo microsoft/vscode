@@ -72,6 +72,7 @@ const SearchOutdatedExtensionsContext = new RawContextKey<boolean>('searchOutdat
 const SearchEnabledExtensionsContext = new RawContextKey<boolean>('searchEnabledExtensions', false);
 const SearchDisabledExtensionsContext = new RawContextKey<boolean>('searchDisabledExtensions', false);
 const HasInstalledExtensionsContext = new RawContextKey<boolean>('hasInstalledExtensions', true);
+const HasOutdatedExtensionsContext = new RawContextKey<boolean>('hasOutdatedExtensions', true);
 export const BuiltInExtensionsContext = new RawContextKey<boolean>('builtInExtensions', false);
 const SearchBuiltInExtensionsContext = new RawContextKey<boolean>('searchBuiltInExtensions', false);
 const SearchUnsupportedWorkspaceExtensionsContext = new RawContextKey<boolean>('searchUnsupportedWorkspaceExtensions', false);
@@ -301,6 +302,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			name: localize('recently updated', "Recently Updated"),
 			ctorDescriptor: new SyncDescriptor(RecentlyUpdatedExtensionsView, [{}]),
 			when: ContextKeyExpr.or(SearchExtensionUpdatesContext, ContextKeyExpr.has('searchRecentlyUpdatedExtensions')),
+			order: 2,
 		});
 
 		/*
@@ -328,9 +330,10 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.searchOutdated',
-			name: localize('outdated', "Outdated"),
+			name: localize('updates', "Updates"),
 			ctorDescriptor: new SyncDescriptor(OutdatedExtensionsView, [{}]),
-			when: ContextKeyExpr.or(SearchExtensionUpdatesContext, ContextKeyExpr.has('searchOutdatedExtensions')),
+			when: ContextKeyExpr.or(ContextKeyExpr.and(SearchExtensionUpdatesContext, HasOutdatedExtensionsContext), ContextKeyExpr.has('searchOutdatedExtensions')),
+			order: 1,
 		});
 
 		/*
@@ -468,6 +471,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	private searchEnabledExtensionsContextKey: IContextKey<boolean>;
 	private searchDisabledExtensionsContextKey: IContextKey<boolean>;
 	private hasInstalledExtensionsContextKey: IContextKey<boolean>;
+	private hasOutdatedExtensionsContextKey: IContextKey<boolean>;
 	private builtInExtensionsContextKey: IContextKey<boolean>;
 	private searchBuiltInExtensionsContextKey: IContextKey<boolean>;
 	private searchWorkspaceUnsupportedExtensionsContextKey: IContextKey<boolean>;
@@ -517,6 +521,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.searchEnabledExtensionsContextKey = SearchEnabledExtensionsContext.bindTo(contextKeyService);
 		this.searchDisabledExtensionsContextKey = SearchDisabledExtensionsContext.bindTo(contextKeyService);
 		this.hasInstalledExtensionsContextKey = HasInstalledExtensionsContext.bindTo(contextKeyService);
+		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
 		this.builtInExtensionsContextKey = BuiltInExtensionsContext.bindTo(contextKeyService);
 		this.searchBuiltInExtensionsContextKey = SearchBuiltInExtensionsContext.bindTo(contextKeyService);
 		this.recommendedExtensionsContextKey = RecommendedExtensionsContext.bindTo(contextKeyService);
@@ -555,6 +560,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		}, placeholder, 'extensions:searchinput', { placeholderText: placeholder, value: searchValue }));
 
 		this.updateInstalledExtensionsContexts();
+		this.updateOutdatedExtensionsContexts();
 		if (this.searchBox.getValue()) {
 			this.triggerSearch();
 		}
@@ -634,6 +640,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 	async refresh(): Promise<void> {
 		await this.updateInstalledExtensionsContexts();
+		await this.updateOutdatedExtensionsContexts();
 		this.doSearch(true);
 		if (this.configurationService.getValue(AutoCheckUpdatesConfigurationKey)) {
 			this.extensionsWorkbenchService.checkForUpdates();
@@ -643,6 +650,11 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	private async updateInstalledExtensionsContexts(): Promise<void> {
 		const result = await this.extensionsWorkbenchService.queryLocal();
 		this.hasInstalledExtensionsContextKey.set(result.some(r => !r.isBuiltin));
+	}
+
+	private async updateOutdatedExtensionsContexts() {
+		const result = await this.extensionsWorkbenchService.queryLocal();
+		this.hasOutdatedExtensionsContextKey.set(result.some(r => !r.outdated));
 	}
 
 	private triggerSearch(): void {
