@@ -12,7 +12,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { createActionViewItem, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { HiddenItemStrategy, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { Action2, MenuId, MenuItemAction, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -39,11 +39,11 @@ export class CommandCenterControl {
 	) {
 		this.element.classList.add('command-center');
 
-		const titleToolbar = instantiationService.createInstance(WorkbenchToolBar, this.element, MenuId.CommandCenter, {
+		const titleToolbar = instantiationService.createInstance(MenuWorkbenchToolBar, this.element, MenuId.CommandCenter, {
 			contextMenu: MenuId.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {
 				primaryGroup: () => true,
-				hiddenItemStrategy: HiddenItemStrategy.Hide
 			},
 			telemetrySource: 'commandCenter',
 			actionViewItemProvider: (action) => {
