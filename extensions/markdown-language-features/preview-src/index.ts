@@ -87,6 +87,10 @@ onceDocumentLoaded(() => {
 			}
 		});
 	}
+
+	if (typeof settings.settings.selectedLine === 'number') {
+		marker.onDidChangeTextEditorSelection(settings.settings.selectedLine, documentVersion);
+	}
 });
 
 const onUpdateView = (() => {
@@ -110,7 +114,6 @@ window.addEventListener('resize', () => {
 }, true);
 
 window.addEventListener('message', async event => {
-
 	switch (event.data.type) {
 		case 'onDidChangeTextEditorSelection':
 			if (event.data.source === documentResource) {
