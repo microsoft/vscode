@@ -92,7 +92,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	// Always on addons
 	private _markNavigationAddon: MarkNavigationAddon;
 	private _shellIntegrationAddon: ShellIntegrationAddon;
-	private _contextualActionAddon: ContextualActionAddon | undefined;
+	private _contextualActionAddon: ContextualActionAddon;
 	private _decorationAddon: DecorationAddon;
 
 	// Optional addons
@@ -213,29 +213,16 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = new ShellIntegrationAddon(disableShellIntegrationReporting, this._telemetryService, this._logService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
-		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-			this._activateContextualActionAddon();
-		} else {
-			this._capabilities.onDidAddCapability((c) => {
-				if (c === TerminalCapability.CommandDetection) {
-					this._activateContextualActionAddon();
-				}
-			});
-		}
-	}
-
-	private _activateContextualActionAddon(): void {
-		if (this._contextualActionAddon) {
-			return;
-		}
-		const addon = this._instantiationService.createInstance(ContextualActionAddon, this._capabilities);
-		this._contextualActionAddon = addon;
+		this._contextualActionAddon = this._instantiationService.createInstance(ContextualActionAddon, this._capabilities);
 		this._contextualActionAddon.onDidRequestRerunCommand(command => this._onDidRequestRunCommand.fire({ command, noNewLine: true }));
 		this._contextualActionAddon.onDidRequestFreePort(port => this._onDidRequestFreePort.fire(port));
 		this.raw.loadAddon(this._contextualActionAddon);
-		addon.registerCommandFinishedListener(this._fixGitAction());
-		addon.registerCommandFinishedListener(this._freePortAction());
+		this.registerCommandFinishedListener(this._fixGitAction());
+		this.registerCommandFinishedListener(this._freePortAction());
+	}
 
+	public registerCommandFinishedListener(options: ITerminalContextualActionOptions): void {
+		this._contextualActionAddon.registerCommandFinishedListener(options);
 	}
 
 	private _fixGitAction(): ITerminalContextualActionOptions {

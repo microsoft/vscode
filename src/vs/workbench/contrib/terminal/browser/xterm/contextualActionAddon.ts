@@ -20,14 +20,13 @@ export interface IContextualAction {
 	show(): void;
 
 	/**
-	 * Accepts a freed port and triggers the related callback or throws an error
+	 * Triggers the related callback or throws an error
 	 */
-	resolveFreePortRequest(error?: Error): void;
+	resolveFreePortRequest(): void;
 
 	/**
 	 * Registers a listener on onCommandFinished scoped to a particular command or regular
-	 * expression.
-	 * will fire the listener for commands that match.
+	 * expression and provides a callback to be executed for commands that match.
 	 */
 	registerCommandFinishedListener(options: ITerminalContextualActionOptions): void;
 }
@@ -55,12 +54,16 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore, @IContextMenuService private readonly _contextMenuService: IContextMenuService) {
 		super();
-		this._capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(command => this._evaluate(command));
-		this._capabilities.onDidAddCapability(c => {
-			if (c === TerminalCapability.CommandDetection) {
-				this._capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(command => this._evaluate(command));
-			}
-		});
+		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
+		if (commandDetectionCapability) {
+			this._registerCommandFinishedHandler();
+		} else {
+			this._capabilities.onDidAddCapability(c => {
+				if (c === TerminalCapability.CommandDetection) {
+					this._registerCommandFinishedHandler();
+				}
+			});
+		}
 	}
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
@@ -68,6 +71,10 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 
 	public show(): void {
 		this._currentQuickFixElement?.click();
+	}
+
+	private _registerCommandFinishedHandler(): void {
+		this._register(this._capabilities.get(TerminalCapability.CommandDetection)!.onCommandFinished(command => this._evaluate(command)));
 	}
 
 	private _evaluate(command: ITerminalCommand): void {

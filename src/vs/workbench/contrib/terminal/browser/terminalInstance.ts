@@ -716,12 +716,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		});
 		this.xterm.onDidRequestFreePort(async port => {
-			try {
-				await this._processManager.freePortKillProcess(port);
-				this.xterm?.contextualAction?.resolveFreePortRequest();
-			} catch (e) {
-				this.xterm?.contextualAction?.resolveFreePortRequest(e);
-			}
+			await this._processManager.freePortKillProcess(port);
+			this.xterm?.contextualAction?.resolveFreePortRequest();
 		});
 		// Write initial text, deferring onLineFeed listener when applicable to avoid firing
 		// onLineData events containing initialText
