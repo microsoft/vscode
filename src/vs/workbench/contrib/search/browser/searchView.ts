@@ -255,6 +255,7 @@ export class SearchView extends ViewPane {
 	private set isTreeViewVisible(visible: boolean) {
 		this.treeViewKey.set(visible);
 	}
+
 	setTreeView(visible: boolean): void {
 		if (visible === this.isTreeViewVisible) {
 			return;
@@ -584,7 +585,7 @@ export class SearchView extends ViewPane {
 			try { this.tree.getNode(match); } catch (e) { nodeExists = false; }
 
 			const collapsed = nodeExists ? undefined :
-				(collapseResults === 'alwaysCollapse' || (match instanceof FileMatch && (match.matches().length > 10 && collapseResults !== 'alwaysExpand')));
+				(collapseResults === 'alwaysCollapse' || (match.count() > 10 && collapseResults !== 'alwaysExpand'));
 
 			return <ITreeElement<RenderableMatch>>{ element: match, children, collapsed };
 		});
@@ -592,8 +593,7 @@ export class SearchView extends ViewPane {
 
 	private createFileIterator(fileMatch: FileMatch): Iterable<ITreeElement<RenderableMatch>> {
 		const matches = fileMatch.matches().sort(searchMatchComparer);
-		const map = Iterable.map(matches, r => (<ITreeElement<RenderableMatch>>{ element: r }));
-		return map;
+		return Iterable.map(matches, r => (<ITreeElement<RenderableMatch>>{ element: r }));
 	}
 
 	private createIterator(match: FolderMatch | FileMatch | SearchResult, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ITreeElement<RenderableMatch>> {

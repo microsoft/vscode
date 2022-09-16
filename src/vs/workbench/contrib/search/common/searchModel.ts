@@ -484,15 +484,16 @@ export class FolderMatch extends Disposable {
 	protected _fileMatches: ResourceMap<FileMatch>;
 	protected _folderMatches: ResourceMap<FolderMatchWithResource>;
 	protected _unDisposedFileMatches: ResourceMap<FileMatch>;
+	protected _unDisposedFolderMatches: ResourceMap<FolderMatchWithResource>;
 	private _replacingAll: boolean = false;
 	constructor(
 		protected _resource: URI | null,
 		private _id: string,
-		protected _index: number | undefined,
+		protected _index: number | null,
 		protected _query: ITextQuery,
 		private _parent: SearchResult | FolderMatch,
 		private _searchModel: SearchModel,
-		private _closestRoot: FolderMatchWorkspaceRoot | undefined,
+		private _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -502,6 +503,7 @@ export class FolderMatch extends Disposable {
 		this._fileMatches = new ResourceMap<FileMatch>();
 		this._folderMatches = new ResourceMap<FolderMatchWithResource>();
 		this._unDisposedFileMatches = new ResourceMap<FileMatch>();
+		this._unDisposedFolderMatches = new ResourceMap<FolderMatchWithResource>();
 	}
 
 	get searchModel(): SearchModel {
@@ -512,7 +514,7 @@ export class FolderMatch extends Disposable {
 		return this._parent.showHighlights;
 	}
 
-	get closestRoot(): FolderMatchWorkspaceRoot | undefined {
+	get closestRoot(): FolderMatchWorkspaceRoot | null {
 		return this._closestRoot;
 	}
 	set replacingAll(b: boolean) {
@@ -527,7 +529,7 @@ export class FolderMatch extends Disposable {
 		return this._resource;
 	}
 
-	index(): number | undefined {
+	index(): number | null {
 		return this._index;
 	}
 
@@ -551,22 +553,15 @@ export class FolderMatch extends Disposable {
 		}
 	}
 
-	addFolderMatch(folderMatch: FolderMatchWithResource) {
-		this._folderMatches.set(folderMatch.resource, folderMatch);
-	}
-
-	public createIntermediateFolderMatch(resource: URI, id: string, index: number | undefined, query: ITextQuery, baseWorkspaceFolder: FolderMatchWorkspaceRoot): FolderMatchWithResource {
+	public createIntermediateFolderMatch(resource: URI, id: string, index: number | null, query: ITextQuery, baseWorkspaceFolder: FolderMatchWorkspaceRoot): FolderMatchWithResource {
 		const folderMatch = this.instantiationService.createInstance(FolderMatchWithResource, resource, id, index, query, this, this._searchModel, baseWorkspaceFolder);
 		this.configureIntermediateMatch(folderMatch);
-		this.addFolderMatch(folderMatch);
+		this.doAddFolder(folderMatch);
 		return folderMatch;
 	}
 
 	public configureIntermediateMatch(folderMatch: FolderMatchWithResource) {
-		const disposable = folderMatch.onChange((event) => {
-			this.onFolderChange(folderMatch, event);
-		});
-
+		const disposable = folderMatch.onChange((event) => this.onFolderChange(folderMatch, event));
 		folderMatch.onDispose(() => disposable.dispose());
 	}
 
@@ -576,13 +571,18 @@ export class FolderMatch extends Disposable {
 		this._onChange.fire({ elements: changed, removed: true });
 	}
 
-	remove(matches: FileMatch | FolderMatch | (FileMatch | FolderMatch)[]): void {
-		this.doRemove(matches);
+	remove(matches: FileMatch | FolderMatchWithResource | (FileMatch | FolderMatchWithResource)[]): void {
+		if (!Array.isArray(matches)) {
+			matches = [matches];
+		}
+		const allMatches = separateFileFolderMatches(matches);
+		this.doRemoveFile(allMatches.fileMatches);
+		this.doRemoveFolder(allMatches.folderMatches);
 	}
 
 	replace(match: FileMatch): Promise<any> {
 		return this.replaceService.replace([match]).then(() => {
-			this.doRemove(match);
+			this.doRemoveFile([match]);
 		});
 	}
 
@@ -607,20 +607,7 @@ export class FolderMatch extends Disposable {
 		return (this.fileCount() + this.folderCount()) === 0;
 	}
 
-	// downstreamFileMatchMap(): ResourceMap<FileMatch> {
-	// 	const recursiveChildren = this.folderMatches().map(e => e.downstreamFileMatchMap());
-
-	// 	const thisFileMap = this._fileMatches;
-
-	// 	recursiveChildren.forEach((e: ResourceMap<FileMatch>) => {
-	// 		e.forEach((value, key) => {
-	// 			thisFileMap.set(key, value);
-	// 		});
-	// 	});
-	// 	return thisFileMap;
-	// }
-
-	hasFileUriDownstream(uri: URI): FileMatch | undefined {
+	hasFileUriDownstream(uri: URI): FileMatch | null {
 		const directChildFileMatch = this._fileMatches.get(uri);
 		if (directChildFileMatch) {
 			return directChildFileMatch;
@@ -631,7 +618,7 @@ export class FolderMatch extends Disposable {
 				return match;
 			}
 		}
-		return undefined;
+		return null;
 	}
 
 	downstreamFileMatches(): FileMatch[] {
@@ -656,7 +643,7 @@ export class FolderMatch extends Disposable {
 		return this.fileCount() + this.folderCount();
 	}
 
-	recursiveCount(): number {
+	recursiveFileCount(): number {
 		return this.downstreamFileMatches().length;
 	}
 
@@ -664,7 +651,7 @@ export class FolderMatch extends Disposable {
 		return this._query;
 	}
 
-	add(raw: IFileMatch[], silent: boolean): void {
+	addFileMatch(raw: IFileMatch[], silent: boolean): void {
 		// when adding a fileMatch that has intermediate directories
 		const added: FileMatch[] = [];
 		const updated: FileMatch[] = [];
@@ -682,7 +669,7 @@ export class FolderMatch extends Disposable {
 
 				existingFileMatch.addContext(rawFileMatch.results);
 			} else {
-				if (this instanceof FolderMatchWorkspaceRoot) {
+				if (this instanceof FolderMatchWorkspaceRoot || this instanceof FolderMatchNoRoot) {
 					const fileMatch = this.createFileMatch(rawFileMatch);
 					added.push(fileMatch);
 				}
@@ -695,26 +682,36 @@ export class FolderMatch extends Disposable {
 		}
 	}
 
-	doAdd(fileMatch: FileMatch): void {
+	doAddFile(fileMatch: FileMatch): void {
 		this._fileMatches.set(fileMatch.resource, fileMatch);
 		if (this._unDisposedFileMatches.has(fileMatch.resource)) {
 			this._unDisposedFileMatches.delete(fileMatch.resource);
 		}
 	}
 
-	private async batchReplace(matches: FileMatch[]): Promise<any> {
-		await this.replaceService.replace(matches);
-		this.doRemove(matches, true, true);
+	doAddFolder(folderMatch: FolderMatchWithResource) {
+		this._folderMatches.set(folderMatch.resource, folderMatch);
+		if (this._unDisposedFolderMatches.has(folderMatch.resource)) {
+			this._unDisposedFolderMatches.delete(folderMatch.resource);
+		}
+	}
+
+	private async batchReplace(matches: (FileMatch | FolderMatchWithResource)[]): Promise<any> {
+		const allMatches = separateFileFolderMatches(matches);
+		await this.replaceService.replace(allMatches.fileMatches);
+		await this.replaceService.replace(allMatches.folderMatches.map(e => e.downstreamFileMatches()).flat());
+		this.doRemoveFile(allMatches.fileMatches, true, true);
+		this.doRemoveFolder(allMatches.folderMatches, true, true);
 	}
 
 	public onFileChange(fileMatch: FileMatch, removed = false): void {
 		let added = false;
 		if (!this._fileMatches.has(fileMatch.resource)) {
-			this.doAdd(fileMatch);
+			this.doAddFile(fileMatch);
 			added = true;
 		}
 		if (fileMatch.count() === 0) {
-			this.doRemove(fileMatch, false, false);
+			this.doRemoveFile([fileMatch], false, false);
 			added = false;
 			removed = true;
 		}
@@ -725,30 +722,17 @@ export class FolderMatch extends Disposable {
 
 	public onFolderChange(folderMatch: FolderMatchWithResource, event: IChangeEvent): void {
 		if (!this._folderMatches.has(folderMatch.resource)) {
-			this.addFolderMatch(folderMatch);
+			this.doAddFolder(folderMatch);
 		}
 		if (folderMatch.isEmpty()) {
-			this.doRemove(folderMatch, false, false);
+			this._folderMatches.delete(folderMatch.resource);
+			folderMatch.dispose();
 		}
 
 		this._onChange.fire(event);
 	}
 
-	private doRemove(fileFolderMatches: FileMatch | FolderMatch | (FileMatch | FolderMatch)[], dispose: boolean = true, trigger: boolean = true): void {
-		if (!Array.isArray(fileFolderMatches)) {
-			fileFolderMatches = [fileFolderMatches];
-		}
-
-		const folderMatches: FolderMatch[] = [];
-		const fileMatches: FileMatch[] = [];
-		fileFolderMatches.forEach((e) => {
-			if (e instanceof FileMatch) {
-				fileMatches.push(e);
-			} else {
-				folderMatches.push(e);
-			}
-		});
-
+	private doRemoveFile(fileMatches: FileMatch[], dispose: boolean = true, trigger: boolean = true): void {
 
 		for (const match of fileMatches as FileMatch[]) {
 			this._fileMatches.delete(match.resource);
@@ -759,21 +743,31 @@ export class FolderMatch extends Disposable {
 			}
 		}
 
+		if (trigger) {
+			this._onChange.fire({ elements: fileMatches, removed: true });
+		}
+	}
+
+	private doRemoveFolder(folderMatches: FolderMatchWithResource[], dispose: boolean = true, trigger: boolean = true): void {
+
 		for (const match of folderMatches as FolderMatchWithResource[]) {
 			this._folderMatches.delete(match.resource);
 			if (dispose) {
 				match.dispose();
+			} else {
+				this._unDisposedFolderMatches.set(match.resource, match);
 			}
 		}
 
 		if (trigger) {
-			this._onChange.fire({ elements: fileMatches, removed: true });
+			this._onChange.fire({ elements: folderMatches, removed: true });
 		}
 	}
 
 	private disposeMatches(): void {
 		[...this._fileMatches.values()].forEach((fileMatch: FileMatch) => fileMatch.dispose());
 		[...this._unDisposedFileMatches.values()].forEach((fileMatch: FileMatch) => fileMatch.dispose());
+		[...this._unDisposedFolderMatches.values()].forEach((folderMatch: FolderMatch) => folderMatch.dispose());
 		this._fileMatches.clear();
 		this._unDisposedFileMatches.clear();
 	}
@@ -785,13 +779,9 @@ export class FolderMatch extends Disposable {
 	}
 }
 
-/**
- * BaseFolderMatch => optional resource ("other files" node)
- * FolderMatch => required resource (normal folder node)
- */
 export class FolderMatchWithResource extends FolderMatch {
 
-	constructor(_resource: URI, _id: string, _index: number | undefined, _query: ITextQuery, _parent: SearchResult | FolderMatch, _searchModel: SearchModel, _closestRoot: FolderMatchWorkspaceRoot | undefined,
+	constructor(_resource: URI, _id: string, _index: number | null, _query: ITextQuery, _parent: SearchResult | FolderMatch, _searchModel: SearchModel, _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
@@ -815,7 +805,7 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		@ILabelService labelService: ILabelService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
-		super(_resource, _id, _index, _query, _parent, _searchModel, undefined, replaceService, instantiationService, labelService, uriIdentityService);
+		super(_resource, _id, _index, _query, _parent, _searchModel, null, replaceService, instantiationService, labelService, uriIdentityService);
 	}
 
 	private uriParent(uri: URI): URI {
@@ -849,13 +839,13 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 			let folderMatch: FolderMatchWithResource | undefined = parent.folderMatches().find(e => e.resource && (this.uriEquals(e.resource, fileMatchParentParts[i])));
 			if (!folderMatch) {
 				const root = this.closestRoot ?? this;
-				folderMatch = parent.createIntermediateFolderMatch(fileMatchParentParts[i], fileMatchParentParts[i].toString(), undefined, this._query, root);
+				folderMatch = parent.createIntermediateFolderMatch(fileMatchParentParts[i], fileMatchParentParts[i].toString(), null, this._query, root);
 			}
 			parent = folderMatch;
 		}
 
 		const fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.previewOptions, this._query.maxResults, parent, rawFileMatch);
-		parent.doAdd(fileMatch);
+		parent.doAddFile(fileMatch);
 		const disposable = fileMatch.onChange(({ didRemove }) => parent.onFileChange(fileMatch, didRemove));
 		fileMatch.onDispose(() => disposable.dispose());
 
@@ -864,6 +854,29 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 
 	override index(): number {
 		return this._index!;
+	}
+}
+
+/**
+ * BaseFolderMatch => optional resource ("other files" node)
+ * FolderMatch => required resource (normal folder node)
+ */
+export class FolderMatchNoRoot extends FolderMatch {
+	constructor(_id: string, _index: number, _query: ITextQuery, _parent: SearchResult | FolderMatch, _searchModel: SearchModel,
+		@IReplaceService replaceService: IReplaceService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILabelService labelService: ILabelService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService
+	) {
+		super(null, _id, _index, _query, _parent, _searchModel, null, replaceService, instantiationService, labelService, uriIdentityService);
+	}
+
+	createFileMatch(rawFileMatch: IFileMatch): FileMatch {
+		const fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.previewOptions, this._query.maxResults, this, rawFileMatch);
+		this.doAddFile(fileMatch);
+		const disposable = fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove));
+		fileMatch.onDispose(() => disposable.dispose());
+		return fileMatch;
 	}
 }
 
@@ -1057,11 +1070,10 @@ export class SearchResult extends Disposable {
 
 		this._folderMatches = (query && query.folderQueries || [])
 			.map(fq => fq.folder)
-			.map((resource, index) => this.createFolderMatchWithResource(resource, resource.toString(), index, query));
-
+			.map((resource, index) => <FolderMatchWorkspaceRoot>this._createBaseFolderMatch(resource, resource.toString(), index, query));
 
 		this._folderMatches.forEach(fm => this._folderMatchesMap.set(fm.resource, fm));
-		this._otherFilesMatch = this.createOtherFilesFolderMatch('otherFiles', this._folderMatches.length + 1, query);
+		this._otherFilesMatch = <FolderMatchNoRoot>this._createBaseFolderMatch(null, 'otherFiles', this._folderMatches.length + 1, query);
 
 		this._query = query;
 	}
@@ -1091,24 +1103,14 @@ export class SearchResult extends Disposable {
 		folderMatch?.bindModel(model);
 	}
 
-	public createFolderMatchWithResource(resource: URI, id: string, index: number, query: ITextQuery): FolderMatchWorkspaceRoot {
-		return <FolderMatchWorkspaceRoot>this._createBaseFolderMatch(resource, id, index, query);
-	}
-
-	private createOtherFilesFolderMatch(id: string, index: number, query: ITextQuery): FolderMatch {
-		return this._createBaseFolderMatch(null, id, index, query);
-	}
-
 	private _createBaseFolderMatch(resource: URI | null, id: string, index: number, query: ITextQuery): FolderMatch {
 		let folderMatch;
 		if (resource) {
 			folderMatch = this.instantiationService.createInstance(FolderMatchWorkspaceRoot, resource, id, index, query, this, this._searchModel);
 		} else {
-			folderMatch = this.instantiationService.createInstance(FolderMatch, null, id, index, query, this, this._searchModel, undefined);
+			folderMatch = this.instantiationService.createInstance(FolderMatchNoRoot, id, index, query, this, this._searchModel);
 		}
-		const disposable = folderMatch.onChange((event) => {
-			this._onChange.fire(event);
-		});
+		const disposable = folderMatch.onChange((event) => this._onChange.fire(event));
 		folderMatch.onDispose(() => disposable.dispose());
 		return folderMatch;
 	}
@@ -1127,10 +1129,10 @@ export class SearchResult extends Disposable {
 			}
 
 			const folderMatch = this.getFolderMatch(raw[0].resource);
-			folderMatch?.add(raw, silent);
+			folderMatch?.addFileMatch(raw, silent);
 		});
 
-		this._otherFilesMatch?.add(other, silent);
+		this._otherFilesMatch?.addFileMatch(other, silent);
 		this.disposePastResults();
 	}
 
@@ -1210,7 +1212,7 @@ export class SearchResult extends Disposable {
 	}
 
 	fileCount(): number {
-		return this.folderMatches().reduce<number>((prev, match) => prev + match.recursiveCount(), 0);
+		return this.folderMatches().reduce<number>((prev, match) => prev + match.recursiveFileCount(), 0);
 	}
 
 	count(): number {
@@ -1637,4 +1639,34 @@ export function arrayContainsElementOrParent(element: RenderableMatch, testArray
 	} while (!(element.parent() instanceof SearchResult) && (element = <RenderableMatch>element.parent()));
 
 	return false;
+}
+
+// function getAllFileMatchesFromList(matches: (FileMatch | FolderMatch)[]): FileMatch[] {
+
+// 	const folderMatches: FolderMatch[] = [];
+// 	const fileMatches: FileMatch[] = [];
+// 	matches.forEach((e) => {
+// 		if (e instanceof FileMatch) {
+// 			fileMatches.push(e);
+// 		} else {
+// 			folderMatches.push(e);
+// 		}
+// 	});
+
+// 	return fileMatches.concat(folderMatches.map(e => { return e.downstreamFileMatches(); }).flat());
+// }
+
+function separateFileFolderMatches(matches: (FileMatch | FolderMatchWithResource)[]): { folderMatches: FolderMatchWithResource[]; fileMatches: FileMatch[] } {
+
+	const folderMatches: FolderMatchWithResource[] = [];
+	const fileMatches: FileMatch[] = [];
+	matches.forEach((e) => {
+		if (e instanceof FileMatch) {
+			fileMatches.push(e);
+		} else {
+			folderMatches.push(e);
+		}
+	});
+
+	return { folderMatches, fileMatches };
 }

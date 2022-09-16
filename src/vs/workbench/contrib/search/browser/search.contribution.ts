@@ -510,8 +510,7 @@ registerAction2(class ViewAsTreeAction extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: any[]) {
-		const viewsService = accessor.get(IViewsService);
-		const searchView = getSearchView(viewsService);
+		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
 			searchView.setTreeView(true);
 		}
@@ -540,8 +539,7 @@ registerAction2(class ViewAsListAction extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: any[]) {
-		const viewsService = accessor.get(IViewsService);
-		const searchView = getSearchView(viewsService);
+		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
 			searchView.setTreeView(false);
 		}

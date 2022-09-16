@@ -294,14 +294,14 @@ export function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 		let canCollapseFileMatchLevel = false;
 		let canCollapseFirstLevel = false;
 
-		if (node instanceof FolderMatch) {
-			while (node = navigator.next()) {
-				if (node instanceof Match) {
-					canCollapseFileMatchLevel = true;
-					break;
-				}
+		while (node = navigator.next()) {
+			if (node instanceof Match) {
+				canCollapseFileMatchLevel = true;
+				break;
+			}
+			if (searchView.isTreeViewVisible && !canCollapseFirstLevel) {
 				const immediateParent = node.parent();
-				if (searchView.isTreeViewVisible && !canCollapseFirstLevel && !(immediateParent instanceof SearchResult) && !(immediateParent.parent() instanceof SearchResult)) {
+				if (!(immediateParent instanceof SearchResult) && !(immediateParent.parent() instanceof SearchResult)) {
 					canCollapseFirstLevel = true;
 				}
 			}
@@ -315,18 +315,15 @@ export function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 				}
 			} while (node = navigator.next());
 		} else if (canCollapseFirstLevel) {
-
 			node = navigator.first();
-			do {
-				if (!node) {
-					break;
-				}
-
-				const immediateParent = node.parent();
-				if (!(immediateParent instanceof SearchResult) && !(immediateParent.parent() instanceof SearchResult)) {
-					viewer.collapse(immediateParent);
-				}
-			} while (node = navigator.next());
+			if (node) {
+				do {
+					const immediateParent = node.parent();
+					if (!(immediateParent instanceof SearchResult) && !(immediateParent.parent() instanceof SearchResult)) {
+						viewer.collapse(immediateParent);
+					}
+				} while (node = navigator.next());
+			}
 		} else {
 			viewer.collapseAll();
 		}

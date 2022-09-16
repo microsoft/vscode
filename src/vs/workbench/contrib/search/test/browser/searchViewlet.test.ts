@@ -173,7 +173,7 @@ suite('Search - Viewlet', () => {
 
 	function aFolderMatch(path: string, index: number, parent?: SearchResult): FolderMatch {
 		const searchModel = instantiation.createInstance(SearchModel);
-		return instantiation.createInstance(FolderMatch, uri.file(path), path, index, null, parent, searchModel, false);
+		return instantiation.createInstance(FolderMatch, uri.file(path), path, index, null, parent, searchModel, parent);
 	}
 
 	function aSearchResult(): SearchResult {
