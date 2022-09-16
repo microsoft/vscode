@@ -5,13 +5,13 @@
 import { IAction } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
-import type { IBufferCell, ITerminalAddon, Terminal, IMarker } from 'xterm-headless';
+import type { ITerminalAddon, Terminal, IMarker } from 'xterm-headless';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ITerminalContextualActionOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export interface IContextualAction {
 	/**
@@ -28,9 +28,8 @@ export interface IContextualAction {
 	 * Registers a listener on onCommandFinished scoped to a particular command or regular
 	 * expression.
 	 * will fire the listener for commands that match.
-	 * @param callback The callback to trigger when a matching command finished.
 	 */
-	registerCommandFinishedListener(matcher: string | RegExp, callback: (command: ITerminalCommand) => void): void;
+	registerCommandFinishedListener(options: ITerminalContextualActionOptions): void;
 }
 
 export interface IContextualActionAdddon extends IContextualAction {
@@ -52,97 +51,35 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 
 	private _decorationMarkerIds = new Set<string>();
 
-	private _stringCommandListeners: Map<string, ((command: ITerminalCommand) => void)[]> = new Map();
-	private _regexpCommandFinishedListeners: { regexp: RegExp; callback: (command: ITerminalCommand) => void }[] = [];
+	private _commandListeners: Map<string, ITerminalContextualActionOptions> = new Map();
 
-	constructor(@IContextMenuService private readonly _contextMenuService: IContextMenuService) {
+	constructor(private readonly _capabilities: ITerminalCapabilityStore, @IContextMenuService private readonly _contextMenuService: IContextMenuService) {
 		super();
+		this._capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(command => this._evaluate(command));
+		this._capabilities.onDidAddCapability(c => {
+			if (c === TerminalCapability.CommandDetection) {
+				this._capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(command => this._evaluate(command));
+			}
+		});
 	}
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
-		this._setupContextAwareListeners(this._terminal);
 	}
 
 	public show(): void {
 		this._currentQuickFixElement?.click();
 	}
 
-	public evaluate(command: ITerminalCommand): void {
+	private _evaluate(command: ITerminalCommand): void {
 		// TODO: This wouldn't handle commands containing escaped spaces correctly
 		const newCommand = command.command.split(' ')[0];
-		const listeners = this._stringCommandListeners.get(newCommand);
-		if (listeners) {
-			for (const listener of listeners) {
-				listener(command);
+		for (const options of this._commandListeners.values()) {
+			const commandLineMatch = newCommand.match(options.commandLineMatcher) || null;
+			const outputMatch = options.outputMatcher ? command.getOutput()?.match(options.outputMatcher.lineMatcher) : null;
+			if (commandLineMatch !== null) {
+				options.callback(commandLineMatch, outputMatch, command);
 			}
 		}
-		for (const listener of this._regexpCommandFinishedListeners) {
-			if (newCommand.match(listener.regexp)) {
-				listener.callback(command);
-			}
-		}
-	}
-	private _setupContextAwareListeners(terminal: Terminal): void {
-		this.registerCommandFinishedListener('gti', e => {
-			// Check exitCode is truthy
-			console.log('gti run, did you mean git?');
-			console.log('ITerminalCommand', e);
-
-			// Search for start of term
-			if (!e.marker?.line) {
-				return;
-			}
-			const line = terminal.buffer.active.getLine(e.marker.line);
-			if (!line) {
-				return;
-			}
-			const term = 'gti';
-			let start = 0;
-			let letter = 0;
-			let cell: IBufferCell | undefined;
-			for (let i = 0; i < line.length; i++) {
-				cell = line.getCell(i, cell);
-				if (!cell) {
-					continue;
-				}
-				if (cell.getChars() === term[letter]) {
-					if (letter === 0) {
-						start = i;
-					}
-					letter++;
-					if (letter === term.length) {
-						break;
-					}
-				} else {
-					letter = 0;
-				}
-				// if (line.getCell(start)?.getChars();
-			}
-			if (letter === term.length) {
-				// TODO: pass in action which writes to the terminal the correct term
-				console.log(`Found "${term}"! line: ${e.marker.line}, start: ${start}`);
-				this._registerContextualDecoration(e.marker, undefined, start, term.length, true);
-			}
-			// console.log('output', e.getOutput());
-		});
-
-		this.registerCommandFinishedListener(/.+/, command => {
-			if (command.exitCode) {
-				const commandOutput = command.getOutput();
-				const match = commandOutput?.match(/.*address already in use \d\.\d.\d\.\d:(\d\d\d\d).*/);
-				if (match?.length === 2 && command.endMarker) {
-					const actions: IAction[] = [];
-					const port = match[1];
-					const label = localize("terminal.freePort", "Free port {0}", port);
-					actions.push({
-						class: undefined, tooltip: label, id: 'terminal.freePort', label, enabled: true,
-						run: () => this._onDidRequestFreePort.fire(port)
-					});
-					this._registerContextualDecoration(command.endMarker, actions);
-					this._resolveCallback = () => { this._onDidRequestRerunCommand.fire(command); };
-				}
-			}
-		});
 	}
 
 	resolveFreePortRequest(error?: Error): void {
@@ -155,7 +92,7 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 		}
 	}
 
-	private _registerContextualDecoration(marker: IMarker | undefined, actions?: IAction[], x?: number, width?: number, border?: boolean): void {
+	registerContextualDecoration(marker: IMarker | undefined, actions?: IAction[], x?: number, width?: number, border?: boolean): void {
 		if (this._terminal && 'registerDecoration' in this._terminal) {
 			const d = (this._terminal as any).registerDecoration({
 				marker,
@@ -186,13 +123,9 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 			});
 		}
 	}
-	registerCommandFinishedListener(matcher: string | RegExp, callback: (command: ITerminalCommand) => void): void {
-		if (typeof matcher === 'string') {
-			const listeners = this._stringCommandListeners.get(matcher) || [];
-			listeners.push(callback);
-			this._stringCommandListeners.set(matcher, listeners);
-		} else {
-			this._regexpCommandFinishedListeners.push({ regexp: matcher, callback });
+	registerCommandFinishedListener(options: ITerminalContextualActionOptions): void {
+		if (options.commandLineMatcher) {
+			this._commandListeners.set(options.commandLineMatcher.toString(), options);
 		}
 	}
 }

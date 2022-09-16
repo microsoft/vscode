@@ -17,7 +17,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ITerminalContextualActionOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -37,6 +37,7 @@ import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ContextualActionAddon, IContextualAction } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
+import { IAction } from 'vs/base/common/actions';
 
 
 // How long in milliseconds should an average frame take to render for a notification to appear
@@ -210,7 +211,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
 		this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e));
 		this.raw.loadAddon(this._decorationAddon);
-		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon, disableShellIntegrationReporting, this._telemetryService);
+		this._shellIntegrationAddon = new ShellIntegrationAddon(disableShellIntegrationReporting, this._telemetryService, this._logService);
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
 			this._activateContextualActionAddon();
 		} else {
@@ -228,12 +229,52 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		if (this._contextualActionAddon) {
 			return;
 		}
-		const addon = this._instantiationService.createInstance(ContextualActionAddon);
-		this._capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(command => addon.evaluate(command));
+		const addon = this._instantiationService.createInstance(ContextualActionAddon, this._capabilities);
 		this._contextualActionAddon = addon;
 		this._contextualActionAddon.onDidRequestRerunCommand(command => this._onDidRequestRunCommand.fire({ command, noNewLine: true }));
 		this._contextualActionAddon.onDidRequestFreePort(port => this._onDidRequestFreePort.fire(port));
 		this.raw.loadAddon(this._contextualActionAddon);
+		addon.registerCommandFinishedListener(this._fixGitAction());
+		addon.registerCommandFinishedListener(this._freePortAction());
+
+	}
+
+	private _fixGitAction(): ITerminalContextualActionOptions {
+		return {
+			commandLineMatcher: 'git.*',
+			outputMatcher: { lineMatcher: /git:\s(.*)\s is not a git command\.* The most similar command is\s(.*) \s/ },
+			actionName: 'Fix git command',
+			callback: (commandLineMatch: RegExpMatchArray, outputMatch?: RegExpMatchArray | null, command?: ITerminalCommand) => {
+				const term = outputMatch?.[1];
+				if (!term) {
+					return;
+				}
+				this._contextualActionAddon?.registerContextualDecoration(command?.marker);
+			}
+		};
+	}
+	private _freePortAction(): ITerminalContextualActionOptions {
+		return {
+			actionName: (commandLineMatch: RegExpMatchArray, outputMatch?: RegExpMatchArray | null) => outputMatch ? `Free port ${outputMatch[1]}` : '',
+			commandLineMatcher: /.+/,
+			outputMatcher: { lineMatcher: /.*address already in use \d\.\d.\d\.\d:(\d\d\d\d).*/ },
+			callback: (commandLineMatch: RegExpMatchArray, outputMatch?: RegExpMatchArray | null, command?: ITerminalCommand) => {
+				if (!command) {
+					return;
+				}
+				if (outputMatch?.length === 2) {
+					const actions: IAction[] = [];
+					const port = outputMatch[1];
+					const label = localize("terminal.freePort", "Free port {0}", port);
+					actions.push({
+						class: undefined, tooltip: label, id: 'terminal.freePort', label, enabled: true,
+						run: () => this._onDidRequestFreePort.fire(port)
+					});
+					this._contextualActionAddon?.registerContextualDecoration(command.endMarker, actions);
+					this._onDidRequestRunCommand.fire({ command, noNewLine: true });
+				}
+			}
+		};
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {

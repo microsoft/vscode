@@ -905,8 +905,29 @@ export interface ITerminalInstance {
 	 */
 	openRecentLink(type: 'localFile' | 'url'): Promise<void>;
 
+	/**
+	 * Registers a contextual action listener
+	 */
+	registerContextualAction(options: ITerminalContextualActionOptions): void;
+}
 
+export interface ITerminalContextualActionOptions {
+	commandLineMatcher: string | RegExp;
+	// Allows searching a subset of lines efficiently
+	outputMatcher?: ITerminalOutputMatcher;
+	// Allow the name to be generated based on capture groups in the output matcher(s)
+	actionName: string | DynamicActionName;
+	callback: ContextualActionCallback;
+}
 
+export type DynamicActionName = (commandLineMatch: RegExpMatchArray, outputMatch?: RegExpMatchArray | null) => string;
+export type ContextualActionCallback = (commandLineMatch: RegExpMatchArray, outputMatch?: RegExpMatchArray | null, command?: ITerminalCommand) => void;
+
+export interface ITerminalOutputMatcher {
+	lineMatcher: string | RegExp;
+	anchor?: 'top' | 'bottom';
+	offset?: number;
+	length?: number;
 }
 
 export interface IXtermTerminal {

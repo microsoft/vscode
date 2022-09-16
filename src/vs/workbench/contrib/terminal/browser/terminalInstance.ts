@@ -58,7 +58,7 @@ import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
-import { IRequestAddInstanceToGroupEvent, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRequestAddInstanceToGroupEvent, ITerminalContextualActionOptions, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -589,12 +589,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return undefined;
 	}
 
-	registerContextualAction(matcher: string | RegExp, callback: (command: ITerminalCommand) => void): IDisposable {
-		const disposable = this.capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(() => this.xterm?.contextualAction?.registerCommandFinishedListener(matcher, callback));
-		if (!disposable) {
-			throw new Error(`Could not register command finished listener xterm: ${this.xterm}, contextualAction: ${this.xterm?.contextualAction}, command detection: ${this.capabilities.get(TerminalCapability.CommandDetection)}`);
-		}
-		return disposable;
+	registerContextualAction(options: ITerminalContextualActionOptions): void {
+		this.xterm?.contextualAction?.registerCommandFinishedListener(options);
 	}
 
 	private _initDimensions(): void {
