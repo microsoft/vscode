@@ -801,12 +801,14 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 		this._register(extensionsWorkbenchService.onChange(this.onServiceChange, this));
 	}
 
-	private onServiceChange(): void {
+	private async onServiceChange(): Promise<void> {
 		this.badgeHandle.clear();
 
-		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) ? 1 : 0), 0);
-		if (outdated > 0) {
-			const badge = new NumberBadge(outdated, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
+		const extensionsReloadRequired = await this.extensionsWorkbenchService.requireReload();
+		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !extensionsReloadRequired.includes(e) ? 1 : 0), 0);
+		const newBadgeNumber = outdated + extensionsReloadRequired.length;
+		if (newBadgeNumber > 0) {
+			const badge = new NumberBadge(newBadgeNumber, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
 			this.badgeHandle.value = this.activityService.showViewContainerActivity(VIEWLET_ID, { badge, clazz: 'extensions-badge count-badge' });
 		}
 	}
