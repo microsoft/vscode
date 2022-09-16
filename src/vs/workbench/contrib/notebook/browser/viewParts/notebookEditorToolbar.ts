@@ -16,7 +16,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { toolbarActiveBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
@@ -28,6 +27,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 interface IActionModel {
 	action: IAction;
@@ -264,7 +264,7 @@ export class NotebookEditorToolbar extends Disposable {
 	private _notebookTopLeftToolbarContainer!: HTMLElement;
 	private _notebookTopRightToolbarContainer!: HTMLElement;
 	private _notebookGlobalActionsMenu!: IMenu;
-	private _notebookLeftToolbar!: ToolBar;
+	private _notebookLeftToolbar!: WorkbenchToolBar;
 	private _primaryActions: IActionModel[];
 	get primaryActions(): IActionModel[] {
 		return this._primaryActions;
@@ -273,7 +273,7 @@ export class NotebookEditorToolbar extends Disposable {
 	get secondaryActions(): IAction[] {
 		return this._secondaryActions;
 	}
-	private _notebookRightToolbar!: ToolBar;
+	private _notebookRightToolbar!: WorkbenchToolBar;
 	private _useGlobalToolbar: boolean = false;
 	private _strategy!: IActionLayoutStrategy;
 	private _renderLabel: RenderLabel = RenderLabel.Always;
@@ -297,7 +297,6 @@ export class NotebookEditorToolbar extends Disposable {
 		@IContextMenuService readonly contextMenuService: IContextMenuService,
 		@IMenuService readonly menuService: IMenuService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService
 	) {
 		super();
@@ -369,8 +368,7 @@ export class NotebookEditorToolbar extends Disposable {
 			}
 		};
 
-		this._notebookLeftToolbar = new ToolBar(this._notebookTopLeftToolbarContainer, this.contextMenuService, {
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+		this._notebookLeftToolbar = this.instantiationService.createInstance(WorkbenchToolBar, this._notebookTopLeftToolbarContainer, {
 			actionViewItemProvider: (action) => {
 				return this._strategy.actionProvider(action);
 			},
@@ -379,8 +377,7 @@ export class NotebookEditorToolbar extends Disposable {
 		this._register(this._notebookLeftToolbar);
 		this._notebookLeftToolbar.context = context;
 
-		this._notebookRightToolbar = new ToolBar(this._notebookTopRightToolbarContainer, this.contextMenuService, {
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+		this._notebookRightToolbar = this.instantiationService.createInstance(WorkbenchToolBar, this._notebookTopRightToolbarContainer, {
 			actionViewItemProvider: actionProvider,
 			renderDropdownAsChildElement: true
 		});
@@ -425,8 +422,7 @@ export class NotebookEditorToolbar extends Disposable {
 				const oldElement = this._notebookLeftToolbar.getElement();
 				oldElement.parentElement?.removeChild(oldElement);
 				this._notebookLeftToolbar.dispose();
-				this._notebookLeftToolbar = new ToolBar(this._notebookTopLeftToolbarContainer, this.contextMenuService, {
-					getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+				this._notebookLeftToolbar = this.instantiationService.createInstance(WorkbenchToolBar, this._notebookTopLeftToolbarContainer, {
 					actionViewItemProvider: actionProvider,
 					renderDropdownAsChildElement: true
 				});
