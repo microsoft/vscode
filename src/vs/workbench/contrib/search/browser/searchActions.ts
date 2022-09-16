@@ -707,9 +707,7 @@ function matchToString(match: Match, indent = 0): string {
 	return formattedLines.join('\n');
 }
 function fileFolderMatchToString(match: FileMatch | FolderMatch | FolderMatchWithResource, labelService: ILabelService): { text: string; count: number } {
-
 	if (match instanceof FileMatch) {
-
 		return fileMatchToString(match, labelService);
 	} else {
 		return folderMatchToString(match, labelService);
