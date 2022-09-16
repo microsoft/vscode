@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import { timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
@@ -82,6 +83,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
 	private readonly _onCurrentCommandInvalidated = new Emitter<ICommandInvalidationRequest>();
 	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
+
 	constructor(
 		private readonly _terminal: Terminal,
 		@ILogService private readonly _logService: ILogService
@@ -94,7 +96,6 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._terminal.onCursorMove(() => this._handleCursorMove());
 		this._setupClearListeners();
 	}
-
 
 	private _handleResize(e: { cols: number; rows: number }) {
 		if (this._isWindowsPty) {

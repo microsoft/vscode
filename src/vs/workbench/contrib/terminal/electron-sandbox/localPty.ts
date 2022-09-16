@@ -48,6 +48,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	) {
 		super();
 	}
+
 	start(): Promise<ITerminalLaunchError | undefined> {
 		return this._localPtyService.start(this.id);
 	}
