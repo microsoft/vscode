@@ -55,7 +55,7 @@ export class TypeScriptServerSpawner {
 		delegate: TsServerDelegate,
 	): ITypeScriptServer {
 		let primaryServer: ITypeScriptServer;
-            console.log("passed out long")
+            this._logger.info("closer to actually forking")
 		const serverType = this.getCompositeServerType(version, capabilities, configuration);
 		const shouldUseSeparateDiagnosticsServer = this.shouldUseSeparateDiagnosticsServer(configuration);
 
@@ -154,6 +154,13 @@ export class TypeScriptServerSpawner {
 		}
 
 		this._logger.info(`<${kind}> Forking...`);
+            // this is pretty close, but (1) lol it should happen way earlier
+            // (2) no node module resolution means that the import code in index.js isn't going to refer correctly to tsserver.js
+            // (and won't refer to tsserver.web.js at all)
+            // I might have to try a cheat-bundle of tsserver.web.js plus the code in vscode-wasm-typescript, since that's the final way it'll have to ship anyway.
+            // oh wait, no idea how @vscode/wasm packages are going to get looked up either =(
+            this._logger.info('modifying path to http://localhost:8080/static/sources/extensions/typescript-language-features/node_modules/vscode-wasm-typescript/dist/index.js')
+            this._logger.info(JSON.stringify(require))
 		const process = this._factory.fork(version, args, kind, configuration, this._versionManager);
 		this._logger.info(`<${kind}> Starting...`);
 

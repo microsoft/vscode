@@ -29,6 +29,7 @@ import { PluginManager, TypeScriptServerPlugin } from './utils/plugins';
 import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from './utils/telemetry';
 import Tracer from './utils/tracer';
 import { inferredProjectCompilerOptions, ProjectType } from './utils/tsconfig';
+import * as x from 'vscode-wasm-typescript';
 
 const localize = nls.loadMessageBundle();
 

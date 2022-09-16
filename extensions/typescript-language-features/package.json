@@ -40,7 +40,8 @@
     "semver": "5.5.1",
     "vscode-nls": "^5.1.0",
     "vscode-tas-client": "^0.1.47",
-    "vscode-uri": "^3.0.3"
+    "vscode-uri": "^3.0.3",
+    "vscode-wasm-typescript": "0.1.1"
   },
   "devDependencies": {
     "@types/node": "16.x",
