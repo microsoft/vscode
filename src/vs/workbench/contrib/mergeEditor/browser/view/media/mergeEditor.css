@@ -41,6 +41,19 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+/* for input1|2 -> align details to the left  */
+.monaco-workbench .merge-editor .code-view.input>.title>SPAN.detail::before {
+	content: '•';
+	opacity: .5;
+	padding-right: 3px;
+}
+.monaco-workbench .merge-editor .code-view.input>.title>SPAN.detail {
+	margin-left: 0;
+}
+.monaco-workbench .merge-editor .code-view.input>.title>SPAN.toolbar {
+	margin-left: auto;
+}
+
 .monaco-workbench .merge-editor .code-view>.title>SPAN.detail .codicon {
 	font-size: 13px;
 }
