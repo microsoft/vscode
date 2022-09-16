@@ -56,8 +56,10 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 
 export function getCellMetadata(cell: NotebookCell | NotebookCellData) {
 	return {
+		// it contains the cell id, and the cell metadata, along with other nb cell metadata
 		...(cell.metadata?.custom ?? {}),
-		attachments: cell.metadata?.attachments
+		// promote the cell attachments to the top level
+		attachments: cell.metadata?.custom?.attachments ?? cell.metadata?.attachments
 	};
 }
 
@@ -339,7 +341,7 @@ function convertOutputMimeToJupyterOutput(mime: string, value: Uint8Array) {
 	}
 }
 
-function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbformat.IMarkdownCell {
+export function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbformat.IMarkdownCell {
 	const cellMetadata = getCellMetadata(cell);
 	const markdownCell: any = {
 		cell_type: 'markdown',
