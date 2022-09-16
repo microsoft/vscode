@@ -201,6 +201,11 @@ export class MergeEditorModel extends EditorModel {
 		return map.projectRange(range).outputRange;
 	}
 
+	public findModifiedBaseRangesInRange(rangeInBase: LineRange): ModifiedBaseRange[] {
+		// TODO use binary search
+		return this.modifiedBaseRanges.get().filter(r => r.baseRange.intersects(rangeInBase));
+	}
+
 	public readonly diffComputingState = derived('diffComputingState', reader => {
 		const states = [
 			this.input1TextModelDiffs,
@@ -395,12 +400,12 @@ export class MergeEditorModel extends EditorModel {
 
 	public readonly hasUnhandledConflicts = this.unhandledConflictsCount.map(value => /** @description hasUnhandledConflicts */ value > 0);
 
-	public setLanguageId(languageId: string): void {
+	public setLanguageId(languageId: string, source?: string): void {
 		const language = this.languageService.createById(languageId);
-		this.modelService.setMode(this.base, language);
-		this.modelService.setMode(this.input1.textModel, language);
-		this.modelService.setMode(this.input2.textModel, language);
-		this.modelService.setMode(this.resultTextModel, language);
+		this.modelService.setMode(this.base, language, source);
+		this.modelService.setMode(this.input1.textModel, language, source);
+		this.modelService.setMode(this.input2.textModel, language, source);
+		this.modelService.setMode(this.resultTextModel, language, source);
 	}
 
 	public getInitialResultValue(): string {

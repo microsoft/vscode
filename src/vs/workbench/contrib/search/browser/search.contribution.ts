@@ -1086,6 +1086,16 @@ configurationRegistry.registerConfiguration({
 			],
 			'description': nls.localize('search.sortOrder', "Controls sorting order of search results.")
 		},
+		'search.decorations.colors': {
+			type: 'boolean',
+			description: nls.localize('search.decorations.colors', "Controls whether search file decorations should use colors."),
+			default: true
+		},
+		'search.decorations.badges': {
+			type: 'boolean',
+			description: nls.localize('search.decorations.badges', "Controls whether search file decorations should use badges."),
+			default: true
+		},
 		'search.defaultViewMode': {
 			'type': 'string',
 			'enum': [ViewMode.Tree, ViewMode.List],

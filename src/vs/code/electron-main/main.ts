@@ -34,7 +34,7 @@ import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsServ
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { EnvironmentMainService, IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { addArg, parseMainProcessArgv } from 'vs/platform/environment/node/argvHelper';
-import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
+import { createWaitMarkerFileSync } from 'vs/platform/environment/node/wait';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -198,7 +198,7 @@ class CodeMain {
 		services.set(IConfigurationService, configurationService);
 
 		// Lifecycle
-		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService));
+		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService, undefined, false));
 
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestMainService, undefined, true));
@@ -207,13 +207,13 @@ class CodeMain {
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
 
 		// Signing
-		services.set(ISignService, new SyncDescriptor(SignService));
+		services.set(ISignService, new SyncDescriptor(SignService, undefined, false /* proxied to other processes */));
 
 		// Tunnel
 		services.set(ITunnelService, new SyncDescriptor(TunnelService));
 
-		// Protocol
-		services.set(IProtocolMainService, new SyncDescriptor(ProtocolMainService));
+		// Protocol (instantiated early and not using sync descriptor for security reasons)
+		services.set(IProtocolMainService, new ProtocolMainService(environmentMainService, userDataProfilesMainService, logService));
 
 		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService, userDataProfilesMainService];
 	}
@@ -469,8 +469,9 @@ class CodeMain {
 		//
 		// Note: we are not doing this if the wait marker has been already
 		// added as argument. This can happen if Code was started from CLI.
+
 		if (args.wait && !args.waitMarkerFilePath) {
-			const waitMarkerFilePath = createWaitMarkerFile(args.verbose);
+			const waitMarkerFilePath = createWaitMarkerFileSync(args.verbose);
 			if (waitMarkerFilePath) {
 				addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
 				args.waitMarkerFilePath = waitMarkerFilePath;

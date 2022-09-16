@@ -69,7 +69,7 @@ jobs:
           7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt
 
       - name: Compile and Download
-        run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
+        run: DEBUG=pw:install yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
       - name: Compile Integration Tests
         run: yarn --cwd test/integration/browser compile
@@ -145,7 +145,7 @@ jobs:
         run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Compile and Download
-        run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
+        run: DEBUG=pw:install yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
       - name: Compile Integration Tests
         run: yarn --cwd test/integration/browser compile
@@ -216,7 +216,7 @@ jobs:
         run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Compile and Download
-        run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
+        run: DEBUG=pw:install yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
       - name: Compile Integration Tests
         run: yarn --cwd test/integration/browser compile
@@ -289,7 +289,7 @@ jobs:
         run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Download Playwright
-        run: yarn playwright-install
+        run: DEBUG=pw:install yarn playwright-install
 
       - name: Run Hygiene Checks
         run: yarn gulp hygiene

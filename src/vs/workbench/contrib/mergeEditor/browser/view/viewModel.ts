@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { findLast } from 'vs/base/common/arrays';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { derived, derivedObservableWithWritableCache, IObservable, IReader, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
+import { Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
@@ -14,7 +16,7 @@ import { CodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/ed
 import { InputCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/inputCodeEditorView';
 import { ResultCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/resultCodeEditorView';
 
-export class MergeEditorViewModel {
+export class MergeEditorViewModel extends Disposable {
 	private readonly manuallySetActiveModifiedBaseRange = observableValue<
 		{ range: ModifiedBaseRange | undefined; counter: number }
 	>('manuallySetActiveModifiedBaseRange', { range: undefined, counter: 0 });
@@ -25,7 +27,22 @@ export class MergeEditorViewModel {
 		public readonly inputCodeEditorView2: InputCodeEditorView,
 		public readonly resultCodeEditorView: ResultCodeEditorView,
 		public readonly baseCodeEditorView: IObservable<BaseCodeEditorView | undefined>,
-	) { }
+	) {
+		super();
+
+		this._register(resultCodeEditorView.editor.onDidChangeModelContent(e => {
+			transaction(tx => {
+				/** @description Mark conflicts touched by manual edits as handled */
+				for (const change of e.changes) {
+					const rangeInBase = this.model.translateResultRangeToBase(Range.lift(change.range));
+					const baseRanges = this.model.findModifiedBaseRangesInRange(new LineRange(rangeInBase.startLineNumber, rangeInBase.endLineNumber - rangeInBase.startLineNumber));
+					if (baseRanges.length === 1) {
+						this.model.setHandled(baseRanges[0], true, tx);
+					}
+				}
+			});
+		}));
+	}
 
 	private counter = 0;
 	private readonly lastFocusedEditor = derivedObservableWithWritableCache<

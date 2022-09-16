@@ -275,9 +275,11 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		// Remember when adding to this method that it isn't called until the the view is visible, meaning that
 		// properties could be set and events could be fired before we're initialized and that this needs to be handled.
 
-		this.initializeShowCollapseAllAction();
-		this.initializeCollapseAllToggle();
-		this.initializeShowRefreshAction();
+		this.contextKeyService.bufferChangeEvents(() => {
+			this.initializeShowCollapseAllAction();
+			this.initializeCollapseAllToggle();
+			this.initializeShowRefreshAction();
+		});
 
 		this.treeViewDnd = this.instantiationService.createInstance(CustomTreeViewDragAndDrop, this.id);
 		if (this._dragAndDropController) {
@@ -648,7 +650,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				}
 			},
 			expandOnlyOnTwistieClick: (e: ITreeItem) => {
-				return !!e.command || e.checkboxChecked !== undefined || this.configurationService.getValue<'singleClick' | 'doubleClick'>('workbench.tree.expandMode') === 'doubleClick';
+				return !!e.command || !!e.checkbox || this.configurationService.getValue<'singleClick' | 'doubleClick'>('workbench.tree.expandMode') === 'doubleClick';
 			},
 			collapseByDefault: (e: ITreeItem): boolean => {
 				return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
@@ -692,7 +694,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			if (!e.browserEvent) {
 				return;
 			}
-			if ((e.browserEvent.target as HTMLElement).classList.contains(TreeItemCheckbox.checkboxClass)) {
+			if (e.browserEvent.target && (e.browserEvent.target as HTMLElement).classList.contains(TreeItemCheckbox.checkboxClass)) {
 				return;
 			}
 			const selection = this.tree!.getSelection();
@@ -856,11 +858,17 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	async expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void> {
 		const tree = this.tree;
-		if (tree) {
+		if (!tree) {
+			return;
+		}
+		try {
 			itemOrItems = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
 			await Promise.all(itemOrItems.map(element => {
 				return tree.expand(element, false);
 			}));
+		} catch (e) {
+			// The extension could have changed the tree during the reveal.
+			// Because of that, we ignore errors.
 		}
 	}
 
@@ -1226,7 +1234,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	private renderCheckbox(node: ITreeItem, templateData: ITreeExplorerTemplateData, disposableStore: DisposableStore) {
-		if (node.checkboxChecked !== undefined) {
+		if (node.checkbox) {
 			// The first time we find a checkbox we want to rerender the visible tree to adapt the alignment
 			if (!this._hasCheckbox) {
 				this._hasCheckbox = true;

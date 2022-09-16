@@ -14,11 +14,11 @@ import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsServi
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, DefaultViewsContext, ExtensionsSortByContext, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP } from 'vs/workbench/contrib/extensions/common/extensions';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
-import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
+import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer, BuiltInExtensionsContext, SearchMarketplaceExtensionsContext, RecommendedExtensionsContext, DefaultViewsContext, ExtensionsSortByContext, SearchHasTextContext } from 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
@@ -941,7 +941,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('recently published filter', "Recently Published")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@sort:publishedDate '))
+			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@recentlyPublished '))
 		});
 
 		const extensionsCategoryFilterSubMenu = new MenuId('extensionsCategoryFilterSubMenu');
@@ -976,12 +976,29 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}, {
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
-				order: 1,
+				order: 2,
 			}],
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('builtin filter', "Built-in")
 			},
 			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@builtin '))
+		});
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.extensionUpdates',
+			title: { value: localize('extensionUpdates', "Show Extension Updates"), original: 'Show Extension Updates' },
+			category: ExtensionsLocalizedLabel,
+			menu: [{
+				id: MenuId.CommandPalette,
+			}, {
+				id: extensionsFilterSubMenu,
+				group: '3_installed',
+				order: 1,
+			}],
+			menuTitles: {
+				[extensionsFilterSubMenu.id]: localize('extension updates filter', "Updates")
+			},
+			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@updates'))
 		});
 
 		this.registerExtensionAction({
@@ -994,31 +1011,13 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}, {
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
-				order: 6,
+				order: 5,
 				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER),
 			}],
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('workspace unsupported filter', "Workspace Unsupported")
 			},
 			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@workspaceUnsupported'))
-		});
-
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.showInstalledExtensions',
-			title: { value: localize('showInstalledExtensions', "Show Installed Extensions"), original: 'Show Installed Extensions' },
-			category: ExtensionsLocalizedLabel,
-			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER)
-			}, {
-				id: extensionsFilterSubMenu,
-				group: '3_installed',
-				order: 2,
-			}],
-			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('installed filter', "Installed")
-			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@installed '))
 		});
 
 		this.registerExtensionAction({
@@ -1058,46 +1057,29 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@disabled '))
 		});
 
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.listOutdatedExtensions',
-			title: { value: localize('showOutdatedExtensions', "Show Outdated Extensions"), original: 'Show Outdated Extensions' },
-			category: ExtensionsLocalizedLabel,
-			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER))
-			}, {
-				id: extensionsFilterSubMenu,
-				group: '3_installed',
-				order: 5,
-			}],
-			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('outdated filter', "Outdated")
-			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@outdated '))
-		});
-
 		const extensionsSortSubMenu = new MenuId('extensionsSortSubMenu');
 		MenuRegistry.appendMenuItem(extensionsFilterSubMenu, <ISubmenuItem>{
 			submenu: extensionsSortSubMenu,
 			title: localize('sorty by', "Sort By"),
-			when: CONTEXT_HAS_GALLERY,
+			when: ContextKeyExpr.and(ContextKeyExpr.or(CONTEXT_HAS_GALLERY, DefaultViewsContext)),
 			group: '4_sort',
 			order: 1,
 		});
 
 		[
-			{ id: 'installs', title: localize('sort by installs', "Install Count") },
-			{ id: 'rating', title: localize('sort by rating', "Rating") },
-			{ id: 'name', title: localize('sort by name', "Name") },
-			{ id: 'publishedDate', title: localize('sort by date', "Published Date") },
-		].map(({ id, title }, index) => {
+			{ id: 'installs', title: localize('sort by installs', "Install Count"), precondition: BuiltInExtensionsContext.negate() },
+			{ id: 'rating', title: localize('sort by rating', "Rating"), precondition: BuiltInExtensionsContext.negate() },
+			{ id: 'name', title: localize('sort by name', "Name"), precondition: BuiltInExtensionsContext.negate() },
+			{ id: 'publishedDate', title: localize('sort by published date', "Published Date"), precondition: BuiltInExtensionsContext.negate() },
+			{ id: 'updateDate', title: localize('sort by update date', "Updated Date"), precondition: ContextKeyExpr.and(SearchMarketplaceExtensionsContext.negate(), RecommendedExtensionsContext.negate(), BuiltInExtensionsContext.negate()) },
+		].map(({ id, title, precondition }, index) => {
 			this.registerExtensionAction({
 				id: `extensions.sort.${id}`,
 				title,
-				precondition: DefaultViewsContext.toNegated(),
+				precondition: precondition,
 				menu: [{
 					id: extensionsSortSubMenu,
-					when: CONTEXT_HAS_GALLERY,
+					when: ContextKeyExpr.or(CONTEXT_HAS_GALLERY, DefaultViewsContext),
 					order: index,
 				}],
 				toggled: ExtensionsSortByContext.isEqualTo(id),
@@ -1117,7 +1099,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			category: ExtensionsLocalizedLabel,
 			icon: clearSearchResultsIcon,
 			f1: true,
-			precondition: DefaultViewsContext.toNegated(),
+			precondition: SearchHasTextContext,
 			menu: {
 				id: MenuId.ViewContainerTitle,
 				when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),

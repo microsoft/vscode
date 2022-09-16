@@ -182,6 +182,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 		const viewModel = new MergeEditorViewModel(model, this.input1View, this.input2View, this.inputResultView, this.baseView);
 		this._viewModel.set(viewModel, undefined);
+		this._sessionDisposables.add(viewModel);
 
 		// Set/unset context keys based on input
 		this._ctxResultUri.set(model.resultTextModel.uri.toString());
@@ -291,7 +292,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 				}
 				// all empty -> replace this editor with a normal editor for result
 				that.editorService.replaceEditors(
-					[{ editor: input, replacement: { resource: input.result }, forceReplaceDirty: true }],
+					[{ editor: input, replacement: { resource: input.result, options: { preserveFocus: true } }, forceReplaceDirty: true }],
 					that.group ?? that.editorGroupService.activeGroup
 				);
 			}
@@ -325,7 +326,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 						input2Line !== undefined ? input2Line + input2LinesAdded : -1;
 					const baseLine_ = baseLine + baseLinesAdded;
 
-					const max = Math.max(baseViewZoneAccessor ? baseLine_ : 0, input1Line_, input2Line_, 1);
+					const max = Math.max(baseViewZoneAccessor ? baseLine_ : 0, input1Line_, input2Line_);
 
 					if (input1Line !== undefined) {
 						const diffInput1 = max - input1Line_;

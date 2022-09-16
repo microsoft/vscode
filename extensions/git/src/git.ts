@@ -1570,6 +1570,10 @@ export class Repository {
 		}
 	}
 
+	async mergeAbort(): Promise<void> {
+		await this.exec(['merge', '--abort']);
+	}
+
 	async tag(name: string, message?: string): Promise<void> {
 		let args = ['tag'];
 
@@ -1704,6 +1708,9 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.NoRemoteRepositorySpecified;
 			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
+			} else if (/! \[rejected\].*\(non-fast-forward\)/m.test(err.stderr || '')) {
+				// The local branch has outgoing changes and it cannot be fast-forwarded.
+				err.gitErrorCode = GitErrorCodes.BranchFastForwardRejected;
 			}
 
 			throw err;

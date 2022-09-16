@@ -394,6 +394,10 @@ export interface ISearchConfigurationProperties {
 		experimental: {};
 	};
 	sortOrder: SearchSortOrder;
+	decorations: {
+		colors: boolean;
+		badges: boolean;
+	};
 	defaultViewMode: ViewMode;
 }
 
