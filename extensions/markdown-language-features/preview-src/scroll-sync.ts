@@ -144,7 +144,7 @@ export function scrollToRevealSourceLine(line: number, documentVersion: number, 
 	window.scroll(window.scrollX, Math.max(1, window.scrollY + scrollTo));
 }
 
-export function getEditorLineNumberForPageOffset(offset: number, documentVersion: number, settingsManager: SettingsManager) {
+export function getEditorLineNumberForPageOffset(offset: number, documentVersion: number) {
 	const { previous, next } = getLineElementsAtPageOffset(offset, documentVersion);
 	if (previous) {
 		const previousBounds = getElementBounds(previous);
