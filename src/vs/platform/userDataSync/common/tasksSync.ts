@@ -99,7 +99,7 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 		}
 
 		const previewResult: IMergeResult = {
-			content,
+			content: hasConflicts ? lastSyncContent : content,
 			localChange: hasLocalChanged ? fileContent ? Change.Modified : Change.Added : Change.None,
 			remoteChange: hasRemoteChanged ? Change.Modified : Change.None,
 			hasConflicts
@@ -110,7 +110,7 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 			fileContent,
 
 			baseResource: this.baseResource,
-			baseContent: lastSyncContent !== null ? lastSyncContent : localContent,
+			baseContent: lastSyncContent,
 
 			localResource: this.localResource,
 			localContent,

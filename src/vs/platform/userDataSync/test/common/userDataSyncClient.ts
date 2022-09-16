@@ -249,12 +249,12 @@ export class UserDataSyncTestServer implements IRequestService {
 			if (this.collectionCounter) {
 				collection = {};
 				for (let collectionId = 1; collectionId <= this.collectionCounter; collectionId++) {
-					const latest: Record<ServerResource, string> = Object.create({});
 					const collectionData = this.collections.get(`${collectionId}`);
 					if (collectionData) {
+						const latest: Record<ServerResource, string> = Object.create({});
 						collectionData.forEach((value, key) => latest[key] = value.ref);
+						collection[`${collectionId}`] = { latest };
 					}
-					collection[`${collectionId}`] = { latest };
 				}
 			}
 			const manifest = { session: this.session, latest, collection };

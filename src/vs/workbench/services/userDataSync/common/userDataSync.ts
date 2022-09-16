@@ -97,6 +97,8 @@ export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled',
 export const CONTEXT_ACCOUNT_STATE = new RawContextKey<string>('userDataSyncAccountStatus', AccountStatus.Uninitialized);
 export const CONTEXT_ENABLE_ACTIVITY_VIEWS = new RawContextKey<boolean>(`enableSyncActivityViews`, false);
 export const CONTEXT_ENABLE_SYNC_MERGES_VIEW = new RawContextKey<boolean>(`enableSyncMergesView`, false);
+export const CONTEXT_ENABLE_SYNC_CONFLICTS_VIEW = new RawContextKey<boolean>(`enableSyncConflictsView`, false);
+export const CONTEXT_HAS_CONFLICTS = new RawContextKey<boolean>('hasConflicts', false);
 
 // Commands
 export const CONFIGURE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.configure';
@@ -105,3 +107,4 @@ export const SHOW_SYNC_LOG_COMMAND_ID = 'workbench.userDataSync.actions.showLog'
 // VIEWS
 export const SYNC_VIEW_CONTAINER_ID = 'workbench.view.sync';
 export const SYNC_MERGES_VIEW_ID = 'workbench.views.sync.merges';
+export const SYNC_CONFLICTS_VIEW_ID = 'workbench.views.sync.conflicts';
