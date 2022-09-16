@@ -17,7 +17,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ITerminalContextualActionOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ITerminalContextualActionOptions, ContextualMatchResult } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -227,38 +227,48 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 	private _fixGitAction(): ITerminalContextualActionOptions {
 		return {
-			commandLineMatcher: 'git.*',
-			outputMatcher: { lineMatcher: /git:\s(.*)\s is not a git command\.* The most similar command is\s(.*) \s/ },
-			actionName: 'Fix git command',
-			callback: (commandLineMatch: RegExpMatchArray, outputMatch?: RegExpMatchArray | null, command?: ITerminalCommand) => {
-				const term = outputMatch?.[1];
-				if (!term) {
+			commandLineMatcher: /git.*/,
+			outputRegex: { lineMatcher: /.*The most similar command is\s*(.*)\s*/ },
+			actionName: (matchResult: ContextualMatchResult) => matchResult.output ? `Run git ${matchResult.output[1]}` : ``,
+			nonZeroExitCode: true,
+			callback: (matchResult: ContextualMatchResult, command?: ITerminalCommand) => {
+				if (!command || matchResult.output?.length !== 2) {
 					return;
 				}
-				this._contextualActionAddon?.registerContextualDecoration(command?.marker);
+				const actions: IAction[] = [];
+				const fixedCommand = matchResult.output[1];
+				const label = localize("terminal.fixGitCommand", "Run git {0}", fixedCommand);
+				actions.push({
+					class: undefined, tooltip: label, id: 'terminal.fixGitCommand', label, enabled: true,
+					run: () => {
+						command.command = `git ${fixedCommand}`;
+						this._onDidRequestRunCommand.fire({ command });
+					}
+				});
+				const marker = this.raw.registerMarker();
+				this._contextualActionAddon?.registerContextualDecoration(marker, actions);
 			}
 		};
 	}
 	private _freePortAction(): ITerminalContextualActionOptions {
 		return {
-			actionName: (commandLineMatch: RegExpMatchArray, outputMatch?: RegExpMatchArray | null) => outputMatch ? `Free port ${outputMatch[1]}` : '',
+			actionName: (matchResult: ContextualMatchResult) => matchResult.output ? `Free port ${matchResult.output[1]}` : '',
 			commandLineMatcher: /.+/,
-			outputMatcher: { lineMatcher: /.*address already in use \d\.\d.\d\.\d:(\d\d\d\d).*/ },
-			callback: (commandLineMatch: RegExpMatchArray, outputMatch?: RegExpMatchArray | null, command?: ITerminalCommand) => {
-				if (!command) {
+			outputRegex: { lineMatcher: /.*address already in use \d\.\d.\d\.\d:(\d\d\d\d).*/ },
+			nonZeroExitCode: true,
+			callback: (matchResult: ContextualMatchResult, command?: ITerminalCommand) => {
+				if (!command || matchResult.output?.length !== 2) {
 					return;
 				}
-				if (outputMatch?.length === 2) {
-					const actions: IAction[] = [];
-					const port = outputMatch[1];
-					const label = localize("terminal.freePort", "Free port {0}", port);
-					actions.push({
-						class: undefined, tooltip: label, id: 'terminal.freePort', label, enabled: true,
-						run: () => this._onDidRequestFreePort.fire(port)
-					});
-					this._contextualActionAddon?.registerContextualDecoration(command.endMarker, actions);
-					this._onDidRequestRunCommand.fire({ command, noNewLine: true });
-				}
+				const port = matchResult.output[1];
+				const actions: IAction[] = [];
+				const label = localize("terminal.freePort", "Free port {0}", port);
+				actions.push({
+					class: undefined, tooltip: label, id: 'terminal.freePort', label, enabled: true,
+					run: () => this._onDidRequestFreePort.fire(port)
+				});
+				this._contextualActionAddon?.registerContextualDecoration(command.endMarker, actions);
+				this._onDidRequestRunCommand.fire({ command, noNewLine: true });
 			}
 		};
 	}

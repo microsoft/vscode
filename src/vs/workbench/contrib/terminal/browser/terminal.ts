@@ -913,15 +913,14 @@ export interface ITerminalInstance {
 
 export interface ITerminalContextualActionOptions {
 	commandLineMatcher: string | RegExp;
-	// Allows searching a subset of lines efficiently
-	outputMatcher?: ITerminalOutputMatcher;
-	// Allow the name to be generated based on capture groups in the output matcher(s)
-	actionName: string | DynamicActionName;
 	callback: ContextualActionCallback;
+	outputRegex?: ITerminalOutputMatcher;
+	actionName: string | DynamicActionName;
+	nonZeroExitCode?: boolean;
 }
-
-export type DynamicActionName = (commandLineMatch: RegExpMatchArray, outputMatch?: RegExpMatchArray | null) => string;
-export type ContextualActionCallback = (commandLineMatch: RegExpMatchArray, outputMatch?: RegExpMatchArray | null, command?: ITerminalCommand) => void;
+export type ContextualMatchResult = { commandLine: RegExpMatchArray; output?: RegExpMatchArray | null };
+export type DynamicActionName = (matchResult: ContextualMatchResult) => string;
+export type ContextualActionCallback = (matchResult: ContextualMatchResult, command?: ITerminalCommand) => void;
 
 export interface ITerminalOutputMatcher {
 	lineMatcher: string | RegExp;

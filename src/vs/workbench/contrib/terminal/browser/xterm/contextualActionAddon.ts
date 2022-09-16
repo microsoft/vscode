@@ -12,6 +12,8 @@ import type { ITerminalAddon, Terminal, IMarker } from 'xterm-headless';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITerminalContextualActionOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IContextualAction {
 	/**
@@ -52,7 +54,9 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 
 	private _commandListeners: Map<string, ITerminalContextualActionOptions> = new Map();
 
-	constructor(private readonly _capabilities: ITerminalCapabilityStore, @IContextMenuService private readonly _contextMenuService: IContextMenuService) {
+	constructor(private readonly _capabilities: ITerminalCapabilityStore,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService) {
 		super();
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (commandDetectionCapability) {
@@ -74,25 +78,27 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 	}
 
 	private _registerCommandFinishedHandler(): void {
-		this._register(this._capabilities.get(TerminalCapability.CommandDetection)!.onCommandFinished(command => this._evaluate(command)));
+		// TODO:takes awhile for the output to come through, so need to wait for that to happen but this is flaky and depends upon how large the
+		// output is
+		this._register(this._capabilities.get(TerminalCapability.CommandDetection)!.onCommandFinished(async command => await setTimeout(() => this._evaluate(command), 300)));
 	}
 
 	private _evaluate(command: ITerminalCommand): void {
 		// TODO: This wouldn't handle commands containing escaped spaces correctly
-		const newCommand = command.command.split(' ')[0];
+		const newCommand = command.command;
 		for (const options of this._commandListeners.values()) {
-			const commandLineMatch = newCommand.match(options.commandLineMatcher) || null;
-			const outputMatch = options.outputMatcher ? command.getOutput()?.match(options.outputMatcher.lineMatcher) : null;
-			if (commandLineMatch !== null) {
-				options.callback(commandLineMatch, outputMatch, command);
+			if (options.nonZeroExitCode && command.exitCode === 0) {
+				continue;
+			}
+			const commandLine = newCommand.match(options.commandLineMatcher) || null;
+			const output = options.outputRegex ? command.getOutput()?.match(options.outputRegex.lineMatcher) : null;
+			if (commandLine !== null) {
+				options.callback({ commandLine, output }, command);
 			}
 		}
 	}
 
-	resolveFreePortRequest(error?: Error): void {
-		if (error) {
-			throw error;
-		}
+	resolveFreePortRequest(): void {
 		if (this._resolveCallback) {
 			this._resolveCallback();
 			this._resolveCallback = undefined;
@@ -112,18 +118,14 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 				if (!this._decorationMarkerIds.has(d.marker.id)) {
 					this._currentQuickFixElement = e;
 					e.style.border = border ? '1px solid #f00' : '';
-					const inner = document.createElement('div');
-					inner.classList.add('codicon-light-bulb', 'codicon', 'terminal-command-decoration', 'xterm-decoration');
-					inner.style.position = 'absolute';
-					inner.style.bottom = '100%';
-					inner.style.left = '0';
-					inner.style.color = '#ffcc00';
-					e.appendChild(inner);
+					e.classList.add(DecorationSelector.QuickFix, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration);
+					e.style.color = '#ffcc00';
+					updateLayout(this._configurationService, e);
 					if (actions) {
 						this._decorationMarkerIds.add(d.marker.id);
 						dom.addDisposableListener(e, dom.EventType.CLICK, () => {
 							this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions });
-							// TODO: delete the decoration when context menu closes
+							this._contextMenuService.onDidHideContextMenu(() => d.dispose());
 						});
 					}
 				}
