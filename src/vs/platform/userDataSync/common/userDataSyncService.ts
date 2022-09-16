@@ -10,7 +10,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
-import { isUndefined } from 'vs/base/common/types';
+import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IHeaders } from 'vs/base/parts/request/common/request';
@@ -225,7 +225,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				}
 				return undefined;
 			});
-			if (!isUndefined(result)) {
+			if (!isUndefinedOrNull(result)) {
 				return result;
 			}
 		}
@@ -414,7 +414,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 	}
 
-	private setConflicts(conflicts: IUserDataSyncResourceConflicts[]): void {
+	private updateConflicts(): void {
+		const conflicts = this.getActiveProfileSynchronizers().map(synchronizer => synchronizer.conflicts).flat();
 		if (!equals(this._conflicts, conflicts, (a, b) => a.profile.id === b.profile.id && a.syncResource === b.syncResource && equals(a.conflicts, b.conflicts, (a, b) => isEqual(a.previewResource, b.previewResource)))) {
 			this._conflicts = conflicts;
 			this._onDidChangeConflicts.fire(conflicts);
@@ -435,7 +436,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			const disposables = new DisposableStore();
 			const profileSynchronizer = disposables.add(this.instantiationService.createInstance(ProfileSynchronizer, profile, syncProfile?.collection));
 			disposables.add(profileSynchronizer.onDidChangeStatus(e => this.setStatus(e)));
-			disposables.add(profileSynchronizer.onDidChangeConflicts(conflicts => this.setConflicts(conflicts)));
+			disposables.add(profileSynchronizer.onDidChangeConflicts(conflicts => this.updateConflicts()));
 			disposables.add(profileSynchronizer.onDidChangeLocal(e => this._onDidChangeLocal.fire(e)));
 			this.activeProfileSynchronizers.set(profile.id, activeProfileSynchronizer = [profileSynchronizer, disposables]);
 		}
@@ -939,7 +940,7 @@ class ProfileSynchronizer extends Disposable {
 				}
 
 				try {
-					const resourceManifest: IUserDataResourceManifest | null = (this.collection ? manifest?.collections?.[this.collection].latest : manifest?.latest) ?? null;
+					const resourceManifest: IUserDataResourceManifest | null = (this.collection ? manifest?.collections?.[this.collection]?.latest : manifest?.latest) ?? null;
 					await synchroniser.sync(resourceManifest, syncHeaders);
 				} catch (e) {
 					const userDataSyncError = UserDataSyncError.toUserDataSyncError(e);
