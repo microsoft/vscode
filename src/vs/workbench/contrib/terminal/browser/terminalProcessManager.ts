@@ -37,7 +37,6 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import Severity from 'vs/base/common/severity';
-import * as process from 'child_process';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 /** The amount of time to consider terminal errors to be related to the launch */
@@ -176,30 +175,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	async freePortKillProcess(port: string): Promise<void> {
-		const stdout = await new Promise<string>((resolve, reject) => {
-			process.exec(`lsof -nP -iTCP -sTCP:LISTEN | grep ${port}`, {}, (err, stdout) => {
-				if (err) {
-					return reject('Problem occurred when listing active processes');
-				}
-				resolve(stdout);
-			});
-		});
-		const processesForPort = stdout.split('\n');
-		if (processesForPort.length >= 1) {
-			const capturePid = /\s+(\d+)\s+/;
-			const processId = processesForPort[0].match(capturePid)?.[1];
-			if (processId) {
-				await new Promise<string>((resolve, reject) => {
-					process.exec(`kill ${processId}`, {}, (err, stdout) => {
-						if (err) {
-							this._notificationService.notify({ message: `Could not kill process w id: ${processId} for port ${port}`, severity: Severity.Warning });
-							return reject(`Problem occurred when killing the process w ID: ${processId}`);
-						}
-						this._notificationService.notify({ message: `Killed process w ID: ${processId} to free port ${port}`, severity: Severity.Info });
-						resolve(stdout);
-					});
-				});
+		try {
+			if (this._process?.freePortKillProcess) {
+				const result = await this._process?.freePortKillProcess(port);
+				this._notificationService.notify({ message: `Killed process w ID: ${result.processId} to free port ${result.port}`, severity: Severity.Info });
 			}
+		} catch (e) {
+			this._notificationService.notify({ message: `Could not kill process for port ${port} wth error ${e}`, severity: Severity.Warning });
 		}
 	}
 
