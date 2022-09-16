@@ -31,7 +31,6 @@ export class BetweenCellToolbar extends CellPart {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-
 		this._betweenCellToolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this._bottomCellToolbarContainer, this._notebookEditor.creationOptions.menuIds.cellInsertToolbar, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
