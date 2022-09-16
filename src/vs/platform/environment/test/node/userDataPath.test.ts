@@ -6,12 +6,11 @@
 import * as assert from 'assert';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
-import product from 'vs/platform/product/common/product';
 
 suite('User data path', () => {
 
 	test('getUserDataPath - default', () => {
-		const path = getUserDataPath(parseArgs(process.argv, OPTIONS), product.nameShort);
+		const path = getUserDataPath(parseArgs(process.argv, OPTIONS));
 		assert.ok(path.length > 0);
 	});
 
@@ -21,7 +20,7 @@ suite('User data path', () => {
 			const portableDir = 'portable-dir';
 			process.env['VSCODE_PORTABLE'] = portableDir;
 
-			const path = getUserDataPath(parseArgs(process.argv, OPTIONS), product.nameShort);
+			const path = getUserDataPath(parseArgs(process.argv, OPTIONS));
 			assert.ok(path.includes(portableDir));
 		} finally {
 			if (typeof origPortable === 'string') {
@@ -37,7 +36,7 @@ suite('User data path', () => {
 		const args = parseArgs(process.argv, OPTIONS);
 		args['user-data-dir'] = cliUserDataDir;
 
-		const path = getUserDataPath(args, product.nameShort);
+		const path = getUserDataPath(args);
 		assert.ok(path.includes(cliUserDataDir));
 	});
 
@@ -47,7 +46,7 @@ suite('User data path', () => {
 			const appDataDir = 'appdata-dir';
 			process.env['VSCODE_APPDATA'] = appDataDir;
 
-			const path = getUserDataPath(parseArgs(process.argv, OPTIONS), product.nameShort);
+			const path = getUserDataPath(parseArgs(process.argv, OPTIONS));
 			assert.ok(path.includes(appDataDir));
 		} finally {
 			if (typeof origAppData === 'string') {
