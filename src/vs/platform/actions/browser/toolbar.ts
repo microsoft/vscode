@@ -17,32 +17,11 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const enum HiddenItemStrategy {
-	Hide = 0,
+	Ignore = 0,
 	RenderInSecondaryGroup = 1
 }
 
-export interface IToolBarRenderOptions {
-	/**
-	 * Determines what groups are considered primary. Defaults to `navigation`. Items of the primary
-	 * group are rendered with buttons and the rest is rendered in the secondary popup-menu.
-	 */
-	primaryGroup?: string | ((actionGroup: string) => boolean);
-
-	/**
-	 * Limits the number of items that make it in the primary group. The rest overflows into the
-	 * secondary menu.
-	 */
-	primaryMaxCount?: number;
-
-	/**
-	 * Inlinse submenus with just a single item
-	 */
-	shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean;
-
-	/**
-	 * Should the primary group allow for separators.
-	 */
-	useSeparatorsInPrimaryActions?: boolean;
+export type IWorkbenchToolBarOptions = IToolBarOptions & {
 
 	/**
 	 * Items of the primary group can be hidden. When this happens the item can
@@ -50,14 +29,7 @@ export interface IToolBarRenderOptions {
 	 * - not be shown at all
 	 */
 	hiddenItemStrategy?: HiddenItemStrategy;
-}
 
-export type IWorkbenchToolBarOptions = IToolBarOptions & {
-
-	/**
-	 * Optional options to configure how the toolbar renderes items.
-	 */
-	toolbarOptions?: IToolBarRenderOptions;
 
 	/**
 	 * Optional menu id which items are used for the context menu of the toolbar.
@@ -81,123 +53,189 @@ export type IWorkbenchToolBarOptions = IToolBarOptions & {
 	getKeyBinding?: never;
 };
 
+/**
+ * The `WorkbenchToolBar` does
+ * - support hiding of menu items
+ * - lookup keybindings for each actions automatically
+ * - send `workbenchActionExecuted`-events for each action
+ *
+ * See {@link MenuWorkbenchToolBar} for a toolbar that is backed by a menu.
+ */
 export class WorkbenchToolBar extends ToolBar {
+
+	private readonly _sessionDisposables = this._store.add(new DisposableStore());
 
 	constructor(
 		container: HTMLElement,
-		menuId: MenuId,
-		options: IWorkbenchToolBarOptions | undefined,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextMenuService contextMenuService: IContextMenuService,
+		private _options: IWorkbenchToolBarOptions | undefined,
+		@IMenuService private readonly _menuService: IMenuService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(container, contextMenuService, {
-			...options,
+		super(container, _contextMenuService, {
+			..._options,
 			allowContextMenu: true,
 			getKeyBinding(action) {
 				return keybindingService.lookupKeybinding(action.id) ?? undefined;
 			},
 		});
 
+		// telemetry logic
+		if (_options?.telemetrySource) {
+			this._store.add(this.actionBar.onDidRun(e => telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>(
+				'workbenchActionExecuted',
+				{ id: e.action.id, from: _options!.telemetrySource! })
+			));
+		}
+	}
+
+	override setActions(_primary: readonly IAction[], _secondary: readonly IAction[]): void {
+
+		this._sessionDisposables.clear();
+		const primary = _primary.slice();
+		const secondary = _secondary.slice();
+		const toggleActions: IAction[] = [];
+
+		// move all hidden items to secondary group or ignore them
+		let shouldPrependSeparator = secondary.length > 0;
+		for (let i = 0; i < primary.length; i++) {
+			const action = primary[i];
+			if (!(action instanceof MenuItemAction)) {
+				continue;
+			}
+			if (!action.hideActions) {
+				continue;
+			}
+
+			// collect all toggle actions
+			toggleActions.push(action.hideActions.toggle);
+
+			// hidden items move into overflow or ignore
+			if (action.hideActions.isHidden) {
+				primary[i] = undefined!;
+				if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.Ignore) {
+					if (shouldPrependSeparator) {
+						shouldPrependSeparator = false;
+						secondary.unshift(new Separator());
+					}
+					secondary.unshift(action);
+				}
+			}
+		}
+		coalesceInPlace(primary);
+		super.setActions(primary, secondary);
+
+		// add context menu for toggle actions
+		if (toggleActions.length > 0) {
+			this._sessionDisposables.add(addDisposableListener(this.getElement(), 'contextmenu', e => {
+
+				const action = this.getItemAction(<HTMLElement>e.target);
+				if (!(action)) {
+					return;
+				}
+				e.preventDefault();
+				e.stopPropagation();
+
+				let actions = toggleActions;
+
+				// add "hide foo" actions
+				if (action instanceof MenuItemAction && action.hideActions) {
+					actions = [action.hideActions.hide, new Separator(), ...toggleActions];
+				}
+
+				// add context menu actions (iff appicable)
+				if (this._options?.contextMenu) {
+					const menu = this._menuService.createMenu(this._options.contextMenu, this._contextKeyService);
+					const contextMenuActions: IAction[] = [];
+					createAndFillInContextMenuActions(menu, { ...this._options?.menuOptions, renderShortTitle: true, }, contextMenuActions);
+					menu.dispose();
+
+					if (contextMenuActions.length > 0) {
+						actions = [...actions, new Separator(), ...contextMenuActions];
+					}
+				}
+
+				this._contextMenuService.showContextMenu({
+					getAnchor: () => e,
+					getActions: () => actions,
+				});
+			}));
+		}
+	}
+}
+
+// ---- MenuWorkbenchToolBar -------------------------------------------------
+
+
+export interface IToolBarRenderOptions {
+	/**
+	 * Determines what groups are considered primary. Defaults to `navigation`. Items of the primary
+	 * group are rendered with buttons and the rest is rendered in the secondary popup-menu.
+	 */
+	primaryGroup?: string | ((actionGroup: string) => boolean);
+
+	/**
+	 * Limits the number of items that make it in the primary group. The rest overflows into the
+	 * secondary menu.
+	 */
+	primaryMaxCount?: number;
+
+	/**
+	 * Inlinse submenus with just a single item
+	 */
+	shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean;
+
+	/**
+	 * Should the primary group allow for separators.
+	 */
+	useSeparatorsInPrimaryActions?: boolean;
+}
+
+export interface IMenuWorkbenchToolBarOptions extends IWorkbenchToolBarOptions {
+
+	/**
+	 * Optional options to configure how the toolbar renderes items.
+	 */
+	toolbarOptions?: IToolBarRenderOptions;
+}
+
+/**
+ * A {@link WorkbenchToolBar workbench toolbar} that is purely driven from a {@link MenuId menu}-identifier.
+ *
+ * *Note* that Manual updates via `setActions` are NOT supported.
+ */
+export class MenuWorkbenchToolBar extends WorkbenchToolBar {
+
+	constructor(
+		container: HTMLElement,
+		menuId: MenuId,
+		options: IMenuWorkbenchToolBarOptions | undefined,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@ITelemetryService telemetryService: ITelemetryService,
+	) {
+		super(container, options, menuService, contextKeyService, contextMenuService, keybindingService, telemetryService);
+
 		// update logic
-		const sessionDisposable = this._store.add(new DisposableStore());
 		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService));
-
 		const updateToolbar = () => {
-
-			sessionDisposable.clear();
-
-			const toggleActions: IAction[] = [];
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];
-
 			createAndFillInActionBarActions(
 				menu,
 				options?.menuOptions,
 				{ primary, secondary },
 				options?.toolbarOptions?.primaryGroup, options?.toolbarOptions?.primaryMaxCount, options?.toolbarOptions?.shouldInlineSubmenu, options?.toolbarOptions?.useSeparatorsInPrimaryActions
 			);
-
-			let shouldPrependSeparator = secondary.length > 0;
-
-			// move all hidden items to secondary group
-			for (let i = 0; i < primary.length; i++) {
-				const action = primary[i];
-				if (!(action instanceof MenuItemAction)) {
-					continue;
-				}
-				if (!action.hideActions) {
-					continue;
-				}
-
-				// collect all toggle actions
-				toggleActions.push(action.hideActions.toggle);
-
-				// hidden items move into overflow or ignore
-				if (action.hideActions.isHidden) {
-					primary[i] = undefined!;
-					if (options?.toolbarOptions?.hiddenItemStrategy !== HiddenItemStrategy.Hide) {
-						if (shouldPrependSeparator) {
-							shouldPrependSeparator = false;
-							secondary.unshift(new Separator());
-						}
-						secondary.unshift(action);
-					}
-				}
-			}
-			coalesceInPlace(primary);
 			super.setActions(primary, secondary);
-
-			// add context menu for toggle actions
-			if (toggleActions.length > 0) {
-				sessionDisposable.add(addDisposableListener(this.getElement(), 'contextmenu', e => {
-
-					const action = this.getItemAction(<HTMLElement>e.target);
-					if (!(action)) {
-						return;
-					}
-					e.preventDefault();
-					e.stopPropagation();
-
-					let actions = toggleActions;
-
-					// add "hide foo" actions
-					if (action instanceof MenuItemAction && action.hideActions) {
-						actions = [action.hideActions.hide, new Separator(), ...toggleActions];
-					}
-
-					// add context menu actions (iff appicable)
-					if (options?.contextMenu) {
-						const menu = menuService.createMenu(options.contextMenu, contextKeyService);
-						const contextMenuActions: IAction[] = [];
-						createAndFillInContextMenuActions(menu, { ...options?.menuOptions, renderShortTitle: true, }, contextMenuActions);
-						menu.dispose();
-
-						if (contextMenuActions.length > 0) {
-							actions = [...actions, new Separator(), ...contextMenuActions];
-						}
-					}
-
-					contextMenuService.showContextMenu({
-						getAnchor: () => e,
-						getActions: () => actions,
-					});
-				}));
-			}
 		};
 
 		this._store.add(menu.onDidChange(updateToolbar));
 		updateToolbar();
-
-		// telemetry logic
-		if (options?.telemetrySource) {
-			this._store.add(this.actionBar.onDidRun(e => telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>(
-				'workbenchActionExecuted',
-				{ id: e.action.id, from: options!.telemetrySource! })
-			));
-		}
 	}
 
 	/**
