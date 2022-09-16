@@ -5,7 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { HiddenItemStrategy, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -16,7 +16,7 @@ import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/vie
 
 export class ListTopCellToolbar extends Disposable {
 	private topCellToolbar: HTMLElement;
-	private toolbar: WorkbenchToolBar;
+	private toolbar: MenuWorkbenchToolBar;
 	private readonly _modelDisposables = this._register(new DisposableStore());
 	constructor(
 		protected readonly notebookEditor: INotebookEditorDelegate,
@@ -31,7 +31,7 @@ export class ListTopCellToolbar extends Disposable {
 
 		this.topCellToolbar = DOM.append(insertionIndicatorContainer, DOM.$('.cell-list-top-cell-toolbar-container'));
 
-		this.toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, this.topCellToolbar, this.notebookEditor.creationOptions.menuIds.cellTopInsertToolbar, {
+		this.toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this.topCellToolbar, this.notebookEditor.creationOptions.menuIds.cellTopInsertToolbar, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
 					const item = this.instantiationService.createInstance(CodiconActionViewItem, action, undefined);
@@ -45,8 +45,8 @@ export class ListTopCellToolbar extends Disposable {
 			},
 			toolbarOptions: {
 				primaryGroup: g => /^inline/.test(g),
-				hiddenItemStrategy: HiddenItemStrategy.Hide,
 			},
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 		}));
 
 		this.toolbar.context = <INotebookActionContext>{
