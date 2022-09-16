@@ -1373,10 +1373,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	};
 
-	type ExtendedRendererApi = rendererApi.RendererApi & {
-		renderOutputItem(outputItem: rendererApi.OutputItem, element: HTMLElement, signal: AbortSignal): void | Promise<void>;
-	};
-
 	const renderers = new class {
 		private readonly _renderers = new Map</* id */ string, Renderer>();
 
@@ -1490,7 +1486,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			const renderer = await renderers[0].load();
 			if (renderer) {
-				await (renderer as ExtendedRendererApi).renderOutputItem(info, element, signal);
+				await renderer.renderOutputItem(info, element, signal);
 			}
 		}
 	}();
@@ -2139,7 +2135,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				const errors = preloadsAndErrors.filter((e): e is Error => e instanceof Error);
 				showPreloadErrors(this.element, ...errors);
 			} else {
-				const rendererApi = preloadsAndErrors[0] as ExtendedRendererApi;
+				const rendererApi = preloadsAndErrors[0] as rendererApi.RendererApi;
 				try {
 					const item = createOutputItem(this.outputId, content.mimeType, content.metadata, content.valueBytes);
 
