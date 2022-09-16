@@ -105,7 +105,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
 			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
-			searchView.open(<FileMatchOrMatch>tree.getFocus()[0], false, false, true);
+			const viewer = searchView.getControl();
+			const focus = tree.getFocus()[0];
+
+			if (focus instanceof FolderMatch) {
+				viewer.toggleCollapsed(focus);
+			} else {
+				searchView.open(<FileMatchOrMatch>tree.getFocus()[0], false, false, true);
+			}
 		}
 	}
 });
