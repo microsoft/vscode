@@ -91,7 +91,7 @@ export class WorkbenchToolBar extends ToolBar {
 		}
 	}
 
-	override setActions(_primary: readonly IAction[], _secondary: readonly IAction[]): void {
+	override setActions(_primary: readonly IAction[], _secondary: readonly IAction[] = []): void {
 
 		this._sessionDisposables.clear();
 		const primary = _primary.slice();
