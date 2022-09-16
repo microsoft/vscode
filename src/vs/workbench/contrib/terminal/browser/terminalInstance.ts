@@ -589,6 +589,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return undefined;
 	}
 
+	registerContextualAction(matcher: string | RegExp, callback: (command: ITerminalCommand) => void): IDisposable {
+		const disposable = this.capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(() => this.xterm?.contextualAction?.registerCommandFinishedListener(matcher, callback));
+		if (!disposable) {
+			throw new Error(`Could not register command finished listener xterm: ${this.xterm}, contextualAction: ${this.xterm?.contextualAction}, command detection: ${this.capabilities.get(TerminalCapability.CommandDetection)}`);
+		}
+		return disposable;
+	}
+
 	private _initDimensions(): void {
 		// The terminal panel needs to have been created to get the real view dimensions
 		if (!this._container) {

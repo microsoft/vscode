@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { IAction } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 // Importing types is safe in any layer
@@ -30,7 +30,7 @@ export interface IContextualAction {
 	 * will fire the listener for commands that match.
 	 * @param callback The callback to trigger when a matching command finished.
 	 */
-	registerCommandFinishedListener(matcher: string | RegExp, callback: (command: ITerminalCommand) => void): IDisposable;
+	registerCommandFinishedListener(matcher: string | RegExp, callback: (command: ITerminalCommand) => void): void;
 }
 
 export interface IContextualActionAdddon extends IContextualAction {
@@ -186,8 +186,7 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 			});
 		}
 	}
-	//TODO: shouldn't this be private?
-	registerCommandFinishedListener(matcher: string | RegExp, callback: (command: ITerminalCommand) => void): IDisposable {
+	registerCommandFinishedListener(matcher: string | RegExp, callback: (command: ITerminalCommand) => void): void {
 		if (typeof matcher === 'string') {
 			const listeners = this._stringCommandListeners.get(matcher) || [];
 			listeners.push(callback);
@@ -195,8 +194,5 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 		} else {
 			this._regexpCommandFinishedListeners.push({ regexp: matcher, callback });
 		}
-
-		// TODO: Return disposable
-		return null as any;
 	}
 }
