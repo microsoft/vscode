@@ -6,6 +6,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
+import { Schemes } from '../util/schemes';
 import { createUriListSnippet, tryGetUriListSnippet } from './dropIntoEditor';
 
 const supportedImageMimes = new Set([
@@ -23,6 +24,10 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 	): Promise<vscode.DocumentPasteEdit | undefined> {
 		const enabled = vscode.workspace.getConfiguration('markdown', document).get('experimental.editor.pasteLinks.enabled', true);
 		if (!enabled) {
+			return;
+		}
+
+		if (document.uri.scheme === Schemes.notebookCell) {
 			return;
 		}
 

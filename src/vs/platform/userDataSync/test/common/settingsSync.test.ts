@@ -11,7 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ISettingsSyncContent, parseSettingsSyncContent, SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { ISyncData, IUserDataSyncStoreService, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
@@ -52,7 +52,7 @@ suite('SettingsSync - Auto', () => {
 		const settingResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource;
 
 		assert.deepStrictEqual(await testObject.getLastSyncUserData(), null);
-		let manifest = await client.manifest();
+		let manifest = await client.getResourceManifest();
 		server.reset();
 		await testObject.sync(manifest);
 
@@ -67,12 +67,12 @@ suite('SettingsSync - Auto', () => {
 		assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
 		assert.strictEqual(lastSyncUserData!.syncData, null);
 
-		manifest = await client.manifest();
+		manifest = await client.getResourceManifest();
 		server.reset();
 		await testObject.sync(manifest);
 		assert.deepStrictEqual(server.requests, []);
 
-		manifest = await client.manifest();
+		manifest = await client.getResourceManifest();
 		server.reset();
 		await testObject.sync(manifest);
 		assert.deepStrictEqual(server.requests, []);
@@ -83,7 +83,7 @@ suite('SettingsSync - Auto', () => {
 		const settingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource;
 		await fileService.writeFile(settingsResource, VSBuffer.fromString(''));
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await client.getResourceManifest());
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
@@ -124,7 +124,7 @@ suite('SettingsSync - Auto', () => {
 		const settingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource;
 		await fileService.writeFile(settingsResource, VSBuffer.fromString(''));
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await client.getResourceManifest());
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
@@ -137,11 +137,11 @@ suite('SettingsSync - Auto', () => {
 		const fileService = client.instantiationService.get(IFileService);
 
 		const settingsResource = client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource;
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await client.getResourceManifest());
 		await fileService.createFile(settingsResource, VSBuffer.fromString('{}'));
 
 		let lastSyncUserData = await testObject.getLastSyncUserData();
-		const manifest = await client.manifest();
+		const manifest = await client.getResourceManifest();
 		server.reset();
 		await testObject.sync(manifest);
 
@@ -181,7 +181,7 @@ suite('SettingsSync - Auto', () => {
 }`;
 
 		await updateSettings(expected, client);
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await client.getResourceManifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -205,7 +205,7 @@ suite('SettingsSync - Auto', () => {
 }`;
 		await updateSettings(settingsContent, client);
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await client.getResourceManifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -236,7 +236,7 @@ suite('SettingsSync - Auto', () => {
 }`;
 		await updateSettings(settingsContent, client);
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await client.getResourceManifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -267,7 +267,7 @@ suite('SettingsSync - Auto', () => {
 }`;
 		await updateSettings(settingsContent, client);
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await client.getResourceManifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -291,7 +291,7 @@ suite('SettingsSync - Auto', () => {
 }`;
 		await updateSettings(settingsContent, client);
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await client.getResourceManifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -309,7 +309,7 @@ suite('SettingsSync - Auto', () => {
 }`;
 		await updateSettings(settingsContent, client);
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await client.getResourceManifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -327,7 +327,7 @@ suite('SettingsSync - Auto', () => {
 }`;
 
 		await updateSettings(content, client);
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await client.getResourceManifest());
 
 		const promise = Event.toPromise(testObject.onDidChangeLocal);
 		await updateSettings(`{
@@ -361,7 +361,7 @@ suite('SettingsSync - Auto', () => {
 }`;
 		await updateSettings(settingsContent, client);
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await client.getResourceManifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -409,7 +409,7 @@ suite('SettingsSync - Auto', () => {
 }`;
 		await updateSettings(settingsContent, client);
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await client.getResourceManifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -457,7 +457,7 @@ suite('SettingsSync - Auto', () => {
 		await updateSettings(expected, client);
 
 		try {
-			await testObject.sync(await client.manifest());
+			await testObject.sync(await client.getResourceManifest());
 			assert.fail('should fail with invalid content error');
 		} catch (e) {
 			assert.ok(e instanceof UserDataSyncError);
@@ -468,7 +468,7 @@ suite('SettingsSync - Auto', () => {
 	test('sync throws invalid content error - content is an array', async () => {
 		await updateSettings('[]', client);
 		try {
-			await testObject.sync(await client.manifest());
+			await testObject.sync(await client.getResourceManifest());
 			assert.fail('should fail with invalid content error');
 		} catch (e) {
 			assert.ok(e instanceof UserDataSyncError);
@@ -491,16 +491,35 @@ suite('SettingsSync - Auto', () => {
 			'b': 1,
 			'settingsSync.ignoredSettings': ['a']
 		}), client);
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await client.getResourceManifest());
 
 		assert.strictEqual(testObject.status, SyncStatus.HasConflicts);
-		assert.strictEqual(testObject.conflicts[0].localResource.toString(), testObject.localResource.toString());
+		assert.strictEqual(testObject.conflicts.conflicts[0].localResource.toString(), testObject.localResource.toString());
 
 		const fileService = client.instantiationService.get(IFileService);
-		const mergeContent = (await fileService.readFile(testObject.conflicts[0].previewResource)).value.toString();
-		assert.deepStrictEqual(JSON.parse(mergeContent), {
-			'b': 1,
-			'settingsSync.ignoredSettings': ['a']
+		const mergeContent = (await fileService.readFile(testObject.conflicts.conflicts[0].previewResource)).value.toString();
+		assert.strictEqual(mergeContent, '');
+	});
+
+	test('sync profile settings', async () => {
+		const client2 = disposableStore.add(new UserDataSyncClient(server));
+		await client2.setUp(true);
+		const profile = await client2.instantiationService.get(IUserDataProfilesService).createNamedProfile('profile1');
+		await updateSettings(JSON.stringify({
+			'a': 1,
+			'b': 2,
+		}), client2, profile);
+		await client2.sync();
+
+		await client.sync();
+
+		assert.strictEqual(testObject.status, SyncStatus.Idle);
+
+		const syncedProfile = client.instantiationService.get(IUserDataProfilesService).profiles.find(p => p.id === profile.id)!;
+		const content = (await client.instantiationService.get(IFileService).readFile(syncedProfile.settingsResource)).value.toString();
+		assert.deepStrictEqual(JSON.parse(content), {
+			'a': 1,
+			'b': 2,
 		});
 	});
 
@@ -546,7 +565,7 @@ suite('SettingsSync - Manual', () => {
 }`;
 		await updateSettings(settingsContent, client);
 
-		let preview = await testObject.preview(await client.manifest(), {});
+		let preview = await testObject.preview(await client.getResourceManifest(), {});
 		assert.strictEqual(testObject.status, SyncStatus.Syncing);
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.apply(false);
@@ -578,7 +597,7 @@ function parseSettings(content: string): string {
 	return settingsSyncContent.settings;
 }
 
-async function updateSettings(content: string, client: UserDataSyncClient): Promise<void> {
-	await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString(content));
+async function updateSettings(content: string, client: UserDataSyncClient, profile?: IUserDataProfile): Promise<void> {
+	await client.instantiationService.get(IFileService).writeFile((profile ?? client.instantiationService.get(IUserDataProfilesService).defaultProfile).settingsResource, VSBuffer.fromString(content));
 	await client.instantiationService.get(IConfigurationService).reloadConfiguration();
 }

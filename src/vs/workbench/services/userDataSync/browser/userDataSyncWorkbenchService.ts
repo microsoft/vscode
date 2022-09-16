@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask, IUserDataSyncStoreManagementService, SyncStatus, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, Change, IUserDataManualSyncTask, IUserDataSyncStoreManagementService, SyncStatus, IUserDataSyncEnablementService, IUserDataSyncResourceConflicts, IUserDataSyncResourcePreview, IUserDataSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, CONTEXT_ENABLE_SYNC_MERGES_VIEW, SYNC_MERGES_VIEW_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel, IUserDataSyncPreview, IResourcePreview, CONTEXT_ENABLE_SYNC_MERGES_VIEW, SYNC_MERGES_VIEW_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { flatten, equals } from 'vs/base/common/arrays';
@@ -333,7 +333,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		return this.userDataAutoSyncService.triggerSync(['Sync Now'], false, true);
 	}
 
-	private async onBeforeShutdown(manualSyncTask: IManualSyncTask): Promise<boolean> {
+	private async onBeforeShutdown(manualSyncTask: IUserDataManualSyncTask): Promise<boolean> {
 		const result = await this.dialogService.confirm({
 			type: 'warning',
 			message: localize('sync in progress', "Settings Sync is being turned on. Would you like to cancel it?"),
@@ -347,7 +347,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		return !result.confirmed;
 	}
 
-	private async syncBeforeTurningOn(title: string, manualSyncTask: IManualSyncTask): Promise<void> {
+	private async syncBeforeTurningOn(title: string, manualSyncTask: IUserDataManualSyncTask): Promise<void> {
 		try {
 			let action: FirstTimeSyncAction = 'manual';
 
@@ -361,7 +361,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				const preview = await manualSyncTask.preview();
 				const hasRemoteData = manualSyncTask.manifest !== null;
 				const hasLocalData = await this.userDataSyncService.hasLocalData();
-				const hasMergesFromAnotherMachine = preview.some(([syncResource, { isLastSyncFromCurrentMachine, resourcePreviews }]) =>
+				const hasMergesFromAnotherMachine = preview.some(({ syncResource, isLastSyncFromCurrentMachine, resourcePreviews }) =>
 					syncResource !== SyncResource.GlobalState && !isLastSyncFromCurrentMachine
 					&& resourcePreviews.some(r => r.localChange !== Change.None || r.remoteChange !== Change.None));
 
@@ -445,7 +445,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		throw new CancellationError();
 	}
 
-	private async syncManually(task: IManualSyncTask): Promise<void> {
+	private async syncManually(task: IUserDataManualSyncTask): Promise<void> {
 		const visibleViewContainer = this.viewsService.getVisibleViewContainer(ViewContainerLocation.Sidebar);
 		const preview = await task.preview();
 		this.userDataSyncPreview.setManualSyncPreview(task, preview);
@@ -675,19 +675,19 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 
-	private _resources: ReadonlyArray<IUserDataSyncResource> = [];
-	get resources() { return Object.freeze(this._resources); }
-	private _onDidChangeResources = this._register(new Emitter<ReadonlyArray<IUserDataSyncResource>>());
-	readonly onDidChangeResources = this._onDidChangeResources.event;
+	private _resourcePreviews: ReadonlyArray<IResourcePreview> = [];
+	get resourcePreviews() { return Object.freeze(this._resourcePreviews); }
+	private _onDidChangeResourcePreviews = this._register(new Emitter<ReadonlyArray<IResourcePreview>>());
+	readonly onDidChangeResourcePreviews = this._onDidChangeResourcePreviews.event;
 
-	private _conflicts: ReadonlyArray<IUserDataSyncResource> = [];
+	private _conflicts: ReadonlyArray<IResourcePreview> = [];
 	get conflicts() { return Object.freeze(this._conflicts); }
-	private _onDidChangeConflicts = this._register(new Emitter<ReadonlyArray<IUserDataSyncResource>>());
+	private _onDidChangeConflicts = this._register(new Emitter<ReadonlyArray<IResourcePreview>>());
 	readonly onDidChangeConflicts = this._onDidChangeConflicts.event;
 
 	private _onDidCompleteManualSync = this._register(new Emitter<Error | undefined>());
 	readonly onDidCompleteManualSync = this._onDidCompleteManualSync.event;
-	private manualSync: { preview: [SyncResource, ISyncResourcePreview][]; task: IManualSyncTask; disposables: DisposableStore } | undefined;
+	private manualSync: { preview: IUserDataSyncResourcePreview[]; task: IUserDataManualSyncTask; disposables: DisposableStore } | undefined;
 
 	constructor(
 		private readonly userDataSyncService: IUserDataSyncService
@@ -697,7 +697,7 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 		this._register(userDataSyncService.onDidChangeConflicts(conflicts => this.updateConflicts(conflicts)));
 	}
 
-	setManualSyncPreview(task: IManualSyncTask, preview: [SyncResource, ISyncResourcePreview][]): void {
+	setManualSyncPreview(task: IUserDataManualSyncTask, preview: IUserDataSyncResourcePreview[]): void {
 		const disposables = new DisposableStore();
 		this.manualSync = { task, preview, disposables };
 		this.updateResources();
@@ -711,7 +711,7 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 		this.updateResources();
 	}
 
-	async accept(syncResource: SyncResource, resource: URI, content?: string | null): Promise<void> {
+	async accept(syncResource: IUserDataSyncResource, resource: URI, content?: string | null): Promise<void> {
 		if (this.manualSync) {
 			const syncPreview = await this.manualSync.task.accept(resource, content);
 			this.updatePreview(syncPreview);
@@ -744,7 +744,7 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 		try {
 			const syncPreview = await this.manualSync.task.apply();
 			this.updatePreview(syncPreview);
-			if (!this._resources.length) {
+			if (!this._resourcePreviews.length) {
 				this._onDidCompleteManualSync.fire(undefined);
 			}
 		} catch (error) {
@@ -779,15 +779,20 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 		this.updatePreview([]);
 	}
 
-	private updatePreview(preview: [SyncResource, ISyncResourcePreview][]) {
+	private updatePreview(preview: IUserDataSyncResourcePreview[]) {
 		if (this.manualSync) {
 			this.manualSync.preview = preview;
 			this.updateResources();
 		}
 	}
 
-	private updateConflicts(conflicts: [SyncResource, IResourcePreview[]][]): void {
-		const newConflicts = this.toUserDataSyncResourceGroups(conflicts);
+	private updateConflicts(syncResourceConflicts: IUserDataSyncResourceConflicts[]): void {
+		const newConflicts: IResourcePreview[] = [];
+		for (const { profile, syncResource, conflicts } of syncResourceConflicts) {
+			for (const { localResource, remoteResource, previewResource, acceptedResource, localChange, remoteChange, mergeState } of conflicts) {
+				newConflicts.push({ local: localResource, remote: remoteResource, merged: previewResource, accepted: acceptedResource, localChange, remoteChange, mergeState, profileSyncResource: { profile, syncResource } });
+			}
+		}
 		if (!equals(newConflicts, this._conflicts, (a, b) => isEqual(a.local, b.local))) {
 			this._conflicts = newConflicts;
 			this._onDidChangeConflicts.fire(this.conflicts);
@@ -795,26 +800,16 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 	}
 
 	private updateResources(): void {
-		const newResources = this.toUserDataSyncResourceGroups(
-			(this.manualSync?.preview || [])
-				.map(([syncResource, syncResourcePreview]) =>
-				([
-					syncResource,
-					syncResourcePreview.resourcePreviews
-				]))
-		);
-		if (!equals(newResources, this._resources, (a, b) => isEqual(a.local, b.local) && a.mergeState === b.mergeState)) {
-			this._resources = newResources;
-			this._onDidChangeResources.fire(this.resources);
+		const newResources: IResourcePreview[] = [];
+		for (const { profile, syncResource, resourcePreviews } of (this.manualSync?.preview || [])) {
+			for (const { localResource, remoteResource, previewResource, acceptedResource, localChange, remoteChange, mergeState } of resourcePreviews) {
+				newResources.push({ local: localResource, remote: remoteResource, merged: previewResource, accepted: acceptedResource, localChange, remoteChange, mergeState, profileSyncResource: { profile, syncResource } });
+			}
 		}
-	}
-
-	private toUserDataSyncResourceGroups(syncResourcePreviews: [SyncResource, IResourcePreview[]][]): IUserDataSyncResource[] {
-		return flatten(
-			syncResourcePreviews.map(([syncResource, resourcePreviews]) =>
-				resourcePreviews.map<IUserDataSyncResource>(({ localResource, remoteResource, previewResource, acceptedResource, localChange, remoteChange, mergeState }) =>
-					({ syncResource, local: localResource, remote: remoteResource, merged: previewResource, accepted: acceptedResource, localChange, remoteChange, mergeState })))
-		);
+		if (!equals(newResources, this._resourcePreviews, (a, b) => isEqual(a.local, b.local) && a.mergeState === b.mergeState)) {
+			this._resourcePreviews = newResources;
+			this._onDidChangeResourcePreviews.fire(this.resourcePreviews);
+		}
 	}
 
 }

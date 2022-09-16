@@ -39,6 +39,8 @@ export class InputCodeEditorView extends CodeEditorView {
 	) {
 		super(instantiationService, viewModel);
 
+		this.htmlElements.root.classList.add(`input`);
+
 		this._register(
 			new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
 				getIntersectingGutterItems: (range, reader) => {

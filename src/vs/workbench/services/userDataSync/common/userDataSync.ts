@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IAuthenticationProvider, SyncStatus, SyncResource, Change, MergeState } from 'vs/platform/userDataSync/common/userDataSync';
+import { IAuthenticationProvider, SyncStatus, SyncResource, Change, MergeState, IUserDataSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
@@ -19,10 +19,10 @@ export interface IUserDataSyncAccount {
 }
 
 export interface IUserDataSyncPreview {
-	readonly onDidChangeResources: Event<ReadonlyArray<IUserDataSyncResource>>;
-	readonly resources: ReadonlyArray<IUserDataSyncResource>;
+	readonly onDidChangeResourcePreviews: Event<ReadonlyArray<IResourcePreview>>;
+	readonly resourcePreviews: ReadonlyArray<IResourcePreview>;
 
-	accept(syncResource: SyncResource, resource: URI, content?: string | null): Promise<void>;
+	accept(profileSyncResource: IUserDataSyncResource, resource: URI, content?: string | null): Promise<void>;
 	merge(resource?: URI): Promise<void>;
 	discard(resource?: URI): Promise<void>;
 	pull(): Promise<void>;
@@ -31,8 +31,8 @@ export interface IUserDataSyncPreview {
 	cancel(): Promise<void>;
 }
 
-export interface IUserDataSyncResource {
-	readonly syncResource: SyncResource;
+export interface IResourcePreview {
+	readonly profileSyncResource: IUserDataSyncResource;
 	readonly local: URI;
 	readonly remote: URI;
 	readonly merged: URI;
@@ -97,6 +97,8 @@ export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled',
 export const CONTEXT_ACCOUNT_STATE = new RawContextKey<string>('userDataSyncAccountStatus', AccountStatus.Uninitialized);
 export const CONTEXT_ENABLE_ACTIVITY_VIEWS = new RawContextKey<boolean>(`enableSyncActivityViews`, false);
 export const CONTEXT_ENABLE_SYNC_MERGES_VIEW = new RawContextKey<boolean>(`enableSyncMergesView`, false);
+export const CONTEXT_ENABLE_SYNC_CONFLICTS_VIEW = new RawContextKey<boolean>(`enableSyncConflictsView`, false);
+export const CONTEXT_HAS_CONFLICTS = new RawContextKey<boolean>('hasConflicts', false);
 
 // Commands
 export const CONFIGURE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.configure';
@@ -105,3 +107,4 @@ export const SHOW_SYNC_LOG_COMMAND_ID = 'workbench.userDataSync.actions.showLog'
 // VIEWS
 export const SYNC_VIEW_CONTAINER_ID = 'workbench.view.sync';
 export const SYNC_MERGES_VIEW_ID = 'workbench.views.sync.merges';
+export const SYNC_CONFLICTS_VIEW_ID = 'workbench.views.sync.conflicts';
