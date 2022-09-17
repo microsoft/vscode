@@ -151,7 +151,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		}
 		if (this._options.retainContextWhenHidden) {
 			// https://github.com/microsoft/vscode/issues/157424
-			// We don't want to clear webview when retaining context, instead we'll just hide find so we can show it again later
+			// We need to record the current state when retaining context so we can try to showFind() when showing webview again
 			this._webview.value?.hideFind();
 		} else {
 			this._webview.clear();
@@ -213,12 +213,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 				this._webview.value.setContextKeyService(this._scopedContextKeyService.value);
 			}
 
-			// Need to show the find widget again if we're supposed to retain context
-			// We previously hid find when we did this.release()
 			// https://github.com/microsoft/vscode/issues/157424
-			if (this._options.retainContextWhenHidden) {
-				this._webview.value.showFind();
-			}
+			this.tryShowFind();
 
 			if (this._html) {
 				webview.html = this._html;
@@ -348,6 +344,20 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	cut(): void { this._webview.value?.cut(); }
 	undo(): void { this._webview.value?.undo(); }
 	redo(): void { this._webview.value?.redo(); }
+
+	/**
+	 * Only meant to be used when we're showing webview as an attempt to reload the previously hidden
+	 * find widget when retaining context
+	 */
+	tryShowFind() {
+		const shouldShowFind: boolean | undefined = (
+			(this.options.retainContextWhenHidden && this._findActiveWhenHidden)
+		);
+
+		if (shouldShowFind) {
+			this.showFind();
+		}
+	}
 
 	showFind() {
 		const shouldShowFind: boolean | undefined = (
