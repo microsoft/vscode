@@ -152,7 +152,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		if (this._options.retainContextWhenHidden) {
 			// https://github.com/microsoft/vscode/issues/157424
 			// We need to record the current state when retaining context so we can try to showFind() when showing webview again
-			this._webview.value?.hideFind();
+			this.hideFind();
 		} else {
 			this._webview.clear();
 			this._webviewEvents.clear();
