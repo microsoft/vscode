@@ -174,7 +174,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-left .action-label {
-	margin-right: 4px !important;
+	margin-left: 4px !important;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-left::after,
