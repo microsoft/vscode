@@ -42,6 +42,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
 	private _findWidgetVisible: IContextKey<boolean> | undefined;
 	private _findWidgetEnabled: IContextKey<boolean> | undefined;
+	// This isn't associated with an editor action so doesn't need to be a context key
+	private _findActiveWhenHidden: boolean | undefined = false;
 
 	public readonly id: string;
 	public readonly providedViewType?: string;
@@ -348,13 +350,17 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	redo(): void { this._webview.value?.redo(); }
 
 	showFind() {
-		if (this._webview.value) {
+		const shouldShowFind: boolean | undefined = (
+			(this.options.retainContextWhenHidden && this._findActiveWhenHidden) || !this.options.retainContextWhenHidden
+		);
+		if (this._webview.value && shouldShowFind) {
 			this._webview.value.showFind();
 			this._findWidgetVisible?.set(true);
 		}
 	}
 
 	hideFind() {
+		this._findActiveWhenHidden = this._findWidgetVisible?.get();
 		this._findWidgetVisible?.reset();
 		this._webview.value?.hideFind();
 	}
