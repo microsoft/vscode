@@ -147,7 +147,11 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		if (this._container) {
 			this._container.style.visibility = 'hidden';
 		}
-		if (!this._options.retainContextWhenHidden) {
+		if (this._options.retainContextWhenHidden) {
+			// https://github.com/microsoft/vscode/issues/157424
+			// We don't want to clear webview when retaining context, instead we'll just hide find so we can show it again later
+			this._webview.value?.hideFind();
+		} else {
 			this._webview.clear();
 			this._webviewEvents.clear();
 		}
@@ -205,6 +209,13 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 			if (this._scopedContextKeyService.value) {
 				this._webview.value.setContextKeyService(this._scopedContextKeyService.value);
+			}
+
+			// Need to show the find widget again if we're supposed to retain context
+			// We previously hid find when we did this.release()
+			// https://github.com/microsoft/vscode/issues/157424
+			if (this._options.retainContextWhenHidden) {
+				this._webview.value.showFind();
 			}
 
 			if (this._html) {
