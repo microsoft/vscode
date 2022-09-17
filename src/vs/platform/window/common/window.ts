@@ -165,7 +165,7 @@ export function getTitleBarStyle(configurationService: IConfigurationService): '
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
 	if (!isWindows || isWeb) {
-		return false; // only supported on a built desktop windows instance
+		return false; // only supported on a desktop Windows instance
 	}
 
 	if (getTitleBarStyle(configurationService) === 'native') {
