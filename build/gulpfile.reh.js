@@ -58,9 +58,14 @@ const serverResources = [
 	'out-build/bootstrap-fork.js',
 	'out-build/bootstrap-amd.js',
 	'out-build/bootstrap-node.js',
+	'out-build/paths.js',
 
 	// Performance
 	'out-build/vs/base/common/performance.js',
+
+	// main entry points
+	'out-build/server-cli.js',
+	'out-build/server-main.js',
 
 	// Watcher
 	'out-build/vs/platform/files/**/*.exe',
@@ -364,21 +369,6 @@ function tweakProductForServerWeb(product) {
 					inlineAmdImages: true,
 					bundleInfo: undefined,
 					fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
-				},
-				commonJS: {
-					src: 'out-build',
-					entryPoints: [
-						'out-build/server-main.js',
-						'out-build/server-cli.js'
-					],
-					platform: 'node',
-					external: [
-						'minimist',
-						// TODO: we cannot inline `product.json` because
-						// it is being changed during build time at a later
-						// point in time (such as `checksums`)
-						'../product.json'
-					]
 				}
 			}
 		)
