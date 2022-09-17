@@ -273,14 +273,16 @@ async function provideNpmScriptsForFolder(context: ExtensionContext, packageJson
 	if (!folder) {
 		return emptyTasks;
 	}
+	const packageManager = await getPackageManager(context, folder.uri, showWarning);
 	const scripts = await getScripts(packageJsonUri);
 	if (!scripts) {
+		if (!workspace.getConfiguration('npm', folder).get<string[]>('scriptExplorerExclude', []).find(e => e.includes(INSTALL_SCRIPT))) {
+			emptyTasks.push({ task: await createTask(packageManager, INSTALL_SCRIPT, [INSTALL_SCRIPT], folder, packageJsonUri, 'install dependencies from package', []) });
+		}
 		return emptyTasks;
 	}
 
 	const result: ITaskWithLocation[] = [];
-
-	const packageManager = await getPackageManager(context, folder.uri, showWarning);
 
 	for (const { name, value, nameRange } of scripts.scripts) {
 		const task = await createTask(packageManager, name, ['run', name], folder!, packageJsonUri, value, undefined);
