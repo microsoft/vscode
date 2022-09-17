@@ -172,10 +172,6 @@ export interface IOptimizeTaskOpts {
 	 */
 	externalLoaderInfo?: any;
 	/**
-	 * (true by default - append css and nls to loader)
-	 */
-	bundleLoader?: boolean;
-	/**
 	 * (basically the Copyright treatment)
 	 */
 	header?: string;
@@ -205,13 +201,16 @@ const DEFAULT_FILE_HEADER = [
 	' *--------------------------------------------------------*/'
 ].join('\n');
 
+export function optimizeLoaderTask(src: string, out: string, bundleLoader: boolean, bundledFileHeader = '', externalLoaderInfo?: any): () => NodeJS.ReadWriteStream {
+	return () => loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo).pipe(gulp.dest(out));
+}
+
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
 	const src = opts.src;
 	const entryPoints = opts.entryPoints;
 	const resources = opts.resources;
 	const loaderConfig = opts.loaderConfig;
 	const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
-	const bundleLoader = (typeof opts.bundleLoader === 'undefined' ? true : opts.bundleLoader);
 	const out = opts.out;
 	const fileContentMapper = opts.fileContentMapper || ((contents: string, _path: string) => contents);
 
@@ -249,7 +248,7 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 		});
 
 		const result = es.merge(
-			loader(src, bundledFileHeader, bundleLoader, opts.externalLoaderInfo),
+			loader(src, bundledFileHeader, false, opts.externalLoaderInfo),
 			bundlesStream,
 			resourcesStream,
 			bundleInfoStream

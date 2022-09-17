@@ -98,7 +98,6 @@ const optimizeEditorAMDTask = task.define('optimize-editor-amd', common.optimize
 			'vscode': 'empty:'
 		}
 	},
-	bundleLoader: false,
 	header: BUNDLED_FILE_HEADER,
 	bundleInfo: true,
 	out: 'out-editor',
