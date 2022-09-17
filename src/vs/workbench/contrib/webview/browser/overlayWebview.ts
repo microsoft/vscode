@@ -360,10 +360,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	}
 
 	showFind() {
-		const shouldShowFind: boolean | undefined = (
-			(this.options.retainContextWhenHidden && this._findActiveWhenHidden) || !this.options.retainContextWhenHidden
-		);
-		if (this._webview.value && shouldShowFind) {
+		if (this._webview.value) {
 			this._webview.value.showFind();
 			this._findWidgetVisible?.set(true);
 		}
