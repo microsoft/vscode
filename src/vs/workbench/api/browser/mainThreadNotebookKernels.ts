@@ -90,6 +90,10 @@ abstract class MainThreadKernel implements INotebookKernel {
 			this.implementsExecutionOrder = data.supportsExecutionOrder;
 			event.hasExecutionOrder = true;
 		}
+		if (data.supportsInterrupt !== undefined) {
+			this.implementsInterrupt = data.supportsInterrupt;
+			event.hasInterruptHandler = true;
+		}
 		this._onDidChange.fire(event);
 	}
 

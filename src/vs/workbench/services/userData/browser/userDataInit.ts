@@ -419,7 +419,8 @@ class NewExtensionsInitializer implements IUserDataInitializer {
 	}
 
 	private async areExtensionsRunning(extensions: ILocalExtension[]): Promise<boolean> {
-		const runningExtensions = await this.extensionService.getExtensions();
+		await this.extensionService.whenInstalledExtensionsRegistered();
+		const runningExtensions = this.extensionService.extensions;
 		return extensions.every(e => runningExtensions.some(r => areSameExtensions({ id: r.identifier.value }, e.identifier)));
 	}
 }

@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as encoding from 'vs/workbench/services/textfile/common/encoding';
-import * as terminalEncoding from 'vs/base/node/terminalEncoding';
 import * as streams from 'vs/base/common/stream';
 import * as iconv from '@vscode/iconv-lite-umd';
 import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
@@ -119,19 +118,6 @@ suite('Encoding', () => {
 
 		const detectedEncoding = await detectEncodingByBOM(file);
 		assert.strictEqual(detectedEncoding, null);
-	});
-
-	test('resolve terminal encoding (detect)', async function () {
-		const enc = await terminalEncoding.resolveTerminalEncoding();
-		assert.ok(enc.length > 0);
-	});
-
-	test('resolve terminal encoding (environment)', async function () {
-		process.env['VSCODE_CLI_ENCODING'] = 'utf16le';
-
-		const enc = await terminalEncoding.resolveTerminalEncoding();
-		assert.ok(await encoding.encodingExists(enc));
-		assert.strictEqual(enc, 'utf16le');
 	});
 
 	test('detectEncodingFromBuffer (JSON saved as PNG)', async function () {

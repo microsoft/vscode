@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
+import { Lazy } from 'vs/base/common/lazy';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -17,6 +19,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { IContextualAction } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
 import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IMarker } from 'xterm';
@@ -144,8 +147,8 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	onDidMaximumDimensionsChange: Event<ITerminalInstance>;
 	onDidRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
 	onDidChangeInstanceTitle: Event<ITerminalInstance | undefined>;
-	onDidChangeInstanceIcon: Event<ITerminalInstance | undefined>;
-	onDidChangeInstanceColor: Event<ITerminalInstance | undefined>;
+	onDidChangeInstanceIcon: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
+	onDidChangeInstanceColor: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
 	onDidChangeInstancePrimaryStatus: Event<ITerminalInstance>;
 	onDidInputInstanceData: Event<ITerminalInstance>;
 	onDidRegisterProcessSupport: Event<void>;
@@ -239,7 +242,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
-	revealActiveEditor(preserveFocus?: boolean): void;
+	revealActiveEditor(preserveFocus?: boolean): Promise<void>;
 	resolveResource(instance: ITerminalInstance | URI): URI;
 	reviveInput(deserializedInput: IDeserializedTerminalEditorInput): EditorInput;
 	getInputFromResource(resource: URI): EditorInput;
@@ -456,7 +459,9 @@ export interface ITerminalInstance {
 
 	readonly statusList: ITerminalStatusList;
 
-	readonly findWidget: TerminalFindWidget;
+	contextualActions: IContextualAction | undefined;
+
+	readonly findWidget: Lazy<TerminalFindWidget>;
 
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated
@@ -524,7 +529,7 @@ export interface ITerminalInstance {
 	/**
 	 * An event that fires when the terminal instance's icon changes.
 	 */
-	onIconChanged: Event<ITerminalInstance>;
+	onIconChanged: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
 
 	/**
 	 * An event that fires when the terminal instance is disposed.
@@ -578,6 +583,8 @@ export interface ITerminalInstance {
 	onExit: Event<number | ITerminalLaunchError | undefined>;
 
 	onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number } | undefined>;
+
+	onDidFocusFindWidget: Event<void>;
 
 	readonly exitCode: number | undefined;
 
@@ -903,6 +910,36 @@ export interface ITerminalInstance {
 	 * Activates the most recent link of the given type.
 	 */
 	openRecentLink(type: 'localFile' | 'url'): Promise<void>;
+
+	/**
+	 * Registers contextual action listeners
+	 */
+	registerContextualActions(...options: ITerminalContextualActionOptions[]): void;
+
+	freePortKillProcess(port: string): Promise<void>;
+}
+
+export interface ITerminalContextualActionOptions {
+	actionName: string | DynamicActionName;
+	commandLineMatcher: string | RegExp;
+	outputMatcher?: ITerminalOutputMatcher;
+	getActions: ContextualActionCallback;
+	exitStatus?: boolean;
+}
+export type ContextualMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
+export type DynamicActionName = (matchResult: ContextualMatchResult) => string;
+export type ContextualActionCallback = (matchResult: ContextualMatchResult, command: ITerminalCommand) => ICommandAction[] | undefined;
+
+export interface ICommandAction extends IAction {
+	commandToRunInTerminal?: string;
+	addNewLine?: boolean;
+}
+
+export interface ITerminalOutputMatcher {
+	lineMatcher: string | RegExp;
+	anchor?: 'top' | 'bottom';
+	offset?: number;
+	length?: number;
 }
 
 export interface IXtermTerminal {

@@ -151,6 +151,7 @@
 	display: block;
 }
 
+.timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon,
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .custom-view-tree-node-item-icon {
 	background-size: 16px;
 	background-position: left center;
@@ -184,6 +185,7 @@
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel::after {
 	padding-right: 0px;
+	margin-right: 4px;
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .actions {

@@ -52,6 +52,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isLinux, isNative, isWindows } from 'vs/base/common/platform';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -145,7 +146,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(themeService);
 
@@ -1600,10 +1602,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 					return editor.isDirty(); // veto if still dirty
 				} catch (error) {
+					this.logService.error(error);
+
 					// if that fails, since we are about to close the editor, we accept that
 					// the editor cannot be reverted and instead do a soft revert that just
 					// enables us to close the editor. With this, a user can always close a
 					// dirty editor even when reverting fails.
+
 					await editor.revert(this.id, { soft: true });
 
 					return editor.isDirty(); // veto if still dirty

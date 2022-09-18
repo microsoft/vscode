@@ -5,7 +5,7 @@
 
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { UriComponents } from 'vs/base/common/uri';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -27,6 +27,7 @@ import { Schemas } from 'vs/base/common/network';
 
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
+const INTERRUPT_NOTEBOOK_COMMAND_ID = 'notebook.interruptExecution';
 const CANCEL_CELL_COMMAND_ID = 'notebook.cell.cancelExecution';
 const EXECUTE_CELL_FOCUS_CONTAINER_COMMAND_ID = 'notebook.cell.executeAndFocusContainer';
 const EXECUTE_CELL_SELECT_BELOW = 'notebook.cell.executeAndSelectBelow';
@@ -488,22 +489,61 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 	}
 });
 
-registerAction2(class CancelNotebook extends NotebookAction {
+class CancelNotebook extends NotebookAction {
+	override getEditorContextFromArgsOrActive(accessor: ServicesAccessor, context?: UriComponents): INotebookActionContext | undefined {
+		return getContextFromUri(accessor, context) ?? getContextFromActiveEditor(accessor.get(IEditorService));
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		return context.notebookEditor.cancelNotebookCells();
+	}
+}
+
+registerAction2(class CancelAllNotebook extends CancelNotebook {
 	constructor() {
 		super({
 			id: CANCEL_NOTEBOOK_COMMAND_ID,
-			title: localize('notebookActions.cancelNotebook', "Stop Execution"),
-			icon: icons.stopIcon,
-			description: {
-				description: localize('notebookActions.cancelNotebook', "Stop Execution"),
-				args: [
-					{
-						name: 'uri',
-						description: 'The document uri',
-						constraint: URI
-					}
-				]
+			title: {
+				value: localize('notebookActions.cancelNotebook', "Stop Execution"),
+				original: 'Stop Execution'
 			},
+			icon: icons.stopIcon,
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					order: -1,
+					group: 'navigation',
+					when: ContextKeyExpr.and(
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						NOTEBOOK_HAS_RUNNING_CELL,
+						NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(),
+						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
+					)
+				},
+				{
+					id: MenuId.NotebookToolbar,
+					order: -1,
+					group: 'navigation/execute',
+					when: ContextKeyExpr.and(
+						NOTEBOOK_HAS_RUNNING_CELL,
+						NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(),
+						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
+					)
+				}
+			]
+		});
+	}
+});
+
+registerAction2(class InterruptNotebook extends CancelNotebook {
+	constructor() {
+		super({
+			id: INTERRUPT_NOTEBOOK_COMMAND_ID,
+			title: {
+				value: localize('notebookActions.interruptNotebook', "Interrupt"),
+				original: 'Interrupt'
+			},
+			icon: icons.stopIcon,
 			menu: [
 				{
 					id: MenuId.EditorTitle,
@@ -528,14 +568,6 @@ registerAction2(class CancelNotebook extends NotebookAction {
 				}
 			]
 		});
-	}
-
-	override getEditorContextFromArgsOrActive(accessor: ServicesAccessor, context?: UriComponents): INotebookActionContext | undefined {
-		return getContextFromUri(accessor, context) ?? getContextFromActiveEditor(accessor.get(IEditorService));
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		return context.notebookEditor.cancelNotebookCells();
 	}
 });
 

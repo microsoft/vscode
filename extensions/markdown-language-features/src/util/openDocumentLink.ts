@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { BaseLanguageClient } from 'vscode-languageclient';
-import * as proto from '../protocol';
+import { MdLanguageClient } from '../client/client';
+import * as proto from '../client/protocol';
 
 enum OpenMarkdownLinks {
 	beside = 'beside',
@@ -15,15 +15,15 @@ enum OpenMarkdownLinks {
 export class MdLinkOpener {
 
 	constructor(
-		private readonly client: BaseLanguageClient,
+		private readonly client: MdLanguageClient,
 	) { }
 
 	public async resolveDocumentLink(linkText: string, fromResource: vscode.Uri): Promise<proto.ResolvedDocumentLinkTarget> {
-		return this.client.sendRequest(proto.resolveLinkTarget, { linkText, uri: fromResource.toString() });
+		return this.client.resolveLinkTarget(linkText, fromResource);
 	}
 
 	public async openDocumentLink(linkText: string, fromResource: vscode.Uri, viewColumn?: vscode.ViewColumn): Promise<void> {
-		const resolved = await this.client.sendRequest(proto.resolveLinkTarget, { linkText, uri: fromResource.toString() });
+		const resolved = await this.client.resolveLinkTarget(linkText, fromResource);
 		if (!resolved) {
 			return;
 		}

@@ -18,7 +18,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostCell } from 'vs/workbench/api/common/extHostNotebookDocument';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { NotebookCellExecutionState as ExtHostNotebookCellExecutionState, NotebookCellOutput } from 'vs/workbench/api/common/extHostTypes';
+import { NotebookCellExecutionState as ExtHostNotebookCellExecutionState, NotebookCellOutput, NotebookControllerAffinity2 } from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri } from 'vs/workbench/common/webview';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
@@ -233,6 +233,11 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			},
 			// --- priority
 			updateNotebookAffinity(notebook, priority) {
+				if (priority === NotebookControllerAffinity2.Hidden) {
+					// This api only adds an extra enum value, the function is the same, so just gate on the new value being passed
+					// for proposedAPI check.
+					checkProposedApiEnabled(extension, 'notebookControllerAffinityHidden');
+				}
 				that._proxy.$updateNotebookPriority(handle, notebook.uri, priority);
 			},
 			// --- ipc
