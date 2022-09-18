@@ -201,6 +201,14 @@ function optimizeCommonJSTask(opts) {
         });
     }));
 }
+function optimizeConcatAllTask(concatAllOptions) {
+    const concatenations = concatAllOptions.map(concatAllOption => {
+        return gulp
+            .src(concatAllOption.entryPoints)
+            .pipe(concat(concatAllOption.target));
+    });
+    return es.merge(...concatenations);
+}
 function optimizeLoaderTask(src, out, bundleLoader, bundledFileHeader = '', externalLoaderInfo) {
     return () => loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo).pipe(gulp.dest(out));
 }
@@ -210,6 +218,9 @@ function optimizeTask(opts) {
         const optimizers = [optimizeAMDTask(opts.amd)];
         if (opts.commonJS) {
             optimizers.push(optimizeCommonJSTask(opts.commonJS));
+        }
+        if (opts.concatAll) {
+            optimizers.push(optimizeConcatAllTask(opts.concatAll));
         }
         return es.merge(...optimizers).pipe(gulp.dest(opts.out));
     };

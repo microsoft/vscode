@@ -76,10 +76,6 @@ const vscodeResources = [
 	'out-build/vs/workbench/contrib/tasks/**/*.json',
 	'out-build/vs/platform/files/**/*.exe',
 	'out-build/vs/platform/files/**/*.md',
-	'out-build/vs/code/electron-sandbox/workbench/**',
-	'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js',
-	'out-build/vs/code/electron-sandbox/issue/issueReporter.js',
-	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js',
 	'!**/test/**'
 ];
 
@@ -96,7 +92,8 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 	util.rimraf('out-vscode'),
 	// Optimize: bundles source files automatically based on
 	// AMD and CommonJS import statements based on the passed
-	// in entry points.
+	// in entry points. In addition, concat window related
+	// bootstrap files into a single file.
 	optimize.optimizeTask(
 		{
 			out: 'out-vscode',
@@ -122,17 +119,15 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 					// point in time (such as `checksums`)
 					'../product.json'
 				]
-			}
+			},
+			concatAll: [
+				{ entryPoints: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/workbench/workbench.js'], target: 'vs/code/electron-sandbox/workbench/workbench.js' },
+				{ entryPoints: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/issue/issueReporter.js'], target: 'vs/code/electron-sandbox/issue/issueReporter.js' },
+				{ entryPoints: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js'], target: 'vs/code/electron-sandbox/processExplorer/processExplorer.js' },
+				{ entryPoints: [...windowBootstrapFiles, 'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js'], target: 'vs/code/electron-browser/sharedProcess/sharedProcess.js' }
+			]
 		}
-	),
-	// Concat: bundles source files manually via simple concatenation
-	// for the entry points of our windows.
-	util.concatAll([
-		{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/workbench/workbench.js'], out: 'out-vscode/vs/code/electron-sandbox/workbench/workbench.js' },
-		{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/issue/issueReporter.js'], out: 'out-vscode/vs/code/electron-sandbox/issue/issueReporter.js' },
-		{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js'], out: 'out-vscode/vs/code/electron-sandbox/processExplorer/processExplorer.js' },
-		{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js'], out: 'out-vscode/vs/code/electron-browser/sharedProcess/sharedProcess.js' }
-	])
+	)
 ));
 gulp.task(optimizeVSCodeTask);
 

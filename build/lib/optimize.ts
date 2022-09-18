@@ -302,14 +302,49 @@ function optimizeCommonJSTask(opts: IOptimizeCommonJSTaskOpts): NodeJS.ReadWrite
 		}));
 }
 
+export interface IOptimizeConcatAllTaskOpts {
+	/**
+	 * The paths to consider for concatenation. The entries
+	 * will be concatenated in the order they are provided.
+	 */
+	entryPoints: string[];
+	/**
+	 * Destination target to concatenate the entryPoints into.
+	 */
+	target: string;
+}
+
+function optimizeConcatAllTask(concatAllOptions: IOptimizeConcatAllTaskOpts[]): NodeJS.ReadWriteStream {
+	const concatenations = concatAllOptions.map(concatAllOption => {
+		return gulp
+			.src(concatAllOption.entryPoints)
+			.pipe(concat(concatAllOption.target));
+	});
+
+	return es.merge(...concatenations);
+}
+
 export function optimizeLoaderTask(src: string, out: string, bundleLoader: boolean, bundledFileHeader = '', externalLoaderInfo?: any): () => NodeJS.ReadWriteStream {
 	return () => loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo).pipe(gulp.dest(out));
 }
 
 export interface IOptimizeTaskOpts {
+	/**
+	 * Destination folder for the optimized files.
+	 */
 	out: string;
+	/**
+	 * Optimize AMD modules (using our AMD loader).
+	 */
 	amd: IOptimizeAMDTaskOpts;
+	/**
+	 * Optimize CommonJS modules (using esbuild).
+	 */
 	commonJS?: IOptimizeCommonJSTaskOpts;
+	/**
+	 * Optimize manually by concatenating files.
+	 */
+	concatAll?: IOptimizeConcatAllTaskOpts[];
 }
 
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
@@ -317,6 +352,10 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 		const optimizers = [optimizeAMDTask(opts.amd)];
 		if (opts.commonJS) {
 			optimizers.push(optimizeCommonJSTask(opts.commonJS));
+		}
+
+		if (opts.concatAll) {
+			optimizers.push(optimizeConcatAllTask(opts.concatAll));
 		}
 
 		return es.merge(...optimizers).pipe(gulp.dest(opts.out));
