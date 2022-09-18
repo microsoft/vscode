@@ -302,23 +302,23 @@ function optimizeCommonJSTask(opts: IOptimizeCommonJSTaskOpts): NodeJS.ReadWrite
 		}));
 }
 
-export interface IOptimizeConcatAllTaskOpts {
+export interface IOptimizeManualTaskOpts {
 	/**
 	 * The paths to consider for concatenation. The entries
 	 * will be concatenated in the order they are provided.
 	 */
-	entryPoints: string[];
+	src: string[];
 	/**
 	 * Destination target to concatenate the entryPoints into.
 	 */
-	target: string;
+	out: string;
 }
 
-function optimizeConcatAllTask(concatAllOptions: IOptimizeConcatAllTaskOpts[]): NodeJS.ReadWriteStream {
-	const concatenations = concatAllOptions.map(concatAllOption => {
+function optimizeManualTask(options: IOptimizeManualTaskOpts[]): NodeJS.ReadWriteStream {
+	const concatenations = options.map(opt => {
 		return gulp
-			.src(concatAllOption.entryPoints)
-			.pipe(concat(concatAllOption.target));
+			.src(opt.src)
+			.pipe(concat(opt.out));
 	});
 
 	return es.merge(...concatenations);
@@ -344,7 +344,7 @@ export interface IOptimizeTaskOpts {
 	/**
 	 * Optimize manually by concatenating files.
 	 */
-	concatAll?: IOptimizeConcatAllTaskOpts[];
+	manual?: IOptimizeManualTaskOpts[];
 }
 
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
@@ -354,8 +354,8 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 			optimizers.push(optimizeCommonJSTask(opts.commonJS));
 		}
 
-		if (opts.concatAll) {
-			optimizers.push(optimizeConcatAllTask(opts.concatAll));
+		if (opts.manual) {
+			optimizers.push(optimizeManualTask(opts.manual));
 		}
 
 		return es.merge(...optimizers).pipe(gulp.dest(opts.out));

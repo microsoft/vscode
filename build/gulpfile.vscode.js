@@ -120,11 +120,11 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 					'../product.json'
 				]
 			},
-			concatAll: [
-				{ entryPoints: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/workbench/workbench.js'], target: 'vs/code/electron-sandbox/workbench/workbench.js' },
-				{ entryPoints: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/issue/issueReporter.js'], target: 'vs/code/electron-sandbox/issue/issueReporter.js' },
-				{ entryPoints: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js'], target: 'vs/code/electron-sandbox/processExplorer/processExplorer.js' },
-				{ entryPoints: [...windowBootstrapFiles, 'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js'], target: 'vs/code/electron-browser/sharedProcess/sharedProcess.js' }
+			manual: [
+				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/workbench/workbench.js'], out: 'vs/code/electron-sandbox/workbench/workbench.js' },
+				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/issue/issueReporter.js'], out: 'vs/code/electron-sandbox/issue/issueReporter.js' },
+				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js'], out: 'vs/code/electron-sandbox/processExplorer/processExplorer.js' },
+				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js'], out: 'vs/code/electron-browser/sharedProcess/sharedProcess.js' }
 			]
 		}
 	)

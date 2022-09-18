@@ -4,13 +4,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.concatAll = exports.buildWebNodePaths = exports.createExternalLoaderConfig = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.getVersion = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.debounce = exports.incremental = void 0;
+exports.buildWebNodePaths = exports.createExternalLoaderConfig = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.getVersion = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.debounce = exports.incremental = void 0;
 const es = require("event-stream");
 const _debounce = require("debounce");
-const gulp = require("gulp");
 const _filter = require("gulp-filter");
 const rename = require("gulp-rename");
-const concat = require("gulp-concat");
 const path = require("path");
 const fs = require("fs");
 const _rimraf = require("rimraf");
@@ -386,14 +384,3 @@ function buildWebNodePaths(outDir) {
     return result;
 }
 exports.buildWebNodePaths = buildWebNodePaths;
-function concatAll(concatAllOptions) {
-    return () => {
-        const concatenations = concatAllOptions.map(concatAllOption => {
-            return gulp
-                .src(concatAllOption.src)
-                .pipe(concat(concatAllOption.out));
-        });
-        return es.merge(...concatenations).pipe(gulp.dest('.'));
-    };
-}
-exports.concatAll = concatAll;

@@ -5,10 +5,8 @@
 
 import * as es from 'event-stream';
 import _debounce = require('debounce');
-import * as gulp from 'gulp';
 import * as _filter from 'gulp-filter';
 import * as rename from 'gulp-rename';
-import * as concat from 'gulp-concat';
 import * as _ from 'underscore';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -461,29 +459,4 @@ export function buildWebNodePaths(outDir: string) {
 	});
 	result.taskName = 'build-web-node-paths';
 	return result;
-}
-
-
-export interface IConcatAllOpts {
-	/**
-	 * Sources to concatenate. The entries will be concatenated
-	 * in the order they are provided.
-	 */
-	src: string[];
-	/**
-	 * Destination file to concatenate to.
-	 */
-	out: string;
-}
-
-export function concatAll(concatAllOptions: IConcatAllOpts[]): () => NodeJS.ReadWriteStream {
-	return () => {
-		const concatenations = concatAllOptions.map(concatAllOption => {
-			return gulp
-				.src(concatAllOption.src)
-				.pipe(concat(concatAllOption.out));
-		});
-
-		return es.merge(...concatenations).pipe(gulp.dest('.'));
-	};
 }

@@ -201,11 +201,11 @@ function optimizeCommonJSTask(opts) {
         });
     }));
 }
-function optimizeConcatAllTask(concatAllOptions) {
-    const concatenations = concatAllOptions.map(concatAllOption => {
+function optimizeManualTask(options) {
+    const concatenations = options.map(opt => {
         return gulp
-            .src(concatAllOption.entryPoints)
-            .pipe(concat(concatAllOption.target));
+            .src(opt.src)
+            .pipe(concat(opt.out));
     });
     return es.merge(...concatenations);
 }
@@ -219,8 +219,8 @@ function optimizeTask(opts) {
         if (opts.commonJS) {
             optimizers.push(optimizeCommonJSTask(opts.commonJS));
         }
-        if (opts.concatAll) {
-            optimizers.push(optimizeConcatAllTask(opts.concatAll));
+        if (opts.manual) {
+            optimizers.push(optimizeManualTask(opts.manual));
         }
         return es.merge(...optimizers).pipe(gulp.dest(opts.out));
     };
