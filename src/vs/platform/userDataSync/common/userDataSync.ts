@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtUri, isEqualOrParent, joinPath } from 'vs/base/common/resources';
+import { IExtUri } from 'vs/base/common/resources';
 import { isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IHeaders } from 'vs/base/parts/request/common/request';
@@ -21,7 +21,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
@@ -479,17 +479,8 @@ export interface IUserDataSyncTask {
 
 export interface IUserDataManualSyncTask extends IDisposable {
 	readonly id: string;
-	readonly status: SyncStatus;
-	readonly manifest: IUserDataResourceManifest | null;
-	readonly onSynchronizeResources: Event<[SyncResource, URI[]][]>;
-	preview(): Promise<IUserDataSyncResourcePreview[]>;
-	accept(resource: URI, content?: string | null): Promise<IUserDataSyncResourcePreview[]>;
-	merge(resource?: URI): Promise<IUserDataSyncResourcePreview[]>;
-	discard(resource: URI): Promise<IUserDataSyncResourcePreview[]>;
-	discardConflicts(): Promise<IUserDataSyncResourcePreview[]>;
-	apply(): Promise<IUserDataSyncResourcePreview[]>;
-	pull(): Promise<void>;
-	push(): Promise<void>;
+	merge(): Promise<void>;
+	apply(): Promise<void>;
 	stop(): Promise<void>;
 }
 
@@ -514,7 +505,7 @@ export interface IUserDataSyncService {
 
 	createSyncTask(manifest: IUserDataManifest | null, disableCache?: boolean): Promise<IUserDataSyncTask>;
 	createManualSyncTask(): Promise<IUserDataManualSyncTask>;
-	accept(resource: IUserDataSyncResource, conflictResource: URI, content: string | null | undefined, apply: boolean): Promise<void>;
+	accept(syncResource: IUserDataSyncResource, resource: URI, content: string | null | undefined, apply: boolean | { force: boolean }): Promise<void>;
 
 	reset(): Promise<void>;
 	resetRemote(): Promise<void>;
@@ -560,20 +551,3 @@ export interface IConflictSetting {
 
 export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
 export const PREVIEW_DIR_NAME = 'preview';
-export function getSyncResourceFromLocalPreview(localPreview: URI, userDataProfilesService: IUserDataProfilesService, environmentService: IEnvironmentService): IUserDataSyncResource | undefined {
-	if (localPreview.scheme === USER_DATA_SYNC_SCHEME) {
-		return undefined;
-	}
-	localPreview = localPreview.with({ scheme: environmentService.userDataSyncHome.scheme });
-	const syncResource = ALL_SYNC_RESOURCES.find(syncResource => isEqualOrParent(localPreview, joinPath(environmentService.userDataSyncHome, syncResource, PREVIEW_DIR_NAME)));
-	if (syncResource) {
-		return { syncResource: syncResource, profile: userDataProfilesService.defaultProfile };
-	}
-	for (const profile of userDataProfilesService.profiles.slice(1)) {
-		const syncResource = ALL_SYNC_RESOURCES.find(syncResource => isEqualOrParent(localPreview, joinPath(environmentService.userDataSyncHome, profile.id, syncResource, PREVIEW_DIR_NAME)));
-		if (syncResource) {
-			return { syncResource: syncResource, profile };
-		}
-	}
-	return undefined;
-}

@@ -21,12 +21,11 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
-import { IUserDataSyncWorkbenchService, CONTEXT_SYNC_STATE, getSyncAreaLabel, CONTEXT_ACCOUNT_STATE, AccountStatus, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_MERGES_VIEW_ID, CONTEXT_ENABLE_SYNC_MERGES_VIEW, SYNC_TITLE, SYNC_CONFLICTS_VIEW_ID, CONTEXT_ENABLE_SYNC_CONFLICTS_VIEW, CONTEXT_HAS_CONFLICTS } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { IUserDataSyncWorkbenchService, CONTEXT_SYNC_STATE, getSyncAreaLabel, CONTEXT_ACCOUNT_STATE, AccountStatus, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_TITLE, SYNC_CONFLICTS_VIEW_ID, CONTEXT_ENABLE_SYNC_CONFLICTS_VIEW, CONTEXT_HAS_CONFLICTS } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { IUserDataSyncMachinesService, IUserDataSyncMachine, isWebPlatform } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { flatten } from 'vs/base/common/arrays';
-import { UserDataSyncMergesViewPane } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncMergesView';
 import { basename } from 'vs/base/common/resources';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -50,7 +49,6 @@ export class UserDataSyncDataViews extends Disposable {
 	}
 
 	private registerViews(container: ViewContainer): void {
-		this.registerMergesView(container);
 		this.registerConflictsView(container);
 
 		this.registerActivityView(container, true);
@@ -58,22 +56,6 @@ export class UserDataSyncDataViews extends Disposable {
 
 		this.registerActivityView(container, false);
 		this.registerTroubleShootView(container);
-	}
-
-	private registerMergesView(container: ViewContainer): void {
-		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-		const viewName = localize('merges', "Merges");
-		viewsRegistry.registerViews([<ITreeViewDescriptor>{
-			id: SYNC_MERGES_VIEW_ID,
-			name: viewName,
-			ctorDescriptor: new SyncDescriptor(UserDataSyncMergesViewPane),
-			when: CONTEXT_ENABLE_SYNC_MERGES_VIEW,
-			canToggleVisibility: false,
-			canMoveView: false,
-			treeView: this.instantiationService.createInstance(TreeView, SYNC_MERGES_VIEW_ID, viewName),
-			collapsed: false,
-			order: 100,
-		}], container);
 	}
 
 	private registerConflictsView(container: ViewContainer): void {
