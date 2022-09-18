@@ -7,7 +7,9 @@
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
-		["#if","#endif"],
+		["#ifndef", "#endif"],
+		["#ifdef", "#endif"],
+		["#if", "#endif"],
 	],
 	"autoClosingPairs": [
 		{ "open": "[", "close": "]" },
