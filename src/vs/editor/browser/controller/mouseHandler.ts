@@ -496,41 +496,45 @@ class MouseDownOperation extends Disposable {
 		const mouseColumn = this._getMouseColumn(e);
 
 		if (e.posy < editorContent.y) {
-			const verticalOffset = Math.max(viewLayout.getCurrentScrollTop() - (editorContent.y - e.posy), 0);
+			const outsideDistance = editorContent.y - e.posy;
+			const verticalOffset = Math.max(viewLayout.getCurrentScrollTop() - outsideDistance, 0);
 			const viewZoneData = HitTestContext.getZoneAtCoord(this._context, verticalOffset);
 			if (viewZoneData) {
 				const newPosition = this._helpPositionJumpOverViewZone(viewZoneData);
 				if (newPosition) {
-					return MouseTarget.createOutsideEditor(mouseColumn, newPosition, 'above');
+					return MouseTarget.createOutsideEditor(mouseColumn, newPosition, 'above', outsideDistance);
 				}
 			}
 
 			const aboveLineNumber = viewLayout.getLineNumberAtVerticalOffset(verticalOffset);
-			return MouseTarget.createOutsideEditor(mouseColumn, new Position(aboveLineNumber, 1), 'above');
+			return MouseTarget.createOutsideEditor(mouseColumn, new Position(aboveLineNumber, 1), 'above', outsideDistance);
 		}
 
 		if (e.posy > editorContent.y + editorContent.height) {
+			const outsideDistance = e.posy - editorContent.y - editorContent.height;
 			const verticalOffset = viewLayout.getCurrentScrollTop() + e.relativePos.y;
 			const viewZoneData = HitTestContext.getZoneAtCoord(this._context, verticalOffset);
 			if (viewZoneData) {
 				const newPosition = this._helpPositionJumpOverViewZone(viewZoneData);
 				if (newPosition) {
-					return MouseTarget.createOutsideEditor(mouseColumn, newPosition, 'below');
+					return MouseTarget.createOutsideEditor(mouseColumn, newPosition, 'below', outsideDistance);
 				}
 			}
 
 			const belowLineNumber = viewLayout.getLineNumberAtVerticalOffset(verticalOffset);
-			return MouseTarget.createOutsideEditor(mouseColumn, new Position(belowLineNumber, model.getLineMaxColumn(belowLineNumber)), 'below');
+			return MouseTarget.createOutsideEditor(mouseColumn, new Position(belowLineNumber, model.getLineMaxColumn(belowLineNumber)), 'below', outsideDistance);
 		}
 
 		const possibleLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + e.relativePos.y);
 
 		if (e.posx < editorContent.x) {
-			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, 1), 'left');
+			const outsideDistance = editorContent.x - e.posx;
+			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, 1), 'left', outsideDistance);
 		}
 
 		if (e.posx > editorContent.x + editorContent.width) {
-			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)), 'right');
+			const outsideDistance = e.posx - editorContent.x - editorContent.width;
+			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)), 'right', outsideDistance);
 		}
 
 		return null;
