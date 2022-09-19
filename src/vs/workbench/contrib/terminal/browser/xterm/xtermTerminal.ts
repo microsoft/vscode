@@ -232,11 +232,14 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			actionName: (matchResult: ContextualMatchResult) => matchResult.output ? `Run git ${matchResult.output[1]}` : ``,
 			nonZeroExitCode: true,
 			callback: (matchResult: ContextualMatchResult, command?: ITerminalCommand) => {
-				if (!command || matchResult.output?.length !== 2) {
+				if (!command) {
 					return;
 				}
 				const actions: IAction[] = [];
-				const fixedCommand = matchResult.output[1];
+				const fixedCommand = matchResult?.output?.[1];
+				if (!fixedCommand) {
+					return;
+				}
 				const label = localize("terminal.fixGitCommand", "Run git {0}", fixedCommand);
 				actions.push({
 					class: undefined, tooltip: label, id: 'terminal.fixGitCommand', label, enabled: true,
@@ -245,8 +248,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 						this._onDidRequestRunCommand.fire({ command });
 					}
 				});
-				const marker = this.raw.registerMarker();
-				this._contextualActionAddon?.registerContextualDecoration(marker, actions);
+				return actions;
 			}
 		};
 	}
@@ -257,18 +259,20 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			outputRegex: { lineMatcher: /.*address already in use \d\.\d.\d\.\d:(\d\d\d\d).*/ },
 			nonZeroExitCode: true,
 			callback: (matchResult: ContextualMatchResult, command?: ITerminalCommand) => {
-				if (!command || matchResult.output?.length !== 2) {
+				if (!command) {
 					return;
 				}
-				const port = matchResult.output[1];
+				const port = matchResult?.output?.[1];
+				if (!port) {
+					return;
+				}
 				const actions: IAction[] = [];
 				const label = localize("terminal.freePort", "Free port {0}", port);
 				actions.push({
 					class: undefined, tooltip: label, id: 'terminal.freePort', label, enabled: true,
 					run: () => this._onDidRequestFreePort.fire(port)
 				});
-				this._contextualActionAddon?.registerContextualDecoration(command.endMarker, actions);
-				this._onDidRequestRunCommand.fire({ command, noNewLine: true });
+				return actions;
 			}
 		};
 	}

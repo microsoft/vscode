@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
@@ -917,10 +918,11 @@ export interface ITerminalContextualActionOptions {
 	outputRegex?: ITerminalOutputMatcher;
 	actionName: string | DynamicActionName;
 	nonZeroExitCode?: boolean;
+	actions?: IAction[];
 }
 export type ContextualMatchResult = { commandLine: RegExpMatchArray; output?: RegExpMatchArray | null };
 export type DynamicActionName = (matchResult: ContextualMatchResult) => string;
-export type ContextualActionCallback = (matchResult: ContextualMatchResult, command?: ITerminalCommand) => void;
+export type ContextualActionCallback = (matchResult: ContextualMatchResult, command?: ITerminalCommand) => IAction[] | undefined;
 
 export interface ITerminalOutputMatcher {
 	lineMatcher: string | RegExp;

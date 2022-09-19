@@ -54,6 +54,8 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 
 	private _commandListeners: Map<string, ITerminalContextualActionOptions> = new Map();
 
+	private _actions: IAction[] | undefined;
+
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService) {
@@ -78,12 +80,24 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 	}
 
 	private _registerCommandFinishedHandler(): void {
-		// TODO:takes awhile for the output to come through, so need to wait for that to happen but this is flaky and depends upon how large the
-		// output is
-		this._register(this._capabilities.get(TerminalCapability.CommandDetection)!.onCommandFinished(async command => await setTimeout(() => this._evaluate(command), 300)));
+		const terminal = this._terminal;
+		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
+		if (!terminal || !commandDetection) {
+			return;
+		}
+		this._register(commandDetection.onCommandFinished(async command => {
+			this._actions = this._evaluate(command);
+		}));
+		this._register(commandDetection.onCommandStarted(() => {
+			if (this._actions) {
+				const marker = terminal.registerMarker();
+				this.registerContextualDecoration(marker, this._actions);
+				this._actions = undefined;
+			}
+		}));
 	}
 
-	private _evaluate(command: ITerminalCommand): void {
+	private _evaluate(command: ITerminalCommand): IAction[] | undefined {
 		// TODO: This wouldn't handle commands containing escaped spaces correctly
 		const newCommand = command.command;
 		for (const options of this._commandListeners.values()) {
@@ -93,9 +107,13 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 			const commandLine = newCommand.match(options.commandLineMatcher) || null;
 			const output = options.outputRegex ? command.getOutput()?.match(options.outputRegex.lineMatcher) : null;
 			if (commandLine !== null) {
-				options.callback({ commandLine, output }, command);
+				const actions = options.callback({ commandLine, output }, command);
+				if (actions) {
+					return actions;
+				}
 			}
 		}
+		return undefined;
 	}
 
 	resolveFreePortRequest(): void {
