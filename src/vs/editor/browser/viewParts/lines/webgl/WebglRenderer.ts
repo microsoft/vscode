@@ -45,7 +45,8 @@ export class WebglRenderer extends Disposable {
 
 	public dimensions: IRenderDimensions;
 
-	private _core: { cols: number; rows: number };
+	// private _core: { cols: number; rows: number };
+	private _charSize = { width: 10, height: 20 };
 	private _isAttached: boolean;
 	// private _contextRestorationTimeout: number | undefined;
 
@@ -72,7 +73,7 @@ export class WebglRenderer extends Disposable {
 	) {
 		super();
 
-		this._core = (this._viewportDims as any)._core;
+		// this._core = (this._viewportDims as any)._core;
 
 		this._renderLayers = [
 			// new CursorRenderLayer(_terminal, screenElement, 3, this._colors, this._onRequestRedraw, this._coreBrowserService, coreService)
@@ -327,7 +328,7 @@ export class WebglRenderer extends Disposable {
 
 	public renderRows(start: number, end: number): void {
 		if (!this._isAttached) {
-			if (window.document.body.contains(this._screenElement) && (this._core as any)._charSizeService.width && (this._core as any)._charSizeService.height) {
+			if (window.document.body.contains(this._screenElement) && this._charSize.width && this._charSize.height) {
 				this._updateDimensions();
 				this._refreshCharAtlas();
 				this._isAttached = true;
@@ -620,18 +621,18 @@ export class WebglRenderer extends Disposable {
 		// TODO: Acquire CharSizeService properly
 
 		// Perform a new measure if the CharMeasure dimensions are not yet available
-		if (!(this._core as any)._charSizeService.width || !(this._core as any)._charSizeService.height) {
+		if (!this._charSize.width || !this._charSize.height) {
 			return;
 		}
 
 		// Calculate the scaled character width. Width is floored as it must be drawn to an integer grid
 		// in order for the char atlas glyphs to not be blurry.
-		this.dimensions.scaledCharWidth = Math.floor((this._core as any)._charSizeService.width * this._devicePixelRatio);
+		this.dimensions.scaledCharWidth = Math.floor(this._charSize.width * this._devicePixelRatio);
 
 		// Calculate the scaled character height. Height is ceiled in case devicePixelRatio is a
 		// floating point number in order to ensure there is enough space to draw the character to the
 		// cell.
-		this.dimensions.scaledCharHeight = Math.ceil((this._core as any)._charSizeService.height * this._devicePixelRatio);
+		this.dimensions.scaledCharHeight = Math.ceil(this._charSize.height * this._devicePixelRatio);
 
 		// Calculate the scaled cell height, if lineHeight is _not_ 1, the resulting value will be
 		// floored since lineHeight can never be lower then 1, this guarentees the scaled cell height

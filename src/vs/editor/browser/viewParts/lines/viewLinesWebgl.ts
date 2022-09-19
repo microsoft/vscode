@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as platform from 'vs/base/common/platform';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
+import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { IVisibleLinesHost, VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
@@ -22,6 +22,7 @@ import { Viewport } from 'vs/editor/common/viewModel';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Constants } from 'vs/base/common/uint';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
+import { WebglRenderer } from 'vs/editor/browser/viewParts/lines/webgl/WebglRenderer';
 
 class LastRenderedData {
 
@@ -85,7 +86,7 @@ class HorizontalRevealSelectionsRequest {
 
 type HorizontalRevealRequest = HorizontalRevealRangeRequest | HorizontalRevealSelectionsRequest;
 
-export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, IViewLines {
+export class ViewLinesWebgl extends ViewPart implements IVisibleLinesHost<ViewLine>, IViewLines {
 	/**
 	 * Adds this amount of pixels to the right of lines (no-one wants to type near the edge of the viewport)
 	 */
@@ -95,6 +96,9 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	private readonly _textRangeRestingSpot: HTMLElement;
 	private readonly _visibleLines: VisibleLinesCollection<ViewLine>;
 	private readonly domNode: FastDomNode<HTMLElement>;
+
+	private readonly canvasContainerDomNode: FastDomNode<HTMLElement>;
+	private readonly _webglRenderer: WebglRenderer;
 
 	// --- config
 	private _lineHeight: number;
@@ -125,6 +129,37 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._textRangeRestingSpot = document.createElement('div');
 		this._visibleLines = new VisibleLinesCollection(this);
 		this.domNode = this._visibleLines.domNode;
+
+		this.canvasContainerDomNode = createFastDomNode(document.createElement('div'));
+		this.canvasContainerDomNode.setClassName('view-layer');
+		this.canvasContainerDomNode.setPosition('absolute');
+		this.canvasContainerDomNode.domNode.setAttribute('role', 'presentation');
+		this.canvasContainerDomNode.domNode.setAttribute('aria-hidden', 'true');
+		this._webglRenderer = new WebglRenderer(
+			{
+				cols: 10,
+				rows: 10,
+				options: {
+					lineHeight: 1,
+					letterSpacing: 0
+				}
+			},
+			{
+				foreground: { css: '#ffffff', rgba: 0xffffffff },
+				background: { css: '#000000', rgba: 0x000000ff },
+				cursor: { css: '#ffffff', rgba: 0xffffffff },
+				cursorAccent: { css: '#ff0000', rgba: 0xff0000ff },
+				selectionForeground: undefined,
+				selectionBackgroundTransparent: { css: '#ff0000', rgba: 0xff0000ff },
+				/** The selection blended on top of background. */
+				selectionBackgroundOpaque: { css: '#ff0000', rgba: 0xff0000ff },
+				selectionInactiveBackgroundTransparent: { css: '#ff0000', rgba: 0xff0000ff },
+				selectionInactiveBackgroundOpaque: { css: '#ff0000', rgba: 0xff0000ff },
+				ansi: []
+			},
+			this.canvasContainerDomNode.domNode
+		);
+		console.log('webgl renderer', this._webglRenderer);
 
 		const conf = this._context.configuration;
 		const options = this._context.configuration.options;
@@ -577,6 +612,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	}
 
 	public renderText(viewportData: ViewportData): void {
+		console.log('ViewLinesWebgl#renderText', viewportData);
+
 		// (1) render lines - ensures lines are in the DOM
 		this._visibleLines.renderLines(viewportData);
 		this._lastRenderedData.setCurrentVisibleRange(viewportData.visibleRange);
@@ -776,7 +813,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		}
 
 		if (!horizontalRevealRequest.minimalReveal) {
-			boxStartX = Math.max(0, boxStartX - ViewLines.HORIZONTAL_EXTRA_PX);
+			boxStartX = Math.max(0, boxStartX - ViewLinesWebgl.HORIZONTAL_EXTRA_PX);
 			boxEndX += this._revealHorizontalRightPadding;
 		}
 

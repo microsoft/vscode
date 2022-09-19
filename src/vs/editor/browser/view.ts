@@ -50,6 +50,7 @@ import { getThemeTypeSelector, IColorTheme } from 'vs/platform/theme/common/them
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { BlockDecorations } from 'vs/editor/browser/viewParts/blockDecorations/blockDecorations';
+import { ViewLinesWebgl } from 'vs/editor/browser/viewParts/lines/viewLinesWebgl';
 
 
 export interface IContentWidgetData {
@@ -69,7 +70,7 @@ export class View extends ViewEventHandler {
 	private _selections: Selection[];
 
 	// The view lines
-	private readonly _viewLines: ViewLines;
+	private readonly _viewLines: ViewLines | ViewLinesWebgl;
 
 	// These are parts, but we must do some API related calls on them, so we keep a reference
 	private readonly _viewZones: ViewZones;
@@ -133,7 +134,11 @@ export class View extends ViewEventHandler {
 		this._viewParts.push(this._scrollbar);
 
 		// View Lines
-		this._viewLines = new ViewLines(this._context, this._linesContent);
+		if (1 === 1) {
+			this._viewLines = new ViewLinesWebgl(this._context, this._linesContent);
+		} else {
+			this._viewLines = new ViewLines(this._context, this._linesContent);
+		}
 
 		// View Zones
 		this._viewZones = new ViewZones(this._context);
