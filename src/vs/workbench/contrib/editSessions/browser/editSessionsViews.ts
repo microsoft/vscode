@@ -201,17 +201,26 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 	private async getAllEditSessions(): Promise<ITreeItem[]> {
 		const allEditSessions = await this.editSessionsStorageService.list();
 		this.editSessionsCount.set(allEditSessions.length);
-		return allEditSessions.map((session) => {
+		const editSessions = [];
+
+		for (const session of allEditSessions) {
 			const resource = URI.from({ scheme: EDIT_SESSIONS_SCHEME, authority: 'remote-session-content', path: `/${session.ref}` });
-			return {
+			const sessionData = await this.editSessionsStorageService.read(session.ref);
+			const label = sessionData?.editSession.folders.map((folder) => folder.name).join(', ') ?? session.ref;
+			const machineId = sessionData?.editSession.machine;
+			const description = machineId === undefined ? fromNow(session.created, true) : `${fromNow(session.created, true)}\u00a0\u00a0\u2022\u00a0\u00a0${await this.editSessionsStorageService.getMachineById(machineId)}`;
+
+			editSessions.push({
 				handle: resource.toString(),
 				collapsibleState: TreeItemCollapsibleState.Collapsed,
-				label: { label: fromNow(session.created, true) },
-				description: session.ref,
+				label: { label },
+				description: description,
 				themeIcon: Codicon.repo,
 				contextValue: `edit-session`
-			};
-		});
+			});
+		}
+
+		return editSessions;
 	}
 
 	private async getEditSession(ref: string): Promise<ITreeItem[]> {
@@ -219,6 +228,11 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 
 		if (!data) {
 			return [];
+		}
+
+		if (data.editSession.folders.length === 1) {
+			const folder = data.editSession.folders[0];
+			return this.getEditSessionFolderContents(ref, folder.name);
 		}
 
 		return data.editSession.folders.map((folder) => {
