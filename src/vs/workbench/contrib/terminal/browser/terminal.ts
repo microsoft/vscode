@@ -919,7 +919,7 @@ export interface ITerminalContextualActionOptions {
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
 	getActions: ContextualActionCallback;
-	nonZeroExitCode?: boolean;
+	exitCode?: number;
 }
 export type ContextualMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
 export type DynamicActionName = (matchResult: ContextualMatchResult) => string;

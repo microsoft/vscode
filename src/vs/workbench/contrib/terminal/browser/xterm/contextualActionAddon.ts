@@ -123,11 +123,12 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 
 	private _getMatchOptions(command: ITerminalCommand): MatchActions {
 		const matchActions: IAction[] = [];
-		// TODO: This wouldn't handle commands containing escaped spaces correctly
 		const newCommand = command.command;
 		for (const actionOptions of this._commandListeners.values()) {
 			for (const actionOption of actionOptions) {
-				if (actionOption.nonZeroExitCode && command.exitCode === 0) {
+				if (actionOption.exitCode === -1 && command.exitCode === 0) {
+					continue;
+				} else if (actionOption.exitCode && command.exitCode !== actionOption.exitCode) {
 					continue;
 				}
 				const commandLineMatch = newCommand.match(actionOption.commandLineMatcher);

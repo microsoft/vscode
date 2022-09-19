@@ -14,7 +14,7 @@ export function gitSimilarCommand(terminalInstance: ITerminalInstance): ITermina
 		commandLineMatcher: /git.*/,
 		outputMatcher: { lineMatcher: /.*The most similar command is\s*(.*)\s*/, anchor: 'bottom', length: 2 },
 		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Run git ${matchResult.outputMatch[1]}` : ``,
-		nonZeroExitCode: true,
+		exitCode: 1,
 		getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
 			const actions: IAction[] = [];
 			const fixedCommand = matchResult?.outputMatch?.[1];
@@ -38,7 +38,7 @@ export function freePort(processManager: ITerminalProcessManager): ITerminalCont
 		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Free port ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: /.+/,
 		outputMatcher: { lineMatcher: /.*address already in use \d\.\d.\d\.\d:(\d\d\d\d).*/ },
-		nonZeroExitCode: true,
+		exitCode: 1,
 		getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
 			const port = matchResult?.outputMatch?.[1];
 			if (!port) {
@@ -59,7 +59,7 @@ export function gitPushSetUpstream(terminalInstance: ITerminalInstance): ITermin
 		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Git push ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: /git push/,
 		outputMatcher: { lineMatcher: /.*git push --set-upstream origin (.*)\s.*/ },
-		nonZeroExitCode: true,
+		exitCode: 128,
 		getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
 			const branch = matchResult?.outputMatch?.[1];
 			if (!branch) {
@@ -80,9 +80,9 @@ export function gitPushSetUpstream(terminalInstance: ITerminalInstance): ITermin
 export function gitCreatePr(openerService: IOpenerService): ITerminalContextualActionOptions {
 	return {
 		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Create PR for ${matchResult.outputMatch[1]}` : '',
-		commandLineMatcher: /git push/,
+		commandLineMatcher: /.*git push.*/,
 		outputMatcher: { lineMatcher: /.*Create a pull request for \'(.+)\' on GitHub by visiting:\s+remote:\s+(https:.+pull.+)\s+/ },
-		nonZeroExitCode: true,
+		exitCode: 0,
 		getActions: (matchResult: ContextualMatchResult, command?: ITerminalCommand) => {
 			if (!command) {
 				return;
