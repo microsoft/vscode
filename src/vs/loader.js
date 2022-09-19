@@ -1941,7 +1941,7 @@ var AMDLoader;
         }
         if (env.isNode && !env.isElectronRenderer && !env.isElectronNodeIntegrationWebWorker) {
             module.exports = RequireFunc;
-            require = RequireFunc;
+            // require = RequireFunc;
         }
         else {
             if (!env.isElectronRenderer) {
