@@ -68,6 +68,7 @@ export interface INotebookProxyKernelChangeEvent extends INotebookKernelChangeEv
 export interface ISourceAction {
 	readonly action: IAction;
 	readonly onDidChangeState: Event<void>;
+	readonly isPrimary?: boolean;
 	execution: Promise<void> | undefined;
 	runAction: () => Promise<void>;
 }

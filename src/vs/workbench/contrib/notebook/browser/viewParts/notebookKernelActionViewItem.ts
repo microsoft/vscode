@@ -86,6 +86,9 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		if (sourceActions.length === 1) {
 			// exact one action
 			this._updateActionFromSourceAction(sourceActions[0], false);
+		} else if (sourceActions.filter(sourceAction => sourceAction.isPrimary).length === 1) {
+			// exact one primary action
+			this._updateActionFromSourceAction(sourceActions.filter(sourceAction => sourceAction.isPrimary)[0], false);
 		} else {
 			this._action.class = ThemeIcon.asClassName(selectKernelIcon);
 			this._action.label = localize('select', "Select Kernel");
