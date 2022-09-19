@@ -123,7 +123,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 	private outputDirectoryPromise: Thenable<URI> | undefined;
 	private namePool: number = 1;
 
-	private readonly channels = new Map<string, ExtHostLogOutputChannel>();
+	private readonly channels = new Map<string, ExtHostLogOutputChannel | ExtHostOutputChannel>();
 	private visibleChannelId: string | null = null;
 
 	constructor(

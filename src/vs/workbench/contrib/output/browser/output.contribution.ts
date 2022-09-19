@@ -32,7 +32,6 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { EditorExtensions } from 'vs/workbench/common/editor';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, true);
@@ -218,25 +217,6 @@ registerAction2(class extends Action2 {
 	}
 });
 
-class ShowLogAction extends Action2 {
-	static readonly ID = 'workbench.action.showLog';
-	constructor() {
-		super({
-			id: ShowLogAction.ID,
-			title: { value: nls.localize('showLog', "Show Log"), original: 'Show Log' },
-		});
-	}
-	async run(accessor: ServicesAccessor, id: string): Promise<void> {
-		const outputService = accessor.get(IOutputService);
-		const channelDescriptor = outputService.getChannelDescriptor(id);
-		if (!channelDescriptor?.log) {
-			throw new Error(`No log channel with id '${id}' found.`);
-		}
-		return outputService.showChannel(id);
-	}
-}
-registerAction2(ShowLogAction);
-
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -250,7 +230,6 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const outputService = accessor.get(IOutputService);
-		const commandService = accessor.get(ICommandService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const extensionLogs = [], logs = [];
 		for (const channel of outputService.getChannelDescriptors()) {
@@ -273,8 +252,8 @@ registerAction2(class extends Action2 {
 			entries.push({ id, label });
 		}
 		const entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Select Log") });
-		if (entry?.id) {
-			return commandService.executeCommand(ShowLogAction.ID, entry.id);
+		if (entry) {
+			return outputService.showChannel(entry.id);
 		}
 	}
 });
