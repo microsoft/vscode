@@ -13,7 +13,7 @@ import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabili
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { gitSimilarCommand } from 'vs/workbench/contrib/terminal/browser/terminalBaseContextualActions';
-import { ContextualActionAddon, getMatchOptions } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
+import { ContextualActionAddon, getMatchOptions, MatchActions } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
 import { IDecoration, IDecorationOptions, Terminal } from 'xterm';
 
 class TestTerminal extends Terminal {
@@ -28,13 +28,13 @@ class TestTerminal extends Terminal {
 
 class TestCommandDetectionCapability extends CommandDetectionCapability {
 	triggerEvent(exitCode?: number, options?: IHandleCommandOptions): void {
-		if (exitCode) {
-			this.handleCommandExecuted();
-			this.handleCommandFinished(exitCode, options);
-		} else {
-			this.handlePromptStart();
-			this.handleCommandStart(options);
-		}
+		// if (exitCode) {
+		// 	this.handleCommandExecuted();
+		// 	this.handleCommandFinished(exitCode, options);
+		// } else {
+		// 	this.handlePromptStart();
+		// 	this.handleCommandStart(options);
+		// }
 	}
 }
 
@@ -56,75 +56,76 @@ suite('ContextualActionAddon', () => {
 		commandDetection = instantiationService.createInstance(TestCommandDetectionCapability, xterm);
 		capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
-		terminalInstance = ({
-			async sendText(text: string): Promise<void> {
-			}
-		} as Partial<ITerminalInstance>);
+		terminalInstance = (
+			{
+				async sendText(text: string): Promise<void> { }
+			} as Partial<ITerminalInstance>
+		);
 		contextualActionAddon = instantiationService.createInstance(ContextualActionAddon, capabilities);
 		xterm.loadAddon(contextualActionAddon);
 	});
 	suite('registerCommandFinishedListener', () => {
+		const expectedMap = new Map();
 		suite('gitSimilarCommand', async () => {
-			const expectedMap = new Map();
-			expectedMap.set(gitSimilarCommand(terminalInstance as any).commandLineMatcher.toString(), [gitSimilarCommand(terminalInstance as any)]);
-			const beforeEach = async () => {
-				commandDetection.triggerEvent();
-				commandDetection.triggerEvent(1);
+			const command = `git sttatus`;
+			const output = `git: 'sttatus' is not a git command. See 'git --help'.
+
+			The most similar command is
+					status`;
+			const exitCode = 1;
+			setup(() => {
+				expectedMap.set(gitSimilarCommand(terminalInstance as any).commandLineMatcher.toString(), [gitSimilarCommand(terminalInstance as any)]);
 				contextualActionAddon.registerCommandFinishedListener(gitSimilarCommand(terminalInstance as any));
-			};
+			});
 			suite('getMatchOptions should return undefined when', async () => {
 				test('output does not match', async () => {
-					await beforeEach();
-					const command = {
-						command: 'git sttatus',
-						exitCode: 1,
-						getOutput: () => `fsdfsdfs`,
-						actionOptions: []
-					} as Partial<ITerminalCommand>;
-					const result = getMatchOptions(command as any, expectedMap);
-					strictEqual(result, undefined);
+					strictEqual(getMatchOptions(createCommand(command, `invalid output`, exitCode), expectedMap), undefined);
 				});
 				test('command does not match', async () => {
-					await beforeEach();
-					const command = {
-						command: 'gt status',
-						exitCode: 1,
-						getOutput: () => `fsdfsdfs`,
-						actionOptions: []
-					} as Partial<ITerminalCommand>;
-					const result = getMatchOptions(command as any, expectedMap);
-					strictEqual(result, undefined);
+					strictEqual(getMatchOptions(createCommand(`gt sttatus`, output, exitCode), expectedMap), undefined);
 				});
 				test('exit code does not match', async () => {
-					await beforeEach();
-					const command = {
-						command: 'gt status',
-						exitCode: 2,
-						getOutput: () => `fsdfsdfs`,
-						actionOptions: []
-					} as Partial<ITerminalCommand>;
-					const result = getMatchOptions(command as any, expectedMap);
-					strictEqual(result, undefined);
+					strictEqual(getMatchOptions(createCommand(command, output, 2), expectedMap), undefined);
 				});
 			});
 			test('getMatchOptions should return match', async () => {
-				await beforeEach();
-				const command = {
-					command: 'git sttatus',
-					exitCode: 1,
-					getOutput: () => `git: 'sttatus' is not a git command. See 'git --help'.
-
-					The most similar command is
-							status`,
-					actionOptions: []
-				} as Partial<ITerminalCommand>;
-				const result = getMatchOptions(command as any, expectedMap);
-				strictEqual(result?.length, 1);
-				strictEqual(result?.[0].enabled, true);
-				strictEqual(result?.[0], `terminal.fixGitCommand`);
-				strictEqual(result?.[0].label, 'Run git status');
-				strictEqual(result?.[0].tooltip, `Run git status`);
+				assertMatchOptions(
+					getMatchOptions(
+						createCommand(command, output, exitCode), expectedMap),
+					[
+						{
+							id: 'terminal.fixGitCommand',
+							label: 'Run git status',
+							run: true,
+							tooltip: 'Run git status',
+							enabled: true
+						}
+					]);
 			});
 		});
 	});
 });
+
+function createCommand(command: string, output?: string, exitCode?: number): ITerminalCommand {
+	return {
+		command,
+		exitCode,
+		getOutput: () => output,
+		timestamp: Date.now(),
+		hasOutput: () => !!output
+	};
+}
+
+function assertMatchOptions(actual: MatchActions, expected: { id: string; label: string; run: boolean; tooltip: string; enabled: boolean }[]): void {
+	strictEqual(actual?.length, expected.length);
+	let index = 0;
+	for (const i of actual) {
+		const j = expected[index];
+		strictEqual(i.id, j.id);
+		strictEqual(i.enabled, j.enabled);
+		strictEqual(i.label, j.label);
+		strictEqual(!!i.run, j.run);
+		strictEqual(i.tooltip, j.tooltip);
+		index++;
+	}
+}

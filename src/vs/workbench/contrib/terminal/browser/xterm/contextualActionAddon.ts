@@ -15,7 +15,7 @@ import { ITerminalContextualActionOptions } from 'vs/workbench/contrib/terminal/
 import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-type MatchActions = IAction[] | undefined;
+export type MatchActions = IAction[] | undefined;
 
 export interface IContextualAction {
 	/**
