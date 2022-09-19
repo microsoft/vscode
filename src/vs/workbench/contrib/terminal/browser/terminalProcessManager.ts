@@ -17,11 +17,10 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ISerializedCommandDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { NaiveCwdDetectionCapability } from 'vs/platform/terminal/common/capabilities/naiveCwdDetectionCapability';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { FlowControlConstants, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IReconnectionProperties, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProcessOptions, ProcessPropertyType, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
@@ -66,7 +65,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	readonly remoteAuthority: string | undefined;
 	os: OperatingSystem | undefined;
 	userHome: string | undefined;
-	isDisconnected: boolean = false;
 	environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	backend: ITerminalBackend | undefined;
 	readonly capabilities = new TerminalCapabilityStore();
@@ -86,6 +84,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _ptyListenersAttached: boolean = false;
 	private _dataFilter: SeamlessRelaunchDataFilter;
 	private _processListeners?: IDisposable[];
+	private _isDisconnected: boolean = false;
 
 	private _shellLaunchConfig?: IShellLaunchConfig;
 	private _dimensions: ITerminalDimensions = { cols: 0, rows: 0 };
@@ -218,7 +217,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._processType = ProcessType.PsuedoTerminal;
 			newProcess = shellLaunchConfig.customPtyImplementation(this._instanceId, cols, rows);
 		} else {
-			const backend = this._terminalInstanceService.getBackend(this.remoteAuthority);
+			const backend = await this._terminalInstanceService.getBackend(this.remoteAuthority);
 			if (!backend) {
 				throw new Error(`No terminal backend registered for remote authority '${this.remoteAuthority}'`);
 			}
@@ -381,8 +380,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._logService.trace(`Relaunching terminal instance ${this._instanceId}`);
 
 		// Fire reconnect if needed to ensure the terminal is usable again
-		if (this.isDisconnected) {
-			this.isDisconnected = false;
+		if (this._isDisconnected) {
+			this._isDisconnected = false;
 			this._onPtyReconnect.fire();
 		}
 
@@ -473,11 +472,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		// Mark the process as disconnected is the pty host is unresponsive, the responsive event
 		// will fire only when the pty host was already unresponsive
 		this._register(backend.onPtyHostUnresponsive(() => {
-			this.isDisconnected = true;
+			this._isDisconnected = true;
 			this._onPtyDisconnect.fire();
 		}));
 		this._ptyResponsiveListener = backend.onPtyHostResponsive(() => {
-			this.isDisconnected = false;
+			this._isDisconnected = false;
 			this._onPtyReconnect.fire();
 		});
 		this._register(toDisposable(() => this._ptyResponsiveListener?.dispose()));
@@ -486,8 +485,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		// listener
 		this._register(backend.onPtyHostRestart(async () => {
 			// When the pty host restarts, reconnect is no longer possible
-			if (!this.isDisconnected) {
-				this.isDisconnected = true;
+			if (!this._isDisconnected) {
+				this._isDisconnected = true;
 				this._onPtyDisconnect.fire();
 			}
 			this._ptyResponsiveListener?.dispose();

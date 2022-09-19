@@ -682,10 +682,18 @@ export class NativeWindow extends Disposable {
 
 	private setupDriver(): void {
 		const that = this;
+		let pendingQuit = false;
+
 		registerWindowDriver({
 			async exitApplication(): Promise<void> {
+				if (pendingQuit) {
+					that.logService.info('[driver] not handling exitApplication() due to pending quit() call');
+					return;
+				}
+
 				that.logService.info('[driver] handling exitApplication()');
 
+				pendingQuit = true;
 				return that.nativeHostService.quit();
 			}
 		});

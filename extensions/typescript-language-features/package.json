@@ -9,7 +9,8 @@
   "aiKey": "0c6ae279ed8443289764825290e4f9e2-1a736e7c-1324-4338-be46-fc2a58ae4d14-7255",
   "enabledApiProposals": [
     "resolvers",
-    "workspaceTrust"
+    "workspaceTrust",
+    "workspaceEditIsRefactoring"
   ],
   "capabilities": {
     "virtualWorkspaces": {
@@ -68,7 +69,8 @@
     "onCommand:typescript.fileReferences",
     "onCommand:typescript.goToSourceDefinition",
     "onTaskType:typescript",
-    "onLanguage:jsonc"
+    "onLanguage:jsonc",
+    "onWalkthrough:nodejsWelcome"
   ],
   "main": "./out/extension",
   "browser": "./dist/browser/extension",
@@ -1521,6 +1523,58 @@
           {
             "kind": "source.organizeImports",
             "title": "%codeActions.source.organizeImports.title%"
+          }
+        ]
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "nodejsWelcome",
+        "title": "%walkthroughs.nodejsWelcome.title%",
+        "description": "%walkthroughs.nodejsWelcome.description%",
+        "when": "false",
+        "steps": [
+          {
+            "id": "walkthroughs.nodejsWelcome.downloadNode.forMacOrWindows",
+            "title": "%walkthroughs.nodejsWelcome.downloadNode.forMacOrWindows.title%",
+            "description": "%walkthroughs.nodejsWelcome.downloadNode.forMacOrWindows.description%",
+            "media": {
+              "svg": "resources/walkthroughs/install-node-js.svg"
+            },
+            "when": "isWindows || isMac"
+          },
+          {
+            "id": "walkthroughs.nodejsWelcome.downloadNode.forLinux",
+            "title": "%walkthroughs.nodejsWelcome.downloadNode.forLinux.title%",
+            "description": "%walkthroughs.nodejsWelcome.downloadNode.forLinux.description%",
+            "media": {
+              "svg": "resources/walkthroughs/install-node-js.svg"
+            },
+            "when": "isLinux"
+          },
+          {
+            "id": "walkthroughs.nodejsWelcome.makeJsFile",
+            "title": "%walkthroughs.nodejsWelcome.makeJsFile.title%",
+            "description": "%walkthroughs.nodejsWelcome.makeJsFile.description%",
+            "media": {
+              "svg": "resources/walkthroughs/create-a-js-file.svg"
+            }
+          },
+          {
+            "id": "walkthroughs.nodejsWelcome.debugJsFile",
+            "title": "%walkthroughs.nodejsWelcome.debugJsFile.title%",
+            "description": "%walkthroughs.nodejsWelcome.debugJsFile.description%",
+            "media": {
+              "svg": "resources/walkthroughs/debug-and-run.svg"
+            }
+          },
+          {
+            "id": "walkthroughs.nodejsWelcome.learnMoreAboutJs",
+            "title": "%walkthroughs.nodejsWelcome.learnMoreAboutJs.title%",
+            "description": "%walkthroughs.nodejsWelcome.learnMoreAboutJs.description%",
+            "media": {
+              "svg": "resources/walkthroughs/learn-more.svg"
+            }
           }
         ]
       }

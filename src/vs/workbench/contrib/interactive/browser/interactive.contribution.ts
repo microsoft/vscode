@@ -5,6 +5,7 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { parse } from 'vs/base/common/marshalling';
@@ -86,7 +87,8 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		const contentOptions = {
 			transientOutputs: true,
 			transientCellMetadata: {},
-			transientDocumentMetadata: {}
+			transientDocumentMetadata: {},
+			cellContentMetadata: {}
 		};
 
 		const controller: INotebookContentProvider = {
@@ -135,14 +137,6 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 					},
 					transientOptions: contentOptions
 				};
-			},
-			save: async (uri: URI) => {
-				// trigger backup always
-				return false;
-			},
-			saveAs: async (uri: URI, target: URI, token: CancellationToken) => {
-				// return this._proxy.$saveNotebookAs(viewType, uri, target, token);
-				return false;
 			},
 			backup: async (uri: URI, token: CancellationToken) => {
 				const doc = notebookService.listNotebookDocuments().find(document => document.uri.toString() === uri.toString());
@@ -273,8 +267,8 @@ class InteractiveInputContentProvider implements ITextModelContentProvider {
 
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, 'InteractiveDocumentContribution', LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveInputContentProvider, 'InteractiveInputContentProvider', LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, 'InteractiveDocumentContribution', LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveInputContentProvider, 'InteractiveInputContentProvider', LifecyclePhase.Ready);
 
 export class InteractiveEditorSerializer implements IEditorSerializer {
 	public static readonly ID = InteractiveEditorInput.ID;
@@ -727,6 +721,21 @@ registerAction2(class extends Action2 {
 
 		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
 			editorService.activeEditorPane?.focus();
+		}
+		else {
+			// find and open the most recent interactive window
+			const openEditors = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
+			const interactiveWindow = Iterable.find(openEditors, identifier => { return identifier.editor.typeId === InteractiveEditorInput.ID; });
+			if (interactiveWindow) {
+				const editorInput = interactiveWindow.editor as InteractiveEditorInput;
+				const currentGroup = interactiveWindow.groupId;
+				const editor = await editorService.openEditor(editorInput, currentGroup);
+				const editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+
+				if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+					editorService.activeEditorPane?.focus();
+				}
+			}
 		}
 	}
 });

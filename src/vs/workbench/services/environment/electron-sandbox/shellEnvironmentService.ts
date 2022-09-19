@@ -26,4 +26,4 @@ export class ShellEnvironmentService implements IShellEnvironmentService {
 	}
 }
 
-registerSingleton(IShellEnvironmentService, ShellEnvironmentService, false);
+registerSingleton(IShellEnvironmentService, ShellEnvironmentService, true);

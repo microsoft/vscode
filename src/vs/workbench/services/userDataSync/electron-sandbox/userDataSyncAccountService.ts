@@ -44,4 +44,4 @@ export class UserDataSyncAccountService extends Disposable implements IUserDataS
 
 }
 
-registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService, false);
+registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService, true);

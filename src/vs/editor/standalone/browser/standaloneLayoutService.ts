@@ -63,4 +63,4 @@ export class EditorScopedLayoutService extends StandaloneLayoutService {
 	}
 }
 
-registerSingleton(ILayoutService, StandaloneLayoutService, false);
+registerSingleton(ILayoutService, StandaloneLayoutService, true);

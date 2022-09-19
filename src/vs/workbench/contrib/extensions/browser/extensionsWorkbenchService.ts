@@ -440,7 +440,7 @@ class Extensions extends Disposable {
 		this._register(server.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
 		this._register(server.extensionManagementService.onUninstallExtension(e => this.onUninstallExtension(e.identifier)));
 		this._register(server.extensionManagementService.onDidUninstallExtension(e => this.onDidUninstallExtension(e)));
-		this._register(server.extensionManagementService.onDidChangeProfileExtensions(e => this.onDidChangeProfileExtensions(e.added, e.removed)));
+		this._register(server.extensionManagementService.onDidChangeProfile(e => this.onDidChangeProfile(e.added, e.removed)));
 		this._register(extensionEnablementService.onEnablementChanged(e => this.onEnablementChanged(e)));
 	}
 
@@ -560,7 +560,7 @@ class Extensions extends Disposable {
 		}
 	}
 
-	private async onDidChangeProfileExtensions(added: ILocalExtension[], removed: ILocalExtension[]): Promise<void> {
+	private async onDidChangeProfile(added: ILocalExtension[], removed: ILocalExtension[]): Promise<void> {
 		const extensionsControlManifest = await this.server.extensionManagementService.getExtensionsControlManifest();
 		for (const addedExtension of added) {
 			if (this.installed.find(e => areSameExtensions(e.identifier, addedExtension.identifier))) {

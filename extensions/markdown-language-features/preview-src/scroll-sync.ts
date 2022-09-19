@@ -7,14 +7,6 @@ import { SettingsManager } from './settings';
 
 const codeLineClass = 'code-line';
 
-function clamp(min: number, max: number, value: number) {
-	return Math.min(max, Math.max(min, value));
-}
-
-function clampLine(line: number, lineCount: number) {
-	return clamp(0, lineCount - 1, line);
-}
-
 
 export interface CodeLineElement {
 	element: HTMLElement;
@@ -38,10 +30,13 @@ const getCodeLineElements = (() => {
 					// Fenched code blocks are a special case since the `code-line` can only be marked on
 					// the `<code>` element and not the parent `<pre>` element.
 					cachedElements.push({ element: element.parentElement as HTMLElement, line });
+				} else if (element.tagName === 'UL' || element.tagName === 'OL') {
+					// Skip adding list elements since the first child has the same code line (and should be preferred)
 				} else {
 					cachedElements.push({ element: element as HTMLElement, line });
 				}
 			}
+			console.log(cachedElements);
 		}
 		return cachedElements;
 	};
@@ -149,20 +144,17 @@ export function scrollToRevealSourceLine(line: number, documentVersion: number, 
 	window.scroll(window.scrollX, Math.max(1, window.scrollY + scrollTo));
 }
 
-export function getEditorLineNumberForPageOffset(offset: number, documentVersion: number, settingsManager: SettingsManager) {
-	const lineCount = settingsManager.settings?.lineCount ?? 0;
+export function getEditorLineNumberForPageOffset(offset: number, documentVersion: number) {
 	const { previous, next } = getLineElementsAtPageOffset(offset, documentVersion);
 	if (previous) {
 		const previousBounds = getElementBounds(previous);
 		const offsetFromPrevious = (offset - window.scrollY - previousBounds.top);
 		if (next) {
 			const progressBetweenElements = offsetFromPrevious / (getElementBounds(next).top - previousBounds.top);
-			const line = previous.line + progressBetweenElements * (next.line - previous.line);
-			return clampLine(line, lineCount);
+			return previous.line + progressBetweenElements * (next.line - previous.line);
 		} else {
 			const progressWithinElement = offsetFromPrevious / (previousBounds.height);
-			const line = previous.line + progressWithinElement;
-			return clampLine(line, lineCount);
+			return previous.line + progressWithinElement;
 		}
 	}
 	return null;

@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IGenericMarkProperties, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
 
 interface IEvent<T, U = void> {
 	(listener: (arg1: T, arg2: U) => any): IDisposable;
@@ -60,7 +60,14 @@ export const enum TerminalCapability {
 	 * may not be so good at remembering the position of commands that ran in the past. This state
 	 * may be enabled when something goes wrong or when using conpty for example.
 	 */
-	PartialCommandDetection
+	PartialCommandDetection,
+
+	/**
+	 * Manages buffer marks that can be used for terminal navigation. The source of
+	 * the request (task, debug, etc) provides an ID, optional marker, hoverMessage, and hidden property. When
+	 * hidden is not provided, a generic decoration is added to the buffer and overview ruler.
+	 */
+	BufferMarkDetection
 }
 
 /**
@@ -103,6 +110,7 @@ export interface ITerminalCapabilityImplMap {
 	[TerminalCapability.CommandDetection]: ICommandDetectionCapability;
 	[TerminalCapability.NaiveCwdDetection]: INaiveCwdDetectionCapability;
 	[TerminalCapability.PartialCommandDetection]: IPartialCommandDetectionCapability;
+	[TerminalCapability.BufferMarkDetection]: IBufferMarkCapability;
 }
 
 export interface ICwdDetectionCapability {
@@ -122,6 +130,14 @@ export interface ICommandInvalidationRequest {
 	reason: CommandInvalidationReason;
 }
 
+export interface IBufferMarkCapability {
+	type: TerminalCapability.BufferMarkDetection;
+	markers(): IterableIterator<IMarker>;
+	onMarkAdded: Event<IMarkProperties>;
+	addMark(properties?: IMarkProperties): void;
+	getMark(id: string): IMarker | undefined;
+}
+
 export interface ICommandDetectionCapability {
 	readonly type: TerminalCapability.CommandDetection;
 	readonly commands: readonly ITerminalCommand[];
@@ -130,6 +146,11 @@ export interface ICommandDetectionCapability {
 	readonly executingCommandObject: ITerminalCommand | undefined;
 	/** The current cwd at the cursor's position. */
 	readonly cwd: string | undefined;
+	/**
+	 * Whether a command is currently being input. If the a command is current not being input or
+	 * the state cannot reliably be detected the fallback of undefined will be used.
+	 */
+	readonly hasInput: boolean | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
@@ -148,7 +169,6 @@ export interface ICommandDetectionCapability {
 	handleRightPromptStart(): void;
 	handleRightPromptEnd(): void;
 	handleCommandStart(options?: IHandleCommandOptions): void;
-	handleGenericCommand(options?: IHandleCommandOptions): void;
 	handleCommandExecuted(options?: IHandleCommandOptions): void;
 	handleCommandFinished(exitCode?: number, options?: IHandleCommandOptions): void;
 	invalidateCurrentCommand(request: ICommandInvalidationRequest): void;
@@ -170,10 +190,11 @@ export interface IHandleCommandOptions {
 	 * The marker to use
 	 */
 	marker?: IMarker;
+
 	/**
-	 * Properties for a generic mark
+	 * Properties for the mark
 	 */
-	genericMarkProperties?: IGenericMarkProperties;
+	markProperties?: IMarkProperties;
 }
 
 export interface INaiveCwdDetectionCapability {
@@ -197,9 +218,9 @@ export interface ITerminalCommand {
 	endMarker?: IXtermMarker;
 	executedMarker?: IXtermMarker;
 	commandStartLineContent?: string;
+	markProperties?: IMarkProperties;
 	getOutput(): string | undefined;
 	hasOutput(): boolean;
-	genericMarkProperties?: IGenericMarkProperties;
 }
 
 /**
@@ -213,4 +234,32 @@ export interface IXtermMarker {
 	onDispose: {
 		(listener: () => any): { dispose(): void };
 	};
+}
+
+export interface ISerializedCommand {
+	command: string;
+	cwd: string | undefined;
+	startLine: number | undefined;
+	startX: number | undefined;
+	endLine: number | undefined;
+	executedLine: number | undefined;
+	exitCode: number | undefined;
+	commandStartLineContent: string | undefined;
+	timestamp: number;
+	markProperties: IMarkProperties | undefined;
+}
+export interface IMarkProperties {
+	hoverMessage?: string;
+	disableCommandStorage?: boolean;
+	hidden?: boolean;
+	marker?: IMarker;
+	id?: string;
+}
+export interface ISerializedCommandDetectionCapability {
+	isWindowsPty: boolean;
+	commands: ISerializedCommand[];
+}
+export interface IPtyHostProcessReplayEvent {
+	events: ReplayEntry[];
+	commands: ISerializedCommandDetectionCapability;
 }

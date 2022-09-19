@@ -26,10 +26,6 @@
 	let hasLoadedMedia = false;
 
 	// Elements
-	const container = document.createElement('div');
-	container.className = 'video-container';
-	document.body.appendChild(container);
-
 	const video = document.createElement('video');
 	if (settings.src !== null) {
 		video.src = settings.src;
@@ -44,7 +40,7 @@
 
 		document.body.classList.remove('loading');
 		document.body.classList.add('ready');
-		container.append(video);
+		document.body.append(video);
 	}
 
 	video.addEventListener('error', e => {

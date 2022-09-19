@@ -29,17 +29,24 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 
 	private readonly disposables = this._register(new DisposableStore());
 
-	override get onInstallExtension() { return Event.filter(super.onInstallExtension, e => this.filterEvent(e), this.disposables); }
+	get onProfileAwareInstallExtension() { return super.onInstallExtension; }
+	override get onInstallExtension() { return Event.filter(this.onProfileAwareInstallExtension, e => this.filterEvent(e), this.disposables); }
+
+	get onProfileAwareDidInstallExtensions() { return super.onDidInstallExtensions; }
 	override get onDidInstallExtensions() {
 		return Event.filter(
-			Event.map(super.onDidInstallExtensions, results => results.filter(e => this.filterEvent(e)), this.disposables),
+			Event.map(this.onProfileAwareDidInstallExtensions, results => results.filter(e => this.filterEvent(e)), this.disposables),
 			results => results.length > 0, this.disposables);
 	}
-	override get onUninstallExtension() { return Event.filter(super.onUninstallExtension, e => this.filterEvent(e), this.disposables); }
-	override get onDidUninstallExtension() { return Event.filter(super.onDidUninstallExtension, e => this.filterEvent(e), this.disposables); }
 
-	private readonly _onDidChangeProfileExtensions = this._register(new Emitter<{ readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] }>());
-	readonly onDidChangeProfileExtensions = this._onDidChangeProfileExtensions.event;
+	get onProfileAwareUninstallExtension() { return super.onUninstallExtension; }
+	override get onUninstallExtension() { return Event.filter(this.onProfileAwareUninstallExtension, e => this.filterEvent(e), this.disposables); }
+
+	get onProfileAwareDidUninstallExtension() { return super.onDidUninstallExtension; }
+	override get onDidUninstallExtension() { return Event.filter(this.onProfileAwareDidUninstallExtension, e => this.filterEvent(e), this.disposables); }
+
+	private readonly _onDidChangeProfile = this._register(new Emitter<{ readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] }>());
+	readonly onDidChangeProfile = this._onDidChangeProfile.event;
 
 	constructor(
 		channel: IChannel,
@@ -110,7 +117,7 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 			const newExtensions = await this.getInstalled(ExtensionType.User);
 			const { added, removed } = delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
 			if (added.length || removed.length) {
-				this._onDidChangeProfileExtensions.fire({ added, removed });
+				this._onDidChangeProfile.fire({ added, removed });
 			}
 		}
 	}
