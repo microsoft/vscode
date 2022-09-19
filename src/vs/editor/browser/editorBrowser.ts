@@ -391,6 +391,7 @@ export interface IMouseTargetOverviewRuler extends IBaseMouseTarget {
 }
 export interface IMouseTargetOutsideEditor extends IBaseMouseTarget {
 	readonly type: MouseTargetType.OUTSIDE_EDITOR;
+	readonly outsidePosition: 'above' | 'below' | 'left' | 'right';
 }
 /**
  * Target hit with the mouse in the editor.

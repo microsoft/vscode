@@ -99,8 +99,8 @@ export class MouseTarget {
 	public static createOverlayWidget(element: Element | null, mouseColumn: number, detail: string): IMouseTargetOverlayWidget {
 		return { type: MouseTargetType.OVERLAY_WIDGET, element, mouseColumn, position: null, range: null, detail };
 	}
-	public static createOutsideEditor(mouseColumn: number, position: Position): IMouseTargetOutsideEditor {
-		return { type: MouseTargetType.OUTSIDE_EDITOR, element: null, mouseColumn, position, range: this._deduceRage(position) };
+	public static createOutsideEditor(mouseColumn: number, position: Position, outsidePosition: 'above' | 'below' | 'left' | 'right'): IMouseTargetOutsideEditor {
+		return { type: MouseTargetType.OUTSIDE_EDITOR, element: null, mouseColumn, position, range: this._deduceRage(position), outsidePosition };
 	}
 
 	private static _typeToString(type: MouseTargetType): string {

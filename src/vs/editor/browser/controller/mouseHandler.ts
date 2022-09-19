@@ -501,12 +501,12 @@ class MouseDownOperation extends Disposable {
 			if (viewZoneData) {
 				const newPosition = this._helpPositionJumpOverViewZone(viewZoneData);
 				if (newPosition) {
-					return MouseTarget.createOutsideEditor(mouseColumn, newPosition);
+					return MouseTarget.createOutsideEditor(mouseColumn, newPosition, 'above');
 				}
 			}
 
 			const aboveLineNumber = viewLayout.getLineNumberAtVerticalOffset(verticalOffset);
-			return MouseTarget.createOutsideEditor(mouseColumn, new Position(aboveLineNumber, 1));
+			return MouseTarget.createOutsideEditor(mouseColumn, new Position(aboveLineNumber, 1), 'above');
 		}
 
 		if (e.posy > editorContent.y + editorContent.height) {
@@ -515,22 +515,22 @@ class MouseDownOperation extends Disposable {
 			if (viewZoneData) {
 				const newPosition = this._helpPositionJumpOverViewZone(viewZoneData);
 				if (newPosition) {
-					return MouseTarget.createOutsideEditor(mouseColumn, newPosition);
+					return MouseTarget.createOutsideEditor(mouseColumn, newPosition, 'below');
 				}
 			}
 
 			const belowLineNumber = viewLayout.getLineNumberAtVerticalOffset(verticalOffset);
-			return MouseTarget.createOutsideEditor(mouseColumn, new Position(belowLineNumber, model.getLineMaxColumn(belowLineNumber)));
+			return MouseTarget.createOutsideEditor(mouseColumn, new Position(belowLineNumber, model.getLineMaxColumn(belowLineNumber)), 'below');
 		}
 
 		const possibleLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + e.relativePos.y);
 
 		if (e.posx < editorContent.x) {
-			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, 1));
+			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, 1), 'left');
 		}
 
 		if (e.posx > editorContent.x + editorContent.width) {
-			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)));
+			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)), 'right');
 		}
 
 		return null;

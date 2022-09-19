@@ -5046,6 +5046,7 @@ declare namespace monaco.editor {
 
 	export interface IMouseTargetOutsideEditor extends IBaseMouseTarget {
 		readonly type: MouseTargetType.OUTSIDE_EDITOR;
+		readonly outsidePosition: 'above' | 'below' | 'left' | 'right';
 	}
 
 	/**
