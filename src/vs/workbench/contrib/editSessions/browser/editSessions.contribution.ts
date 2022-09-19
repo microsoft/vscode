@@ -169,10 +169,12 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					// and user has not yet been prompted to sign in on this machine
 					hasApplicationLaunchedFromContinueOnFlow === false
 				) {
-					await this.editSessionsStorageService.initialize(true);
-					await this.resumeEditSession(undefined, true);
-					// store the fact that we prompted the user
 					this.storageService.store(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+					await this.editSessionsStorageService.initialize(true);
+					if (this.editSessionsStorageService.isSignedIn) {
+						await this.resumeEditSession(undefined, true);
+					}
+					// store the fact that we prompted the user
 				} else if (!this.editSessionsStorageService.isSignedIn &&
 					// and user has been prompted to sign in on this machine
 					hasApplicationLaunchedFromContinueOnFlow === true
