@@ -1036,6 +1036,7 @@ const BACKSPACE_CHARACTER = '\b'.charCodeAt(0);
 const CARRIAGE_RETURN_CHARACTER = '\r'.charCodeAt(0);
 function formatStreamText(buffer: VSBuffer): VSBuffer {
 	// We have special handling for backspace and carriage return characters.
+	// Don't unnecessary decode the bytes if we don't need to perform any processing.
 	if (!buffer.buffer.includes(BACKSPACE_CHARACTER) && !buffer.buffer.includes(CARRIAGE_RETURN_CHARACTER)) {
 		return buffer;
 	}
