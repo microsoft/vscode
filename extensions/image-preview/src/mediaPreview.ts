@@ -48,10 +48,8 @@ export abstract class MediaPreview extends Disposable {
 		}));
 
 		this._register(webviewEditor.onDidDispose(() => {
-			if (this.previewState === PreviewState.Active) {
-				this.binarySizeStatusBarEntry.hide(this);
-			}
 			this.previewState = PreviewState.Disposed;
+			this.dispose();
 		}));
 
 		const watcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(resource, '*')));
@@ -67,6 +65,11 @@ export abstract class MediaPreview extends Disposable {
 				this.webviewEditor.dispose();
 			}
 		}));
+	}
+
+	public override dispose() {
+		super.dispose();
+		this.binarySizeStatusBarEntry.hide(this);
 	}
 
 	protected updateBinarySize() {
