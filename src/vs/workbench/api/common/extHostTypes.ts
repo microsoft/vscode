@@ -3592,7 +3592,7 @@ export enum NotebookControllerAffinity {
 	Preferred = 2
 }
 
-export enum NotebookControllerAffinityExtended {
+export enum NotebookControllerAffinity2 {
 	Default = 1,
 	Preferred = 2,
 	Hidden = -1
