@@ -144,7 +144,7 @@ suite('SearchResult', () => {
 		assert.strictEqual(null, testObject.getSelectedMatch());
 	});
 
-	test('Alle Drei Zusammen', function () {
+	test('Match -> FileMatch -> SearchResult hierarchy exists', function () {
 		const searchResult = instantiationService.createInstance(SearchResult, null);
 		const fileMatch = aFileMatch('far/boo', searchResult);
 		const lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3));
@@ -375,10 +375,10 @@ suite('SearchResult', () => {
 		const testObject = getPopulatedSearchResult();
 
 		const folderMatch = testObject.folderMatches()[0];
-		const fileMatch = testObject.folderMatches()[1].fileMatches()[0];
-		const match = testObject.folderMatches()[1].fileMatches()[1].matches()[0];
+		const fileMatch = testObject.folderMatches()[1].downstreamFileMatches()[0];
+		const match = testObject.folderMatches()[1].downstreamFileMatches()[1].matches()[0];
 
-		const firstExpectedMatch = folderMatch.fileMatches()[0];
+		const firstExpectedMatch = folderMatch.downstreamFileMatches()[0];
 
 		const arrayToRemove = [folderMatch, fileMatch, match];
 
@@ -423,9 +423,9 @@ suite('SearchResult', () => {
 			type: QueryType.Text,
 			contentPattern: { pattern: 'foo' },
 			folderQueries: [{
-				folder: URI.parse('file://c:/voo')
+				folder: URI.parse('file://c:/voo/')
 			},
-			{ folder: URI.parse('file://c:/with') },
+			{ folder: URI.parse('file://c:/with/') },
 			]
 		};
 

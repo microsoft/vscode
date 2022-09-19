@@ -576,8 +576,13 @@ export class FolderMatch extends Disposable {
 			matches = [matches];
 		}
 		const allMatches = separateFileFolderMatches(matches);
-		this.doRemoveFile(allMatches.fileMatches);
-		this.doRemoveFolder(allMatches.folderMatches);
+
+		if (allMatches.fileMatches.length > 0) {
+			this.doRemoveFile(allMatches.fileMatches);
+		}
+		if (allMatches.folderMatches.length > 0) {
+			this.doRemoveFolder(allMatches.folderMatches);
+		}
 	}
 
 	replace(match: FileMatch): Promise<any> {
@@ -698,8 +703,15 @@ export class FolderMatch extends Disposable {
 
 	private async batchReplace(matches: (FileMatch | FolderMatchWithResource)[]): Promise<any> {
 		const allMatches = separateFileFolderMatches(matches);
-		await this.replaceService.replace(allMatches.fileMatches);
-		await this.replaceService.replace(allMatches.folderMatches.map(e => e.downstreamFileMatches()).flat());
+
+		if (allMatches.fileMatches.length > 0) {
+			await this.replaceService.replace(allMatches.fileMatches);
+		}
+
+		if (allMatches.folderMatches.length > 0) {
+			await this.replaceService.replace(allMatches.folderMatches.map(e => e.downstreamFileMatches()).flat());
+		}
+
 		this.doRemoveFile(allMatches.fileMatches, true, true);
 		this.doRemoveFolder(allMatches.folderMatches, true, true);
 	}
@@ -809,7 +821,14 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 	}
 
 	private uriParent(uri: URI): URI {
-		return this.uriIdentityService.extUri.dirname(uri);
+
+		let newUri = this.uriIdentityService.extUri.dirname(uri);
+
+		if (this.uriIdentityService.extUri.isEqual(newUri, uri)) {
+			// if parent is root, then the uri identity service dirname will return the same URI as entered.
+			newUri = URI.from({ scheme: uri.scheme, authority: uri.authority, path: '/', query: uri.query, fragment: uri.fragment });
+		}
+		return newUri;
 	}
 
 	private uriEquals(uri1: URI, ur2: URI): boolean {
@@ -1643,21 +1662,6 @@ export function arrayContainsElementOrParent(element: RenderableMatch, testArray
 
 	return false;
 }
-
-// function getAllFileMatchesFromList(matches: (FileMatch | FolderMatch)[]): FileMatch[] {
-
-// 	const folderMatches: FolderMatch[] = [];
-// 	const fileMatches: FileMatch[] = [];
-// 	matches.forEach((e) => {
-// 		if (e instanceof FileMatch) {
-// 			fileMatches.push(e);
-// 		} else {
-// 			folderMatches.push(e);
-// 		}
-// 	});
-
-// 	return fileMatches.concat(folderMatches.map(e => { return e.downstreamFileMatches(); }).flat());
-// }
 
 function separateFileFolderMatches(matches: (FileMatch | FolderMatchWithResource)[]): { folderMatches: FolderMatchWithResource[]; fileMatches: FileMatch[] } {
 
