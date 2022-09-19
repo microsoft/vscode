@@ -1477,12 +1477,6 @@ export class DisableDropDownAction extends ActionWithDropDownAction {
 
 }
 
-export interface ReloadRequiredStatus {
-	enabled: boolean;
-	label: string;
-	tooltip: string;
-}
-
 export class ReloadAction extends ExtensionAction {
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} reload`;
