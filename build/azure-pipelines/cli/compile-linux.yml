@@ -1,0 +1,41 @@
+parameters:
+  - name: targets
+    default: []
+    type: object
+  - name: workingDirectory
+    type: string
+    default: './'
+  - name: binaryName
+    type: string
+  - name: channel
+    type: string
+    default: stable
+
+steps:
+  # inspired by: https://github.com/emk/rust-musl-builder/blob/main/Dockerfile
+  - bash: |
+      sudo apt-get update
+      sudo apt-get install -yq build-essential cmake curl file git graphviz musl-dev musl-tools linux-libc-dev pkgconf unzip xutils-dev
+      sudo ln -s "/usr/bin/g++" "/usr/bin/musl-g++" || echo "link exists"
+    displayName: Install build dependencies
+
+  - template: ./install-rust.yml
+    parameters:
+      targets: ${{ parameters.targets }}
+      channel: ${{ parameters.channel }}
+
+  - ${{ each target in parameters.targets }}:
+    - script: cargo build --release --target ${{ target }} --bin=${{ parameters.binaryName }}
+      displayName: Compile ${{ target }}
+      workingDirectory: ${{ parameters.workingDirectory }}
+      env:
+        LAUNCHER_VERSION: $(Build.BuildNumber)
+        LAUNCHER_ASSET_NAME: ${{ target }}
+        LAUNCHER_AI_KEY: $(appInsightsKey)
+        LAUNCHER_AI_ENDPOINT: $(appInsightsEndpoint)
+        CXX_aarch64-unknown-linux-musl: musl-g++
+        CC_aarch64-unknown-linux-musl: musl-gcc
+
+    - publish: ${{ parameters.workingDirectory }}/target/${{ target }}/release/${{ parameters.binaryName }}
+      artifact: cli-${{ target }}
+      displayName: Publish cli-${{ target }} artifact

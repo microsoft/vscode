@@ -1,0 +1,35 @@
+parameters:
+  - name: targets
+    default: []
+    type: object
+  - name: vcpkgDir
+    type: string
+  - name: targetDirectory
+    type: string
+
+steps:
+  - script: git clone https://github.com/microsoft/vcpkg.git $(Build.ArtifactStagingDirectory)/vcpkg
+    displayName: Checkout vcpkg
+
+  - script: $(Build.ArtifactStagingDirectory)/vcpkg/bootstrap-vcpkg.bat
+    displayName: Bootstrap vcpkg
+
+  - ${{ each target in parameters.targets }}:
+    - task: Cache@2
+      inputs:
+        key: '"${{ target }}" | ${{ parameters.vcpkgDir }}/vcpkg.json'
+        path: ${{ parameters.targetDirectory }}/${{ target }}
+        cacheHitVar: VCPKG_CACHE_RESTORED
+      displayName: Cache ${{ target }}
+
+    - script: $(Build.ArtifactStagingDirectory)/vcpkg/vcpkg.exe install --triplet=${{ target }}
+      displayName: vcpkg install ${{ target }}
+      workingDirectory: ${{ parameters.vcpkgDir }}
+      condition: ne(variables.VCPKG_CACHE_RESTORED, 'true')
+
+    - powershell: |
+        mkdir -p ${{ parameters.targetDirectory }} -Force
+        Move-Item -Path ${{ parameters.vcpkgDir }}/vcpkg_installed/${{ target }} -Destination ${{ parameters.targetDirectory }}
+        Remove-Item ${{ parameters.vcpkgDir }}/vcpkg_installed -Recurse -Force
+      displayName: Stage vcpkg dependencies for ${{ target }}
+      condition: ne(variables.VCPKG_CACHE_RESTORED, 'true')

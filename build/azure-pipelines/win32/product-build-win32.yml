@@ -9,6 +9,9 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
+  - name: VSCODE_CLI_ARTIFACT
+    type: string
+    default: ''
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -201,6 +204,14 @@ steps:
         echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(agent.builddirectory)/vscode-reh-win32-$(VSCODE_ARCH)"
       displayName: Build Server
       condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - ${{ if ne(parameters.VSCODE_CLI_ARTIFACT, '') }}:
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: ${{ parameters.VSCODE_CLI_ARTIFACT }}
+        patterns: '**'
+        path: $$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin
+      displayName: Download VS Code CLI
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
     - template: product-build-win32-test.yml

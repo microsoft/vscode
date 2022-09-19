@@ -9,6 +9,9 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
+  - name: VSCODE_CLI_ARTIFACT
+    type: string
+    default: ''
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -172,6 +175,14 @@ steps:
         VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
           yarn gulp "transpile-client-swc" "transpile-extensions"
       displayName: Transpile
+
+  - ${{ if ne(parameters.VSCODE_CLI_ARTIFACT, '') }}:
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: ${{ parameters.VSCODE_CLI_ARTIFACT }}
+        patterns: '**'
+        path: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)/bin
+      displayName: Download VS Code CLI
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
     - template: product-build-darwin-test.yml

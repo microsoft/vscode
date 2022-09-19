@@ -1,0 +1,32 @@
+parameters:
+  - name: targets
+    default: []
+    type: object
+  - name: workingDirectory
+    type: string
+    default: './'
+  - name: binaryName
+    type: string
+  - name: channel
+    type: string
+    default: stable
+
+steps:
+  - template: ./install-rust.yml
+    parameters:
+      targets: ${{ parameters.targets }}
+      channel: ${{ parameters.channel }}
+
+  - ${{ each target in parameters.targets }}:
+    - script: cargo build --release --target ${{ target }} --bin=${{ parameters.binaryName }}
+      displayName: Compile ${{ target }}
+      workingDirectory: ${{ parameters.workingDirectory }}
+      env:
+        LAUNCHER_VERSION: $(Build.BuildNumber)
+        LAUNCHER_ASSET_NAME: ${{ target }}
+        LAUNCHER_AI_KEY: $(appInsightsKey)
+        LAUNCHER_AI_ENDPOINT: $(appInsightsEndpoint)
+
+    - publish: ${{ parameters.workingDirectory }}/target/${{ target }}/release/${{ parameters.binaryName }}
+      artifact: cli-${{ target }}
+      displayName: Publish cli-${{ target }} artifact
