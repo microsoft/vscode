@@ -297,13 +297,29 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		} else {
 			output.replaceData(items);
 		}
-		if (output.outputs.every(item => isTextStreamMime(item.mime))) {
-			const mime = output.outputs[0].mime;
-			const compressed = compressOutputItemStreams(output.outputs[0].mime, output.outputs.map(item => item.data.buffer));
+		if (output.outputs.length > 1 && output.outputs.every(item => isTextStreamMime(item.mime))) {
+			// Look for the mimes in the items, and keep track of their order.
+			// Merge the streams into one output item, per mime type.
+			const mimeOutputs = new Map<string, Uint8Array[]>();
+			const mimeTypes: string[] = [];
+			output.outputs.forEach(item => {
+				let items: Uint8Array[];
+				if (mimeOutputs.has(item.mime)) {
+					items = mimeOutputs.get(item.mime)!;
+				} else {
+					items = [];
+					mimeOutputs.set(item.mime, items);
+					mimeTypes.push(item.mime);
+				}
+				items.push(item.data.buffer);
+			});
 			output.outputs.length = 0;
-			output.outputs.push({
-				mime,
-				data: compressed
+			mimeTypes.forEach(mime => {
+				const compressed = compressOutputItemStreams(mimeOutputs.get(mime)!);
+				output.outputs.push({
+					mime,
+					data: compressed
+				});
 			});
 		}
 

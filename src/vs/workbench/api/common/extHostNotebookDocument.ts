@@ -110,12 +110,30 @@ export class ExtHostCell {
 				output.items.length = 0;
 			}
 			output.items.push(...newItems);
-			if (output.items.every(item => notebookCommon.isTextStreamMime(item.mime))) {
-				const compressed = notebookCommon.compressOutputItemStreams(newOutputItems[0].mime, output.items.map(item => item.data));
+
+			if (output.items.length > 1 && output.items.every(item => notebookCommon.isTextStreamMime(item.mime))) {
+				// Look for the mimes in the items, and keep track of their order.
+				// Merge the streams into one output item, per mime type.
+				const mimeOutputs = new Map<string, Uint8Array[]>();
+				const mimeTypes: string[] = [];
+				output.items.forEach(item => {
+					let items: Uint8Array[];
+					if (mimeOutputs.has(item.mime)) {
+						items = mimeOutputs.get(item.mime)!;
+					} else {
+						items = [];
+						mimeOutputs.set(item.mime, items);
+						mimeTypes.push(item.mime);
+					}
+					items.push(item.data);
+				});
 				output.items.length = 0;
-				output.items.push({
-					mime: newOutputItems[0].mime,
-					data: compressed.buffer
+				mimeTypes.forEach(mime => {
+					const compressed = notebookCommon.compressOutputItemStreams(mimeOutputs.get(mime)!);
+					output.items.push({
+						mime,
+						data: compressed.buffer
+					});
 				});
 			}
 		}

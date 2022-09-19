@@ -965,7 +965,7 @@ export function isTextStreamMime(mimeType: string) {
  * last line contained such a code, then the result string would be just the first two lines.
  */
 const textDecoder = new TextDecoder();
-export function compressOutputItemStreams(mimeType: string, outputs: Uint8Array[]) {
+export function compressOutputItemStreams(outputs: Uint8Array[]) {
 	const buffers: Uint8Array[] = [];
 	let startAppending = false;
 
@@ -977,8 +977,7 @@ export function compressOutputItemStreams(mimeType: string, outputs: Uint8Array[
 		}
 	}
 	compressStreamBuffer(buffers);
-	const value = textDecoder.decode(VSBuffer.concat(buffers.map(buffer => VSBuffer.wrap(buffer))).buffer);
-	return VSBuffer.fromString(formatStreamText(value));
+	return formatStreamText(VSBuffer.concat(buffers.map(buffer => VSBuffer.wrap(buffer))));
 }
 const MOVE_CURSOR_1_LINE_COMMAND = `${String.fromCharCode(27)}[A`;
 const MOVE_CURSOR_1_LINE_COMMAND_BYTES = MOVE_CURSOR_1_LINE_COMMAND.split('').map(c => c.charCodeAt(0));
@@ -1002,7 +1001,6 @@ function compressStreamBuffer(streams: Uint8Array[]) {
 			streams[index] = stream.subarray(MOVE_CURSOR_1_LINE_COMMAND.length);
 		}
 	});
-	return streams;
 }
 
 
@@ -1034,7 +1032,13 @@ function fixCarriageReturn(txt: string) {
 	return txt;
 }
 
-function formatStreamText(str: string): string {
+const BACKSPACE_CHARACTER = '\b'.charCodeAt(0);
+const CARRIAGE_RETURN_CHARACTER = '\r'.charCodeAt(0);
+function formatStreamText(buffer: VSBuffer): VSBuffer {
+	// We have special handling for backspace and carriage return characters.
+	if (!buffer.buffer.includes(BACKSPACE_CHARACTER) && !buffer.buffer.includes(CARRIAGE_RETURN_CHARACTER)) {
+		return buffer;
+	}
 	// Do the same thing jupyter is doing
-	return fixCarriageReturn(fixBackspace(str));
+	return VSBuffer.fromString(fixCarriageReturn(fixBackspace(textDecoder.decode(buffer.buffer))));
 }
