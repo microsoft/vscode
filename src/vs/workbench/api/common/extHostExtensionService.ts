@@ -11,7 +11,7 @@ import { asPromise, Barrier, timeout } from 'vs/base/common/async';
 import { dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ILogger, ILoggerService, ILogService, log, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostExtensionServiceShape, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtensionDescriptionDelta, IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
@@ -40,7 +40,6 @@ import { ExtHostSecretState, IExtHostSecretState } from 'vs/workbench/api/common
 import { ExtensionSecrets } from 'vs/workbench/api/common/extHostSecrets';
 import { Schemas } from 'vs/base/common/network';
 import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
-import { IExtHostOutputService } from 'vs/workbench/api/common/extHostOutput';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -89,10 +88,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	protected readonly _extHostWorkspace: ExtHostWorkspace;
 	protected readonly _extHostConfiguration: ExtHostConfiguration;
 	protected readonly _logService: ILogService;
-	private readonly _loggerService: ILoggerService;
 	protected readonly _extHostTunnelService: IExtHostTunnelService;
 	protected readonly _extHostTerminalService: IExtHostTerminalService;
-	private readonly _extHostOutputService: IExtHostOutputService;
 
 	protected readonly _mainThreadWorkspaceProxy: MainThreadWorkspaceShape;
 	protected readonly _mainThreadTelemetryProxy: MainThreadTelemetryShape;
@@ -124,12 +121,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		@IExtHostWorkspace extHostWorkspace: IExtHostWorkspace,
 		@IExtHostConfiguration extHostConfiguration: IExtHostConfiguration,
 		@ILogService logService: ILogService,
-		@ILoggerService loggerService: ILoggerService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 		@IExtensionStoragePaths storagePath: IExtensionStoragePaths,
 		@IExtHostTunnelService extHostTunnelService: IExtHostTunnelService,
 		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
-		@IExtHostOutputService extHostOutputService: IExtHostOutputService,
 	) {
 		super();
 		this._hostUtils = hostUtils;
@@ -139,10 +134,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._extHostWorkspace = extHostWorkspace;
 		this._extHostConfiguration = extHostConfiguration;
 		this._logService = logService;
-		this._loggerService = loggerService;
 		this._extHostTunnelService = extHostTunnelService;
 		this._extHostTerminalService = extHostTerminalService;
-		this._extHostOutputService = extHostOutputService;
 
 		this._mainThreadWorkspaceProxy = this._extHostContext.getProxy(MainContext.MainThreadWorkspace);
 		this._mainThreadTelemetryProxy = this._extHostContext.getProxy(MainContext.MainThreadTelemetry);
@@ -516,8 +509,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				? this._initData.messagePorts?.get(ExtensionIdentifier.toKey(extensionDescription.identifier))
 				: undefined;
 
-			let extensionLogger: ILogger | undefined;
-
 			return Object.freeze<vscode.ExtensionContext>({
 				globalState,
 				workspaceState,
@@ -559,25 +550,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					}
 
 					return messagePassingProtocol;
-				},
-				get logger() {
-					const _log = (logLevel: LogLevel, message: string, ...args: any[]) => {
-						if (!extensionLogger) {
-							const logFile = URI.joinPath(that._initData.logsLocation, extensionDescription.identifier.value);
-							const name = extensionDescription.displayName || extensionDescription.identifier.value;
-							extensionLogger = that._loggerService.createLogger(logFile, { name });
-							that._extHostOutputService.registerExtensionLogChannel(name, logFile, extensionDescription);
-						}
-						log(extensionLogger, logLevel, message as any, ...args);
-					};
-					return {
-						trace: (message: string, ...args: any[]): void => _log(LogLevel.Trace, message, ...args),
-						debug: (message: string, ...args: any[]): void => _log(LogLevel.Debug, message, ...args),
-						info: (message: string, ...args: any[]): void => _log(LogLevel.Info, message, ...args),
-						warn: (message: string, ...args: any[]): void => _log(LogLevel.Warning, message, ...args),
-						error: (message: string, ...args: any[]): void => _log(LogLevel.Error, message, ...args),
-						critical: (message: string, ...args: any[]): void => _log(LogLevel.Critical, message, ...args),
-					};
 				},
 			});
 		});

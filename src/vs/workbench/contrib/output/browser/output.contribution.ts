@@ -263,13 +263,13 @@ registerAction2(class extends Action2 {
 			}
 		}
 		const entries: ({ id: string; label: string } | IQuickPickSeparator)[] = [];
-		for (const { id, label } of extensionLogs) {
+		for (const { id, label } of logs) {
 			entries.push({ id, label });
 		}
 		if (extensionLogs.length && logs.length) {
-			entries.push({ type: 'separator' });
+			entries.push({ type: 'separator', label: nls.localize('extensionLogs', "Extension Logs") });
 		}
-		for (const { id, label } of logs) {
+		for (const { id, label } of extensionLogs) {
 			entries.push({ id, label });
 		}
 		const entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Select Log") });

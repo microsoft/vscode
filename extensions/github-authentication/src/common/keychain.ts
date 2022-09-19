@@ -6,11 +6,13 @@
 // keytar depends on a native module shipped in vscode, so this is
 // how we load it
 import * as vscode from 'vscode';
+import { Log } from './logger';
 
 export class Keychain {
 	constructor(
 		private readonly context: vscode.ExtensionContext,
 		private readonly serviceId: string,
+		private readonly Logger: Log
 	) { }
 
 	async setToken(token: string): Promise<void> {
@@ -18,7 +20,7 @@ export class Keychain {
 			return await this.context.secrets.store(this.serviceId, token);
 		} catch (e) {
 			// Ignore
-			this.context.logger.error(`Setting token failed: ${e}`);
+			this.Logger.error(`Setting token failed: ${e}`);
 		}
 	}
 
@@ -26,12 +28,12 @@ export class Keychain {
 		try {
 			const secret = await this.context.secrets.get(this.serviceId);
 			if (secret && secret !== '[]') {
-				this.context.logger.trace('Token acquired from secret storage.');
+				this.Logger.trace('Token acquired from secret storage.');
 			}
 			return secret;
 		} catch (e) {
 			// Ignore
-			this.context.logger.error(`Getting token failed: ${e}`);
+			this.Logger.error(`Getting token failed: ${e}`);
 			return Promise.resolve(undefined);
 		}
 	}
@@ -41,7 +43,7 @@ export class Keychain {
 			return await this.context.secrets.delete(this.serviceId);
 		} catch (e) {
 			// Ignore
-			this.context.logger.error(`Deleting token failed: ${e}`);
+			this.Logger.error(`Deleting token failed: ${e}`);
 			return Promise.resolve(undefined);
 		}
 	}

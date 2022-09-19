@@ -12,7 +12,7 @@ import { Cache, CacheResult } from 'vs/base/common/cache';
 import { Action, IAction } from 'vs/base/common/actions';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
 import { dispose, toDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { append, $, join, addDisposableListener, setParentFlowTo, reset, Dimension, getClientArea } from 'vs/base/browser/dom';
+import { append, $, join, addDisposableListener, setParentFlowTo, reset, Dimension } from 'vs/base/browser/dom';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -70,9 +70,6 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import * as semver from 'vs/base/common/semver/semver';
-import { Extensions, IFileOutputChannelDescriptor, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
-import { LogViewer, LogViewerInput } from 'vs/workbench/contrib/output/browser/logViewer';
-import { Registry } from 'vs/platform/registry/common/platform';
 
 class NavBar extends Disposable {
 
@@ -255,7 +252,7 @@ export class ExtensionEditor extends EditorPane {
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
 		this.extensionReadme = null;
@@ -611,20 +608,6 @@ export class ExtensionEditor extends EditorPane {
 			}, this, this.transientDisposables);
 		}
 
-
-		const addLogSection = () => template.navbar.push(ExtensionEditorTab.Log, localize('log', "Log"), localize('log description', "Extension log"));
-		const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
-		if (outputChannelRegistry.getChannel(extension.identifier.id)) {
-			addLogSection();
-		} else {
-			const disposable = outputChannelRegistry.onDidRegisterChannel(e => {
-				if (outputChannelRegistry.getChannel(extension.identifier.id)) {
-					addLogSection();
-					disposable.dispose();
-				}
-			}, this, this.transientDisposables);
-		}
-
 		if (template.navbar.currentId) {
 			this.onNavbarChange(extension, { id: template.navbar.currentId, focus: !preserveFocus }, template);
 		}
@@ -685,7 +668,6 @@ export class ExtensionEditor extends EditorPane {
 			case ExtensionEditorTab.Dependencies: return this.openExtensionDependencies(extension, template, token);
 			case ExtensionEditorTab.ExtensionPack: return this.openExtensionPack(extension, template, token);
 			case ExtensionEditorTab.RuntimeStatus: return this.openRuntimeStatus(extension, template, token);
-			case ExtensionEditorTab.Log: return this.openLog(extension, template, token);
 		}
 		return Promise.resolve(null);
 	}
@@ -1144,21 +1126,6 @@ export class ExtensionEditor extends EditorPane {
 		}
 
 		return element;
-	}
-
-	private async openLog(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		const layout = () => editor.layout(getClientArea(template.content));
-		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
-
-		const editor = this.transientDisposables.add(this.instantiationService.createInstance(LogViewer));
-		editor.create(template.content);
-
-		const outputChannel = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannel(extension.identifier.id);
-		if (outputChannel) {
-			await editor.setInput(this.instantiationService.createInstance(LogViewerInput, outputChannel as IFileOutputChannelDescriptor), undefined, {}, token);
-		}
-		return editor;
 	}
 
 	private async renderExtensionPack(manifest: IExtensionManifest, parent: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
