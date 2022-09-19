@@ -72,6 +72,23 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		return undefined;
 	}
 	get cwd(): string | undefined { return this._cwd; }
+	private get _isInputting(): boolean {
+		return !!(this._currentCommand.commandStartMarker && !this._currentCommand.commandExecutedMarker);
+	}
+
+	get hasInput(): boolean | undefined {
+		if (!this._isInputting || !this._currentCommand?.commandStartMarker) {
+			return undefined;
+		}
+		if (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY === this._currentCommand.commandStartMarker?.line) {
+			const line = this._terminal.buffer.active.getLine(this._terminal.buffer.active.cursorY)?.translateToString(true, this._currentCommand.commandStartX);
+			if (line === undefined) {
+				return undefined;
+			}
+			return line.length > 0;
+		}
+		return true;
+	}
 
 	private readonly _onCommandStarted = new Emitter<ITerminalCommand>();
 	readonly onCommandStarted = this._onCommandStarted.event;
@@ -316,6 +333,16 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 		this._currentCommand.commandStartMarker = options?.marker || this._terminal.registerMarker(0);
+
+		// Clear executed as it must happen after command start
+		this._currentCommand.commandExecutedMarker?.dispose();
+		this._currentCommand.commandExecutedMarker = undefined;
+		this._currentCommand.commandExecutedX = undefined;
+		for (const m of this._commandMarkers) {
+			m.dispose();
+		}
+		this._commandMarkers.length = 0;
+
 		this._onCommandStarted.fire({ marker: options?.marker || this._currentCommand.commandStartMarker, markProperties: options?.markProperties } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}

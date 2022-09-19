@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { ChordKeybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { organizeImportsCommandId, refactorCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/browser/codeActionMenu';
+import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/browser/codeActionKeybindingResolver';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 suite('CodeActionKeybindingResolver', () => {
 	const refactorKeybinding = createCodeActionKeybinding(

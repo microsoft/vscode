@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const vscode = acquireVsCodeApi();
+declare module 'vscode' {
+	// TODO@rebornix: add github issue link
 
-const notebook = acquireNotebookRendererApi();
-
-notebook.onDidCreateOutput(({ element, mimeType }) => {
-	const div = document.createElement('div');
-	div.innerText = `Hello ${mimeType}!`;
-	element.appendChild(div);
-});
+	export interface NotebookDocumentContentOptions {
+		/**
+		 * Controls if a cell metadata property should be reverted when the cell content
+		 * is reverted in notebook diff editor.
+		 */
+		cellContentMetadata?: { [key: string]: boolean | undefined };
+	}
+}

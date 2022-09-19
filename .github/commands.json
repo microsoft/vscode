@@ -86,21 +86,6 @@
 	},
 	{
 		"type": "label",
-		"name": "notebook",
-		"regex": "notebook.*",
-		"assign": [
-			"rebornix"
-		]
-	},
-	{
-		"type": "label",
-		"name": "notebook-triage",
-		"regex": "notebook.*",
-		"action": "updateLabels",
-		"addLabel": "notebook-triage"
-	},
-	{
-		"type": "label",
 		"name": "L10N",
 		"assign": [
 			"csigs",

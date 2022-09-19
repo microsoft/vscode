@@ -11,7 +11,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { AbstractStorageService, isProfileUsingDefaultStorage, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ApplicationStorageDatabaseClient, ProfileStorageDatabaseClient, WorkspaceStorageDatabaseClient } from 'vs/platform/storage/common/storageIpc';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { isUserDataProfile, IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class NativeStorageService extends AbstractStorageService {
@@ -176,5 +176,13 @@ export class NativeStorageService extends AbstractStorageService {
 
 		// Handle data switch and eventing
 		this.switchData(oldItems, this.workspaceStorage, StorageScope.WORKSPACE, preserveData);
+	}
+
+	hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean {
+		if (isUserDataProfile(scope)) {
+			return this.profileStorageProfile.id === scope.id;
+		}
+
+		return this.workspaceStorageId === scope.id;
 	}
 }

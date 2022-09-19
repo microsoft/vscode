@@ -13,30 +13,25 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { createActionViewItem, createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { registerStickyScroll } from 'vs/workbench/contrib/notebook/browser/view/cellParts/stickyScroll';
+import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 export class BetweenCellToolbar extends CellPart {
-	private _betweenCellToolbar!: ToolBar;
+	private _betweenCellToolbar!: MenuWorkbenchToolBar;
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditorDelegate,
 		_titleToolbarContainer: HTMLElement,
 		private readonly _bottomCellToolbarContainer: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService
 	) {
 		super();
-
-		this._betweenCellToolbar = this._register(new ToolBar(this._bottomCellToolbarContainer, contextMenuService, {
+		this._betweenCellToolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this._bottomCellToolbarContainer, this._notebookEditor.creationOptions.menuIds.cellInsertToolbar, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
 					if (this._notebookEditor.notebookOptions.getLayoutConfiguration().insertToolbarAlignment === 'center') {
@@ -47,22 +42,14 @@ export class BetweenCellToolbar extends CellPart {
 				}
 
 				return undefined;
+			},
+			toolbarOptions: {
+				primaryGroup: g => /^inline/.test(g),
+			},
+			menuOptions: {
+				shouldForwardArgs: true
 			}
 		}));
-
-		const menu = this._register(menuService.createMenu(this._notebookEditor.creationOptions.menuIds.cellInsertToolbar, contextKeyService));
-		const updateActions = () => {
-			const actions = getCellToolbarActions(menu);
-			this._betweenCellToolbar.setActions(actions.primary, actions.secondary);
-		};
-
-		this._register(menu.onDidChange(() => updateActions()));
-		this._register(this._notebookEditor.notebookOptions.onDidChangeOptions((e) => {
-			if (e.insertToolbarAlignment) {
-				updateActions();
-			}
-		}));
-		updateActions();
 	}
 
 	updateContext(context: INotebookCellActionContext) {
@@ -90,9 +77,9 @@ export interface ICssClassDelegate {
 }
 
 export class CellTitleToolbarPart extends CellPart {
-	private _toolbar: ToolBar;
+	private _toolbar: WorkbenchToolBar;
 	private _titleMenu: IMenu;
-	private _deleteToolbar: ToolBar;
+	private _deleteToolbar: WorkbenchToolBar;
 	private _deleteMenu: IMenu;
 	private readonly _onDidUpdateActions: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidUpdateActions: Event<void> = this._onDidUpdateActions.event;
@@ -116,7 +103,7 @@ export class CellTitleToolbarPart extends CellPart {
 		this._toolbar = instantiationService.invokeFunction(accessor => createToolbar(accessor, toolbarContainer));
 		this._titleMenu = this._register(menuService.createMenu(toolbarId, contextKeyService));
 
-		this._deleteToolbar = this._register(instantiationService.invokeFunction(accessor => createToolbar(accessor, toolbarContainer, 'cell-delete-toolbar')));
+		this._deleteToolbar = this._register(instantiationService.invokeFunction(accessor => createToolbar(accessor, toolbarContainer, 'cell-delete-toolbar', HiddenItemStrategy.Ignore)));
 		this._deleteMenu = this._register(menuService.createMenu(deleteToolbarId, contextKeyService));
 		if (!this._notebookEditor.creationOptions.isReadOnly) {
 			const deleteActions = getCellToolbarActions(this._deleteMenu);
@@ -202,16 +189,15 @@ function getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IA
 	return result;
 }
 
-function createToolbar(accessor: ServicesAccessor, container: HTMLElement, elementClass?: string): ToolBar {
-	const contextMenuService = accessor.get(IContextMenuService);
-	const keybindingService = accessor.get(IKeybindingService);
+function createToolbar(accessor: ServicesAccessor, container: HTMLElement, elementClass?: string, hiddenItemStrategy?: HiddenItemStrategy): WorkbenchToolBar {
 	const instantiationService = accessor.get(IInstantiationService);
-	const toolbar = new ToolBar(container, contextMenuService, {
-		getKeyBinding: action => keybindingService.lookupKeybinding(action.id),
+
+	const toolbar = instantiationService.createInstance(WorkbenchToolBar, container, {
 		actionViewItemProvider: action => {
 			return createActionViewItem(instantiationService, action);
 		},
-		renderDropdownAsChildElement: true
+		renderDropdownAsChildElement: true,
+		hiddenItemStrategy
 	});
 
 	if (elementClass) {

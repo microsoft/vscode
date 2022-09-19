@@ -23,7 +23,7 @@ export class ExperimentationService implements vscode.Disposable {
 	public async getTreatmentVariable<K extends keyof ExperimentTypes>(name: K, defaultValue: ExperimentTypes[K]): Promise<ExperimentTypes[K]> {
 		const experimentationService = await this._experimentationServicePromise;
 		try {
-			const treatmentVariable = experimentationService.getTreatmentVariableAsync('vscode', name, /*checkCache*/ true) as ExperimentTypes[K];
+			const treatmentVariable = experimentationService.getTreatmentVariableAsync('vscode', name, /*checkCache*/ true) as Promise<ExperimentTypes[K]>;
 			return treatmentVariable;
 		} catch {
 			return defaultValue;

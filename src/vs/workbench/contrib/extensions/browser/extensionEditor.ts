@@ -930,12 +930,20 @@ export class ExtensionEditor extends EditorPane {
 		if (gallery) {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
-					$('div', undefined, localize('release date', "Released on")),
+					$('div', undefined, localize('published', "Published")),
 					$('div', undefined, new Date(gallery.releaseDate).toLocaleString(locale, { hourCycle: 'h23' }))
 				),
 				$('.more-info-entry', undefined,
-					$('div', undefined, localize('last updated', "Last updated")),
+					$('div', undefined, localize('last released', "Last released")),
 					$('div', undefined, new Date(gallery.lastUpdated).toLocaleString(locale, { hourCycle: 'h23' }))
+				)
+			);
+		}
+		if (extension.local && extension.local.installedTimestamp) {
+			append(moreInfo,
+				$('.more-info-entry', undefined,
+					$('div', undefined, localize('last updated', "Last updated")),
+					$('div', undefined, new Date(extension.local.installedTimestamp).toLocaleString(locale, { hourCycle: 'h23' }))
 				)
 			);
 		}
