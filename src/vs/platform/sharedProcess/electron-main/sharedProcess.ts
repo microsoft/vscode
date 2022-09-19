@@ -241,7 +241,6 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			windowId: this.window.id,
 			appRoot: this.environmentMainService.appRoot,
 			codeCachePath: this.environmentMainService.codeCachePath,
-			backupWorkspacesPath: this.environmentMainService.backupWorkspacesPath,
 			profiles: this.userDataProfilesService.profiles,
 			userEnv: this.userEnv,
 			args: this.environmentMainService.args,
@@ -277,7 +276,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		// Crashes & Unresponsive & Failed to load
 		// We use `onUnexpectedError` explicitly because the error handler
 		// will send the error to the active window to log in devtools too
-		this.window.webContents.on('render-process-gone', (event, details) => this._onDidError.fire({ type: WindowError.CRASHED, details }));
+		this.window.webContents.on('render-process-gone', (event, details) => this._onDidError.fire({ type: WindowError.PROCESS_GONE, details }));
 		this.window.on('unresponsive', () => this._onDidError.fire({ type: WindowError.UNRESPONSIVE }));
 		this.window.webContents.on('did-fail-load', (event, exitCode, reason) => this._onDidError.fire({ type: WindowError.LOAD, details: { reason, exitCode } }));
 	}

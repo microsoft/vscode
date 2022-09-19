@@ -40,6 +40,8 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const fixedEditorPadding = {
 	top: 12,
@@ -95,6 +97,8 @@ export const fixedDiffEditorOptions: IDiffEditorConstructionOptions = {
 	readOnly: false,
 	isInEmbeddedEditor: true,
 	renderOverviewRuler: false,
+	wordWrap: 'off',
+	diffWordWrap: 'off',
 	diffAlgorithm: 'smart',
 };
 
@@ -102,7 +106,7 @@ class PropertyHeader extends Disposable {
 	protected _foldingIndicator!: HTMLElement;
 	protected _statusSpan!: HTMLElement;
 	protected _description!: HTMLElement;
-	protected _toolbar!: ToolBar;
+	protected _toolbar!: WorkbenchToolBar;
 	protected _menu!: IMenu;
 	protected _propertyExpanded?: IContextKey<boolean>;
 
@@ -126,6 +130,7 @@ class PropertyHeader extends Disposable {
 		@IMenuService readonly menuService: IMenuService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IThemeService readonly themeService: IThemeService,
+		@ITelemetryService readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -154,7 +159,7 @@ class PropertyHeader extends Disposable {
 		}
 
 		const cellToolbarContainer = DOM.append(this.propertyHeaderContainer, DOM.$('div.property-toolbar'));
-		this._toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
+		this._toolbar = new WorkbenchToolBar(cellToolbarContainer, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
 					const item = new CodiconActionViewItem(action, undefined, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService);
@@ -163,7 +168,7 @@ class PropertyHeader extends Disposable {
 
 				return undefined;
 			}
-		});
+		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.telemetryService);
 		this._register(this._toolbar);
 		this._toolbar.context = {
 			cell: this.cell
@@ -549,8 +554,8 @@ abstract class AbstractElementRenderer extends Disposable {
 
 			this._metadataEditorContainer?.classList.add('diff');
 
-			const originalMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellUri(this.cell.originalDocument.uri, this.cell.original!.handle, Schemas.vscodeNotebookCellMetadata));
-			const modifiedMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellUri(this.cell.modifiedDocument.uri, this.cell.modified!.handle, Schemas.vscodeNotebookCellMetadata));
+			const originalMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellPropertyUri(this.cell.originalDocument.uri, this.cell.original!.handle, Schemas.vscodeNotebookCellMetadata));
+			const modifiedMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellPropertyUri(this.cell.modifiedDocument.uri, this.cell.modified!.handle, Schemas.vscodeNotebookCellMetadata));
 			this._metadataEditor.setModel({
 				original: originalMetadataModel.object.textEditorModel,
 				modified: modifiedMetadataModel.object.textEditorModel
@@ -612,7 +617,7 @@ abstract class AbstractElementRenderer extends Disposable {
 				? this.cell.modified!.handle
 				: this.cell.original!.handle;
 
-			const modelUri = CellUri.generateCellUri(uri, handle, Schemas.vscodeNotebookCellMetadata);
+			const modelUri = CellUri.generateCellPropertyUri(uri, handle, Schemas.vscodeNotebookCellMetadata);
 			const metadataModel = this.modelService.createModel(originalMetadataSource, mode, modelUri, false);
 			this._metadataEditor.setModel(metadataModel);
 			this._metadataEditorDisposeStore.add(metadataModel);
@@ -1565,11 +1570,11 @@ export class ModifiedElement extends AbstractElementRenderer {
 			}
 		}));
 
-		this._menu = this.menuService.createMenu(MenuId.NotebookDiffCellInputTitle, scopedContextKeyService);
-		this._register(this._menu);
+		const menu = this.menuService.createMenu(MenuId.NotebookDiffCellInputTitle, scopedContextKeyService);
 		const actions: IAction[] = [];
-		createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
+		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, actions);
 		this._toolbar.setActions(actions);
+		menu.dispose();
 	}
 
 	private async _initializeSourceDiffEditor() {

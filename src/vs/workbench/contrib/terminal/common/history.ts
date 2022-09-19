@@ -10,7 +10,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { FileOperationError, FileOperationResult, IFileContent, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { PosixShellType, TerminalSettingId, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { PosixShellType, TerminalSettingId, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Schemas } from 'vs/base/common/network';
@@ -83,8 +83,7 @@ export async function getShellFileHistory(accessor: ServicesAccessor, shellType:
 		case PosixShellType.Bash:
 			result = await fetchBashHistory(accessor);
 			break;
-		case PosixShellType.PowerShell:
-		case WindowsShellType.PowerShell:
+		case PosixShellType.PowerShell: // WindowsShellType.PowerShell has the same value
 			result = await fetchPwshHistory(accessor);
 			break;
 		case PosixShellType.Zsh:
@@ -433,8 +432,7 @@ export function sanitizeFishHistoryCmd(cmd: string): string {
 	 * But since not all browsers support look aheads we opted to a simple
 	 * pattern and repeatedly calling replace method.
 	 */
-	return repeatedReplace(/(^|[^\\])((?:\\\\)*)(\\n)/g, cmd, '$1$2\n')
-		.replace(/\\/g, '\\');
+	return repeatedReplace(/(^|[^\\])((?:\\\\)*)(\\n)/g, cmd, '$1$2\n');
 }
 
 function repeatedReplace(pattern: RegExp, value: string, replaceValue: string): string {

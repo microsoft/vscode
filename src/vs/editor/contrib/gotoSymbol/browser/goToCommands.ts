@@ -19,7 +19,7 @@ import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeE
 import { EditorOption, GoToLocationValues } from 'vs/editor/common/config/editorOptions';
 import * as corePosition from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorAction, ScrollType } from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
 import { isLocationLink, Location, LocationLink } from 'vs/editor/common/languages';
@@ -56,9 +56,6 @@ export interface SymbolNavigationActionConfig {
 	muteMessage: boolean;
 }
 
-
-
-
 export class SymbolNavigationAnchor {
 
 	static is(thing: any): thing is SymbolNavigationAnchor {
@@ -79,7 +76,7 @@ export class SymbolNavigationAnchor {
 
 export abstract class SymbolNavigationAction extends EditorAction2 {
 
-	private static _allSymbolNavigationCommands = new Set<string>();
+	private static _allSymbolNavigationCommands = new Map<string, SymbolNavigationAction>();
 	private static _activeAlternativeCommands = new Set<string>();
 
 	readonly configuration: SymbolNavigationActionConfig;
@@ -101,7 +98,7 @@ export abstract class SymbolNavigationAction extends EditorAction2 {
 	constructor(configuration: SymbolNavigationActionConfig, opts: IAction2Options) {
 		super(SymbolNavigationAction.aaa(opts));
 		this.configuration = configuration;
-		SymbolNavigationAction._allSymbolNavigationCommands.add(opts.id);
+		SymbolNavigationAction._allSymbolNavigationCommands.set(opts.id, this);
 	}
 
 	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, arg?: SymbolNavigationAnchor | unknown, range?: Range): Promise<void> {
@@ -113,6 +110,7 @@ export abstract class SymbolNavigationAction extends EditorAction2 {
 		const progressService = accessor.get(IEditorProgressService);
 		const symbolNavService = accessor.get(ISymbolNavigationService);
 		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+		const instaService = accessor.get(IInstantiationService);
 
 		const model = editor.getModel();
 		const position = editor.getPosition();
@@ -128,11 +126,11 @@ export abstract class SymbolNavigationAction extends EditorAction2 {
 
 			alert(references.ariaMessage);
 
-			let altAction: IEditorAction | null | undefined;
+			let altAction: SymbolNavigationAction | null | undefined;
 			if (references.referenceAt(model.uri, position)) {
 				const altActionId = this._getAlternativeCommand(editor);
 				if (!SymbolNavigationAction._activeAlternativeCommands.has(altActionId) && SymbolNavigationAction._allSymbolNavigationCommands.has(altActionId)) {
-					altAction = editor.getAction(altActionId);
+					altAction = SymbolNavigationAction._allSymbolNavigationCommands.get(altActionId)!;
 				}
 			}
 
@@ -147,9 +145,9 @@ export abstract class SymbolNavigationAction extends EditorAction2 {
 			} else if (referenceCount === 1 && altAction) {
 				// already at the only result, run alternative
 				SymbolNavigationAction._activeAlternativeCommands.add(this.desc.id);
-				altAction.run().finally(() => {
+				instaService.invokeFunction((accessor) => altAction!.runEditorCommand(accessor, editor, arg, range).finally(() => {
 					SymbolNavigationAction._activeAlternativeCommands.delete(this.desc.id);
-				});
+				}));
 
 			} else {
 				// normal results handling

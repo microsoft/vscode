@@ -89,8 +89,7 @@ suite('SnippetParser', () => {
 	});
 
 	function assertText(value: string, expected: string) {
-		const p = new SnippetParser();
-		const actual = p.text(value);
+		const actual = SnippetParser.asInsertText(value);
 		assert.strictEqual(actual, expected);
 	}
 
@@ -473,15 +472,15 @@ suite('SnippetParser', () => {
 	});
 
 	test('backspace esapce in TM only, #16212', () => {
-		const actual = new SnippetParser().text('Foo \\\\${abc}bar');
+		const actual = SnippetParser.asInsertText('Foo \\\\${abc}bar');
 		assert.strictEqual(actual, 'Foo \\bar');
 	});
 
 	test('colon as variable/placeholder value, #16717', () => {
-		let actual = new SnippetParser().text('${TM_SELECTED_TEXT:foo:bar}');
+		let actual = SnippetParser.asInsertText('${TM_SELECTED_TEXT:foo:bar}');
 		assert.strictEqual(actual, 'foo:bar');
 
-		actual = new SnippetParser().text('${1:foo:bar}');
+		actual = SnippetParser.asInsertText('${1:foo:bar}');
 		assert.strictEqual(actual, 'foo:bar');
 	});
 

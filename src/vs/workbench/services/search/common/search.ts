@@ -389,6 +389,10 @@ export interface ISearchConfigurationProperties {
 		experimental: {};
 	};
 	sortOrder: SearchSortOrder;
+	decorations: {
+		colors: boolean;
+		badges: boolean;
+	};
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {
