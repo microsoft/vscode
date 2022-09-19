@@ -119,8 +119,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get backupPath(): string | undefined { return this._config?.backupPath; }
 
-	private _previousWorkspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
-	get previousWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._previousWorkspace; }
 	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
 
 	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getOrSetProfileForWorkspace(this.config.workspace ?? 'empty-window', this.userDataProfilesService.profiles.find(profile => profile.id === this.config?.profiles.profile.id) ?? this.userDataProfilesService.defaultProfile) : undefined; }
@@ -519,9 +517,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private registerListeners(): void {
 
-		// Crashes & Unresponsive & Failed to load
+		// Window error conditions to handle
 		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
-		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.CRASHED, details));
+		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.PROCESS_GONE, details));
 		this._win.webContents.on('did-fail-load', (event, exitCode, reason) => this.onWindowError(WindowError.LOAD, { reason, exitCode }));
 
 		// Prevent windows/iframes from blocking the unload
@@ -620,13 +618,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
-	private async onWindowError(error: WindowError.CRASHED, details: { reason: string; exitCode: number }): Promise<void>;
+	private async onWindowError(error: WindowError.PROCESS_GONE, details: { reason: string; exitCode: number }): Promise<void>;
 	private async onWindowError(error: WindowError.LOAD, details: { reason: string; exitCode: number }): Promise<void>;
 	private async onWindowError(type: WindowError, details?: { reason: string; exitCode: number }): Promise<void> {
 
 		switch (type) {
-			case WindowError.CRASHED:
-				this.logService.error(`CodeWindow: renderer process crashed (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
+			case WindowError.PROCESS_GONE:
+				this.logService.error(`CodeWindow: renderer process gone (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
 				break;
 			case WindowError.UNRESPONSIVE:
 				this.logService.error('CodeWindow: detected unresponsive');
@@ -638,11 +636,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Telemetry
 		type WindowErrorClassification = {
-			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window crash to understand the nature of the crash better.' };
-			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window crash to understand the nature of the crash better.' };
-			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the crash better' };
+			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window error to understand the nature of the error better.' };
+			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window error to understand the nature of the error better.' };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the error better' };
 			owner: 'bpasero';
-			comment: 'Provides insight into reasons the vscode window crashes.';
+			comment: 'Provides insight into reasons the vscode window had an error.';
 		};
 		type WindowErrorEvent = {
 			type: WindowError;
@@ -654,19 +652,22 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Inform User if non-recoverable
 		switch (type) {
 			case WindowError.UNRESPONSIVE:
-			case WindowError.CRASHED:
+			case WindowError.PROCESS_GONE:
 
-				// If we run extension tests from CLI, showing a dialog is not
-				// very helpful in this case. Rather, we bring down the test run
-				// to signal back a failing run.
+				// If we run extension tests from CLI, we want to signal
+				// back this state to the test runner by exiting with a
+				// non-zero exit code.
 				if (this.isExtensionDevelopmentTestFromCli) {
 					this.lifecycleMainService.kill(1);
 					return;
 				}
 
-				// If we run smoke tests, we never want to show a blocking dialog
+				// If we run smoke tests, want to proceed with an orderly
+				// shutdown as much as possible by destroying the window
+				// and then calling the normal `quit` routine.
 				if (this.environmentMainService.args['enable-smoke-test-driver']) {
-					this.destroyWindow(false, false);
+					await this.destroyWindow(false, false);
+					this.lifecycleMainService.quit(); // still allow for an orderly shutdown
 					return;
 				}
 
@@ -702,17 +703,17 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					// Handle choice
 					if (result.response !== 1 /* keep waiting */) {
 						const reopen = result.response === 0;
-						this.destroyWindow(reopen, result.checkboxChecked);
+						await this.destroyWindow(reopen, result.checkboxChecked);
 					}
 				}
 
-				// Crashed
-				else if (type === WindowError.CRASHED) {
+				// Process gone
+				else if (type === WindowError.PROCESS_GONE) {
 					let message: string;
 					if (!details) {
-						message = localize('appCrashed', "The window has crashed");
+						message = localize('appGone', "The window terminated unexpectedly");
 					} else {
-						message = localize('appCrashedDetails', "The window has crashed (reason: '{0}', code: '{1}')", details.reason, details.exitCode ?? '<unknown>');
+						message = localize('appGoneDetails', "The window terminated unexpectedly (reason: '{0}', code: '{1}')", details.reason, details.exitCode ?? '<unknown>');
 					}
 
 					// Show Dialog
@@ -724,7 +725,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 							mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
 						],
 						message,
-						detail: localize('appCrashedDetail', "We are sorry for the inconvenience. You can reopen the window to continue where you left off."),
+						detail: localize('appGoneDetail', "We are sorry for the inconvenience. You can reopen the window to continue where you left off."),
 						noLink: true,
 						defaultId: 0,
 						checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
@@ -732,7 +733,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 					// Handle choice
 					const reopen = result.response === 0;
-					this.destroyWindow(reopen, result.checkboxChecked);
+					await this.destroyWindow(reopen, result.checkboxChecked);
 				}
 				break;
 		}
@@ -756,7 +757,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// 'close' event will not be fired on destroy(), so signal crash via explicit event
 		this._onDidDestroy.fire();
 
-		// make sure to destroy the window as it has crashed
+		// make sure to destroy the window as its renderer process is gone
 		this._win?.destroy();
 
 		// ask the windows service to open a new fresh window if specified
@@ -774,7 +775,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			// Delegate to windows service
-			const [window] = this.windowsMainService.open({
+			const [window] = await this.windowsMainService.open({
 				context: OpenContext.API,
 				userEnv: this._config.userEnv,
 				cli: {
@@ -794,7 +795,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Make sure to update our workspace config if we detect that it
 		// was deleted
-		if (this._config?.workspace?.id === workspace.id && this._config) {
+		if (this._config?.workspace?.id === workspace.id) {
 			this._config.workspace = undefined;
 		}
 	}
@@ -853,8 +854,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			this._win.setTitle(this.productService.nameLong);
 		}
-
-		this._previousWorkspace = this.openedWorkspace;
 
 		// Update configuration values based on our window context
 		// and set it into the config object URL for usage.

@@ -219,6 +219,7 @@ export class ConfigurationManager implements IConfigurationManager {
 							// Only Launch have a pin trigger button
 							await (launch as Launch).writeConfiguration(config);
 							await this.selectConfiguration(launch, config.name);
+							this.removeRecentDynamicConfigurations(config.name, config.type);
 						}));
 					});
 

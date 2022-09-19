@@ -393,4 +393,70 @@ suite('Instantiation Service', () => {
 		assert.ok(obj);
 	});
 
+	test('Sync/Async dependency loop', async function () {
+
+		const A = createDecorator<A>('A');
+		const B = createDecorator<B>('B');
+		interface A { _serviceBrand: undefined; doIt(): void }
+		interface B { _serviceBrand: undefined; b(): boolean }
+
+		class BConsumer {
+			constructor(@B readonly b: B) {
+
+			}
+			doIt() {
+				return this.b.b();
+			}
+		}
+
+		class AService implements A {
+			_serviceBrand: undefined;
+			prop: BConsumer;
+			constructor(@IInstantiationService insta: IInstantiationService) {
+				this.prop = insta.createInstance(BConsumer);
+			}
+			doIt() {
+				return this.prop.doIt();
+			}
+		}
+
+		class BService implements B {
+			_serviceBrand: undefined;
+			constructor(@A a: A) {
+				assert.ok(a);
+			}
+			b() { return true; }
+		}
+
+		// SYNC -> explodes AImpl -> [insta:BConsumer] -> BImpl -> AImpl
+		{
+			const insta1 = new InstantiationService(new ServiceCollection(
+				[A, new SyncDescriptor(AService)],
+				[B, new SyncDescriptor(BService)],
+			), true, undefined, true);
+
+			try {
+				insta1.invokeFunction(accessor => accessor.get(A));
+				assert.ok(false);
+
+			} catch (error) {
+				assert.ok(error instanceof Error);
+				assert.ok(error.message.includes('RECURSIVELY'));
+			}
+		}
+
+		// ASYNC -> doesn't explode but cycle is tracked
+		{
+			const insta2 = new InstantiationService(new ServiceCollection(
+				[A, new SyncDescriptor(AService, undefined, true)],
+				[B, new SyncDescriptor(BService, undefined)],
+			), true, undefined, true);
+
+			const a = insta2.invokeFunction(accessor => accessor.get(A));
+			a.doIt();
+
+			const cycle = insta2._globalGraph?.findCycleSlow();
+			assert.strictEqual(cycle, 'A -> B -> A');
+		}
+	});
 });

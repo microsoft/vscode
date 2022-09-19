@@ -32,6 +32,8 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Profiles
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 			// Settings
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '0' } },
@@ -67,6 +69,8 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Profiles
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 			// Keybindings
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '0' } },
@@ -98,6 +102,8 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Profiles
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 			// Settings
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			// Keybindings
@@ -133,6 +139,7 @@ suite('UserDataSyncService', () => {
 
 		assert.deepStrictEqual(target.requests, [
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
@@ -170,6 +177,7 @@ suite('UserDataSyncService', () => {
 
 		assert.deepStrictEqual(target.requests, [
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '1' } },
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
@@ -179,6 +187,56 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+		]);
+
+	});
+
+	test('test first time sync from the client with changes - merge with profile', async () => {
+		const target = new UserDataSyncTestServer();
+
+		// Setup and sync from the first client
+		const client = disposableStore.add(new UserDataSyncClient(target));
+		await client.setUp();
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
+
+		// Setup the test client with changes
+		const testClient = disposableStore.add(new UserDataSyncClient(target));
+		await testClient.setUp();
+		const fileService = testClient.instantiationService.get(IFileService);
+		const environmentService = testClient.instantiationService.get(IEnvironmentService);
+		const userDataProfilesService = testClient.instantiationService.get(IUserDataProfilesService);
+		await userDataProfilesService.createNamedProfile('1');
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
+		await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
+		await fileService.writeFile(joinPath(dirname(userDataProfilesService.defaultProfile.settingsResource), 'tasks.json'), VSBuffer.fromString(JSON.stringify({})));
+		const testObject = testClient.instantiationService.get(IUserDataSyncService);
+
+		// Sync (merge) from the test client
+		target.reset();
+		await (await testObject.createSyncTask(null)).run();
+
+		assert.deepStrictEqual(target.requests, [
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/collection`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/profiles`, headers: { 'If-Match': '0' } },
+			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '1' } },
+			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '1' } },
+			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '1' } },
+			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/settings/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/keybindings/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/snippets/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/tasks/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/globalState/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/extensions/latest`, headers: {} },
 		]);
 
 	});
@@ -235,6 +293,52 @@ suite('UserDataSyncService', () => {
 			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '1' } },
 			// Global state
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '1' } },
+		]);
+	});
+
+	test('test sync when there are local changes with profile', async () => {
+		const target = new UserDataSyncTestServer();
+
+		// Setup and sync from the client
+		const client = disposableStore.add(new UserDataSyncClient(target));
+		await client.setUp();
+		const testObject = client.instantiationService.get(IUserDataSyncService);
+		await (await testObject.createSyncTask(null)).run();
+		target.reset();
+
+		// Do changes in the client
+		const fileService = client.instantiationService.get(IFileService);
+		const environmentService = client.instantiationService.get(IEnvironmentService);
+		const userDataProfilesService = client.instantiationService.get(IUserDataProfilesService);
+		await userDataProfilesService.createNamedProfile('1');
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+		await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
+		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
+
+		// Sync from the client
+		await (await testObject.createSyncTask(null)).run();
+
+		assert.deepStrictEqual(target.requests, [
+			// Manifest
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Profiles
+			{ type: 'POST', url: `${target.url}/v1/collection`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/profiles`, headers: { 'If-Match': '0' } },
+			// Settings
+			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '1' } },
+			// Keybindings
+			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '1' } },
+			// Snippets
+			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '1' } },
+			// Global state
+			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '1' } },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/settings/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/keybindings/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/snippets/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/tasks/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/globalState/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/extensions/latest`, headers: {} },
 		]);
 	});
 
@@ -316,6 +420,58 @@ suite('UserDataSyncService', () => {
 
 	});
 
+	test('test sync when there are remote changes with profile', async () => {
+		const target = new UserDataSyncTestServer();
+
+		// Sync from first client
+		const client = disposableStore.add(new UserDataSyncClient(target));
+		await client.setUp();
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
+
+		// Sync from test client
+		const testClient = disposableStore.add(new UserDataSyncClient(target));
+		await testClient.setUp();
+		const testObject = testClient.instantiationService.get(IUserDataSyncService);
+		await (await testObject.createSyncTask(null)).run();
+
+		// Do changes in first client and sync
+		const fileService = client.instantiationService.get(IFileService);
+		const environmentService = client.instantiationService.get(IEnvironmentService);
+		const userDataProfilesService = client.instantiationService.get(IUserDataProfilesService);
+		await userDataProfilesService.createNamedProfile('1');
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+		await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'html.json'), VSBuffer.fromString(`{ "a": "changed" }`));
+		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
+
+		// Sync from test client
+		target.reset();
+		await (await testObject.createSyncTask(null)).run();
+
+		assert.deepStrictEqual(target.requests, [
+			// Manifest
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Profiles
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: { 'If-None-Match': '0' } },
+			// Settings
+			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: { 'If-None-Match': '1' } },
+			// Keybindings
+			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: { 'If-None-Match': '1' } },
+			// Snippets
+			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: { 'If-None-Match': '1' } },
+			// Global state
+			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: { 'If-None-Match': '1' } },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/settings/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/keybindings/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/snippets/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/tasks/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/globalState/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/extensions/latest`, headers: {} },
+		]);
+
+	});
+
 	test('test delete', async () => {
 		const target = new UserDataSyncTestServer();
 
@@ -332,6 +488,7 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'DELETE', url: `${target.url}/v1/resource`, headers: {} },
+			{ type: 'DELETE', url: `${target.url}/v1/collection`, headers: {} },
 		]);
 
 	});
@@ -355,6 +512,8 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Profiles
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 			// Settings
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '0' } },
@@ -390,7 +549,7 @@ suite('UserDataSyncService', () => {
 		await (await testObject.createSyncTask(null)).run();
 
 		disposable.dispose();
-		assert.deepStrictEqual(actualStatuses, [SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle]);
+		assert.deepStrictEqual(actualStatuses, [SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle]);
 	});
 
 	test('test sync conflicts status', async () => {
@@ -416,7 +575,7 @@ suite('UserDataSyncService', () => {
 		await (await testObject.createSyncTask(null)).run();
 
 		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
-		assert.deepStrictEqual(testObject.conflicts.map(([syncResource]) => syncResource), [SyncResource.Settings]);
+		assert.deepStrictEqual(testObject.conflicts.map(({ syncResource }) => syncResource), [SyncResource.Settings]);
 	});
 
 	test('test sync will sync other non conflicted areas', async () => {

@@ -57,6 +57,7 @@ import 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { assertType } from 'vs/base/common/types';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
@@ -95,6 +96,11 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		// Use IInstantiationService to get typechecking when instantiating
 		rpcProtocol = new TestRPCProtocol();
 		const services = new ServiceCollection();
+		services.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+			override asCanonicalUri(uri: URI): URI {
+				return uri;
+			}
+		});
 		services.set(ILanguageFeaturesService, new SyncDescriptor(LanguageFeaturesService));
 		services.set(IExtensionService, new class extends mock<IExtensionService>() {
 			override async activateByEvent() {

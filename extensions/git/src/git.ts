@@ -649,6 +649,27 @@ export class Git {
 	private log(output: string): void {
 		this._onOutput.emit('log', output);
 	}
+
+	async mergeFile(options: { input1Path: string; input2Path: string; basePath: string; diff3?: boolean }): Promise<string> {
+		const args = ['merge-file', '-p', options.input1Path, options.basePath, options.input2Path];
+		if (options.diff3) {
+			args.push('--diff3');
+		} else {
+			args.push('--no-diff3');
+		}
+
+		try {
+			const result = await this.exec('', args);
+			return result.stdout;
+		} catch (err) {
+			if (typeof err.stdout === 'string') {
+				// The merge had conflicts, stdout still contains the merged result (with conflict markers)
+				return err.stdout;
+			} else {
+				throw err;
+			}
+		}
+	}
 }
 
 export interface Commit {
@@ -1549,6 +1570,10 @@ export class Repository {
 		}
 	}
 
+	async mergeAbort(): Promise<void> {
+		await this.exec(['merge', '--abort']);
+	}
+
 	async tag(name: string, message?: string): Promise<void> {
 		let args = ['tag'];
 
@@ -1683,6 +1708,9 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.NoRemoteRepositorySpecified;
 			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
+			} else if (/! \[rejected\].*\(non-fast-forward\)/m.test(err.stderr || '')) {
+				// The local branch has outgoing changes and it cannot be fast-forwarded.
+				err.gitErrorCode = GitErrorCodes.BranchFastForwardRejected;
 			}
 
 			throw err;

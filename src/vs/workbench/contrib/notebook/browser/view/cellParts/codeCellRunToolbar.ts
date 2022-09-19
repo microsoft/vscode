@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
@@ -11,6 +10,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { HiddenItemStrategy, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { IMenu, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
@@ -24,7 +24,10 @@ import { registerStickyScroll } from 'vs/workbench/contrib/notebook/browser/view
 import { NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 export class RunToolbar extends CellPart {
-	private toolbar!: ToolBar;
+	private toolbar!: WorkbenchToolBar;
+
+	private primaryMenu: IMenu;
+	private secondaryMenu: IMenu;
 
 	constructor(
 		readonly notebookEditor: INotebookEditorDelegate,
@@ -38,17 +41,17 @@ export class RunToolbar extends CellPart {
 	) {
 		super();
 
-		const menu = this._register(menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecutePrimary!, contextKeyService));
-		const secondaryMenu = this._register(menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
+		this.primaryMenu = this._register(menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecutePrimary!, contextKeyService));
+		this.secondaryMenu = this._register(menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
 		this.createRunCellToolbar(runButtonContainer, cellContainer, contextKeyService);
 		const updateActions = () => {
-			const actions = this.getCellToolbarActions(menu);
+			const actions = this.getCellToolbarActions(this.primaryMenu);
 			const primary = actions.primary[0]; // Only allow one primary action
 			this.toolbar.setActions(primary ? [primary] : []);
 		};
 		updateActions();
-		this._register(menu.onDidChange(updateActions));
-		this._register(secondaryMenu.onDidChange(updateActions));
+		this._register(this.primaryMenu.onDidChange(updateActions));
+		this._register(this.secondaryMenu.onDidChange(updateActions));
 		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions(updateActions));
 	}
 
@@ -79,19 +82,18 @@ export class RunToolbar extends CellPart {
 
 		const keybindingProvider = (action: IAction) => this.keybindingService.lookupKeybinding(action.id, executionContextKeyService);
 		const executionContextKeyService = this._register(getCodeCellExecutionContextKeyService(contextKeyService));
-		this.toolbar = this._register(new ToolBar(container, this.contextMenuService, {
+		this.toolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, container, {
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			getKeyBinding: keybindingProvider,
 			actionViewItemProvider: _action => {
 				actionViewItemDisposables.clear();
 
-				const primaryMenu = actionViewItemDisposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecutePrimary!, contextKeyService));
-				const primary = this.getCellToolbarActions(primaryMenu).primary[0];
+				const primary = this.getCellToolbarActions(this.primaryMenu).primary[0];
 				if (!(primary instanceof MenuItemAction)) {
 					return undefined;
 				}
 
-				const menu = actionViewItemDisposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
-				const secondary = this.getCellToolbarActions(menu).secondary;
+				const secondary = this.getCellToolbarActions(this.secondaryMenu).secondary;
 				if (!secondary.length) {
 					return undefined;
 				}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-html, body {
+html {
 	width: 100%;
 	height: 100%;
 	text-align: center;
@@ -11,23 +11,13 @@ html, body {
 
 body {
 	padding: 5px 10px;
-	box-sizing: border-box;
+	width: calc(100% - 20px);
+	height: calc(100% - 10px);
+	display: flex;
+	justify-content: center;
+	align-items: center;
 	-webkit-user-select: none;
 	user-select: none;
-}
-
-.video-container {
-	height: 100%;
-	display: flex;
-	justify-content: center;
-	align-items: center;
-}
-
-.container.loading,
-.container.error {
-	display: flex;
-	justify-content: center;
-	align-items: center;
 }
 
 .loading-indicator {
