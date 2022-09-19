@@ -206,7 +206,8 @@ export class ViewLinesWebgl extends ViewPart implements IVisibleLinesHost<ViewLi
 	}
 
 	public getDomNode(): FastDomNode<HTMLElement> {
-		return this.domNode;
+		// return this.domNode;
+		return this.canvasContainerDomNode;
 	}
 
 	// ---- begin IVisibleLinesHost
@@ -613,6 +614,7 @@ export class ViewLinesWebgl extends ViewPart implements IVisibleLinesHost<ViewLi
 
 	public renderText(viewportData: ViewportData): void {
 		console.log('ViewLinesWebgl#renderText', viewportData);
+		this._webglRenderer.renderRows(0, 10);
 
 		// (1) render lines - ensures lines are in the DOM
 		this._visibleLines.renderLines(viewportData);

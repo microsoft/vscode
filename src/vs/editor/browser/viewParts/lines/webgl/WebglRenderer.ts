@@ -13,12 +13,13 @@ import { acquireCharAtlas } from './atlas/CharAtlasCache';
 import { WebglCharAtlas } from './atlas/WebglCharAtlas';
 import { RectangleRenderer } from './RectangleRenderer';
 import { IWebGL2RenderingContext } from './Types';
-import { RenderModel } from './RenderModel';
+import { RenderModel, RENDER_MODEL_BG_OFFSET, RENDER_MODEL_EXT_OFFSET, RENDER_MODEL_FG_OFFSET, RENDER_MODEL_INDICIES_PER_CELL } from './RenderModel';
 import { IRenderLayer } from './renderLayer/Types';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { observeDevicePixelDimensions } from 'vs/editor/browser/viewParts/lines/webgl/base/DevicePixelObserver';
 import { IColorSet, IRenderDimensions, IRequestRedrawEvent } from 'vs/editor/browser/viewParts/lines/webgl/base/Types';
 import { Emitter } from 'vs/base/common/event';
+import { NULL_CELL_CODE } from 'vs/editor/browser/viewParts/lines/webgl/base/Constants';
 
 /** Work variables to avoid garbage collection. */
 // const w: { fg: number; bg: number; hasFg: boolean; hasBg: boolean; isSelected: boolean } = {
@@ -357,6 +358,24 @@ export class WebglRenderer extends Disposable {
 	}
 
 	private _updateModel(start: number, end: number): void {
+		let i, x, y: number;
+
+		for (y = start; y <= end; y++) {
+			this._model.lineLengths[y] = 0;
+			for (x = 0; x < this._viewportDims.cols; x++) {
+				const chars = 'a';
+				const code = chars.charCodeAt(0);
+				if (code !== NULL_CELL_CODE) {
+					this._model.lineLengths[y] = x + 1;
+				}
+				i = ((y * this._viewportDims.cols) + x) * RENDER_MODEL_INDICIES_PER_CELL;
+				this._model.cells[i] = code;
+				this._model.cells[i + RENDER_MODEL_BG_OFFSET] = 0; //this._workColors.bg;
+				this._model.cells[i + RENDER_MODEL_FG_OFFSET] = 0; //this._workColors.fg;
+				this._model.cells[i + RENDER_MODEL_EXT_OFFSET] = 0; //this._workColors.ext;
+				this._glyphRenderer.updateCell(x, y, code, 0, 0, 0, chars, 0);
+			}
+		}
 		// TODO: Update the model for monaco
 
 		// const terminal = this._core;
