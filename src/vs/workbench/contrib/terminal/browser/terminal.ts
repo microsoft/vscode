@@ -918,9 +918,8 @@ export interface ITerminalContextualActionOptions {
 	outputRegex?: ITerminalOutputMatcher;
 	actionName: string | DynamicActionName;
 	nonZeroExitCode?: boolean;
-	actions?: IAction[];
 }
-export type ContextualMatchResult = { commandLine: RegExpMatchArray; output?: RegExpMatchArray | null };
+export type ContextualMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
 export type DynamicActionName = (matchResult: ContextualMatchResult) => string;
 export type ContextualActionCallback = (matchResult: ContextualMatchResult, command?: ITerminalCommand) => IAction[] | undefined;
 

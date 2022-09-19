@@ -228,15 +228,15 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _fixGitAction(): ITerminalContextualActionOptions {
 		return {
 			commandLineMatcher: /git.*/,
-			outputRegex: { lineMatcher: /.*The most similar command is\s*(.*)\s*/ },
-			actionName: (matchResult: ContextualMatchResult) => matchResult.output ? `Run git ${matchResult.output[1]}` : ``,
+			outputRegex: { lineMatcher: /.*The most similar command is\s*(.*)\s*/, anchor: 'bottom', length: 2 },
+			actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Run git ${matchResult.outputMatch[1]}` : ``,
 			nonZeroExitCode: true,
 			callback: (matchResult: ContextualMatchResult, command?: ITerminalCommand) => {
 				if (!command) {
 					return;
 				}
 				const actions: IAction[] = [];
-				const fixedCommand = matchResult?.output?.[1];
+				const fixedCommand = matchResult?.outputMatch?.[1];
 				if (!fixedCommand) {
 					return;
 				}
@@ -254,7 +254,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 	private _freePortAction(): ITerminalContextualActionOptions {
 		return {
-			actionName: (matchResult: ContextualMatchResult) => matchResult.output ? `Free port ${matchResult.output[1]}` : '',
+			actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Free port ${matchResult.outputMatch[1]}` : '',
 			commandLineMatcher: /.+/,
 			outputRegex: { lineMatcher: /.*address already in use \d\.\d.\d\.\d:(\d\d\d\d).*/ },
 			nonZeroExitCode: true,
@@ -262,7 +262,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 				if (!command) {
 					return;
 				}
-				const port = matchResult?.output?.[1];
+				const port = matchResult?.outputMatch?.[1];
 				if (!port) {
 					return;
 				}

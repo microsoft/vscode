@@ -8,18 +8,20 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
-import type { ITerminalAddon, Terminal, IMarker } from 'xterm-headless';
+import type { ITerminalAddon, Terminal } from 'xterm-headless';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITerminalContextualActionOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
+type ResolvedMatchOptions = { actions: IAction[] | undefined; offset?: number } | undefined;
+
 export interface IContextualAction {
 	/**
 	 * Shows the quick fix menu
 	 */
-	show(): void;
+	showQuickFixMenu(): void;
 
 	/**
 	 * Triggers the related callback or throws an error
@@ -54,7 +56,7 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 
 	private _commandListeners: Map<string, ITerminalContextualActionOptions> = new Map();
 
-	private _actions: IAction[] | undefined;
+	private _optionsToApply: ResolvedMatchOptions;
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -75,45 +77,14 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 		this._terminal = terminal;
 	}
 
-	public show(): void {
+	showQuickFixMenu(): void {
 		this._currentQuickFixElement?.click();
 	}
 
-	private _registerCommandFinishedHandler(): void {
-		const terminal = this._terminal;
-		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
-		if (!terminal || !commandDetection) {
-			return;
+	registerCommandFinishedListener(options: ITerminalContextualActionOptions): void {
+		if (options.commandLineMatcher) {
+			this._commandListeners.set(options.commandLineMatcher.toString(), options);
 		}
-		this._register(commandDetection.onCommandFinished(async command => {
-			this._actions = this._evaluate(command);
-		}));
-		this._register(commandDetection.onCommandStarted(() => {
-			if (this._actions) {
-				const marker = terminal.registerMarker();
-				this.registerContextualDecoration(marker, this._actions);
-				this._actions = undefined;
-			}
-		}));
-	}
-
-	private _evaluate(command: ITerminalCommand): IAction[] | undefined {
-		// TODO: This wouldn't handle commands containing escaped spaces correctly
-		const newCommand = command.command;
-		for (const options of this._commandListeners.values()) {
-			if (options.nonZeroExitCode && command.exitCode === 0) {
-				continue;
-			}
-			const commandLine = newCommand.match(options.commandLineMatcher) || null;
-			const output = options.outputRegex ? command.getOutput()?.match(options.outputRegex.lineMatcher) : null;
-			if (commandLine !== null) {
-				const actions = options.callback({ commandLine, output }, command);
-				if (actions) {
-					return actions;
-				}
-			}
-		}
-		return undefined;
 	}
 
 	resolveFreePortRequest(): void {
@@ -123,19 +94,38 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 		}
 	}
 
-	registerContextualDecoration(marker: IMarker | undefined, actions?: IAction[], x?: number, width?: number, border?: boolean): void {
+	private _registerCommandFinishedHandler(): void {
+		const terminal = this._terminal;
+		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
+		if (!terminal || !commandDetection) {
+			return;
+		}
+		this._register(commandDetection.onCommandFinished(async command => {
+			this._optionsToApply = this._getMatchOptions(command);
+		}));
+		// The buffer is not ready by the time command finish
+		// is called. Add the decoration on command start using the actions, if any,
+		// from the last command
+		this._register(commandDetection.onCommandStarted(() => {
+			if (this._optionsToApply) {
+				this._registerContextualDecoration();
+				this._optionsToApply = undefined;
+			}
+		}));
+	}
+
+	private _registerContextualDecoration(): void {
+		const marker = this._terminal?.registerMarker(this._optionsToApply?.offset);
+		const actions = this._optionsToApply?.actions;
 		if (this._terminal && 'registerDecoration' in this._terminal) {
 			const d = (this._terminal as any).registerDecoration({
 				marker,
-				x,
-				width,
-				layer: 'top',
-				actions
+				actions,
+				layer: 'top'
 			});
 			d.onRender((e: HTMLElement) => {
 				if (!this._decorationMarkerIds.has(d.marker.id)) {
 					this._currentQuickFixElement = e;
-					e.style.border = border ? '1px solid #f00' : '';
 					e.classList.add(DecorationSelector.QuickFix, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration);
 					e.style.color = '#ffcc00';
 					updateLayout(this._configurationService, e);
@@ -150,9 +140,24 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 			});
 		}
 	}
-	registerCommandFinishedListener(options: ITerminalContextualActionOptions): void {
-		if (options.commandLineMatcher) {
-			this._commandListeners.set(options.commandLineMatcher.toString(), options);
+
+	private _getMatchOptions(command: ITerminalCommand): ResolvedMatchOptions {
+		// TODO: This wouldn't handle commands containing escaped spaces correctly
+		const newCommand = command.command;
+		for (const options of this._commandListeners.values()) {
+			if (options.nonZeroExitCode && command.exitCode === 0) {
+				continue;
+			}
+			const commandLineMatch = newCommand.match(options.commandLineMatcher);
+			if (!commandLineMatch) {
+				continue;
+			}
+			const outputMatch = options.outputRegex ? command.getOutput()?.match(options.outputRegex.lineMatcher) : null;
+			const actions = options.callback({ commandLineMatch, outputMatch }, command);
+			if (actions) {
+				return { actions, offset: options.outputRegex?.offset };
+			}
 		}
+		return undefined;
 	}
 }
