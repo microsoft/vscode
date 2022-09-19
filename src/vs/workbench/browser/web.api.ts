@@ -46,18 +46,8 @@ export interface IWorkbench {
 		 *
 		 * @param level The log level of the message to be printed.
 		 * @param message Message to be printed.
-		 * @param args Optional arguments to be printed.
-		*/
-		log(level: LogLevel, message: string, ...args: any[]): void;
-
-		/**
-		 * Logging for embedder.
-		 *
-		 * @param level The log level of the message to be printed.
-		 * @param error Error to be printed.
-		 * @param args Optional arguments to be printed.
 		 */
-		log(level: LogLevel.Error | LogLevel.Critical, error: Error, ...args: any[]): void;
+		log(level: LogLevel, message: string): void;
 	};
 
 	env: {

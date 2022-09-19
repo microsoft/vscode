@@ -48,16 +48,14 @@ export interface ILogger extends IDisposable {
 	flush(): void;
 }
 
-export function log(logger: ILogger, level: LogLevel, message: string, ...args: any[]): void;
-export function log(logger: ILogger, level: LogLevel.Error | LogLevel.Critical, error: Error, ...args: any[]): void;
-export function log(logger: ILogger, level: LogLevel, messageOrError: string | Error, ...args: any[]): void {
+export function log(logger: ILogger, level: LogLevel, message: string): void {
 	switch (level) {
-		case LogLevel.Trace: logger.trace(messageOrError as string, args); break;
-		case LogLevel.Debug: logger.debug(messageOrError as string, args); break;
-		case LogLevel.Info: logger.info(messageOrError as string, args); break;
-		case LogLevel.Warning: logger.warn(messageOrError as string, args); break;
-		case LogLevel.Error: logger.error(messageOrError, args); break;
-		case LogLevel.Critical: logger.critical(messageOrError, args); break;
+		case LogLevel.Trace: logger.trace(message); break;
+		case LogLevel.Debug: logger.debug(message); break;
+		case LogLevel.Info: logger.info(message); break;
+		case LogLevel.Warning: logger.warn(message); break;
+		case LogLevel.Error: logger.error(message); break;
+		case LogLevel.Critical: logger.critical(message); break;
 		default: throw new Error('Invalid log level');
 	}
 }

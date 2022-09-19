@@ -550,7 +550,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					}
 
 					return messagePassingProtocol;
-				},
+				}
 			});
 		});
 	}
