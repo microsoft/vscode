@@ -368,6 +368,7 @@ export class SubmenuItemAction extends SubmenuAction {
 
 	constructor(
 		readonly item: ISubmenuItem,
+		readonly hideActions: IMenuItemHide | undefined,
 		private readonly _menuService: IMenuService,
 		private readonly _contextKeyService: IContextKeyService,
 		private readonly _options?: IMenuActionOptions

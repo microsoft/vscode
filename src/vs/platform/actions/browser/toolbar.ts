@@ -11,7 +11,7 @@ import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -102,7 +102,7 @@ export class WorkbenchToolBar extends ToolBar {
 		let shouldPrependSeparator = secondary.length > 0;
 		for (let i = 0; i < primary.length; i++) {
 			const action = primary[i];
-			if (!(action instanceof MenuItemAction)) {
+			if (!(action instanceof MenuItemAction) && !(action instanceof SubmenuItemAction)) {
 				// console.warn(`Action ${action.id}/${action.label} is not a MenuItemAction`);
 				continue;
 			}
@@ -143,7 +143,7 @@ export class WorkbenchToolBar extends ToolBar {
 
 				// add "hide foo" actions
 				let hideAction: IAction;
-				if (action instanceof MenuItemAction && action.hideActions) {
+				if ((action instanceof MenuItemAction || action instanceof SubmenuItemAction) && action.hideActions) {
 					hideAction = action.hideActions.hide;
 				} else {
 					hideAction = toAction({
