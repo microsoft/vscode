@@ -9,16 +9,14 @@
 
 import { ICharAtlasConfig } from './Types';
 import { IRasterizedGlyph, IBoundingBox } from '../Types';
-import { DEFAULT_COLOR, Attributes, DEFAULT_EXT, UnderlineStyle } from 'common/buffer/Constants';
 import { throwIfFalsy } from '../WebglUtils';
-import { AttributeData } from 'common/buffer/AttributeData';
-import { color, rgba } from 'common/Color';
-import { tryDrawCustomChar } from 'browser/renderer/CustomGlyphs';
 // import { excludeFromContrastRatioDemands, isPowerlineGlyph, isRestrictedPowerlineGlyph } from 'browser/renderer/RendererUtils';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { FourKeyMap } from 'vs/editor/browser/viewParts/lines/webgl/base/MultiKeyMap';
-import { IColor } from 'vs/editor/browser/viewParts/lines/webgl/base/Types';
-import { DIM_OPACITY, TEXT_BASELINE } from 'vs/editor/browser/viewParts/lines/webgl/base/Constants';
+import { IColor, UnderlineStyle } from 'vs/editor/browser/viewParts/lines/webgl/base/Types';
+import { Attributes, DEFAULT_COLOR, DEFAULT_EXT, DIM_OPACITY, TEXT_BASELINE } from 'vs/editor/browser/viewParts/lines/webgl/base/Constants';
+import { color, rgba } from 'vs/editor/browser/viewParts/lines/webgl/base/Color';
+import { AttributeData } from 'vs/editor/browser/viewParts/lines/webgl/base/AttributeData';
 
 // For debugging purposes, it can be useful to set this to a really tiny value,
 // to verify that LRU eviction works.
@@ -413,10 +411,10 @@ export class WebglCharAtlas implements IDisposable {
 		const padding = /*restrictedPowerlineGlyph ? 0 :*/ TMP_CANVAS_GLYPH_PADDING * 2;
 
 		// Draw custom characters if applicable
-		let customGlyph = false;
-		if (this._config.customGlyphs !== false) {
-			customGlyph = tryDrawCustomChar(this._tmpCtx, chars, padding, padding, this._config.scaledCellWidth, this._config.scaledCellHeight, this._config.fontSize, this._config.devicePixelRatio);
-		}
+		const/*let*/ customGlyph = false;
+		// if (this._config.customGlyphs !== false) {
+		// 	customGlyph = tryDrawCustomChar(this._tmpCtx, chars, padding, padding, this._config.scaledCellWidth, this._config.scaledCellHeight, this._config.fontSize, this._config.devicePixelRatio);
+		// }
 
 		// Whether to clear pixels based on a threshold difference between the glyph color and the
 		// background color. This should be disabled when the glyph contains multiple colors such as

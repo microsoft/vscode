@@ -9,14 +9,10 @@
 
 import { createProgram, expandFloat32Array, PROJECTION_MATRIX, throwIfFalsy } from './WebglUtils';
 import { IRenderModel, IWebGLVertexArrayObject, IWebGL2RenderingContext } from './Types';
-import { Attributes, BgFlags, FgFlags } from 'common/buffer/Constants';
-import { Terminal } from 'xterm';
-import { IColor } from 'common/Types';
-import { IColorSet } from 'browser/Types';
-import { IRenderDimensions } from 'browser/renderer/Types';
 import { RENDER_MODEL_BG_OFFSET, RENDER_MODEL_FG_OFFSET, RENDER_MODEL_INDICIES_PER_CELL } from './RenderModel';
-import { Disposable, toDisposable } from 'common/Lifecycle';
-import { DIM_OPACITY } from 'browser/renderer/Constants';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Attributes, BgFlags, DIM_OPACITY, FgFlags } from 'vs/editor/browser/viewParts/lines/webgl/base/Constants';
+import { IColor, IColorSet, IRenderDimensions } from 'vs/editor/browser/viewParts/lines/webgl/base/Types';
 
 const enum VertexAttribLocations {
 	POSITION = 0,
@@ -63,7 +59,7 @@ const BYTES_PER_RECTANGLE = INDICES_PER_RECTANGLE * Float32Array.BYTES_PER_ELEME
 const INITIAL_BUFFER_RECTANGLE_CAPACITY = 20 * INDICES_PER_RECTANGLE;
 
 /** Work variables to avoid garbage collection. */
-const w: { rgba: number, isDefault: boolean, x1: number, y1: number, r: number, g: number, b: number, a: number } = {
+const w: { rgba: number; isDefault: boolean; x1: number; y1: number; r: number; g: number; b: number; a: number } = {
 	rgba: 0,
 	isDefault: false,
 	x1: 0,
@@ -88,7 +84,7 @@ export class RectangleRenderer extends Disposable {
 	};
 
 	constructor(
-		private _terminal: Terminal,
+		private _viewportDims: { cols: number; rows: number },
 		private _colors: IColorSet,
 		private _gl: IWebGL2RenderingContext,
 		private _dimensions: IRenderDimensions
@@ -98,7 +94,7 @@ export class RectangleRenderer extends Disposable {
 		const gl = this._gl;
 
 		this._program = throwIfFalsy(createProgram(gl, vertexShaderSource, fragmentShaderSource));
-		this.register(toDisposable(() => gl.deleteProgram(this._program)));
+		this._register(toDisposable(() => gl.deleteProgram(this._program)));
 
 		// Uniform locations
 		this._projectionLocation = throwIfFalsy(gl.getUniformLocation(this._program, 'u_projection'));
@@ -110,7 +106,7 @@ export class RectangleRenderer extends Disposable {
 		// Setup a_unitquad, this defines the 4 vertices of a rectangle
 		const unitQuadVertices = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
 		const unitQuadVerticesBuffer = gl.createBuffer();
-		this.register(toDisposable(() => gl.deleteBuffer(unitQuadVerticesBuffer)));
+		this._register(toDisposable(() => gl.deleteBuffer(unitQuadVerticesBuffer)));
 		gl.bindBuffer(gl.ARRAY_BUFFER, unitQuadVerticesBuffer);
 		gl.bufferData(gl.ARRAY_BUFFER, unitQuadVertices, gl.STATIC_DRAW);
 		gl.enableVertexAttribArray(VertexAttribLocations.UNIT_QUAD);
@@ -120,13 +116,13 @@ export class RectangleRenderer extends Disposable {
 		// unitQuadVertices to allow is to draw 2 triangles from the vertices
 		const unitQuadElementIndices = new Uint8Array([0, 1, 3, 0, 2, 3]);
 		const elementIndicesBuffer = gl.createBuffer();
-		this.register(toDisposable(() => gl.deleteBuffer(elementIndicesBuffer)));
+		this._register(toDisposable(() => gl.deleteBuffer(elementIndicesBuffer)));
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, elementIndicesBuffer);
 		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, unitQuadElementIndices, gl.STATIC_DRAW);
 
 		// Setup attributes
 		this._attributesBuffer = throwIfFalsy(gl.createBuffer());
-		this.register(toDisposable(() => gl.deleteBuffer(this._attributesBuffer)));
+		this._register(toDisposable(() => gl.deleteBuffer(this._attributesBuffer)));
 		gl.bindBuffer(gl.ARRAY_BUFFER, this._attributesBuffer);
 		gl.enableVertexAttribArray(VertexAttribLocations.POSITION);
 		gl.vertexAttribPointer(VertexAttribLocations.POSITION, 2, gl.FLOAT, false, BYTES_PER_RECTANGLE, 0);
@@ -180,14 +176,14 @@ export class RectangleRenderer extends Disposable {
 			0,
 			0,
 			0,
-			this._terminal.cols * this._dimensions.scaledCellWidth,
-			this._terminal.rows * this._dimensions.scaledCellHeight,
+			this._viewportDims.cols * this._dimensions.scaledCellWidth,
+			this._viewportDims.rows * this._dimensions.scaledCellHeight,
 			this._bgFloat
 		);
 	}
 
 	public updateBackgrounds(model: IRenderModel): void {
-		const terminal = this._terminal;
+		const terminal = this._viewportDims;
 		const vertices = this._vertices;
 
 		// Declare variable ahead of time to avoid garbage collection
@@ -267,7 +263,7 @@ export class RectangleRenderer extends Disposable {
 		}
 
 		if (vertices.attributes.length < offset + 4) {
-			vertices.attributes = expandFloat32Array(vertices.attributes, this._terminal.rows * this._terminal.cols * INDICES_PER_RECTANGLE);
+			vertices.attributes = expandFloat32Array(vertices.attributes, this._viewportDims.rows * this._viewportDims.cols * INDICES_PER_RECTANGLE);
 		}
 		w.x1 = startX * this._dimensions.scaledCellWidth;
 		w.y1 = y * this._dimensions.scaledCellHeight;

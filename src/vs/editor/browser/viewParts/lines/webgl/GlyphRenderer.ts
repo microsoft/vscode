@@ -10,11 +10,10 @@
 import { createProgram, PROJECTION_MATRIX, throwIfFalsy } from './WebglUtils';
 import { WebglCharAtlas } from './atlas/WebglCharAtlas';
 import { IWebGL2RenderingContext, IWebGLVertexArrayObject, IRenderModel, IRasterizedGlyph } from './Types';
-import { NULL_CELL_CODE } from 'common/buffer/Constants';
-import { Terminal } from 'xterm';
-import { IColorSet } from 'browser/Types';
-import { IRenderDimensions } from 'browser/renderer/Types';
-import { Disposable, toDisposable } from 'common/Lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { fill } from 'vs/editor/browser/viewParts/lines/webgl/base/TypedArrayUtils2';
+import { IRenderDimensions } from 'vs/editor/browser/viewParts/lines/webgl/base/Types';
+import { NULL_CELL_CODE } from 'vs/editor/browser/viewParts/lines/webgl/base/Constants';
 
 interface IVertices {
 	attributes: Float32Array;
@@ -74,7 +73,7 @@ const BYTES_PER_CELL = INDICES_PER_CELL * Float32Array.BYTES_PER_ELEMENT;
 const CELL_POSITION_INDICES = 2;
 
 /** Work variables to avoid garbage collection. */
-const w: { i: number, glyph: IRasterizedGlyph | undefined, leftCellPadding: number, clippedPixels: number } = {
+const w: { i: number; glyph: IRasterizedGlyph | undefined; leftCellPadding: number; clippedPixels: number } = {
 	i: 0,
 	glyph: undefined,
 	leftCellPadding: 0,
@@ -103,8 +102,7 @@ export class GlyphRenderer extends Disposable {
 	};
 
 	constructor(
-		private _terminal: Terminal,
-		private _colors: IColorSet,
+		private _viewportDims: { cols: number; rows: number },
 		private _gl: IWebGL2RenderingContext,
 		private _dimensions: IRenderDimensions
 	) {
@@ -112,7 +110,7 @@ export class GlyphRenderer extends Disposable {
 
 		const gl = this._gl;
 		this._program = throwIfFalsy(createProgram(gl, vertexShaderSource, fragmentShaderSource));
-		this.register(toDisposable(() => gl.deleteProgram(this._program)));
+		this._register(toDisposable(() => gl.deleteProgram(this._program)));
 
 		// Uniform locations
 		this._projectionLocation = throwIfFalsy(gl.getUniformLocation(this._program, 'u_projection'));
@@ -126,7 +124,7 @@ export class GlyphRenderer extends Disposable {
 		// Setup a_unitquad, this defines the 4 vertices of a rectangle
 		const unitQuadVertices = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
 		const unitQuadVerticesBuffer = gl.createBuffer();
-		this.register(toDisposable(() => gl.deleteBuffer(unitQuadVerticesBuffer)));
+		this._register(toDisposable(() => gl.deleteBuffer(unitQuadVerticesBuffer)));
 		gl.bindBuffer(gl.ARRAY_BUFFER, unitQuadVerticesBuffer);
 		gl.bufferData(gl.ARRAY_BUFFER, unitQuadVertices, gl.STATIC_DRAW);
 		gl.enableVertexAttribArray(VertexAttribLocations.UNIT_QUAD);
@@ -136,13 +134,13 @@ export class GlyphRenderer extends Disposable {
 		// unitQuadVertices to allow is to draw 2 triangles from the vertices
 		const unitQuadElementIndices = new Uint8Array([0, 1, 3, 0, 2, 3]);
 		const elementIndicesBuffer = gl.createBuffer();
-		this.register(toDisposable(() => gl.deleteBuffer(elementIndicesBuffer)));
+		this._register(toDisposable(() => gl.deleteBuffer(elementIndicesBuffer)));
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, elementIndicesBuffer);
 		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, unitQuadElementIndices, gl.STATIC_DRAW);
 
 		// Setup attributes
 		this._attributesBuffer = throwIfFalsy(gl.createBuffer());
-		this.register(toDisposable(() => gl.deleteBuffer(this._attributesBuffer)));
+		this._register(toDisposable(() => gl.deleteBuffer(this._attributesBuffer)));
 		gl.bindBuffer(gl.ARRAY_BUFFER, this._attributesBuffer);
 		gl.enableVertexAttribArray(VertexAttribLocations.OFFSET);
 		gl.vertexAttribPointer(VertexAttribLocations.OFFSET, 2, gl.FLOAT, false, BYTES_PER_CELL, 0);
@@ -162,7 +160,7 @@ export class GlyphRenderer extends Disposable {
 
 		// Setup empty texture atlas
 		this._atlasTexture = throwIfFalsy(gl.createTexture());
-		this.register(toDisposable(() => gl.deleteTexture(this._atlasTexture)));
+		this._register(toDisposable(() => gl.deleteTexture(this._atlasTexture)));
 		gl.bindTexture(gl.TEXTURE_2D, this._atlasTexture);
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 255, 255]));
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -189,7 +187,7 @@ export class GlyphRenderer extends Disposable {
 	}
 
 	private _updateCell(array: Float32Array, x: number, y: number, code: number | undefined, bg: number, fg: number, ext: number, chars: string, lastBg: number): void {
-		w.i = (y * this._terminal.cols + x) * INDICES_PER_CELL;
+		w.i = (y * this._viewportDims.cols + x) * INDICES_PER_CELL;
 
 		// Exit early if this is a null character, allow space character to continue as it may have
 		// underline/strikethrough styles
@@ -242,7 +240,7 @@ export class GlyphRenderer extends Disposable {
 	}
 
 	public clear(): void {
-		const terminal = this._terminal;
+		const terminal = this._viewportDims;
 		const newCount = terminal.cols * terminal.rows * INDICES_PER_CELL;
 
 		// Clear vertices
@@ -298,7 +296,7 @@ export class GlyphRenderer extends Disposable {
 		// - So we don't send vertices for all the line-ending whitespace to the GPU
 		let bufferLength = 0;
 		for (let y = 0; y < renderModel.lineLengths.length; y++) {
-			const si = y * this._terminal.cols * INDICES_PER_CELL;
+			const si = y * this._viewportDims.cols * INDICES_PER_CELL;
 			const sub = this._vertices.attributes.subarray(si, si + renderModel.lineLengths[y] * INDICES_PER_CELL);
 			activeBuffer.set(sub, bufferLength);
 			bufferLength += sub.length;

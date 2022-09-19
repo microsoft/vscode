@@ -7,46 +7,45 @@
  * @license MIT
  */
 
-import { IDisposable, Terminal } from 'xterm';
-import { IColorSet } from 'browser/Types';
-import { IRenderDimensions } from 'browser/renderer/Types';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IColorSet, IRenderDimensions } from 'vs/editor/browser/viewParts/lines/webgl/base/Types';
 
 export interface IRenderLayer extends IDisposable {
 	/**
 	 * Called when the terminal loses focus.
 	 */
-	onBlur(terminal: Terminal): void;
+	onBlur(/*terminal: Terminal*/): void;
 
 	/**
 	 * * Called when the terminal gets focus.
 	 */
-	onFocus(terminal: Terminal): void;
+	onFocus(/*terminal: Terminal*/): void;
 
 	/**
 	 * Called when the cursor is moved.
 	 */
-	onCursorMove(terminal: Terminal): void;
+	onCursorMove(/*terminal: Terminal*/): void;
 
 	/**
 	 * Called when options change.
 	 */
-	onOptionsChanged(terminal: Terminal): void;
+	onOptionsChanged(/*terminal: Terminal*/): void;
 
 	/**
 	 * Called when the theme changes.
 	 */
-	setColors(terminal: Terminal, colorSet: IColorSet): void;
+	setColors(/*terminal: Terminal, */colorSet: IColorSet): void;
 
 	/**
 	 * Called when the data in the grid has changed (or needs to be rendered
 	 * again).
 	 */
-	onGridChanged(terminal: Terminal, startRow: number, endRow: number): void;
+	onGridChanged(/*terminal: Terminal, */startRow: number, endRow: number): void;
 
 	/**
 	 * Calls when the selection changes.
 	 */
-	onSelectionChanged(terminal: Terminal, start: [number, number] | undefined, end: [number, number] | undefined, columnSelectMode: boolean): void;
+	onSelectionChanged(/*terminal: Terminal, */start: [number, number] | undefined, end: [number, number] | undefined, columnSelectMode: boolean): void;
 
 	/**
 	 * Registers a handler to join characters to render as a group
@@ -61,10 +60,10 @@ export interface IRenderLayer extends IDisposable {
 	/**
 	 * Resize the render layer.
 	 */
-	resize(terminal: Terminal, dim: IRenderDimensions): void;
+	resize(/*terminal: Terminal, */dim: IRenderDimensions): void;
 
 	/**
 	 * Clear the state of the render layer.
 	 */
-	reset(terminal: Terminal): void;
+	reset(/*terminal: Terminal*/): void;
 }

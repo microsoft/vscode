@@ -7,8 +7,8 @@
  * @license MIT
  */
 
+import { fill } from 'vs/editor/browser/viewParts/lines/webgl/base/TypedArrayUtils2';
 import { IRenderModel, ISelectionRenderModel } from './Types';
-import { fill } from 'common/TypedArrayUtils';
 
 export const RENDER_MODEL_INDICIES_PER_CELL = 4;
 export const RENDER_MODEL_BG_OFFSET = 1;

@@ -9,7 +9,7 @@
 
 import { WebglCharAtlas } from './WebglCharAtlas';
 import { ICharAtlasConfig } from './Types';
-import { configEquals, generateConfig } from 'vs/editor/browser/viewParts/lines/webgl/atlas/CharAtlasUtils';
+import { generateConfig } from 'vs/editor/browser/viewParts/lines/webgl/atlas/CharAtlasUtils';
 import { IColorSet } from 'vs/editor/browser/viewParts/lines/webgl/base/Types';
 
 interface ICharAtlasCacheEntry {
@@ -40,33 +40,33 @@ export function acquireCharAtlas(
 	const newConfig = generateConfig(scaledCellWidth, scaledCellHeight, scaledCharWidth, scaledCharHeight, /*terminal,*/ colors, devicePixelRatio);
 
 	// Check to see if the terminal already owns this config
-	for (let i = 0; i < charAtlasCache.length; i++) {
-		const entry = charAtlasCache[i];
-		const ownedByIndex = entry.ownedBy.indexOf(terminal);
-		if (ownedByIndex >= 0) {
-			if (configEquals(entry.config, newConfig)) {
-				return entry.atlas;
-			}
-			// The configs differ, release the terminal from the entry
-			if (entry.ownedBy.length === 1) {
-				entry.atlas.dispose();
-				charAtlasCache.splice(i, 1);
-			} else {
-				entry.ownedBy.splice(ownedByIndex, 1);
-			}
-			break;
-		}
-	}
+	// for (let i = 0; i < charAtlasCache.length; i++) {
+	// 	const entry = charAtlasCache[i];
+	// 	const ownedByIndex = entry.ownedBy.indexOf(terminal);
+	// 	if (ownedByIndex >= 0) {
+	// 		if (configEquals(entry.config, newConfig)) {
+	// 			return entry.atlas;
+	// 		}
+	// 		// The configs differ, release the terminal from the entry
+	// 		if (entry.ownedBy.length === 1) {
+	// 			entry.atlas.dispose();
+	// 			charAtlasCache.splice(i, 1);
+	// 		} else {
+	// 			entry.ownedBy.splice(ownedByIndex, 1);
+	// 		}
+	// 		break;
+	// 	}
+	// }
 
 	// Try match a char atlas from the cache
-	for (let i = 0; i < charAtlasCache.length; i++) {
-		const entry = charAtlasCache[i];
-		if (configEquals(entry.config, newConfig)) {
-			// Add the terminal to the cache entry and return
-			entry.ownedBy.push(terminal);
-			return entry.atlas;
-		}
-	}
+	// for (let i = 0; i < charAtlasCache.length; i++) {
+	// 	const entry = charAtlasCache[i];
+	// 	if (configEquals(entry.config, newConfig)) {
+	// 		// Add the terminal to the cache entry and return
+	// 		entry.ownedBy.push(terminal);
+	// 		return entry.atlas;
+	// 	}
+	// }
 
 	// const core: ITerminal = (terminal as any)._core;
 	const newEntry: ICharAtlasCacheEntry = {

@@ -30,6 +30,7 @@ export function createProgram(gl: WebGLRenderingContext, vertexSource: string, f
 
 	console.error(gl.getProgramInfoLog(program));
 	gl.deleteProgram(program);
+	return undefined;
 }
 
 export function createShader(gl: WebGLRenderingContext, type: number, source: string): WebGLShader | undefined {
@@ -43,6 +44,7 @@ export function createShader(gl: WebGLRenderingContext, type: number, source: st
 
 	console.error(gl.getShaderInfoLog(shader));
 	gl.deleteShader(shader);
+	return undefined;
 }
 
 export function expandFloat32Array(source: Float32Array, max: number): Float32Array {

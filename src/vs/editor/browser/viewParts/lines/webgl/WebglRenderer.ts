@@ -8,43 +8,35 @@
  */
 
 import { GlyphRenderer } from './GlyphRenderer';
-import { CursorRenderLayer } from './renderLayer/CursorRenderLayer';
-import { acquireCharAtlas, removeTerminalFromCache } from './atlas/CharAtlasCache';
+// import { CursorRenderLayer } from './renderLayer/CursorRenderLayer';
+import { acquireCharAtlas } from './atlas/CharAtlasCache';
 import { WebglCharAtlas } from './atlas/WebglCharAtlas';
 import { RectangleRenderer } from './RectangleRenderer';
 import { IWebGL2RenderingContext } from './Types';
-import { RenderModel, COMBINED_CHAR_BIT_MASK, RENDER_MODEL_BG_OFFSET, RENDER_MODEL_FG_OFFSET, RENDER_MODEL_EXT_OFFSET, RENDER_MODEL_INDICIES_PER_CELL } from './RenderModel';
-import { Attributes, BgFlags, Content, FgFlags, NULL_CELL_CHAR, NULL_CELL_CODE } from 'common/buffer/Constants';
-import { Terminal, IEvent } from 'xterm';
+import { RenderModel } from './RenderModel';
 import { IRenderLayer } from './renderLayer/Types';
-import { IRenderDimensions, IRenderer, IRequestRedrawEvent } from 'browser/renderer/Types';
-import { ITerminal, IColorSet } from 'browser/Types';
-import { EventEmitter } from 'common/EventEmitter';
-import { CellData } from 'common/buffer/CellData';
-import { ICharacterJoinerService, ICoreBrowserService } from 'browser/services/Services';
-import { CharData, IBufferLine, ICellData } from 'common/Types';
-import { AttributeData } from 'common/buffer/AttributeData';
-import { ICoreService, IDecorationService } from 'common/services/Services';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { observeDevicePixelDimensions } from 'vs/editor/browser/viewParts/lines/webgl/util/DevicePixelObserver';
+import { observeDevicePixelDimensions } from 'vs/editor/browser/viewParts/lines/webgl/base/DevicePixelObserver';
+import { IColorSet, IRenderDimensions, IRequestRedrawEvent } from 'vs/editor/browser/viewParts/lines/webgl/base/Types';
+import { Emitter } from 'vs/base/common/event';
 
 /** Work variables to avoid garbage collection. */
-const w: { fg: number; bg: number; hasFg: boolean; hasBg: boolean; isSelected: boolean } = {
-	fg: 0,
-	bg: 0,
-	hasFg: false,
-	hasBg: false,
-	isSelected: false
-};
+// const w: { fg: number; bg: number; hasFg: boolean; hasBg: boolean; isSelected: boolean } = {
+// 	fg: 0,
+// 	bg: 0,
+// 	hasFg: false,
+// 	hasBg: false,
+// 	isSelected: false
+// };
 
-export class WebglRenderer extends Disposable implements IRenderer {
+export class WebglRenderer extends Disposable {
 	private _renderLayers: IRenderLayer[];
 	private _charAtlas: WebglCharAtlas | undefined;
 	private _devicePixelRatio: number;
 
 	private _model: RenderModel = new RenderModel();
-	private _workCell: CellData = new CellData();
-	private _workColors: { fg: number; bg: number; ext: number } = { fg: 0, bg: 0, ext: 0 };
+	// private _workCell: CellData = new CellData();
+	// private _workColors: { fg: number; bg: number; ext: number } = { fg: 0, bg: 0, ext: 0 };
 
 	private _canvas: HTMLCanvasElement;
 	private _gl: IWebGL2RenderingContext;
@@ -53,32 +45,37 @@ export class WebglRenderer extends Disposable implements IRenderer {
 
 	public dimensions: IRenderDimensions;
 
-	private _core: ITerminal;
+	private _core: { cols: number; rows: number };
 	private _isAttached: boolean;
 	// private _contextRestorationTimeout: number | undefined;
 
-	private _onChangeTextureAtlas = new EventEmitter<HTMLCanvasElement>();
-	public get onChangeTextureAtlas(): IEvent<HTMLCanvasElement> { return this._onChangeTextureAtlas.event; }
-	private _onRequestRedraw = new EventEmitter<IRequestRedrawEvent>();
-	public get onRequestRedraw(): IEvent<IRequestRedrawEvent> { return this._onRequestRedraw.event; }
+	private _onChangeTextureAtlas = new Emitter<HTMLCanvasElement>();
+	public get onChangeTextureAtlas() { return this._onChangeTextureAtlas.event; }
+	private _onRequestRedraw = new Emitter<IRequestRedrawEvent>();
+	public get onRequestRedraw() { return this._onRequestRedraw.event; }
 
-	private _onContextLoss = new EventEmitter<void>();
-	public get onContextLoss(): IEvent<void> { return this._onContextLoss.event; }
+	private _onContextLoss = new Emitter<void>();
+	public get onContextLoss() { return this._onContextLoss.event; }
 
 	constructor(
-		private _terminal: Terminal,
+		private _viewportDims: {
+			cols: number;
+			rows: number;
+			options: {
+				lineHeight: number;
+				letterSpacing: number;
+			};
+		},
 		private _colors: IColorSet,
-		private readonly _characterJoinerService: ICharacterJoinerService,
-		private readonly _coreBrowserService: ICoreBrowserService,
-		coreService: ICoreService,
+		private readonly _screenElement: HTMLElement,
 		preserveDrawingBuffer?: boolean
 	) {
 		super();
 
-		this._core = (this._terminal as any)._core;
+		this._core = (this._viewportDims as any)._core;
 
 		this._renderLayers = [
-			new CursorRenderLayer(_terminal, this._core.screenElement!, 3, this._colors, this._onRequestRedraw, this._coreBrowserService, coreService)
+			// new CursorRenderLayer(_terminal, screenElement, 3, this._colors, this._onRequestRedraw, this._coreBrowserService, coreService)
 		];
 		this.dimensions = {
 			scaledCharWidth: 0,
@@ -94,7 +91,7 @@ export class WebglRenderer extends Disposable implements IRenderer {
 			actualCellWidth: 0,
 			actualCellHeight: 0
 		};
-		this._devicePixelRatio = this._coreBrowserService.dpr;
+		this._devicePixelRatio = window.devicePixelRatio;
 		this._updateDimensions();
 
 		this._canvas = document.createElement('canvas');
@@ -132,13 +129,13 @@ export class WebglRenderer extends Disposable implements IRenderer {
 		// 	this._requestRedrawViewport();
 		// }));
 
-		this._register(observeDevicePixelDimensions(this._canvas, this._coreBrowserService.window, (w, h) => this._setCanvasDevicePixelDimensions(w, h)));
+		this._register(observeDevicePixelDimensions(this._canvas, window, (w, h) => this._setCanvasDevicePixelDimensions(w, h)));
 
-		this._core.screenElement!.appendChild(this._canvas);
+		this._screenElement.appendChild(this._canvas);
 
 		this._initializeWebGLState();
 
-		this._isAttached = this._coreBrowserService.window.document.body.contains(this._core.screenElement!);
+		this._isAttached = window.document.body.contains(this._screenElement);
 	}
 
 	public override dispose(): void {
@@ -147,7 +144,7 @@ export class WebglRenderer extends Disposable implements IRenderer {
 			l.dispose();
 		}
 		this._canvas.parentElement?.removeChild(this._canvas);
-		removeTerminalFromCache(this._terminal);
+		// removeTerminalFromCache(this._terminal);
 		super.dispose();
 	}
 
@@ -159,8 +156,8 @@ export class WebglRenderer extends Disposable implements IRenderer {
 		this._colors = colors;
 		// Clear layers and force a full render
 		for (const l of this._renderLayers) {
-			l.setColors(this._terminal, this._colors);
-			l.reset(this._terminal);
+			l.setColors(/*this._terminal, */this._colors);
+			l.reset(/*this._terminal*/);
 		}
 
 		this._rectangleRenderer.setColors();
@@ -174,9 +171,9 @@ export class WebglRenderer extends Disposable implements IRenderer {
 	public onDevicePixelRatioChange(): void {
 		// If the device pixel ratio changed, the char atlas needs to be regenerated
 		// and the terminal needs to refreshed
-		if (this._devicePixelRatio !== this._coreBrowserService.dpr) {
-			this._devicePixelRatio = this._coreBrowserService.dpr;
-			this.onResize(this._terminal.cols, this._terminal.rows);
+		if (this._devicePixelRatio !== window.devicePixelRatio) {
+			this._devicePixelRatio = window.devicePixelRatio;
+			this.onResize(this._viewportDims.cols, this._viewportDims.rows);
 		}
 	}
 
@@ -184,11 +181,11 @@ export class WebglRenderer extends Disposable implements IRenderer {
 		// Update character and canvas dimensions
 		this._updateDimensions();
 
-		this._model.resize(this._terminal.cols, this._terminal.rows);
+		this._model.resize(this._viewportDims.cols, this._viewportDims.rows);
 
 		// Resize all render layers
 		for (const l of this._renderLayers) {
-			l.resize(this._terminal, this.dimensions);
+			l.resize(/*this._terminal, */this.dimensions);
 		}
 
 		// Resize the canvas
@@ -198,8 +195,8 @@ export class WebglRenderer extends Disposable implements IRenderer {
 		this._canvas.style.height = `${this.dimensions.canvasHeight}px`;
 
 		// Resize the screen
-		this._core.screenElement!.style.width = `${this.dimensions.canvasWidth}px`;
-		this._core.screenElement!.style.height = `${this.dimensions.canvasHeight}px`;
+		this._screenElement.style.width = `${this.dimensions.canvasWidth}px`;
+		this._screenElement.style.height = `${this.dimensions.canvasHeight}px`;
 
 		this._rectangleRenderer.setDimensions(this.dimensions);
 		this._rectangleRenderer.onResize();
@@ -214,12 +211,12 @@ export class WebglRenderer extends Disposable implements IRenderer {
 	}
 
 	public onCharSizeChanged(): void {
-		this.onResize(this._terminal.cols, this._terminal.rows);
+		this.onResize(this._viewportDims.cols, this._viewportDims.rows);
 	}
 
 	public onBlur(): void {
 		for (const l of this._renderLayers) {
-			l.onBlur(this._terminal);
+			l.onBlur(/*this._terminal*/);
 		}
 		// Request a redraw for active/inactive selection background
 		this._requestRedrawViewport();
@@ -227,7 +224,7 @@ export class WebglRenderer extends Disposable implements IRenderer {
 
 	public onFocus(): void {
 		for (const l of this._renderLayers) {
-			l.onFocus(this._terminal);
+			l.onFocus(/*this._terminal*/);
 		}
 		// Request a redraw for active/inactive selection background
 		this._requestRedrawViewport();
@@ -235,7 +232,7 @@ export class WebglRenderer extends Disposable implements IRenderer {
 
 	public onSelectionChanged(start: [number, number] | undefined, end: [number, number] | undefined, columnSelectMode: boolean): void {
 		for (const l of this._renderLayers) {
-			l.onSelectionChanged(this._terminal, start, end, columnSelectMode);
+			l.onSelectionChanged(/*this._terminal, */start, end, columnSelectMode);
 		}
 		this._updateSelectionModel(start, end, columnSelectMode);
 		this._requestRedrawViewport();
@@ -243,13 +240,13 @@ export class WebglRenderer extends Disposable implements IRenderer {
 
 	public onCursorMove(): void {
 		for (const l of this._renderLayers) {
-			l.onCursorMove(this._terminal);
+			l.onCursorMove(/*this._terminal*/);
 		}
 	}
 
 	public onOptionsChanged(): void {
 		for (const l of this._renderLayers) {
-			l.onOptionsChanged(this._terminal);
+			l.onOptionsChanged(/*this._terminal*/);
 		}
 		this._updateDimensions();
 		this._refreshCharAtlas();
@@ -263,8 +260,8 @@ export class WebglRenderer extends Disposable implements IRenderer {
 		this._rectangleRenderer?.dispose();
 		this._glyphRenderer?.dispose();
 
-		this._rectangleRenderer = new RectangleRenderer(this._terminal, this._colors, this._gl, this.dimensions);
-		this._glyphRenderer = new GlyphRenderer(this._terminal, this._colors, this._gl, this.dimensions);
+		this._rectangleRenderer = new RectangleRenderer(this._viewportDims, this._colors, this._gl, this.dimensions);
+		this._glyphRenderer = new GlyphRenderer(this._viewportDims, this._gl, this.dimensions);
 
 		// Update dimensions and acquire char atlas
 		this.onCharSizeChanged();
@@ -282,7 +279,7 @@ export class WebglRenderer extends Disposable implements IRenderer {
 			return;
 		}
 
-		const atlas = acquireCharAtlas(this._terminal, this._colors, this.dimensions.scaledCellWidth, this.dimensions.scaledCellHeight, this.dimensions.scaledCharWidth, this.dimensions.scaledCharHeight, this._coreBrowserService.dpr);
+		const atlas = acquireCharAtlas(/*this._terminal, */this._colors, this.dimensions.scaledCellWidth, this.dimensions.scaledCellHeight, this.dimensions.scaledCharWidth, this.dimensions.scaledCharHeight, window.devicePixelRatio);
 		if (!('getRasterizedGlyph' in atlas)) {
 			throw new Error('The webgl renderer only works with the webgl char atlas');
 		}
@@ -309,14 +306,14 @@ export class WebglRenderer extends Disposable implements IRenderer {
 	public clearCharAtlas(): void {
 		this._charAtlas?.clearTexture();
 		this._clearModel(true);
-		this._updateModel(0, this._terminal.rows - 1);
+		this._updateModel(0, this._viewportDims.rows - 1);
 		this._requestRedrawViewport();
 	}
 
 	public clear(): void {
 		this._clearModel(true);
 		for (const l of this._renderLayers) {
-			l.reset(this._terminal);
+			l.reset(/*this._terminal*/);
 		}
 	}
 
@@ -330,7 +327,7 @@ export class WebglRenderer extends Disposable implements IRenderer {
 
 	public renderRows(start: number, end: number): void {
 		if (!this._isAttached) {
-			if (this._coreBrowserService.window.document.body.contains(this._core.screenElement!) && (this._core as any)._charSizeService.width && (this._core as any)._charSizeService.height) {
+			if (window.document.body.contains(this._screenElement) && (this._core as any)._charSizeService.width && (this._core as any)._charSizeService.height) {
 				this._updateDimensions();
 				this._refreshCharAtlas();
 				this._isAttached = true;
@@ -341,7 +338,7 @@ export class WebglRenderer extends Disposable implements IRenderer {
 
 		// Update render layers
 		for (const l of this._renderLayers) {
-			l.onGridChanged(this._terminal, start, end);
+			l.onGridChanged(/*this._terminal, */start, end);
 		}
 
 		// Tell renderer the frame is beginning
@@ -359,229 +356,232 @@ export class WebglRenderer extends Disposable implements IRenderer {
 	}
 
 	private _updateModel(start: number, end: number): void {
-		const terminal = this._core;
-		let cell: ICellData = this._workCell;
+		// TODO: Update the model for monaco
 
-		// Declare variable ahead of time to avoid garbage collection
-		let lastBg: number;
-		let y: number;
-		let row: number;
-		let line: IBufferLine;
-		let joinedRanges: [number, number][];
-		let isJoined: boolean;
-		let lastCharX: number;
-		let range: [number, number];
-		let chars: string;
-		let code: number;
-		let i: number;
-		let x: number;
-		let j: number;
+		// const terminal = this._core;
+		// let cell: ICellData = this._workCell;
 
-		for (y = start; y <= end; y++) {
-			row = y + terminal.buffer.ydisp;
-			line = terminal.buffer.lines.get(row)!;
-			this._model.lineLengths[y] = 0;
-			joinedRanges = this._characterJoinerService.getJoinedCharacters(row);
-			for (x = 0; x < terminal.cols; x++) {
-				lastBg = this._workColors.bg;
-				line.loadCell(x, cell);
+		// // Declare variable ahead of time to avoid garbage collection
+		// let lastBg: number;
+		// let y: number;
+		// let row: number;
+		// let line: IBufferLine;
+		// let joinedRanges: [number, number][];
+		// let isJoined: boolean;
+		// let lastCharX: number;
+		// let range: [number, number];
+		// let chars: string;
+		// let code: number;
+		// let i: number;
+		// let x: number;
+		// let j: number;
 
-				if (x === 0) {
-					lastBg = this._workColors.bg;
-				}
+		// for (y = start; y <= end; y++) {
+		// 	row = y + terminal.buffer.ydisp;
+		// 	line = terminal.buffer.lines.get(row)!;
+		// 	this._model.lineLengths[y] = 0;
+		// 	joinedRanges = this._characterJoinerService.getJoinedCharacters(row);
+		// 	for (x = 0; x < terminal.cols; x++) {
+		// 		lastBg = this._workColors.bg;
+		// 		line.loadCell(x, cell);
 
-				// If true, indicates that the current character(s) to draw were joined.
-				isJoined = false;
-				lastCharX = x;
+		// 		if (x === 0) {
+		// 			lastBg = this._workColors.bg;
+		// 		}
 
-				// Process any joined character ranges as needed. Because of how the
-				// ranges are produced, we know that they are valid for the characters
-				// and attributes of our input.
-				if (joinedRanges.length > 0 && x === joinedRanges[0][0]) {
-					isJoined = true;
-					range = joinedRanges.shift()!;
+		// 		// If true, indicates that the current character(s) to draw were joined.
+		// 		isJoined = false;
+		// 		lastCharX = x;
 
-					// We already know the exact start and end column of the joined range,
-					// so we get the string and width representing it directly.
-					cell = new JoinedCellData(
-						cell,
-						line!.translateToString(true, range[0], range[1]),
-						range[1] - range[0]
-					);
+		// 		// Process any joined character ranges as needed. Because of how the
+		// 		// ranges are produced, we know that they are valid for the characters
+		// 		// and attributes of our input.
+		// 		if (joinedRanges.length > 0 && x === joinedRanges[0][0]) {
+		// 			isJoined = true;
+		// 			range = joinedRanges.shift()!;
 
-					// Skip over the cells occupied by this range in the loop
-					lastCharX = range[1] - 1;
-				}
+		// 			// We already know the exact start and end column of the joined range,
+		// 			// so we get the string and width representing it directly.
+		// 			cell = new JoinedCellData(
+		// 				cell,
+		// 				line!.translateToString(true, range[0], range[1]),
+		// 				range[1] - range[0]
+		// 			);
 
-				chars = cell.getChars();
-				code = cell.getCode();
-				i = ((y * terminal.cols) + x) * RENDER_MODEL_INDICIES_PER_CELL;
+		// 			// Skip over the cells occupied by this range in the loop
+		// 			lastCharX = range[1] - 1;
+		// 		}
 
-				// Load colors/resolve overrides into work colors
-				this._loadColorsForCell(x, row);
+		// 		chars = cell.getChars();
+		// 		code = cell.getCode();
+		// 		i = ((y * terminal.cols) + x) * RENDER_MODEL_INDICIES_PER_CELL;
 
-				if (code !== NULL_CELL_CODE) {
-					this._model.lineLengths[y] = x + 1;
-				}
+		// 		// Load colors/resolve overrides into work colors
+		// 		this._loadColorsForCell(x, row);
 
-				// Nothing has changed, no updates needed
-				if (this._model.cells[i] === code &&
-					this._model.cells[i + RENDER_MODEL_BG_OFFSET] === this._workColors.bg &&
-					this._model.cells[i + RENDER_MODEL_FG_OFFSET] === this._workColors.fg &&
-					this._model.cells[i + RENDER_MODEL_EXT_OFFSET] === this._workColors.ext) {
-					continue;
-				}
+		// 		if (code !== NULL_CELL_CODE) {
+		// 			this._model.lineLengths[y] = x + 1;
+		// 		}
 
-				// Flag combined chars with a bit mask so they're easily identifiable
-				if (chars.length > 1) {
-					code |= COMBINED_CHAR_BIT_MASK;
-				}
+		// 		// Nothing has changed, no updates needed
+		// 		if (this._model.cells[i] === code &&
+		// 			this._model.cells[i + RENDER_MODEL_BG_OFFSET] === this._workColors.bg &&
+		// 			this._model.cells[i + RENDER_MODEL_FG_OFFSET] === this._workColors.fg &&
+		// 			this._model.cells[i + RENDER_MODEL_EXT_OFFSET] === this._workColors.ext) {
+		// 			continue;
+		// 		}
 
-				// Cache the results in the model
-				this._model.cells[i] = code;
-				this._model.cells[i + RENDER_MODEL_BG_OFFSET] = this._workColors.bg;
-				this._model.cells[i + RENDER_MODEL_FG_OFFSET] = this._workColors.fg;
-				this._model.cells[i + RENDER_MODEL_EXT_OFFSET] = this._workColors.ext;
+		// 		// Flag combined chars with a bit mask so they're easily identifiable
+		// 		if (chars.length > 1) {
+		// 			code |= COMBINED_CHAR_BIT_MASK;
+		// 		}
 
-				this._glyphRenderer.updateCell(x, y, code, this._workColors.bg, this._workColors.fg, this._workColors.ext, chars, lastBg);
+		// 		// Cache the results in the model
+		// 		this._model.cells[i] = code;
+		// 		this._model.cells[i + RENDER_MODEL_BG_OFFSET] = this._workColors.bg;
+		// 		this._model.cells[i + RENDER_MODEL_FG_OFFSET] = this._workColors.fg;
+		// 		this._model.cells[i + RENDER_MODEL_EXT_OFFSET] = this._workColors.ext;
 
-				if (isJoined) {
-					// Restore work cell
-					cell = this._workCell;
+		// 		this._glyphRenderer.updateCell(x, y, code, this._workColors.bg, this._workColors.fg, this._workColors.ext, chars, lastBg);
 
-					// Null out non-first cells
-					for (x++; x < lastCharX; x++) {
-						j = ((y * terminal.cols) + x) * RENDER_MODEL_INDICIES_PER_CELL;
-						this._glyphRenderer.updateCell(x, y, NULL_CELL_CODE, 0, 0, 0, NULL_CELL_CHAR, 0);
-						this._model.cells[j] = NULL_CELL_CODE;
-						this._model.cells[j + RENDER_MODEL_BG_OFFSET] = this._workColors.bg;
-						this._model.cells[j + RENDER_MODEL_FG_OFFSET] = this._workColors.fg;
-						this._model.cells[j + RENDER_MODEL_EXT_OFFSET] = this._workColors.ext;
-					}
-				}
-			}
-		}
-		this._rectangleRenderer.updateBackgrounds(this._model);
+		// 		if (isJoined) {
+		// 			// Restore work cell
+		// 			cell = this._workCell;
+
+		// 			// Null out non-first cells
+		// 			for (x++; x < lastCharX; x++) {
+		// 				j = ((y * terminal.cols) + x) * RENDER_MODEL_INDICIES_PER_CELL;
+		// 				this._glyphRenderer.updateCell(x, y, NULL_CELL_CODE, 0, 0, 0, NULL_CELL_CHAR, 0);
+		// 				this._model.cells[j] = NULL_CELL_CODE;
+		// 				this._model.cells[j + RENDER_MODEL_BG_OFFSET] = this._workColors.bg;
+		// 				this._model.cells[j + RENDER_MODEL_FG_OFFSET] = this._workColors.fg;
+		// 				this._model.cells[j + RENDER_MODEL_EXT_OFFSET] = this._workColors.ext;
+		// 			}
+		// 		}
+		// 	}
+		// }
+		// this._rectangleRenderer.updateBackgrounds(this._model);
 	}
 
 	/**
 	 * Loads colors for the cell into the work colors object. This resolves overrides/inverse if
 	 * necessary which is why the work cell object is not used.
 	 */
-	private _loadColorsForCell(x: number, y: number): void {
-		this._workColors.bg = this._workCell.bg;
-		this._workColors.fg = this._workCell.fg;
-		this._workColors.ext = this._workCell.bg & BgFlags.HAS_EXTENDED ? this._workCell.extended.ext : 0;
-		// Get any foreground/background overrides, this happens on the model to avoid spreading
-		// override logic throughout the different sub-renderers
+	// private _loadColorsForCell(x: number, y: number): void {
+	// 	this._workColors.bg = this._workCell.bg;
+	// 	this._workColors.fg = this._workCell.fg;
+	// 	this._workColors.ext = this._workCell.bg & BgFlags.HAS_EXTENDED ? this._workCell.extended.ext : 0;
+	// 	// Get any foreground/background overrides, this happens on the model to avoid spreading
+	// 	// override logic throughout the different sub-renderers
 
-		// Reset overrides work variables
-		w.bg = 0;
-		w.fg = 0;
-		w.hasBg = false;
-		w.hasFg = false;
-		w.isSelected = false;
+	// 	// Reset overrides work variables
+	// 	w.bg = 0;
+	// 	w.fg = 0;
+	// 	w.hasBg = false;
+	// 	w.hasFg = false;
+	// 	w.isSelected = false;
 
-		// Apply decorations on the bottom layer
-		// this._decorationService.forEachDecorationAtCell(x, y, 'bottom', d => {
-		// 	if (d.backgroundColorRGB) {
-		// 		w.bg = d.backgroundColorRGB.rgba >> 8 & 0xFFFFFF;
-		// 		w.hasBg = true;
-		// 	}
-		// 	if (d.foregroundColorRGB) {
-		// 		w.fg = d.foregroundColorRGB.rgba >> 8 & 0xFFFFFF;
-		// 		w.hasFg = true;
-		// 	}
-		// });
+	// 	// Apply decorations on the bottom layer
+	// 	// this._decorationService.forEachDecorationAtCell(x, y, 'bottom', d => {
+	// 	// 	if (d.backgroundColorRGB) {
+	// 	// 		w.bg = d.backgroundColorRGB.rgba >> 8 & 0xFFFFFF;
+	// 	// 		w.hasBg = true;
+	// 	// 	}
+	// 	// 	if (d.foregroundColorRGB) {
+	// 	// 		w.fg = d.foregroundColorRGB.rgba >> 8 & 0xFFFFFF;
+	// 	// 		w.hasFg = true;
+	// 	// 	}
+	// 	// });
 
-		// Apply the selection color if needed
-		w.isSelected = this._isCellSelected(x, y);
-		if (w.isSelected) {
-			w.bg = (this._coreBrowserService.isFocused ? this._colors.selectionBackgroundOpaque : this._colors.selectionInactiveBackgroundOpaque).rgba >> 8 & 0xFFFFFF;
-			w.hasBg = true;
-			if (this._colors.selectionForeground) {
-				w.fg = this._colors.selectionForeground.rgba >> 8 & 0xFFFFFF;
-				w.hasFg = true;
-			}
-		}
+	// 	// Apply the selection color if needed
+	// 	w.isSelected = this._isCellSelected(x, y);
+	// 	if (w.isSelected) {
+	// 		w.bg = (this._coreBrowserService.isFocused ? this._colors.selectionBackgroundOpaque : this._colors.selectionInactiveBackgroundOpaque).rgba >> 8 & 0xFFFFFF;
+	// 		w.hasBg = true;
+	// 		if (this._colors.selectionForeground) {
+	// 			w.fg = this._colors.selectionForeground.rgba >> 8 & 0xFFFFFF;
+	// 			w.hasFg = true;
+	// 		}
+	// 	}
 
-		// Apply decorations on the top layer
-		// this._decorationService.forEachDecorationAtCell(x, y, 'top', d => {
-		// 	if (d.backgroundColorRGB) {
-		// 		w.bg = d.backgroundColorRGB.rgba >> 8 & 0xFFFFFF;
-		// 		w.hasBg = true;
-		// 	}
-		// 	if (d.foregroundColorRGB) {
-		// 		w.fg = d.foregroundColorRGB.rgba >> 8 & 0xFFFFFF;
-		// 		w.hasFg = true;
-		// 	}
-		// });
+	// 	// Apply decorations on the top layer
+	// 	// this._decorationService.forEachDecorationAtCell(x, y, 'top', d => {
+	// 	// 	if (d.backgroundColorRGB) {
+	// 	// 		w.bg = d.backgroundColorRGB.rgba >> 8 & 0xFFFFFF;
+	// 	// 		w.hasBg = true;
+	// 	// 	}
+	// 	// 	if (d.foregroundColorRGB) {
+	// 	// 		w.fg = d.foregroundColorRGB.rgba >> 8 & 0xFFFFFF;
+	// 	// 		w.hasFg = true;
+	// 	// 	}
+	// 	// });
 
-		// Convert any overrides from rgba to the fg/bg packed format. This resolves the inverse flag
-		// ahead of time in order to use the correct cache key
-		if (w.hasBg) {
-			if (w.isSelected) {
-				// Non-RGB attributes from model + force non-dim + override + force RGB color mode
-				w.bg = (this._workCell.bg & ~Attributes.RGB_MASK & ~BgFlags.DIM) | w.bg | Attributes.CM_RGB;
-			} else {
-				// Non-RGB attributes from model + override + force RGB color mode
-				w.bg = (this._workCell.bg & ~Attributes.RGB_MASK) | w.bg | Attributes.CM_RGB;
-			}
-		}
-		if (w.hasFg) {
-			// Non-RGB attributes from model + force disable inverse + override + force RGB color mode
-			w.fg = (this._workCell.fg & ~Attributes.RGB_MASK & ~FgFlags.INVERSE) | w.fg | Attributes.CM_RGB;
-		}
+	// 	// Convert any overrides from rgba to the fg/bg packed format. This resolves the inverse flag
+	// 	// ahead of time in order to use the correct cache key
+	// 	if (w.hasBg) {
+	// 		if (w.isSelected) {
+	// 			// Non-RGB attributes from model + force non-dim + override + force RGB color mode
+	// 			w.bg = (this._workCell.bg & ~Attributes.RGB_MASK & ~BgFlags.DIM) | w.bg | Attributes.CM_RGB;
+	// 		} else {
+	// 			// Non-RGB attributes from model + override + force RGB color mode
+	// 			w.bg = (this._workCell.bg & ~Attributes.RGB_MASK) | w.bg | Attributes.CM_RGB;
+	// 		}
+	// 	}
+	// 	if (w.hasFg) {
+	// 		// Non-RGB attributes from model + force disable inverse + override + force RGB color mode
+	// 		w.fg = (this._workCell.fg & ~Attributes.RGB_MASK & ~FgFlags.INVERSE) | w.fg | Attributes.CM_RGB;
+	// 	}
 
-		// Handle case where inverse was specified by only one of bg override or fg override was set,
-		// resolving the other inverse color and setting the inverse flag if needed.
-		if (this._workColors.fg & FgFlags.INVERSE) {
-			if (w.hasBg && !w.hasFg) {
-				// Resolve bg color type (default color has a different meaning in fg vs bg)
-				if ((this._workColors.bg & Attributes.CM_MASK) === Attributes.CM_DEFAULT) {
-					w.fg = (this._workColors.fg & ~(Attributes.RGB_MASK | FgFlags.INVERSE | Attributes.CM_MASK)) | ((this._colors.background.rgba >> 8 & 0xFFFFFF) & Attributes.RGB_MASK) | Attributes.CM_RGB;
-				} else {
-					w.fg = (this._workColors.fg & ~(Attributes.RGB_MASK | FgFlags.INVERSE | Attributes.CM_MASK)) | this._workColors.bg & (Attributes.RGB_MASK | Attributes.CM_MASK);
-				}
-				w.hasFg = true;
-			}
-			if (!w.hasBg && w.hasFg) {
-				// Resolve bg color type (default color has a different meaning in fg vs bg)
-				if ((this._workColors.fg & Attributes.CM_MASK) === Attributes.CM_DEFAULT) {
-					w.bg = (this._workColors.bg & ~(Attributes.RGB_MASK | Attributes.CM_MASK)) | ((this._colors.foreground.rgba >> 8 & 0xFFFFFF) & Attributes.RGB_MASK) | Attributes.CM_RGB;
-				} else {
-					w.bg = (this._workColors.bg & ~(Attributes.RGB_MASK | Attributes.CM_MASK)) | this._workColors.fg & (Attributes.RGB_MASK | Attributes.CM_MASK);
-				}
-				w.hasBg = true;
-			}
-		}
+	// 	// Handle case where inverse was specified by only one of bg override or fg override was set,
+	// 	// resolving the other inverse color and setting the inverse flag if needed.
+	// 	if (this._workColors.fg & FgFlags.INVERSE) {
+	// 		if (w.hasBg && !w.hasFg) {
+	// 			// Resolve bg color type (default color has a different meaning in fg vs bg)
+	// 			if ((this._workColors.bg & Attributes.CM_MASK) === Attributes.CM_DEFAULT) {
+	// 				w.fg = (this._workColors.fg & ~(Attributes.RGB_MASK | FgFlags.INVERSE | Attributes.CM_MASK)) | ((this._colors.background.rgba >> 8 & 0xFFFFFF) & Attributes.RGB_MASK) | Attributes.CM_RGB;
+	// 			} else {
+	// 				w.fg = (this._workColors.fg & ~(Attributes.RGB_MASK | FgFlags.INVERSE | Attributes.CM_MASK)) | this._workColors.bg & (Attributes.RGB_MASK | Attributes.CM_MASK);
+	// 			}
+	// 			w.hasFg = true;
+	// 		}
+	// 		if (!w.hasBg && w.hasFg) {
+	// 			// Resolve bg color type (default color has a different meaning in fg vs bg)
+	// 			if ((this._workColors.fg & Attributes.CM_MASK) === Attributes.CM_DEFAULT) {
+	// 				w.bg = (this._workColors.bg & ~(Attributes.RGB_MASK | Attributes.CM_MASK)) | ((this._colors.foreground.rgba >> 8 & 0xFFFFFF) & Attributes.RGB_MASK) | Attributes.CM_RGB;
+	// 			} else {
+	// 				w.bg = (this._workColors.bg & ~(Attributes.RGB_MASK | Attributes.CM_MASK)) | this._workColors.fg & (Attributes.RGB_MASK | Attributes.CM_MASK);
+	// 			}
+	// 			w.hasBg = true;
+	// 		}
+	// 	}
 
-		// Use the override if it exists
-		this._workColors.bg = w.hasBg ? w.bg : this._workColors.bg;
-		this._workColors.fg = w.hasFg ? w.fg : this._workColors.fg;
-	}
+	// 	// Use the override if it exists
+	// 	this._workColors.bg = w.hasBg ? w.bg : this._workColors.bg;
+	// 	this._workColors.fg = w.hasFg ? w.fg : this._workColors.fg;
+	// }
 
-	private _isCellSelected(x: number, y: number): boolean {
-		if (!this._model.selection.hasSelection) {
-			return false;
-		}
-		y -= this._terminal.buffer.active.viewportY;
-		if (this._model.selection.columnSelectMode) {
-			if (this._model.selection.startCol <= this._model.selection.endCol) {
-				return x >= this._model.selection.startCol && y >= this._model.selection.viewportCappedStartRow &&
-					x < this._model.selection.endCol && y <= this._model.selection.viewportCappedEndRow;
-			}
-			return x < this._model.selection.startCol && y >= this._model.selection.viewportCappedStartRow &&
-				x >= this._model.selection.endCol && y <= this._model.selection.viewportCappedEndRow;
-		}
-		return (y > this._model.selection.viewportStartRow && y < this._model.selection.viewportEndRow) ||
-			(this._model.selection.viewportStartRow === this._model.selection.viewportEndRow && y === this._model.selection.viewportStartRow && x >= this._model.selection.startCol && x < this._model.selection.endCol) ||
-			(this._model.selection.viewportStartRow < this._model.selection.viewportEndRow && y === this._model.selection.viewportEndRow && x < this._model.selection.endCol) ||
-			(this._model.selection.viewportStartRow < this._model.selection.viewportEndRow && y === this._model.selection.viewportStartRow && x >= this._model.selection.startCol);
-	}
+	// private _isCellSelected(x: number, y: number): boolean {
+	// 	return false;
+	// 	// if (!this._model.selection.hasSelection) {
+	// 	// 	return false;
+	// 	// }
+	// 	// y -= this._viewportDims.buffer.active.viewportY;
+	// 	// if (this._model.selection.columnSelectMode) {
+	// 	// 	if (this._model.selection.startCol <= this._model.selection.endCol) {
+	// 	// 		return x >= this._model.selection.startCol && y >= this._model.selection.viewportCappedStartRow &&
+	// 	// 			x < this._model.selection.endCol && y <= this._model.selection.viewportCappedEndRow;
+	// 	// 	}
+	// 	// 	return x < this._model.selection.startCol && y >= this._model.selection.viewportCappedStartRow &&
+	// 	// 		x >= this._model.selection.endCol && y <= this._model.selection.viewportCappedEndRow;
+	// 	// }
+	// 	// return (y > this._model.selection.viewportStartRow && y < this._model.selection.viewportEndRow) ||
+	// 	// 	(this._model.selection.viewportStartRow === this._model.selection.viewportEndRow && y === this._model.selection.viewportStartRow && x >= this._model.selection.startCol && x < this._model.selection.endCol) ||
+	// 	// 	(this._model.selection.viewportStartRow < this._model.selection.viewportEndRow && y === this._model.selection.viewportEndRow && x < this._model.selection.endCol) ||
+	// 	// 	(this._model.selection.viewportStartRow < this._model.selection.viewportEndRow && y === this._model.selection.viewportStartRow && x >= this._model.selection.startCol);
+	// }
 
 	private _updateSelectionModel(start: [number, number] | undefined, end: [number, number] | undefined, columnSelectMode: boolean = false): void {
-		const terminal = this._terminal;
+		// const terminal = this._viewportDims;
 
 		// Selection does not exist
 		if (!start || !end || (start[0] === end[0] && start[1] === end[1])) {
@@ -589,26 +589,28 @@ export class WebglRenderer extends Disposable implements IRenderer {
 			return;
 		}
 
-		// Translate from buffer position to viewport position
-		const viewportStartRow = start[1] - terminal.buffer.active.viewportY;
-		const viewportEndRow = end[1] - terminal.buffer.active.viewportY;
-		const viewportCappedStartRow = Math.max(viewportStartRow, 0);
-		const viewportCappedEndRow = Math.min(viewportEndRow, terminal.rows - 1);
+		return;
 
-		// No need to draw the selection
-		if (viewportCappedStartRow >= terminal.rows || viewportCappedEndRow < 0) {
-			this._model.clearSelection();
-			return;
-		}
+		// // Translate from buffer position to viewport position
+		// const viewportStartRow = start[1] - terminal.buffer.active.viewportY;
+		// const viewportEndRow = end[1] - terminal.buffer.active.viewportY;
+		// const viewportCappedStartRow = Math.max(viewportStartRow, 0);
+		// const viewportCappedEndRow = Math.min(viewportEndRow, terminal.rows - 1);
 
-		this._model.selection.hasSelection = true;
-		this._model.selection.columnSelectMode = columnSelectMode;
-		this._model.selection.viewportStartRow = viewportStartRow;
-		this._model.selection.viewportEndRow = viewportEndRow;
-		this._model.selection.viewportCappedStartRow = viewportCappedStartRow;
-		this._model.selection.viewportCappedEndRow = viewportCappedEndRow;
-		this._model.selection.startCol = start[0];
-		this._model.selection.endCol = end[0];
+		// // No need to draw the selection
+		// if (viewportCappedStartRow >= terminal.rows || viewportCappedEndRow < 0) {
+		// 	this._model.clearSelection();
+		// 	return;
+		// }
+
+		// this._model.selection.hasSelection = true;
+		// this._model.selection.columnSelectMode = columnSelectMode;
+		// this._model.selection.viewportStartRow = viewportStartRow;
+		// this._model.selection.viewportEndRow = viewportEndRow;
+		// this._model.selection.viewportCappedStartRow = viewportCappedStartRow;
+		// this._model.selection.viewportCappedEndRow = viewportCappedEndRow;
+		// this._model.selection.startCol = start[0];
+		// this._model.selection.endCol = end[0];
 	}
 
 	/**
@@ -634,23 +636,23 @@ export class WebglRenderer extends Disposable implements IRenderer {
 		// Calculate the scaled cell height, if lineHeight is _not_ 1, the resulting value will be
 		// floored since lineHeight can never be lower then 1, this guarentees the scaled cell height
 		// will always be larger than scaled char height.
-		this.dimensions.scaledCellHeight = Math.floor(this.dimensions.scaledCharHeight * this._terminal.options.lineHeight);
+		this.dimensions.scaledCellHeight = Math.floor(this.dimensions.scaledCharHeight * this._viewportDims.options.lineHeight);
 
 		// Calculate the y offset within a cell that glyph should draw at in order for it to be centered
 		// correctly within the cell.
-		this.dimensions.scaledCharTop = this._terminal.options.lineHeight === 1 ? 0 : Math.round((this.dimensions.scaledCellHeight - this.dimensions.scaledCharHeight) / 2);
+		this.dimensions.scaledCharTop = this._viewportDims.options.lineHeight === 1 ? 0 : Math.round((this.dimensions.scaledCellHeight - this.dimensions.scaledCharHeight) / 2);
 
 		// Calculate the scaled cell width, taking the letterSpacing into account.
-		this.dimensions.scaledCellWidth = this.dimensions.scaledCharWidth + Math.round(this._terminal.options.letterSpacing);
+		this.dimensions.scaledCellWidth = this.dimensions.scaledCharWidth + Math.round(this._viewportDims.options.letterSpacing);
 
 		// Calculate the x offset with a cell that text should draw from in order for it to be centered
 		// correctly within the cell.
-		this.dimensions.scaledCharLeft = Math.floor(this._terminal.options.letterSpacing / 2);
+		this.dimensions.scaledCharLeft = Math.floor(this._viewportDims.options.letterSpacing / 2);
 
 		// Recalculate the canvas dimensions, the scaled dimensions define the actual number of pixel in
 		// the canvas
-		this.dimensions.scaledCanvasHeight = this._terminal.rows * this.dimensions.scaledCellHeight;
-		this.dimensions.scaledCanvasWidth = this._terminal.cols * this.dimensions.scaledCellWidth;
+		this.dimensions.scaledCanvasHeight = this._viewportDims.rows * this.dimensions.scaledCellHeight;
+		this.dimensions.scaledCanvasWidth = this._viewportDims.cols * this.dimensions.scaledCellWidth;
 
 		// The the size of the canvas on the page. It's important that this rounds to nearest integer
 		// and not ceils as browsers often have floating point precision issues where
@@ -680,52 +682,6 @@ export class WebglRenderer extends Disposable implements IRenderer {
 	}
 
 	private _requestRedrawViewport(): void {
-		this._onRequestRedraw.fire({ start: 0, end: this._terminal.rows - 1 });
-	}
-}
-
-// TODO: Share impl with core
-export class JoinedCellData extends AttributeData implements ICellData {
-	private _width: number;
-	// .content carries no meaning for joined CellData, simply nullify it
-	// thus we have to overload all other .content accessors
-	public content: number = 0;
-	public fg: number;
-	public bg: number;
-	public combinedData: string = '';
-
-	constructor(firstCell: ICellData, chars: string, width: number) {
-		super();
-		this.fg = firstCell.fg;
-		this.bg = firstCell.bg;
-		this.combinedData = chars;
-		this._width = width;
-	}
-
-	public isCombined(): number {
-		// always mark joined cell data as combined
-		return Content.IS_COMBINED_MASK;
-	}
-
-	public getWidth(): number {
-		return this._width;
-	}
-
-	public getChars(): string {
-		return this.combinedData;
-	}
-
-	public getCode(): number {
-		// code always gets the highest possible fake codepoint (read as -1)
-		// this is needed as code is used by caches as identifier
-		return 0x1FFFFF;
-	}
-
-	public setFromCharData(value: CharData): void {
-		throw new Error('not implemented');
-	}
-
-	public getAsCharData(): CharData {
-		return [this.fg, this.getChars(), this.getWidth(), this.getCode()];
+		this._onRequestRedraw.fire({ start: 0, end: this._viewportDims.rows - 1 });
 	}
 }
