@@ -5,22 +5,44 @@
 
 import * as vscode from 'vscode';
 import { BaseLanguageClient, LanguageClientOptions, NotebookDocumentSyncRegistrationType } from 'vscode-languageclient';
-import { disposeAll, IDisposable } from 'vscode-markdown-languageservice/out/util/dispose';
-import { ResourceMap } from 'vscode-markdown-languageservice/out/util/resourceMap';
 import * as nls from 'vscode-nls';
-import { Utils } from 'vscode-uri';
-import { IMdParser } from './markdownEngine';
+import { IMdParser } from '../markdownEngine';
 import * as proto from './protocol';
-import { looksLikeMarkdownPath, markdownFileExtensions } from './util/file';
-import { Schemes } from './util/schemes';
-import { IMdWorkspace } from './workspace';
+import { looksLikeMarkdownPath, markdownFileExtensions } from '../util/file';
+import { VsCodeMdWorkspace } from './workspace';
+import { FileWatcherManager } from './fileWatchingManager';
+import { IDisposable } from '../util/dispose';
 
 const localize = nls.loadMessageBundle();
 
 export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => BaseLanguageClient;
 
+export class MdLanguageClient implements IDisposable {
 
-export async function startClient(factory: LanguageClientConstructor, workspace: IMdWorkspace, parser: IMdParser): Promise<BaseLanguageClient> {
+	constructor(
+		private readonly _client: BaseLanguageClient,
+		private readonly _workspace: VsCodeMdWorkspace,
+	) { }
+
+	dispose(): void {
+		this._client.stop();
+		this._workspace.dispose();
+	}
+
+	resolveLinkTarget(linkText: string, uri: vscode.Uri): Promise<proto.ResolvedDocumentLinkTarget> {
+		return this._client.sendRequest(proto.resolveLinkTarget, { linkText, uri: uri.toString() });
+	}
+
+	getEditForFileRenames(files: ReadonlyArray<{ oldUri: string; newUri: string }>, token: vscode.CancellationToken) {
+		return this._client.sendRequest(proto.getEditForFileRenames, files, token);
+	}
+
+	getReferencesToFileInWorkspace(resource: vscode.Uri, token: vscode.CancellationToken) {
+		return this._client.sendRequest(proto.getReferencesToFileInWorkspace, { uri: resource.toString() }, token);
+	}
+}
+
+export async function startClient(factory: LanguageClientConstructor, parser: IMdParser): Promise<MdLanguageClient> {
 
 	const mdFileGlob = `**/*.{${markdownFileExtensions.join(',')}}`;
 
@@ -58,6 +80,8 @@ export async function startClient(factory: LanguageClientConstructor, workspace:
 			}
 		});
 	}
+
+	const workspace = new VsCodeMdWorkspace();
 
 	client.onRequest(proto.parse, async (e) => {
 		const uri = vscode.Uri.parse(e.uri);
@@ -125,93 +149,5 @@ export async function startClient(factory: LanguageClientConstructor, workspace:
 
 	await client.start();
 
-	return client;
-}
-
-type DirWatcherEntry = {
-	readonly uri: vscode.Uri;
-	readonly listeners: IDisposable[];
-};
-
-class FileWatcherManager {
-
-	private readonly fileWatchers = new Map<number, {
-		readonly watcher: vscode.FileSystemWatcher;
-		readonly dirWatchers: DirWatcherEntry[];
-	}>();
-
-	private readonly dirWatchers = new ResourceMap<{
-		readonly watcher: vscode.FileSystemWatcher;
-		refCount: number;
-	}>();
-
-	create(id: number, uri: vscode.Uri, watchParentDirs: boolean, listeners: { create?: () => void; change?: () => void; delete?: () => void }): void {
-		const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(uri, '*'), !listeners.create, !listeners.change, !listeners.delete);
-		const parentDirWatchers: DirWatcherEntry[] = [];
-		this.fileWatchers.set(id, { watcher, dirWatchers: parentDirWatchers });
-
-		if (listeners.create) { watcher.onDidCreate(listeners.create); }
-		if (listeners.change) { watcher.onDidChange(listeners.change); }
-		if (listeners.delete) { watcher.onDidDelete(listeners.delete); }
-
-		if (watchParentDirs && uri.scheme !== Schemes.untitled) {
-			// We need to watch the parent directories too for when these are deleted / created
-			for (let dirUri = Utils.dirname(uri); dirUri.path.length > 1; dirUri = Utils.dirname(dirUri)) {
-				const dirWatcher: DirWatcherEntry = { uri: dirUri, listeners: [] };
-
-				let parentDirWatcher = this.dirWatchers.get(dirUri);
-				if (!parentDirWatcher) {
-					const glob = new vscode.RelativePattern(Utils.dirname(dirUri), Utils.basename(dirUri));
-					const parentWatcher = vscode.workspace.createFileSystemWatcher(glob, !listeners.create, true, !listeners.delete);
-					parentDirWatcher = { refCount: 0, watcher: parentWatcher };
-					this.dirWatchers.set(dirUri, parentDirWatcher);
-				}
-				parentDirWatcher.refCount++;
-
-				if (listeners.create) {
-					dirWatcher.listeners.push(parentDirWatcher.watcher.onDidCreate(async () => {
-						// Just because the parent dir was created doesn't mean our file was created
-						try {
-							const stat = await vscode.workspace.fs.stat(uri);
-							if (stat.type === vscode.FileType.File) {
-								listeners.create!();
-							}
-						} catch {
-							// Noop
-						}
-					}));
-				}
-
-				if (listeners.delete) {
-					// When the parent dir is deleted, consider our file deleted too
-
-					// TODO: this fires if the file previously did not exist and then the parent is deleted
-					dirWatcher.listeners.push(parentDirWatcher.watcher.onDidDelete(listeners.delete));
-				}
-
-				parentDirWatchers.push(dirWatcher);
-			}
-		}
-	}
-
-	delete(id: number): void {
-		const entry = this.fileWatchers.get(id);
-		if (entry) {
-			for (const dirWatcher of entry.dirWatchers) {
-				disposeAll(dirWatcher.listeners);
-
-				const dirWatcherEntry = this.dirWatchers.get(dirWatcher.uri);
-				if (dirWatcherEntry) {
-					if (--dirWatcherEntry.refCount <= 0) {
-						dirWatcherEntry.watcher.dispose();
-						this.dirWatchers.delete(dirWatcher.uri);
-					}
-				}
-			}
-
-			entry.watcher.dispose();
-		}
-
-		this.fileWatchers.delete(id);
-	}
+	return new MdLanguageClient(client, workspace);
 }
