@@ -167,9 +167,12 @@ export class WorkbenchToolBar extends ToolBar {
 					}
 				}
 
+				this.getElement().classList.toggle('config', true);
+
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => e,
 					getActions: () => actions,
+					onHide: () => this.getElement().classList.toggle('config', false),
 				});
 			}));
 		}
