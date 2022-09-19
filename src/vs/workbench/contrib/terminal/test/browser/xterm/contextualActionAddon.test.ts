@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert } from 'vs/base/common/assert';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -36,6 +35,5 @@ suite.skip('ContextualActionAddon', () => {
 		xterm.loadAddon(contextualActionAddon);
 	});
 	test(() => {
-		contextualActionAddon.onDidRequestFreePort((port) => assert(port === '3000'));
 	});
 });

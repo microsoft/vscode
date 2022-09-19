@@ -24,11 +24,6 @@ export interface IContextualAction {
 	showQuickFixMenu(): void;
 
 	/**
-	 * Triggers the related callback or throws an error
-	 */
-	resolveFreePortRequest(): void;
-
-	/**
 	 * Registers a listener on onCommandFinished scoped to a particular command or regular
 	 * expression and provides a callback to be executed for commands that match.
 	 */
@@ -37,16 +32,11 @@ export interface IContextualAction {
 
 export interface IContextualActionAdddon extends IContextualAction {
 	onDidRequestRerunCommand: Event<ITerminalCommand>;
-	onDidRequestFreePort: Event<string>;
 }
 
 export class ContextualActionAddon extends Disposable implements ITerminalAddon, IContextualActionAdddon {
 	private readonly _onDidRequestRerunCommand = new Emitter<ITerminalCommand>();
 	readonly onDidRequestRerunCommand = this._onDidRequestRerunCommand.event;
-	private readonly _onDidRequestFreePort = new Emitter<string>();
-	readonly onDidRequestFreePort = this._onDidRequestFreePort.event;
-
-	private _resolveCallback: Function | undefined;
 
 	private _terminal: Terminal | undefined;
 
@@ -82,18 +72,10 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 	}
 
 	registerCommandFinishedListener(options: ITerminalContextualActionOptions): void {
-		if (options.commandLineMatcher) {
-			const currentOptions = this._commandListeners.get(options.commandLineMatcher.toString()) || [];
-			currentOptions.push(options);
-			this._commandListeners.set(options.commandLineMatcher.toString(), currentOptions);
-		}
-	}
-
-	resolveFreePortRequest(): void {
-		if (this._resolveCallback) {
-			this._resolveCallback();
-			this._resolveCallback = undefined;
-		}
+		const matcherKey = options.commandLineMatcher.toString();
+		const currentOptions = this._commandListeners.get(matcherKey) || [];
+		currentOptions.push(options);
+		this._commandListeners.set(matcherKey, currentOptions);
 	}
 
 	private _registerCommandFinishedHandler(): void {

@@ -17,7 +17,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ITerminalContextualActionOptions, ContextualMatchResult } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -36,9 +36,6 @@ import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/dec
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ContextualActionAddon, IContextualAction } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
-import { IAction } from 'vs/base/common/actions';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 
 // How long in milliseconds should an average frame take to render for a notification to appear
@@ -93,7 +90,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	// Always on addons
 	private _markNavigationAddon: MarkNavigationAddon;
 	private _shellIntegrationAddon: ShellIntegrationAddon;
-	private _contextualActionAddon: ContextualActionAddon;
+
 	private _decorationAddon: DecorationAddon;
 
 	// Optional addons
@@ -117,7 +114,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 	get markTracker(): IMarkTracker { return this._markNavigationAddon; }
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
-	get contextualAction(): IContextualAction | undefined { return this._contextualActionAddon; }
 
 	private _target: TerminalLocation | undefined;
 	set target(location: TerminalLocation | undefined) {
@@ -144,8 +140,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		@IStorageService private readonly _storageService: IStorageService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IOpenerService private readonly _openerService: IOpenerService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 		this.target = location;
@@ -215,113 +210,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon, disableShellIntegrationReporting, this._telemetryService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
-		this._contextualActionAddon = this._instantiationService.createInstance(ContextualActionAddon, this._capabilities);
-		this._contextualActionAddon.onDidRequestRerunCommand(command => this._onDidRequestRunCommand.fire({ command, noNewLine: true }));
-		this._contextualActionAddon.onDidRequestFreePort(port => this._onDidRequestFreePort.fire(port));
-		this.raw.loadAddon(this._contextualActionAddon);
-		this.registerCommandFinishedListener(this._gitSimilarCommand());
-		this.registerCommandFinishedListener(this._gitCreatePr());
-		this.registerCommandFinishedListener(this._gitPushSetUpstream());
-		this.registerCommandFinishedListener(this._freePort());
-	}
-
-	public registerCommandFinishedListener(options: ITerminalContextualActionOptions): void {
-		this._contextualActionAddon.registerCommandFinishedListener(options);
-	}
-
-	private _gitSimilarCommand(): ITerminalContextualActionOptions {
-		return {
-			commandLineMatcher: /git.*/,
-			outputMatcher: { lineMatcher: /.*The most similar command is\s*(.*)\s*/, anchor: 'bottom', length: 2 },
-			actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Run git ${matchResult.outputMatch[1]}` : ``,
-			nonZeroExitCode: true,
-			getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
-				const actions: IAction[] = [];
-				const fixedCommand = matchResult?.outputMatch?.[1];
-				if (!fixedCommand) {
-					return;
-				}
-				const label = localize("terminal.fixGitCommand", "Run git {0}", fixedCommand);
-				actions.push({
-					class: undefined, tooltip: label, id: 'terminal.fixGitCommand', label, enabled: true,
-					run: () => {
-						command.command = `git ${fixedCommand}`;
-						this._onDidRequestRunCommand.fire({ command });
-					}
-				});
-				return actions;
-			}
-		};
-	}
-	private _freePort(): ITerminalContextualActionOptions {
-		return {
-			actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Free port ${matchResult.outputMatch[1]}` : '',
-			commandLineMatcher: /.+/,
-			outputMatcher: { lineMatcher: /.*address already in use \d\.\d.\d\.\d:(\d\d\d\d).*/ },
-			nonZeroExitCode: true,
-			getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
-				const port = matchResult?.outputMatch?.[1];
-				if (!port) {
-					return;
-				}
-				const actions: IAction[] = [];
-				const label = localize("terminal.freePort", "Free port {0}", port);
-				actions.push({
-					class: undefined, tooltip: label, id: 'terminal.freePort', label, enabled: true,
-					run: () => this._onDidRequestFreePort.fire(port)
-				});
-				return actions;
-			}
-		};
-	}
-
-	private _gitPushSetUpstream(): ITerminalContextualActionOptions {
-		return {
-			actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Git push ${matchResult.outputMatch[1]}` : '',
-			commandLineMatcher: /git push/,
-			outputMatcher: { lineMatcher: /.*git push --set-upstream origin (.*)\s.*/ },
-			nonZeroExitCode: true,
-			getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
-				const branch = matchResult?.outputMatch?.[1];
-				if (!branch) {
-					return;
-				}
-				const actions: IAction[] = [];
-				const label = localize("terminal.gitPush", "Git push {0}", branch);
-				command.command = `git push --set-upstream origin ${branch}`;
-				actions.push({
-					class: undefined, tooltip: label, id: 'terminal.gitPush', label, enabled: true,
-					run: () => this._onDidRequestRunCommand.fire({ command })
-				});
-				return actions;
-			}
-		};
-	}
-
-	private _gitCreatePr(): ITerminalContextualActionOptions {
-		return {
-			actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Create PR for ${matchResult.outputMatch[1]}` : '',
-			commandLineMatcher: /git push/,
-			outputMatcher: { lineMatcher: /.*Create a pull request for \'(.+)\' on GitHub by visiting:\s+remote:\s+(https:.+pull.+)\s+/ },
-			nonZeroExitCode: true,
-			getActions: (matchResult: ContextualMatchResult, command?: ITerminalCommand) => {
-				if (!command) {
-					return;
-				}
-				const branch = matchResult?.outputMatch?.[1];
-				const link = matchResult?.outputMatch?.[2];
-				if (!branch || !link) {
-					return;
-				}
-				const actions: IAction[] = [];
-				const label = localize("terminal.createPR", "Create PR");
-				actions.push({
-					class: undefined, tooltip: label, id: 'terminal.createPR', label, enabled: true,
-					run: () => this._openerService.open(link)
-				});
-				return actions;
-			}
-		};
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {

@@ -458,6 +458,8 @@ export interface ITerminalInstance {
 
 	readonly statusList: ITerminalStatusList;
 
+	contextualAction: IContextualAction | undefined;
+
 	readonly findWidget: TerminalFindWidget;
 
 	/**
@@ -907,9 +909,9 @@ export interface ITerminalInstance {
 	openRecentLink(type: 'localFile' | 'url'): Promise<void>;
 
 	/**
-	 * Registers a contextual action listener
+	 * Registers contextual action listeners
 	 */
-	registerContextualAction(options: ITerminalContextualActionOptions): void;
+	registerContextualActions(...options: ITerminalContextualActionOptions[]): void;
 }
 
 export interface ITerminalContextualActionOptions {
@@ -941,12 +943,6 @@ export interface IXtermTerminal {
 	 * Reports the status of shell integration and fires events relating to it.
 	 */
 	readonly shellIntegration: IShellIntegration;
-
-	/**
-	 * Enables opening the contextual actions, if any, that are available
-	 * and registering of command finished listeners
-	 */
-	readonly contextualAction: IContextualAction | undefined;
 
 	readonly onDidChangeSelection: Event<void>;
 
