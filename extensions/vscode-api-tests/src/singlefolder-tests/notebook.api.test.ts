@@ -115,18 +115,6 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		};
 		return dto;
 	},
-	saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-		return;
-	},
-	saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-		return;
-	},
-	backupNotebook: async (_document: vscode.NotebookDocument, _context: vscode.NotebookDocumentBackupContext, _cancellation: vscode.CancellationToken) => {
-		return {
-			id: '1',
-			delete: () => { }
-		};
-	}
 };
 
 (vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('Notebook API tests', function () {
@@ -188,7 +176,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		assert.strictEqual(firstNotebookEditor?.notebook, secondNotebookEditor?.notebook, 'split notebook editors share the same document');
 	});
 
-	test.skip('#106657. Opening a notebook from markers view is broken ', async function () {
+	test('#106657. Opening a notebook from markers view is broken ', async function () {
 
 		const document = await openRandomNotebookDocument();
 		const [cell] = document.getCells();
@@ -244,7 +232,8 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		await closeAllEditors();
 	});
 
-	test('#115855 onDidSaveNotebookDocument', async function () {
+	// TODO: Skipped due to notebook content provider removal
+	test.skip('#115855 onDidSaveNotebookDocument', async function () {
 		const resource = await createRandomNotebookFile();
 		const notebook = await vscode.workspace.openNotebookDocument(resource);
 
@@ -294,7 +283,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		await provideCalled;
 
 		const edit = new vscode.WorkspaceEdit();
-		edit.replaceNotebookCellMetadata(notebook.uri, 0, { inputCollapsed: true });
+		edit.set(notebook.uri, [vscode.NotebookEdit.updateCellMetadata(0, { inputCollapsed: true })]);
 		await vscode.workspace.applyEdit(edit);
 		await provideCalled;
 	});

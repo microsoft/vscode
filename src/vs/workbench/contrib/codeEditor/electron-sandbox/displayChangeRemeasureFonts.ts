@@ -23,4 +23,4 @@ class DisplayChangeRemeasureFonts extends Disposable implements IWorkbenchContri
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DisplayChangeRemeasureFonts, LifecyclePhase.Eventually);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DisplayChangeRemeasureFonts, 'DisplayChangeRemeasureFonts', LifecyclePhase.Eventually);

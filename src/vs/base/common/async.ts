@@ -1227,15 +1227,15 @@ export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: 
 //#region Task Sequentializer
 
 interface IPendingTask {
-	taskId: number;
-	cancel: () => void;
-	promise: Promise<void>;
+	readonly taskId: number;
+	readonly cancel: () => void;
+	readonly promise: Promise<void>;
 }
 
-interface ISequentialTask {
-	promise: Promise<void>;
-	promiseResolve: () => void;
-	promiseReject: (error: Error) => void;
+interface INextTask {
+	readonly promise: Promise<void>;
+	readonly promiseResolve: () => void;
+	readonly promiseReject: (error: Error) => void;
 	run: () => Promise<void>;
 }
 
@@ -1243,9 +1243,14 @@ export interface ITaskSequentializerWithPendingTask {
 	readonly pending: Promise<void>;
 }
 
+export interface ITaskSequentializerWithNextTask {
+	readonly next: INextTask;
+}
+
 export class TaskSequentializer {
+
 	private _pending?: IPendingTask;
-	private _next?: ISequentialTask;
+	private _next?: INextTask;
 
 	hasPending(taskId?: number): this is ITaskSequentializerWithPendingTask {
 		if (!this._pending) {
@@ -1260,7 +1265,7 @@ export class TaskSequentializer {
 	}
 
 	get pending(): Promise<void> | undefined {
-		return this._pending ? this._pending.promise : undefined;
+		return this._pending?.promise;
 	}
 
 	cancelPending(): void {
@@ -1323,6 +1328,14 @@ export class TaskSequentializer {
 		}
 
 		return this._next.promise;
+	}
+
+	hasNext(): this is ITaskSequentializerWithNextTask {
+		return !!this._next;
+	}
+
+	async join(): Promise<void> {
+		return this._next?.promise ?? this._pending?.promise;
 	}
 }
 

@@ -45,6 +45,8 @@ import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/c
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 
 interface IWorkspaceFolderConfigurationResult {
 	workspaceFolder: IWorkspaceFolder;
@@ -88,6 +90,8 @@ export class TaskService extends AbstractTaskService {
 		@ILogService logService: ILogService,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IAudioCueService audioCueService: IAudioCueService
 	) {
 		super(configurationService,
 			markerService,
@@ -122,7 +126,9 @@ export class TaskService extends AbstractTaskService {
 			workspaceTrustManagementService,
 			logService,
 			themeService,
-			lifecycleService
+			lifecycleService,
+			remoteAgentService,
+			instantiationService
 		);
 		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown(), 'veto.tasks')));
 	}
@@ -131,13 +137,15 @@ export class TaskService extends AbstractTaskService {
 		if (this._taskSystem) {
 			return this._taskSystem;
 		}
-		this._taskSystem = this._createTerminalTaskSystem();
-		this._taskSystemListener = this._taskSystem!.onDidStateChange((event) => {
-			if (this._taskSystem) {
-				this._taskRunningState.set(this._taskSystem.isActiveSync());
-			}
-			this._onDidStateChange.fire(event);
-		});
+		const taskSystem = this._createTerminalTaskSystem();
+		this._taskSystem = taskSystem;
+		this._taskSystemListeners =
+			[
+				this._taskSystem.onDidStateChange((event) => {
+					this._taskRunningState.set(this._taskSystem!.isActiveSync());
+					this._onDidStateChange.fire(event);
+				})
+			];
 		return this._taskSystem;
 	}
 

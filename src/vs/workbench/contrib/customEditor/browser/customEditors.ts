@@ -65,10 +65,12 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._focusedCustomEditorIsEditable = CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE.bindTo(contextKeyService);
 
 		this._contributedEditors = this._register(new ContributedCustomEditors(storageService));
-		this.registerContributionPoints();
+		// Register the contribution points only emitting one change from the resolver
+		this.editorResolverService.bufferChangeEvents(this.registerContributionPoints.bind(this));
 
 		this._register(this._contributedEditors.onChange(() => {
-			this.registerContributionPoints();
+			// Register the contribution points only emitting one change from the resolver
+			this.editorResolverService.bufferChangeEvents(this.registerContributionPoints.bind(this));
 			this.updateContexts();
 			this._onDidChangeEditorTypes.fire();
 		}));

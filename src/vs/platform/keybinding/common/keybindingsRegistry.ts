@@ -9,6 +9,8 @@ import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 export interface IKeybindingItem {
 	keybinding: (SimpleKeybinding | ScanCodeBinding)[];
@@ -69,20 +71,20 @@ export interface ICommandAndKeybindingRule extends IKeybindingRule {
 }
 
 export interface IKeybindingsRegistry {
-	registerKeybindingRule(rule: IKeybindingRule): void;
+	registerKeybindingRule(rule: IKeybindingRule): IDisposable;
 	setExtensionKeybindings(rules: IExtensionKeybindingRule[]): void;
-	registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): void;
+	registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): IDisposable;
 	getDefaultKeybindings(): IKeybindingItem[];
 }
 
 class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 
-	private _coreKeybindings: IKeybindingItem[];
+	private _coreKeybindings: LinkedList<IKeybindingItem>;
 	private _extensionKeybindings: IKeybindingItem[];
 	private _cachedMergedKeybindings: IKeybindingItem[] | null;
 
 	constructor() {
-		this._coreKeybindings = [];
+		this._coreKeybindings = new LinkedList();
 		this._extensionKeybindings = [];
 		this._cachedMergedKeybindings = null;
 	}
@@ -108,13 +110,14 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return kb;
 	}
 
-	public registerKeybindingRule(rule: IKeybindingRule): void {
+	public registerKeybindingRule(rule: IKeybindingRule): IDisposable {
 		const actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
+		const result = new DisposableStore();
 
 		if (actualKb && actualKb.primary) {
 			const kk = createKeybinding(actualKb.primary, OS);
 			if (kk) {
-				this._registerDefaultKeybinding(kk, rule.id, rule.args, rule.weight, 0, rule.when);
+				result.add(this._registerDefaultKeybinding(kk, rule.id, rule.args, rule.weight, 0, rule.when));
 			}
 		}
 
@@ -123,10 +126,11 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 				const k = actualKb.secondary[i];
 				const kk = createKeybinding(k, OS);
 				if (kk) {
-					this._registerDefaultKeybinding(kk, rule.id, rule.args, rule.weight, -i - 1, rule.when);
+					result.add(this._registerDefaultKeybinding(kk, rule.id, rule.args, rule.weight, -i - 1, rule.when));
 				}
 			}
 		}
+		return result;
 	}
 
 	public setExtensionKeybindings(rules: IExtensionKeybindingRule[]): void {
@@ -151,9 +155,11 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		this._cachedMergedKeybindings = null;
 	}
 
-	public registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): void {
-		this.registerKeybindingRule(desc);
-		CommandsRegistry.registerCommand(desc);
+	public registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): IDisposable {
+		return combinedDisposable(
+			this.registerKeybindingRule(desc),
+			CommandsRegistry.registerCommand(desc)
+		);
 	}
 
 	private static _mightProduceChar(keyCode: KeyCode): boolean {
@@ -190,11 +196,11 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		}
 	}
 
-	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpression | null | undefined): void {
+	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpression | null | undefined): IDisposable {
 		if (OS === OperatingSystem.Windows) {
 			this._assertNoCtrlAlt(keybinding.parts[0], commandId);
 		}
-		this._coreKeybindings.push({
+		const remove = this._coreKeybindings.push({
 			keybinding: keybinding.parts,
 			command: commandId,
 			commandArgs: commandArgs,
@@ -205,11 +211,16 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 			isBuiltinExtension: false
 		});
 		this._cachedMergedKeybindings = null;
+
+		return toDisposable(() => {
+			remove();
+			this._cachedMergedKeybindings = null;
+		});
 	}
 
 	public getDefaultKeybindings(): IKeybindingItem[] {
 		if (!this._cachedMergedKeybindings) {
-			this._cachedMergedKeybindings = (<IKeybindingItem[]>[]).concat(this._coreKeybindings).concat(this._extensionKeybindings);
+			this._cachedMergedKeybindings = Array.from(this._coreKeybindings).concat(this._extensionKeybindings);
 			this._cachedMergedKeybindings.sort(sorter);
 		}
 		return this._cachedMergedKeybindings.slice(0);

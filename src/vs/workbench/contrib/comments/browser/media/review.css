@@ -382,18 +382,18 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	display: none !important;
 }
 
-.monaco-editor .comment-range-glyph:before {
-	position: absolute;
-	content: "";
-	height: 100%;
-	width: 0;
-	left: -2px;
-	transition: width 80ms linear, left 80ms linear;
+.monaco-editor .comment-diff-added {
+	border-left-width: 3px;
+	border-left-style: solid;
+}
+
+.monaco-editor .margin-view-overlays .comment-range-glyph.line-hover,
+.monaco-editor .margin-view-overlays .comment-range-glyph.comment-thread {
+	margin-left: 13px;
 }
 
 .monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
-.monaco-editor .margin-view-overlays .comment-range-glyph.comment-diff-added.line-hover:before,
-.monaco-editor .margin-view-overlays .comment-range-glyph.comment-diff-added.multiline-add:before,
+.monaco-editor .margin-view-overlays .comment-range-glyph.line-hover:before,
 .monaco-editor .comment-range-glyph.comment-thread:before {
 	position: absolute;
 	height: 100%;
@@ -408,14 +408,20 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	justify-content: center;
 }
 
+.monaco-editor .margin-view-overlays .comment-range-glyph.multiline-add {
+	border-left-width: 3px;
+	border-left-style: dotted;
+	height: 16px;
+	margin-top: 2px;
+}
+
 .monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
-.monaco-editor .margin-view-overlays .comment-range-glyph.comment-diff-added.line-hover:before {
+.monaco-editor .margin-view-overlays .comment-range-glyph.line-hover:before {
 	content: "\ea60";
 	font-family: "codicon";
 	border-radius: 3px;
-	width: 19px !important;
+	width: 18px !important;
 	margin-left: -5px;
-	padding-top: 1px;
 	padding-left: 1px;
 }
 
@@ -426,8 +432,8 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 .monaco-editor .comment-range-glyph.comment-thread:before {
 	content: "\ea6b";
 	font-family: "codicon";
-	font-size: 14px;
-	width: 19px !important;
+	font-size: 13px;
+	width: 18px !important;
 	line-height: 100%;
 	border-radius: 3px;
 	z-index: 20;
@@ -438,9 +444,9 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 
 .monaco-editor.inline-comment .margin-view-overlays .codicon-folding-expanded,
 .monaco-editor.inline-comment .margin-view-overlays .codicon-folding-collapsed {
-	margin-left: 13px;
+	margin-left: 11px;
 }
 
 .monaco-editor.inline-comment .margin-view-overlays .dirty-diff-glyph {
-	margin-left: 23px;
+	margin-left: 25px;
 }

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event as ElectronEvent, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
+import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
@@ -40,10 +40,10 @@ import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electro
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { revive } from 'vs/base/common/marshalling';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import product from 'vs/platform/product/common/product';
+import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -121,7 +121,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
 
-	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getProfile(this.config.workspace ?? 'empty-window', revive(this.config.profiles.current)) : undefined; }
+	get profile(): IUserDataProfile | undefined { return this.config ? this.userDataProfilesService.getOrSetProfileForWorkspace(this.config.workspace ?? 'empty-window', this.userDataProfilesService.profiles.find(profile => profile.id === this.config?.profiles.profile.id) ?? this.userDataProfilesService.defaultProfile) : undefined; }
 
 	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }
 
@@ -136,12 +136,19 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	//#endregion
 
-
 	private readonly windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility | undefined;
 
+	// TODO@electron workaround for https://github.com/electron/electron/issues/35360
+	// where on macOS the window will report a wrong state for `isFullScreen()` while
+	// transitioning into and out of native full screen.
+	private transientIsNativeFullScreen: boolean | undefined = undefined;
+	private joinNativeFullScreenTransition: DeferredPromise<void> | undefined = undefined;
+
 	private representedFilename: string | undefined;
 	private documentEdited: boolean | undefined;
+
+	private readonly hasWindowControlOverlay: boolean = false;
 
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
 
@@ -159,7 +166,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfilesMainService private readonly userDataProfilesService: IUserDataProfilesMainService,
 		@IFileService private readonly fileService: IFileService,
 		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
 		@IStorageMainService private readonly storageMainService: IStorageMainService,
@@ -280,6 +287,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						color: titleBarColor,
 						symbolColor
 					};
+
+					this.hasWindowControlOverlay = true;
 				}
 			}
 
@@ -508,9 +517,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private registerListeners(): void {
 
-		// Crashes & Unresponsive & Failed to load
+		// Window error conditions to handle
 		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
-		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.CRASHED, details));
+		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.PROCESS_GONE, details));
 		this._win.webContents.on('did-fail-load', (event, exitCode, reason) => this.onWindowError(WindowError.LOAD, { reason, exitCode }));
 
 		// Prevent windows/iframes from blocking the unload
@@ -546,7 +555,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 
 		// Window (Un)Maximize
-		this._win.on('maximize', (e: Event) => {
+		this._win.on('maximize', (e: ElectronEvent) => {
 			if (this._config) {
 				this._config.maximized = true;
 			}
@@ -554,7 +563,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			app.emit('browser-window-maximize', e, this._win);
 		});
 
-		this._win.on('unmaximize', (e: Event) => {
+		this._win.on('unmaximize', (e: ElectronEvent) => {
 			if (this._config) {
 				this._config.maximized = false;
 			}
@@ -565,10 +574,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Window Fullscreen
 		this._win.on('enter-full-screen', () => {
 			this.sendWhenReady('vscode:enterFullScreen', CancellationToken.None);
+
+			this.joinNativeFullScreenTransition?.complete();
+			this.joinNativeFullScreenTransition = undefined;
 		});
 
 		this._win.on('leave-full-screen', () => {
 			this.sendWhenReady('vscode:leaveFullScreen', CancellationToken.None);
+
+			this.joinNativeFullScreenTransition?.complete();
+			this.joinNativeFullScreenTransition = undefined;
 		});
 
 		// Handle configuration changes
@@ -603,13 +618,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
-	private async onWindowError(error: WindowError.CRASHED, details: { reason: string; exitCode: number }): Promise<void>;
+	private async onWindowError(error: WindowError.PROCESS_GONE, details: { reason: string; exitCode: number }): Promise<void>;
 	private async onWindowError(error: WindowError.LOAD, details: { reason: string; exitCode: number }): Promise<void>;
 	private async onWindowError(type: WindowError, details?: { reason: string; exitCode: number }): Promise<void> {
 
 		switch (type) {
-			case WindowError.CRASHED:
-				this.logService.error(`CodeWindow: renderer process crashed (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
+			case WindowError.PROCESS_GONE:
+				this.logService.error(`CodeWindow: renderer process gone (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
 				break;
 			case WindowError.UNRESPONSIVE:
 				this.logService.error('CodeWindow: detected unresponsive');
@@ -621,11 +636,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Telemetry
 		type WindowErrorClassification = {
-			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window crash to understand the nature of the crash better.' };
-			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window crash to understand the nature of the crash better.' };
-			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the crash better' };
+			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window error to understand the nature of the error better.' };
+			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window error to understand the nature of the error better.' };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the error better' };
 			owner: 'bpasero';
-			comment: 'Provides insight into reasons the vscode window crashes.';
+			comment: 'Provides insight into reasons the vscode window had an error.';
 		};
 		type WindowErrorEvent = {
 			type: WindowError;
@@ -637,19 +652,22 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Inform User if non-recoverable
 		switch (type) {
 			case WindowError.UNRESPONSIVE:
-			case WindowError.CRASHED:
+			case WindowError.PROCESS_GONE:
 
-				// If we run extension tests from CLI, showing a dialog is not
-				// very helpful in this case. Rather, we bring down the test run
-				// to signal back a failing run.
+				// If we run extension tests from CLI, we want to signal
+				// back this state to the test runner by exiting with a
+				// non-zero exit code.
 				if (this.isExtensionDevelopmentTestFromCli) {
 					this.lifecycleMainService.kill(1);
 					return;
 				}
 
-				// If we run smoke tests, we never want to show a blocking dialog
+				// If we run smoke tests, want to proceed with an orderly
+				// shutdown as much as possible by destroying the window
+				// and then calling the normal `quit` routine.
 				if (this.environmentMainService.args['enable-smoke-test-driver']) {
-					this.destroyWindow(false, false);
+					await this.destroyWindow(false, false);
+					this.lifecycleMainService.quit(); // still allow for an orderly shutdown
 					return;
 				}
 
@@ -685,17 +703,17 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					// Handle choice
 					if (result.response !== 1 /* keep waiting */) {
 						const reopen = result.response === 0;
-						this.destroyWindow(reopen, result.checkboxChecked);
+						await this.destroyWindow(reopen, result.checkboxChecked);
 					}
 				}
 
-				// Crashed
-				else if (type === WindowError.CRASHED) {
+				// Process gone
+				else if (type === WindowError.PROCESS_GONE) {
 					let message: string;
 					if (!details) {
-						message = localize('appCrashed', "The window has crashed");
+						message = localize('appGone', "The window terminated unexpectedly");
 					} else {
-						message = localize('appCrashedDetails', "The window has crashed (reason: '{0}', code: '{1}')", details.reason, details.exitCode ?? '<unknown>');
+						message = localize('appGoneDetails', "The window terminated unexpectedly (reason: '{0}', code: '{1}')", details.reason, details.exitCode ?? '<unknown>');
 					}
 
 					// Show Dialog
@@ -707,7 +725,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 							mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
 						],
 						message,
-						detail: localize('appCrashedDetail', "We are sorry for the inconvenience. You can reopen the window to continue where you left off."),
+						detail: localize('appGoneDetail', "We are sorry for the inconvenience. You can reopen the window to continue where you left off."),
 						noLink: true,
 						defaultId: 0,
 						checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
@@ -715,7 +733,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 					// Handle choice
 					const reopen = result.response === 0;
-					this.destroyWindow(reopen, result.checkboxChecked);
+					await this.destroyWindow(reopen, result.checkboxChecked);
 				}
 				break;
 		}
@@ -739,7 +757,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// 'close' event will not be fired on destroy(), so signal crash via explicit event
 		this._onDidDestroy.fire();
 
-		// make sure to destroy the window as it has crashed
+		// make sure to destroy the window as its renderer process is gone
 		this._win?.destroy();
 
 		// ask the windows service to open a new fresh window if specified
@@ -757,7 +775,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			// Delegate to windows service
-			const [window] = this.windowsMainService.open({
+			const [window] = await this.windowsMainService.open({
 				context: OpenContext.API,
 				userEnv: this._config.userEnv,
 				cli: {
@@ -777,7 +795,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Make sure to update our workspace config if we detect that it
 		// was deleted
-		if (this._config?.workspace?.id === workspace.id && this._config) {
+		if (this._config?.workspace?.id === workspace.id) {
 			this._config.workspace = undefined;
 		}
 	}
@@ -955,10 +973,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		configuration.isInitialStartup = false; // since this is a reload
 		configuration.policiesData = this.policyService.serialize(); // set policies data again
-		configuration.editSessionId = this.environmentMainService.editSessionId; // set latest edit session id
 		configuration.profiles = {
 			all: this.userDataProfilesService.profiles,
-			current: this.profile || this.userDataProfilesService.defaultProfile,
+			profile: this.profile || this.userDataProfilesService.defaultProfile
 		};
 
 		// Load config
@@ -1072,7 +1089,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Windows: window control overlay (WCO)
-		if (isWindows) {
+		if (isWindows && this.hasWindowControlOverlay) {
 			this._win.setTitleBarOverlay({
 				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
 				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
@@ -1109,17 +1126,20 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private validateWindowState(state: IWindowState, displays: Display[]): IWindowState | undefined {
 		this.logService.trace(`window#validateWindowState: validating window state on ${displays.length} display(s)`, state);
 
-		if (typeof state.x !== 'number'
-			|| typeof state.y !== 'number'
-			|| typeof state.width !== 'number'
-			|| typeof state.height !== 'number'
+		if (
+			typeof state.x !== 'number' ||
+			typeof state.y !== 'number' ||
+			typeof state.width !== 'number' ||
+			typeof state.height !== 'number'
 		) {
 			this.logService.trace('window#validateWindowState: unexpected type of state values');
+
 			return undefined;
 		}
 
 		if (state.width <= 0 || state.height <= 0) {
 			this.logService.trace('window#validateWindowState: unexpected negative values');
+
 			return undefined;
 		}
 
@@ -1274,11 +1294,30 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	get isFullScreen(): boolean { return this._win.isFullScreen() || this._win.isSimpleFullScreen(); }
+	get isFullScreen(): boolean {
+		if (isMacintosh && typeof this.transientIsNativeFullScreen === 'boolean') {
+			return this.transientIsNativeFullScreen;
+		}
+
+		return this._win.isFullScreen() || this._win.isSimpleFullScreen();
+	}
 
 	private setNativeFullScreen(fullscreen: boolean): void {
 		if (this._win.isSimpleFullScreen()) {
 			this._win.setSimpleFullScreen(false);
+		}
+
+		this.doSetNativeFullScreen(fullscreen);
+	}
+
+	private doSetNativeFullScreen(fullscreen: boolean): void {
+		if (isMacintosh) {
+			this.transientIsNativeFullScreen = fullscreen;
+			this.joinNativeFullScreenTransition = new DeferredPromise<void>();
+			Promise.race([
+				this.joinNativeFullScreenTransition.p,
+				timeout(1000) // still timeout after some time in case we miss the event
+			]).finally(() => this.transientIsNativeFullScreen = undefined);
 		}
 
 		this._win.setFullScreen(fullscreen);
@@ -1286,7 +1325,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private setSimpleFullScreen(fullscreen: boolean): void {
 		if (this._win.isFullScreen()) {
-			this._win.setFullScreen(false);
+			this.doSetNativeFullScreen(false);
 		}
 
 		this._win.setSimpleFullScreen(fullscreen);

@@ -249,7 +249,7 @@ steps:
     - script: |
         set -e
         VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-          yarn gulp "transpile-client" "transpile-extensions"
+          yarn gulp "transpile-client-swc" "transpile-extensions"
       displayName: Transpile
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:

@@ -147,11 +147,13 @@ export class Sound {
 	}
 
 
-	public static readonly error = Sound.register({ fileName: 'error.opus' });
-	public static readonly warning = Sound.register({ fileName: 'warning.opus' });
-	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.opus' });
-	public static readonly break = Sound.register({ fileName: 'break.opus' });
-	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.opus' });
+	public static readonly error = Sound.register({ fileName: 'error.mp3' });
+	public static readonly warning = Sound.register({ fileName: 'warning.mp3' });
+	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.mp3' });
+	public static readonly break = Sound.register({ fileName: 'break.mp3' });
+	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.mp3' });
+	public static readonly taskEnded = Sound.register({ fileName: 'taskEnded.mp3' });
+	public static readonly terminalBell = Sound.register({ fileName: 'terminalBell.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -209,6 +211,18 @@ export class AudioCue {
 		name: localize('audioCues.noInlayHints', 'No Inlay Hints on Line'),
 		sound: Sound.error,
 		settingsKey: 'audioCues.noInlayHints'
+	});
+
+	public static readonly taskEnded = AudioCue.register({
+		name: localize('audioCues.taskEnded', 'Task Ended'),
+		sound: Sound.taskEnded,
+		settingsKey: 'audioCues.taskEnded'
+	});
+
+	public static readonly terminalBell = AudioCue.register({
+		name: localize('audioCues.terminalBell', 'Terminal Bell'),
+		sound: Sound.terminalBell,
+		settingsKey: 'audioCues.terminalBell'
 	});
 
 	private constructor(

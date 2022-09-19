@@ -194,7 +194,7 @@ export const isAndroid = (userAgent.indexOf('Android') >= 0);
 
 let standalone = false;
 if (window.matchMedia) {
-	const standaloneMatchMedia = window.matchMedia('(display-mode: standalone)');
+	const standaloneMatchMedia = window.matchMedia('(display-mode: standalone) or (display-mode: window-controls-overlay)');
 	const fullScreenMatchMedia = window.matchMedia('(display-mode: fullscreen)');
 	standalone = standaloneMatchMedia.matches;
 	addMatchMediaChangeListener(standaloneMatchMedia, ({ matches }) => {

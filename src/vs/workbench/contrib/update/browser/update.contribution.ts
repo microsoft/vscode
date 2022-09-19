@@ -20,9 +20,9 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
 const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 
-workbench.registerWorkbenchContribution(ProductContribution, LifecyclePhase.Restored);
-workbench.registerWorkbenchContribution(UpdateContribution, LifecyclePhase.Restored);
-workbench.registerWorkbenchContribution(SwitchProductQualityContribution, LifecyclePhase.Restored);
+workbench.registerWorkbenchContribution(ProductContribution, 'ProductContribution', LifecyclePhase.Restored);
+workbench.registerWorkbenchContribution(UpdateContribution, 'UpdateContribution', LifecyclePhase.Restored);
+workbench.registerWorkbenchContribution(SwitchProductQualityContribution, 'SwitchProductQualityContribution', LifecyclePhase.Restored);
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
