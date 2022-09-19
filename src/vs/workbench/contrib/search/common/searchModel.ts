@@ -222,6 +222,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		private _maxResults: number | undefined,
 		private _parent: FolderMatch,
 		private rawMatch: IFileMatch,
+		private _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IModelService private readonly modelService: IModelService,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -233,6 +234,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
 
 		this.createMatches();
+	}
+
+	get closestRoot(): FolderMatchWorkspaceRoot | null {
+		return this._closestRoot;
 	}
 
 	private createMatches(): void {
@@ -517,6 +522,7 @@ export class FolderMatch extends Disposable {
 	get closestRoot(): FolderMatchWorkspaceRoot | null {
 		return this._closestRoot;
 	}
+
 	set replacingAll(b: boolean) {
 		this._replacingAll = b;
 	}
@@ -857,8 +863,8 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		return this.uriIdentityService.extUri.isEqual(uri1, ur2);
 	}
 
-	private createFileMatch(query: IPatternInfo, previewOptions: ITextSearchPreviewOptions | undefined, maxResults: number | undefined, parent: FolderMatch, rawFileMatch: IFileMatch): FileMatch {
-		const fileMatch = this.instantiationService.createInstance(FileMatch, query, previewOptions, maxResults, parent, rawFileMatch);
+	private createFileMatch(query: IPatternInfo, previewOptions: ITextSearchPreviewOptions | undefined, maxResults: number | undefined, parent: FolderMatch, rawFileMatch: IFileMatch, closestRoot: FolderMatchWorkspaceRoot | null,): FileMatch {
+		const fileMatch = this.instantiationService.createInstance(FileMatch, query, previewOptions, maxResults, parent, rawFileMatch, closestRoot);
 		parent.doAddFile(fileMatch);
 		const disposable = fileMatch.onChange(({ didRemove }) => parent.onFileChange(fileMatch, didRemove));
 		fileMatch.onDispose(() => disposable.dispose());
@@ -882,17 +888,17 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 			uri = this.uriParent(uri);
 		}
 
+		const root = this.closestRoot ?? this;
 		let parent: FolderMatch = this;
 		for (let i = 0; i < fileMatchParentParts.length; i++) {
 			let folderMatch: FolderMatchWithResource | undefined = parent.folderMatches().find(e => e.resource && (this.uriEquals(e.resource, fileMatchParentParts[i])));
 			if (!folderMatch) {
-				const root = this.closestRoot ?? this;
 				folderMatch = parent.createIntermediateFolderMatch(fileMatchParentParts[i], fileMatchParentParts[i].toString(), null, this._query, root);
 			}
 			parent = folderMatch;
 		}
 
-		return this.createFileMatch(this._query.contentPattern, this._query.previewOptions, this._query.maxResults, parent, rawFileMatch);
+		return this.createFileMatch(this._query.contentPattern, this._query.previewOptions, this._query.maxResults, parent, rawFileMatch, root);
 	}
 
 	override index(): number {
@@ -915,7 +921,7 @@ export class FolderMatchNoRoot extends FolderMatch {
 	}
 
 	createAndConfigureFileMatch(rawFileMatch: IFileMatch): FileMatch {
-		const fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.previewOptions, this._query.maxResults, this, rawFileMatch);
+		const fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.previewOptions, this._query.maxResults, this, rawFileMatch, null);
 		this.doAddFile(fileMatch);
 		const disposable = fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove));
 		fileMatch.onDispose(() => disposable.dispose());

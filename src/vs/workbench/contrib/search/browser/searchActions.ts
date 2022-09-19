@@ -386,9 +386,9 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	/**
 	 * Returns element to focus after removing the given element
 	 */
-	getElementToFocusAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, elementToRemove: RenderableMatch): RenderableMatch {
+	getElementToFocusAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, elementToRemove: RenderableMatch, isTreeViewVisible: boolean): RenderableMatch {
 		const elementToFocus = this.getNextElementAfterRemoved(viewer, elementToRemove);
-		return elementToFocus || this.getPreviousElementAfterRemoved(viewer, elementToRemove);
+		return elementToFocus || this.getPreviousElementAfterRemoved(viewer, elementToRemove, isTreeViewVisible);
 	}
 
 	getNextElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
@@ -405,17 +405,16 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 		return navigator.current();
 	}
 
-	getPreviousElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
+	getPreviousElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch, isTreeViewVisible: boolean): RenderableMatch {
 		const navigator: ITreeNavigator<any> = viewer.navigate(element);
 		let previousElement = navigator.previous();
-
 		// Hence take the previous element.
-		const parent = element.parent();
+		const parent = getVisibleParent(element, isTreeViewVisible);
 		if (parent === previousElement) {
 			previousElement = navigator.previous();
 		}
 
-		if (parent instanceof FileMatch && parent.parent() === previousElement) {
+		if (parent instanceof FileMatch && getVisibleParent(parent, isTreeViewVisible) === previousElement) {
 			previousElement = navigator.previous();
 		}
 
@@ -441,8 +440,8 @@ class ReplaceActionRunner {
 	constructor(
 		private viewer: WorkbenchObjectTree<RenderableMatch>,
 		private viewlet: SearchView | undefined,
-		private getElementToFocusAfterRemoved: (viewer: WorkbenchObjectTree<RenderableMatch>, lastElementToBeRemoved: RenderableMatch) => RenderableMatch,
-		private getPreviousElementAfterRemoved: (viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch) => RenderableMatch,
+		private getElementToFocusAfterRemoved: (viewer: WorkbenchObjectTree<RenderableMatch>, lastElementToBeRemoved: RenderableMatch, isTreeViewVisible: boolean) => RenderableMatch,
+		private getPreviousElementAfterRemoved: (viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch, isTreeViewVisible: boolean) => RenderableMatch,
 		// Services
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -456,7 +455,8 @@ class ReplaceActionRunner {
 		const opInfo = getElementsToOperateOnInfo(this.viewer, element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
 		const elementsToReplace = opInfo.elements;
 
-		const searchResult = getSearchView(this.viewsService)?.searchResult;
+		const searchView = getSearchView(this.viewsService);
+		const searchResult = searchView?.searchResult;
 
 		if (searchResult) {
 			searchResult.batchReplace(elementsToReplace);
@@ -471,7 +471,7 @@ class ReplaceActionRunner {
 				this.viewer.setFocus([elementToFocus], getSelectionKeyboardEvent());
 				this.viewer.setSelection([elementToFocus], getSelectionKeyboardEvent());
 			}
-			const elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus, currentBottomFocusElement);
+			const elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus, currentBottomFocusElement, searchView?.isTreeViewVisible ?? false);
 
 			this.viewer.domFocus();
 
@@ -483,7 +483,7 @@ class ReplaceActionRunner {
 			}
 			return;
 		} else {
-			const nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, currentBottomFocusElement);
+			const nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, currentBottomFocusElement, searchView?.isTreeViewVisible ?? false);
 
 			if (nextFocusElement) {
 				this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
@@ -527,11 +527,11 @@ class ReplaceActionRunner {
 		return elementToFocus!;
 	}
 
-	private getElementToShowReplacePreview(elementToFocus: RenderableMatch, currBottomElem: RenderableMatch): Match | null {
+	private getElementToShowReplacePreview(elementToFocus: RenderableMatch, currBottomElem: RenderableMatch, isTreeViewVisible: boolean): Match | null {
 		if (this.hasSameParent(elementToFocus, currBottomElem)) {
 			return <Match>elementToFocus;
 		}
-		const previousElement = this.getPreviousElementAfterRemoved(this.viewer, elementToFocus);
+		const previousElement = this.getPreviousElementAfterRemoved(this.viewer, elementToFocus, isTreeViewVisible);
 		if (this.hasSameParent(previousElement, currBottomElem)) {
 			return <Match>previousElement;
 		}
@@ -575,7 +575,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 	override async run(): Promise<any> {
 		const opInfo = getElementsToOperateOnInfo(this.viewer, this.element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
 		const elementsToRemove = opInfo.elements;
-
+		const searchView = getSearchView(this.viewsService);
 		if (elementsToRemove.length === 0) {
 			return;
 		}
@@ -583,7 +583,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		if (opInfo.mustReselect) {
 			for (const currentElement of elementsToRemove) {
 				const nextFocusElement = !currentElement || currentElement instanceof SearchResult || arrayContainsElementOrParent(currentElement, elementsToRemove) ?
-					this.getElementToFocusAfterRemoved(this.viewer, currentElement) :
+					this.getElementToFocusAfterRemoved(this.viewer, currentElement, searchView?.isTreeViewVisible ?? false) :
 					null;
 				if (nextFocusElement && !arrayContainsElementOrParent(nextFocusElement, elementsToRemove)) {
 					this.viewer.reveal(nextFocusElement);
@@ -594,7 +594,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 			}
 		}
 
-		const searchResult = getSearchView(this.viewsService)?.searchResult;
+		const searchResult = searchView?.searchResult;
 
 		if (searchResult) {
 			searchResult.batchRemove(elementsToRemove);
@@ -826,4 +826,8 @@ function getElementsToOperateOnInfo(viewer: WorkbenchObjectTree<RenderableMatch,
 	}
 
 	return { elements, mustReselect };
+}
+
+function getVisibleParent(element: RenderableMatch, isTreeViewVisible: boolean): FileMatch | FolderMatch | SearchResult | null {
+	return (isTreeViewVisible || element instanceof Match) ? element.parent() : element.closestRoot;
 }
