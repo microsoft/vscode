@@ -8,13 +8,14 @@ import { ITreeItem, TreeItemCollapsibleState, TreeViewItemHandleArg, IViewDescri
 import { localize } from 'vs/nls';
 import { TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IUserDataSyncService, Change, MergeState, IUserDataSyncResource, IResourcePreview, IUserDataSyncResourceConflicts, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, Change, MergeState, IUserDataSyncResource, IResourcePreview, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { getSyncAreaLabel, SYNC_CONFLICTS_VIEW_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { basename } from 'vs/base/common/resources';
+import { getSyncAreaLabel, IUserDataSyncConflictsView, IUserDataSyncWorkbenchService, SYNC_CONFLICTS_VIEW_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { basename, isEqual } from 'vs/base/common/resources';
 import * as DOM from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -25,18 +26,17 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Codicon } from 'vs/base/common/codicons';
+import { IUserDataProfile, IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { Disposable, dispose } from 'vs/base/common/lifecycle';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 
-interface IUserDataSyncConflictHandle {
-	syncResource: IUserDataSyncResource;
-	remoteResource: URI;
-	localResource: URI;
-	baseResource: URI;
-	previewResource: URI;
-}
+type UserDataSyncConflictResource = IUserDataSyncResource & IResourcePreview;
 
-export class UserDataSyncConflictsViewPane extends TreeViewPane {
-
-	private readonly treeItems = new Map<string, ITreeItem>();
+export class UserDataSyncConflictsViewPane extends TreeViewPane implements IUserDataSyncConflictsView {
 
 	constructor(
 		options: IViewletViewOptions,
@@ -52,7 +52,9 @@ export class UserDataSyncConflictsViewPane extends TreeViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
+		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, notificationService);
 		this._register(this.userDataSyncService.onDidChangeConflicts(() => this.treeView.refresh()));
@@ -68,81 +70,60 @@ export class UserDataSyncConflictsViewPane extends TreeViewPane {
 	}
 
 	private async getTreeItems(): Promise<ITreeItem[]> {
-		this.treeItems.clear();
-
-		let hasDefaultProfile = false;
-		const conflictsByProfile = new Map<string, IUserDataSyncResourceConflicts[]>();
-		for (const conflicts of this.userDataSyncService.conflicts) {
-			hasDefaultProfile = hasDefaultProfile || conflicts.profile.isDefault;
-			const result = conflictsByProfile.get(conflicts.profile.id);
-			if (result) {
-				result.push(conflicts);
-			} else {
-				conflictsByProfile.set(conflicts.profile.id, [conflicts]);
-			}
-		}
-
-		if (conflictsByProfile.size === 1 && hasDefaultProfile) {
-			const roots: ITreeItem[] = [];
-			for (const [userDataSyncResourceConflicts] of conflictsByProfile.values()) {
-				for (const conflict of userDataSyncResourceConflicts.conflicts) {
-					const treeItem = this.createConflictTreeItem(userDataSyncResourceConflicts, conflict);
-					roots.push(treeItem);
-				}
-			}
-			return roots;
-		}
-
 		const roots: ITreeItem[] = [];
-		for (const profileConflicts of conflictsByProfile.values()) {
+
+		const conflictResources: UserDataSyncConflictResource[] = this.userDataSyncService.conflicts
+			.map(conflict => conflict.conflicts.map(resourcePreview => ({ ...resourcePreview, syncResource: conflict.syncResource, profile: conflict.profile })))
+			.flat()
+			.sort((a, b) => a.profile.id === b.profile.id ? 0 : a.profile.isDefault ? -1 : b.profile.isDefault ? 1 : a.profile.name.localeCompare(b.profile.name));
+		const conflictResourcesByProfile: [IUserDataProfile, UserDataSyncConflictResource[]][] = [];
+		for (const previewResource of conflictResources) {
+			let result = conflictResourcesByProfile[conflictResourcesByProfile.length - 1]?.[0].id === previewResource.profile.id ? conflictResourcesByProfile[conflictResourcesByProfile.length - 1][1] : undefined;
+			if (!result) {
+				conflictResourcesByProfile.push([previewResource.profile, result = []]);
+			}
+			result.push(previewResource);
+		}
+
+		for (const [profile, resources] of conflictResourcesByProfile) {
 			const children: ITreeItem[] = [];
-			for (const userDataSyncResourceConflicts of profileConflicts) {
-				for (const conflict of userDataSyncResourceConflicts.conflicts) {
-					const treeItem = this.createConflictTreeItem(userDataSyncResourceConflicts, conflict);
-					children.push(treeItem);
-				}
+			for (const resource of resources) {
+				const handle = JSON.stringify(resource);
+				const treeItem = {
+					handle,
+					resourceUri: resource.remoteResource,
+					label: { label: basename(resource.remoteResource), strikethrough: resource.mergeState === MergeState.Accepted && (resource.localChange === Change.Deleted || resource.remoteChange === Change.Deleted) },
+					description: getSyncAreaLabel(resource.syncResource),
+					collapsibleState: TreeItemCollapsibleState.None,
+					command: { id: `workbench.actions.sync.openConflicts`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeViewId: '', $treeItemHandle: handle }] },
+					contextValue: `sync-conflict-resource`
+				};
+				children.push(treeItem);
 			}
 			roots.push({
-				handle: profileConflicts[0].profile.id,
-				label: { label: profileConflicts[0].profile.name },
+				handle: profile.id,
+				label: { label: profile.name },
 				collapsibleState: TreeItemCollapsibleState.Expanded,
 				children
 			});
 		}
-		return roots;
+
+		return conflictResourcesByProfile.length === 1 && conflictResourcesByProfile[0][0].isDefault ? roots[0].children ?? [] : roots;
 	}
 
-	private createConflictTreeItem(userDataSyncResource: IUserDataSyncResource, resource: IResourcePreview): ITreeItem {
-		const handle = JSON.stringify(this.toHandle(userDataSyncResource, resource));
-		return {
-			handle,
-			resourceUri: resource.remoteResource,
-			label: { label: basename(resource.remoteResource), strikethrough: resource.mergeState === MergeState.Accepted && (resource.localChange === Change.Deleted || resource.remoteChange === Change.Deleted) },
-			description: getSyncAreaLabel(userDataSyncResource.syncResource),
-			collapsibleState: TreeItemCollapsibleState.None,
-			command: { id: `workbench.actions.sync.openConflicts`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeViewId: '', $treeItemHandle: handle }] },
-			contextValue: `sync-conflict-resource`
-		};
-	}
-
-	private toHandle(syncResource: IUserDataSyncResource, resource: IResourcePreview): IUserDataSyncConflictHandle {
-		return {
-			syncResource,
-			baseResource: resource.baseResource,
-			remoteResource: resource.remoteResource,
-			localResource: resource.localResource,
-			previewResource: resource.previewResource
-		};
-	}
-
-	private parseHandle(handle: string): IUserDataSyncConflictHandle {
-		const parsed: IUserDataSyncConflictHandle = JSON.parse(handle);
+	private parseHandle(handle: string): UserDataSyncConflictResource {
+		const parsed: UserDataSyncConflictResource = JSON.parse(handle);
 		return {
 			syncResource: parsed.syncResource,
-			baseResource: URI.revive(parsed.baseResource),
-			remoteResource: URI.revive(parsed.remoteResource),
+			profile: reviveProfile(parsed.profile, this.userDataProfilesService.profilesHome.scheme),
 			localResource: URI.revive(parsed.localResource),
+			remoteResource: URI.revive(parsed.remoteResource),
+			baseResource: URI.revive(parsed.baseResource),
 			previewResource: URI.revive(parsed.previewResource),
+			acceptedResource: URI.revive(parsed.acceptedResource),
+			localChange: parsed.localChange,
+			remoteChange: parsed.remoteChange,
+			mergeState: parsed.mergeState,
 		};
 	}
 
@@ -158,14 +139,7 @@ export class UserDataSyncConflictsViewPane extends TreeViewPane {
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const conflict = that.parseHandle(handle.$treeItemHandle);
-				const remoteResourceName = localize({ key: 'remoteResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(conflict.remoteResource));
-				const localResourceName = localize('localResourceName', "{0} (Local)", basename(conflict.remoteResource));
-				await that.editorService.openEditor({
-					input1: { resource: conflict.remoteResource, label: localize('Theirs', 'Theirs'), description: remoteResourceName },
-					input2: { resource: conflict.localResource, label: localize('Yours', 'Yours'), description: localResourceName },
-					base: { resource: conflict.baseResource },
-					result: { resource: conflict.previewResource }
-				});
+				return that.open(conflict);
 			}
 		}));
 
@@ -185,7 +159,7 @@ export class UserDataSyncConflictsViewPane extends TreeViewPane {
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const conflict = that.parseHandle(handle.$treeItemHandle);
-				await that.userDataSyncService.accept(conflict.syncResource, conflict.remoteResource, undefined, that.userDataSyncEnablementService.isEnabled());
+				await that.userDataSyncWorkbenchService.accept({ syncResource: conflict.syncResource, profile: conflict.profile }, conflict.remoteResource, undefined, that.userDataSyncEnablementService.isEnabled());
 			}
 		}));
 
@@ -205,8 +179,149 @@ export class UserDataSyncConflictsViewPane extends TreeViewPane {
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const conflict = that.parseHandle(handle.$treeItemHandle);
-				await that.userDataSyncService.accept(conflict.syncResource, conflict.localResource, undefined, that.userDataSyncEnablementService.isEnabled());
+				await that.userDataSyncWorkbenchService.accept({ syncResource: conflict.syncResource, profile: conflict.profile }, conflict.localResource, undefined, that.userDataSyncEnablementService.isEnabled());
 			}
 		}));
 	}
+
+	async open(conflictToOpen: IResourcePreview): Promise<void> {
+		if (!this.userDataSyncService.conflicts.some(({ conflicts }) => conflicts.some(({ localResource }) => isEqual(localResource, conflictToOpen.localResource)))) {
+			return;
+		}
+
+		// Open Merge Editor if Sync is enabled
+		if (this.userDataSyncEnablementService.isEnabled()) {
+			const remoteResourceName = localize({ key: 'remoteResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(conflictToOpen.remoteResource));
+			const localResourceName = localize('localResourceName', "{0} (Local)", basename(conflictToOpen.remoteResource));
+			await this.editorService.openEditor({
+				input1: { resource: conflictToOpen.remoteResource, label: localize('Theirs', 'Theirs'), description: remoteResourceName },
+				input2: { resource: conflictToOpen.localResource, label: localize('Yours', 'Yours'), description: localResourceName },
+				base: { resource: conflictToOpen.baseResource },
+				result: { resource: conflictToOpen.previewResource }
+			});
+			return;
+		}
+
+		// Open Diff Editor if Sync is disabled
+		else {
+			const leftResource = conflictToOpen.remoteResource;
+			const rightResource = conflictToOpen.localResource;
+			const leftResourceName = localize({ key: 'leftResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(leftResource));
+			const rightResourceName = localize({ key: 'rightResourceName', comment: ['local as in file in disk'] }, "{0} (Local)", basename(rightResource));
+			await this.editorService.openEditor({
+				original: { resource: leftResource },
+				modified: { resource: rightResource },
+				label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
+				description: localize('sideBySideDescription', "Settings Sync"),
+				options: {
+					preserveFocus: true,
+					revealIfVisible: true,
+					pinned: true,
+					override: DEFAULT_EDITOR_ASSOCIATION.id
+				},
+			});
+		}
+	}
+
 }
+
+class AcceptChangesContribution extends Disposable implements IEditorContribution {
+
+	static get(editor: ICodeEditor): AcceptChangesContribution | null {
+		return editor.getContribution<AcceptChangesContribution>(AcceptChangesContribution.ID);
+	}
+
+	public static readonly ID = 'editor.contrib.acceptChangesButton2';
+
+	private acceptChangesButton: FloatingClickWidget | undefined;
+
+	constructor(
+		private editor: ICodeEditor,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
+	) {
+		super();
+
+		this.update();
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.editor.onDidChangeModel(() => this.update()));
+		this._register(this.userDataSyncService.onDidChangeConflicts(() => this.update()));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('diffEditor.renderSideBySide'))(() => this.update()));
+	}
+
+	private update(): void {
+		if (!this.shouldShowButton(this.editor)) {
+			this.disposeAcceptChangesWidgetRenderer();
+			return;
+		}
+
+		this.createAcceptChangesWidgetRenderer();
+	}
+
+	private shouldShowButton(editor: ICodeEditor): boolean {
+		const model = editor.getModel();
+		if (!model) {
+			return false; // we need a model
+		}
+
+		const userDataSyncResource = this.getUserDataSyncResource(model.uri);
+		if (!userDataSyncResource) {
+			return false;
+		}
+
+		if (!this.configurationService.getValue('diffEditor.renderSideBySide')) {
+			return isEqual(userDataSyncResource.localResource, model.uri);
+		}
+
+		return true;
+	}
+
+	private createAcceptChangesWidgetRenderer(): void {
+		if (!this.acceptChangesButton) {
+			const resource = this.editor.getModel()!.uri;
+			const userDataSyncResource = this.getUserDataSyncResource(resource)!;
+
+			const isRemoteResource = isEqual(userDataSyncResource.remoteResource, resource);
+			const label = isRemoteResource ? localize('accept remote', "Accept Remote")
+				: localize('accept local', "Accept Local");
+
+			this.acceptChangesButton = this.instantiationService.createInstance(FloatingClickWidget, this.editor, label, null);
+			this._register(this.acceptChangesButton.onClick(async () => {
+				const model = this.editor.getModel();
+				if (model) {
+					await this.userDataSyncWorkbenchService.accept({ syncResource: userDataSyncResource.syncResource, profile: userDataSyncResource.profile }, model.uri, model.getValue(), false);
+				}
+			}));
+
+			this.acceptChangesButton.render();
+		}
+	}
+
+	private getUserDataSyncResource(resource: URI): (IUserDataSyncResource & IResourcePreview) | undefined {
+		for (const userDataSyncResource of this.userDataSyncService.conflicts) {
+			for (const conflict of userDataSyncResource.conflicts) {
+				if (isEqual(conflict.remoteResource, resource) || isEqual(conflict.localResource, resource)) {
+					return { syncResource: userDataSyncResource.syncResource, profile: userDataSyncResource.profile, ...conflict };
+				}
+			}
+		}
+		return undefined;
+	}
+
+	private disposeAcceptChangesWidgetRenderer(): void {
+		dispose(this.acceptChangesButton);
+		this.acceptChangesButton = undefined;
+	}
+
+	override dispose(): void {
+		this.disposeAcceptChangesWidgetRenderer();
+		super.dispose();
+	}
+}
+
+registerEditorContribution(AcceptChangesContribution.ID, AcceptChangesContribution);
