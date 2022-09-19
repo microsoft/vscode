@@ -23,8 +23,8 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 	private readonly mapProfileToOnDidChangeProfileStorageEmitter = new Map<string /* profile ID */, Emitter<ISerializableItemsChangeEvent>>();
 
 	constructor(
-		private logService: ILogService,
-		private storageMainService: IStorageMainService
+		private readonly logService: ILogService,
+		private readonly storageMainService: IStorageMainService
 	) {
 		super();
 
@@ -123,6 +123,13 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 				items.delete?.forEach(key => storage.delete(key));
 
 				break;
+			}
+
+			case 'isUsed': {
+				const path = arg.payload as string | undefined;
+				if (typeof path === 'string') {
+					return this.storageMainService.isUsed(path);
+				}
 			}
 
 			default:

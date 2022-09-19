@@ -1028,7 +1028,17 @@ configurationRegistry.registerConfiguration({
 				nls.localize('searchSortOrder.countAscending', "Results are sorted by count per file, in ascending order.")
 			],
 			'description': nls.localize('search.sortOrder', "Controls sorting order of search results.")
-		}
+		},
+		'search.decorations.colors': {
+			type: 'boolean',
+			description: nls.localize('search.decorations.colors', "Controls whether search file decorations should use colors."),
+			default: true
+		},
+		'search.decorations.badges': {
+			type: 'boolean',
+			description: nls.localize('search.decorations.badges', "Controls whether search file decorations should use badges."),
+			default: true
+		},
 	}
 });
 

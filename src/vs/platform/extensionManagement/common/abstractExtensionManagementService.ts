@@ -14,8 +14,8 @@ import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import {
 	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation,
-	IExtensionsControlManifest, StatisticType, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode, IServerExtensionManagementService,
-	ServerInstallOptions, ServerInstallVSIXOptions, ServerUninstallOptions, Metadata, ServerInstallExtensionEvent, ServerInstallExtensionResult, ServerUninstallExtensionEvent, ServerDidUninstallExtensionEvent
+	IExtensionsControlManifest, StatisticType, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode,
+	InstallOptions, InstallVSIXOptions, UninstallOptions, Metadata, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, IExtensionManagementService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionKey, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -40,7 +40,7 @@ export interface IUninstallExtensionTask {
 	cancel(): void;
 }
 
-export abstract class AbstractExtensionManagementService extends Disposable implements IServerExtensionManagementService {
+export abstract class AbstractExtensionManagementService extends Disposable implements IExtensionManagementService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -49,16 +49,16 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	private readonly installingExtensions = new Map<string, { task: IInstallExtensionTask; waitingTasks: IInstallExtensionTask[] }>();
 	private readonly uninstallingExtensions = new Map<string, IUninstallExtensionTask>();
 
-	private readonly _onInstallExtension = this._register(new Emitter<ServerInstallExtensionEvent>());
+	private readonly _onInstallExtension = this._register(new Emitter<InstallExtensionEvent>());
 	readonly onInstallExtension = this._onInstallExtension.event;
 
-	protected readonly _onDidInstallExtensions = this._register(new Emitter<ServerInstallExtensionResult[]>());
+	protected readonly _onDidInstallExtensions = this._register(new Emitter<InstallExtensionResult[]>());
 	readonly onDidInstallExtensions = this._onDidInstallExtensions.event;
 
-	protected readonly _onUninstallExtension = this._register(new Emitter<ServerUninstallExtensionEvent>());
+	protected readonly _onUninstallExtension = this._register(new Emitter<UninstallExtensionEvent>());
 	readonly onUninstallExtension = this._onUninstallExtension.event;
 
-	protected _onDidUninstallExtension = this._register(new Emitter<ServerDidUninstallExtensionEvent>());
+	protected _onDidUninstallExtension = this._register(new Emitter<DidUninstallExtensionEvent>());
 	readonly onDidUninstallExtension = this._onDidUninstallExtension.event;
 
 	private readonly participants: IExtensionManagementParticipant[] = [];
@@ -84,7 +84,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return extension.allTargetPlatforms.some(targetPlatform => isTargetPlatformCompatible(targetPlatform, extension.allTargetPlatforms, currentTargetPlatform));
 	}
 
-	async installFromGallery(extension: IGalleryExtension, options: ServerInstallOptions = {}): Promise<ILocalExtension> {
+	async installFromGallery(extension: IGalleryExtension, options: InstallOptions = {}): Promise<ILocalExtension> {
 		try {
 			if (!this.galleryService.isEnabled()) {
 				throw new ExtensionManagementError(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"), ExtensionManagementErrorCode.Internal);
@@ -99,7 +99,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		}
 	}
 
-	async uninstall(extension: ILocalExtension, options: ServerUninstallOptions = {}): Promise<void> {
+	async uninstall(extension: ILocalExtension, options: UninstallOptions = {}): Promise<void> {
 		this.logService.trace('ExtensionManagementService#uninstall', extension.identifier.id);
 		return this.uninstallExtension(extension, options);
 	}
@@ -135,7 +135,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		this.participants.push(participant);
 	}
 
-	protected async installExtension(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: ServerInstallOptions & ServerInstallVSIXOptions): Promise<ILocalExtension> {
+	protected async installExtension(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions & InstallVSIXOptions): Promise<ILocalExtension> {
 
 		const getInstallExtensionTaskKey = (extension: IGalleryExtension) => `${ExtensionKey.create(extension).toString()}${options.profileLocation ? `-${options.profileLocation.toString()}` : ''}`;
 
@@ -152,7 +152,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		const allInstallExtensionTasks: { task: IInstallExtensionTask; manifest: IExtensionManifest }[] = [];
 		const alreadyRequestedInstallations: Promise<void>[] = [];
-		const installResults: (ServerInstallExtensionResult & { local: ILocalExtension })[] = [];
+		const installResults: (InstallExtensionResult & { local: ILocalExtension })[] = [];
 		const installExtensionTask = this.createInstallExtensionTask(manifest, extension, options);
 		if (!URI.isUri(extension)) {
 			this.installingExtensions.set(getInstallExtensionTaskKey(extension), { task: installExtensionTask, waitingTasks: [] });
@@ -467,7 +467,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return compatibleExtension;
 	}
 
-	private async uninstallExtension(extension: ILocalExtension, options: ServerUninstallOptions): Promise<void> {
+	private async uninstallExtension(extension: ILocalExtension, options: UninstallOptions): Promise<void> {
 		const getUninstallExtensionTaskKey = (identifier: IExtensionIdentifier) => `${identifier.id.toLowerCase()}${options.versionOnly ? `-${extension.manifest.version}` : ''}${options.profileLocation ? `@${options.profileLocation.toString()}` : ''}`;
 		const uninstallExtensionTask = this.uninstallingExtensions.get(getUninstallExtensionTaskKey(extension.identifier));
 		if (uninstallExtensionTask) {
@@ -475,7 +475,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			return uninstallExtensionTask.waitUntilTaskIsFinished();
 		}
 
-		const createUninstallExtensionTask = (extension: ILocalExtension, uninstallOptions: ServerUninstallOptions): IUninstallExtensionTask => {
+		const createUninstallExtensionTask = (extension: ILocalExtension, uninstallOptions: UninstallOptions): IUninstallExtensionTask => {
 			const uninstallExtensionTask = this.createUninstallExtensionTask(extension, uninstallOptions);
 			this.uninstallingExtensions.set(getUninstallExtensionTaskKey(uninstallExtensionTask.extension.identifier), uninstallExtensionTask);
 			if (options.profileLocation) {
@@ -645,14 +645,14 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		}
 	}
 
-	private createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: ServerInstallOptions & ServerInstallVSIXOptions): IInstallExtensionTask {
+	private createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions & InstallVSIXOptions): IInstallExtensionTask {
 		if (options.profileLocation && isApplicationScopedExtension(manifest)) {
 			options = { ...options, profileLocation: this.userDataProfilesService.defaultProfile.extensionsResource };
 		}
 		return this.doCreateInstallExtensionTask(manifest, extension, options);
 	}
 
-	private createUninstallExtensionTask(extension: ILocalExtension, options: ServerUninstallOptions): IUninstallExtensionTask {
+	private createUninstallExtensionTask(extension: ILocalExtension, options: UninstallOptions): IUninstallExtensionTask {
 		if (options.profileLocation && extension.isApplicationScoped) {
 			options = { ...options, profileLocation: this.userDataProfilesService.defaultProfile.extensionsResource };
 		}
@@ -663,15 +663,15 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	abstract zip(extension: ILocalExtension): Promise<URI>;
 	abstract unzip(zipLocation: URI): Promise<IExtensionIdentifier>;
 	abstract getManifest(vsix: URI): Promise<IExtensionManifest>;
-	abstract install(vsix: URI, options?: ServerInstallVSIXOptions): Promise<ILocalExtension>;
+	abstract install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension>;
 	abstract getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
 
 	abstract getMetadata(extension: ILocalExtension): Promise<Metadata | undefined>;
 	abstract updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
 	abstract updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension>;
 
-	protected abstract doCreateInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: ServerInstallOptions & ServerInstallVSIXOptions): IInstallExtensionTask;
-	protected abstract doCreateUninstallExtensionTask(extension: ILocalExtension, options: ServerUninstallOptions): IUninstallExtensionTask;
+	protected abstract doCreateInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions & InstallVSIXOptions): IInstallExtensionTask;
+	protected abstract doCreateUninstallExtensionTask(extension: ILocalExtension, options: UninstallOptions): IUninstallExtensionTask;
 }
 
 export function joinErrors(errorOrErrors: (Error | string) | (Array<Error | string>)): Error {

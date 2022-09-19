@@ -18,7 +18,6 @@ loader.config({
 	baseUrl: bootstrap.fileUriFromPath(__dirname, { isWindows: process.platform === 'win32' }),
 	catchError: true,
 	nodeRequire: require,
-	nodeMain: __filename,
 	'vs/nls': nlsConfig,
 	amdModulesPattern: /^vs\//,
 	recordStats: true

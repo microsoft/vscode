@@ -9,7 +9,6 @@ import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, dispose, DisposableStore, MutableDisposable, } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { isCancellationError } from 'vs/base/common/errors';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
@@ -32,6 +31,7 @@ import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { AbstractProgressScope, ScopedProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 export interface ICompositeTitleLabel {
 
@@ -57,7 +57,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	protected readonly onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite; focus: boolean }>());
 	protected readonly onDidCompositeClose = this._register(new Emitter<IComposite>());
 
-	protected toolBar: ToolBar | undefined;
+	protected toolBar: WorkbenchToolBar | undefined;
 	protected titleLabelElement: HTMLElement | undefined;
 
 	private readonly mapCompositeToCompositeContainer = new Map<string, HTMLElement>();
@@ -392,7 +392,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		const titleActionsContainer = append(titleArea, $('.title-actions'));
 
 		// Toolbar
-		this.toolBar = this._register(new ToolBar(titleActionsContainer, this.contextMenuService, {
+		this.toolBar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, titleActionsContainer, {
 			actionViewItemProvider: action => this.actionViewItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
