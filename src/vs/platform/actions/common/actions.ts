@@ -227,6 +227,11 @@ export interface IMenuService {
 	 * Reset **all** menu item hidden states.
 	 */
 	resetHiddenStates(): void;
+
+	/**
+	 * Reset the menu's hidden states.
+	 */
+	resetHiddenStates(menuId: MenuId | undefined): void;
 }
 
 export type ICommandsMap = Map<string, ICommandAction>;
