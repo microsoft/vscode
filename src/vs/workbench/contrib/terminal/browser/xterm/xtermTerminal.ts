@@ -219,6 +219,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.loadAddon(this._contextualActionAddon);
 		this.registerCommandFinishedListener(this._fixGitAction());
 		this.registerCommandFinishedListener(this._freePortAction());
+		this.registerCommandFinishedListener(this._createPrAction());
 	}
 
 	public registerCommandFinishedListener(options: ITerminalContextualActionOptions): void {
@@ -253,6 +254,31 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		};
 	}
 	private _freePortAction(): ITerminalContextualActionOptions {
+		return {
+			actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Free port ${matchResult.outputMatch[1]}` : '',
+			commandLineMatcher: /.+/,
+			outputRegex: { lineMatcher: /.*address already in use \d\.\d.\d\.\d:(\d\d\d\d).*/ },
+			nonZeroExitCode: true,
+			callback: (matchResult: ContextualMatchResult, command?: ITerminalCommand) => {
+				if (!command) {
+					return;
+				}//
+				const port = matchResult?.outputMatch?.[1];
+				if (!port) {
+					return;
+				}
+				const actions: IAction[] = [];
+				const label = localize("terminal.freePort", "Free port {0}", port);
+				actions.push({
+					class: undefined, tooltip: label, id: 'terminal.freePort', label, enabled: true,
+					run: () => this._onDidRequestFreePort.fire(port)
+				});
+				return actions;
+			}
+		};
+	}
+
+	private _createPrAction(): ITerminalContextualActionOptions {
 		return {
 			actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Free port ${matchResult.outputMatch[1]}` : '',
 			commandLineMatcher: /.+/,
