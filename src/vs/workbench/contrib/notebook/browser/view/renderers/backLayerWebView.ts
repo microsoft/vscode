@@ -394,9 +394,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				${coreDependencies}
 				<div id='findStart' tabIndex=-1></div>
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
-				<script type="module">${preloadScript}</script>
-				<div id="container" class="widgetarea" style="position: absolute; width:100%; top: 0px"></div>
 				<div id="_defaultColorPalatte"></div>
+				<script type="module">${preloadScript}</script>
 			</body>
 		</html>`;
 	}
