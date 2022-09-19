@@ -155,7 +155,7 @@ suite('SearchResult', () => {
 
 	test('Adding a raw match will add a file match with line matches', function () {
 		const testObject = aSearchResult();
-		const target = [aRawMatch('file://c:/',
+		const target = [aRawMatch('file://c:/1',
 			new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 			new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)),
 			new TextSearchMatch('preview 2', lineOneRange))];
@@ -166,7 +166,7 @@ suite('SearchResult', () => {
 
 		const actual = testObject.matches();
 		assert.strictEqual(1, actual.length);
-		assert.strictEqual('file://c:/', actual[0].resource.toString());
+		assert.strictEqual('file://c:/1', actual[0].resource.toString());
 
 		const actuaMatches = actual[0].matches();
 		assert.strictEqual(3, actuaMatches.length);

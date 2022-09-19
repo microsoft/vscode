@@ -660,6 +660,7 @@ export class FolderMatch extends Disposable {
 		// when adding a fileMatch that has intermediate directories
 		const added: FileMatch[] = [];
 		const updated: FileMatch[] = [];
+
 		raw.forEach(rawFileMatch => {
 			const existingFileMatch = this.hasFileUriDownstream(rawFileMatch.resource);
 			if (existingFileMatch) {
@@ -694,7 +695,28 @@ export class FolderMatch extends Disposable {
 		}
 	}
 
+	protected uriHasParent(parent: URI, child: URI) {
+		return this.uriIdentityService.extUri.isEqualOrParent(child, parent) && !this.uriIdentityService.extUri.isEqual(child, parent);
+	}
+
+	private isInParentChain(folderMatch: FolderMatchWithResource) {
+
+		let matchItem: FolderMatch | SearchResult = this;
+		while (matchItem instanceof FolderMatch) {
+			if (matchItem.id() === folderMatch.id()) {
+				return true;
+			}
+			matchItem = matchItem.parent();
+		}
+		return false;
+	}
 	doAddFolder(folderMatch: FolderMatchWithResource) {
+		if (this instanceof FolderMatchWithResource && !this.uriHasParent(this.resource, folderMatch.resource)) {
+			throw Error(`${folderMatch.resource} does not belong as a child of ${this.resource}`);
+		} else if (this.isInParentChain(folderMatch)) {
+			throw Error(`${folderMatch.resource} is a parent of ${this.resource}`);
+		}
+
 		this._folderMatches.set(folderMatch.resource, folderMatch);
 		if (this._unDisposedFolderMatches.has(folderMatch.resource)) {
 			this._unDisposedFolderMatches.delete(folderMatch.resource);
@@ -835,10 +857,6 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		return this.uriIdentityService.extUri.isEqual(uri1, ur2);
 	}
 
-	private uriHasParent(parent: URI, child: URI) {
-		return this.uriIdentityService.extUri.isEqualOrParent(child, parent) && !this.uriEquals(parent, child);
-	}
-
 	private createFileMatch(query: IPatternInfo, previewOptions: ITextSearchPreviewOptions | undefined, maxResults: number | undefined, parent: FolderMatch, rawFileMatch: IFileMatch): FileMatch {
 		const fileMatch = this.instantiationService.createInstance(FileMatch, query, previewOptions, maxResults, parent, rawFileMatch);
 		parent.doAddFile(fileMatch);
@@ -849,14 +867,17 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 
 	createAndConfigureFileMatch(rawFileMatch: IFileMatch<URI>): FileMatch {
 
-		if (!this.resource || !this.uriHasParent(this.resource, rawFileMatch.resource)) {
-			return this.createFileMatch(this._query.contentPattern, this._query.previewOptions, this._query.maxResults, this, rawFileMatch);
+		if (!this.uriHasParent(this.resource, rawFileMatch.resource)) {
+			throw Error(`${rawFileMatch.resource} is not a descendant of ${this.resource}`);
 		}
 
 		const fileMatchParentParts: URI[] = [];
 		let uri = this.uriParent(rawFileMatch.resource);
 
 		while (!this.uriEquals(this.resource, uri)) {
+			if (uri.path === '/') {
+				throw Error(`${rawFileMatch.resource} is not correctly configured as a child of its ${this.resource}`);
+			}
 			fileMatchParentParts.unshift(uri);
 			uri = this.uriParent(uri);
 		}
