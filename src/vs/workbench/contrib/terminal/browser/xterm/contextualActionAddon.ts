@@ -15,7 +15,7 @@ import { ITerminalContextualActionOptions } from 'vs/workbench/contrib/terminal/
 import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-type ResolvedMatchOptions = { actions: IAction[] | undefined; offset?: number } | undefined;
+type MatchActions = IAction[] | undefined;
 
 export interface IContextualAction {
 	/**
@@ -54,9 +54,9 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 
 	private _decorationMarkerIds = new Set<string>();
 
-	private _commandListeners: Map<string, ITerminalContextualActionOptions> = new Map();
+	private _commandListeners: Map<string, ITerminalContextualActionOptions[]> = new Map();
 
-	private _optionsToApply: ResolvedMatchOptions;
+	private _matchActions: MatchActions | undefined;
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -83,7 +83,9 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 
 	registerCommandFinishedListener(options: ITerminalContextualActionOptions): void {
 		if (options.commandLineMatcher) {
-			this._commandListeners.set(options.commandLineMatcher.toString(), options);
+			const currentOptions = this._commandListeners.get(options.commandLineMatcher.toString()) || [];
+			currentOptions.push(options);
+			this._commandListeners.set(options.commandLineMatcher.toString(), currentOptions);
 		}
 	}
 
@@ -101,39 +103,35 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 			return;
 		}
 		this._register(commandDetection.onCommandFinished(async command => {
-			this._optionsToApply = this._getMatchOptions(command);
+			this._matchActions = this._getMatchOptions(command);
 		}));
 		// The buffer is not ready by the time command finish
 		// is called. Add the decoration on command start using the actions, if any,
 		// from the last command
 		this._register(commandDetection.onCommandStarted(() => {
-			if (this._optionsToApply) {
+			if (this._matchActions) {
 				this._registerContextualDecoration();
-				this._optionsToApply = undefined;
+				this._matchActions = undefined;
 			}
 		}));
 	}
 
 	private _registerContextualDecoration(): void {
-		const marker = this._terminal?.registerMarker(this._optionsToApply?.offset);
-		const actions = this._optionsToApply?.actions;
+		const marker = this._terminal?.registerMarker();
+		const actions = this._matchActions;
 		if (this._terminal && 'registerDecoration' in this._terminal) {
-			const d = (this._terminal as any).registerDecoration({
-				marker,
-				actions,
-				layer: 'top'
-			});
-			d.onRender((e: HTMLElement) => {
-				if (!this._decorationMarkerIds.has(d.marker.id)) {
+			const decoration = (this._terminal as any).registerDecoration({ marker, actions, layer: 'top' });
+			decoration.onRender((e: HTMLElement) => {
+				if (!this._decorationMarkerIds.has(decoration.marker.id)) {
 					this._currentQuickFixElement = e;
 					e.classList.add(DecorationSelector.QuickFix, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration);
 					e.style.color = '#ffcc00';
 					updateLayout(this._configurationService, e);
 					if (actions) {
-						this._decorationMarkerIds.add(d.marker.id);
+						this._decorationMarkerIds.add(decoration.marker.id);
 						dom.addDisposableListener(e, dom.EventType.CLICK, () => {
 							this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions });
-							this._contextMenuService.onDidHideContextMenu(() => d.dispose());
+							this._contextMenuService.onDidHideContextMenu(() => decoration.dispose());
 						});
 					}
 				}
@@ -141,23 +139,26 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 		}
 	}
 
-	private _getMatchOptions(command: ITerminalCommand): ResolvedMatchOptions {
+	private _getMatchOptions(command: ITerminalCommand): MatchActions {
+		const matchActions: IAction[] = [];
 		// TODO: This wouldn't handle commands containing escaped spaces correctly
 		const newCommand = command.command;
-		for (const options of this._commandListeners.values()) {
-			if (options.nonZeroExitCode && command.exitCode === 0) {
-				continue;
-			}
-			const commandLineMatch = newCommand.match(options.commandLineMatcher);
-			if (!commandLineMatch) {
-				continue;
-			}
-			const outputMatch = options.outputRegex ? command.getOutput()?.match(options.outputRegex.lineMatcher) : null;
-			const actions = options.callback({ commandLineMatch, outputMatch }, command);
-			if (actions) {
-				return { actions, offset: options.outputRegex?.offset };
+		for (const actionOptions of this._commandListeners.values()) {
+			for (const actionOption of actionOptions) {
+				if (actionOption.nonZeroExitCode && command.exitCode === 0) {
+					continue;
+				}
+				const commandLineMatch = newCommand.match(actionOption.commandLineMatcher);
+				if (!commandLineMatch) {
+					continue;
+				}
+				const outputMatch = actionOption.outputMatcher ? command.getOutput()?.match(actionOption.outputMatcher.lineMatcher) : null;
+				const actions = actionOption.getActions({ commandLineMatch, outputMatch }, command);
+				if (actions) {
+					matchActions.push(...actions);
+				}
 			}
 		}
-		return undefined;
+		return matchActions.length === 0 ? undefined : matchActions;
 	}
 }

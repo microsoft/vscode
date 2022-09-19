@@ -913,15 +913,15 @@ export interface ITerminalInstance {
 }
 
 export interface ITerminalContextualActionOptions {
-	commandLineMatcher: string | RegExp;
-	callback: ContextualActionCallback;
-	outputRegex?: ITerminalOutputMatcher;
 	actionName: string | DynamicActionName;
+	commandLineMatcher: string | RegExp;
+	outputMatcher?: ITerminalOutputMatcher;
+	getActions: ContextualActionCallback;
 	nonZeroExitCode?: boolean;
 }
 export type ContextualMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
 export type DynamicActionName = (matchResult: ContextualMatchResult) => string;
-export type ContextualActionCallback = (matchResult: ContextualMatchResult, command?: ITerminalCommand) => IAction[] | undefined;
+export type ContextualActionCallback = (matchResult: ContextualMatchResult, command: ITerminalCommand) => IAction[] | undefined;
 
 export interface ITerminalOutputMatcher {
 	lineMatcher: string | RegExp;
