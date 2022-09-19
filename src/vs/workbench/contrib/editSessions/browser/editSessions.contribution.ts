@@ -160,15 +160,16 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				// Note: at this point if the user is not signed into edit sessions,
 				// we don't want them to be prompted to sign in and should just return early
 				await this.resumeEditSession(undefined, true);
-			} else if (this.environmentService.continueOn !== undefined) {
+			} else {
 				// The application has previously launched via a protocol URL Continue On flow
 				const hasApplicationLaunchedFromContinueOnFlow = this.storageService.getBoolean(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, StorageScope.APPLICATION, false);
 
-				if (!this.editSessionsStorageService.isSignedIn &&
+				if ((this.environmentService.continueOn !== undefined) &&
+					!this.editSessionsStorageService.isSignedIn &&
 					// and user has not yet been prompted to sign in on this machine
 					hasApplicationLaunchedFromContinueOnFlow === false
 				) {
-					await this.editSessionsStorageService.initialize(true).finally(() => this.environmentService.continueOn = undefined);
+					await this.editSessionsStorageService.initialize(true);
 					await this.resumeEditSession(undefined, true);
 					// store the fact that we prompted the user
 					this.storageService.store(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
