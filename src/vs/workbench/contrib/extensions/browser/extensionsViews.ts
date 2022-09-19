@@ -1228,7 +1228,10 @@ export class OutdatedExtensionsView extends ExtensionsListView {
 		if (ExtensionsListView.isSearchExtensionUpdatesQuery(query)) {
 			query = query.replace('@updates', '@outdated');
 		}
-		return super.show(query.trim());
+
+		const model = await super.show(query.trim());
+		this.setExpanded(model.length > 0);
+		return model;
 	}
 
 }
