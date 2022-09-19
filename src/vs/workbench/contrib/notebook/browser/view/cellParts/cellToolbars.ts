@@ -19,7 +19,7 @@ import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/no
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { registerStickyScroll } from 'vs/workbench/contrib/notebook/browser/view/cellParts/stickyScroll';
-import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { MenuWorkbenchToolBar, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 export class BetweenCellToolbar extends CellPart {
 	private _betweenCellToolbar!: MenuWorkbenchToolBar;
@@ -104,7 +104,7 @@ export class CellTitleToolbarPart extends CellPart {
 		this._toolbar = instantiationService.invokeFunction(accessor => createToolbar(accessor, toolbarContainer));
 		this._titleMenu = this._register(menuService.createMenu(toolbarId, contextKeyService));
 
-		this._deleteToolbar = this._register(instantiationService.invokeFunction(accessor => createToolbar(accessor, toolbarContainer, 'cell-delete-toolbar', HiddenItemStrategy.Ignore)));
+		this._deleteToolbar = this._register(instantiationService.invokeFunction(accessor => createToolbar(accessor, toolbarContainer, 'cell-delete-toolbar')));
 		this._deleteMenu = this._register(menuService.createMenu(deleteToolbarId, contextKeyService));
 		if (!this._notebookEditor.creationOptions.isReadOnly) {
 			const deleteActions = getCellToolbarActions(this._deleteMenu);
@@ -190,15 +190,14 @@ function getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IA
 	return result;
 }
 
-function createToolbar(accessor: ServicesAccessor, container: HTMLElement, elementClass?: string, hiddenItemStrategy?: HiddenItemStrategy): WorkbenchToolBar {
+function createToolbar(accessor: ServicesAccessor, container: HTMLElement, elementClass?: string): WorkbenchToolBar {
 	const instantiationService = accessor.get(IInstantiationService);
 
 	const toolbar = instantiationService.createInstance(WorkbenchToolBar, container, {
 		actionViewItemProvider: action => {
 			return createActionViewItem(instantiationService, action);
 		},
-		renderDropdownAsChildElement: true,
-		hiddenItemStrategy
+		renderDropdownAsChildElement: true
 	});
 
 	if (elementClass) {
