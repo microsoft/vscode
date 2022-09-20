@@ -803,8 +803,28 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private updateRunningExtensions(): void {
-		this.extensionService.getExtensions().then(runningExtensions => {
+		this.extensionService.getExtensions().then(async runningExtensions => {
+			const deltaExtensionsDescription: IExtensionDescription[] = [];
+			deltaExtensionsDescription.push(...runningExtensions.filter(e => !this.runningExtensions?.includes(e)));
+			if (this.runningExtensions) {
+				deltaExtensionsDescription.push(...this.runningExtensions.filter(e => !runningExtensions.includes(e)));
+			}
 			this.runningExtensions = runningExtensions;
+
+			const installed = this.installed;
+			const deltaExtensions: IExtension[] = [];
+			const extsNotInstalled: IExtensionInfo[] = [];
+			for (const desc of deltaExtensionsDescription) {
+				const extension = installed.find(e => e.identifier.id === desc.id);
+				if (extension) {
+					deltaExtensions.push(extension);
+				}
+				else {
+					extsNotInstalled.push({ id: desc.identifier.value, uuid: desc.uuid });
+				}
+			}
+			deltaExtensions.push(...await this.getExtensions(extsNotInstalled, CancellationToken.None));
+			deltaExtensions.forEach(e => this._onChange.fire(e));
 		});
 	}
 
