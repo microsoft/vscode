@@ -192,10 +192,7 @@ async function parsePort(host, strPort) {
 	if (strPort) {
 		let range;
 		if (strPort.match(/^\d+$/)) {
-			specificPort = parseInt(strPort, 10);
-			if (specificPort === 0) {
-				return specificPort;
-			}
+			return parseInt(strPort, 10);
 		} else if (range = parseRange(strPort)) {
 			const port = await findFreePort(host, range.start, range.end);
 			if (port !== undefined) {
