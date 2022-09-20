@@ -143,7 +143,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private readonly _processManager: ITerminalProcessManager;
 	private readonly _resource: URI;
 	private _shutdownPersistentProcessId: number | undefined;
-
+	get processManager() { return this._processManager; }
 	// Enables disposal of the xterm onKey
 	// event when the CwdDetection capability
 	// is added

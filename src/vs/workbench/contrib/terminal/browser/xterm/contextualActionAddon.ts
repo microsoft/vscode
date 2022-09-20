@@ -120,8 +120,6 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 			});
 		}
 	}
-
-
 }
 
 export function getMatchOptions(command: ITerminalCommand, actionOptions: Map<string, ITerminalContextualActionOptions[]>): MatchActions {
@@ -138,7 +136,7 @@ export function getMatchOptions(command: ITerminalCommand, actionOptions: Map<st
 			if (!commandLineMatch) {
 				continue;
 			}
-			const outputMatcher = actionOption.outputMatcher || null;
+			const outputMatcher = actionOption.outputMatcher;
 			let outputMatch;
 			if (outputMatcher) {
 				outputMatch = command.getOutput(outputMatcher);

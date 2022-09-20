@@ -9,10 +9,20 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ContextualMatchResult, ITerminalContextualActionOptions, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalCommand, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 
-export function gitSimilarCommand(terminalInstance: ITerminalInstance): ITerminalContextualActionOptions {
+
+export const GitSimilarOutputRegex = /most similar command is\s+([^\s]{3,})\s*/;
+export const FreePortOutputRegex = /address already in use\s*(\d\.\s*){3}(\d\s*):((\d\s*){3}\d)\s*/;
+export const GitPushOutputRegex = /.*git push --set-upstream origin (.*)\s.*/;
+export const GitCreatePrOutputRegex = /.*Create\s+a\s+pull\s+request\s+for\s+\'(.+)\'\s+on\s+GitHub\s+by\s+visiting\s*:\s+remote:\s+(https:.+pull.+)\s*/;
+
+export const GitCommandLineRegex = /git.*/;
+export const GitPushCommandLineRegex = /git\s+push/;
+export const AnyCommandLineRegex = /.{4,}/;
+
+export function gitSimilarCommand(terminalInstance: Partial<ITerminalInstance>): ITerminalContextualActionOptions {
 	return {
-		commandLineMatcher: /git.*/,
-		outputMatcher: { lineMatcher: /.*The most similar command is\s*(.*)\s*/, anchor: 'bottom', length: 2 },
+		commandLineMatcher: GitCommandLineRegex,
+		outputMatcher: { lineMatcher: GitSimilarOutputRegex, anchor: 'bottom' },
 		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Run git ${matchResult.outputMatch[1]}` : ``,
 		exitCode: 1,
 		getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
@@ -26,18 +36,18 @@ export function gitSimilarCommand(terminalInstance: ITerminalInstance): ITermina
 				class: undefined, tooltip: label, id: 'terminal.fixGitCommand', label, enabled: true,
 				run: () => {
 					command.command = `git ${fixedCommand}`;
-					terminalInstance.sendText(command.command, true);
+					terminalInstance.sendText?.(command.command, true);
 				}
 			});
 			return actions;
 		}
 	};
 }
-export function freePort(processManager: ITerminalProcessManager): ITerminalContextualActionOptions {
+export function freePort(processManager?: Partial<ITerminalProcessManager>): ITerminalContextualActionOptions {
 	return {
 		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Free port ${matchResult.outputMatch[1]}` : '',
-		commandLineMatcher: /.+/,
-		outputMatcher: { lineMatcher: /address already in use\s*(\d\.\s*){3}(\d\s*):((\d\s*){4})/, anchor: 'bottom' },
+		commandLineMatcher: AnyCommandLineRegex,
+		outputMatcher: { lineMatcher: FreePortOutputRegex, anchor: 'bottom' },
 		exitCode: 1,
 		getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
 			const port = matchResult?.outputMatch?.[3];
@@ -48,7 +58,7 @@ export function freePort(processManager: ITerminalProcessManager): ITerminalCont
 			const label = localize("terminal.freePort", "Free port {0}", port);
 			actions.push({
 				class: undefined, tooltip: label, id: 'terminal.freePort', label, enabled: true,
-				run: async () => await processManager.freePortKillProcess(port)
+				run: async () => await processManager?.freePortKillProcess?.(port)
 			});
 			return actions;
 		}
@@ -57,8 +67,8 @@ export function freePort(processManager: ITerminalProcessManager): ITerminalCont
 export function gitPushSetUpstream(terminalInstance: ITerminalInstance): ITerminalContextualActionOptions {
 	return {
 		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Git push ${matchResult.outputMatch[1]}` : '',
-		commandLineMatcher: /git\s+push/,
-		outputMatcher: { lineMatcher: /.*git push --set-upstream origin (.*)\s.*/, anchor: 'bottom' },
+		commandLineMatcher: GitPushCommandLineRegex,
+		outputMatcher: { lineMatcher: GitPushOutputRegex, anchor: 'bottom' },
 		exitCode: 128,
 		getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
 			const branch = matchResult?.outputMatch?.[1];
@@ -80,8 +90,8 @@ export function gitPushSetUpstream(terminalInstance: ITerminalInstance): ITermin
 export function gitCreatePr(openerService: IOpenerService): ITerminalContextualActionOptions {
 	return {
 		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Create PR for ${matchResult.outputMatch[1]}` : '',
-		commandLineMatcher: /.*git\s+push.*/,
-		outputMatcher: { lineMatcher: /.*Create\s+a\s+pull\s+request\s+for\s+\'(.+)\'\s+on\s+GitHub\s+by\s+visiting:\s+remote:\s+(https:.+pull.+)\s+/, anchor: 'bottom' },
+		commandLineMatcher: GitPushCommandLineRegex,
+		outputMatcher: { lineMatcher: GitCreatePrOutputRegex, anchor: 'bottom' },
 		exitCode: 0,
 		getActions: (matchResult: ContextualMatchResult, command?: ITerminalCommand) => {
 			if (!command) {
