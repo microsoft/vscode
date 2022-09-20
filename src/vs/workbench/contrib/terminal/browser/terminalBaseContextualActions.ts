@@ -37,10 +37,10 @@ export function freePort(processManager: ITerminalProcessManager): ITerminalCont
 	return {
 		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Free port ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: /.+/,
-		outputMatcher: { lineMatcher: /.*address already in use \d\.\d.\d\.\d:(\d\d\d\d).*/ },
+		outputMatcher: { lineMatcher: /address already in use\s*(\d\.\s*){3}(\d\s*):((\d\s*){4})/, anchor: 'bottom' },
 		exitCode: 1,
 		getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
-			const port = matchResult?.outputMatch?.[1];
+			const port = matchResult?.outputMatch?.[3];
 			if (!port) {
 				return;
 			}
@@ -57,8 +57,8 @@ export function freePort(processManager: ITerminalProcessManager): ITerminalCont
 export function gitPushSetUpstream(terminalInstance: ITerminalInstance): ITerminalContextualActionOptions {
 	return {
 		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Git push ${matchResult.outputMatch[1]}` : '',
-		commandLineMatcher: /git push/,
-		outputMatcher: { lineMatcher: /.*git push --set-upstream origin (.*)\s.*/ },
+		commandLineMatcher: /git\s+push/,
+		outputMatcher: { lineMatcher: /.*git push --set-upstream origin (.*)\s.*/, anchor: 'bottom' },
 		exitCode: 128,
 		getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
 			const branch = matchResult?.outputMatch?.[1];
@@ -80,8 +80,8 @@ export function gitPushSetUpstream(terminalInstance: ITerminalInstance): ITermin
 export function gitCreatePr(openerService: IOpenerService): ITerminalContextualActionOptions {
 	return {
 		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Create PR for ${matchResult.outputMatch[1]}` : '',
-		commandLineMatcher: /.*git push.*/,
-		outputMatcher: { lineMatcher: /.*Create a pull request for \'(.+)\' on GitHub by visiting:\s+remote:\s+(https:.+pull.+)\s+/ },
+		commandLineMatcher: /.*git\s+push.*/,
+		outputMatcher: { lineMatcher: /.*Create\s+a\s+pull\s+request\s+for\s+\'(.+)\'\s+on\s+GitHub\s+by\s+visiting:\s+remote:\s+(https:.+pull.+)\s+/, anchor: 'bottom' },
 		exitCode: 0,
 		getActions: (matchResult: ContextualMatchResult, command?: ITerminalCommand) => {
 			if (!command) {
