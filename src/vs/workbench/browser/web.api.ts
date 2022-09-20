@@ -18,6 +18,7 @@ import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IPro
 import { IObservableValue } from 'vs/base/common/observableValue';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -253,7 +254,9 @@ export interface IWorkbenchConstructionOptions {
 	readonly commands?: readonly ICommand[];
 
 	/**
-	 * Optional default layout to apply on first time the workspace is opened (unless `force` is specified).
+	 * Optional default layout to apply on first time the workspace is opened
+	 * (unless `force` is specified). This includes visibility of views and
+	 * editors including editor grid layout.
 	 */
 	readonly defaultLayout?: IDefaultLayout;
 
@@ -587,6 +590,10 @@ export interface IInitialColorTheme {
 }
 
 export interface IDefaultView {
+
+	/**
+	 * The identifier of the view to show by default.
+	 */
 	readonly id: string;
 }
 
@@ -608,26 +615,62 @@ export interface IRange {
 
 export interface IDefaultEditor {
 
+	/**
+	 * The location of the editor in the editor grid layout.
+	 * Editors are layed out in editor groups and the view
+	 * column is counted from top left to bottom right in
+	 * the order of appearance beginning with `1`.
+	 *
+	 * If not provided, the editor will open in the active
+	 * group.
+	 */
+	readonly viewColumn?: number;
+
+	/**
+	 * The resource of the editor to open.
+	 */
 	readonly uri: UriComponents;
+
+	/**
+	 * Optional extra options like which editor
+	 * to use or which text to select.
+	 */
 	readonly options?: IEditorOptions;
 
+	/**
+	 * Will not open an untitled editor in case
+	 * the resource does not exist.
+	 */
 	readonly openOnlyIfExists?: boolean;
 
 	/**
 	 * @deprecated use `options` instead
 	 */
 	readonly selection?: IRange;
-
-	/**
-	 * @deprecated use `options.override` instead
-	 */
-	readonly openWith?: string;
 }
 
 export interface IDefaultLayout {
 
+	/**
+	 * A list of views to show by default.
+	 */
 	readonly views?: IDefaultView[];
+
+	/**
+	 * A list of editors to show by default.
+	 */
 	readonly editors?: IDefaultEditor[];
+
+	/**
+	 * The layout to use for the workbench.
+	 */
+	readonly layout?: {
+
+		/**
+		 * The layout of the editor area.
+		 */
+		readonly editors?: EditorGroupLayout;
+	};
 
 	/**
 	 * Forces this layout to be applied even if this isn't

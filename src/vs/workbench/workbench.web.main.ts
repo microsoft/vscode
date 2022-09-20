@@ -191,6 +191,7 @@ import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/url
 import type { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
 // eslint-disable-next-line no-duplicate-imports
 import type { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
+import { EditorGroupLayout, GroupLayoutArgument, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export {
 
@@ -273,9 +274,12 @@ export {
 	IInitialColorTheme,
 
 	// Default layout
+	IDefaultLayout,
 	IDefaultView,
 	IDefaultEditor,
-	IDefaultLayout,
+	EditorGroupLayout,
+	GroupOrientation,
+	GroupLayoutArgument,
 	IPosition,
 	IRange as ISelection,
 
