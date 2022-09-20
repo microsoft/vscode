@@ -221,7 +221,7 @@ jobs:
           curl -O https://playwrightdebugnodejs.blob.core.windows.net/node/node-darwin-dbg-x64.tar.gz
           tar -xzf node-darwin-dbg-x64.tar.gz
           echo "Hello from Node.js $(./node-darwin-dbg-x64/node --version)"
-          ./node-darwin-dbg-x64/node build/azure-pipelines/common/installPlaywright.js#
+          ./node-darwin-dbg-x64/node build/azure-pipelines/common/installPlaywright.js
 
       - name: Upload Node.js coredumps
         uses: actions/upload-artifact@v2
