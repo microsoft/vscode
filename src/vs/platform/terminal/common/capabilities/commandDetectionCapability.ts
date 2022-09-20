@@ -639,9 +639,10 @@ export function getOutputForCommand(executedMarker: IMarker | undefined, endMark
 			if (!line) {
 				continue;
 			}
-			output += line.translateToString(!line.isWrapped) + (line.isWrapped ? '' : '\n');
-			if (output.match(outputMatcher.lineMatcher)) {
-				return output;
+			output = line.translateToString(!line.isWrapped) + (line.isWrapped ? '' : '\n') + output;
+			const match = output.match(outputMatcher.lineMatcher);
+			if (match) {
+				return match;
 			}
 		}
 	} else {
@@ -651,8 +652,11 @@ export function getOutputForCommand(executedMarker: IMarker | undefined, endMark
 				continue;
 			}
 			output += line.translateToString(!line.isWrapped) + (line.isWrapped ? '' : '\n');
-			if (outputMatcher && output.match(outputMatcher.lineMatcher)) {
-				return output;
+			if (outputMatcher) {
+				const match = output.match(outputMatcher.lineMatcher);
+				if (match) {
+					return output;
+				}
 			}
 		}
 	}
