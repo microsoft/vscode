@@ -9,7 +9,7 @@ parameters:
     type: boolean
 
 steps:
-  # Debugging for https://github.com/microsoft/playwright/issues/17394
+  # TODO@bpasero temporary debugging for https://github.com/microsoft/playwright/issues/17394
   - script: |
       curl -O https://playwrightdebugnodejs.blob.core.windows.net/node/node-darwin-dbg-x64.tar.gz
       tar -xzf node-darwin-dbg-x64.tar.gz
