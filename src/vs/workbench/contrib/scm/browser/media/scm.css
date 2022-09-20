@@ -205,6 +205,17 @@
 	justify-content: center;
 }
 
+.scm-view .notification-container {
+	padding-top: 5px;
+	padding-bottom: 5px;
+	padding-left: 11px;
+}
+
+.scm-view .notification-container > .notification-message {
+	padding: 0 4px;
+	white-space: normal;
+}
+
 .scm-view .button-container {
 	display: flex;
 	height: 100%;

@@ -29,6 +29,7 @@
     "quickPickSortByLabel",
     "resolvers",
     "scmActionButton",
+    "scmNotification",
     "scmSelectedProvider",
     "scmValidation",
     "taskPresentationGroup",

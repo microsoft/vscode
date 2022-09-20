@@ -546,6 +546,22 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this.#proxy.$updateSourceControl(this.handle, { actionButton: internal ?? null });
 	}
 
+	private _notification: vscode.SourceControlNotification | undefined;
+	get notification(): vscode.SourceControlNotification | undefined {
+		checkProposedApiEnabled(this._extension, 'scmNotification');
+		return this._notification;
+	}
+	set notification(notification: vscode.SourceControlNotification | undefined) {
+		checkProposedApiEnabled(this._extension, 'scmNotification');
+
+		this._notification = notification;
+		const internal = notification !== undefined ?
+			{
+				message: notification.message,
+				severity: notification.severity as any
+			} : undefined;
+		this.#proxy.$updateSourceControl(this.handle, { notification: internal ?? null });
+	}
 
 	private _statusBarDisposables = new MutableDisposable<DisposableStore>();
 	private _statusBarCommands: vscode.Command[] | undefined = undefined;

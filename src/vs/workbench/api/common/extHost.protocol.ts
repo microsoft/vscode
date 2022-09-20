@@ -53,7 +53,7 @@ import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/no
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
-import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
+import { InputValidationType, ISCMNotificationSeverity } from 'vs/workbench/contrib/scm/common/scm';
 import { IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ISerializedTestResults, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, RunTestForControllerRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
@@ -1156,6 +1156,7 @@ export interface SCMProviderFeatures {
 	commitTemplate?: string;
 	acceptInputCommand?: languages.Command;
 	actionButton?: SCMActionButtonDto | null;
+	notification?: SCMNotificationDto | null;
 	statusBarCommands?: ICommandDto[];
 }
 
@@ -1164,6 +1165,11 @@ export interface SCMActionButtonDto {
 	secondaryCommands?: ICommandDto[][];
 	description?: string;
 	enabled: boolean;
+}
+
+export interface SCMNotificationDto {
+	message: string | IMarkdownString;
+	severity: ISCMNotificationSeverity;
 }
 
 export interface SCMGroupFeatures {
