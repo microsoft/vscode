@@ -783,6 +783,18 @@ export class HistoryService extends Disposable implements IHistoryService {
 		if (isEditorInput(historyInput)) {
 			this.editorHelper.onEditorDispose(historyInput, () => this.updateHistoryOnEditorDispose(historyInput), this.editorHistoryListeners);
 		}
+
+		// If the original source is a typed editor
+		// and its source should not be included
+		// then remove it on editor dispose
+		else if (isEditorInput(editor) && !this.includeInHistory(historyInput)) {
+			this.editorHelper.onEditorDispose(editor, () => {
+				// Check one more time in case config changes
+				if (!this.includeInHistory(historyInput)) {
+					this.updateHistoryOnEditorDispose(editor);
+				}
+			}, this.editorHistoryListeners);
+		}
 	}
 
 	private updateHistoryOnEditorDispose(editor: EditorInput): void {
