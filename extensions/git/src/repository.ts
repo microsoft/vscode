@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as picomatch from 'picomatch';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, SourceControlNotificationSeverity } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, SourceControlNotificationSeverity, MarkdownString } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
@@ -971,6 +971,7 @@ export class Repository implements Disposable {
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
 			|| e.affectsConfiguration('git.showActionButton', root)
+			|| e.affectsConfiguration('git.statusLimit', root)
 		)(this.updateModelState, this, this.disposables);
 
 		const updateInputBoxVisibility = () => {
@@ -1028,8 +1029,6 @@ export class Repository implements Disposable {
 		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button);
 		this._sourceControl.actionButton = actionButton.button;
 
-		this._sourceControl.notification = { message: 'Too many changes were detected. Only the first 10000 changes will be shown below.', severity: SourceControlNotificationSeverity.Warning };
-
 		const progressManager = new ProgressManager(this);
 		this.disposables.push(progressManager);
 
@@ -1039,14 +1038,6 @@ export class Repository implements Disposable {
 	}
 
 	validateInput(text: string, position: number): SourceControlInputBoxValidation | undefined {
-		let tooManyChangesWarning: SourceControlInputBoxValidation | undefined;
-		if (this.isRepositoryHuge) {
-			tooManyChangesWarning = {
-				message: localize('tooManyChangesWarning', "Too many changes were detected. Only the first {0} changes will be shown below.", this.isRepositoryHuge.limit),
-				type: SourceControlInputBoxValidationType.Warning
-			};
-		}
-
 		if (this.rebaseCommit) {
 			if (this.rebaseCommit.message !== text) {
 				return {
@@ -1060,7 +1051,7 @@ export class Repository implements Disposable {
 		const setting = config.get<'always' | 'warn' | 'off'>('inputValidation');
 
 		if (setting === 'off') {
-			return tooManyChangesWarning;
+			return undefined;
 		}
 
 		if (/^\s+$/.test(text)) {
@@ -1096,7 +1087,7 @@ export class Repository implements Disposable {
 
 		if (line.length <= threshold) {
 			if (setting !== 'always') {
-				return tooManyChangesWarning;
+				return undefined;
 			}
 
 			return {
@@ -2109,6 +2100,12 @@ export class Repository implements Disposable {
 		commands.executeCommand('setContext', 'git.mergeChanges', merge.map(item => item.resourceUri));
 
 		this._onDidChangeStatus.fire();
+
+		// set notification
+		this._sourceControl.notification = didHitLimit ? {
+			message: localize('tooManyChangesWarning', "Too many changes were detected. Only the first {0} changes will be shown below.", limit),
+			severity: SourceControlNotificationSeverity.Warning
+		} : undefined;
 
 		this._sourceControl.commitTemplate = await this.getInputTemplate();
 	}
