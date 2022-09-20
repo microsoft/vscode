@@ -219,7 +219,8 @@ export interface ITerminalCommand {
 	executedMarker?: IXtermMarker;
 	commandStartLineContent?: string;
 	markProperties?: IMarkProperties;
-	getOutput(outputMatcher?: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }): string | RegExpMatchArray | undefined;
+	getOutput(): string | undefined;
+	getOutputMatch(outputMatcher: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }): RegExpMatchArray | undefined;
 	hasOutput(): boolean;
 }
 

@@ -140,7 +140,7 @@ export function getMatchOptions(command: ITerminalCommand, actionOptions: Map<st
 			const outputMatcher = actionOption.outputMatcher;
 			let outputMatch;
 			if (outputMatcher) {
-				outputMatch = command.getOutput(outputMatcher);
+				outputMatch = command.getOutputMatch(outputMatcher);
 			}
 			const actions = actionOption.getActions({ commandLineMatch, outputMatch: typeof outputMatch !== 'string' ? outputMatch : undefined }, command);
 			if (actions) {

@@ -234,7 +234,7 @@ export async function showRunRecentQuickPick(
 		} else if (e.button === commandOutputButton) {
 			const selectedCommand = (e.item as Item).command;
 			const output = selectedCommand?.getOutput();
-			if (output && typeof output === 'string' && selectedCommand?.command) {
+			if (output && selectedCommand?.command) {
 				const textContent = await outputProvider.provideTextContent(URI.from(
 					{
 						scheme: TerminalOutputProvider.scheme,

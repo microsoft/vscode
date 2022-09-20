@@ -353,7 +353,8 @@ export interface ITerminalCommand {
 	marker?: IXtermMarker;
 	markProperties?: IMarkProperties;
 	hasOutput(): boolean;
-	getOutput(outputMatcher?: ITerminalOutputMatcher): string | RegExpMatchArray | undefined;
+	getOutput(): string | undefined;
+	getOutputMatch(outputMatcher: ITerminalOutputMatcher): RegExpMatchArray | undefined;
 }
 
 export interface INavigationMode {

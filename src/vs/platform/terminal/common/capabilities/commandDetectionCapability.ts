@@ -485,7 +485,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: this._exitCode,
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
-				getOutput: (outputMatcher?: any) => getOutputForCommand(executedMarker, endMarker, buffer, outputMatcher),
+				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
+				getOutputMatch: (outputMatcher?: any) => getOutputMatchForCommand(executedMarker, endMarker, buffer, outputMatcher),
 				markProperties: options?.markProperties
 			};
 			this._commands.push(newCommand);
@@ -610,6 +611,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: e.exitCode,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
+				getOutputMatch: (outputMatcher: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }) => getOutputMatchForCommand(executedMarker, endMarker, buffer, outputMatcher),
 				markProperties: e.markProperties
 			};
 			this._commands.push(newCommand);
@@ -619,7 +621,29 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	}
 }
 
-export function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, outputMatcher?: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }): string | RegExpMatchArray | undefined {
+function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer): string | undefined {
+	if (!executedMarker || !endMarker) {
+		return undefined;
+	}
+	const startLine = executedMarker.line;
+	const endLine = endMarker.line;
+
+	if (startLine === endLine) {
+		return undefined;
+	}
+	let output = '';
+	let line: IBufferLine | undefined;
+	for (let i = startLine; i < endLine; i++) {
+		line = buffer.getLine(i);
+		if (!line) {
+			continue;
+		}
+		output += line.translateToString(!line.isWrapped) + (line.isWrapped ? '' : '\n');
+	}
+	return output === '' ? undefined : output;
+}
+
+export function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, outputMatcher: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }): RegExpMatchArray | undefined {
 	if (!executedMarker || !endMarker) {
 		return undefined;
 	}
@@ -656,10 +680,10 @@ export function getOutputForCommand(executedMarker: IMarker | undefined, endMark
 			if (outputMatcher) {
 				const match = output.match(outputMatcher.lineMatcher);
 				if (match) {
-					return output;
+					return match;
 				}
 			}
 		}
 	}
-	return output === '' ? undefined : output;
+	return undefined;
 }
