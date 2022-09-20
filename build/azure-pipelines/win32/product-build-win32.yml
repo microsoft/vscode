@@ -12,6 +12,9 @@ parameters:
   - name: VSCODE_CLI_ARTIFACT
     type: string
     default: ''
+  - name: VSCODE_CLI_BINARY_NAME
+    type: string
+    default: ''
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -178,6 +181,20 @@ steps:
         echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)"
       displayName: Build
 
+  - ${{ if ne(parameters.VSCODE_CLI_ARTIFACT, '') }}:
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: ${{ parameters.VSCODE_CLI_ARTIFACT }}
+        patterns: '**'
+        path: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin
+      displayName: Download VS Code CLI
+
+    - ${{ if ne(parameters.VSCODE_QUALITY, 'stable') }}:
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          Move-Item -Path "$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/$(VSCODE_CLI_BINARY_NAME).exe" -Destination "$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/$(VSCODE_CLI_BINARY_NAME)-$(VSCODE_QUALITY).exe"
+        displayName: Move VS Code CLI
+
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
@@ -204,14 +221,6 @@ steps:
         echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(agent.builddirectory)/vscode-reh-win32-$(VSCODE_ARCH)"
       displayName: Build Server
       condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
-
-  - ${{ if ne(parameters.VSCODE_CLI_ARTIFACT, '') }}:
-    - task: DownloadPipelineArtifact@2
-      inputs:
-        artifact: ${{ parameters.VSCODE_CLI_ARTIFACT }}
-        patterns: '**'
-        path: $$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin
-      displayName: Download VS Code CLI
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
     - template: product-build-win32-test.yml

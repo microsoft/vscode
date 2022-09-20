@@ -78,7 +78,7 @@ parameters:
     type: boolean
     default: true
   - name: VSCODE_BUILD_TUNNEL_CLI
-    displayName: "Tunnel CLI"
+    displayName: "Build Tunnel CLI"
     type: boolean
     default: false
   - name: VSCODE_PUBLISH
@@ -189,18 +189,19 @@ stages:
           - job: LinuxX86
             pool: vscode-1es-linux
             steps:
-              - template: ./mixin-distro-posix.yml
+              - template: ./cli/prepare.yml
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_IS_POSIX: true
               - template: ./cli/compile-linux.yml
                 parameters:
-                  workingDirectory: $(Build.SourcesDirectory)/src/cli
-                  binaryName: ${{ variables.VSCODE_CLI_BINARY_NAME }}
-                  targets:
+                  VSCODE_CLI_DIR: $(Build.SourcesDirectory)/cli
+                  VSCODE_CLI_BINARY_NAME: ${{ variables.VSCODE_CLI_BINARY_NAME }}
+                  VSCODE_CLI_TARGETS:
                     - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true) }}:
-                      - x86_64-unknown-linux-musl
+                      - { target: x86_64-unknown-linux-musl, artifact: vscode_cli_alpine_x64_cli-unsigned }
                     - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
-                      - x86_64-unknown-linux-gnu
+                      - { target: x86_64-unknown-linux-gnu, artifact: vscode_cli_linux_x64_cli-unsigned }
 
         - ${{ if eq(variables.VSCODE_BUILD_STAGE_ARM_LINUX, true) }}:
           - job: LinuxArm64
@@ -209,48 +210,54 @@ stages:
               - task: NodeTool@0
                 displayName: Install Node.js
                 inputs:
-                  versionSpec: 18.x
-              - template: ./mixin-distro-posix.yml
+                  versionSpec: 16.x
+              - script: |
+                  set -e
+                  npm install -g yarn
+                  sudo apt update -y
+                  sudo apt install -y build-essential pkg-config
+                displayName: Install build dependencies
+              - template: ./cli/prepare.yml
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-              - template: ./cli/prepare.yml
+                  VSCODE_IS_POSIX: true
               - template: ./cli/compile-linux.yml
                 parameters:
-                  workingDirectory: $(Build.SourcesDirectory)/src/cli
-                  binaryName: ${{ variables.VSCODE_CLI_BINARY_NAME }}
-                  targets:
+                  VSCODE_CLI_DIR: $(Build.SourcesDirectory)/cli
+                  VSCODE_CLI_BINARY_NAME: ${{ variables.VSCODE_CLI_BINARY_NAME }}
+                  VSCODE_CLI_TARGETS:
                     - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64, true) }}:
-                      - aarch64-unknown-linux-musl
+                      - { target: aarch64-unknown-linux-musl, artifact: vscode_cli_alpine_arm64_cli-unsigned }
                     - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
-                      - aarch64-unknown-linux-gnu
+                      - { target: aarch64-unknown-linux-gnu, artifact: vscode_cli_linux_arm64_cli-unsigned }
 
         - ${{ if eq(variables.VSCODE_BUILD_STAGE_MACOS, true) }}:
           - job: MacOS
             pool:
               vmImage: macOS-latest
             steps:
-              - template: ./mixin-distro-posix.yml
+              - template: ./cli/prepare.yml
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-              - template: ./cli/prepare.yml
+                  VSCODE_IS_POSIX: true
               - template: ./cli/compile-macos.yml
                 parameters:
-                  workingDirectory: $(Build.SourcesDirectory)/src/cli
-                  binaryName: ${{ variables.VSCODE_CLI_BINARY_NAME }}
-                  targets:
+                  VSCODE_CLI_DIR: $(Build.SourcesDirectory)/cli
+                  VSCODE_CLI_BINARY_NAME: ${{ variables.VSCODE_CLI_BINARY_NAME }}
+                  VSCODE_CLI_TARGETS:
                     - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
-                      - x86_64-apple-darwin
+                      - { target: x86_64-apple-darwin, artifact: vscode_cli_darwin_x64_cli-unsigned }
                     - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
-                      - aarch64-apple-darwin
+                      - { target: aarch64-apple-darwin, artifact: vscode_cli_darwin_arm64_cli-unsigned }
 
         - ${{ if eq(variables.VSCODE_BUILD_STAGE_WINDOWS, true) }}:
           - job: Windows
             pool: vscode-1es-windows
             steps:
-              - template: ./mixin-distro-win32.yml
+              - template: ./cli/prepare.yml
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-              - template: ./cli/prepare.yml
+                  VSCODE_IS_POSIX: false
               - template: ./cli/vcpkg-deps.yml
                 parameters:
                   targets:
@@ -262,13 +269,13 @@ stages:
                   targetDirectory: $(Build.ArtifactStagingDirectory)/deps
               - template: ./cli/compile-windows.yml
                 parameters:
-                  workingDirectory: $(Build.SourcesDirectory)/src/cli
-                  binaryName: ${{ variables.VSCODE_CLI_BINARY_NAME }}
-                  targets:
+                  VSCODE_CLI_DIR: $(Build.SourcesDirectory)/cli
+                  VSCODE_CLI_BINARY_NAME: ${{ variables.VSCODE_CLI_BINARY_NAME }}
+                  VSCODE_CLI_TARGETS:
                     - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
-                      - x86_64-pc-windows-msvc
+                      - { target: x86_64-pc-windows-msvc, artifact: vscode_cli_win32_x64_cli-unsigned }
                     - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
-                      - aarch64-pc-windows-msvc
+                      - { target: aarch64-pc-windows-msvc, artifact: vscode_cli_win32_arm64_cli-unsigned }
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true)) }}:
       - stage: Windows
@@ -333,7 +340,8 @@ stages:
                       VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
-                        VSCODE_CLI_ARTIFACT: cli-x64-windows-static-md
+                        VSCODE_CLI_ARTIFACT: vscode_cli_win32_x64_cli-unsigned
+                        VSCODE_CLI_BINARY_NAME: ${{ variables.VSCODE_CLI_BINARY_NAME }}
 
           - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true)) }}:
               - job: Windows32
@@ -363,7 +371,21 @@ stages:
                       VSCODE_RUN_INTEGRATION_TESTS: false
                       VSCODE_RUN_SMOKE_TESTS: false
                       ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
-                        VSCODE_CLI_ARTIFACT: cli-arm64-windows-static-md
+                        VSCODE_CLI_ARTIFACT: vscode_cli_win32_arm64_cli-unsigned
+                        VSCODE_CLI_BINARY_NAME: ${{ variables.VSCODE_CLI_BINARY_NAME }}
+
+          - ${{ if and(eq(variables['VSCODE_PUBLISH'], true), eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true)) }}:
+              - job: windowsCLISign
+                timeoutInMinutes: 90
+                steps:
+                  - template:  win32/product-build-win32-cli-sign.yml
+                    parameters:
+                      VSCODE_CLI_BINARY_NAME: ${{ variables.VSCODE_CLI_BINARY_NAME }}
+                      VSCODE_CLI_ARTIFACTS:
+                        - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+                          - vscode_cli_win32_x64_cli-unsigned
+                        - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
+                          - vscode_cli_win32_arm64_cli-unsigned
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
       - stage: LinuxServerDependencies
@@ -462,7 +484,8 @@ stages:
                       VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
-                        VSCODE_CLI_ARTIFACT: cli-x86_64-unknown-linux-gnu
+                        VSCODE_CLI_ARTIFACT: vscode_cli_linux_x64_cli-unsigned
+                        VSCODE_CLI_BINARY_NAME: ${{ variables.VSCODE_CLI_BINARY_NAME }}
 
           - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true), ne(variables['VSCODE_PUBLISH'], 'false')) }}:
               - job: LinuxSnap
@@ -515,7 +538,8 @@ stages:
                       VSCODE_RUN_INTEGRATION_TESTS: false
                       VSCODE_RUN_SMOKE_TESTS: false
                       ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
-                        VSCODE_CLI_ARTIFACT: cli-aarch64-unknown-linux-gnu
+                        VSCODE_CLI_ARTIFACT: vscode_cli_linux_arm64_cli-unsigned
+                        VSCODE_CLI_BINARY_NAME: ${{ variables.VSCODE_CLI_BINARY_NAME }}
 
           # TODO@joaomoreno: We don't ship ARM snaps for now
           - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
@@ -534,9 +558,6 @@ stages:
                   VSCODE_ARCH: x64
                 steps:
                   - template: linux/product-build-alpine.yml
-                    parameters:
-                      ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
-                        VSCODE_CLI_ARTIFACT: cli-x86_64-unknown-linux-musl
 
           - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64, true)) }}:
               - job: LinuxAlpineArm64
@@ -545,9 +566,6 @@ stages:
                   VSCODE_ARCH: arm64
                 steps:
                   - template: linux/product-build-alpine.yml
-                    parameters:
-                      ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
-                        VSCODE_CLI_ARTIFACT: cli-aarch64-unknown-linux-musl
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_MACOS'], true)) }}:
       - stage: macOS
@@ -615,7 +633,8 @@ stages:
                       VSCODE_RUN_INTEGRATION_TESTS: false
                       VSCODE_RUN_SMOKE_TESTS: false
                       ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
-                        VSCODE_CLI_ARTIFACT: cli-x86_64-apple-darwin
+                        VSCODE_CLI_ARTIFACT: vscode_cli_darwin_x64_cli-unsigned
+                        VSCODE_CLI_BINARY_NAME: ${{ variables.VSCODE_CLI_BINARY_NAME }}
 
               - ${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}:
                   - job: macOSTest
@@ -630,8 +649,6 @@ stages:
                           VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                           VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                           VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                          ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
-                            VSCODE_CLI_ARTIFACT: cli-x86_64-apple-darwin
 
               - ${{ if eq(variables['VSCODE_PUBLISH'], true) }}:
                   - job: macOSSign
@@ -642,6 +659,19 @@ stages:
                       VSCODE_ARCH: x64
                     steps:
                       - template: darwin/product-build-darwin-sign.yml
+
+              - ${{ if and(eq(variables['VSCODE_PUBLISH'], true), eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true)) }}:
+                  - job: macOSCLISign
+                    timeoutInMinutes: 90
+                    steps:
+                      - template: darwin/product-build-darwin-cli-sign.yml
+                        parameters:
+                          VSCODE_CLI_BINARY_NAME: ${{ variables.VSCODE_CLI_BINARY_NAME }}
+                          VSCODE_CLI_ARTIFACTS:
+                            - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
+                              - vscode_cli_darwin_x64_cli-unsigned
+                            - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
+                              - vscode_cli_darwin_arm64_cli-unsigned
 
           - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
               - job: macOSARM64
@@ -657,7 +687,8 @@ stages:
                       VSCODE_RUN_INTEGRATION_TESTS: false
                       VSCODE_RUN_SMOKE_TESTS: false
                       ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
-                        VSCODE_CLI_ARTIFACT: cli-aarch64-apple-darwin
+                        VSCODE_CLI_ARTIFACT: vscode_cli_darwin_arm64_cli-unsigned
+                        VSCODE_CLI_BINARY_NAME: ${{ variables.VSCODE_CLI_BINARY_NAME }}
 
               - ${{ if eq(variables['VSCODE_PUBLISH'], true) }}:
                   - job: macOSARM64Sign

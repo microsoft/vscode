@@ -12,6 +12,9 @@ parameters:
   - name: VSCODE_CLI_ARTIFACT
     type: string
     default: ''
+  - name: VSCODE_CLI_BINARY_NAME
+    type: string
+    default: ''
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -262,6 +265,14 @@ steps:
         patterns: '**'
         path: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin
       displayName: Download VS Code CLI
+
+    - script: |
+        set -e
+        chmod +x "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$(VSCODE_CLI_BINARY_NAME)"
+        if [ "$(VSCODE_QUALITY)" != "stable" ]; then
+          mv "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$(VSCODE_CLI_BINARY_NAME)" "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$(VSCODE_CLI_BINARY_NAME)-$(VSCODE_QUALITY)"
+        fi
+      displayName: Make CLI executable
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
     - template: product-build-linux-client-test.yml

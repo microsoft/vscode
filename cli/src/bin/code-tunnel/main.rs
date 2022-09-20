@@ -18,7 +18,7 @@ use log::{Level, Metadata, Record};
 #[clap(
    long_about = None,
    name = "Visual Studio Code Tunnels CLI",
-   version = match constants::LAUNCHER_VERSION { Some(v) => v, None => "dev" },
+   version = match constants::VSCODE_CLI_VERSION { Some(v) => v, None => "dev" },
  )]
 pub struct TunnelCli {
     #[clap(flatten, next_help_heading = Some("GLOBAL OPTIONS"))]

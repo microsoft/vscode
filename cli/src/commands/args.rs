@@ -22,7 +22,7 @@ const TEMPLATE: &str = "
    help_template = TEMPLATE,
    long_about = None,
    name = "Visual Studio Code CLI",
-   version = match constants::LAUNCHER_VERSION { Some(v) => v, None => "dev" },
+   version = match constants::VSCODE_CLI_VERSION { Some(v) => v, None => "dev" },
  )]
 pub struct Cli {
     /// One or more files, folders, or URIs to open.

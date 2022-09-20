@@ -15,6 +15,7 @@ if (process.argv.length !== 8) {
     console.error('Usage: node createAsset.js PRODUCT OS ARCH TYPE NAME FILE');
     process.exit(-1);
 }
+const Ignore = Symbol('Ignore');
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
 function getPlatform(product, os, arch, type) {
     switch (os) {
@@ -43,6 +44,8 @@ function getPlatform(product, os, arch, type) {
                         throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
                     }
                     return arch === 'ia32' ? 'server-win32-web' : `server-win32-${arch}-web`;
+                case 'cli':
+                    return type === 'cli-unsigned' ? Ignore : `cli-win32-${arch}`;
                 default:
                     throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
             }
@@ -52,6 +55,8 @@ function getPlatform(product, os, arch, type) {
                     return `server-alpine-${arch}`;
                 case 'web':
                     return `server-alpine-${arch}-web`;
+                case 'cli':
+                    return `cli-alpine-${arch}`;
                 default:
                     throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
             }
@@ -74,6 +79,8 @@ function getPlatform(product, os, arch, type) {
                     return `linux-deb-${arch}`;
                 case 'rpm-package':
                     return `linux-rpm-${arch}`;
+                case 'cli-unsigned':
+                    return `cli-linux-${arch}`;
                 default:
                     throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
             }
@@ -94,6 +101,8 @@ function getPlatform(product, os, arch, type) {
                         return 'server-darwin-web';
                     }
                     return `server-darwin-${arch}-web`;
+                case 'cli':
+                    return type === 'cli-unsigned' ? Ignore : `cli-darwin-${arch}`;
                 default:
                     throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
             }
@@ -133,6 +142,9 @@ async function main() {
     const [, , product, os, arch, unprocessedType, fileName, filePath] = process.argv;
     // getPlatform needs the unprocessedType
     const platform = getPlatform(product, os, arch, unprocessedType);
+    if (platform === Ignore) {
+        return;
+    }
     const type = getRealType(unprocessedType);
     const quality = getEnv('VSCODE_QUALITY');
     const commit = process.env['VSCODE_DISTRO_COMMIT'] || getEnv('BUILD_SOURCEVERSION');

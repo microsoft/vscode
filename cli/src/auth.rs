@@ -302,7 +302,7 @@ impl Auth {
         let mut keyring_storage = KeyringStorage::default();
         let mut file_storage = FileStorage(PersistedState::new(self.file_storage_path.clone()));
 
-        let keyring_storage_result = match std::env::var("LAUNCHER_USE_FILE_KEYCHAIN") {
+        let keyring_storage_result = match std::env::var("VSCODE_CLI_USE_FILE_KEYCHAIN") {
             Ok(_) => Err(wrap("", "user prefers file storage")),
             _ => keyring_storage.read(),
         };
@@ -495,7 +495,7 @@ impl Auth {
     }
 
     async fn prompt_for_provider(&self) -> Result<AuthProvider, AnyError> {
-        if std::env::var("LAUNCHER_ALLOW_MS_AUTH").is_err() {
+        if std::env::var("VSCODE_CLI_ALLOW_MS_AUTH").is_err() {
             return Ok(AuthProvider::Github);
         }
 

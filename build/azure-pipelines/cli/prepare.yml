@@ -1,1 +1,35 @@
-steps: [] # todo: add encrypt and distro vars
+parameters:
+  - name: VSCODE_IS_POSIX
+    type: boolean
+  - name: VSCODE_QUALITY
+    type: string
+
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "16.x"
+
+  - ${{ if eq(parameters.VSCODE_IS_POSIX, true) }}:
+    - template: ../mixin-distro-posix.yml
+      parameters:
+        VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+    - script: |
+        set -e
+        node build/azure-pipelines/cli/prepare.js
+      displayName: Prepare CLI build
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+
+  - ${{ if ne(parameters.VSCODE_IS_POSIX, true) }}:
+    - template: ../mixin-distro-win32.yml
+      parameters:
+        VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { node build/azure-pipelines/cli/prepare.js }
+      displayName: Prepare CLI build
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"

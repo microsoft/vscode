@@ -180,7 +180,7 @@ impl ActiveTunnel {
     }
 }
 
-const LAUNCHER_TUNNEL_TAG: &str = "vscode-server-launcher";
+const VSCODE_CLI_TUNNEL_TAG: &str = "vscode-server-launcher";
 const MAX_TUNNEL_NAME_LENGTH: usize = 20;
 
 fn get_host_token_from_tunnel(tunnel: &Tunnel) -> String {
@@ -267,7 +267,7 @@ impl DevTunnels {
             self.log,
             self.log.span("dev-tunnel.rename.search"),
             self.client.list_all_tunnels(&TunnelRequestOptions {
-                tags: vec![LAUNCHER_TUNNEL_TAG.to_string(), name.to_string()],
+                tags: vec![VSCODE_CLI_TUNNEL_TAG.to_string(), name.to_string()],
                 require_all_tags: true,
                 ..Default::default()
             })
@@ -300,7 +300,7 @@ impl DevTunnels {
         )
         .map_err(|e| wrap(e, "failed to lookup tunnel"))?;
 
-        full_tunnel.tags = vec![name.to_string(), LAUNCHER_TUNNEL_TAG.to_string()];
+        full_tunnel.tags = vec![name.to_string(), VSCODE_CLI_TUNNEL_TAG.to_string()];
         spanf!(
             self.log,
             self.log.span("dev-tunnel.tag.update"),
@@ -410,7 +410,7 @@ impl DevTunnels {
         let mut tried_recycle = false;
 
         let new_tunnel = Tunnel {
-            tags: vec![name.to_string(), LAUNCHER_TUNNEL_TAG.to_string()],
+            tags: vec![name.to_string(), VSCODE_CLI_TUNNEL_TAG.to_string()],
             ..Default::default()
         };
 
@@ -501,7 +501,7 @@ impl DevTunnels {
             self.log,
             self.log.span("dev-tunnel.listall"),
             self.client.list_all_tunnels(&TunnelRequestOptions {
-                tags: vec![LAUNCHER_TUNNEL_TAG.to_string()],
+                tags: vec![VSCODE_CLI_TUNNEL_TAG.to_string()],
                 require_all_tags: true,
                 ..Default::default()
             })

@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use crate::constants::{CONTROL_PORT, LAUNCHER_VERSION, PROTOCOL_VERSION};
+use crate::constants::{CONTROL_PORT, VSCODE_CLI_VERSION, PROTOCOL_VERSION};
 use crate::log;
 use crate::state::LauncherPaths;
 use crate::update::Update;
@@ -362,7 +362,7 @@ async fn send_version(tx: &mpsc::Sender<SocketSignal>) {
     tx.send(SocketSignal::from_message(&ToClientRequest {
         id: None,
         params: ClientRequestMethod::version(VersionParams {
-            version: LAUNCHER_VERSION.unwrap_or("dev"),
+            version: VSCODE_CLI_VERSION.unwrap_or("dev"),
             protocol_version: PROTOCOL_VERSION,
         }),
     }))
@@ -620,7 +620,7 @@ async fn handle_update(
     let updater = Update::new();
     let latest_release = updater.get_latest_release().await?;
 
-    let up_to_date = match LAUNCHER_VERSION {
+    let up_to_date = match VSCODE_CLI_VERSION {
         Some(v) => v == latest_release.version,
         None => true,
     };

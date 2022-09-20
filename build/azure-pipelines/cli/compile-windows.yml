@@ -1,11 +1,11 @@
 parameters:
-  - name: targets
+  - name: VSCODE_CLI_TARGETS
     default: []
     type: object
-  - name: workingDirectory
+  - name: VSCODE_CLI_DIR
     type: string
     default: './'
-  - name: binaryName
+  - name: VSCODE_CLI_BINARY_NAME
     type: string
   - name: channel
     type: string
@@ -14,18 +14,20 @@ parameters:
 steps:
   - template: ./install-rust.yml
     parameters:
-      targets: ${{ parameters.targets }}
+      targets: ${{ parameters.VSCODE_CLI_TARGETS }}
       channel: ${{ parameters.channel }}
 
-  - ${{ each target in parameters.targets }}:
-    - script: cargo build --release --target ${{ target }} --bin=${{ parameters.binaryName }}
-      displayName: Compile ${{ target }}
-      workingDirectory: ${{ parameters.workingDirectory }}
+  - ${{ each target in parameters.VSCODE_CLI_TARGETS }}:
+    - script: cargo build --release --target ${{ target.target }} --bin=${{ parameters.VSCODE_CLI_BINARY_NAME }}
+      displayName: Compile ${{ target.artifact }}
+      workingDirectory: ${{ parameters.VSCODE_CLI_DIR }}
       env:
-        LAUNCHER_VERSION: $(Build.BuildNumber)
-        LAUNCHER_ASSET_NAME: ${{ target }}
-        LAUNCHER_AI_KEY: $(appInsightsKey)
-        LAUNCHER_AI_ENDPOINT: $(appInsightsEndpoint)
+        VSCODE_CLI_VERSION: $(VSCODE_CLI_VERSION)
+        VSCODE_CLI_REMOTE_LICENSE_TEXT: $(VSCODE_CLI_REMOTE_LICENSE_TEXT)
+        VSCODE_CLI_REMOTE_LICENSE_PROMPT: $(VSCODE_CLI_REMOTE_LICENSE_PROMPT)
+        VSCODE_CLI_ASSET_NAME: ${{ target.artifact }}
+        VSCODE_CLI_AI_KEY: $(VSCODE_CLI_AI_KEY)
+        VSCODE_CLI_AI_ENDPOINT: $(VSCODE_CLI_AI_ENDPOINT)
         ${{ if eq(target, 'x86_64-pc-windows-msvc') }}:
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/deps/x64-windows-static-md/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/deps/x64-windows-static-md/include
@@ -33,6 +35,6 @@ steps:
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/deps/arm64-windows-static-md/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/deps/arm64-windows-static-md/include
 
-    - publish: ${{ parameters.workingDirectory }}/target/${{ target }}/release/${{ parameters.binaryName }}.exe
-      artifact: cli-${{ target }}
-      displayName: Publish cli-${{ target }} artifact
+    - publish: ${{ parameters.VSCODE_CLI_DIR }}/target/${{ target.target }}/release/${{ parameters.VSCODE_CLI_BINARY_NAME }}.exe
+      artifact: ${{ target.artifact }}
+      displayName: Publish ${{ target.artifact }} artifact

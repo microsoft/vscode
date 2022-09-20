@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use crate::constants::{LAUNCHER_ASSET_NAME, LAUNCHER_VERSION};
+use crate::constants::{VSCODE_CLI_ASSET_NAME, VSCODE_CLI_VERSION};
 use crate::util::{errors, http, io::SilentCopyProgress};
 use serde::Deserialize;
 use std::{
@@ -39,7 +39,7 @@ impl Update {
                 "User-Agent",
                 format!(
                     "vscode-server-launcher/{}",
-                    LAUNCHER_VERSION.unwrap_or("dev")
+                    VSCODE_CLI_VERSION.unwrap_or("dev")
                 ),
             )
             .send()
@@ -63,7 +63,7 @@ impl Update {
             target_path.file_name().unwrap().to_string_lossy()
         ));
 
-        let an = LAUNCHER_ASSET_NAME.unwrap();
+        let an = VSCODE_CLI_ASSET_NAME.unwrap();
         let mut url = format!("{}/{}/{}", update.url, an, an);
         if cfg!(target_os = "windows") {
             url += ".exe";

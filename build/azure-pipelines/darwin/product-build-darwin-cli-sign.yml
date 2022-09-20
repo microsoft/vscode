@@ -1,0 +1,79 @@
+parameters:
+  - name: VSCODE_CLI_BINARY_NAME
+    type: string
+  - name: VSCODE_CLI_ARTIFACTS
+    default: []
+    type: object
+
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "16.x"
+
+  - task: AzureKeyVault@1
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      KeyVaultName: vscode
+      SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
+
+  - script: |
+      set -e
+      npx https://aka.ms/enablesecurefeed standAlone
+    timeoutInMinutes: 5
+    retryCountOnTaskFailure: 3
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
+    displayName: Switch to Terrapin packages
+
+  - script: |
+      set -e
+      for i in {1..3}; do # try 3 times, for Terrapin
+        yarn --cwd build --frozen-lockfile --check-files && break
+        if [ $i -eq 3 ]; then
+          echo "Yarn failed too many times" >&2
+          exit 1
+        fi
+        echo "Yarn failed $i, trying again..."
+      done
+    displayName: Install build dependencies
+
+  - ${{ each target in parameters.VSCODE_CLI_ARTIFACTS }}:
+    - task: DownloadPipelineArtifact@2
+      displayName: Download ${{ target }}
+      inputs:
+        artifact: ${{ target }}
+        path: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}
+
+    - script: |
+        set -e
+        mkdir -p $(agent.builddirectory)/signing
+        zip -j $(agent.builddirectory)/signing/${{ target }}.zip $(Build.ArtifactStagingDirectory)/pkg/${{ target }}/${{ parameters.VSCODE_CLI_BINARY_NAME }}
+      displayName: Prepare ${{ target }} archive
+
+  - task: UseDotNet@2
+    inputs:
+      version: 2.x
+
+  - task: EsrpClientTool@1
+    displayName: Download ESRPClient
+
+  - script: |
+      set -e
+      node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" darwin-sign $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(agent.builddirectory)/signing "*.zip"
+    displayName: Codesign
+
+  - script: |
+      set -e
+      node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" darwin-notarize $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(agent.builddirectory)/signing "*.zip"
+    displayName: Notarize
+
+  - ${{ each target in parameters.VSCODE_CLI_ARTIFACTS }}:
+    - script: |
+        ASSET_ID=$(echo "${{ target }}" | sed "s/-unsigned//")
+        mkdir -p $(Build.ArtifactStagingDirectory)/final/${{ target }}
+        unzip $(agent.builddirectory)/signing/${{ target }}.zip -d $(Build.ArtifactStagingDirectory)/final/${{ target }}
+        echo "##vso[task.setvariable variable=ASSET_ID]$ASSET_ID"
+      displayName: Set asset id variable
+
+    - publish: $(Build.ArtifactStagingDirectory)/final/${{ target }}/${{ parameters.VSCODE_CLI_BINARY_NAME }}
+      artifact: $(ASSET_ID)

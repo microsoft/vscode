@@ -36,8 +36,8 @@ steps:
     displayName: "Set Rust version"
 
   - ${{ each target in parameters.targets }}:
-    - script: rustup target add ${{ target }}
-      displayName: "🎯 Adding '${{ target }}'"
+    - script: rustup target add ${{ target.target }}
+      displayName: "🎯 Adding '${{ target.target }}'"
 
   - script: |
       rustc --version
