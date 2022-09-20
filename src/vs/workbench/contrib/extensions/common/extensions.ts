@@ -65,7 +65,7 @@ export interface IExtension {
 	readonly ratingCount?: number;
 	readonly outdated: boolean;
 	readonly outdatedTargetPlatform: boolean;
-	readonly reloadRequired: boolean;
+	readonly reloadRequiredStatus?: string;
 	readonly enablementState: EnablementState;
 	readonly tags: readonly string[];
 	readonly categories: readonly string[];
@@ -102,7 +102,6 @@ export interface IExtensionsWorkbenchService {
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
 	getExtensions(extensionInfos: IExtensionInfo[], token: CancellationToken): Promise<IExtension[]>;
 	getExtensions(extensionInfos: IExtensionInfo[], options: IExtensionQueryOptions, token: CancellationToken): Promise<IExtension[]>;
-	getReloadStatus(extension: IExtension): string | undefined;
 	canInstall(extension: IExtension): Promise<boolean>;
 	install(vsix: URI, installOptions?: InstallVSIXOptions): Promise<IExtension>;
 	install(extension: IExtension, installOptions?: InstallOptions, progressLocation?: ProgressLocation): Promise<IExtension>;

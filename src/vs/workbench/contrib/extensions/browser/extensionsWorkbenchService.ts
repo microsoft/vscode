@@ -70,11 +70,11 @@ export class Extension implements IExtension {
 
 	constructor(
 		private stateProvider: IExtensionStateProvider<ExtensionState>,
+		private runtimeStateProvider: IExtensionStateProvider<string | undefined>,
 		public readonly server: IExtensionManagementServer | undefined,
 		public local: ILocalExtension | undefined,
 		public gallery: IGalleryExtension | undefined,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
@@ -260,8 +260,8 @@ export class Extension implements IExtension {
 			&& semver.eq(this.latestVersion, this.version);
 	}
 
-	get reloadRequired(): boolean {
-		return this.extensionsWorkbenchService.getReloadStatus(this) !== undefined;
+	get reloadRequiredStatus(): string | undefined {
+		return this.runtimeStateProvider(this);
 	}
 
 	get telemetryData(): any {
@@ -436,6 +436,7 @@ class Extensions extends Disposable {
 	constructor(
 		readonly server: IExtensionManagementServer,
 		private readonly stateProvider: IExtensionStateProvider<ExtensionState>,
+		private readonly runtimeStateProvider: IExtensionStateProvider<string | undefined>,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
@@ -471,7 +472,7 @@ class Extensions extends Disposable {
 
 		const byId = index(this.installed, e => e.local ? e.local.identifier.id : e.identifier.id);
 		this.installed = installed.map(local => {
-			const extension = byId[local.identifier.id] || this.instantiationService.createInstance(Extension, this.stateProvider, this.server, local, undefined);
+			const extension = byId[local.identifier.id] || this.instantiationService.createInstance(Extension, this.stateProvider, this.runtimeStateProvider, this.server, local, undefined);
 			extension.local = local;
 			extension.enablementState = this.extensionEnablementService.getEnablementState(local);
 			Extensions.updateExtensionFromControlManifest(extension, extensionsControlManifest);
@@ -559,7 +560,7 @@ class Extensions extends Disposable {
 		const { source } = event;
 		if (source && !URI.isUri(source)) {
 			const extension = this.installed.filter(e => areSameExtensions(e.identifier, source.identifier))[0]
-				|| this.instantiationService.createInstance(Extension, this.stateProvider, this.server, undefined, source);
+				|| this.instantiationService.createInstance(Extension, this.stateProvider, this.runtimeStateProvider, this.server, undefined, source);
 			this.installing.push(extension);
 			this._onChange.fire({ extension });
 		}
@@ -569,7 +570,7 @@ class Extensions extends Disposable {
 		const extensionsControlManifest = await this.server.extensionManagementService.getExtensionsControlManifest();
 		for (const addedExtension of added) {
 			if (this.installed.find(e => areSameExtensions(e.identifier, addedExtension.identifier))) {
-				const extension = this.instantiationService.createInstance(Extension, this.stateProvider, this.server, addedExtension, undefined);
+				const extension = this.instantiationService.createInstance(Extension, this.stateProvider, this.runtimeStateProvider, this.server, addedExtension, undefined);
 				this.installed.push(extension);
 				Extensions.updateExtensionFromControlManifest(extension, extensionsControlManifest);
 			}
@@ -591,7 +592,7 @@ class Extensions extends Disposable {
 			this.installing = installingExtension ? this.installing.filter(e => e !== installingExtension) : this.installing;
 
 			let extension: Extension | undefined = installingExtension ? installingExtension
-				: (location || local) ? this.instantiationService.createInstance(Extension, this.stateProvider, this.server, local, undefined)
+				: (location || local) ? this.instantiationService.createInstance(Extension, this.stateProvider, this.runtimeStateProvider, this.server, local, undefined)
 					: undefined;
 			if (extension) {
 				if (local) {
@@ -728,17 +729,17 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
 		if (extensionManagementServerService.localExtensionManagementServer) {
-			this.localExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.localExtensionManagementServer, ext => this.getExtensionState(ext)));
+			this.localExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.localExtensionManagementServer, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext)));
 			this._register(this.localExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
 			this._register(this.localExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
 		}
 		if (extensionManagementServerService.remoteExtensionManagementServer) {
-			this.remoteExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.remoteExtensionManagementServer, ext => this.getExtensionState(ext)));
+			this.remoteExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.remoteExtensionManagementServer, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext)));
 			this._register(this.remoteExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
 			this._register(this.remoteExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
 		}
 		if (extensionManagementServerService.webExtensionManagementServer) {
-			this.webExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.webExtensionManagementServer, ext => this.getExtensionState(ext)));
+			this.webExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.webExtensionManagementServer, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext)));
 			this._register(this.webExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
 			this._register(this.webExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
 		}
@@ -802,7 +803,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private updateRunningExtensions(): void {
-		this.extensionService.getExtensions().then(runningExtensions => { this.runningExtensions = runningExtensions; });
+		this.extensionService.getExtensions().then(runningExtensions => {
+			this.runningExtensions = runningExtensions;
+		});
 	}
 
 	get local(): IExtension[] {
@@ -945,7 +948,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private fromGallery(gallery: IGalleryExtension, extensionsControlManifest: IExtensionsControlManifest): IExtension {
 		let extension = this.getInstalledExtensionMatchingGallery(gallery);
 		if (!extension) {
-			extension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), undefined, undefined, gallery);
+			extension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext), undefined, undefined, gallery);
 			Extensions.updateExtensionFromControlManifest(<Extension>extension, extensionsControlManifest);
 		}
 		return extension;
@@ -983,7 +986,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return undefined;
 	}
 
-	getReloadStatus(extension: IExtension): string | undefined {
+	private getReloadStatus(extension: IExtension): string | undefined {
 		if (!this.runningExtensions || !extension) {
 			return undefined;
 		}

@@ -1485,7 +1485,6 @@ export class ReloadAction extends ExtensionAction {
 	updateWhenCounterExtensionChanges: boolean = true;
 
 	constructor(
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IHostService private readonly hostService: IHostService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProductService productService: IProductService,
@@ -1510,7 +1509,7 @@ export class ReloadAction extends ExtensionAction {
 			return;
 		}
 
-		const reloadTooltip = this.extensionsWorkbenchService.getReloadStatus(this.extension);
+		const reloadTooltip = this.extension.reloadRequiredStatus;
 		this.enabled = reloadTooltip !== undefined;
 		this.label = reloadTooltip !== undefined ? localize('reload required', 'Reload Required') : '';
 		this.tooltip = reloadTooltip !== undefined ? reloadTooltip : '';
