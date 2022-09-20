@@ -215,20 +215,6 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: yarn --frozen-lockfile --network-timeout 180000
 
-      # Debugging for https://github.com/microsoft/playwright/issues/17394
-      - name: Download Playwright using Node.js debug build
-        run: |
-          curl -O https://playwrightdebugnodejs.blob.core.windows.net/node/node-darwin-dbg-x64.tar.gz
-          tar -xzf node-darwin-dbg-x64.tar.gz
-          echo "Hello from Node.js $(./node-darwin-dbg-x64/node --version)"
-          ./node-darwin-dbg-x64/node build/azure-pipelines/common/installPlaywright.js
-
-      - name: Upload Node.js coredumps
-        uses: actions/upload-artifact@v2
-        with:
-          name: NodeJsCoredumps
-          path: core.*
-
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
