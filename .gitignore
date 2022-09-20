@@ -15,4 +15,4 @@ yarn-error.log
 vscode.lsif
 vscode.db
 /.profile-oss
-/src/cli/target
+/cli/target

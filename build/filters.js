@@ -22,7 +22,7 @@ module.exports.all = [
 	'scripts/**/*',
 	'src/**/*',
 	'test/**/*',
-	'!src/cli/**/*',
+	'!cli/**/*',
 	'!out*/**',
 	'!test/**/out/**',
 	'!**/node_modules/**',
