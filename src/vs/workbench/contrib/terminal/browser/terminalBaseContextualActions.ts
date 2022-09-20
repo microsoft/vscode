@@ -58,7 +58,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 			actions.push({
 				class: undefined, tooltip: label, id: 'terminal.freePort', label, enabled: true,
 				run: async () => {
-					await terminalInstance?.processManager?.freePortKillProcess?.(port);
+					await terminalInstance?.freePortKillProcess?.(port);
 					terminalInstance?.sendText?.(command.command, false);
 				}
 			});

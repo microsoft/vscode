@@ -140,10 +140,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private readonly _scopedInstantiationService: IInstantiationService;
 
-	private readonly _processManager: ITerminalProcessManager;
+	readonly _processManager: ITerminalProcessManager;
 	private readonly _resource: URI;
 	private _shutdownPersistentProcessId: number | undefined;
-	get processManager() { return this._processManager; }
+	protected get processManager() { return this._processManager; }
 	// Enables disposal of the xterm onKey
 	// event when the CwdDetection capability
 	// is added
@@ -216,7 +216,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * Enables opening the contextual actions, if any, that are available
 	 * and registering of command finished listeners
 	 */
-	get contextualAction(): IContextualAction | undefined { return this._contextualActionAddon; }
+	get contextualActions(): IContextualAction | undefined { return this._contextualActionAddon; }
 
 	readonly findWidget: TerminalFindWidget;
 
@@ -602,7 +602,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	registerContextualActions(...actionOptions: ITerminalContextualActionOptions[]): void {
 		for (const actionOption of actionOptions) {
-			this.contextualAction?.registerCommandFinishedListener(actionOption);
+			this.contextualActions?.registerCommandFinishedListener(actionOption);
 		}
 	}
 
@@ -1500,6 +1500,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	public scrollToMark(startMarkId: string, endMarkId?: string, highlight?: boolean): void {
 		this.xterm?.markTracker.scrollToClosestMarker(startMarkId, endMarkId, highlight);
+	}
+
+	public async freePortKillProcess(port: string): Promise<void> {
+		await this._processManager?.freePortKillProcess(port);
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {

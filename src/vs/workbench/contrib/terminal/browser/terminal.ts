@@ -19,7 +19,7 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { IContextualAction } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
-import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IMarker } from 'xterm';
 
@@ -455,11 +455,10 @@ export interface ITerminalInstance {
 	readonly initialCwd?: string;
 	readonly os?: OperatingSystem;
 	readonly capabilities: ITerminalCapabilityStore;
-	readonly processManager: ITerminalProcessManager;
 
 	readonly statusList: ITerminalStatusList;
 
-	contextualAction: IContextualAction | undefined;
+	contextualActions: IContextualAction | undefined;
 
 	readonly findWidget: TerminalFindWidget;
 
@@ -913,6 +912,8 @@ export interface ITerminalInstance {
 	 * Registers contextual action listeners
 	 */
 	registerContextualActions(...options: ITerminalContextualActionOptions[]): void;
+
+	freePortKillProcess(port: string): Promise<void>;
 }
 
 export interface ITerminalContextualActionOptions {

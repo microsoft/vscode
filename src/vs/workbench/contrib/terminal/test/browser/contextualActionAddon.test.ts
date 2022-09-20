@@ -17,15 +17,12 @@ import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilitie
 import { ITerminalInstance, ITerminalOutputMatcher } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, gitSimilarCommand, GitSimilarOutputRegex } from 'vs/workbench/contrib/terminal/browser/terminalBaseContextualActions';
 import { ContextualActionAddon, getMatchOptions } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
-import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Terminal } from 'xterm';
-
-class TestCommandDetectionCapability extends CommandDetectionCapability { }
 
 suite('ContextualActionAddon', () => {
 	let contextualActionAddon: ContextualActionAddon;
-	let terminalInstance: Partial<ITerminalInstance>;
-	let commandDetection: TestCommandDetectionCapability;
+	let terminalInstance: Pick<ITerminalInstance, 'sendText' | 'freePortKillProcess'>;
+	let commandDetection: CommandDetectionCapability;
 	let openerService: OpenerService;
 	setup(() => {
 		const instantiationService = new TestInstantiationService();
@@ -36,19 +33,15 @@ suite('ContextualActionAddon', () => {
 		});
 		const capabilities = new TerminalCapabilityStore();
 		instantiationService.stub(ILogService, new NullLogService());
-		commandDetection = instantiationService.createInstance(TestCommandDetectionCapability, xterm);
+		commandDetection = instantiationService.createInstance(CommandDetectionCapability, xterm);
 		capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
 		openerService = instantiationService.createInstance(OpenerService);
 		instantiationService.stub(IOpenerService, openerService);
 		terminalInstance = {
 			async sendText(text: string): Promise<void> { },
-			get processManager(): Partial<ITerminalProcessManager> {
-				return {
-					freePortKillProcess(port: string) { }
-				} as Pick<ITerminalProcessManager, 'freePortKillProcess'>;
-			}
-		} as Pick<ITerminalInstance, 'sendText' | 'processManager'>;
+			async freePortKillProcess(port: string): Promise<void> { }
+		} as Pick<ITerminalInstance, 'sendText' | 'freePortKillProcess'>;
 		contextualActionAddon = instantiationService.createInstance(ContextualActionAddon, capabilities);
 		xterm.loadAddon(contextualActionAddon);
 	});
