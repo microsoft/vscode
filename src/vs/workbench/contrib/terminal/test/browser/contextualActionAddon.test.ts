@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
+import { IAction } from 'vs/base/common/actions';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -15,7 +16,7 @@ import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabili
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { ITerminalInstance, ITerminalOutputMatcher } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, gitSimilarCommand, GitSimilarOutputRegex } from 'vs/workbench/contrib/terminal/browser/terminalBaseContextualActions';
-import { ContextualActionAddon, getMatchOptions, MatchActions } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
+import { ContextualActionAddon, getMatchOptions } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Terminal } from 'xterm';
 
@@ -236,7 +237,7 @@ function createCommand(command: string, output: string, outputMatcher?: RegExp |
 	};
 }
 
-function assertMatchOptions(actual: MatchActions, expected: { id: string; label: string; run: boolean; tooltip: string; enabled: boolean }[]): void {
+function assertMatchOptions(actual: IAction[] | undefined, expected: { id: string; label: string; run: boolean; tooltip: string; enabled: boolean }[]): void {
 	strictEqual(actual?.length, expected.length);
 	let index = 0;
 	for (const i of actual) {

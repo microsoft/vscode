@@ -8,14 +8,13 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
-import type { ITerminalAddon, Terminal } from 'xterm-headless';
+import type { ITerminalAddon } from 'xterm-headless';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITerminalContextualActionOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
-export type MatchActions = IAction[] | undefined;
+import { Terminal } from 'xterm';
 
 export interface IContextualAction {
 	/**
@@ -42,11 +41,11 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 
 	private _currentQuickFixElement: HTMLElement | undefined;
 
-	private _decorationMarkerIds = new Set<string>();
+	private _decorationMarkerIds = new Set<number>();
 
 	private _commandListeners: Map<string, ITerminalContextualActionOptions[]> = new Map();
 
-	private _matchActions: MatchActions | undefined;
+	private _matchActions: IAction[] | undefined;
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -99,30 +98,34 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 	}
 
 	private _registerContextualDecoration(): void {
-		const marker = this._terminal?.registerMarker();
-		const actions = this._matchActions;
-		if (this._terminal && 'registerDecoration' in this._terminal) {
-			const decoration = (this._terminal as any).registerDecoration({ marker, actions, layer: 'top' });
-			decoration.onRender((e: HTMLElement) => {
-				if (!this._decorationMarkerIds.has(decoration.marker.id)) {
-					this._currentQuickFixElement = e;
-					e.classList.add(DecorationSelector.QuickFix, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration);
-					e.style.color = '#ffcc00';
-					updateLayout(this._configurationService, e);
-					if (actions) {
-						this._decorationMarkerIds.add(decoration.marker.id);
-						dom.addDisposableListener(e, dom.EventType.CLICK, () => {
-							this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions });
-							this._contextMenuService.onDidHideContextMenu(() => decoration.dispose());
-						});
-					}
-				}
-			});
+		if (!this._terminal) {
+			return;
 		}
+		const marker = this._terminal.registerMarker();
+		if (!marker) {
+			return;
+		}
+		const actions = this._matchActions;
+		const decoration = this._terminal.registerDecoration({ marker, layer: 'top' });
+		decoration?.onRender((e: HTMLElement) => {
+			if (!this._decorationMarkerIds.has(decoration.marker.id)) {
+				this._currentQuickFixElement = e;
+				e.classList.add(DecorationSelector.QuickFix, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration);
+				e.style.color = '#ffcc00';
+				updateLayout(this._configurationService, e);
+				if (actions) {
+					this._decorationMarkerIds.add(decoration.marker.id);
+					dom.addDisposableListener(e, dom.EventType.CLICK, () => {
+						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions });
+						this._contextMenuService.onDidHideContextMenu(() => decoration.dispose());
+					});
+				}
+			}
+		});
 	}
 }
 
-export function getMatchOptions(command: ITerminalCommand, actionOptions: Map<string, ITerminalContextualActionOptions[]>): MatchActions {
+export function getMatchOptions(command: ITerminalCommand, actionOptions: Map<string, ITerminalContextualActionOptions[]>): IAction[] | undefined {
 	const matchActions: IAction[] = [];
 	const newCommand = command.command;
 	for (const options of actionOptions.values()) {
