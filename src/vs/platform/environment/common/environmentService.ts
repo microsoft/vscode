@@ -81,6 +81,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get userDataSyncLogResource(): URI { return URI.file(join(this.logsPath, 'userDataSync.log')); }
 
 	@memoize
+	get editSessionsLogResource(): URI { return URI.file(join(this.logsPath, 'editSessions.log')); }
+
+	@memoize
 	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
 
 	@memoize
@@ -223,6 +226,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	@memoize
 	get telemetryLogResource(): URI { return URI.file(join(this.logsPath, 'telemetry.log')); }
+	get extensionTelemetryLogResource(): URI { return URI.file(join(this.logsPath, 'extensionTelemetry.log')); }
 	get disableTelemetry(): boolean { return !!this.args['disable-telemetry']; }
 
 	@memoize

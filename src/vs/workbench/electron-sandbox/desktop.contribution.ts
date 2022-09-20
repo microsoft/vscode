@@ -26,6 +26,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ModifierKeyEmitter } from 'vs/base/browser/dom';
+import product from 'vs/platform/product/common/product';
 
 // Actions
 (function registerActions(): void {
@@ -237,7 +238,14 @@ import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 				'included': isMacintosh
-			}
+			},
+			'window.experimental.useSandbox': { // TODO@bpasero remove me once sandbox is final
+				type: 'boolean',
+				description: localize('experimentalUseSandbox', "Experimental: When enabled, the window will have sandbox mode enabled via Electron API."),
+				default: typeof product.quality === 'string' && product.quality !== 'stable', // disabled by default in stable for now
+				'scope': ConfigurationScope.APPLICATION,
+				ignoreSync: true
+			},
 		}
 	});
 
@@ -303,10 +311,6 @@ import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 			'disable-hardware-acceleration': {
 				type: 'boolean',
 				description: localize('argv.disableHardwareAcceleration', 'Disables hardware acceleration. ONLY change this option if you encounter graphic issues.')
-			},
-			'disable-color-correct-rendering': {
-				type: 'boolean',
-				description: localize('argv.disableColorCorrectRendering', 'Resolves issues around color profile selection. ONLY change this option if you encounter graphic issues.')
 			},
 			'force-color-profile': {
 				type: 'string',

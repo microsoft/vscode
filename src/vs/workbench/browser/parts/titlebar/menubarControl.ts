@@ -535,9 +535,7 @@ export class CustomMenubarControl extends MenubarControl {
 				}
 
 				async run(): Promise<void> {
-					if (that.menubar) {
-						that.menubar.toggleFocus();
-					}
+					that.menubar?.toggleFocus();
 				}
 			}));
 		}
@@ -579,17 +577,6 @@ export class CustomMenubarControl extends MenubarControl {
 
 	private get currentMenubarVisibility(): MenuBarVisibility {
 		return getMenuBarVisibility(this.configurationService);
-	}
-
-	private get currentCommandCenterEnabled(): boolean {
-		const settingValue = this.configurationService.getValue<boolean>('window.commandCenter');
-
-		let enableCommandCenter = false;
-		if (typeof settingValue === 'boolean') {
-			enableCommandCenter = !!settingValue;
-		}
-
-		return enableCommandCenter;
 	}
 
 	private get currentDisableMenuBarAltFocus(): boolean {
@@ -637,11 +624,6 @@ export class CustomMenubarControl extends MenubarControl {
 
 	private get currentCompactMenuMode(): Direction | undefined {
 		if (this.currentMenubarVisibility !== 'compact') {
-			// With the command center enabled, use compact menu in title bar and flow to the right
-			if (this.currentCommandCenterEnabled) {
-				return Direction.Down;
-			}
-
 			return undefined;
 		}
 
@@ -865,9 +847,7 @@ export class CustomMenubarControl extends MenubarControl {
 				this.container.classList.remove('inactive');
 			} else {
 				this.container.classList.add('inactive');
-				if (this.menubar) {
-					this.menubar.blur();
-				}
+				this.menubar?.blur();
 			}
 		}
 	}
@@ -944,8 +924,6 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	toggleFocus() {
-		if (this.menubar) {
-			this.menubar.toggleFocus();
-		}
+		this.menubar?.toggleFocus();
 	}
 }

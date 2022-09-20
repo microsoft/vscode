@@ -5,29 +5,34 @@
 
 import { h } from 'vs/base/browser/dom';
 import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { autorun, derived, IObservable, observableFromEvent } from 'vs/base/common/observable';
 import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ITextModel } from 'vs/editor/common/model';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { IObservable, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 
 export abstract class CodeEditorView extends Disposable {
-	private readonly _viewModel = new ObservableValue<undefined | MergeEditorViewModel>(undefined, 'viewModel');
-	readonly viewModel: IObservable<undefined | MergeEditorViewModel> = this._viewModel;
-	readonly model = this._viewModel.map(m => m?.model);
+	readonly model = this.viewModel.map(m => /** @description model */ m?.model);
 
 	protected readonly htmlElements = h('div.code-view', [
-		h('div.title', { $: 'title' }),
+		h('div.title@header', [
+			h('span.title@title'),
+			h('span.description@description'),
+			h('span.detail@detail'),
+			h('span.toolbar@toolbar'),
+		]),
 		h('div.container', [
-			h('div.gutter', { $: 'gutterDiv' }),
-			h('div', { $: 'editor' }),
+			h('div.gutter@gutterDiv'),
+			h('div@editor'),
 		]),
 	]);
 
@@ -44,7 +49,7 @@ export abstract class CodeEditorView extends Disposable {
 			setStyle(this.htmlElements.root, { width, height, top, left });
 			this.editor.layout({
 				width: width - this.htmlElements.gutterDiv.clientWidth,
-				height: height - this.htmlElements.title.clientHeight,
+				height: height - this.htmlElements.header.clientHeight,
 			});
 		}
 		// preferredWidth?: number | undefined;
@@ -52,9 +57,6 @@ export abstract class CodeEditorView extends Disposable {
 		// priority?: LayoutPriority | undefined;
 		// snap?: boolean | undefined;
 	};
-
-	private readonly _title = new IconLabel(this.htmlElements.title, { supportIcons: true });
-	protected readonly _detail = new IconLabel(this.htmlElements.title, { supportIcons: true });
 
 	public readonly editor = this.instantiationService.createInstance(
 		CodeEditorWidget,
@@ -71,19 +73,25 @@ export abstract class CodeEditorView extends Disposable {
 
 	public readonly isFocused = observableFromEvent(
 		Event.any(this.editor.onDidBlurEditorWidget, this.editor.onDidFocusEditorWidget),
-		() => this.editor.hasWidgetFocus()
+		() => /** @description editor.hasWidgetFocus */ this.editor.hasWidgetFocus()
 	);
 
 	public readonly cursorPosition = observableFromEvent(
 		this.editor.onDidChangeCursorPosition,
-		() => this.editor.getPosition()
+		() => /** @description editor.getPosition */ this.editor.getPosition()
 	);
 
-	public readonly cursorLineNumber = this.cursorPosition.map(p => p?.lineNumber);
+	public readonly selection = observableFromEvent(
+		this.editor.onDidChangeCursorSelection,
+		() => /** @description editor.getSelections */ this.editor.getSelections()
+	);
+
+	public readonly cursorLineNumber = this.cursorPosition.map(p => /** @description cursorPosition.lineNumber */ p?.lineNumber);
 
 	constructor(
 		@IInstantiationService
-		private readonly instantiationService: IInstantiationService
+		private readonly instantiationService: IInstantiationService,
+		public readonly viewModel: IObservable<undefined | MergeEditorViewModel>,
 	) {
 		super();
 	}
@@ -91,18 +99,45 @@ export abstract class CodeEditorView extends Disposable {
 	protected getEditorContributions(): IEditorContributionDescription[] | undefined {
 		return undefined;
 	}
+}
 
-	public setModel(
-		viewModel: MergeEditorViewModel,
-		textModel: ITextModel,
-		title: string,
-		description: string | undefined,
-		detail: string | undefined
-	): void {
-		this.editor.setModel(textModel);
-		this._title.setLabel(title, description);
-		this._detail.setLabel('', detail);
+export function createSelectionsAutorun(
+	codeEditorView: CodeEditorView,
+	translateRange: (baseRange: Range, viewModel: MergeEditorViewModel) => Range
+): IDisposable {
+	const selections = derived('selections', reader => {
+		const viewModel = codeEditorView.viewModel.read(reader);
+		if (!viewModel) {
+			return [];
+		}
+		const baseRange = viewModel.selectionInBase.read(reader);
+		if (!baseRange || baseRange.sourceEditor === codeEditorView) {
+			return [];
+		}
+		return baseRange.rangesInBase.map(r => translateRange(r, viewModel));
+	});
 
-		this._viewModel.set(viewModel, undefined);
+	return autorun('set selections', (reader) => {
+		const ranges = selections.read(reader);
+		if (ranges.length === 0) {
+			return;
+		}
+		codeEditorView.editor.setSelections(ranges.map(r => new Selection(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn)));
+	});
+}
+
+export class TitleMenu extends Disposable {
+	constructor(
+		menuId: MenuId,
+		targetHtmlElement: HTMLElement,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+
+		const toolbar = instantiationService.createInstance(MenuWorkbenchToolBar, targetHtmlElement, menuId, {
+			menuOptions: { renderShortTitle: true },
+			toolbarOptions: { primaryGroup: () => false }
+		});
+		this._store.add(toolbar);
 	}
 }

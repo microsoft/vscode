@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CallbackIterable } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -19,15 +20,15 @@ export interface IBracketPairsTextModelPart {
 	 * Gets all bracket pairs that intersect the given position.
 	 * The result is sorted by the start position.
 	 */
-	getBracketPairsInRange(range: IRange): BracketPairInfo[];
+	getBracketPairsInRange(range: IRange): CallbackIterable<BracketPairInfo>;
 
 	/**
 	 * Gets all bracket pairs that intersect the given position.
 	 * The result is sorted by the start position.
 	 */
-	getBracketPairsInRangeWithMinIndentation(range: IRange): BracketPairWithMinIndentationInfo[];
+	getBracketPairsInRangeWithMinIndentation(range: IRange): CallbackIterable<BracketPairWithMinIndentationInfo>;
 
-	getBracketsInRange(range: IRange): BracketInfo[];
+	getBracketsInRange(range: IRange): CallbackIterable<BracketInfo>;
 
 	/**
 	 * Find the matching bracket of `request` up, counting brackets.

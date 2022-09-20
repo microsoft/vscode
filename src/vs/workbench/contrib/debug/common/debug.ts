@@ -6,6 +6,7 @@
 import { IAction } from 'vs/base/common/actions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -162,7 +163,7 @@ export interface IDebugger {
 export interface IDebuggerMetadata {
 	label: string;
 	type: string;
-	uiMessages?: { [key in DebuggerUiMessage]: string };
+	strings?: { [key in DebuggerString]: string };
 	interestedInLanguage(languageId: string): boolean;
 }
 
@@ -206,6 +207,7 @@ export interface IDebugSessionOptions {
 		simple?: boolean;
 	};
 	startedByUser?: boolean;
+	saveBeforeRestart?: boolean;
 }
 
 export interface IDataBreakpointInfoResponse {
@@ -296,6 +298,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly subId: string | undefined;
 	readonly compact: boolean;
 	readonly compoundRoot: DebugCompoundRoot | undefined;
+	readonly saveBeforeRestart: boolean;
 	readonly name: string;
 	readonly isSimpleUI: boolean;
 	readonly autoExpandLazyVariables: boolean;
@@ -602,6 +605,8 @@ export interface IDebugModel extends ITreeElement {
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent | undefined>;
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression | undefined>;
+
+	fetchCallstack(thread: IThread, levels?: number): Promise<void>;
 }
 
 /**
@@ -663,6 +668,7 @@ export interface IEnvConfig {
 	postDebugTask?: string | ITaskIdentifier;
 	debugServer?: number;
 	noDebug?: boolean;
+	suppressMultipleSessionWarning?: boolean;
 }
 
 export interface IConfigPresentation {
@@ -780,7 +786,7 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 	variables?: { [key: string]: string };
 	when?: string;
 	deprecated?: string;
-	uiMessages?: { [key in DebuggerUiMessage]: string };
+	strings?: { [key in DebuggerString]: string };
 }
 
 export interface IBreakpointContribution {
@@ -856,7 +862,7 @@ export interface IConfigurationManager {
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any, token: CancellationToken): Promise<any>;
 }
 
-export enum DebuggerUiMessage {
+export enum DebuggerString {
 	UnverifiedBreakpoints = 'unverifiedBreakpoints'
 }
 
@@ -923,7 +929,7 @@ export interface ILaunch {
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
-	openConfigFile(preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditorPane | null; created: boolean }>;
+	openConfigFile(options: { preserveFocus: boolean; type?: string; suppressInitialConfigs?: boolean }, token?: CancellationToken): Promise<{ editor: IEditorPane | null; created: boolean }>;
 }
 
 // Debug service interfaces
@@ -1136,4 +1142,17 @@ export interface IBreakpointEditorContribution extends editorCommon.IEditorContr
 	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext): void;
 	closeBreakpointWidget(): void;
 	getContextMenuActionsAtPosition(lineNumber: number, model: EditorIModel): IAction[];
+}
+
+export interface IReplConfiguration {
+	readonly fontSize: number;
+	readonly fontFamily: string;
+	readonly lineHeight: number;
+	readonly cssLineHeight: string;
+	readonly backgroundColor: Color | undefined;
+	readonly fontSizeForTwistie: number;
+}
+
+export interface IReplOptions {
+	readonly replConfiguration: IReplConfiguration;
 }

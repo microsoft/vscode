@@ -41,6 +41,7 @@ type OptionTypeName<T> =
 
 export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'diff': { type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
+	'merge': { type: 'boolean', cat: 'o', alias: 'm', args: ['path1', 'path2', 'base', 'result'], description: localize('merge', "Perform a three-way merge by providing paths for two modified versions of a file, the common origin of both modified versions and the output file to save merge results.") },
 	'add': { type: 'boolean', cat: 'o', alias: 'a', args: 'folder', description: localize('add', "Add folder(s) to the last active window.") },
 	'goto': { type: 'boolean', cat: 'o', alias: 'g', args: 'file:line[:character]', description: localize('goto', "Open a file at the path on the specified line and character position.") },
 	'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindow', "Force to open a new window.") },
@@ -49,6 +50,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'waitMarkerFilePath': { type: 'string' },
 	'locale': { type: 'string', cat: 'o', args: 'locale', description: localize('locale', "The locale to use (e.g. en-US or zh-TW).") },
 	'user-data-dir': { type: 'string', cat: 'o', args: 'dir', description: localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code.") },
+	'profile': { type: 'string', 'cat': 'o', args: 'settingsProfileName', description: localize('settingsProfileName', "Opens the provided folder or workspace with the given profile and associates the profile with the workspace. If the profile does not exist, a new empty one is created. A folder or workspace must be provided for the profile to take effect.") },
 	'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") },
 
 	'extensions-dir': { type: 'string', deprecates: ['extensionHomePath'], cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
@@ -124,10 +126,12 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'force-user-env': { type: 'boolean' },
 	'force-disable-user-env': { type: 'boolean' },
 	'open-devtools': { type: 'boolean' },
-	'__sandbox': { type: 'boolean' },
 	'logsPath': { type: 'string' },
 	'__enable-file-policy': { type: 'boolean' },
 	'editSessionId': { type: 'string' },
+	'locate-shell-integration-path': { type: 'string', args: ['bash', 'pwsh', 'zsh', 'fish'] },
+
+	'enable-coi': { type: 'boolean' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },
@@ -152,6 +156,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'vmodule': { type: 'string' },
 	'_urls': { type: 'string[]' },
 	'disable-dev-shm-usage': { type: 'boolean' },
+	'profile-temp': { type: 'boolean' },
 
 	_: { type: 'string[]' } // main arguments
 };

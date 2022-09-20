@@ -20,8 +20,8 @@ import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatus
 
 import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/services/output/common/output';
 
-import { ITaskEvent, TaskEventKind, TaskGroup, TASKS_CATEGORY, TASK_RUNNING_STATE } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, ProcessExecutionSupportedContext, ShellExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
+import { ITaskEvent, TaskEventKind, TaskGroup, TaskSettingId, TASKS_CATEGORY, TASK_RUNNING_STATE } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ITaskService, TaskCommandsRegistered, TaskExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { RunAutomaticTasks, ManageAutomaticTaskRunning } from 'vs/workbench/contrib/tasks/browser/runAutomaticTasks';
@@ -40,10 +40,8 @@ import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDe
 import { TerminalMenuBarGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { isString } from 'vs/base/common/types';
 
-const SHOW_TASKS_COMMANDS_CONTEXT = ContextKeyExpr.or(ShellExecutionSupportedContext, ProcessExecutionSupportedContext);
-
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, 'RunAutomaticTasks', LifecyclePhase.Eventually);
 
 registerAction2(ManageAutomaticTaskRunning);
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
@@ -52,7 +50,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: ManageAutomaticTaskRunning.LABEL,
 		category: TASKS_CATEGORY
 	},
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 
 export class TaskStatusBarContributions extends Disposable implements IWorkbenchContribution {
@@ -112,7 +110,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			}
 
 			if (promise && (event.kind === TaskEventKind.Active) && (this._activeTasksCount === 1)) {
-				this._progressService.withProgress({ location: ProgressLocation.Window, command: 'workbench.action.tasks.showTasks' }, progress => {
+				this._progressService.withProgress({ location: ProgressLocation.Window, command: 'workbench.action.tasks.showTasks', type: 'loading' }, progress => {
 					progress.report({ message: nls.localize('building', 'Building...') });
 					return promise!;
 				}).then(() => {
@@ -163,7 +161,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 	}
 }
 
-workbenchRegistry.registerWorkbenchContribution(TaskStatusBarContributions, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(TaskStatusBarContributions, 'TaskStatusBarContributions', LifecyclePhase.Restored);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 	group: TerminalMenuBarGroup.Run,
@@ -172,7 +170,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 		title: nls.localize({ key: 'miRunTask', comment: ['&& denotes a mnemonic'] }, "&&Run Task...")
 	},
 	order: 1,
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
@@ -182,7 +180,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 		title: nls.localize({ key: 'miBuildTask', comment: ['&& denotes a mnemonic'] }, "Run &&Build Task...")
 	},
 	order: 2,
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 
 // Manage Tasks
@@ -194,7 +192,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 		title: nls.localize({ key: 'miRunningTask', comment: ['&& denotes a mnemonic'] }, "Show Runnin&&g Tasks...")
 	},
 	order: 1,
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
@@ -205,7 +203,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 		title: nls.localize({ key: 'miRestartTask', comment: ['&& denotes a mnemonic'] }, "R&&estart Running Task...")
 	},
 	order: 2,
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
@@ -216,7 +214,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 		title: nls.localize({ key: 'miTerminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task...")
 	},
 	order: 3,
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 
 // Configure Tasks
@@ -227,7 +225,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 		title: nls.localize({ key: 'miConfigureTask', comment: ['&& denotes a mnemonic'] }, "&&Configure Tasks...")
 	},
 	order: 1,
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
@@ -237,7 +235,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 		title: nls.localize({ key: 'miConfigureBuildTask', comment: ['&& denotes a mnemonic'] }, "Configure De&&fault Build Task...")
 	},
 	order: 2,
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 
 
@@ -247,7 +245,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: { value: nls.localize('workbench.action.tasks.openWorkspaceFileTasks', "Open Workspace Tasks"), original: 'Open Workspace Tasks' },
 		category: TASKS_CATEGORY
 	},
-	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), SHOW_TASKS_COMMANDS_CONTEXT)
+	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), TaskExecutionSupportedContext)
 });
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
@@ -256,7 +254,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: { value: ConfigureTaskAction.TEXT, original: 'Configure Task' },
 		category: TASKS_CATEGORY
 	},
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
@@ -264,7 +262,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: { value: nls.localize('ShowLogAction.label', "Show Task Log"), original: 'Show Task Log' },
 		category: TASKS_CATEGORY
 	},
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
@@ -279,7 +277,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: { value: nls.localize('ReRunTaskAction.label', "Rerun Last Task"), original: 'Rerun Last Task' },
 		category: TASKS_CATEGORY
 	},
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
@@ -287,7 +285,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: { value: nls.localize('RestartTaskAction.label', "Restart Running Task"), original: 'Restart Running Task' },
 		category: TASKS_CATEGORY
 	},
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
@@ -295,7 +293,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: { value: nls.localize('ShowTasksAction.label', "Show Running Tasks"), original: 'Show Running Tasks' },
 		category: TASKS_CATEGORY
 	},
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
@@ -303,7 +301,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: { value: nls.localize('TerminateAction.label', "Terminate Task"), original: 'Terminate Task' },
 		category: TASKS_CATEGORY
 	},
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
@@ -311,7 +309,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: { value: nls.localize('BuildAction.label', "Run Build Task"), original: 'Run Build Task' },
 		category: TASKS_CATEGORY
 	},
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
@@ -319,7 +317,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: { value: nls.localize('TestAction.label', "Run Test Task"), original: 'Run Test Task' },
 		category: TASKS_CATEGORY
 	},
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
@@ -330,7 +328,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		},
 		category: TASKS_CATEGORY
 	},
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
@@ -341,7 +339,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		},
 		category: TASKS_CATEGORY
 	},
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
@@ -351,7 +349,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			original: 'Open User Tasks'
 		}, category: TASKS_CATEGORY
 	},
-	when: SHOW_TASKS_COMMANDS_CONTEXT
+	when: TaskExecutionSupportedContext
 });
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.rebuild', title: nls.localize('RebuildAction.label', 'Run Rebuild Task'), category: tasksCategory });
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.clean', title: nls.localize('CleanAction.label', 'Run Clean Task'), category: tasksCategory });
@@ -359,7 +357,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 KeybindingsRegistry.registerKeybindingRule({
 	id: 'workbench.action.tasks.build',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: undefined,
+	when: TaskCommandsRegistered,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB
 });
 
@@ -431,7 +429,7 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('tasksConfigurationTitle', "Tasks"),
 	type: 'object',
 	properties: {
-		'task.problemMatchers.neverPrompt': {
+		[TaskSettingId.ProblemMatchersNeverPrompt]: {
 			markdownDescription: nls.localize('task.problemMatchers.neverPrompt', "Configures whether to show the problem matcher prompt when running a task. Set to `true` to never prompt, or use a dictionary of task types to turn off prompting only for specific task types."),
 			'oneOf': [
 				{
@@ -453,13 +451,13 @@ configurationRegistry.registerConfiguration({
 			],
 			default: false
 		},
-		'task.autoDetect': {
+		[TaskSettingId.AutoDetect]: {
 			markdownDescription: nls.localize('task.autoDetect', "Controls enablement of `provideTasks` for all task provider extension. If the Tasks: Run Task command is slow, disabling auto detect for task providers may help. Individual extensions may also provide settings that disable auto detection."),
 			type: 'string',
 			enum: ['on', 'off'],
 			default: 'on'
 		},
-		'task.slowProviderWarning': {
+		[TaskSettingId.SlowProviderWarning]: {
 			markdownDescription: nls.localize('task.slowProviderWarning', "Configures whether a warning is shown when a provider is slow"),
 			'oneOf': [
 				{
@@ -476,32 +474,49 @@ configurationRegistry.registerConfiguration({
 			],
 			default: true
 		},
-		'task.quickOpen.history': {
+		[TaskSettingId.QuickOpenHistory]: {
 			markdownDescription: nls.localize('task.quickOpen.history', "Controls the number of recent items tracked in task quick open dialog."),
 			type: 'number',
 			default: 30, minimum: 0, maximum: 30
 		},
-		'task.quickOpen.detail': {
+		[TaskSettingId.QuickOpenDetail]: {
 			markdownDescription: nls.localize('task.quickOpen.detail', "Controls whether to show the task detail for tasks that have a detail in task quick picks, such as Run Task."),
 			type: 'boolean',
 			default: true
 		},
-		'task.quickOpen.skip': {
+		[TaskSettingId.QuickOpenSkip]: {
 			type: 'boolean',
 			description: nls.localize('task.quickOpen.skip', "Controls whether the task quick pick is skipped when there is only one task to pick from."),
 			default: false
 		},
-		'task.quickOpen.showAll': {
+		[TaskSettingId.QuickOpenShowAll]: {
 			type: 'boolean',
 			description: nls.localize('task.quickOpen.showAll', "Causes the Tasks: Run Task command to use the slower \"show all\" behavior instead of the faster two level picker where tasks are grouped by provider."),
 			default: false
 		},
-		'task.showDecorations': {
+		[TaskSettingId.AllowAutomaticTasks]: {
+			type: 'string',
+			enum: ['on', 'auto', 'off'],
+			enumDescriptions: [
+				nls.localize('task.allowAutomaticTasks.on', "Always"),
+				nls.localize('task.allowAutomaticTasks.auto', "Prompt for permission for each folder"),
+				nls.localize('task.allowAutomaticTasks.off', "Never"),
+			],
+			description: nls.localize('task.allowAutomaticTasks', "Enable automatic tasks in the folder - note that tasks won't run in an untrusted workspace."),
+			default: 'auto',
+			restricted: true
+		},
+		[TaskSettingId.ShowDecorations]: {
 			type: 'boolean',
-			description: nls.localize('task.showDecorations', "Shows decorations at points of interest in the terminal buffer such as the first problem found via a watch task. Note that this will only take effect for future tasks."),
+			markdownDescription: nls.localize('task.showDecorations', "Shows decorations at points of interest in the terminal buffer such as the first problem found via a watch task. Note that this will only take effect for future tasks. {0} will take precedence over this setting", '`#terminal.integrated.shellIntegration.decorationsEnabled#`'),
 			default: true
 		},
-		'task.saveBeforeRun': {
+		[TaskSettingId.Reconnection]: {
+			type: 'boolean',
+			description: nls.localize('task.reconnection', "On window reload, reconnect to tasks that have problem matchers."),
+			default: true
+		},
+		[TaskSettingId.SaveBeforeRun]: {
 			markdownDescription: nls.localize(
 				'task.saveBeforeRun',
 				'Save all dirty editors before running a task.'

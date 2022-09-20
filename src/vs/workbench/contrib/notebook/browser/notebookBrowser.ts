@@ -100,6 +100,8 @@ export interface ICellOutputViewModel extends IDisposable {
 	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
 	pickedMimeType: IOrderedMimeType | undefined;
 	hasMultiMimeType(): boolean;
+	readonly onDidResetRenderer: Event<void>;
+	resetRenderer(): void;
 	toRawJSON(): any;
 }
 
@@ -156,6 +158,7 @@ export interface CodeCellLayoutInfo {
 	readonly fontInfo: FontInfo | null;
 	readonly editorHeight: number;
 	readonly editorWidth: number;
+	readonly estimatedHasHorizontalScrolling: boolean;
 	readonly statusBarHeight: number;
 	readonly commentHeight: number;
 	readonly totalHeight: number;
@@ -180,7 +183,7 @@ export interface CodeCellLayoutChangeEvent {
 	font?: FontInfo;
 }
 
-export interface MarkdownCellLayoutInfo {
+export interface MarkupCellLayoutInfo {
 	readonly fontInfo: FontInfo | null;
 	readonly editorWidth: number;
 	readonly editorHeight: number;
@@ -196,7 +199,7 @@ export enum CellLayoutContext {
 	Fold
 }
 
-export interface MarkdownCellLayoutChangeEvent {
+export interface MarkupCellLayoutChangeEvent {
 	font?: FontInfo;
 	outerWidth?: number;
 	editorHeight?: number;
@@ -325,6 +328,7 @@ export interface INotebookEditorCreationOptions {
 	readonly menuIds: {
 		notebookToolbar: MenuId;
 		cellTitleToolbar: MenuId;
+		cellDeleteToolbar: MenuId;
 		cellInsertToolbar: MenuId;
 		cellTopInsertToolbar: MenuId;
 		cellExecuteToolbar: MenuId;
@@ -674,7 +678,7 @@ export interface INotebookEditorDelegate extends INotebookEditor {
 	 * Hide the inset in the webview layer without removing it
 	 */
 	hideInset(output: IDisplayOutputViewModel): void;
-	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]): void;
+	deltaCellContainerClassNames(cellId: string, added: string[], removed: string[]): void;
 }
 
 export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate {

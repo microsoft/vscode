@@ -391,15 +391,21 @@ class EditorStatusContribution implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatusContribution, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatusContribution, 'EditorStatusContribution', LifecyclePhase.Restored);
 
 registerAction2(class extends Action2 {
 
 	constructor() {
 		super({
 			id: 'editor.inlayHints.Reset',
-			title: localize('reset', 'Reset Language Status Interaction Counter'),
-			category: localize('cat', 'View'),
+			title: {
+				value: localize('reset', 'Reset Language Status Interaction Counter'),
+				original: 'Reset Language Status Interaction Counter'
+			},
+			category: {
+				value: localize('cat', 'View'),
+				original: 'View'
+			},
 			f1: true
 		});
 	}

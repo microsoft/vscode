@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import type * as lsp from 'vscode-languageserver-types';
 import * as nls from 'vscode-nls';
+import { MdLanguageClient } from '../client/client';
 import { Command, CommandManager } from '../commandManager';
-import { MdReferencesProvider } from './references';
 
 const localize = nls.loadMessageBundle();
 
@@ -16,7 +17,7 @@ export class FindFileReferencesCommand implements Command {
 	public readonly id = 'markdown.findAllFileReferences';
 
 	constructor(
-		private readonly referencesProvider: MdReferencesProvider,
+		private readonly client: MdLanguageClient,
 	) { }
 
 	public async execute(resource?: vscode.Uri) {
@@ -33,8 +34,9 @@ export class FindFileReferencesCommand implements Command {
 			location: vscode.ProgressLocation.Window,
 			title: localize('progress.title', "Finding file references")
 		}, async (_progress, token) => {
-			const references = await this.referencesProvider.getReferencesToFileInWorkspace(resource!, token);
-			const locations = references.map(ref => ref.location);
+			const locations = (await this.client.getReferencesToFileInWorkspace(resource!, token)).map(loc => {
+				return new vscode.Location(vscode.Uri.parse(loc.uri), convertRange(loc.range));
+			});
 
 			const config = vscode.workspace.getConfiguration('references');
 			const existingSetting = config.inspect<string>('preferredLocation');
@@ -49,9 +51,13 @@ export class FindFileReferencesCommand implements Command {
 	}
 }
 
+export function convertRange(range: lsp.Range): vscode.Range {
+	return new vscode.Range(range.start.line, range.start.character, range.end.line, range.end.character);
+}
+
 export function registerFindFileReferenceSupport(
 	commandManager: CommandManager,
-	referencesProvider: MdReferencesProvider
+	client: MdLanguageClient,
 ): vscode.Disposable {
-	return commandManager.register(new FindFileReferencesCommand(referencesProvider));
+	return commandManager.register(new FindFileReferencesCommand(client));
 }

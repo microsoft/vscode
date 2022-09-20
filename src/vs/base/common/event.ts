@@ -8,6 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, SafeDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { IObservable, IObserver } from 'vs/base/common/observable';
 import { StopWatch } from 'vs/base/common/stopwatch';
 
 
@@ -423,6 +424,55 @@ export namespace Event {
 			store?.dispose();
 		});
 	}
+
+	class EmitterObserver<T> implements IObserver {
+
+		readonly emitter: Emitter<T>;
+
+		private _counter = 0;
+		private _hasChanged = false;
+
+		constructor(readonly obs: IObservable<T, any>, store: DisposableStore | undefined) {
+			const options = {
+				onFirstListenerAdd: () => {
+					obs.addObserver(this);
+				},
+				onLastListenerRemove: () => {
+					obs.removeObserver(this);
+				}
+			};
+			if (!store) {
+				_addLeakageTraceLogic(options);
+			}
+			this.emitter = new Emitter<T>(options);
+			if (store) {
+				store.add(this.emitter);
+			}
+		}
+
+		beginUpdate<T>(_observable: IObservable<T, void>): void {
+			// console.assert(_observable === this.obs);
+			this._counter++;
+		}
+
+		handleChange<T, TChange>(_observable: IObservable<T, TChange>, _change: TChange): void {
+			this._hasChanged = true;
+		}
+
+		endUpdate<T>(_observable: IObservable<T, void>): void {
+			if (--this._counter === 0) {
+				if (this._hasChanged) {
+					this._hasChanged = false;
+					this.emitter.fire(this.obs.get());
+				}
+			}
+		}
+	}
+
+	export function fromObservable<T>(obs: IObservable<T, any>, store?: DisposableStore): Event<T> {
+		const observer = new EmitterObserver(obs, store);
+		return observer.emitter.event;
+	}
 }
 
 export interface EmitterOptions {
@@ -443,32 +493,36 @@ export interface EmitterOptions {
 }
 
 
-class EventProfiling {
+export class EventProfiling {
+
+	static readonly all = new Set<EventProfiling>();
 
 	private static _idPool = 0;
 
-	private _name: string;
+	readonly name: string;
+	public listenerCount: number = 0;
+	public invocationCount = 0;
+	public elapsedOverall = 0;
+	public durations: number[] = [];
+
 	private _stopWatch?: StopWatch;
-	private _listenerCount: number = 0;
-	private _invocationCount = 0;
-	private _elapsedOverall = 0;
 
 	constructor(name: string) {
-		this._name = `${name}_${EventProfiling._idPool++}`;
+		this.name = `${name}_${EventProfiling._idPool++}`;
+		EventProfiling.all.add(this);
 	}
 
 	start(listenerCount: number): void {
 		this._stopWatch = new StopWatch(true);
-		this._listenerCount = listenerCount;
+		this.listenerCount = listenerCount;
 	}
 
 	stop(): void {
 		if (this._stopWatch) {
 			const elapsed = this._stopWatch.elapsed();
-			this._elapsedOverall += elapsed;
-			this._invocationCount += 1;
-
-			console.info(`did FIRE ${this._name}: elapsed_ms: ${elapsed.toFixed(5)}, listener: ${this._listenerCount} (elapsed_overall: ${this._elapsedOverall.toFixed(2)}, invocations: ${this._invocationCount})`);
+			this.durations.push(elapsed);
+			this.elapsedOverall += elapsed;
+			this.invocationCount += 1;
 			this._stopWatch = undefined;
 		}
 	}
@@ -742,7 +796,7 @@ export class Emitter<T> {
 		if (!this._listeners) {
 			return false;
 		}
-		return (!this._listeners.isEmpty());
+		return !this._listeners.isEmpty();
 	}
 }
 
@@ -884,9 +938,11 @@ export class PauseableEmitter<T> extends Emitter<T> {
 			if (this._mergeFn) {
 				// use the merge function to create a single composite
 				// event. make a copy in case firing pauses this emitter
-				const events = Array.from(this._eventQueue);
-				this._eventQueue.clear();
-				super.fire(this._mergeFn(events));
+				if (this._eventQueue.size > 0) {
+					const events = Array.from(this._eventQueue);
+					this._eventQueue.clear();
+					super.fire(this._mergeFn(events));
+				}
 
 			} else {
 				// no merging, fire each event individually and test
@@ -944,6 +1000,11 @@ export class MicrotaskEmitter<T> extends Emitter<T> {
 		this._mergeFn = options?.merge;
 	}
 	override fire(event: T): void {
+
+		if (!this.hasListeners()) {
+			return;
+		}
+
 		this._queuedEvents.push(event);
 		if (this._queuedEvents.length === 1) {
 			queueMicrotask(() => {

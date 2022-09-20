@@ -852,12 +852,12 @@ suite('Map', () => {
 
 			for (const item of keys) {
 				tst.set(item, true);
-				assert.ok(tst._isBalanced());
+				assert.ok(tst._isBalanced(), `SET${item}|${keys.map(String).join()}`);
 			}
 
 			for (const item of keys) {
 				tst.delete(item);
-				assert.ok(tst._isBalanced());
+				assert.ok(tst._isBalanced(), `DEL${item}|${keys.map(String).join()}`);
 			}
 		}
 	});

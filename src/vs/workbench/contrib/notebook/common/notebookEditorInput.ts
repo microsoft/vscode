@@ -16,7 +16,6 @@ import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { CellEditType, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
-import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -24,6 +23,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
+import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 
 export interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -231,12 +231,12 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 	}
 
-	override async resolve(): Promise<IResolvedNotebookEditorModel | null> {
+	override async resolve(perf?: NotebookPerfMarks): Promise<IResolvedNotebookEditorModel | null> {
 		if (!await this._notebookService.canResolve(this.viewType)) {
 			return null;
 		}
 
-		mark(this.resource, 'extensionActivated');
+		perf?.mark('extensionActivated');
 
 		// we are now loading the notebook and don't need to listen to
 		// "other" loading anymore

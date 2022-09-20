@@ -669,9 +669,6 @@ export interface CodeAction {
 	disabled?: string;
 }
 
-/**
- * @internal
- */
 export const enum CodeActionTriggerType {
 	Invoke = 1,
 	Auto = 2,
@@ -1132,7 +1129,11 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: model.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 }
 
-export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence };
+export interface TextEdit {
+	range: IRange;
+	text: string;
+	eol?: model.EndOfLineSequence;
+}
 
 /**
  * Interface used to format a model
@@ -1410,24 +1411,25 @@ export interface WorkspaceFileEditOptions {
 	folder?: boolean;
 	skipTrashBin?: boolean;
 	maxSize?: number;
+	contentsBase64?: string;
 }
 
-export interface WorkspaceFileEdit {
-	oldUri?: URI;
-	newUri?: URI;
+export interface IWorkspaceFileEdit {
+	oldResource?: URI;
+	newResource?: URI;
 	options?: WorkspaceFileEditOptions;
 	metadata?: WorkspaceEditMetadata;
 }
 
-export interface WorkspaceTextEdit {
+export interface IWorkspaceTextEdit {
 	resource: URI;
-	edit: TextEdit;
-	modelVersionId?: number;
+	textEdit: TextEdit & { insertAsSnippet?: boolean };
+	versionId: number | undefined;
 	metadata?: WorkspaceEditMetadata;
 }
 
 export interface WorkspaceEdit {
-	edits: Array<WorkspaceTextEdit | WorkspaceFileEdit>;
+	edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>;
 }
 
 export interface Rejection {
@@ -1543,6 +1545,8 @@ export interface CommentThread<T = IRange> {
 	comments: Comment[] | undefined;
 	onDidChangeComments: Event<Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
+	initialCollapsibleState?: CommentThreadCollapsibleState;
+	onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	state?: CommentThreadState;
 	canReply: boolean;
 	input?: CommentInput;

@@ -167,7 +167,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	protected async pickFileFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions, preferNewWindow: boolean): Promise<void> {
-		const title = nls.localize('openFileOrFolder.title', 'Open File Or Folder');
+		const title = nls.localize('openFileOrFolder.title', 'Open File or Folder');
 		const availableFileSystems = this.addFileSchemaIfNeeded(schema);
 
 		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
@@ -205,13 +205,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	protected addFileToRecentlyOpened(uri: URI): void {
-
-		// add the picked file into the list of recently opened
-		// only if it is outside the currently opened workspace
-
-		if (!this.contextService.isInsideWorkspace(uri)) {
-			this.workspacesService.addRecentlyOpened([{ fileUri: uri, label: this.labelService.getUriLabel(uri) }]);
-		}
+		this.workspacesService.addRecentlyOpened([{ fileUri: uri, label: this.labelService.getUriLabel(uri) }]);
 	}
 
 	protected async pickFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions): Promise<void> {
@@ -241,7 +235,13 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 
 		options.title = nls.localize('saveFileAs.title', 'Save As');
-		return this.saveRemoteResource(options);
+		const uri = await this.saveRemoteResource(options);
+
+		if (uri) {
+			this.addFileToRecentlyOpened(uri);
+		}
+
+		return uri;
 	}
 
 	protected async showSaveDialogSimplified(schema: string, options: ISaveDialogOptions): Promise<URI | undefined> {

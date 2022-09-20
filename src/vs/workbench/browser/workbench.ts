@@ -188,11 +188,8 @@ export class Workbench extends Layout {
 		//
 		// NOTE: Please do NOT register services here. Use `registerSingleton()`
 		//       from `workbench.common.main.ts` if the service is shared between
-		//       native and web or `workbench.sandbox.main.ts` if the service
-		//       is native only.
-		//
-		//       DO NOT add services to `workbench.desktop.main.ts`, always add
-		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//       desktop and web or `workbench.desktop.main.ts` if the service
+		//       is desktop only.
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 

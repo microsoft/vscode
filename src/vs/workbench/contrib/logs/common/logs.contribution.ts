@@ -38,11 +38,13 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
 	private registerCommonContributions(): void {
 		this.registerLogChannel(Constants.userDataSyncLogChannelId, nls.localize('userDataSyncLog', "Settings Sync"), this.environmentService.userDataSyncLogResource);
+		this.registerLogChannel(Constants.editSessionsLogChannelId, nls.localize('editSessionsLog', "Edit Sessions"), this.environmentService.editSessionsLogResource);
 		this.registerLogChannel(Constants.rendererLogChannelId, nls.localize('rendererLog', "Window"), this.environmentService.logFile);
 
 		const registerTelemetryChannel = () => {
 			if (supportsTelemetry(this.productService, this.environmentService) && this.logService.getLevel() === LogLevel.Trace) {
 				this.registerLogChannel(Constants.telemetryLogChannelId, nls.localize('telemetryLog', "Telemetry"), this.environmentService.telemetryLogResource);
+				this.registerLogChannel(Constants.extensionTelemetryLogChannelId, nls.localize('extensionTelemetryLog', "Extension Telemetry"), this.environmentService.extensionTelemetryLogResource);
 				return true;
 			}
 			return false;
@@ -78,4 +80,4 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LogOutputChannels, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LogOutputChannels, 'LogOutputChannels', LifecyclePhase.Restored);

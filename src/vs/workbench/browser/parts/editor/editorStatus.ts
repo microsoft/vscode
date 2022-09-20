@@ -71,8 +71,8 @@ class SideBySideEditorLanguageSupport implements ILanguageSupport {
 
 	constructor(private primary: ILanguageSupport, private secondary: ILanguageSupport) { }
 
-	setLanguageId(languageId: string): void {
-		[this.primary, this.secondary].forEach(editor => editor.setLanguageId(languageId));
+	setLanguageId(languageId: string, source?: string): void {
+		[this.primary, this.secondary].forEach(editor => editor.setLanguageId(languageId, source));
 	}
 }
 
@@ -1237,27 +1237,29 @@ export class ChangeLanguageAction extends Action {
 
 				// Change language
 				if (typeof languageSelection !== 'undefined') {
-					languageSupport.setLanguageId(languageSelection.languageId);
+					languageSupport.setLanguageId(languageSelection.languageId, ChangeLanguageAction.ID);
 
 					if (resource?.scheme === Schemas.untitled) {
 						type SetUntitledDocumentLanguageEvent = { to: string; from: string; modelPreference: string };
 						type SetUntitledDocumentLanguageClassification = {
+							owner: 'TylerLeonhardt';
+							comment: 'Helps understand what the automatic language detection does for untitled files';
 							to: {
 								classification: 'SystemMetaData';
 								purpose: 'FeatureInsight';
-								owner: 'JacksonKearl';
+								owner: 'TylerLeonhardt';
 								comment: 'Help understand effectiveness of automatic language detection';
 							};
 							from: {
 								classification: 'SystemMetaData';
 								purpose: 'FeatureInsight';
-								owner: 'JacksonKearl';
+								owner: 'TylerLeonhardt';
 								comment: 'Help understand effectiveness of automatic language detection';
 							};
 							modelPreference: {
 								classification: 'SystemMetaData';
 								purpose: 'FeatureInsight';
-								owner: 'JacksonKearl';
+								owner: 'TylerLeonhardt';
 								comment: 'Help understand effectiveness of automatic language detection';
 							};
 						};

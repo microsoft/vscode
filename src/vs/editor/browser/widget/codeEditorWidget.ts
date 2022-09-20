@@ -368,10 +368,15 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._actions[internalAction.id] = internalAction;
 		});
 
+		const isDropIntoEnabled = () => {
+			return !this._configuration.options.get(EditorOption.readOnly)
+				&& this._configuration.options.get(EditorOption.dropIntoEditor).enabled;
+		};
+
 		this._register(new dom.DragAndDropObserver(this._domElement, {
 			onDragEnter: () => undefined,
 			onDragOver: e => {
-				if (!this._configuration.options.get(EditorOption.enableDropIntoEditor)) {
+				if (!isDropIntoEnabled()) {
 					return;
 				}
 
@@ -381,7 +386,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				}
 			},
 			onDrop: async e => {
-				if (!this._configuration.options.get(EditorOption.enableDropIntoEditor)) {
+				if (!isDropIntoEnabled()) {
 					return;
 				}
 
@@ -564,31 +569,47 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.viewModel.viewLayout.getWhitespaces();
 	}
 
-	private static _getVerticalOffsetForPosition(modelData: ModelData, modelLineNumber: number, modelColumn: number): number {
+	private static _getVerticalOffsetAfterPosition(modelData: ModelData, modelLineNumber: number, modelColumn: number, includeViewZones: boolean): number {
 		const modelPosition = modelData.model.validatePosition({
 			lineNumber: modelLineNumber,
 			column: modelColumn
 		});
 		const viewPosition = modelData.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
-		return modelData.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
+		return modelData.viewModel.viewLayout.getVerticalOffsetAfterLineNumber(viewPosition.lineNumber, includeViewZones);
 	}
 
-	public getTopForLineNumber(lineNumber: number): number {
+	public getTopForLineNumber(lineNumber: number, includeViewZones: boolean = false): number {
 		if (!this._modelData) {
 			return -1;
 		}
-		return CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, lineNumber, 1);
+		return CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, lineNumber, 1, includeViewZones);
 	}
 
 	public getTopForPosition(lineNumber: number, column: number): number {
 		if (!this._modelData) {
 			return -1;
 		}
-		return CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, lineNumber, column);
+		return CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, lineNumber, column, false);
 	}
 
-	public setHiddenAreas(ranges: IRange[]): void {
-		this._modelData?.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)));
+	private static _getVerticalOffsetForPosition(modelData: ModelData, modelLineNumber: number, modelColumn: number, includeViewZones: boolean = false): number {
+		const modelPosition = modelData.model.validatePosition({
+			lineNumber: modelLineNumber,
+			column: modelColumn
+		});
+		const viewPosition = modelData.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
+		return modelData.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber, includeViewZones);
+	}
+
+	public getBottomForLineNumber(lineNumber: number, includeViewZones: boolean = false): number {
+		if (!this._modelData) {
+			return -1;
+		}
+		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, 1, includeViewZones);
+	}
+
+	public setHiddenAreas(ranges: IRange[], source?: unknown): void {
+		this._modelData?.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)), source);
 	}
 
 	public getVisibleColumnFromPosition(rawPosition: IPosition): number {
@@ -1161,9 +1182,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData || text.length === 0) {
 			return;
 		}
-		const startPosition = this._modelData.viewModel.getSelection().getStartPosition();
-		this._modelData.viewModel.paste(text, pasteOnNewLine, multicursorText, source);
-		const endPosition = this._modelData.viewModel.getSelection().getStartPosition();
+		const viewModel = this._modelData.viewModel;
+		const startPosition = viewModel.getSelection().getStartPosition();
+		viewModel.paste(text, pasteOnNewLine, multicursorText, source);
+		const endPosition = viewModel.getSelection().getStartPosition();
 		if (source === 'keyboard') {
 			this._onDidPaste.fire({
 				range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),

@@ -16,19 +16,6 @@ export const additionalDeps = [
 	'xdg-utils' // OS integration
 ];
 
-// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/98.0.4758.109:chrome/installer/linux/BUILD.gn;l=64-80
-// and the Linux Archive build
-// Shared library dependencies that we already bundle.
-export const bundledDeps = [
-	'libEGL.so',
-	'libGLESv2.so',
-	'libvulkan.so.1',
-	'swiftshader_libEGL.so',
-	'swiftshader_libGLESv2.so',
-	'libvk_swiftshader.so',
-	'libffmpeg.so'
-];
-
 export const referenceGeneratedDepsByArch = {
 	'x86_64': [
 		'ca-certificates',
@@ -65,6 +52,7 @@ export const referenceGeneratedDepsByArch = {
 		'libc.so.6(GLIBC_2.8)(64bit)',
 		'libc.so.6(GLIBC_2.9)(64bit)',
 		'libcairo.so.2()(64bit)',
+		'libcups.so.2()(64bit)',
 		'libcurl.so.4()(64bit)',
 		'libdbus-1.so.3()(64bit)',
 		'libdl.so.2()(64bit)',
@@ -145,6 +133,7 @@ export const referenceGeneratedDepsByArch = {
 		'libc.so.6(GLIBC_2.8)',
 		'libc.so.6(GLIBC_2.9)',
 		'libcairo.so.2',
+		'libcups.so.2',
 		'libcurl.so.4()(64bit)',
 		'libdbus-1.so.3',
 		'libdl.so.2',
@@ -233,6 +222,7 @@ export const referenceGeneratedDepsByArch = {
 		'libc.so.6()(64bit)',
 		'libc.so.6(GLIBC_2.17)(64bit)',
 		'libcairo.so.2()(64bit)',
+		'libcups.so.2()(64bit)',
 		'libcurl.so.4()(64bit)',
 		'libdbus-1.so.3()(64bit)',
 		'libdbus-1.so.3(LIBDBUS_1_3)(64bit)',

@@ -14,6 +14,8 @@ import { HoverWidget } from 'vs/workbench/services/hover/browser/hoverWidget';
 import { IContextViewProvider, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 export class HoverService implements IHoverService {
 	declare readonly _serviceBrand: undefined;
@@ -24,7 +26,8 @@ export class HoverService implements IHoverService {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IContextMenuService contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		contextMenuService.onDidShowContextMenu(() => this.hideHover());
 	}
@@ -100,6 +103,11 @@ export class HoverService implements IHoverService {
 	private _keyDown(e: KeyboardEvent, hover: HoverWidget) {
 		if (e.key === 'Alt') {
 			hover.isLocked = true;
+			return;
+		}
+		const event = new StandardKeyboardEvent(e);
+		const keybinding = this._keybindingService.resolveKeyboardEvent(event);
+		if (keybinding.getSingleModifierDispatchParts().some(value => !!value) || this._keybindingService.softDispatch(event, event.target)) {
 			return;
 		}
 		this.hideHover();

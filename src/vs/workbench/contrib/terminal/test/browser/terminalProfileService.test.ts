@@ -97,7 +97,7 @@ class TestTerminalContributionService implements ITerminalContributionService {
 class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 	private _profiles: Map<string, ITerminalProfile[]> = new Map();
 	private _hasReturnedNone = true;
-	getBackend(remoteAuthority: string | undefined): ITerminalBackend {
+	async getBackend(remoteAuthority: string | undefined): Promise<ITerminalBackend> {
 		return {
 			getProfiles: async () => {
 				if (this._hasReturnedNone) {

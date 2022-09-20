@@ -53,6 +53,7 @@ const compilations = [
 	'json-language-features/client/tsconfig.json',
 	'json-language-features/server/tsconfig.json',
 	'markdown-language-features/preview-src/tsconfig.json',
+	'markdown-language-features/server/tsconfig.json',
 	'markdown-language-features/tsconfig.json',
 	'markdown-math/tsconfig.json',
 	'merge-conflict/tsconfig.json',
@@ -66,7 +67,6 @@ const compilations = [
 	'typescript-language-features/tsconfig.json',
 	'vscode-api-tests/tsconfig.json',
 	'vscode-colorize-tests/tsconfig.json',
-	'vscode-notebook-tests/tsconfig.json',
 	'vscode-test-resolver/tsconfig.json'
 ];
 
@@ -109,7 +109,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 		overrideOptions.inlineSources = Boolean(build);
 		overrideOptions.base = path.dirname(absolutePath);
 
-		const compilation = tsb.create(absolutePath, overrideOptions, { verbose: false, transpileOnly, transpileOnlyIncludesDts: transpileOnly }, err => reporter(err.toString()));
+		const compilation = tsb.create(absolutePath, overrideOptions, { verbose: false, transpileOnly, transpileOnlyIncludesDts: transpileOnly, transpileWithSwc: true }, err => reporter(err.toString()));
 
 		const pipeline = function () {
 			const input = es.through();
@@ -235,8 +235,8 @@ exports.compileExtensionMediaBuildTask = compileExtensionMediaBuildTask;
 const cleanExtensionsBuildTask = task.define('clean-extensions-build', util.rimraf('.build/extensions'));
 const compileExtensionsBuildTask = task.define('compile-extensions-build', task.series(
 	cleanExtensionsBuildTask,
+	task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream(false).pipe(gulp.dest('.build'))),
 	task.define('bundle-extensions-build', () => ext.packageLocalExtensionsStream(false).pipe(gulp.dest('.build'))),
-	task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream(false, product.extensionsGallery?.serviceUrl).pipe(gulp.dest('.build'))),
 ));
 
 gulp.task(compileExtensionsBuildTask);
