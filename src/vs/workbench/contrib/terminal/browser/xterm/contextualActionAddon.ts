@@ -127,9 +127,7 @@ export function getMatchOptions(command: ITerminalCommand, actionOptions: Map<st
 	const newCommand = command.command;
 	for (const options of actionOptions.values()) {
 		for (const actionOption of options) {
-			if (actionOption.exitCode === -1 && command.exitCode === 0) {
-				continue;
-			} else if (actionOption.exitCode && command.exitCode !== actionOption.exitCode) {
+			if (actionOption.exitCode !== undefined && command.exitCode !== actionOption.exitCode) {
 				continue;
 			}
 			const commandLineMatch = newCommand.match(actionOption.commandLineMatcher);

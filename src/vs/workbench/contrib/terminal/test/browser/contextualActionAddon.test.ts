@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
+import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { ITerminalInstance, ITerminalOutputMatcher } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { freePort, FreePortOutputRegex, gitSimilarCommand, GitSimilarOutputRegex } from 'vs/workbench/contrib/terminal/browser/terminalBaseContextualActions';
+import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, gitSimilarCommand, GitSimilarOutputRegex } from 'vs/workbench/contrib/terminal/browser/terminalBaseContextualActions';
 import { ContextualActionAddon, getMatchOptions, MatchActions } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Terminal } from 'xterm';
@@ -23,7 +25,7 @@ suite('ContextualActionAddon', () => {
 	let contextualActionAddon: ContextualActionAddon;
 	let terminalInstance: Partial<ITerminalInstance>;
 	let commandDetection: TestCommandDetectionCapability;
-
+	let openerService: OpenerService;
 	setup(() => {
 		const instantiationService = new TestInstantiationService();
 		const xterm = new Terminal({
@@ -36,6 +38,8 @@ suite('ContextualActionAddon', () => {
 		commandDetection = instantiationService.createInstance(TestCommandDetectionCapability, xterm);
 		capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
+		openerService = instantiationService.createInstance(OpenerService);
+		instantiationService.stub(IOpenerService, openerService);
 		terminalInstance = {
 			async sendText(text: string): Promise<void> { },
 			get processManager(): Partial<ITerminalProcessManager> {
@@ -47,37 +51,37 @@ suite('ContextualActionAddon', () => {
 		contextualActionAddon = instantiationService.createInstance(ContextualActionAddon, capabilities);
 		xterm.loadAddon(contextualActionAddon);
 	});
-	suite.only('registerCommandFinishedListener', () => {
+	suite('registerCommandFinishedListener', () => {
 		suite('gitSimilarCommand', async () => {
 			const expectedMap = new Map();
 			const command = `git sttatus`;
 			const output = `git: 'sttatus' is not a git command. See 'git --help'.
 
 			The most similar command is
-					status`;
+					status `;
 			const exitCode = 1;
 			setup(() => {
 				expectedMap.set(gitSimilarCommand(terminalInstance).commandLineMatcher.toString(), [gitSimilarCommand(terminalInstance)]);
 				contextualActionAddon.registerCommandFinishedListener(gitSimilarCommand(terminalInstance));
 			});
-			suite('getMatchOptions should return undefined when', async () => {
-				test('output does not match', async () => {
+			suite('getMatchOptions should return undefined when', () => {
+				test('output does not match', () => {
 					strictEqual(getMatchOptions(createCommand(command, `invalid output`, GitSimilarOutputRegex, exitCode), expectedMap), undefined);
 				});
-				test('command does not match', async () => {
+				test('command does not match', () => {
 					strictEqual(getMatchOptions(createCommand(`gt sttatus`, output, GitSimilarOutputRegex, exitCode), expectedMap), undefined);
 				});
-				test('exit code does not match', async () => {
+				test('exit code does not match', () => {
 					strictEqual(getMatchOptions(createCommand(command, output, GitSimilarOutputRegex, 2), expectedMap), undefined);
 				});
 			});
-			test('getMatchOptions should return match', async () => {
+			test('getMatchOptions should return match', () => {
 				assertMatchOptions(
 					getMatchOptions(
 						createCommand(command, output, GitSimilarOutputRegex, exitCode), expectedMap),
 					[
 						{
-							id: 'terminal.fixGitCommand',
+							id: 'terminal.gitSimilarCommand',
 							label: 'Run git status',
 							run: true,
 							tooltip: 'Run git status',
@@ -86,7 +90,7 @@ suite('ContextualActionAddon', () => {
 					]);
 			});
 		});
-		suite('freePort', async () => {
+		suite('freePort', () => {
 			const expected = new Map();
 			const portCommand = `yarn start dev`;
 			const exitCode = 1;
@@ -105,18 +109,18 @@ suite('ContextualActionAddon', () => {
 			error Command failed with exit code 1.
 			info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`;
 			setup(() => {
-				expected.set(freePort(terminalInstance?.processManager).commandLineMatcher.toString(), [freePort(terminalInstance.processManager)]);
-				contextualActionAddon.registerCommandFinishedListener(freePort(terminalInstance.processManager));
+				expected.set(freePort(terminalInstance).commandLineMatcher.toString(), [freePort(terminalInstance)]);
+				contextualActionAddon.registerCommandFinishedListener(freePort(terminalInstance));
 			});
-			suite('getMatchOptions should return undefined when', async () => {
-				test('output does not match', async () => {
+			suite('getMatchOptions should return undefined when', () => {
+				test('output does not match', () => {
 					strictEqual(getMatchOptions(createCommand(portCommand, `invalid output`, FreePortOutputRegex, exitCode), expected), undefined);
 				});
-				test('exit code does not match', async () => {
+				test('exit code does not match', () => {
 					strictEqual(getMatchOptions(createCommand(portCommand, output, FreePortOutputRegex, 2), expected), undefined);
 				});
 			});
-			test('getMatchOptions should return match', async () => {
+			test('getMatchOptions should return match', () => {
 				assertMatchOptions(
 					getMatchOptions(
 						createCommand(portCommand, output, FreePortOutputRegex, exitCode), expected),
@@ -128,6 +132,86 @@ suite('ContextualActionAddon', () => {
 						enabled: true
 					}]
 				);
+			});
+		});
+		suite('gitPushSetUpstream', () => {
+			const expectedMap = new Map();
+			const command = `git push`;
+			const output = `fatal: The current branch test22 has no upstream branch.
+			To push the current branch and set the remote as upstream, use
+
+				git push --set-upstream origin test22 `;
+			const exitCode = 128;
+			setup(() => {
+				expectedMap.set(gitPushSetUpstream(terminalInstance).commandLineMatcher.toString(), [gitPushSetUpstream(terminalInstance)]);
+				contextualActionAddon.registerCommandFinishedListener(gitPushSetUpstream(terminalInstance));
+			});
+			suite('getMatchOptions should return undefined when', () => {
+				test('output does not match', () => {
+					strictEqual(getMatchOptions(createCommand(command, `invalid output`, GitPushOutputRegex, exitCode), expectedMap), undefined);
+				});
+				test('command does not match', () => {
+					strictEqual(getMatchOptions(createCommand(`git status`, output, GitPushOutputRegex, exitCode), expectedMap), undefined);
+				});
+				test('exit code does not match', () => {
+					strictEqual(getMatchOptions(createCommand(command, output, GitPushOutputRegex, 2), expectedMap), undefined);
+				});
+			});
+			test('getMatchOptions should return match', () => {
+				assertMatchOptions(
+					getMatchOptions(
+						createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap),
+					[
+						{
+							id: 'terminal.gitPush',
+							label: 'Git push test22',
+							run: true,
+							tooltip: 'Git push test22',
+							enabled: true
+						}
+					]);
+			});
+		});
+		suite('gitCreatePr', () => {
+			const expectedMap = new Map();
+			const command = `git push`;
+			const output = `Total 0 (delta 0), reused 0 (delta 0), pack-reused 0
+			remote:
+			remote: Create a pull request for 'test22' on GitHub by visiting:
+			remote:      https://github.com/meganrogge/xterm.js/pull/new/test22
+			remote:
+			To https://github.com/meganrogge/xterm.js
+			 * [new branch]        test22 -> test22
+			Branch 'test22' set up to track remote branch 'test22' from 'origin'. `;
+			const exitCode = 0;
+			setup(() => {
+				expectedMap.set(gitCreatePr(openerService).commandLineMatcher.toString(), [gitCreatePr(openerService)]);
+				contextualActionAddon.registerCommandFinishedListener(gitCreatePr(openerService));
+			});
+			suite('getMatchOptions should return undefined when', () => {
+				test('output does not match', () => {
+					strictEqual(getMatchOptions(createCommand(command, `invalid output`, GitCreatePrOutputRegex, exitCode), expectedMap), undefined);
+				});
+				test('command does not match', () => {
+					strictEqual(getMatchOptions(createCommand(`git status`, output, GitCreatePrOutputRegex, exitCode), expectedMap), undefined);
+				});
+				test('exit code does not match', () => {
+					strictEqual(getMatchOptions(createCommand(command, output, GitCreatePrOutputRegex, 2), expectedMap), undefined);
+				});
+			});
+			test('getMatchOptions should return match', () => {
+				assertMatchOptions(
+					getMatchOptions(
+						createCommand(command, output, GitCreatePrOutputRegex, exitCode), expectedMap),
+					[
+						{
+							id: 'terminal.gitCreatePr',
+							label: 'Create PR',
+							run: true,
+							tooltip: 'Create PR',
+							enabled: true
+						}
+					]);
 			});
 		});
 	});
