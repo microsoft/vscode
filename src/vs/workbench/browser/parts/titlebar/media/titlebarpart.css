@@ -88,8 +88,12 @@
 /* Window Title Menu */
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center {
 	z-index: 2500;
-	-webkit-app-region: no-drag;
 	padding: 0 8px;
+}
+
+/* MAC supports click event despite `drag` and therefore we don't need to clear it */
+.monaco-workbench:not(.mac) .part.titlebar>.titlebar-container>.window-title>.command-center {
+	-webkit-app-region: no-drag;
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.command-center.hide {
