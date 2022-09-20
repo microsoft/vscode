@@ -720,7 +720,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm = xterm;
 		this._contextualActionAddon = this._scopedInstantiationService.createInstance(ContextualActionAddon, this.capabilities);
 		this.xterm?.raw.loadAddon(this._contextualActionAddon);
-		this.registerContextualActions(gitSimilarCommand(this), gitCreatePr(this._openerService), gitPushSetUpstream(this), freePort(this));
+		this.registerContextualActions(gitSimilarCommand(), gitCreatePr(this._openerService), gitPushSetUpstream(), freePort(this));
+		this._register(this._contextualActionAddon.onDidRequestRerunCommand((e) => this.sendText(e.command, e.addNewLine || false)));
 		const lineDataEventAddon = new LineDataEventAddon();
 		this.xterm.raw.loadAddon(lineDataEventAddon);
 		this.updateAccessibilitySupport();

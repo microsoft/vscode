@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { IAction } from 'vs/base/common/actions';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -14,14 +13,14 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { ITerminalInstance, ITerminalOutputMatcher } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICommandAction, ITerminalInstance, ITerminalOutputMatcher } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, gitSimilarCommand, GitSimilarOutputRegex } from 'vs/workbench/contrib/terminal/browser/terminalBaseContextualActions';
-import { ContextualActionAddon, getMatchOptions } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
+import { ContextualActionAddon, getMatchActions } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
 import { Terminal } from 'xterm';
 
 suite('ContextualActionAddon', () => {
 	let contextualActionAddon: ContextualActionAddon;
-	let terminalInstance: Pick<ITerminalInstance, 'sendText' | 'freePortKillProcess'>;
+	let terminalInstance: Pick<ITerminalInstance, 'freePortKillProcess'>;
 	let commandDetection: CommandDetectionCapability;
 	let openerService: OpenerService;
 	setup(() => {
@@ -39,9 +38,8 @@ suite('ContextualActionAddon', () => {
 		openerService = instantiationService.createInstance(OpenerService);
 		instantiationService.stub(IOpenerService, openerService);
 		terminalInstance = {
-			async sendText(text: string): Promise<void> { },
 			async freePortKillProcess(port: string): Promise<void> { }
-		} as Pick<ITerminalInstance, 'sendText' | 'freePortKillProcess'>;
+		} as Pick<ITerminalInstance, 'freePortKillProcess'>;
 		contextualActionAddon = instantiationService.createInstance(ContextualActionAddon, capabilities);
 		xterm.loadAddon(contextualActionAddon);
 	});
@@ -55,24 +53,24 @@ suite('ContextualActionAddon', () => {
 					status `;
 			const exitCode = 1;
 			setup(() => {
-				const command = gitSimilarCommand(terminalInstance);
+				const command = gitSimilarCommand();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
 				contextualActionAddon.registerCommandFinishedListener(command);
 			});
 			suite('getMatchOptions should return undefined when', () => {
 				test('output does not match', () => {
-					strictEqual(getMatchOptions(createCommand(command, `invalid output`, GitSimilarOutputRegex, exitCode), expectedMap), undefined);
+					strictEqual(getMatchActions(createCommand(command, `invalid output`, GitSimilarOutputRegex, exitCode), expectedMap), undefined);
 				});
 				test('command does not match', () => {
-					strictEqual(getMatchOptions(createCommand(`gt sttatus`, output, GitSimilarOutputRegex, exitCode), expectedMap), undefined);
+					strictEqual(getMatchActions(createCommand(`gt sttatus`, output, GitSimilarOutputRegex, exitCode), expectedMap), undefined);
 				});
 				test('exit code does not match', () => {
-					strictEqual(getMatchOptions(createCommand(command, output, GitSimilarOutputRegex, 2), expectedMap), undefined);
+					strictEqual(getMatchActions(createCommand(command, output, GitSimilarOutputRegex, 2), expectedMap), undefined);
 				});
 			});
 			test('getMatchOptions should return match', () => {
 				assertMatchOptions(
-					getMatchOptions(
+					getMatchActions(
 						createCommand(command, output, GitSimilarOutputRegex, exitCode), expectedMap),
 					[
 						{
@@ -110,15 +108,15 @@ suite('ContextualActionAddon', () => {
 			});
 			suite('getMatchOptions should return undefined when', () => {
 				test('output does not match', () => {
-					strictEqual(getMatchOptions(createCommand(portCommand, `invalid output`, FreePortOutputRegex, exitCode), expected), undefined);
+					strictEqual(getMatchActions(createCommand(portCommand, `invalid output`, FreePortOutputRegex, exitCode), expected), undefined);
 				});
 				test('exit code does not match', () => {
-					strictEqual(getMatchOptions(createCommand(portCommand, output, FreePortOutputRegex, 2), expected), undefined);
+					strictEqual(getMatchActions(createCommand(portCommand, output, FreePortOutputRegex, 2), expected), undefined);
 				});
 			});
 			test('getMatchOptions should return match', () => {
 				assertMatchOptions(
-					getMatchOptions(
+					getMatchActions(
 						createCommand(portCommand, output, FreePortOutputRegex, exitCode), expected),
 					[{
 						id: 'terminal.freePort',
@@ -139,24 +137,24 @@ suite('ContextualActionAddon', () => {
 				git push --set-upstream origin test22 `;
 			const exitCode = 128;
 			setup(() => {
-				const command = gitPushSetUpstream(terminalInstance);
+				const command = gitPushSetUpstream();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
 				contextualActionAddon.registerCommandFinishedListener(command);
 			});
 			suite('getMatchOptions should return undefined when', () => {
 				test('output does not match', () => {
-					strictEqual(getMatchOptions(createCommand(command, `invalid output`, GitPushOutputRegex, exitCode), expectedMap), undefined);
+					strictEqual(getMatchActions(createCommand(command, `invalid output`, GitPushOutputRegex, exitCode), expectedMap), undefined);
 				});
 				test('command does not match', () => {
-					strictEqual(getMatchOptions(createCommand(`git status`, output, GitPushOutputRegex, exitCode), expectedMap), undefined);
+					strictEqual(getMatchActions(createCommand(`git status`, output, GitPushOutputRegex, exitCode), expectedMap), undefined);
 				});
 				test('exit code does not match', () => {
-					strictEqual(getMatchOptions(createCommand(command, output, GitPushOutputRegex, 2), expectedMap), undefined);
+					strictEqual(getMatchActions(createCommand(command, output, GitPushOutputRegex, 2), expectedMap), undefined);
 				});
 			});
 			test('getMatchOptions should return match', () => {
 				assertMatchOptions(
-					getMatchOptions(
+					getMatchActions(
 						createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap),
 					[
 						{
@@ -188,18 +186,18 @@ suite('ContextualActionAddon', () => {
 			});
 			suite('getMatchOptions should return undefined when', () => {
 				test('output does not match', () => {
-					strictEqual(getMatchOptions(createCommand(command, `invalid output`, GitCreatePrOutputRegex, exitCode), expectedMap), undefined);
+					strictEqual(getMatchActions(createCommand(command, `invalid output`, GitCreatePrOutputRegex, exitCode), expectedMap), undefined);
 				});
 				test('command does not match', () => {
-					strictEqual(getMatchOptions(createCommand(`git status`, output, GitCreatePrOutputRegex, exitCode), expectedMap), undefined);
+					strictEqual(getMatchActions(createCommand(`git status`, output, GitCreatePrOutputRegex, exitCode), expectedMap), undefined);
 				});
 				test('exit code does not match', () => {
-					strictEqual(getMatchOptions(createCommand(command, output, GitCreatePrOutputRegex, 2), expectedMap), undefined);
+					strictEqual(getMatchActions(createCommand(command, output, GitCreatePrOutputRegex, 2), expectedMap), undefined);
 				});
 			});
 			test('getMatchOptions should return match', () => {
 				assertMatchOptions(
-					getMatchOptions(
+					getMatchActions(
 						createCommand(command, output, GitCreatePrOutputRegex, exitCode), expectedMap),
 					[
 						{
@@ -231,7 +229,7 @@ function createCommand(command: string, output: string, outputMatcher?: RegExp |
 	};
 }
 
-function assertMatchOptions(actual: IAction[] | undefined, expected: { id: string; label: string; run: boolean; tooltip: string; enabled: boolean }[]): void {
+function assertMatchOptions(actual: ICommandAction[] | undefined, expected: { id: string; label: string; run: boolean; tooltip: string; enabled: boolean }[]): void {
 	strictEqual(actual?.length, expected.length);
 	let index = 0;
 	for (const i of actual) {

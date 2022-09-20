@@ -925,7 +925,12 @@ export interface ITerminalContextualActionOptions {
 }
 export type ContextualMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
 export type DynamicActionName = (matchResult: ContextualMatchResult) => string;
-export type ContextualActionCallback = (matchResult: ContextualMatchResult, command: ITerminalCommand) => IAction[] | undefined;
+export type ContextualActionCallback = (matchResult: ContextualMatchResult, command: ITerminalCommand) => ICommandAction[] | undefined;
+
+export interface ICommandAction extends IAction {
+	commandToRunInTerminal?: string;
+	addNewLine?: boolean;
+}
 
 export interface ITerminalOutputMatcher {
 	lineMatcher: string | RegExp;

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { IAction } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -11,10 +10,11 @@ import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '
 import type { ITerminalAddon } from 'xterm-headless';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITerminalContextualActionOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICommandAction, ITerminalContextualActionOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Terminal } from 'xterm';
+import { IAction } from 'vs/base/common/actions';
 
 export interface IContextualAction {
 	/**
@@ -30,11 +30,11 @@ export interface IContextualAction {
 }
 
 export interface IContextualActionAdddon extends IContextualAction {
-	onDidRequestRerunCommand: Event<ITerminalCommand>;
+	onDidRequestRerunCommand: Event<{ command: string; addNewLine?: boolean }>;
 }
 
 export class ContextualActionAddon extends Disposable implements ITerminalAddon, IContextualActionAdddon {
-	private readonly _onDidRequestRerunCommand = new Emitter<ITerminalCommand>();
+	private readonly _onDidRequestRerunCommand = new Emitter<{ command: string; addNewLine?: boolean }>();
 	readonly onDidRequestRerunCommand = this._onDidRequestRerunCommand.event;
 
 	private _terminal: Terminal | undefined;
@@ -45,7 +45,7 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 
 	private _commandListeners: Map<string, ITerminalContextualActionOptions[]> = new Map();
 
-	private _matchActions: IAction[] | undefined;
+	private _matchActions: ICommandAction[] | undefined;
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -84,7 +84,7 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 			return;
 		}
 		this._register(commandDetection.onCommandFinished(async command => {
-			this._matchActions = getMatchOptions(command, this._commandListeners);
+			this._matchActions = getMatchActions(command, this._commandListeners, this._onDidRequestRerunCommand);
 		}));
 		// The buffer is not ready by the time command finish
 		// is called. Add the decoration on command start using the actions, if any,
@@ -125,7 +125,7 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 	}
 }
 
-export function getMatchOptions(command: ITerminalCommand, actionOptions: Map<string, ITerminalContextualActionOptions[]>): IAction[] | undefined {
+export function getMatchActions(command: ITerminalCommand, actionOptions: Map<string, ITerminalContextualActionOptions[]>, onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>): IAction[] | undefined {
 	const matchActions: IAction[] = [];
 	const newCommand = command.command;
 	for (const options of actionOptions.values()) {
@@ -142,9 +142,24 @@ export function getMatchOptions(command: ITerminalCommand, actionOptions: Map<st
 			if (outputMatcher) {
 				outputMatch = command.getOutputMatch(outputMatcher);
 			}
-			const actions = actionOption.getActions({ commandLineMatch, outputMatch: typeof outputMatch !== 'string' ? outputMatch : undefined }, command);
-			if (actions) {
-				matchActions.push(...actions);
+			const actions = actionOption.getActions({ commandLineMatch, outputMatch }, command);
+			if (!actions) {
+				return matchActions.length === 0 ? undefined : matchActions;
+			}
+			for (const a of actions) {
+				matchActions.push({
+					id: a.id,
+					label: a.label,
+					class: a.class,
+					enabled: a.enabled,
+					run: async () => {
+						await a.run();
+						if (a.commandToRunInTerminal) {
+							onDidRequestRerunCommand?.fire({ command: a.commandToRunInTerminal, addNewLine: a.addNewLine });
+						}
+					},
+					tooltip: a.tooltip
+				});
 			}
 		}
 	}

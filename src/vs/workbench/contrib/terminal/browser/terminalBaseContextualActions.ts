@@ -6,7 +6,7 @@
 import { IAction } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ContextualMatchResult, ITerminalContextualActionOptions, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ContextualMatchResult, ICommandAction, ITerminalContextualActionOptions, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export const GitCommandLineRegex = /git/;
@@ -18,14 +18,14 @@ export const FreePortOutputRegex = /address already in use\s*(\d\.\s*){3}(\d\s*)
 export const GitPushOutputRegex = /git push --set-upstream origin (.*)\s+/;
 export const GitCreatePrOutputRegex = /Create\s+a\s+pull\s+request\s+for\s+\'(.+)\'\s+on\s+GitHub\s+by\s+visiting\s*:\s+remote:\s+(https:.+pull.+)\s+/;
 
-export function gitSimilarCommand(terminalInstance: Partial<ITerminalInstance>): ITerminalContextualActionOptions {
+export function gitSimilarCommand(): ITerminalContextualActionOptions {
 	return {
 		commandLineMatcher: GitCommandLineRegex,
 		outputMatcher: { lineMatcher: GitSimilarOutputRegex, anchor: 'bottom' },
 		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Run git ${matchResult.outputMatch[1]}` : ``,
 		exitCode: 1,
 		getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
-			const actions: IAction[] = [];
+			const actions: ICommandAction[] = [];
 			const fixedCommand = matchResult?.outputMatch?.[1];
 			if (!fixedCommand) {
 				return;
@@ -33,10 +33,9 @@ export function gitSimilarCommand(terminalInstance: Partial<ITerminalInstance>):
 			const label = localize("terminal.gitSimilarCommand", "Run git {0}", fixedCommand);
 			actions.push({
 				class: undefined, tooltip: label, id: 'terminal.gitSimilarCommand', label, enabled: true,
-				run: () => {
-					command.command = `git ${fixedCommand}`;
-					terminalInstance.sendText?.(command.command, true);
-				}
+				commandToRunInTerminal: `git ${fixedCommand}`,
+				addNewLine: true,
+				run: () => { }
 			});
 			return actions;
 		}
@@ -53,20 +52,21 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 			if (!port) {
 				return;
 			}
-			const actions: IAction[] = [];
+			const actions: ICommandAction[] = [];
 			const label = localize("terminal.freePort", "Free port {0}", port);
 			actions.push({
 				class: undefined, tooltip: label, id: 'terminal.freePort', label, enabled: true,
 				run: async () => {
 					await terminalInstance?.freePortKillProcess?.(port);
-					terminalInstance?.sendText?.(command.command, false);
-				}
+				},
+				commandToRunInTerminal: command.command,
+				addNewLine: false
 			});
 			return actions;
 		}
 	};
 }
-export function gitPushSetUpstream(terminalInstance: Partial<ITerminalInstance>): ITerminalContextualActionOptions {
+export function gitPushSetUpstream(): ITerminalContextualActionOptions {
 	return {
 		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Git push ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: GitPushCommandLineRegex,
@@ -77,12 +77,14 @@ export function gitPushSetUpstream(terminalInstance: Partial<ITerminalInstance>)
 			if (!branch) {
 				return;
 			}
-			const actions: IAction[] = [];
+			const actions: ICommandAction[] = [];
 			const label = localize("terminal.gitPush", "Git push {0}", branch);
 			command.command = `git push --set-upstream origin ${branch}`;
 			actions.push({
 				class: undefined, tooltip: label, id: 'terminal.gitPush', label, enabled: true,
-				run: () => terminalInstance.sendText?.(command.command, true)
+				commandToRunInTerminal: command.command,
+				addNewLine: true,
+				run: () => { }
 			});
 			return actions;
 		}
