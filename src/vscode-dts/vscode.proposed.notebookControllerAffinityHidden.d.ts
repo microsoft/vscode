@@ -3,7 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+declare module 'vscode' {
+	// https://github.com/microsoft/vscode/issues/161144
+	export enum NotebookControllerAffinity2 {
+		Default = 1,
+		Preferred = 2,
+		Hidden = -1
+	}
 
-const Logger = vscode.window.createOutputChannel('Microsoft Authentication', { log: true });
-export default Logger;
+	export interface NotebookController {
+		updateNotebookAffinity(notebook: NotebookDocument, affinity: NotebookControllerAffinity | NotebookControllerAffinity2): void;
+	}
+}

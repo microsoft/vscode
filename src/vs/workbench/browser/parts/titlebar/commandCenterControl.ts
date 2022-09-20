@@ -75,7 +75,7 @@ export class CommandCenterControl {
 						override getTooltip() {
 							// label: just workspace name and optional decorations
 							const { prefix, suffix } = windowTitle.getTitleDecorations();
-							let label = windowTitle.workspaceName;
+							let label = windowTitle.isCustomTitleFormat() ? windowTitle.getWindowTitle() : windowTitle.workspaceName;
 							if (!label) {
 								label = localize('label.dfl', "Search");
 							}

@@ -34,43 +34,50 @@
         "category": "%command.category%",
         "title": "%command.accept.all-current%",
         "original": "Accept All Current",
-        "command": "merge-conflict.accept.all-current"
+        "command": "merge-conflict.accept.all-current",
+        "enablement": "!isMergeEditor"
       },
       {
         "category": "%command.category%",
         "title": "%command.accept.all-incoming%",
         "original": "Accept All Incoming",
-        "command": "merge-conflict.accept.all-incoming"
+        "command": "merge-conflict.accept.all-incoming",
+        "enablement": "!isMergeEditor"
       },
       {
         "category": "%command.category%",
         "title": "%command.accept.all-both%",
         "original": "Accept All Both",
-        "command": "merge-conflict.accept.all-both"
+        "command": "merge-conflict.accept.all-both",
+        "enablement": "!isMergeEditor"
       },
       {
         "category": "%command.category%",
         "title": "%command.accept.current%",
         "original": "Accept Current",
-        "command": "merge-conflict.accept.current"
+        "command": "merge-conflict.accept.current",
+        "enablement": "!isMergeEditor"
       },
       {
         "category": "%command.category%",
         "title": "%command.accept.incoming%",
         "original": "Accept Incoming",
-        "command": "merge-conflict.accept.incoming"
+        "command": "merge-conflict.accept.incoming",
+        "enablement": "!isMergeEditor"
       },
       {
         "category": "%command.category%",
         "title": "%command.accept.selection%",
         "original": "Accept Selection",
-        "command": "merge-conflict.accept.selection"
+        "command": "merge-conflict.accept.selection",
+        "enablement": "!isMergeEditor"
       },
       {
         "category": "%command.category%",
         "title": "%command.accept.both%",
         "original": "Accept Both",
-        "command": "merge-conflict.accept.both"
+        "command": "merge-conflict.accept.both",
+        "enablement": "!isMergeEditor"
       },
       {
         "category": "%command.category%",
@@ -92,7 +99,8 @@
         "category": "%command.category%",
         "title": "%command.compare%",
         "original": "Compare Current Conflict",
-        "command": "merge-conflict.compare"
+        "command": "merge-conflict.compare",
+        "enablement": "!isMergeEditor"
       }
     ],
     "menus": {
