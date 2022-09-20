@@ -9,6 +9,19 @@ parameters:
     type: boolean
 
 steps:
+  # Debugging for https://github.com/microsoft/playwright/issues/17394
+  - displayName: Download Playwright with Node.js debug builds
+    script: |
+      curl -O https://playwrightdebugnodejs.blob.core.windows.net/node/node-darwin-dbg-x64.tar.gz
+      tar -xzf node-darwin-dbg-x64.tar.gz
+      echo "Hello from Node.js $(./node-darwin-dbg-x64/node --version)"
+      ./node-darwin-dbg-x64/node build/azure-pipelines/common/installPlaywright.js
+
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(System.DefaultWorkingDirectory)/core.*
+      artifactName: NodeJsCoredumps
+
   - script: |
       set -e
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
