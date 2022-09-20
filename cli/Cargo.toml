@@ -36,7 +36,7 @@ atty = "0.2.14"
 opentelemetry = { version = "0.18.0", features = ["rt-tokio"] }
 opentelemetry-application-insights = { version = "0.22.0", features = ["reqwest-client-vendored-tls"] }
 serde_bytes = "0.11.5"
-chrono = { version = "0.4", features = ["serde", "rustc-serialize"] }
+chrono = { version = "0.4", features = ["serde"] }
 gethostname = "0.2.3"
 libc = "0.2"
 tunnels = { git = "https://github.com/connor4312/dev-tunnels", branch = "host-relay", features = ["connections", "vendored-openssl"] }
