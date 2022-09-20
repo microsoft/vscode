@@ -206,12 +206,14 @@ suite('ExtensionsListView Tests', () => {
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@enabled'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@disabled'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@outdated'), true);
+		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@updates'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@sort:name'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@sort:updateDate'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@installed searchText'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@enabled searchText'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@disabled searchText'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@outdated searchText'), true);
+		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@updates searchText'), true);
 	});
 
 	test('Test empty query equates to sort by install count', () => {

@@ -25,7 +25,7 @@ interface JavaScriptRenderingHook {
 	 *
 	 * @return A new string of JavaScript or `undefined` to continue using the provided string.
 	 */
-	preEvaluate(outputItem: OutputItem, element: string, signal: AbortSignal): string | undefined | Promise<string | undefined>;
+	preEvaluate(outputItem: OutputItem, element: HTMLElement, script: string, signal: AbortSignal): string | undefined | Promise<string | undefined>;
 }
 
 function clearContainer(container: HTMLElement) {
@@ -103,7 +103,7 @@ async function renderJavascript(outputInfo: OutputItem, container: HTMLElement, 
 	let scriptText = outputInfo.text();
 
 	for (const hook of hooks) {
-		scriptText = (await hook.preEvaluate(outputInfo, scriptText, signal)) ?? scriptText;
+		scriptText = (await hook.preEvaluate(outputInfo, container, scriptText, signal)) ?? scriptText;
 		if (signal.aborted) {
 			return;
 		}

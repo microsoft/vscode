@@ -267,7 +267,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				if (ref !== undefined && uri !== 'noDestinationUri') {
 					const encodedRef = encodeURIComponent(ref);
 					uri = uri.with({
-						query: uri.query.length > 0 ? (uri + `&${queryParamName}=${encodedRef}`) : `${queryParamName}=${encodedRef}`
+						query: uri.query.length > 0 ? (uri.query + `&${queryParamName}=${encodedRef}`) : `${queryParamName}=${encodedRef}`
 					});
 
 					// Open the URI

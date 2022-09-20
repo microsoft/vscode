@@ -114,7 +114,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 
 			if (edits.size) {
 				if (await this.confirmActionWithUser(resourcesBeingRenamed)) {
-					await vscode.workspace.applyEdit(edits);
+					await vscode.workspace.applyEdit(edits, { isRefactoring: true });
 				}
 			}
 		}

@@ -167,7 +167,7 @@ export class ExtHostTestItemCollection extends TestItemCollection<TestItemImpl> 
 	constructor(controllerId: string, controllerLabel: string, editors: ExtHostDocumentsAndEditors) {
 		super({
 			controllerId,
-			getDocumentVersion: (uri: URI) => editors.getDocument(uri)?.version,
+			getDocumentVersion: uri => uri && editors.getDocument(uri)?.version,
 			getApiFor: getPrivateApiFor as (impl: TestItemImpl) => ITestItemApi<TestItemImpl>,
 			getChildren: (item) => item.children as ITestChildrenLike<TestItemImpl>,
 			root: new TestItemRootImpl(controllerId, controllerLabel),

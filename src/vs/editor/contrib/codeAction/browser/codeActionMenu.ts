@@ -79,18 +79,19 @@ function stripNewlines(str: string): string {
 interface CodeActionGroup {
 	readonly kind: CodeActionKind;
 	readonly title: string;
-	readonly icon: Codicon;
-	readonly iconColor?: string;
+	readonly icon?: { readonly codicon: Codicon; readonly color?: string };
 }
 
-const uncategorizedCodeActionGroup = Object.freeze<CodeActionGroup>({ kind: CodeActionKind.Empty, title: localize('codeAction.widget.id.more', 'More Actions...'), icon: Codicon.lightBulb, iconColor: 'var(--vscode-editorLightBulb-foreground)' });
+const uncategorizedCodeActionGroup = Object.freeze<CodeActionGroup>({ kind: CodeActionKind.Empty, title: localize('codeAction.widget.id.more', 'More Actions...') });
 
 const codeActionGroups = Object.freeze<CodeActionGroup[]>([
-	{ kind: CodeActionKind.QuickFix, title: localize('codeAction.widget.id.quickfix', 'Quick Fix...'), icon: Codicon.lightBulb, },
-	{ kind: CodeActionKind.Extract, title: localize('codeAction.widget.id.extract', 'Extract...'), icon: Codicon.wrench, },
-	{ kind: CodeActionKind.Convert, title: localize('codeAction.widget.id.convert', 'Convert...'), icon: Codicon.zap, iconColor: 'var(--vscode-editorLightBulbAutoFix-foreground)' },
-	{ kind: CodeActionKind.SurroundWith, title: localize('codeAction.widget.id.surround', 'Surround With...'), icon: Codicon.symbolArray, },
-	{ kind: CodeActionKind.Source, title: localize('codeAction.widget.id.source', 'Source Action...'), icon: Codicon.lightBulb, iconColor: 'var(--vscode-editorLightBulb-foreground)' },
+	{ kind: CodeActionKind.QuickFix, title: localize('codeAction.widget.id.quickfix', 'Quick Fix...') },
+	{ kind: CodeActionKind.RefactorExtract, title: localize('codeAction.widget.id.extract', 'Extract...'), icon: { codicon: Codicon.wrench } },
+	{ kind: CodeActionKind.RefactorInline, title: localize('codeAction.widget.id.inline', 'Inline...'), icon: { codicon: Codicon.wrench } },
+	{ kind: CodeActionKind.RefactorRewrite, title: localize('codeAction.widget.id.convert', 'Rewrite...'), icon: { codicon: Codicon.wrench } },
+	{ kind: CodeActionKind.RefactorMove, title: localize('codeAction.widget.id.move', 'Move...'), icon: { codicon: Codicon.wrench } },
+	{ kind: CodeActionKind.SurroundWith, title: localize('codeAction.widget.id.surround', 'Surround With...'), icon: { codicon: Codicon.symbolSnippet } },
+	{ kind: CodeActionKind.Source, title: localize('codeAction.widget.id.source', 'Source Action...'), icon: { codicon: Codicon.symbolFile } },
 	uncategorizedCodeActionGroup,
 ]);
 
@@ -119,8 +120,13 @@ class CodeActionItemRenderer implements IListRenderer<CodeActionListItemCodeActi
 	}
 
 	renderElement(element: CodeActionListItemCodeAction, _index: number, data: ICodeActionMenuTemplateData): void {
-		data.icon.className = element.group.icon.classNames;
-		data.icon.style.color = element.group.iconColor ?? '';
+		if (element.group.icon) {
+			data.icon.className = element.group.icon.codicon.classNames;
+			data.icon.style.color = element.group.icon.color ?? '';
+		} else {
+			data.icon.className = Codicon.lightBulb.classNames;
+			data.icon.style.color = 'var(--vscode-editorLightBulb-foreground)';
+		}
 
 		data.text.textContent = stripNewlines(element.action.action.title);
 

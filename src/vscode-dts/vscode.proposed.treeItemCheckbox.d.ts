@@ -9,7 +9,7 @@ declare module 'vscode' {
 		/**
 		 * [TreeItemCheckboxState](#TreeItemCheckboxState) of the tree item.
 		 */
-		checkboxState?: TreeItemCheckboxState | { state: TreeItemCheckboxState; tooltip?: string };
+		checkboxState?: TreeItemCheckboxState | { readonly state: TreeItemCheckboxState; readonly tooltip?: string };
 	}
 
 	/**
@@ -33,13 +33,13 @@ declare module 'vscode' {
 		/**
 		* An event to signal that an element or root has either been checked or unchecked.
 		*/
-		onDidChangeTreeCheckbox: Event<TreeCheckboxChangeEvent<T>>;
+		onDidChangeCheckboxState: Event<TreeCheckboxChangeEvent<T>>;
 	}
 
 	export interface TreeCheckboxChangeEvent<T> {
 		/**
 		* The item that was checked or unchecked.
 		*/
-		readonly items: [T, TreeItemCheckboxState][];
+		readonly items: ReadonlyArray<[T, TreeItemCheckboxState]>;
 	}
 }

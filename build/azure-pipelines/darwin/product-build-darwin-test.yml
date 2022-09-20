@@ -12,7 +12,7 @@ steps:
   - script: |
       set -e
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+        DEBUG=pw:install yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     timeoutInMinutes: 5
     retryCountOnTaskFailure: 3
     displayName: Download Electron and Playwright

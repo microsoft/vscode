@@ -1081,6 +1081,7 @@ export class ExtensionsListView extends ViewPane {
 			|| this.isSearchDeprecatedExtensionsQuery(query)
 			|| this.isSearchWorkspaceUnsupportedExtensionsQuery(query)
 			|| this.isSearchRecentlyUpdatedQuery(query)
+			|| this.isSearchExtensionUpdatesQuery(query)
 			|| this.isSortInstalledExtensionsQuery(query, sortBy);
 	}
 
@@ -1160,6 +1161,10 @@ export class ExtensionsListView extends ViewPane {
 		return /@recentlyUpdated/i.test(query);
 	}
 
+	static isSearchExtensionUpdatesQuery(query: string): boolean {
+		return /@updates/i.test(query);
+	}
+
 	static isSortUpdateDateQuery(query: string): boolean {
 		return /@sort:updateDate/i.test(query);
 	}
@@ -1214,6 +1219,33 @@ export class DisabledExtensionsView extends ExtensionsListView {
 		return ExtensionsListView.isDisabledExtensionsQuery(query) ? super.show(query) :
 			ExtensionsListView.isSortInstalledExtensionsQuery(query) ? super.show('@disabled ' + query) : this.showEmptyModel();
 	}
+}
+
+export class OutdatedExtensionsView extends ExtensionsListView {
+
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
+		query = query ? query : '@outdated';
+		if (ExtensionsListView.isSearchExtensionUpdatesQuery(query)) {
+			query = query.replace('@updates', '@outdated');
+		}
+
+		const model = await super.show(query.trim());
+		this.setExpanded(model.length > 0);
+		return model;
+	}
+
+}
+
+export class RecentlyUpdatedExtensionsView extends ExtensionsListView {
+
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
+		query = query ? query : '@recentlyUpdated';
+		if (ExtensionsListView.isSearchExtensionUpdatesQuery(query)) {
+			query = query.replace('@updates', '@recentlyUpdated');
+		}
+		return super.show(query.trim());
+	}
+
 }
 
 export class BuiltInFeatureExtensionsView extends ExtensionsListView {

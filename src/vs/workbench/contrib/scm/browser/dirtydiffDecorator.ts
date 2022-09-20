@@ -181,16 +181,17 @@ class DirtyDiffWidget extends PeekViewWidget {
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
-		@IContextKeyService _contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true }, instantiationService);
 
 		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._applyTheme(themeService.getColorTheme());
 
-		const contextKeyService = _contextKeyService.createOverlay([
-			['originalResourceScheme', this.model.original!.uri.scheme]
-		]);
+		if (this.model.original) {
+			contextKeyService = contextKeyService.createOverlay([['originalResourceScheme', this.model.original.uri.scheme]]);
+		}
+
 		this.menu = menuService.createMenu(MenuId.SCMChangeContext, contextKeyService);
 		this._disposables.add(this.menu);
 

@@ -8,6 +8,7 @@ import * as nls from 'vscode-nls';
 import * as cp from 'child_process';
 
 import { Disposable } from '../utils/dispose';
+import { CommandManager } from '../commands/commandManager';
 
 const localize = nls.loadMessageBundle();
 
@@ -184,4 +185,12 @@ function tryFindRelevantDocument(lastDocument: vscode.TextDocument | undefined, 
 	}
 
 	return { kind: 'not-found' };
+}
+
+export function registerJsNodeWalkthrough(
+	commandManager: CommandManager,
+	jsWalkthroughState: JsWalkthroughState,
+) {
+	commandManager.register(new CreateNewJSFileCommand(jsWalkthroughState));
+	commandManager.register(new DebugJsFileCommand(jsWalkthroughState));
 }

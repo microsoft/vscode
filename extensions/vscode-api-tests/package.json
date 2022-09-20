@@ -31,7 +31,6 @@
     "scmActionButton",
     "scmSelectedProvider",
     "scmValidation",
-    "snippetWorkspaceEdit",
     "taskPresentationGroup",
     "terminalDataWriteEvent",
     "terminalDimensions",
@@ -44,7 +43,8 @@
     "treeItemCheckbox",
     "treeViewReveal",
     "workspaceTrust",
-    "telemetry"
+    "telemetry",
+    "localization"
   ],
   "private": true,
   "activationEvents": [],

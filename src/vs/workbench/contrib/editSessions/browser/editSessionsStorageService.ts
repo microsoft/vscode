@@ -26,6 +26,7 @@ import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authe
 import { isWeb } from 'vs/base/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Codicon } from 'vs/base/common/codicons';
+import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
@@ -36,7 +37,8 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	_serviceBrand = undefined;
 
 	private serverConfiguration = this.productService['editSessions.store'];
-	private storeClient: UserDataSyncStoreClient | undefined;
+	private storeClient: EditSessionsStoreClient | undefined;
+	private machineClient: IUserDataSyncMachinesService | undefined;
 
 	#authenticationInfo: { sessionId: string; token: string; providerId: string } | undefined;
 	private static CACHED_SESSION_STORAGE_KEY = 'editSessionAccountPreference';
@@ -87,6 +89,10 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		await this.initialize(false);
 		if (!this.initialized) {
 			throw new Error('Please sign in to store your edit session.');
+		}
+
+		if (editSession.machine === undefined) {
+			editSession.machine = await this.getOrCreateCurrentMachineId();
 		}
 
 		return this.storeClient!.writeResource('editSessions', JSON.stringify(editSession), null, undefined, createSyncHeaders(generateUuid()));
@@ -175,11 +181,15 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 
 		if (!this.storeClient) {
-			this.storeClient = new UserDataSyncStoreClient(URI.parse(this.serverConfiguration.url), this.productService, this.requestService, this.logService, this.environmentService, this.fileService, this.storageService);
+			this.storeClient = new EditSessionsStoreClient(URI.parse(this.serverConfiguration.url), this.productService, this.requestService, this.logService, this.environmentService, this.fileService, this.storageService);
 			this._register(this.storeClient.onTokenFailed(() => {
 				this.logService.info('Clearing edit sessions authentication preference because of successive token failures.');
 				this.clearAuthenticationPreference();
 			}));
+		}
+
+		if (this.machineClient === undefined) {
+			this.machineClient = new UserDataSyncMachinesService(this.environmentService, this.fileService, this.storageService, this.storeClient!, this.logService, this.productService);
 		}
 
 		// If we already have an existing auth session in memory, use that
@@ -194,6 +204,30 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 
 		return authenticationSession !== undefined;
+	}
+
+	private cachedMachines: Map<string, string> | undefined;
+
+	async getMachineById(machineId: string) {
+		await this.initialize(false);
+
+		if (!this.cachedMachines) {
+			const machines = await this.machineClient!.getMachines();
+			this.cachedMachines = machines.reduce((map, machine) => map.set(machine.id, machine.name), new Map<string, string>());
+		}
+
+		return this.cachedMachines.get(machineId);
+	}
+
+	private async getOrCreateCurrentMachineId(): Promise<string> {
+		const currentMachineId = await this.machineClient!.getMachines().then((machines) => machines.find((m) => m.isCurrent)?.id);
+
+		if (currentMachineId === undefined) {
+			await this.machineClient!.addCurrentMachine();
+			return await this.machineClient!.getMachines().then((machines) => machines.find((m) => m.isCurrent)!.id);
+		}
+
+		return currentMachineId;
 	}
 
 	private async getAuthenticationSession(fromContinueOn: boolean) {
@@ -460,4 +494,8 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			}
 		}));
 	}
+}
+
+class EditSessionsStoreClient extends UserDataSyncStoreClient {
+	_serviceBrand: any;
 }

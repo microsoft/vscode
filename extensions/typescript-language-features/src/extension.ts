@@ -8,13 +8,13 @@ import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
 import { registerBaseCommands } from './commands/index';
-import { JsWalkthroughState } from './commands/jsWalkthrough';
 import { ExperimentationService } from './experimentationService';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
 import { ElectronServiceProcessFactory } from './tsServer/serverProcess.electron';
 import { DiskTypeScriptVersionProvider } from './tsServer/versionProvider.electron';
+import { JsWalkthroughState, registerJsNodeWalkthrough } from './ui/jsNodeWalkthrough.electron';
 import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
 import { ElectronServiceConfigurationProvider } from './utils/configuration.electron';
 import { onCaseInsensitiveFileSystem } from './utils/fileSystem.electron';
@@ -55,10 +55,11 @@ export function activate(
 		onCompletionAccepted.fire(item);
 	});
 
-	registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker, jsWalkthroughState);
+	registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker);
+	registerJsNodeWalkthrough(commandManager, jsWalkthroughState);
 
 	// Currently no variables in use.
-	new ExperimentationService(context);
+	context.subscriptions.push(new ExperimentationService(context));
 
 	import('./task/taskProvider').then(module => {
 		context.subscriptions.push(module.register(lazyClientHost.map(x => x.serviceClient)));
