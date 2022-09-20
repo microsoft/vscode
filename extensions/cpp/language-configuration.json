@@ -9,7 +9,7 @@
 		["(", ")"],
 		["#ifndef", "#endif"],
 		["#ifdef", "#endif"],
-		["#if", "#endif"],
+		["#if", "#endif"]
 	],
 	"autoClosingPairs": [
 		{ "open": "[", "close": "]" },
