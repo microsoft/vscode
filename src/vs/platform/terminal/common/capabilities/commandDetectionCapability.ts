@@ -628,7 +628,8 @@ export function getOutputForCommand(executedMarker: IMarker | undefined, endMark
 
 	if (startLine === endLine) {
 		return undefined;
-	} else if (outputMatcher?.length && (endLine - startLine) < outputMatcher?.length) {
+	}
+	if (outputMatcher?.length && (endLine - startLine) < outputMatcher.length) {
 		return undefined;
 	}
 	let output = '';
