@@ -61,8 +61,9 @@ suite('ContextualActionAddon', () => {
 					status `;
 			const exitCode = 1;
 			setup(() => {
-				expectedMap.set(gitSimilarCommand(terminalInstance).commandLineMatcher.toString(), [gitSimilarCommand(terminalInstance)]);
-				contextualActionAddon.registerCommandFinishedListener(gitSimilarCommand(terminalInstance));
+				const command = gitSimilarCommand(terminalInstance);
+				expectedMap.set(command.commandLineMatcher.toString(), [command]);
+				contextualActionAddon.registerCommandFinishedListener(command);
 			});
 			suite('getMatchOptions should return undefined when', () => {
 				test('output does not match', () => {
@@ -109,8 +110,9 @@ suite('ContextualActionAddon', () => {
 			error Command failed with exit code 1.
 			info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`;
 			setup(() => {
-				expected.set(freePort(terminalInstance).commandLineMatcher.toString(), [freePort(terminalInstance)]);
-				contextualActionAddon.registerCommandFinishedListener(freePort(terminalInstance));
+				const command = freePort(terminalInstance);
+				expected.set(command.commandLineMatcher.toString(), [command]);
+				contextualActionAddon.registerCommandFinishedListener(command);
 			});
 			suite('getMatchOptions should return undefined when', () => {
 				test('output does not match', () => {
@@ -143,8 +145,9 @@ suite('ContextualActionAddon', () => {
 				git push --set-upstream origin test22 `;
 			const exitCode = 128;
 			setup(() => {
-				expectedMap.set(gitPushSetUpstream(terminalInstance).commandLineMatcher.toString(), [gitPushSetUpstream(terminalInstance)]);
-				contextualActionAddon.registerCommandFinishedListener(gitPushSetUpstream(terminalInstance));
+				const command = gitPushSetUpstream(terminalInstance);
+				expectedMap.set(command.commandLineMatcher.toString(), [command]);
+				contextualActionAddon.registerCommandFinishedListener(command);
 			});
 			suite('getMatchOptions should return undefined when', () => {
 				test('output does not match', () => {
@@ -185,8 +188,9 @@ suite('ContextualActionAddon', () => {
 			Branch 'test22' set up to track remote branch 'test22' from 'origin'. `;
 			const exitCode = 0;
 			setup(() => {
-				expectedMap.set(gitCreatePr(openerService).commandLineMatcher.toString(), [gitCreatePr(openerService)]);
-				contextualActionAddon.registerCommandFinishedListener(gitCreatePr(openerService));
+				const command = gitCreatePr(openerService);
+				expectedMap.set(command.commandLineMatcher.toString(), [command]);
+				contextualActionAddon.registerCommandFinishedListener(command);
 			});
 			suite('getMatchOptions should return undefined when', () => {
 				test('output does not match', () => {
