@@ -6,9 +6,9 @@
 import * as path from 'path';
 import * as picomatch from 'picomatch';
 import * as vscode from 'vscode';
-import { BaseLanguageClient, TextDocumentEdit } from 'vscode-languageclient';
+import { TextDocumentEdit } from 'vscode-languageclient';
 import * as nls from 'vscode-nls';
-import { getEditForFileRenames } from '../protocol';
+import { MdLanguageClient } from '../client/client';
 import { Delayer } from '../util/async';
 import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
@@ -40,7 +40,7 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 	private readonly _pendingRenames = new Set<RenameAction>();
 
 	public constructor(
-		private readonly client: BaseLanguageClient,
+		private readonly client: MdLanguageClient,
 	) {
 		super();
 
@@ -200,7 +200,7 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 		newUri: vscode.Uri,
 		token: vscode.CancellationToken,
 	): Promise<boolean> {
-		const edit = await this.client.sendRequest(getEditForFileRenames, [{ oldUri: oldUri.toString(), newUri: newUri.toString() }], token);
+		const edit = await this.client.getEditForFileRenames([{ oldUri: oldUri.toString(), newUri: newUri.toString() }], token);
 		if (!edit.documentChanges?.length) {
 			return false;
 		}
@@ -248,6 +248,6 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 	}
 }
 
-export function registerUpdateLinksOnRename(client: BaseLanguageClient) {
+export function registerUpdateLinksOnRename(client: MdLanguageClient) {
 	return new UpdateLinksOnFileRenameHandler(client);
 }

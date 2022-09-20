@@ -135,7 +135,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		}
 
 		const previewResult: IMergeResult = {
-			content: mergedContent,
+			content: hasConflicts ? lastSyncContent : mergedContent,
 			localChange: hasLocalChanged ? fileContent ? Change.Modified : Change.Added : Change.None,
 			remoteChange: hasRemoteChanged ? Change.Modified : Change.None,
 			hasConflicts
@@ -146,7 +146,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 			fileContent,
 
 			baseResource: this.baseResource,
-			baseContent: lastSyncContent !== null ? lastSyncContent : localContent,
+			baseContent: lastSyncContent,
 
 			localResource: this.localResource,
 			localContent,

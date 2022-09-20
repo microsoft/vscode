@@ -10,7 +10,10 @@ import { URI } from 'vs/base/common/uri';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUserDataManualSyncTask, IUserDataSyncResourceConflicts, IUserDataSyncResourceError, IUserDataSyncResource, ISyncResourceHandle, IUserDataSyncTask, IUserDataResourceManifest, IUserDataSyncService, SyncResource, SyncStatus, UserDataSyncError, IUserDataSyncResourcePreview } from 'vs/platform/userDataSync/common/userDataSync';
+import {
+	IUserDataManualSyncTask, IUserDataSyncResourceConflicts, IUserDataSyncResourceError, IUserDataSyncResource, ISyncResourceHandle, IUserDataSyncTask, IUserDataSyncService,
+	SyncResource, SyncStatus, UserDataSyncError
+} from 'vs/platform/userDataSync/common/userDataSync';
 
 type ManualSyncTaskEvent<T> = { manualSyncTaskId: string; data: T };
 
@@ -86,16 +89,9 @@ export class UserDataSyncChannel implements IServerChannel {
 			args = (<Array<any>>args).slice(1);
 
 			switch (manualSyncTaskCommand) {
-				case 'preview': return manualSyncTask.preview();
-				case 'accept': return manualSyncTask.accept(URI.revive(args[0]), args[1]);
-				case 'merge': return manualSyncTask.merge(URI.revive(args[0]));
-				case 'discard': return manualSyncTask.discard(URI.revive(args[0]));
-				case 'discardConflicts': return manualSyncTask.discardConflicts();
+				case 'merge': return manualSyncTask.merge();
 				case 'apply': return manualSyncTask.apply();
-				case 'pull': return manualSyncTask.pull();
-				case 'push': return manualSyncTask.push();
 				case 'stop': return manualSyncTask.stop();
-				case '_getStatus': return manualSyncTask.status;
 				case 'dispose': return this.disposeManualSyncTask(manualSyncTask);
 			}
 		}
@@ -111,12 +107,11 @@ export class UserDataSyncChannel implements IServerChannel {
 		return value.manualSyncTask;
 	}
 
-	private async createManualSyncTask(): Promise<{ id: string; manifest: IUserDataResourceManifest | null; status: SyncStatus }> {
+	private async createManualSyncTask(): Promise<string> {
 		const disposables = new DisposableStore();
 		const manualSyncTask = disposables.add(await this.service.createManualSyncTask());
-		disposables.add(manualSyncTask.onSynchronizeResources(synchronizeResources => this.onManualSynchronizeResources.fire({ manualSyncTaskId: manualSyncTask.id, data: synchronizeResources })));
 		this.manualSyncTasks.set(this.createKey(manualSyncTask.id), { manualSyncTask, disposables });
-		return { id: manualSyncTask.id, manifest: manualSyncTask.manifest, status: manualSyncTask.status };
+		return manualSyncTask.id;
 	}
 
 	private disposeManualSyncTask(manualSyncTask: IUserDataManualSyncTask): void {
@@ -191,18 +186,16 @@ export class UserDataSyncChannelClient extends Disposable implements IUserDataSy
 	}
 
 	async createManualSyncTask(): Promise<IUserDataManualSyncTask> {
-		const { id, manifest, status } = await this.channel.call<{ id: string; manifest: IUserDataResourceManifest | null; status: SyncStatus }>('createManualSyncTask');
+		const id = await this.channel.call<string>('createManualSyncTask');
 		const that = this;
-		const manualSyncTaskChannelClient = new ManualSyncTaskChannelClient(id, manifest, status, {
+		const manualSyncTaskChannelClient = new ManualSyncTaskChannelClient(id, {
 			async call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
 				return that.channel.call<T>(`manualSync/${command}`, [id, ...(Array.isArray(arg) ? arg : [arg])], cancellationToken);
 			},
-			listen<T>(event: string, arg?: any): Event<T> {
-				return Event.map(
-					Event.filter(that.channel.listen<{ manualSyncTaskId: string; data: T }>(`manualSync/${event}`, arg), e => !manualSyncTaskChannelClient.isDiposed() && e.manualSyncTaskId === id),
-					e => e.data);
+			listen<T>(): Event<T> {
+				throw new Error('not supported');
 			}
-		}, this.userDataProfilesService);
+		});
 		return manualSyncTaskChannelClient;
 	}
 
@@ -230,7 +223,7 @@ export class UserDataSyncChannelClient extends Disposable implements IUserDataSy
 		return this.channel.call('hasLocalData');
 	}
 
-	accept(syncResource: IUserDataSyncResource, resource: URI, content: string | null, apply: boolean): Promise<void> {
+	accept(syncResource: IUserDataSyncResource, resource: URI, content: string | null, apply: boolean | { force: boolean }): Promise<void> {
 		return this.channel.call('accept', [syncResource, resource, content, apply]);
 	}
 
@@ -290,105 +283,27 @@ export class UserDataSyncChannelClient extends Disposable implements IUserDataSy
 
 class ManualSyncTaskChannelClient extends Disposable implements IUserDataManualSyncTask {
 
-	private readonly channel: IChannel;
-
-	get onSynchronizeResources(): Event<[SyncResource, URI[]][]> { return this.channel.listen<[SyncResource, URI[]][]>('onSynchronizeResources'); }
-
-	private _status: SyncStatus;
-	get status(): SyncStatus { return this._status; }
-
 	constructor(
 		readonly id: string,
-		readonly manifest: IUserDataResourceManifest | null,
-		status: SyncStatus,
-		manualSyncTaskChannel: IChannel,
-		private readonly userDataProfilesService: IUserDataProfilesService,
+		private readonly channel: IChannel,
 	) {
 		super();
-		this._status = status;
-		const that = this;
-		this.channel = {
-			async call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
-				try {
-					const result = await manualSyncTaskChannel.call<T>(command, arg, cancellationToken);
-					if (!that.isDiposed()) {
-						that._status = await manualSyncTaskChannel.call<SyncStatus>('_getStatus');
-					}
-					return result;
-				} catch (error) {
-					throw UserDataSyncError.toUserDataSyncError(error);
-				}
-			},
-			listen<T>(event: string, arg?: any): Event<T> {
-				return manualSyncTaskChannel.listen(event, arg);
-			}
-		};
 	}
 
-	async preview(): Promise<IUserDataSyncResourcePreview[]> {
-		const previews = await this.channel.call<IUserDataSyncResourcePreview[]>('preview');
-		return this.deserializePreviews(previews);
+	async merge(): Promise<void> {
+		return this.channel.call('merge');
 	}
 
-	async accept(resource: URI, content?: string | null): Promise<IUserDataSyncResourcePreview[]> {
-		const previews = await this.channel.call<IUserDataSyncResourcePreview[]>('accept', [resource, content]);
-		return this.deserializePreviews(previews);
-	}
-
-	async merge(resource?: URI): Promise<IUserDataSyncResourcePreview[]> {
-		const previews = await this.channel.call<IUserDataSyncResourcePreview[]>('merge', [resource]);
-		return this.deserializePreviews(previews);
-	}
-
-	async discard(resource: URI): Promise<IUserDataSyncResourcePreview[]> {
-		const previews = await this.channel.call<IUserDataSyncResourcePreview[]>('discard', [resource]);
-		return this.deserializePreviews(previews);
-	}
-
-	async discardConflicts(): Promise<IUserDataSyncResourcePreview[]> {
-		const previews = await this.channel.call<IUserDataSyncResourcePreview[]>('discardConflicts');
-		return this.deserializePreviews(previews);
-	}
-
-	async apply(): Promise<IUserDataSyncResourcePreview[]> {
-		const previews = await this.channel.call<IUserDataSyncResourcePreview[]>('apply');
-		return this.deserializePreviews(previews);
-	}
-
-	pull(): Promise<void> {
-		return this.channel.call('pull');
-	}
-
-	push(): Promise<void> {
-		return this.channel.call('push');
+	async apply(): Promise<void> {
+		return this.channel.call('apply');
 	}
 
 	stop(): Promise<void> {
 		return this.channel.call('stop');
 	}
 
-	private _disposed = false;
-	isDiposed() { return this._disposed; }
-
 	override dispose(): void {
-		this._disposed = true;
 		this.channel.call('dispose');
 	}
 
-	private deserializePreviews(previews: IUserDataSyncResourcePreview[]): IUserDataSyncResourcePreview[] {
-		return previews.map(({ profile, syncResource, resourcePreviews, isLastSyncFromCurrentMachine }) =>
-		({
-			profile: reviveProfile(profile, this.userDataProfilesService.profilesHome.scheme),
-			syncResource,
-			isLastSyncFromCurrentMachine,
-			resourcePreviews: resourcePreviews.map(r => ({
-				...r,
-				baseResource: URI.revive(r.baseResource),
-				localResource: URI.revive(r.localResource),
-				remoteResource: URI.revive(r.remoteResource),
-				previewResource: URI.revive(r.previewResource),
-				acceptedResource: URI.revive(r.acceptedResource),
-			}))
-		}));
-	}
 }

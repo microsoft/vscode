@@ -498,10 +498,7 @@ suite('SettingsSync - Auto', () => {
 
 		const fileService = client.instantiationService.get(IFileService);
 		const mergeContent = (await fileService.readFile(testObject.conflicts.conflicts[0].previewResource)).value.toString();
-		assert.deepStrictEqual(JSON.parse(mergeContent), {
-			'b': 1,
-			'settingsSync.ignoredSettings': ['a']
-		});
+		assert.strictEqual(mergeContent, '');
 	});
 
 	test('sync profile settings', async () => {

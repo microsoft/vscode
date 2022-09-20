@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IMenu, IMenuActionOptions, IMenuCreateOptions, IMenuItem, IMenuItemHide, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuActionOptions, IMenuCreateOptions, IMenuItem, IMenuItemHide, IMenuService, isIMenuItem, isISubmenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandAction, ILocalizedString } from 'vs/platform/action/common/action';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -32,8 +32,8 @@ export class MenuService implements IMenuService {
 		return new Menu(id, this._hiddenStates, { emitEventsForSubmenuChanges: false, eventDebounceDelay: 50, ...options }, this._commandService, contextKeyService, this);
 	}
 
-	resetHiddenStates(): void {
-		this._hiddenStates.reset();
+	resetHiddenStates(id?: MenuId): void {
+		this._hiddenStates.reset(id);
 	}
 }
 
@@ -108,9 +108,18 @@ class PersistedMenuHideState {
 		this._persist();
 	}
 
-	reset(): void {
-		this._data = Object.create(null);
-		this._persist();
+	reset(menu?: MenuId): void {
+		if (menu === undefined) {
+			// reset all
+			this._data = Object.create(null);
+			this._persist();
+		} else {
+			// reset only for a specific menu
+			if (this._data[menu.id]) {
+				delete this._data[menu.id];
+				this._persist();
+			}
+		}
 	}
 
 	private _persist(): void {
@@ -252,13 +261,12 @@ class Menu implements IMenu {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
 					let action: MenuItemAction | SubmenuItemAction | undefined;
 					const isMenuItem = isIMenuItem(item);
-
+					const menuHide = createMenuHide(this._id, isMenuItem ? item.command : item, this._hiddenStates);
 					if (isMenuItem) {
-						const menuHide = createMenuHide(this._id, item.command, this._hiddenStates);
 						action = new MenuItemAction(item.command, item.alt, options, menuHide, this._contextKeyService, this._commandService);
 
 					} else {
-						action = new SubmenuItemAction(item, this._menuService, this._contextKeyService, options);
+						action = new SubmenuItemAction(item, menuHide, this._menuService, this._contextKeyService, options);
 						if (action.actions.length === 0) {
 							action = undefined;
 						}
@@ -338,24 +346,24 @@ class Menu implements IMenu {
 	}
 }
 
-function createMenuHide(menu: MenuId, command: ICommandAction, states: PersistedMenuHideState): IMenuItemHide {
+function createMenuHide(menu: MenuId, command: ICommandAction | ISubmenuItem, states: PersistedMenuHideState): IMenuItemHide {
 
-	const id = `${menu.id}/${command.id}`;
+	const id = isISubmenuItem(command) ? command.submenu.id : command.id;
 	const title = typeof command.title === 'string' ? command.title : command.title.value;
 
 	const hide = toAction({
-		id,
+		id: `hide/${menu.id}/${id}`,
 		label: localize('hide.label', 'Hide \'{0}\'', title),
-		run() { states.updateHidden(menu, command.id, true); }
+		run() { states.updateHidden(menu, id, true); }
 	});
 
 	const toggle = toAction({
-		id,
+		id: `toggle/${menu.id}/${id}`,
 		label: title,
-		get checked() { return !states.isHidden(menu, command.id); },
+		get checked() { return !states.isHidden(menu, id); },
 		run() {
-			const newValue = !states.isHidden(menu, command.id);
-			states.updateHidden(menu, command.id, newValue);
+			const newValue = !states.isHidden(menu, id);
+			states.updateHidden(menu, id, newValue);
 		}
 	});
 

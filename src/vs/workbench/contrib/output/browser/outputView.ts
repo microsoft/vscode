@@ -30,7 +30,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import { groupBy } from 'vs/base/common/arrays';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { editorBackground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
@@ -271,12 +270,13 @@ export class OutputEditor extends AbstractTextResourceEditor {
 	}
 }
 
+type OutputChannelSelectionOptionItem = ISelectOptionItem & { readonly channel?: IOutputChannelDescriptor };
+
 class SwitchOutputActionViewItem extends SelectActionViewItem {
 
 	private static readonly SEPARATOR = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 
-	private outputChannels: IOutputChannelDescriptor[] = [];
-	private logChannels: IOutputChannelDescriptor[] = [];
+	private selectionOptionItems: OutputChannelSelectionOptionItem[] = [];
 
 	constructor(
 		action: IAction,
@@ -304,35 +304,48 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 	}
 
 	protected override getActionContext(option: string, index: number): string {
-		const channel = index < this.outputChannels.length ? this.outputChannels[index] : this.logChannels[index - this.outputChannels.length - 1];
-		return channel ? channel.id : option;
+		return this.selectionOptionItems[index]?.channel?.id ?? option;
 	}
 
 	private updateOptions(): void {
-		const groups = groupBy(this.outputService.getChannelDescriptors(), (c1: IOutputChannelDescriptor, c2: IOutputChannelDescriptor) => {
-			if (!c1.log && c2.log) {
-				return -1;
+		const outputChannels = [];
+		const logChannels = [];
+		const extensionLogChannels = [];
+		this.selectionOptionItems = [];
+		for (const descriptor of this.outputService.getChannelDescriptors()) {
+			if (descriptor.log) {
+				if (descriptor.extensionId) {
+					extensionLogChannels.push(descriptor);
+				} else {
+					logChannels.push(descriptor);
+				}
+			} else {
+				outputChannels.push(descriptor);
 			}
-			if (c1.log && !c2.log) {
-				return 1;
-			}
-			return 0;
-		});
-		this.outputChannels = groups[0] || [];
-		this.logChannels = groups[1] || [];
-		const showSeparator = this.outputChannels.length && this.logChannels.length;
-		const separatorIndex = showSeparator ? this.outputChannels.length : -1;
-		const options: string[] = [...this.outputChannels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionViewItem.SEPARATOR] : []), ...this.logChannels.map(c => nls.localize('logChannel', "Log ({0})", c.label))];
+		}
+
+		for (const descriptor of outputChannels) {
+			this.selectionOptionItems.push({ text: descriptor.label, isDisabled: false, channel: descriptor });
+		}
+		if (outputChannels.length && logChannels.length) {
+			this.selectionOptionItems.push({ text: SwitchOutputActionViewItem.SEPARATOR, isDisabled: true });
+		}
+		for (const descriptor of logChannels) {
+			this.selectionOptionItems.push({ text: nls.localize('logChannel', "Log ({0})", descriptor.label), isDisabled: false, channel: descriptor });
+		}
+		if (logChannels.length && extensionLogChannels.length) {
+			this.selectionOptionItems.push({ text: SwitchOutputActionViewItem.SEPARATOR, isDisabled: true });
+		}
+		for (const descriptor of extensionLogChannels) {
+			this.selectionOptionItems.push({ text: nls.localize('logChannel', "Log ({0})", descriptor.label), isDisabled: false, channel: descriptor });
+		}
+
 		let selected = 0;
 		const activeChannel = this.outputService.getActiveChannel();
 		if (activeChannel) {
-			selected = this.outputChannels.map(c => c.id).indexOf(activeChannel.id);
-			if (selected === -1) {
-				const logChannelIndex = this.logChannels.map(c => c.id).indexOf(activeChannel.id);
-				selected = logChannelIndex !== -1 ? separatorIndex + 1 + logChannelIndex : 0;
-			}
+			selected = this.selectionOptionItems.findIndex(item => item.channel?.id === activeChannel.id);
 		}
-		this.setOptions(options.map((label, index) => <ISelectOptionItem>{ text: label, isDisabled: (index === separatorIndex ? true : false) }), Math.max(0, selected));
+		this.setOptions(this.selectionOptionItems, Math.max(0, selected));
 	}
 }
 

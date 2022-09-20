@@ -35,6 +35,7 @@ exports.base = [
 		exclude: ['vs/nls'],
 		prepend: [
 			{ path: 'vs/loader.js' },
+			{ path: 'vs/nls.js', amdModuleId: 'vs/nls' },
 			{ path: 'vs/base/worker/workerMain.js' }
 		],
 		dest: 'vs/base/worker/workerMain.js'

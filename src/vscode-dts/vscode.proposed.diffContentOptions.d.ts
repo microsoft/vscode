@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+declare module 'vscode' {
+	// TODO@rebornix: add github issue link
 
-/**
- * Returns the user data path to use with some rules:
- * - respect portable mode
- * - respect VSCODE_APPDATA environment variable
- * - respect --user-data-dir CLI argument
- */
-export function getUserDataPath(args: NativeParsedArgs): string;
+	export interface NotebookDocumentContentOptions {
+		/**
+		 * Controls if a cell metadata property should be reverted when the cell content
+		 * is reverted in notebook diff editor.
+		 */
+		cellContentMetadata?: { [key: string]: boolean | undefined };
+	}
+}

@@ -116,19 +116,21 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			hasRemoteChanged = true;
 		}
 
+		const localContent = fileContent ? fileContent.value.toString() : null;
+		const baseContent = lastSettingsSyncContent?.settings ?? null;
+
 		const previewResult = {
-			content: mergedContent,
+			content: hasConflicts ? baseContent : mergedContent,
 			localChange: hasLocalChanged ? Change.Modified : Change.None,
 			remoteChange: hasRemoteChanged ? Change.Modified : Change.None,
 			hasConflicts
 		};
 
-		const localContent = fileContent ? fileContent.value.toString() : null;
 		return [{
 			fileContent,
 
 			baseResource: this.baseResource,
-			baseContent: lastSettingsSyncContent ? lastSettingsSyncContent.settings : localContent,
+			baseContent,
 
 			localResource: this.localResource,
 			localContent,
