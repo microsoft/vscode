@@ -8,6 +8,7 @@ import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
 import type { IBuffer, IBufferLine, IDisposable, IMarker, Terminal } from 'xterm-headless';
@@ -484,7 +485,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: this._exitCode,
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
-				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
+				getOutput: (outputMatcher?: any) => getOutputForCommand(executedMarker, endMarker, buffer, outputMatcher),
 				markProperties: options?.markProperties
 			};
 			this._commands.push(newCommand);
@@ -618,7 +619,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	}
 }
 
-function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer): string | undefined {
+export function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, outputMatcher?: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }): string | RegExpMatchArray | undefined {
 	if (!executedMarker || !endMarker) {
 		return undefined;
 	}
@@ -627,15 +628,33 @@ function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMa
 
 	if (startLine === endLine) {
 		return undefined;
+	} else if (outputMatcher?.length && (endLine - startLine) < outputMatcher?.length) {
+		return undefined;
 	}
 	let output = '';
 	let line: IBufferLine | undefined;
-	for (let i = startLine; i < endLine; i++) {
-		line = buffer.getLine(i);
-		if (!line) {
-			continue;
+	if (outputMatcher?.anchor && outputMatcher?.anchor === 'bottom') {
+		for (let i = endLine - (outputMatcher.offset || 0); i >= startLine; i--) {
+			line = buffer.getLine(i);
+			if (!line) {
+				continue;
+			}
+			output += line.translateToString(!line.isWrapped) + (line.isWrapped ? '' : '\n');
+			if (output.match(outputMatcher.lineMatcher)) {
+				return output;
+			}
 		}
-		output += line.translateToString(!line.isWrapped) + (line.isWrapped ? '' : '\n');
+	} else {
+		for (let i = startLine + (outputMatcher?.offset || 0); i < endLine; i++) {
+			line = buffer.getLine(i);
+			if (!line) {
+				continue;
+			}
+			output += line.translateToString(!line.isWrapped) + (line.isWrapped ? '' : '\n');
+			if (outputMatcher && output.match(outputMatcher.lineMatcher)) {
+				return output;
+			}
+		}
 	}
 	return output === '' ? undefined : output;
 }

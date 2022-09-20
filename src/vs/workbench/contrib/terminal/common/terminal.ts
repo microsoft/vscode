@@ -96,6 +96,13 @@ export interface IShellLaunchConfigResolveOptions {
 	allowAutomationShell?: boolean;
 }
 
+export interface ITerminalOutputMatcher {
+	lineMatcher: string | RegExp;
+	anchor?: 'top' | 'bottom';
+	offset?: number;
+	length?: number;
+}
+
 export interface ITerminalBackend {
 	readonly remoteAuthority: string | undefined;
 
@@ -346,7 +353,7 @@ export interface ITerminalCommand {
 	marker?: IXtermMarker;
 	markProperties?: IMarkProperties;
 	hasOutput(): boolean;
-	getOutput(): string | undefined;
+	getOutput(outputMatcher?: ITerminalOutputMatcher): string | RegExpMatchArray | undefined;
 }
 
 export interface INavigationMode {

@@ -370,7 +370,7 @@ export function registerTerminalActions() {
 				return;
 			}
 			const output = command.getOutput();
-			if (output) {
+			if (output && typeof output === 'string') {
 				await accessor.get(IClipboardService).writeText(output);
 			}
 		}

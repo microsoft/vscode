@@ -138,8 +138,12 @@ export function getMatchOptions(command: ITerminalCommand, actionOptions: Map<st
 			if (!commandLineMatch) {
 				continue;
 			}
-			const outputMatch = actionOption.outputMatcher ? command.getOutput()?.match(actionOption.outputMatcher.lineMatcher) : null;
-			const actions = actionOption.getActions({ commandLineMatch, outputMatch }, command);
+			const outputMatcher = actionOption.outputMatcher || null;
+			let outputMatch;
+			if (outputMatcher) {
+				outputMatch = command.getOutput(outputMatcher);
+			}
+			const actions = actionOption.getActions({ commandLineMatch, outputMatch: typeof outputMatch !== 'string' ? outputMatch : undefined }, command);
 			if (actions) {
 				matchActions.push(...actions);
 			}

@@ -412,7 +412,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			const labelText = localize("terminal.copyOutput", 'Copy Output');
 			actions.push({
 				class: undefined, tooltip: labelText, id: 'terminal.copyOutput', label: labelText, enabled: true,
-				run: () => this._clipboardService.writeText(command.getOutput()!)
+				run: () => {
+					const text = command.getOutput();
+					if (typeof text === 'string') {
+						this._clipboardService.writeText(text);
+					}
+				}
 			});
 			const labelHtml = localize("terminal.copyOutputAsHtml", 'Copy Output as HTML');
 			actions.push({

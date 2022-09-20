@@ -219,7 +219,7 @@ export interface ITerminalCommand {
 	executedMarker?: IXtermMarker;
 	commandStartLineContent?: string;
 	markProperties?: IMarkProperties;
-	getOutput(): string | undefined;
+	getOutput(outputMatcher?: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }): string | RegExpMatchArray | undefined;
 	hasOutput(): boolean;
 }
 

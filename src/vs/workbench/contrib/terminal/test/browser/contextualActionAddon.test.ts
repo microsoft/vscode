@@ -11,7 +11,7 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IHandleCommandOptions, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalOutputMatcher } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { gitSimilarCommand } from 'vs/workbench/contrib/terminal/browser/terminalBaseContextualActions';
 import { ContextualActionAddon, getMatchOptions, MatchActions } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
 import { IDecoration, IDecorationOptions, Terminal } from 'xterm';
@@ -110,7 +110,7 @@ function createCommand(command: string, output?: string, exitCode?: number): ITe
 	return {
 		command,
 		exitCode,
-		getOutput: () => output,
+		getOutput: (outputMatcher: ITerminalOutputMatcher) => output,
 		timestamp: Date.now(),
 		hasOutput: () => !!output
 	};
