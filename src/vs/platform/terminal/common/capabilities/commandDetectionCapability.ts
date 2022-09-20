@@ -634,7 +634,7 @@ export function getOutputForCommand(executedMarker: IMarker | undefined, endMark
 	}
 	let output = '';
 	let line: IBufferLine | undefined;
-	if (outputMatcher?.anchor && outputMatcher?.anchor === 'bottom') {
+	if (outputMatcher?.anchor === 'bottom') {
 		for (let i = endLine - (outputMatcher.offset || 0); i >= startLine; i--) {
 			line = buffer.getLine(i);
 			if (!line) {
