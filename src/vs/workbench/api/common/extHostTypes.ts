@@ -1890,6 +1890,12 @@ export enum SourceControlInputBoxValidationType {
 	Information = 2
 }
 
+export enum SourceControlNotificationSeverity {
+	Error = 0,
+	Warning = 1,
+	Information = 2
+}
+
 export enum TerminalExitReason {
 	Unknown = 0,
 	Shutdown = 1,

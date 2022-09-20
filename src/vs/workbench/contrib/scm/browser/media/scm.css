@@ -225,6 +225,24 @@
 	justify-content: center;
 }
 
+.scm-view .notification-container {
+	padding-top: 5px;
+	padding-bottom: 5px;
+	padding-left: 11px;
+}
+
+.scm-view .notification-container > .notification-message {
+	font-size: 11px;
+	line-height: 18px;
+	padding: 0 4px;
+	white-space: normal;
+}
+
+.scm-view .notification-container > .notification-message > div > p {
+	margin-block-start: 0;
+	margin-block-end: 0;
+}
+
 .scm-view .button-container {
 	display: flex;
 	height: 100%;
@@ -325,6 +343,24 @@
 
 .scm-view .scm-editor-container.validation-warning {
 	outline: 1px solid var(--vscode-inputValidation-warningBorder) !important;
+}
+
+.scm-view .notification-container > .notification-message.validation-info {
+	border: 1px solid var(--vscode-inputValidation-infoBorder) !important;
+	background-color: var(--vscode-inputValidation-infoBackground);
+	color: var(--vscode-inputValidation-infoForeground);
+}
+
+.scm-view .notification-container > .notification-message.validation-warning {
+	border: 1px solid var(--vscode-inputValidation-warningBorder) !important;
+	background-color: var(--vscode-inputValidation-warningBackground);
+	color: var(--vscode-inputValidation-warningForeground);
+}
+
+.scm-view .notification-container > .notification-message.validation-error {
+	border: 1px solid var(--vscode-inputValidation-errorBorder) !important;
+	background-color: var(--vscode-inputValidation-errorBackground);
+	color: var(--vscode-inputValidation-errorForeground);
 }
 
 .scm-view .scm-editor-container.validation-error {

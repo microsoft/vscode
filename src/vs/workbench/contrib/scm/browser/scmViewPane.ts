@@ -10,7 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, 
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, REPOSITORIES_VIEW_PANE_ID, ISCMNotification, ISCMNotificationSeverity } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -23,7 +23,7 @@ import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options,
 import { IAction, ActionRunner, Action, Separator } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, IFileIconTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMNotification } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -91,7 +91,7 @@ import { contrastBorder, registerColor } from 'vs/platform/theme/common/colorReg
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { EditorOptions } from 'vs/editor/common/config/editorOptions';
 
-type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
+type TreeElement = ISCMRepository | ISCMInput | ISCMNotification | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
 interface ISCMLayout {
 	height: number | undefined;
@@ -287,6 +287,120 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		for (const [, inputWidget] of this.inputWidgets) {
 			inputWidget.clearValidation();
 		}
+	}
+}
+
+interface NotificationTemplate {
+	readonly message: HTMLElement;
+	disposable: IDisposable;
+	readonly templateDisposable: IDisposable;
+}
+
+class NotificationRenderer implements ICompressibleTreeRenderer<ISCMNotification, FuzzyScore, NotificationTemplate> {
+	static readonly DEFAULT_HEIGHT = -10;
+
+	static readonly TEMPLATE_ID = 'notification';
+	get templateId(): string { return NotificationRenderer.TEMPLATE_ID; }
+
+	private contentHeights = new WeakMap<ISCMNotification, number>();
+	private notifications = new Map<ISCMNotification, HTMLElement>();
+
+	constructor(
+		private readonly updateHeight: (notification: ISCMNotification, height: number) => void,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IOpenerService private readonly openerService: IOpenerService) { }
+
+	renderTemplate(container: HTMLElement): NotificationTemplate {
+		// hack
+		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+
+		// Disable hover for list item
+		container.parentElement!.parentElement!.classList.add('force-no-hover');
+
+		const notificationContainer = append(container, $('.notification-container'));
+		const message = append(notificationContainer, $('.notification-message'));
+
+		return { message, disposable: Disposable.None, templateDisposable: Disposable.None };
+	}
+
+	renderElement(node: ITreeNode<ISCMNotification, FuzzyScore>, index: number, templateData: NotificationTemplate): void {
+		const disposables = new DisposableStore();
+		const notification = node.element;
+
+		templateData.message.classList.toggle('validation-error', notification.notification.severity === ISCMNotificationSeverity.Error);
+		templateData.message.classList.toggle('validation-warning', notification.notification.severity === ISCMNotificationSeverity.Warning);
+		templateData.message.classList.toggle('validation-information', notification.notification.severity === ISCMNotificationSeverity.Information);
+
+		if (typeof (notification.notification.message) === 'string') {
+			templateData.message.textContent = notification.notification.message;
+		} else {
+			const message = notification.notification.message;
+			const { element: mdElement } = this.instantiationService.createInstance(MarkdownRenderer, {}).render(message, {
+				actionHandler: {
+					callback: (content) => {
+						this.openerService.open(content, { allowCommands: typeof notification.notification.message !== 'string' && message.isTrusted === true });
+					},
+					disposables: disposables
+				},
+			});
+
+			templateData.message.textContent = '';
+			templateData.message.appendChild(mdElement);
+		}
+
+		this.notifications.set(notification, templateData.message);
+		disposables.add(toDisposable(() => this.notifications.delete(notification)));
+
+		// Resize listener
+		const startListeningContentHeightChange = () => {
+			let resizeObserver: ResizeObserver | null = new ResizeObserver((entries) => {
+				if (entries.length !== 1) {
+					return;
+				}
+
+				const contentHeight = Math.ceil(entries[0].contentRect.height);
+				if (this.contentHeights.get(notification) !== contentHeight) {
+					this.contentHeights.set(notification, contentHeight);
+					this.updateHeight(notification, contentHeight + 10);
+				}
+			});
+			resizeObserver.observe(templateData.message);
+			disposables.add(toDisposable(() => {
+				resizeObserver!.disconnect();
+				resizeObserver = null;
+			}));
+		};
+
+		// Update height, and setup resize listener on next tick
+		const timeout = disposableTimeout(() => {
+			this.contentHeights.set(notification, templateData.message.clientHeight);
+			this.updateHeight(notification, templateData.message.clientHeight + 10);
+			startListeningContentHeightChange();
+		}, 0);
+		disposables.add(timeout);
+
+		templateData.disposable = disposables;
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMNotification>, FuzzyScore>, index: number, templateData: NotificationTemplate, height: number | undefined): void {
+		throw new Error('Should never happen since node is incompressible');
+	}
+
+	getHeight(notification: ISCMNotification): number {
+		return (this.contentHeights.get(notification) ?? NotificationRenderer.DEFAULT_HEIGHT) + 10;
+	}
+
+	focusMessage(notification: ISCMNotification): void {
+		this.notifications.get(notification)?.focus();
+	}
+
+	disposeElement(element: ITreeNode<ISCMNotification, FuzzyScore>, index: number, templateData: NotificationTemplate): void {
+		templateData.disposable.dispose();
+	}
+
+	disposeTemplate(templateData: NotificationTemplate): void {
+		templateData.disposable.dispose();
+		templateData.templateDisposable.dispose();
 	}
 }
 
@@ -616,11 +730,15 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 class ListDelegate implements IListVirtualDelegate<TreeElement> {
 
-	constructor(private readonly inputRenderer: InputRenderer) { }
+	constructor(
+		private readonly inputRenderer: InputRenderer,
+		private readonly notificationRenderer: NotificationRenderer) { }
 
 	getHeight(element: TreeElement) {
 		if (isSCMInput(element)) {
 			return this.inputRenderer.getHeight(element);
+		} else if (isSCMNotification(element)) {
+			return this.notificationRenderer.getHeight(element);
 		} else if (isSCMActionButton(element)) {
 			return ActionButtonRenderer.DEFAULT_HEIGHT + 10;
 		} else {
@@ -633,6 +751,8 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 			return RepositoryRenderer.TEMPLATE_ID;
 		} else if (isSCMInput(element)) {
 			return InputRenderer.TEMPLATE_ID;
+		} else if (isSCMNotification(element)) {
+			return NotificationRenderer.TEMPLATE_ID;
 		} else if (isSCMActionButton(element)) {
 			return ActionButtonRenderer.TEMPLATE_ID;
 		} else if (ResourceTree.isResourceNode(element) || isSCMResource(element)) {
@@ -681,6 +801,12 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 		if (isSCMActionButton(one)) {
 			return -1;
 		} else if (isSCMActionButton(other)) {
+			return 1;
+		}
+
+		if (isSCMNotification(one)) {
+			return -1;
+		} else if (isSCMNotification(other)) {
 			return 1;
 		}
 
@@ -744,7 +870,7 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 	getKeyboardNavigationLabel(element: TreeElement): { toString(): string } | { toString(): string }[] | undefined {
 		if (ResourceTree.isResourceNode(element)) {
 			return element.name;
-		} else if (isSCMRepository(element) || isSCMInput(element) || isSCMActionButton(element)) {
+		} else if (isSCMRepository(element) || isSCMInput(element) || isSCMActionButton(element) || isSCMNotification(element)) {
 			return undefined;
 		} else if (isSCMResourceGroup(element)) {
 			return element.label;
@@ -782,6 +908,9 @@ function getSCMResourceId(element: TreeElement): string {
 	} else if (isSCMInput(element)) {
 		const provider = element.repository.provider;
 		return `input:${provider.id}`;
+	} else if (isSCMNotification(element)) {
+		const provider = element.repository.provider;
+		return `notification:${provider.id}`;
 	} else if (isSCMActionButton(element)) {
 		const provider = element.repository.provider;
 		return `actionButton:${provider.id}`;
@@ -830,6 +959,8 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 			return `${folderName} ${element.provider.label}`;
 		} else if (isSCMInput(element)) {
 			return localize('input', "Source Control Input");
+		} else if (isSCMNotification(element)) {
+			return '';
 		} else if (isSCMActionButton(element)) {
 			return element.button?.command.title ?? '';
 		} else if (isSCMResourceGroup(element)) {
@@ -1332,6 +1463,20 @@ class ViewModel {
 
 			if (hasSomeChanges || (this.items.size === 1 && (!this.showActionButton || !item.element.provider.actionButton))) {
 				children.push(...item.groupItems.map(i => this.render(i, treeViewState)));
+			}
+
+			if (item.element.provider.notification) {
+				const notification: ICompressedTreeElement<ISCMNotification> = {
+					element: {
+						type: 'notification',
+						repository: item.element,
+						notification: item.element.provider.notification
+					},
+					incompressible: true,
+					collapsible: false
+				};
+
+				children.push(notification);
 			}
 
 			if (this.showActionButton && item.element.provider.actionButton) {
@@ -2196,6 +2341,7 @@ export class SCMViewPane extends ViewPane {
 	get viewModel(): ViewModel { return this._viewModel; }
 	private listLabels!: ResourceLabels;
 	private inputRenderer!: InputRenderer;
+	private notificationRenderer!: NotificationRenderer;
 	private actionButtonRenderer!: ActionButtonRenderer;
 	private readonly disposables = new DisposableStore();
 
@@ -2249,7 +2395,12 @@ export class SCMViewPane extends ViewPane {
 		updateProviderCountVisibility();
 
 		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => this.tree.updateElementHeight(input, height));
-		const delegate = new ListDelegate(this.inputRenderer);
+		this.notificationRenderer = this.instantiationService.createInstance(NotificationRenderer, (notification, height) => {
+			//
+			this.tree.updateElementHeight(notification, height);
+		});
+
+		const delegate = new ListDelegate(this.inputRenderer, this.notificationRenderer);
 
 		this.actionButtonRenderer = this.instantiationService.createInstance(ActionButtonRenderer);
 
@@ -2263,6 +2414,7 @@ export class SCMViewPane extends ViewPane {
 		const renderers: ICompressibleTreeRenderer<any, any, any>[] = [
 			this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService)),
 			this.inputRenderer,
+			this.notificationRenderer,
 			this.actionButtonRenderer,
 			this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
 			this._register(this.instantiationService.createInstance(ResourceRenderer, () => this._viewModel, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner))
@@ -2392,6 +2544,17 @@ export class SCMViewPane extends ViewPane {
 			}
 
 			return;
+		} else if (isSCMNotification(e.element)) {
+			this.scmViewService.focus(e.element.repository);
+
+			// Focus the message
+			const target = e.browserEvent?.target as HTMLElement;
+			if (target.classList.contains('monaco-tl-row') || target.classList.contains('notification-container')) {
+				this.notificationRenderer.focusMessage(e.element);
+				this.tree.setFocus([], e.browserEvent);
+			}
+
+			return;
 		} else if (isSCMActionButton(e.element)) {
 			this.scmViewService.focus(e.element.repository);
 
@@ -2450,7 +2613,7 @@ export class SCMViewPane extends ViewPane {
 			const menu = menus.repositoryMenu;
 			context = element.provider;
 			actions = collectContextMenuActions(menu);
-		} else if (isSCMInput(element) || isSCMActionButton(element)) {
+		} else if (isSCMInput(element) || isSCMNotification(element) || isSCMActionButton(element)) {
 			// noop
 		} else if (isSCMResourceGroup(element)) {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
