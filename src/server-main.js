@@ -188,7 +188,6 @@ function sanitizeStringArg(val) {
  * @throws
  */
 async function parsePort(host, strPort) {
-	let specificPort;
 	if (strPort) {
 		let range;
 		if (strPort.match(/^\d+$/)) {
