@@ -79,21 +79,21 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
 			get title() { return localize('manageProfiles', "{0} ({1})", PROFILES_TTILE.value, that.userDataProfileService.currentProfile.name); },
 			submenu: ManageProfilesSubMenu,
-			group: '5_profiles',
+			group: '5_settings',
 			when: PROFILES_ENABLEMENT_CONTEXT,
-			order: 3
+			order: 1
 		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, <ISubmenuItem>{
 			title: PROFILES_TTILE,
 			submenu: ManageProfilesSubMenu,
-			group: '5_profiles',
+			group: '5_settings',
 			when: PROFILES_ENABLEMENT_CONTEXT,
-			order: 3
+			order: 1
 		});
 		MenuRegistry.appendMenuItem(MenuId.AccountsContext, <ISubmenuItem>{
 			get title() { return localize('manageProfiles', "{0} ({1})", PROFILES_TTILE.value, that.userDataProfileService.currentProfile.name); },
 			submenu: ManageProfilesSubMenu,
-			group: '1_profiles',
+			group: '1_settings',
 			when: PROFILES_ENABLEMENT_CONTEXT,
 		});
 	}
