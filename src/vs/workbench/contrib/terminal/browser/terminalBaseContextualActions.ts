@@ -12,11 +12,20 @@ import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal'
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
 export const AnyCommandLineRegex = /.{4,}/;
-const regexs = [/most/, /similar/, /command/, /is/].map(r => new RegExp(r.source.split('').join('\\s*')));
-export const GitSimilarOutputRegex = [...regexs, /([^\s]{3,})/].map(r => r.source).join('\\s+');
+export const GitSimilarOutputRegex = getRegexForWrappedLines(['most', 'similar', 'command', 'is'], ['([^\\s]{3,})']);
 export const FreePortOutputRegex = /address already in use\s*(\d\.\s*){3}(\d\s*):((\d\s*){3}\d)\s+/;
 export const GitPushOutputRegex = /git\s+push\s+--set-upstream\s+origin\s+(.*)\s+/;
 export const GitCreatePrOutputRegex = /Create\s+a\s+pull\s+request\s+for\s+\'(.+)\'\s+on\s+GitHub\s+by\s+visiting\s*:\s+remote:\s+(https:.+pull.+)\s+/;
+
+function getRegexForWrappedLines(words: string[], regexPatterns: string[]): RegExp {
+	// words may get split when the line wraps
+	const wordRegexes = words.map(word => word.split('').join('\\s*'));
+	// words and patterns should have at least one space between them
+	let regex = [...wordRegexes, ...regexPatterns].join('\\s+');
+	// patterns terminate at the first space
+	regex += '\\s+';
+	return new RegExp(regex);
+}
 
 export function gitSimilarCommand(): ITerminalContextualActionOptions {
 	return {
