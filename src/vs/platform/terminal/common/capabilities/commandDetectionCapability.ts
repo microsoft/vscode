@@ -486,7 +486,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				getOutputMatch: (outputMatcher?: any) => getOutputMatchForCommand(executedMarker, endMarker, buffer, outputMatcher),
+				getOutputMatch: (outputMatcher?: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }) => getOutputMatchForCommand(executedMarker, endMarker, buffer, outputMatcher),
 				markProperties: options?.markProperties
 			};
 			this._commands.push(newCommand);
@@ -643,7 +643,7 @@ function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMa
 	return output === '' ? undefined : output;
 }
 
-export function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, outputMatcher: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }): RegExpMatchArray | undefined {
+export function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, outputMatcher: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number } | undefined): RegExpMatchArray | undefined {
 	if (!executedMarker || !endMarker) {
 		return undefined;
 	}
@@ -665,6 +665,7 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 				continue;
 			}
 			output = line.translateToString(!line.isWrapped) + (line.isWrapped ? '' : '\n') + output;
+			console.log('output', output);
 			const match = output.match(outputMatcher.lineMatcher);
 			if (match) {
 				return match;

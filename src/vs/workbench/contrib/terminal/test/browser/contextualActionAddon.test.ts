@@ -18,7 +18,7 @@ import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, Git
 import { ContextualActionAddon, getMatchActions } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
 import { Terminal } from 'xterm';
 
-suite('ContextualActionAddon', () => {
+suite.only('ContextualActionAddon', () => {
 	let contextualActionAddon: ContextualActionAddon;
 	let terminalInstance: Pick<ITerminalInstance, 'freePortKillProcess'>;
 	let commandDetection: CommandDetectionCapability;
@@ -51,6 +51,15 @@ suite('ContextualActionAddon', () => {
 
 			The most similar command is
 					status `;
+			const midWordWrappedOutput = `git: 'sttatus' is not a git command. See 'git --help'.
+
+					The most simi
+					lar command is
+							status `;
+			const midSentenceWrappedOutput = `git: 'sttatus' is not a git command. See 'git --help'.
+
+					The most similar command is
+							status `;
 			const exitCode = 1;
 			setup(() => {
 				const command = gitSimilarCommand();
@@ -82,6 +91,30 @@ suite('ContextualActionAddon', () => {
 						}
 					]);
 			});
+			assertMatchOptions(
+				getMatchActions(
+					createCommand(command, midWordWrappedOutput, GitSimilarOutputRegex, exitCode), expectedMap),
+				[
+					{
+						id: 'terminal.gitSimilarCommand',
+						label: 'Run git status',
+						run: true,
+						tooltip: 'Run git status',
+						enabled: true
+					}
+				]);
+			assertMatchOptions(
+				getMatchActions(
+					createCommand(command, midSentenceWrappedOutput, GitSimilarOutputRegex, exitCode), expectedMap),
+				[
+					{
+						id: 'terminal.gitSimilarCommand',
+						label: 'Run git status',
+						run: true,
+						tooltip: 'Run git status',
+						enabled: true
+					}
+				]);
 		});
 		suite('freePort', () => {
 			const expected = new Map();
