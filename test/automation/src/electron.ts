@@ -34,7 +34,8 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		'--disable-workspace-trust',
 		`--extensions-dir=${extensionsPath}`,
 		`--user-data-dir=${userDataDir}`,
-		`--logsPath=${logsPath}`
+		`--logsPath=${logsPath}`,
+		'--log=trace'
 	];
 
 	if (options.verbose) {
