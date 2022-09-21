@@ -23,7 +23,7 @@ import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { arrayContainsElementOrParent, FileMatch, FolderMatch, FolderMatchWithResource, Match, RenderableMatch, searchComparer, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { arrayContainsElementOrParent, FileMatch, FolderMatch, FolderMatchNoRoot, FolderMatchWithResource, FolderMatchWorkspaceRoot, Match, RenderableMatch, searchComparer, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { OpenEditorCommandId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
@@ -300,7 +300,7 @@ export function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 				}
 				if (searchView.isTreeLayoutViewVisible && !canCollapseFirstLevel) {
 					const immediateParent = node.parent();
-					if (!(immediateParent instanceof SearchResult) && !(immediateParent.parent() instanceof SearchResult)) {
+					if (immediateParent instanceof FolderMatchWorkspaceRoot || immediateParent instanceof FolderMatchNoRoot) {
 						canCollapseFirstLevel = true;
 					}
 				}
@@ -319,7 +319,7 @@ export function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 			if (node) {
 				do {
 					const immediateParent = node.parent();
-					if (!(immediateParent instanceof SearchResult) && !(immediateParent.parent() instanceof SearchResult)) {
+					if (immediateParent instanceof FolderMatchWorkspaceRoot || immediateParent instanceof FolderMatchNoRoot) {
 						viewer.collapse(immediateParent, true);
 					}
 				} while (node = navigator.next());

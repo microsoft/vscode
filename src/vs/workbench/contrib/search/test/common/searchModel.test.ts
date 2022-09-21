@@ -64,7 +64,7 @@ suite('SearchModel', () => {
 	};
 
 	const folderQueries: IFolderQuery[] = [
-		{ folder: URI.parse('file:///c%3A/') }
+		{ folder: createFileUriFromPathFromRoot() }
 	];
 
 	setup(() => {
@@ -126,10 +126,10 @@ suite('SearchModel', () => {
 
 	test('Search Model: Search adds to results', async () => {
 		const results = [
-			aRawMatch('file:///c%3A/1',
+			aRawMatch('1',
 				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
-			aRawMatch('file:///c%3A/2', new TextSearchMatch('preview 2', lineOneRange))];
+			aRawMatch('2', new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
 
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
@@ -156,10 +156,10 @@ suite('SearchModel', () => {
 	test('Search Model: Search reports telemetry on search completed', async () => {
 		const target = instantiationService.spy(ITelemetryService, 'publicLog');
 		const results = [
-			aRawMatch('file:///c%3A/1',
+			aRawMatch('1',
 				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
-			aRawMatch('file:///c%3A/2',
+			aRawMatch('2',
 				new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
 
@@ -198,7 +198,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
 		instantiationService.stub(ISearchService, searchServiceWithResults(
-			[aRawMatch('file:///c%3A/1', new TextSearchMatch('some preview', lineOneRange))],
+			[aRawMatch('1', new TextSearchMatch('some preview', lineOneRange))],
 			{ results: [], stats: testSearchStats, messages: [] }));
 
 		const testObject = instantiationService.createInstance(SearchModel);
@@ -260,10 +260,10 @@ suite('SearchModel', () => {
 
 	test('Search Model: Search results are cleared during search', async () => {
 		const results = [
-			aRawMatch('file:///c%3A/1',
+			aRawMatch('1',
 				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
-			aRawMatch('file:///c%3A/2',
+			aRawMatch('2',
 				new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
@@ -290,7 +290,7 @@ suite('SearchModel', () => {
 
 	test('getReplaceString returns proper replace string for regExpressions', async () => {
 		const results = [
-			aRawMatch('file:///c%3A/1',
+			aRawMatch('1',
 				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
@@ -320,7 +320,11 @@ suite('SearchModel', () => {
 	});
 
 	function aRawMatch(resource: string, ...results: ITextSearchMatch[]): IFileMatch {
-		return { resource: URI.parse(resource), results };
+		return { resource: createFileUriFromPathFromRoot(resource), results };
+	}
+
+	function createFileUriFromPathFromRoot(path: string = ''): URI {
+		return URI.file(`c:/${path}`);
 	}
 
 	function stub(arg1: any, arg2: any, arg3: any): sinon.SinonStub {

@@ -155,7 +155,7 @@ suite('SearchResult', () => {
 
 	test('Adding a raw match will add a file match with line matches', function () {
 		const testObject = aSearchResult();
-		const target = [aRawMatch('file:///c%3A/1',
+		const target = [aRawMatch('1',
 			new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 			new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)),
 			new TextSearchMatch('preview 2', lineOneRange))];
@@ -184,10 +184,10 @@ suite('SearchResult', () => {
 	test('Adding multiple raw matches', function () {
 		const testObject = aSearchResult();
 		const target = [
-			aRawMatch('file:///c%3A/1',
+			aRawMatch('1',
 				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
-			aRawMatch('file:///c%3A/2',
+			aRawMatch('2',
 				new TextSearchMatch('preview 2', lineOneRange))];
 
 		testObject.add(target);
@@ -217,9 +217,9 @@ suite('SearchResult', () => {
 
 		const testObject = aSearchResult();
 		testObject.add([
-			aRawMatch('file:///c%3A/1',
+			aRawMatch('1',
 				new TextSearchMatch('preview 1', lineOneRange)),
-			aRawMatch('file:///c%3A/2',
+			aRawMatch('2',
 				new TextSearchMatch('preview 2', lineOneRange))]);
 
 		testObject.matches()[0].onDispose(target1);
@@ -236,7 +236,7 @@ suite('SearchResult', () => {
 		const target = sinon.spy();
 		const testObject = aSearchResult();
 		testObject.add([
-			aRawMatch('file:///c%3A/1',
+			aRawMatch('1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
 		const objectToRemove = testObject.matches()[0];
 		testObject.onChange(target);
@@ -251,9 +251,9 @@ suite('SearchResult', () => {
 		const target = sinon.spy();
 		const testObject = aSearchResult();
 		testObject.add([
-			aRawMatch('file:///c%3A/1',
+			aRawMatch('1',
 				new TextSearchMatch('preview 1', lineOneRange)),
-			aRawMatch('file:///c%3A/2',
+			aRawMatch('2',
 				new TextSearchMatch('preview 2', lineOneRange))]);
 		const arrayToRemove = testObject.matches();
 		testObject.onChange(target);
@@ -268,7 +268,7 @@ suite('SearchResult', () => {
 		const target = sinon.spy();
 		const testObject = aSearchResult();
 		testObject.add([
-			aRawMatch('file:///c%3A/1',
+			aRawMatch('1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
 		const objectToRemove = testObject.matches()[0];
 		testObject.onChange(target);
@@ -282,7 +282,7 @@ suite('SearchResult', () => {
 	test('Removing all line matches and adding back will add file back to result', function () {
 		const testObject = aSearchResult();
 		testObject.add([
-			aRawMatch('file:///c%3A/1',
+			aRawMatch('1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
 		const target = testObject.matches()[0];
 		const matchToRemove = target.matches()[0];
@@ -300,7 +300,7 @@ suite('SearchResult', () => {
 		instantiationService.stub(IReplaceService, 'replace', voidPromise);
 		const testObject = aSearchResult();
 		testObject.add([
-			aRawMatch('file:///c%3A/1',
+			aRawMatch('1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
 
 		testObject.replace(testObject.matches()[0]);
@@ -314,7 +314,7 @@ suite('SearchResult', () => {
 		instantiationService.stub(IReplaceService, 'replace', voidPromise);
 		const testObject = aSearchResult();
 		testObject.add([
-			aRawMatch('file:///c%3A/1',
+			aRawMatch('1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
 		testObject.onChange(target);
 		const objectToRemove = testObject.matches()[0];
@@ -332,9 +332,9 @@ suite('SearchResult', () => {
 		instantiationService.stubPromise(IReplaceService, 'replace', voidPromise);
 		const testObject = aSearchResult();
 		testObject.add([
-			aRawMatch('file:///c%3A/1',
+			aRawMatch('1',
 				new TextSearchMatch('preview 1', lineOneRange)),
-			aRawMatch('file:///c%3A/2',
+			aRawMatch('2',
 				new TextSearchMatch('preview 2', lineOneRange))]);
 
 		testObject.replaceAll(null!);
@@ -475,12 +475,16 @@ suite('SearchResult', () => {
 
 	function aSearchResult(): SearchResult {
 		const searchModel = instantiationService.createInstance(SearchModel);
-		searchModel.searchResult.query = { type: 1, folderQueries: [{ folder: URI.parse('file:///c%3A/') }] };
+		searchModel.searchResult.query = { type: 1, folderQueries: [{ folder: createFileUriFromPathFromRoot() }] };
 		return searchModel.searchResult;
 	}
 
+	function createFileUriFromPathFromRoot(path: string = ''): URI {
+		return URI.file(`c:/${path}`);
+	}
+
 	function aRawMatch(resource: string, ...results: ITextSearchMatch[]): IFileMatch {
-		return { resource: URI.parse(resource), results };
+		return { resource: createFileUriFromPathFromRoot(resource), results };
 	}
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {
@@ -496,18 +500,18 @@ suite('SearchResult', () => {
 			type: QueryType.Text,
 			contentPattern: { pattern: 'foo' },
 			folderQueries: [{
-				folder: URI.parse('file:///c%3A/voo')
+				folder: createFileUriFromPathFromRoot('voo')
 			},
-			{ folder: URI.parse('file:///c%3A/with') },
+			{ folder: createFileUriFromPathFromRoot('with') },
 			]
 		};
 
 		testObject.add([
-			aRawMatch('file:///c%3A/voo/foo.a',
+			aRawMatch('voo/foo.a',
 				new TextSearchMatch('preview 1', lineOneRange), new TextSearchMatch('preview 2', lineOneRange)),
-			aRawMatch('file:///c%3A/with/path/bar.b',
+			aRawMatch('with/path/bar.b',
 				new TextSearchMatch('preview 3', lineOneRange)),
-			aRawMatch('file:///c%3A/with/path.c',
+			aRawMatch('with/path.c',
 				new TextSearchMatch('preview 4', lineOneRange), new TextSearchMatch('preview 5', lineOneRange)),
 		]);
 		return testObject;
@@ -520,16 +524,16 @@ suite('SearchResult', () => {
 			type: QueryType.Text,
 			contentPattern: { pattern: 'foo' },
 			folderQueries: [{
-				folder: URI.parse('file:///c%3A/voo')
+				folder: createFileUriFromPathFromRoot('voo')
 			},
 			{
-				folder: URI.parse('file:///c%3A/with')
+				folder: createFileUriFromPathFromRoot('with')
 			},
 			{
-				folder: URI.parse('file:///c%3A/with/test')
+				folder: createFileUriFromPathFromRoot('with/test')
 			},
 			{
-				folder: URI.parse('file:///c%3A/eep')
+				folder: createFileUriFromPathFromRoot('eep')
 			},
 			]
 		};
@@ -557,23 +561,23 @@ suite('SearchResult', () => {
 		 */
 
 		testObject.add([
-			aRawMatch('file:///c%3A/voo/foo.a',
+			aRawMatch('voo/foo.a',
 				new TextSearchMatch('preview 1', lineOneRange), new TextSearchMatch('preview 2', lineOneRange)),
-			aRawMatch('file:///c%3A/voo/beep/foo.c',
+			aRawMatch('voo/beep/foo.c',
 				new TextSearchMatch('preview 1', lineOneRange), new TextSearchMatch('preview 2', lineOneRange)),
-			aRawMatch('file:///c%3A/voo/beep/boop.c',
+			aRawMatch('voo/beep/boop.c',
 				new TextSearchMatch('preview 3', lineOneRange)),
-			aRawMatch('file:///c%3A/with/path.c',
+			aRawMatch('with/path.c',
 				new TextSearchMatch('preview 4', lineOneRange), new TextSearchMatch('preview 5', lineOneRange)),
-			aRawMatch('file:///c%3A/with/path/bar.b',
+			aRawMatch('with/path/bar.b',
 				new TextSearchMatch('preview 3', lineOneRange)),
-			aRawMatch('file:///c%3A/with/test/woo.c',
+			aRawMatch('with/test/woo.c',
 				new TextSearchMatch('preview 3', lineOneRange)),
-			aRawMatch('file:///c%3A/eep/bar/goo/foo/here.txt',
+			aRawMatch('eep/bar/goo/foo/here.txt',
 				new TextSearchMatch('preview 6', lineOneRange), new TextSearchMatch('preview 7', lineOneRange)),
-			aRawMatch('file:///c%3A/eep/bar/goo/ooo/there.txt',
+			aRawMatch('eep/bar/goo/ooo/there.txt',
 				new TextSearchMatch('preview 6', lineOneRange), new TextSearchMatch('preview 7', lineOneRange)),
-			aRawMatch('file:///c%3A/eep/eyy.y',
+			aRawMatch('eep/eyy.y',
 				new TextSearchMatch('preview 6', lineOneRange), new TextSearchMatch('preview 7', lineOneRange))
 		]);
 		return testObject;
