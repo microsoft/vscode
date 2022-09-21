@@ -101,6 +101,7 @@ export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOp
 }
 
 export type MenuBarVisibility = 'classic' | 'visible' | 'toggle' | 'hidden' | 'compact';
+export type TitleBarVisibility = 'always' | 'windowed' | 'contents';
 
 export function getMenuBarVisibility(configurationService: IConfigurationService): MenuBarVisibility {
 	const titleBarStyle = getTitleBarStyle(configurationService);
@@ -111,6 +112,10 @@ export function getMenuBarVisibility(configurationService: IConfigurationService
 	} else {
 		return menuBarVisibility;
 	}
+}
+
+export function getTitleBarVisibility(configurationService: IConfigurationService): TitleBarVisibility {
+	return configurationService.getValue<TitleBarVisibility>('window.titleBarVisibility');
 }
 
 export interface IWindowsConfiguration {

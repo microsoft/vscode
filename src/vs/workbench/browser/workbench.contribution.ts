@@ -546,7 +546,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['classic', 'visible', 'toggle', 'hidden', 'compact'],
 				'markdownEnumDescriptions': [
-					localize('window.menuBarVisibility.classic', "Menu is displayed at the top of the window and only hidden in full screen mode."),
+					localize('window.menuBarVisibility.classic', "Menu is displayed at the top of the window. When {0} is {1} the menu is hidden in full screen mode. Otherwise, the menu is always visible.", '`#window.titleBarStyle#`', '`native`'),
 					localize('window.menuBarVisibility.visible', "Menu is always visible at the top of the window even in full screen mode."),
 					isMacintosh ?
 						localize('window.menuBarVisibility.toggle.mac', "Menu is hidden but can be displayed at the top of the window by executing the `Focus Application Menu` command.") :
@@ -560,6 +560,17 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('menuBarVisibility.mac', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and executing `Focus Application Menu` will show it. A setting of 'compact' will move the menu into the side bar.") :
 					localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. A setting of 'compact' will move the menu into the side bar."),
 				'included': isWindows || isLinux || isWeb
+			},
+			'window.titleBarVisibility': {
+				'type': 'string',
+				'enum': ['always', 'windowed', 'contents'],
+				'markdownEnumDescriptions': [
+					localize('window.titleBarVisibility.always', "Title bar is always visible."),
+					localize('window.titleBarVisibility.windowed', "Title bar is visible when the window is not fullscreen."),
+					localize('window.titleBarVisibility.content', "Title bar is visible when the window is not fullscreen and in fullscreen if it contains interactive contents."),
+				],
+				'default': 'contents',
+				markdownDescription: localize('window.titleBarVisibility', "Control the visibility of the title bar. This setting only has an effect when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`')
 			},
 			'window.enableMenuBarMnemonics': {
 				'type': 'boolean',

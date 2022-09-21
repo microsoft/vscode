@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -786,8 +785,6 @@ export class MenuBar extends Disposable {
 
 	private setUnfocusedState(): void {
 		if (this.options.visibility === 'toggle' || this.options.visibility === 'hidden') {
-			this.focusState = MenubarState.HIDDEN;
-		} else if (this.options.visibility === 'classic' && browser.isFullscreen()) {
 			this.focusState = MenubarState.HIDDEN;
 		} else {
 			this.focusState = MenubarState.VISIBLE;

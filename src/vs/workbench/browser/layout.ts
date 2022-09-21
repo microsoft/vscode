@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
+import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from 'vs/base/common/platform';
 import { EditorInputCapabilities, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
@@ -19,7 +19,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { getTitleBarStyle, getMenuBarVisibility, IPath } from 'vs/platform/window/common/window';
+import { getTitleBarStyle, getMenuBarVisibility, IPath, getTitleBarVisibility } from 'vs/platform/window/common/window';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
@@ -282,16 +282,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (visible !== this.windowState.runtime.menuBar.toggled) {
 			this.windowState.runtime.menuBar.toggled = visible;
 
-			const menuBarVisibility = getMenuBarVisibility(this.configurationService);
+			const wasVisible = this.isVisible(Parts.TITLEBAR_PART);
+			const shouldBeVisible = this.shouldShowTitleBar();
 
-			// The menu bar toggles the title bar in web because it does not need to be shown for window controls only
-			if (isWeb && menuBarVisibility === 'toggle') {
-				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
-			}
-
-			// The menu bar toggles the title bar in full screen for toggle and classic settings
-			else if (this.windowState.runtime.fullscreen && (menuBarVisibility === 'toggle' || menuBarVisibility === 'classic')) {
-				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
+			if (wasVisible !== shouldBeVisible) {
+				this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldBeVisible);
 			}
 
 			// Move layout call to any time the menubar
@@ -985,35 +980,45 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return false;
 		}
 
-		// macOS desktop does not need a title bar when full screen
-		if (isMacintosh && isNative) {
-			return !this.windowState.runtime.fullscreen;
-		}
+		const configuredTitleBarVisibility = getTitleBarVisibility(this.configurationService);
 
-		// non-fullscreen native must show the title bar
-		if (isNative && !this.windowState.runtime.fullscreen) {
+		if (configuredTitleBarVisibility === 'always') {
 			return true;
 		}
 
-		// with the command center enabled, we should always show
-		if (this.configurationService.getValue<boolean>('window.commandCenter')) {
-			return true;
-		}
-
-		// remaining behavior is based on menubar visibility
-		switch (getMenuBarVisibility(this.configurationService)) {
+		const menuBarRequestsTitleBar = (() => {
+			switch (getMenuBarVisibility(this.configurationService)) {
 			case 'classic':
-				return !this.windowState.runtime.fullscreen || this.windowState.runtime.menuBar.toggled;
-			case 'compact':
-			case 'hidden':
-				return false;
-			case 'toggle':
-				return this.windowState.runtime.menuBar.toggled;
-			case 'visible':
-				return true;
-			default:
-				return isWeb ? false : !this.windowState.runtime.fullscreen || this.windowState.runtime.menuBar.toggled;
+					return !this.windowState.runtime.fullscreen || this.windowState.runtime.menuBar.toggled;
+				case 'compact':
+				case 'hidden':
+					return false;
+				case 'toggle':
+					return this.windowState.runtime.menuBar.toggled;
+				case 'visible':
+					return true;
+				default:
+					return isWeb ? false : !this.windowState.runtime.fullscreen || this.windowState.runtime.menuBar.toggled;
+			}
+		})();
+
+		const commandCenterRequestsTitleBar = this.configurationService.getValue<boolean>('window.commandCenter');
+
+		const layoutControlsRequestTitleBar = this.configurationService.getValue<boolean>('workbench.layoutControl.enabled');
+
+		if (!this.windowState.runtime.fullscreen) {
+			return true;
 		}
+
+		if (configuredTitleBarVisibility === 'contents') {
+			return menuBarRequestsTitleBar || commandCenterRequestsTitleBar || layoutControlsRequestTitleBar;
+		}
+
+		if (configuredTitleBarVisibility === 'windowed') {
+			return menuBarRequestsTitleBar;
+		}
+
+		return false;
 	}
 
 	focus(): void {
