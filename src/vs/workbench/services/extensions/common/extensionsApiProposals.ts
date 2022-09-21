@@ -41,6 +41,7 @@ export const allApiProposals = Object.freeze({
 	localization: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.localization.d.ts',
 	notebookCellExecutionState: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.notebookCellExecutionState.d.ts',
 	notebookContentProvider: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.notebookContentProvider.d.ts',
+	notebookControllerAffinityHidden: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.notebookControllerAffinityHidden.d.ts',
 	notebookControllerKind: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.notebookControllerKind.d.ts',
 	notebookDebugOptions: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.notebookDebugOptions.d.ts',
 	notebookDeprecated: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.notebookDeprecated.d.ts',

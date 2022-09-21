@@ -329,7 +329,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.searchOutdated',
-			name: localize('updates', "Updates"),
+			name: localize('availableUpdates', "Available Updates"),
 			ctorDescriptor: new SyncDescriptor(OutdatedExtensionsView, [{}]),
 			when: ContextKeyExpr.or(SearchExtensionUpdatesContext, ContextKeyExpr.has('searchOutdatedExtensions')),
 			order: 1,

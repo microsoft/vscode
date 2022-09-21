@@ -35,14 +35,19 @@ export class ExperimentationService implements vscode.Disposable {
 		switch (vscode.env.uriScheme) {
 			case 'vscode':
 				targetPopulation = tas.TargetPopulation.Public;
+				break;
 			case 'vscode-insiders':
 				targetPopulation = tas.TargetPopulation.Insiders;
+				break;
 			case 'vscode-exploration':
 				targetPopulation = tas.TargetPopulation.Internal;
+				break;
 			case 'code-oss':
 				targetPopulation = tas.TargetPopulation.Team;
+				break;
 			default:
 				targetPopulation = tas.TargetPopulation.Public;
+				break;
 		}
 
 		const id = this._extensionContext.extension.id;
