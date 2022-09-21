@@ -55,40 +55,40 @@ interface IWorkbenchLayoutWindowRuntimeState {
 	maximized: boolean;
 	hasFocus: boolean;
 	windowBorder: boolean;
-	menuBar: {
+	readonly menuBar: {
 		toggled: boolean;
 	};
-	zenMode: {
-		transitionDisposables: DisposableStore;
+	readonly zenMode: {
+		readonly transitionDisposables: DisposableStore;
 	};
 }
 
 interface IEditorToOpen {
-	editor: IUntypedEditorInput;
-	viewColumn?: number;
+	readonly editor: IUntypedEditorInput;
+	readonly viewColumn?: number;
 }
 
 interface IWorkbenchLayoutWindowInitializationState {
-	views: {
-		defaults: string[] | undefined;
-		containerToRestore: {
+	readonly views: {
+		readonly defaults: string[] | undefined;
+		readonly containerToRestore: {
 			sideBar?: string;
 			panel?: string;
 			auxiliaryBar?: string;
 		};
 	};
-	editor: {
-		restoreEditors: boolean;
-		editorsToOpen: Promise<IEditorToOpen[]>;
+	readonly editor: {
+		readonly restoreEditors: boolean;
+		readonly editorsToOpen: Promise<IEditorToOpen[]>;
 	};
-	layout?: {
-		editors?: EditorGroupLayout;
+	readonly layout?: {
+		readonly editors?: EditorGroupLayout;
 	};
 }
 
 interface IWorkbenchLayoutWindowState {
-	runtime: IWorkbenchLayoutWindowRuntimeState;
-	initialization: IWorkbenchLayoutWindowInitializationState;
+	readonly runtime: IWorkbenchLayoutWindowRuntimeState;
+	readonly initialization: IWorkbenchLayoutWindowInitializationState;
 }
 
 enum WorkbenchLayoutClasses {
@@ -103,15 +103,15 @@ enum WorkbenchLayoutClasses {
 }
 
 interface IPathToOpen extends IPath {
-	viewColumn?: number;
+	readonly viewColumn?: number;
 }
 
 interface IInitialEditorsState {
-	filesToOpenOrCreate?: IPathToOpen[];
-	filesToDiff?: IPathToOpen[];
-	filesToMerge?: IPathToOpen[];
+	readonly filesToOpenOrCreate?: IPathToOpen[];
+	readonly filesToDiff?: IPathToOpen[];
+	readonly filesToMerge?: IPathToOpen[];
 
-	layout?: EditorGroupLayout;
+	readonly layout?: EditorGroupLayout;
 }
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
