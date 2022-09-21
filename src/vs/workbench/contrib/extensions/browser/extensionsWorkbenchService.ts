@@ -803,11 +803,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private updateRunningExtensions(): void {
+		function descriptionToIdentifier(desc: IExtensionDescription): IExtensionIdentifier {
+			return { id: desc.id ?? '', uuid: desc.uuid };
+		}
 		this.extensionService.getExtensions().then(async runningExtensions => {
 			const deltaExtensionsDescription: IExtensionDescription[] = [];
-			deltaExtensionsDescription.push(...runningExtensions.filter(e => !this.runningExtensions?.includes(e)));
+			deltaExtensionsDescription.push(...runningExtensions.filter(newExt => !this.runningExtensions?.find(oldExt => areSameExtensions(descriptionToIdentifier(newExt), descriptionToIdentifier(oldExt)))));
 			if (this.runningExtensions) {
-				deltaExtensionsDescription.push(...this.runningExtensions.filter(e => !runningExtensions.includes(e)));
+				deltaExtensionsDescription.push(...this.runningExtensions.filter(oldExt => !runningExtensions.find(newExt => areSameExtensions(descriptionToIdentifier(newExt), descriptionToIdentifier(oldExt)))));
 			}
 			this.runningExtensions = runningExtensions;
 
@@ -815,7 +818,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			const deltaExtensions: IExtension[] = [];
 			const extsNotInstalled: IExtensionInfo[] = [];
 			for (const desc of deltaExtensionsDescription) {
-				const extension = installed.find(e => e.identifier.id === desc.id);
+				const extension = installed.find(e => areSameExtensions(descriptionToIdentifier(desc), e.identifier));
 				if (extension) {
 					deltaExtensions.push(extension);
 				}

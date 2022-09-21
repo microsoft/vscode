@@ -25,7 +25,7 @@ import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, Reco
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import Severity from 'vs/base/common/severity';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { IActivityService, TextBadge } from 'vs/workbench/services/activity/common/activity';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewDescriptorService, IAddedViewDescriptorRef, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -810,7 +810,17 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !extensionsReloadRequired.includes(e) ? 1 : 0), 0);
 		const newBadgeNumber = outdated + extensionsReloadRequired.length;
 		if (newBadgeNumber > 0) {
-			const badge = new NumberBadge(newBadgeNumber, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
+			let msg = '';
+			if (outdated) {
+				msg += localize('extensionsToUpdate', '{0} Extensions require update', outdated);
+			}
+			if (outdated > 0 && extensionsReloadRequired.length > 0) {
+				msg += ', ';
+			}
+			if (extensionsReloadRequired.length) {
+				msg += localize('extensionsToReload', '{0} Extensions require reload', extensionsReloadRequired.length);
+			}
+			const badge = new TextBadge(msg, () => msg);
 			this.badgeHandle.value = this.activityService.showViewContainerActivity(VIEWLET_ID, { badge, clazz: 'extensions-badge count-badge' });
 		}
 	}
