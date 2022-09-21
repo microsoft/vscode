@@ -249,6 +249,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		// for standard keybindings
 		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			performance.mark('inputlatency/start', { detail: e.key });
+			(window as any).frameStart = true;
 			this.isComposingGlobalContextKey.set(e.isComposing);
 			const keyEvent = new StandardKeyboardEvent(e);
 			this._log(`/ Received  keydown event - ${printKeyboardEvent(e)}`);

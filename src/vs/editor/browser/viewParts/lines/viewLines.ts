@@ -23,6 +23,7 @@ import { Viewport } from 'vs/editor/common/viewModel';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Constants } from 'vs/base/common/uint';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
+import { recordRenderEnd, recordRenderStart } from 'vs/base/browser/performance';
 
 class LastRenderedData {
 
@@ -578,6 +579,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	}
 
 	public renderText(viewportData: ViewportData): void {
+		recordRenderStart();
+
 		// (1) render lines - ensures lines are in the DOM
 		this._visibleLines.renderLines(viewportData);
 		this._lastRenderedData.setCurrentVisibleRange(viewportData.visibleRange);
@@ -639,6 +642,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		const adjustedScrollTop = this._context.viewLayout.getCurrentScrollTop() - viewportData.bigNumbersDelta;
 		this._linesContent.setTop(-adjustedScrollTop);
 		this._linesContent.setLeft(-this._context.viewLayout.getCurrentScrollLeft());
+
+		recordRenderEnd();
 	}
 
 	// --- width
