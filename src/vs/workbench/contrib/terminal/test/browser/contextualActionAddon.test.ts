@@ -18,7 +18,7 @@ import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, Git
 import { ContextualActionAddon, getMatchActions } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
 import { Terminal } from 'xterm';
 
-suite.only('ContextualActionAddon', () => {
+suite('ContextualActionAddon', () => {
 	let contextualActionAddon: ContextualActionAddon;
 	let terminalInstance: Pick<ITerminalInstance, 'freePortKillProcess'>;
 	let commandDetection: CommandDetectionCapability;
@@ -50,16 +50,7 @@ suite.only('ContextualActionAddon', () => {
 			const output = `git: 'sttatus' is not a git command. See 'git --help'.
 
 			The most similar command is
-					status `;
-			const midWordWrappedOutput = `git: 'sttatus' is not a git command. See 'git --help'.
-
-					The most simi
-					lar command is
-							status `;
-			const midSentenceWrappedOutput = `git: 'sttatus' is not a git command. See 'git --help'.
-
-					The most similar command is
-							status `;
+			status`;
 			const exitCode = 1;
 			const actions = [
 				{
@@ -88,8 +79,6 @@ suite.only('ContextualActionAddon', () => {
 			});
 			test('returns actions', () => {
 				assertMatchOptions(getMatchActions(createCommand(command, output, GitSimilarOutputRegex, exitCode), expectedMap), actions);
-				assertMatchOptions(getMatchActions(createCommand(command, midWordWrappedOutput, GitSimilarOutputRegex, exitCode), expectedMap), actions);
-				assertMatchOptions(getMatchActions(createCommand(command, midSentenceWrappedOutput, GitSimilarOutputRegex, exitCode), expectedMap), actions);
 			});
 		});
 		suite('freePort', () => {
@@ -110,14 +99,6 @@ suite.only('ContextualActionAddon', () => {
 			}
 			error Command failed with exit code 1.
 			info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`;
-			const midWordWrappedOutput = ` address alread
-			y in use 0.0.0.0:3000
-			at Server.setupListenHandle [as _listen2] (node:net:1315:16)
-			at listenInCluster (n`;
-			const midMatchWrappedOutput = ` address already in use 0.0.0.0:
-			3000
-			at Server.setupListenHandle [as _listen2] (node:net:1315:16)
-			at listenInCluster (n`;
 			const actionOptions = [{
 				id: 'terminal.freePort',
 				label: 'Free port 3000',
@@ -140,8 +121,6 @@ suite.only('ContextualActionAddon', () => {
 			});
 			test('returns actions', () => {
 				assertMatchOptions(getMatchActions(createCommand(portCommand, output, FreePortOutputRegex, exitCode), expected), actionOptions);
-				assertMatchOptions(getMatchActions(createCommand(portCommand, midWordWrappedOutput, FreePortOutputRegex, exitCode), expected), actionOptions);
-				assertMatchOptions(getMatchActions(createCommand(portCommand, midMatchWrappedOutput, FreePortOutputRegex, exitCode), expected), actionOptions);
 			});
 		});
 		suite('gitPushSetUpstream', () => {
@@ -151,16 +130,6 @@ suite.only('ContextualActionAddon', () => {
 			To push the current branch and set the remote as upstream, use
 
 				git push --set-upstream origin test22 `;
-			const brokenWordOutput = `fatal: The current branch test22 has no upstream branch.
-				To push the current branch and set the remote as upstream, use
-
-					git pu
-					sh --set-upstream origin test22 `;
-			const brokenPatternOutput = `fatal: The current branch test22 has no upstream branch.
-			To push the current branch and set the remote as upstream, use
-
-				git push --set-upstream
-				origin test22 `;
 			const exitCode = 128;
 			const actions = [
 				{
@@ -189,8 +158,6 @@ suite.only('ContextualActionAddon', () => {
 			});
 			test('returns actions', () => {
 				assertMatchOptions(getMatchActions(createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap), actions);
-				assertMatchOptions(getMatchActions(createCommand(command, brokenWordOutput, GitPushOutputRegex, exitCode), expectedMap), actions);
-				assertMatchOptions(getMatchActions(createCommand(command, brokenPatternOutput, GitPushOutputRegex, exitCode), expectedMap), actions);
 			});
 		});
 		suite('gitCreatePr', () => {
@@ -204,15 +171,6 @@ suite.only('ContextualActionAddon', () => {
 			To https://github.com/meganrogge/xterm.js
 			 * [new branch]        test22 -> test22
 			Branch 'test22' set up to track remote branch 'test22' from 'origin'. `;
-			const brokenPatternOutput = `remote: Create a pull request for
-			'test22' on GitHub by visiting:
-			remote:      https://github.com/meganrogge/xterm.js/pull/new/test22
-			remote:`;
-			const brokenWordOutput = `remote: Create a pull
-			request for 'test22' on GitHub by vis
-			iting:
-			remote:      https://github.com/meganrogge/xterm.js/pull/new/test22
-			remote:`;
 			const exitCode = 0;
 			const actions = [
 				{
@@ -241,8 +199,6 @@ suite.only('ContextualActionAddon', () => {
 			});
 			test('returns actions', () => {
 				assertMatchOptions(getMatchActions(createCommand(command, output, GitCreatePrOutputRegex, exitCode), expectedMap), actions);
-				assertMatchOptions(getMatchActions(createCommand(command, brokenPatternOutput, GitCreatePrOutputRegex, exitCode), expectedMap), actions);
-				assertMatchOptions(getMatchActions(createCommand(command, brokenWordOutput, GitCreatePrOutputRegex, exitCode), expectedMap), actions);
 			});
 		});
 	});
