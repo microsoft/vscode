@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
@@ -10,7 +11,6 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { HiddenItemStrategy, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { IMenu, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
@@ -24,7 +24,7 @@ import { registerStickyScroll } from 'vs/workbench/contrib/notebook/browser/view
 import { NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 export class RunToolbar extends CellPart {
-	private toolbar!: WorkbenchToolBar;
+	private toolbar!: ToolBar;
 
 	private primaryMenu: IMenu;
 	private secondaryMenu: IMenu;
@@ -82,8 +82,7 @@ export class RunToolbar extends CellPart {
 
 		const keybindingProvider = (action: IAction) => this.keybindingService.lookupKeybinding(action.id, executionContextKeyService);
 		const executionContextKeyService = this._register(getCodeCellExecutionContextKeyService(contextKeyService));
-		this.toolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, container, {
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+		this.toolbar = this._register(new ToolBar(container, this.contextMenuService, {
 			getKeyBinding: keybindingProvider,
 			actionViewItemProvider: _action => {
 				actionViewItemDisposables.clear();

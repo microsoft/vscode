@@ -54,7 +54,7 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 	async initializeLocalizedMessages(extension: IExtensionDescription): Promise<void> {
 		if (Language.isDefault()
 			// TODO: support builtin extensions
-			|| !extension.l10nBundleLocation
+			|| !extension.l10n
 		) {
 			return;
 		}
@@ -93,10 +93,9 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 		// 	return URI.joinPath(this.initData.nlsBaseUrl, extension.identifier.value, 'main');
 		// }
 
-		if (extension.l10nBundleLocation) {
-			return URI.joinPath(extension.extensionLocation, extension.l10nBundleLocation);
-		}
-		return undefined;
+		return extension.l10n
+			? URI.joinPath(extension.extensionLocation, extension.l10n)
+			: undefined;
 	}
 }
 

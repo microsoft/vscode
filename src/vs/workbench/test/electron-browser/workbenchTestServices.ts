@@ -84,7 +84,7 @@ export const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	product,
 	homeDir: homeDir,
 	tmpDir: tmpdir(),
-	userDataDir: getUserDataPath(args),
+	userDataDir: getUserDataPath(args, product.nameShort),
 	profiles: { profile: NULL_PROFILE, all: [NULL_PROFILE] },
 	...args
 };
