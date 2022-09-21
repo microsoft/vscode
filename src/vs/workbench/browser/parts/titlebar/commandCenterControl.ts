@@ -3,18 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { reset } from 'vs/base/browser/dom';
+import { EventLike, reset } from 'vs/base/browser/dom';
+import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
-import { createActionViewItem, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { Action2, MenuId, MenuItemAction, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
@@ -50,30 +52,48 @@ export class CommandCenterControl {
 
 				if (action instanceof MenuItemAction && action.id === 'workbench.action.quickOpen') {
 
-					class InputLikeViewItem extends MenuEntryActionViewItem {
+					class CommandCenterViewItem extends BaseActionViewItem {
 
-						private readonly workspaceTitle = document.createElement('span');
+						constructor(action: IAction, options: IBaseActionViewItemOptions) {
+							super(undefined, action, options);
+						}
 
 						override render(container: HTMLElement): void {
 							super.render(container);
-							container.classList.add('quickopen', 'left');
+							container.classList.add('command-center');
 
-							assertType(this.label);
-							this.label.classList.add('search');
+							const left = document.createElement('span');
+							left.classList.add('left');
 
+							// icon (search)
 							const searchIcon = renderIcon(Codicon.search);
 							searchIcon.classList.add('search-icon');
 
-							this.workspaceTitle.classList.add('search-label');
-							this.updateTooltip();
-							reset(this.label, searchIcon, this.workspaceTitle);
-							// this._renderAllQuickPickItem(container);
+							// label: just workspace name and optional decorations
+							const label = this._getLabel();
+							const labelElement = document.createElement('span');
+							labelElement.innerText = label;
+							reset(left, searchIcon, labelElement);
 
-							this._store.add(windowTitle.onDidChange(this.updateTooltip, this));
+							// icon (dropdown)
+							const right = document.createElement('span');
+							right.classList.add('right');
+							const dropIcon = renderIcon(Codicon.chevronDown);
+							reset(right, dropIcon);
+							reset(container, left, right);
+
+							// hovers
+							this._store.add(setupCustomHover(hoverDelegate, right, localize('all', "Show Search Modes...")));
+							const leftHover = this._store.add(setupCustomHover(hoverDelegate, left, this.getTooltip()));
+
+							// update label & tooltip when window title changes
+							this._store.add(windowTitle.onDidChange(() => {
+								leftHover.update(this.getTooltip());
+								labelElement.innerText = this._getLabel();
+							}));
 						}
 
-						override getTooltip() {
-							// label: just workspace name and optional decorations
+						private _getLabel(): string {
 							const { prefix, suffix } = windowTitle.getTitleDecorations();
 							let label = windowTitle.isCustomTitleFormat() ? windowTitle.getWindowTitle() : windowTitle.workspaceName;
 							if (!label) {
@@ -85,7 +105,10 @@ export class CommandCenterControl {
 							if (suffix) {
 								label = localize('label2', "{0} {1}", label, suffix);
 							}
-							this.workspaceTitle.innerText = label;
+							return label;
+						}
+
+						override getTooltip() {
 
 							// tooltip: full windowTitle
 							const kb = keybindingService.lookupKeybinding(action.id)?.getLabel();
@@ -95,19 +118,25 @@ export class CommandCenterControl {
 
 							return title;
 						}
-					}
-					return instantiationService.createInstance(InputLikeViewItem, action, { hoverDelegate });
 
-				} else if (action instanceof MenuItemAction && action.id === 'commandCenter.help') {
+						override onClick(event: EventLike, preserveFocus = false): void {
 
-					class ExtraClass extends MenuEntryActionViewItem {
-						override render(container: HTMLElement): void {
-							super.render(container);
-							container.classList.add('quickopen', 'right');
+							if (event instanceof MouseEvent) {
+								let el = event.target;
+								while (el instanceof HTMLElement) {
+									if (el.classList.contains('right')) {
+										quickInputService.quickAccess.show('?');
+										return;
+									}
+									el = el.parentElement;
+								}
+							}
+
+							super.onClick(event, preserveFocus);
 						}
 					}
 
-					return instantiationService.createInstance(ExtraClass, action, { hoverDelegate });
+					return instantiationService.createInstance(CommandCenterViewItem, action, {});
 
 				} else {
 					return createActionViewItem(instantiationService, action, { hoverDelegate });
@@ -130,20 +159,6 @@ export class CommandCenterControl {
 	}
 }
 
-registerAction2(class extends Action2 {
-
-	constructor() {
-		super({
-			id: 'commandCenter.help',
-			title: localize('all', "Show Search Modes..."),
-			icon: Codicon.chevronDown,
-			menu: { id: MenuId.CommandCenter, order: 101 }
-		});
-	}
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IQuickInputService).quickAccess.show('?');
-	}
-});
 
 // --- theme colors
 
