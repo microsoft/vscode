@@ -28,17 +28,23 @@ export class ConfigurationModel implements IConfigurationModel {
 		private readonly _contents: any = {},
 		private readonly _keys: string[] = [],
 		private readonly _overrides: IOverrides[] = [],
-		readonly raw?: IStringDictionary<any>
+		readonly raw?: ReadonlyArray<IStringDictionary<any> | ConfigurationModel>
 	) {
 	}
 
 	private _rawConfiguration: ConfigurationModel | undefined;
 	private get rawConfiguration(): ConfigurationModel {
 		if (!this._rawConfiguration) {
-			if (this.raw) {
-				const parser = new ConfigurationModelParser('');
-				parser.parseRaw(this.raw);
-				this._rawConfiguration = parser.configurationModel;
+			if (this.raw?.length) {
+				const rawConfigurationModels = this.raw.map(raw => {
+					if (raw instanceof ConfigurationModel) {
+						return raw;
+					}
+					const parser = new ConfigurationModelParser('');
+					parser.parseRaw(raw);
+					return parser.configurationModel;
+				});
+				this._rawConfiguration = rawConfigurationModels.reduce((previous, current) => current === previous ? current : previous.merge(current), rawConfigurationModels[0]);
 			} else {
 				// raw is same as current
 				this._rawConfiguration = this;
@@ -112,16 +118,14 @@ export class ConfigurationModel implements IConfigurationModel {
 		return overrideConfigurationModel;
 	}
 
-	merge(...others: ConfigurationModel[]): ConfigurationModel;
-	merge(preserveRawFromSource: boolean, ...others: ConfigurationModel[]): ConfigurationModel;
-	merge(...args: any): ConfigurationModel {
-		const preserveRawFromSource: boolean = types.isBoolean(args[0]) ? args[0] : false;
-		const others: ConfigurationModel[] = types.isBoolean(args[0]) ? args.slice(1) : args;
+	merge(...others: ConfigurationModel[]): ConfigurationModel {
 		const contents = objects.deepClone(this.contents);
 		const overrides = objects.deepClone(this.overrides);
 		const keys = [...this.keys];
+		const raws = this.raw?.length ? [...this.raw] : [this];
 
 		for (const other of others) {
+			raws.push(...(other.raw?.length ? other.raw : [other]));
 			if (other.isEmpty()) {
 				continue;
 			}
@@ -143,7 +147,7 @@ export class ConfigurationModel implements IConfigurationModel {
 				}
 			}
 		}
-		return new ConfigurationModel(contents, keys, overrides, preserveRawFromSource ? this.raw : undefined);
+		return new ConfigurationModel(contents, keys, overrides, raws.every(raw => raw instanceof ConfigurationModel) ? undefined : raws);
 	}
 
 	freeze(): ConfigurationModel {
@@ -312,7 +316,7 @@ export class ConfigurationModelParser {
 	public parseRaw(raw: any, options?: ConfigurationParseOptions): void {
 		this._raw = raw;
 		const { contents, keys, overrides, restricted, hasExcludedProperties } = this.doParseRaw(raw, options);
-		this._configurationModel = new ConfigurationModel(contents, keys, overrides, hasExcludedProperties ? raw : undefined /* raw has not changed */);
+		this._configurationModel = new ConfigurationModel(contents, keys, overrides, hasExcludedProperties ? [raw] : undefined /* raw has not changed */);
 		this._restrictedConfigurations = restricted || [];
 	}
 

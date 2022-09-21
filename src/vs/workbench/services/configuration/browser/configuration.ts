@@ -288,7 +288,7 @@ class FileServiceBasedConfiguration extends Disposable {
 	}
 
 	private consolidate(): void {
-		this._cache = this._folderSettingsModelParser.configurationModel.merge(true, ...this._standAloneConfigurations);
+		this._cache = this._folderSettingsModelParser.configurationModel.merge(...this._standAloneConfigurations);
 	}
 
 	private handleFileChangesEvent(event: FileChangesEvent): boolean {
@@ -781,7 +781,7 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 	}
 
 	private consolidate(): void {
-		this.workspaceSettings = this.workspaceConfigurationModelParser.settingsModel.merge(true, this.workspaceConfigurationModelParser.launchModel, this.workspaceConfigurationModelParser.tasksModel);
+		this.workspaceSettings = this.workspaceConfigurationModelParser.settingsModel.merge(this.workspaceConfigurationModelParser.launchModel, this.workspaceConfigurationModelParser.tasksModel);
 	}
 
 	private watchWorkspaceConfigurationFile(): IDisposable {
@@ -847,7 +847,7 @@ class CachedWorkspaceConfiguration {
 	}
 
 	private consolidate(): void {
-		this.workspaceSettings = this.workspaceConfigurationModelParser.settingsModel.merge(true, this.workspaceConfigurationModelParser.launchModel, this.workspaceConfigurationModelParser.tasksModel);
+		this.workspaceSettings = this.workspaceConfigurationModelParser.settingsModel.merge(this.workspaceConfigurationModelParser.launchModel, this.workspaceConfigurationModelParser.tasksModel);
 	}
 
 	async updateWorkspace(workspaceIdentifier: IWorkspaceIdentifier, content: string | undefined): Promise<void> {
@@ -943,7 +943,7 @@ class CachedFolderConfiguration {
 	}
 
 	private consolidate(): void {
-		this.configurationModel = this._folderSettingsModelParser.configurationModel.merge(true, ...this._standAloneConfigurations);
+		this.configurationModel = this._folderSettingsModelParser.configurationModel.merge(...this._standAloneConfigurations);
 	}
 
 	getUnsupportedKeys(): string[] {

@@ -315,7 +315,7 @@ suite('ConfigurationModel', () => {
 	});
 
 	test('inspect when raw is not same', () => {
-		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c'], [{ identifiers: ['x', 'y'], contents: { 'a': 2, }, keys: ['a'] }], {
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c'], [{ identifiers: ['x', 'y'], contents: { 'a': 2, }, keys: ['a'] }], [{
 			'a': 1,
 			'b': 2,
 			'c': 1,
@@ -324,13 +324,45 @@ suite('ConfigurationModel', () => {
 				'a': 2,
 				'b': 1
 			}
-		});
+		}]);
 
 		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1 });
 		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2 });
 		assert.deepStrictEqual(testObject.inspect('b', 'x'), { value: 2, override: 1, merged: 1 });
 		assert.deepStrictEqual(testObject.inspect('d'), { value: 3, override: undefined, merged: 3 });
 		assert.deepStrictEqual(testObject.inspect('e'), { value: undefined, override: undefined, merged: undefined });
+	});
+
+	test('inspect in merged configuration when raw is same', () => {
+		const target1 = new ConfigurationModel({ 'a': 1 }, ['a'], [{ identifiers: ['x', 'y'], contents: { 'a': 2, }, keys: ['a'] }]);
+		const target2 = new ConfigurationModel({ 'b': 3 }, ['b'], []);
+		const testObject = target1.merge(target2);
+
+		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1 });
+		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2 });
+		assert.deepStrictEqual(testObject.inspect('b'), { value: 3, override: undefined, merged: 3 });
+		assert.deepStrictEqual(testObject.inspect('b', 'y'), { value: 3, override: undefined, merged: 3 });
+		assert.deepStrictEqual(testObject.inspect('c'), { value: undefined, override: undefined, merged: undefined });
+	});
+
+	test('inspect in merged configuration when raw is not same for one model', () => {
+		const target1 = new ConfigurationModel({ 'a': 1 }, ['a'], [{ identifiers: ['x', 'y'], contents: { 'a': 2, }, keys: ['a'] }], [{
+			'a': 1,
+			'b': 2,
+			'c': 3,
+			'[x][y]': {
+				'a': 2,
+				'b': 4,
+			}
+		}]);
+		const target2 = new ConfigurationModel({ 'b': 3 }, ['b'], []);
+		const testObject = target1.merge(target2);
+
+		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1 });
+		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2 });
+		assert.deepStrictEqual(testObject.inspect('b'), { value: 3, override: undefined, merged: 3 });
+		assert.deepStrictEqual(testObject.inspect('b', 'y'), { value: 3, override: 4, merged: 4 });
+		assert.deepStrictEqual(testObject.inspect('c'), { value: 3, override: undefined, merged: 3 });
 	});
 
 });
