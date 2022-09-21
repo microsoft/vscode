@@ -65,7 +65,7 @@ The server supports the following settings:
 		- `fileLinks`
 			- `enabled` — Enable/disable validation of links to file in the workspace.
 			- `markdownFragmentLinks` — Enable/disable validation of links to headers in other Markdown files.
-		- `ignoreLinks` — Array of glob patterns for files that should not be validated.
+		- `ignoredLinks` — Array of glob patterns for files that should not be validated.
 
 ### Custom requests
 
