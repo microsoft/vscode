@@ -57,7 +57,7 @@ suite('MainThreadHostTreeView', function () {
 			id: testTreeViewId,
 			ctorDescriptor: null!,
 			name: 'Test View 1',
-			treeView: instantiationService.createInstance(CustomTreeView, 'testTree', 'Test Title'),
+			treeView: instantiationService.createInstance(CustomTreeView, 'testTree', 'Test Title', 'extension.id'),
 		};
 		ViewsRegistry.registerViews([viewDescriptor], container);
 
@@ -75,7 +75,7 @@ suite('MainThreadHostTreeView', function () {
 				}
 				drain(): any { return null; }
 			}, new TestViewsService(), new TestNotificationService(), testExtensionService, new NullLogService());
-		mainThreadTreeViews.$registerTreeViewDataProvider(testTreeViewId, { showCollapseAll: false, canSelectMany: false, dropMimeTypes: [], dragMimeTypes: [], hasHandleDrag: false, hasHandleDrop: false, supportsFileDataTransfers: false });
+		mainThreadTreeViews.$registerTreeViewDataProvider(testTreeViewId, { showCollapseAll: false, canSelectMany: false, dropMimeTypes: [], dragMimeTypes: [], hasHandleDrag: false, hasHandleDrop: false });
 		await testExtensionService.whenInstalledExtensionsRegistered();
 	});
 

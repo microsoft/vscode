@@ -79,30 +79,30 @@ export const enum TerminalBuiltinLinkType {
 	/**
 	 * The link is validated to be a file on the file system and will open an editor.
 	 */
-	LocalFile,
+	LocalFile = 'LocalFile',
 
 	/**
 	 * The link is validated to be a folder on the file system and is outside the workspace. It will
 	 * reveal the folder within the explorer.
 	 */
-	LocalFolderOutsideWorkspace,
+	LocalFolderOutsideWorkspace = 'LocalFolderOutsideWorkspace',
 
 	/**
 	 * The link is validated to be a folder on the file system and is within the workspace and will
 	 * reveal the folder within the explorer.
 	 */
-	LocalFolderInWorkspace,
+	LocalFolderInWorkspace = 'LocalFolderInWorkspace',
 
 	/**
 	 * A low confidence link which will search for the file in the workspace. If there is a single
 	 * match, it will open the file; otherwise, it will present the matches in a quick pick.
 	 */
-	Search,
+	Search = 'Search',
 
 	/**
 	 * A link whose text is a valid URI.
 	 */
-	Url
+	Url = 'Url'
 }
 
 export interface ITerminalExternalLinkType {

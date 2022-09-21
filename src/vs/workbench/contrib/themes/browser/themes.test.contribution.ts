@@ -49,7 +49,7 @@ class ThemeDocument {
 		this._cache = Object.create(null);
 		this._defaultColor = '#000000';
 		for (let i = 0, len = this._theme.tokenColors.length; i < len; i++) {
-			let rule = this._theme.tokenColors[i];
+			const rule = this._theme.tokenColors[i];
 			if (!rule.scope) {
 				this._defaultColor = rule.settings.foreground!;
 			}
@@ -62,9 +62,9 @@ class ThemeDocument {
 
 	public explainTokenColor(scopes: string, color: Color): string {
 
-		let matchingRule = this._findMatchingThemeRule(scopes);
+		const matchingRule = this._findMatchingThemeRule(scopes);
 		if (!matchingRule) {
-			let expected = Color.fromHex(this._defaultColor);
+			const expected = Color.fromHex(this._defaultColor);
 			// No matching rule
 			if (!color.equals(expected)) {
 				throw new Error(`[${this._theme.label}]: Unexpected color ${Color.Format.CSS.formatHexA(color)} for ${scopes}. Expected default ${Color.Format.CSS.formatHexA(expected)}`);
@@ -72,7 +72,7 @@ class ThemeDocument {
 			return this._generateExplanation('default', color);
 		}
 
-		let expected = Color.fromHex(matchingRule.settings.foreground!);
+		const expected = Color.fromHex(matchingRule.settings.foreground!);
 		if (!color.equals(expected)) {
 			throw new Error(`[${this._theme.label}]: Unexpected color ${Color.Format.CSS.formatHexA(color)} for ${scopes}. Expected ${Color.Format.CSS.formatHexA(expected)} coming in from ${matchingRule.rawSelector}`);
 		}
@@ -97,21 +97,22 @@ class Snapper {
 	}
 
 	private _themedTokenize(grammar: IGrammar, lines: string[]): IThemedToken[] {
-		let colorMap = TokenizationRegistry.getColorMap();
+		const colorMap = TokenizationRegistry.getColorMap();
 		let state: StackElement | null = null;
-		let result: IThemedToken[] = [], resultLen = 0;
+		const result: IThemedToken[] = [];
+		let resultLen = 0;
 		for (let i = 0, len = lines.length; i < len; i++) {
-			let line = lines[i];
+			const line = lines[i];
 
-			let tokenizationResult = grammar.tokenizeLine2(line, state);
+			const tokenizationResult = grammar.tokenizeLine2(line, state);
 
 			for (let j = 0, lenJ = tokenizationResult.tokens.length >>> 1; j < lenJ; j++) {
-				let startOffset = tokenizationResult.tokens[(j << 1)];
-				let metadata = tokenizationResult.tokens[(j << 1) + 1];
-				let endOffset = j + 1 < lenJ ? tokenizationResult.tokens[((j + 1) << 1)] : line.length;
-				let tokenText = line.substring(startOffset, endOffset);
+				const startOffset = tokenizationResult.tokens[(j << 1)];
+				const metadata = tokenizationResult.tokens[(j << 1) + 1];
+				const endOffset = j + 1 < lenJ ? tokenizationResult.tokens[((j + 1) << 1)] : line.length;
+				const tokenText = line.substring(startOffset, endOffset);
 
-				let color = TokenMetadata.getForeground(metadata);
+				const color = TokenMetadata.getForeground(metadata);
 
 				result[resultLen++] = {
 					text: tokenText,
@@ -127,18 +128,18 @@ class Snapper {
 
 	private _tokenize(grammar: IGrammar, lines: string[]): IToken[] {
 		let state: StackElement | null = null;
-		let result: IToken[] = [];
+		const result: IToken[] = [];
 		let resultLen = 0;
 		for (let i = 0, len = lines.length; i < len; i++) {
-			let line = lines[i];
+			const line = lines[i];
 
-			let tokenizationResult = grammar.tokenizeLine(line, state);
+			const tokenizationResult = grammar.tokenizeLine(line, state);
 			let lastScopes: string | null = null;
 
 			for (let j = 0, lenJ = tokenizationResult.tokens.length; j < lenJ; j++) {
-				let token = tokenizationResult.tokens[j];
-				let tokenText = line.substring(token.startIndex, token.endIndex);
-				let tokenScopes = token.scopes.join(' ');
+				const token = tokenizationResult.tokens[j];
+				const tokenText = line.substring(token.startIndex, token.endIndex);
+				const tokenScopes = token.scopes.join(' ');
 
 				if (lastScopes === tokenScopes) {
 					result[resultLen - 1].c += tokenText;
@@ -164,26 +165,26 @@ class Snapper {
 	}
 
 	private async _getThemesResult(grammar: IGrammar, lines: string[]): Promise<IThemesResult> {
-		let currentTheme = this.themeService.getColorTheme();
+		const currentTheme = this.themeService.getColorTheme();
 
-		let getThemeName = (id: string) => {
-			let part = 'vscode-theme-defaults-themes-';
-			let startIdx = id.indexOf(part);
+		const getThemeName = (id: string) => {
+			const part = 'vscode-theme-defaults-themes-';
+			const startIdx = id.indexOf(part);
 			if (startIdx !== -1) {
 				return id.substring(startIdx + part.length, id.length - 5);
 			}
 			return undefined;
 		};
 
-		let result: IThemesResult = {};
+		const result: IThemesResult = {};
 
-		let themeDatas = await this.themeService.getColorThemes();
-		let defaultThemes = themeDatas.filter(themeData => !!getThemeName(themeData.id));
-		for (let defaultTheme of defaultThemes) {
-			let themeId = defaultTheme.id;
-			let success = await this.themeService.setColorTheme(themeId, undefined);
+		const themeDatas = await this.themeService.getColorThemes();
+		const defaultThemes = themeDatas.filter(themeData => !!getThemeName(themeData.id));
+		for (const defaultTheme of defaultThemes) {
+			const themeId = defaultTheme.id;
+			const success = await this.themeService.setColorTheme(themeId, undefined);
 			if (success) {
-				let themeName = getThemeName(themeId);
+				const themeName = getThemeName(themeId);
 				result[themeName!] = {
 					document: new ThemeDocument(this.themeService.getColorTheme()),
 					tokens: this._themedTokenize(grammar, lines)
@@ -195,17 +196,17 @@ class Snapper {
 	}
 
 	private _enrichResult(result: IToken[], themesResult: IThemesResult): void {
-		let index: { [themeName: string]: number } = {};
-		let themeNames = Object.keys(themesResult);
+		const index: { [themeName: string]: number } = {};
+		const themeNames = Object.keys(themesResult);
 		for (const themeName of themeNames) {
 			index[themeName] = 0;
 		}
 
 		for (let i = 0, len = result.length; i < len; i++) {
-			let token = result[i];
+			const token = result[i];
 
 			for (const themeName of themeNames) {
-				let themedToken = themesResult[themeName].tokens[index[themeName]];
+				const themedToken = themesResult[themeName].tokens[index[themeName]];
 
 				themedToken.text = themedToken.text.substr(token.c.length);
 				token.r[themeName] = themesResult[themeName].document.explainTokenColor(token.t, themedToken.color);
@@ -222,9 +223,9 @@ class Snapper {
 			if (!grammar) {
 				return [];
 			}
-			let lines = splitLines(content);
+			const lines = splitLines(content);
 
-			let result = this._tokenize(grammar, lines);
+			const result = this._tokenize(grammar, lines);
 			return this._getThemesResult(grammar, lines).then((themesResult) => {
 				this._enrichResult(result, themesResult);
 				return result.filter(t => t.c.length > 0);
@@ -235,10 +236,10 @@ class Snapper {
 
 CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (accessor: ServicesAccessor, resource: URI) {
 
-	let process = (resource: URI) => {
-		let fileService = accessor.get(IFileService);
-		let fileName = basename(resource);
-		let snapper = accessor.get(IInstantiationService).createInstance(Snapper);
+	const process = (resource: URI) => {
+		const fileService = accessor.get(IFileService);
+		const fileName = basename(resource);
+		const snapper = accessor.get(IInstantiationService).createInstance(Snapper);
 
 		return fileService.readFile(resource).then(content => {
 			return snapper.captureSyntaxTokens(fileName, content.value.toString());

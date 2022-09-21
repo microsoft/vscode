@@ -44,6 +44,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private _findWidgetEnabled: IContextKey<boolean> | undefined;
 
 	public readonly id: string;
+	public readonly providedViewType?: string;
 	public readonly origin: string;
 
 	public constructor(
@@ -55,6 +56,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		super();
 
 		this.id = initInfo.id;
+		this.providedViewType = initInfo.providedViewType;
 		this.origin = initInfo.origin ?? generateUuid();
 
 		this._extension = initInfo.extension;
@@ -179,8 +181,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._container.style.height = `${dimension ? dimension.height : frameRect.height}px`;
 
 		if (clippingContainer) {
-			const clip = computeClippingRect(frameRect, clippingContainer);
-			this._container.style.clip = `rect(${clip.top}px, ${clip.right}px, ${clip.bottom}px, ${clip.left}px)`;
+			const { top, left, right, bottom } = computeClippingRect(frameRect, clippingContainer);
+			this._container.style.clipPath = `polygon(${left}px ${top}px, ${right}px ${top}px, ${right}px ${bottom}px, ${left}px ${bottom}px)`;
 		}
 	}
 
@@ -192,6 +194,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		if (!this._webview.value) {
 			const webview = this._webviewService.createWebviewElement({
 				id: this.id,
+				providedViewType: this.providedViewType,
 				origin: this.origin,
 				options: this._options,
 				contentOptions: this._contentOptions,

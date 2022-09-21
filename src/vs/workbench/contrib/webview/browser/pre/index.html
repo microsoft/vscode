@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-xgIcbQmGjpT42GEj54VFSNh6MI15PZ2D1+DdVehfYBI=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-j+I5FRqQBE2aQY6H/U/pjZI3buJy36yZ/upZTKZov3c=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -100,7 +100,7 @@
 		padding: 0 20px;
 	}
 
-	img {
+	img, video {
 		max-width: 100%;
 		max-height: 100%;
 	}
@@ -472,9 +472,14 @@
 			}
 
 			if (body) {
-				body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast', 'vscode-reduce-motion', 'vscode-using-screen-reader');
+				body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast', 'vscode-high-contrast-light', 'vscode-reduce-motion', 'vscode-using-screen-reader');
+
 				if (initData.activeTheme) {
 					body.classList.add(initData.activeTheme);
+					if (initData.activeTheme === 'vscode-high-contrast-light') {
+						// backwards compatibility
+						body.classList.add('vscode-high-contrast');
+					}
 				}
 
 				if (initData.reduceMotion) {
@@ -567,7 +572,7 @@
 			// make sure we block the browser from dispatching it. Instead VS Code
 			// handles these events and will dispatch a copy/paste back to the webview
 			// if needed
-			if (isUndoRedo(e) || isPrint(e) || isFindEvent(e)) {
+			if (isUndoRedo(e) || isPrint(e) || isFindEvent(e) || isSaveEvent(e)) {
 				e.preventDefault();
 			} else if (isCopyPasteOrCut(e)) {
 				if (onElectron) {
@@ -639,6 +644,15 @@
 		function isFindEvent(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
 			return hasMeta && e.key.toLowerCase() === 'f';
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isSaveEvent(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			return hasMeta && e.key.toLowerCase() === 's';
 		}
 
 		let isHandlingScroll = false;
@@ -915,14 +929,21 @@
 					sandboxRules.add('allow-forms');
 				}
 				newFrame.setAttribute('sandbox', Array.from(sandboxRules).join(' '));
-				if (!isFirefox) {
-					newFrame.setAttribute('allow', options.allowScripts ? 'clipboard-read; clipboard-write;' : '');
+
+				const allowRules = ['cross-origin-isolated;']
+				if(!isFirefox && options.allowScripts) {
+					allowRules.push('clipboard-read;','clipboard-write;')
 				}
+				newFrame.setAttribute('allow', allowRules.join(' '));
 				// We should just be able to use srcdoc, but I wasn't
 				// seeing the service worker applying properly.
 				// Fake load an empty on the correct origin and then write real html
 				// into it to get around this.
-				newFrame.src = `./fake.html?id=${ID}`;
+				const fakeUrlParams = new URLSearchParams({id: ID});
+				if(globalThis.crossOriginIsolated) {
+					fakeUrlParams.set('vscode-coi', '3') /*COOP+COEP*/
+				}
+				newFrame.src = `./fake.html?${fakeUrlParams.toString()}`;
 
 				newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 				document.body.appendChild(newFrame);
@@ -1042,9 +1063,35 @@
 						}
 
 						e.preventDefault();
+
+						let context = {};
+
+						/** @type HTMLElement */
+						let el = e.target;
+						while (true) {
+							if (!el) {
+								break;
+							}
+
+							// Search self/ancestors for the closest context data attribute
+							el = el.closest('[data-vscode-context]');
+							if (!el) {
+								break;
+							}
+
+							try {
+								context = { ...JSON.parse(el.dataset.vscodeContext), ...context };
+							} catch (e) {
+								console.error(`Error parsing 'data-vscode-context' as json`, el, e)
+							}
+
+							el = el.parentElement;
+						}
+
 						hostMessaging.postMessage('did-context-menu', {
 							clientX: e.clientX,
 							clientY: e.clientY,
+							context: context
 						});
 					});
 

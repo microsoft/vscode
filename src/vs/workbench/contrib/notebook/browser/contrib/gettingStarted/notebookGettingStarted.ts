@@ -40,7 +40,7 @@ export class NotebookGettingStarted extends Disposable implements IWorkbenchCont
 
 		const hasOpenedNotebook = HAS_OPENED_NOTEBOOK.bindTo(_contextKeyService);
 		const memento = new Memento('notebookGettingStarted2', _storageService);
-		const storedValue = memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
+		const storedValue = memento.getMemento(StorageScope.PROFILE, StorageTarget.USER);
 		if (storedValue[hasOpenedNotebookKey]) {
 			hasOpenedNotebook.set(true);
 		}
@@ -75,13 +75,16 @@ export class NotebookGettingStarted extends Disposable implements IWorkbenchCont
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookGettingStarted, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookGettingStarted, 'NotebookGettingStarted', LifecyclePhase.Restored);
 
 registerAction2(class NotebookClearNotebookLayoutAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.notebook.layout.gettingStarted',
-			title: localize('workbench.notebook.layout.gettingStarted.label', "Reset notebook getting started"),
+			title: {
+				value: localize('workbench.notebook.layout.gettingStarted.label', "Reset notebook getting started"),
+				original: 'Reset notebook getting started'
+			},
 			f1: true,
 			precondition: ContextKeyExpr.equals(`config.${NotebookSetting.openGettingStarted}`, true),
 			category: CATEGORIES.Developer,
@@ -91,7 +94,7 @@ registerAction2(class NotebookClearNotebookLayoutAction extends Action2 {
 		const storageService = accessor.get(IStorageService);
 		const memento = new Memento('notebookGettingStarted', storageService);
 
-		const storedValue = memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
+		const storedValue = memento.getMemento(StorageScope.PROFILE, StorageTarget.USER);
 		storedValue[hasOpenedNotebookKey] = undefined;
 		memento.saveMemento();
 	}

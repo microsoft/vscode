@@ -51,9 +51,7 @@ export function anyEvent<T>(...events: Event<T>[]): Event<T> {
 	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => {
 		const result = combinedDisposable(events.map(event => event(i => listener.call(thisArgs, i))));
 
-		if (disposables) {
-			disposables.push(result);
-		}
+		disposables?.push(result);
 
 		return result;
 	};
@@ -89,7 +87,7 @@ export function eventToPromise<T>(event: Event<T>): Promise<T> {
 }
 
 export function once(fn: (...args: any[]) => any): (...args: any[]) => any {
-	let didRun = false;
+	const didRun = false;
 
 	return (...args) => {
 		if (didRun) {
@@ -219,11 +217,11 @@ export async function grep(filename: string, pattern: RegExp): Promise<boolean> 
 export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
 	return new Promise<Buffer>((complete, error) => {
 		let done = false;
-		let buffer = Buffer.allocUnsafe(bytes);
+		const buffer = Buffer.allocUnsafe(bytes);
 		let bytesRead = 0;
 
 		stream.on('data', (data: Buffer) => {
-			let bytesToRead = Math.min(bytes - bytesRead, data.length);
+			const bytesToRead = Math.min(bytes - bytesRead, data.length);
 			data.copy(buffer, bytesRead, 0, bytesToRead);
 			bytesRead += bytesToRead;
 
@@ -316,6 +314,13 @@ export function pathEquals(a: string, b: string): boolean {
  * casing.
  */
 export function relativePath(from: string, to: string): string {
+	// On Windows, there are cases in which `from` is a path that contains a trailing `\` character
+	// (ex: C:\, \\server\folder\) due to the implementation of `path.normalize()`. This behavior is
+	// by design as documented in https://github.com/nodejs/node/issues/1765.
+	if (isWindows) {
+		from = from.replace(/\\$/, '');
+	}
+
 	if (isDescendant(from, to) && from.length < to.length) {
 		return to.substring(from.length + 1);
 	}

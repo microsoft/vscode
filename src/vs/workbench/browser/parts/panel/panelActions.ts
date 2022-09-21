@@ -69,10 +69,8 @@ class FocusPanelAction extends Action {
 		}
 
 		// Focus into active panel
-		let panel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
-		if (panel) {
-			panel.focus();
-		}
+		const panel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
+		panel?.focus();
 	}
 }
 
@@ -422,7 +420,7 @@ MenuRegistry.appendMenuItems([
 			group: '2_workbench_layout',
 			command: {
 				id: TogglePanelAction.ID,
-				title: localize({ key: 'miShowPanel', comment: ['&& denotes a mnemonic'] }, "Show &&Panel"),
+				title: localize({ key: 'miPanel', comment: ['&& denotes a mnemonic'] }, "&&Panel"),
 				toggled: PanelVisibleContext
 			},
 			order: 5
@@ -433,7 +431,7 @@ MenuRegistry.appendMenuItems([
 			group: '0_workbench_layout',
 			command: {
 				id: TogglePanelAction.ID,
-				title: localize('miShowPanelNoMnemonic', "Show Panel"),
+				title: localize('miPanelNoMnemonic', "Panel"),
 				toggled: PanelVisibleContext
 			},
 			order: 4

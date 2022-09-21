@@ -173,7 +173,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		}
 
 		for (let i = selection.startLineNumber; i < selection.endLineNumber; i++) {
-			let currentLineMaxColumn = model.getLineMaxColumn(i);
+			const currentLineMaxColumn = model.getLineMaxColumn(i);
 			result.push(new Selection(i, currentLineMaxColumn, i, currentLineMaxColumn));
 		}
 		if (selection.endColumn > 1) {
@@ -190,7 +190,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		const selections = editor.getSelections();
 		const viewModel = editor._getViewModel();
 		const previousCursorState = viewModel.getCursorStates();
-		let newSelections: Selection[] = [];
+		const newSelections: Selection[] = [];
 		selections.forEach((sel) => this.getCursorsForSelection(sel, model, newSelections));
 
 		if (newSelections.length > 0) {
@@ -219,7 +219,7 @@ class InsertCursorAtEndOfLineSelected extends EditorAction {
 		const selections = editor.getSelections();
 		const lineCount = editor.getModel().getLineCount();
 
-		let newSelections: Selection[] = [];
+		const newSelections: Selection[] = [];
 		for (let i = selections[0].startLineNumber; i <= lineCount; i++) {
 			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
 		}
@@ -251,7 +251,7 @@ class InsertCursorAtTopOfLineSelected extends EditorAction {
 
 		const selections = editor.getSelections();
 
-		let newSelections: Selection[] = [];
+		const newSelections: Selection[] = [];
 		for (let i = selections[0].startLineNumber; i >= 1; i--) {
 			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
 		}
@@ -570,7 +570,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 				const selectionsContainSameText = modelRangesContainSameText(this._editor.getModel(), allSelections, matchCase);
 				if (!selectionsContainSameText) {
 					const model = this._editor.getModel();
-					let resultingSelections: Selection[] = [];
+					const resultingSelections: Selection[] = [];
 					for (let i = 0, len = allSelections.length; i < len; i++) {
 						resultingSelections[i] = this._expandEmptyToWord(model, allSelections[i]);
 					}

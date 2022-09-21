@@ -85,6 +85,9 @@ export class Editor {
 	}
 
 	async waitForTypeInEditor(filename: string, text: string, selectorPrefix = ''): Promise<any> {
+		if (text.includes('\n')) {
+			throw new Error('waitForTypeInEditor does not support new lines, use either a long single line or dispatchKeybinding(\'Enter\')');
+		}
 		const editor = [selectorPrefix || '', EDITOR(filename)].join(' ');
 
 		await this.code.waitForElement(editor);

@@ -23,7 +23,7 @@ import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, remove } from 'vs/base/common/arrays';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
@@ -993,6 +993,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 			try {
 				const entriesParsed: ISerializedEditorHistoryEntry[] = JSON.parse(entriesRaw);
 				for (const entryParsed of entriesParsed) {
+					if (!entryParsed.editor || !entryParsed.editor.resource) {
+						continue; // unexpected data format
+					}
+
 					try {
 						entries.push({
 							...entryParsed.editor,
@@ -1103,7 +1107,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	//#endregion
 }
 
-registerSingleton(IHistoryService, HistoryService);
+registerSingleton(IHistoryService, HistoryService, InstantiationType.Eager);
 
 class EditorSelectionState {
 
@@ -1360,7 +1364,7 @@ export class EditorNavigationStack extends Disposable {
 			return;
 		}
 
-		let entryLabels: string[] = [];
+		const entryLabels: string[] = [];
 		for (const entry of this.stack) {
 			if (typeof entry.selection?.log === 'function') {
 				entryLabels.push(`- group: ${entry.groupId}, editor: ${entry.editor.resource?.toString()}, selection: ${entry.selection.log()}`);
@@ -1574,7 +1578,7 @@ ${entryLabels.join('\n')}
 		const newStackEntry: IEditorNavigationStackEntry = { groupId, editor, selection };
 
 		// Replace at current position
-		let removedEntries: IEditorNavigationStackEntry[] = [];
+		const removedEntries: IEditorNavigationStackEntry[] = [];
 		if (replace) {
 			if (this.current) {
 				removedEntries.push(this.current);

@@ -157,7 +157,7 @@ export interface IExtensionHost {
 	readonly extensions: ExtensionHostExtensions;
 	readonly onExit: Event<[number, string | null]>;
 
-	start(): Promise<IMessagePassingProtocol> | null;
+	start(): Promise<IMessagePassingProtocol>;
 	getInspectPort(): number | undefined;
 	enableInspectPort(): Promise<boolean>;
 	dispose(): void;
@@ -324,7 +324,7 @@ export class ExtensionIdentifierSet implements Set<ExtensionIdentifier> {
 	}
 
 	*entries(): IterableIterator<[ExtensionIdentifier, ExtensionIdentifier]> {
-		for (let [_key, value] of this._map) {
+		for (const [_key, value] of this._map) {
 			yield [value, value];
 		}
 	}
@@ -587,7 +587,8 @@ export function toExtensionDescription(extension: IExtension, isUnderDevelopment
 		extensionLocation: extension.location,
 		...extension.manifest,
 		uuid: extension.identifier.uuid,
-		targetPlatform: extension.targetPlatform
+		targetPlatform: extension.targetPlatform,
+		browserNlsBundleUris: extension.browserNlsBundleUris
 	};
 }
 

@@ -483,6 +483,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const styler = attachInputBoxStyler(inputBox, this.themeService);
 
 		const lastDot = value.lastIndexOf('.');
+		let currentSelectionState = 'prefix';
 
 		inputBox.value = value;
 		inputBox.focus();
@@ -520,7 +521,22 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				label.setFile(joinPath(parent, value || ' '), labelOptions); // update label icon while typing!
 			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-				if (e.equals(KeyCode.Enter)) {
+				if (e.equals(KeyCode.F2)) {
+					const dotIndex = inputBox.value.lastIndexOf('.');
+					if (stat.isDirectory || dotIndex === -1) {
+						return;
+					}
+					if (currentSelectionState === 'prefix') {
+						currentSelectionState = 'all';
+						inputBox.select({ start: 0, end: inputBox.value.length });
+					} else if (currentSelectionState === 'all') {
+						currentSelectionState = 'suffix';
+						inputBox.select({ start: dotIndex + 1, end: inputBox.value.length });
+					} else {
+						currentSelectionState = 'prefix';
+						inputBox.select({ start: 0, end: dotIndex });
+					}
+				} else if (e.equals(KeyCode.Enter)) {
 					if (!inputBox.validate()) {
 						done(true, true);
 					}
@@ -610,6 +626,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	// List of ignoreFile resources. Used to detect changes to the ignoreFiles.
 	private ignoreFileResourcesPerRoot = new Map<string, ResourceSet>();
 	// Ignore tree per root. Similar to `hiddenExpressionPerRoot`
+	// Note: URI in the ternary search tree is the URI of the folder containing the ignore file
+	// It is not the ignore file itself. This is because of the way the IgnoreFile works and nested paths
 	private ignoreTreesPerRoot = new Map<string, TernarySearchTree<URI, IgnoreFile>>();
 
 	constructor(
@@ -622,7 +640,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	) {
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration()));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('files.exclude') || e.affectsConfiguration('files.excludeGitIgnore')) {
+			if (e.affectsConfiguration('files.exclude') || e.affectsConfiguration('explorer.excludeGitIgnore')) {
 				this.updateConfiguration();
 			}
 		}));
@@ -634,8 +652,9 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 						await this.processIgnoreFile(root, ignoreResource, true);
 					}
 					if (e.contains(ignoreResource, FileChangeType.DELETED)) {
-						this.ignoreTreesPerRoot.get(root)?.delete(ignoreResource);
+						this.ignoreTreesPerRoot.get(root)?.delete(dirname(ignoreResource));
 						ignoreFileResourceSet.delete(ignoreResource);
+						this._onDidChange.fire();
 					}
 				});
 			}
@@ -683,7 +702,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		this.contextService.getWorkspace().folders.forEach(folder => {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>({ resource: folder.uri });
 			const excludesConfig: glob.IExpression = configuration?.files?.exclude || Object.create(null);
-			const parseIgnoreFile: boolean = configuration.files.excludeGitIgnore;
+			const parseIgnoreFile: boolean = configuration.explorer.excludeGitIgnore;
 
 			// If we should be parsing ignoreFiles for this workspace and don't have an ignore tree initialize one
 			if (parseIgnoreFile && !this.ignoreTreesPerRoot.has(folder.uri.toString())) {
@@ -728,32 +747,37 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		if (!ignoreTree) {
 			return;
 		}
-		// If it's an update we remove the stale ignore file as we will be adding a new one
-		if (update) {
-			ignoreTree.delete(dirUri);
-		}
+
 		// Don't process a directory if we already have it in the tree
-		if (ignoreTree.has(dirUri)) {
+		if (!update && ignoreTree.has(dirUri)) {
 			return;
 		}
 		// Maybe we need a cancellation token here in case it's super long?
 		const content = await this.fileService.readFile(ignoreFileResource);
-		const ignoreParent = ignoreTree.findSubstr(dirUri);
-		const ignoreFile = new IgnoreFile(content.value.toString(), dirUri.path, ignoreParent);
-		ignoreTree.set(dirUri, ignoreFile);
-		// If we haven't seen this resource before then we need to add it to the list of resources we're tracking
-		if (!this.ignoreFileResourcesPerRoot.get(root)?.has(ignoreFileResource)) {
-			this.ignoreFileResourcesPerRoot.get(root)?.add(ignoreFileResource);
+
+		// If it's just an update we update the contents keeping all references the same
+		if (update) {
+			const ignoreFile = ignoreTree.get(dirUri);
+			ignoreFile?.updateContents(content.value.toString());
+		} else {
+			// Otherwise we create a new ignorefile and add it to the tree
+			const ignoreParent = ignoreTree.findSubstr(dirUri);
+			const ignoreFile = new IgnoreFile(content.value.toString(), dirUri.path, ignoreParent);
+			ignoreTree.set(dirUri, ignoreFile);
+			// If we haven't seen this resource before then we need to add it to the list of resources we're tracking
+			if (!this.ignoreFileResourcesPerRoot.get(root)?.has(ignoreFileResource)) {
+				this.ignoreFileResourcesPerRoot.get(root)?.add(ignoreFileResource);
+			}
 		}
+
 		// Notify the explorer of the change so we may ignore these files
 		this._onDidChange.fire();
 	}
 
 	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
 		// Add newly visited .gitignore files to the ignore tree
-		if (stat.name === '.gitignore') {
+		if (stat.name === '.gitignore' && this.ignoreTreesPerRoot.has(stat.root.resource.toString())) {
 			this.processIgnoreFile(stat.root.resource.toString(), stat.resource, false);
-			// Never hide .gitignore files
 			return true;
 		}
 
@@ -1168,20 +1192,22 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private async handleExplorerDrop(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const elementsData = FileDragAndDrop.getStatsFromDragAndDropData(data);
-		const distinctItems = new Set(elementsData);
+		const distinctItems = new Map(elementsData.map(element => [element, this.isCollapsed(element)]));
 
-		for (const item of distinctItems) {
-			if (this.isCollapsed(item)) {
+		for (const [item, collapsed] of distinctItems) {
+			if (collapsed) {
 				const nestedChildren = item.nestedChildren;
 				if (nestedChildren) {
 					for (const child of nestedChildren) {
-						distinctItems.add(child);
+						// if parent is collapsed, then the nested children is considered collapsed to operate as a group
+						// and skip collapsed state check since they're not in the tree
+						distinctItems.set(child, true);
 					}
 				}
 			}
 		}
 
-		const items = distinctParents([...distinctItems], s => s.resource);
+		const items = distinctParents([...distinctItems.keys()], s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
 		// Handle confirm setting

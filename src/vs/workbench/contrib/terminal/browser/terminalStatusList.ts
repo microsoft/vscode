@@ -22,6 +22,7 @@ export const enum TerminalStatus {
 	Bell = 'bell',
 	Disconnected = 'disconnected',
 	RelaunchNeeded = 'relaunch-needed',
+	ShellIntegrationAttentionNeeded = 'shell-integration-attention-needed'
 }
 
 export interface ITerminalStatus {

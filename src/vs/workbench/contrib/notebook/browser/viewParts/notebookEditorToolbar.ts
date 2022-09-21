@@ -69,7 +69,7 @@ class FixedLabelStrategy implements IActionLayoutStrategy {
 
 		const a = this.editorToolbar.primaryActions.find(a => a.action.id === action.id);
 		if (a && a.renderLabel) {
-			return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action) : undefined;
+			return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action, undefined) : undefined;
 		} else {
 			return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
 		}
@@ -144,7 +144,7 @@ class DynamicLabelStrategy implements IActionLayoutStrategy {
 
 		const a = this.editorToolbar.primaryActions.find(a => a.action.id === action.id);
 		if (a && a.renderLabel) {
-			return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action) : undefined;
+			return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action, undefined) : undefined;
 		} else {
 			return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
 		}
@@ -360,7 +360,7 @@ export class NotebookEditorToolbar extends Disposable {
 			if (this._renderLabel !== RenderLabel.Never) {
 				const a = this._primaryActions.find(a => a.action.id === action.id);
 				if (a && a.renderLabel) {
-					return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action) : undefined;
+					return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action, undefined) : undefined;
 				} else {
 					return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
 				}
@@ -405,9 +405,7 @@ export class NotebookEditorToolbar extends Disposable {
 
 			if (deferredUpdate && !visible) {
 				setTimeout(() => {
-					if (deferredUpdate) {
-						deferredUpdate();
-					}
+					deferredUpdate?.();
 				}, 0);
 				deferredUpdate = undefined;
 			}
@@ -542,12 +540,14 @@ export class NotebookEditorToolbar extends Disposable {
 
 		for (let i = 0; i < toolbar.getItemsLength(); i++) {
 			const action = toolbar.getItemAction(i);
-			actions.push({
-				action: action,
-				size: toolbar.getItemWidth(i),
-				visible: true,
-				renderLabel: true
-			});
+			if (action) {
+				actions.push({
+					action: action,
+					size: toolbar.getItemWidth(i),
+					visible: true,
+					renderLabel: true
+				});
+			}
 		}
 
 		this._primaryActions = actions;

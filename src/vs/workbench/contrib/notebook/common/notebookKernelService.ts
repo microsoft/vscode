@@ -20,6 +20,7 @@ export interface INotebookKernelMatchResult {
 	readonly selected: INotebookKernel | undefined;
 	readonly suggestions: INotebookKernel[];
 	readonly all: INotebookKernel[];
+	readonly hidden: INotebookKernel[];
 }
 
 
@@ -30,6 +31,7 @@ export interface INotebookKernelChangeEvent {
 	kind?: true;
 	supportedLanguages?: true;
 	hasExecutionOrder?: true;
+	hasInterruptHandler?: true;
 }
 
 export interface INotebookKernel {
@@ -67,6 +69,7 @@ export interface INotebookProxyKernelChangeEvent extends INotebookKernelChangeEv
 export interface ISourceAction {
 	readonly action: IAction;
 	readonly onDidChangeState: Event<void>;
+	readonly isPrimary?: boolean;
 	execution: Promise<void> | undefined;
 	runAction: () => Promise<void>;
 }
@@ -101,13 +104,6 @@ export interface INotebookKernelService {
 	 * Set the kernel that a notebook should use when it starts up
 	 */
 	preselectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void;
-
-	/**
-	 * Bind a notebook type to a kernel.
-	 * @param viewType
-	 * @param kernel
-	 */
-	selectKernelForNotebookType(kernel: INotebookKernel, viewType: string): void;
 
 	/**
 	 * Set a perference of a kernel for a certain notebook. Higher values win, `undefined` removes the preference

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { BracketPairColorizationOptions, DefaultEndOfLine, ITextBufferFactory, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -16,9 +16,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
@@ -29,7 +27,7 @@ import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ModelService } from 'vs/editor/common/services/modelService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { createServices, ServiceIdCtorPair, TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -87,36 +85,19 @@ export function instantiateTextModel(instantiationService: IInstantiationService
 	return instantiationService.createInstance(TestTextModel, text, languageId || PLAINTEXT_LANGUAGE_ID, options, uri);
 }
 
-export function createModelServices(disposables: DisposableStore, services: ServiceCollection = new ServiceCollection()): TestInstantiationService {
-	const serviceIdentifiers: ServiceIdentifier<any>[] = [];
-	const define = <T>(id: ServiceIdentifier<T>, ctor: new (...args: any[]) => T) => {
-		if (!services.has(id)) {
-			services.set(id, new SyncDescriptor(ctor));
-		}
-		serviceIdentifiers.push(id);
-	};
-
-	define(INotificationService, TestNotificationService);
-	define(IDialogService, TestDialogService);
-	define(IUndoRedoService, UndoRedoService);
-	define(ILanguageService, LanguageService);
-	define(ILanguageConfigurationService, TestLanguageConfigurationService);
-	define(IConfigurationService, TestConfigurationService);
-	define(ITextResourcePropertiesService, TestTextResourcePropertiesService);
-	define(IThemeService, TestThemeService);
-	define(ILogService, NullLogService);
-	define(ILanguageFeatureDebounceService, LanguageFeatureDebounceService);
-	define(ILanguageFeaturesService, LanguageFeaturesService);
-	define(IModelService, ModelService);
-
-	const instantiationService = new TestInstantiationService(services, true);
-	disposables.add(toDisposable(() => {
-		for (const id of serviceIdentifiers) {
-			const instanceOrDescriptor = services.get(id);
-			if (typeof instanceOrDescriptor.dispose === 'function') {
-				instanceOrDescriptor.dispose();
-			}
-		}
-	}));
-	return instantiationService;
+export function createModelServices(disposables: DisposableStore, services: ServiceIdCtorPair<any>[] = []): TestInstantiationService {
+	return createServices(disposables, services.concat([
+		[INotificationService, TestNotificationService],
+		[IDialogService, TestDialogService],
+		[IUndoRedoService, UndoRedoService],
+		[ILanguageService, LanguageService],
+		[ILanguageConfigurationService, TestLanguageConfigurationService],
+		[IConfigurationService, TestConfigurationService],
+		[ITextResourcePropertiesService, TestTextResourcePropertiesService],
+		[IThemeService, TestThemeService],
+		[ILogService, NullLogService],
+		[ILanguageFeatureDebounceService, LanguageFeatureDebounceService],
+		[ILanguageFeaturesService, LanguageFeaturesService],
+		[IModelService, ModelService],
+	]));
 }

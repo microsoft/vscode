@@ -224,7 +224,7 @@ registerAction2(class InsertMarkdownCellAtTopAction extends NotebookAction {
 MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
 	command: {
 		id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
-		title: localize('notebookActions.menu.insertCode', "$(add) Code"),
+		title: '$(add) ' + localize('notebookActions.menu.insertCode', "Code"),
 		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
 	},
 	order: 0,
@@ -269,7 +269,7 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
 	command: {
 		id: INSERT_CODE_CELL_AT_TOP_COMMAND_ID,
-		title: localize('notebookActions.menu.insertCode', "$(add) Code"),
+		title: '$(add) ' + localize('notebookActions.menu.insertCode', "Code"),
 		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
 	},
 	order: 0,
@@ -299,7 +299,7 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
 MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
 	command: {
 		id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
-		title: localize('notebookActions.menu.insertMarkdown', "$(add) Markdown"),
+		title: '$(add) ' + localize('notebookActions.menu.insertMarkdown', "Markdown"),
 		tooltip: localize('notebookActions.menu.insertMarkdown.tooltip', "Add Markdown Cell")
 	},
 	order: 1,
@@ -331,7 +331,7 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
 	command: {
 		id: INSERT_MARKDOWN_CELL_AT_TOP_COMMAND_ID,
-		title: localize('notebookActions.menu.insertMarkdown', "$(add) Markdown"),
+		title: '$(add) ' + localize('notebookActions.menu.insertMarkdown', "Markdown"),
 		tooltip: localize('notebookActions.menu.insertMarkdown.tooltip', "Add Markdown Cell")
 	},
 	order: 1,

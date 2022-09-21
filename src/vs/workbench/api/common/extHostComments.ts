@@ -96,9 +96,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 							return arg;
 						}
 
-						let commentUniqueId = arg.commentUniqueId;
+						const commentUniqueId = arg.commentUniqueId;
 
-						let comment = commentThread.getCommentByUniqueId(commentUniqueId);
+						const comment = commentThread.getCommentByUniqueId(commentUniqueId);
 
 						if (!comment) {
 							return arg;
@@ -119,16 +119,21 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 							return arg;
 						}
 
-						let body = arg.text;
-						let commentUniqueId = arg.commentUniqueId;
+						const body: string = arg.text;
+						const commentUniqueId = arg.commentUniqueId;
 
-						let comment = commentThread.getCommentByUniqueId(commentUniqueId);
+						const comment = commentThread.getCommentByUniqueId(commentUniqueId);
 
 						if (!comment) {
 							return arg;
 						}
 
-						comment.body = body;
+						// If the old comment body was a markdown string, use a markdown string here too.
+						if (typeof comment.body === 'string') {
+							comment.body = body;
+						} else {
+							comment.body.value = body;
+						}
 						return comment;
 					}
 
@@ -172,9 +177,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		$deleteCommentThread(commentControllerHandle: number, commentThreadHandle: number) {
 			const commentController = this._commentControllers.get(commentControllerHandle);
 
-			if (commentController) {
-				commentController.$deleteCommentThread(commentThreadHandle);
-			}
+			commentController?.$deleteCommentThread(commentThreadHandle);
 		}
 
 		$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<IRange[] | undefined> {
@@ -487,9 +490,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 
 		getCommentByUniqueId(uniqueId: number): vscode.Comment | undefined {
-			for (let key of this._commentsMap) {
-				let comment = key[0];
-				let id = key[1];
+			for (const key of this._commentsMap) {
+				const comment = key[0];
+				const id = key[1];
 				if (uniqueId === id) {
 					return comment;
 				}
@@ -613,18 +616,16 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 
 		$updateCommentThreadTemplate(threadHandle: number, range: IRange): void {
-			let thread = this._threads.get(threadHandle);
+			const thread = this._threads.get(threadHandle);
 			if (thread) {
 				thread.range = extHostTypeConverter.Range.to(range);
 			}
 		}
 
 		$deleteCommentThread(threadHandle: number): void {
-			let thread = this._threads.get(threadHandle);
+			const thread = this._threads.get(threadHandle);
 
-			if (thread) {
-				thread.dispose();
-			}
+			thread?.dispose();
 
 			this._threads.delete(threadHandle);
 		}

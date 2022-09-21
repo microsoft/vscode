@@ -168,7 +168,7 @@ export class InlayHintsController implements IEditorContribution {
 		}));
 
 		let cts: CancellationTokenSource | undefined;
-		let watchedProviders = new Set<languages.InlayHintsProvider>();
+		const watchedProviders = new Set<languages.InlayHintsProvider>();
 
 		const scheduler = new RunOnceScheduler(async () => {
 			const t1 = Date.now();
@@ -468,7 +468,7 @@ export class InlayHintsController implements IEditorContribution {
 
 
 		//
-		const { fontSize, fontFamily, padding } = this._getLayoutInfo();
+		const { fontSize, fontFamily, padding, isUniform } = this._getLayoutInfo();
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
@@ -493,7 +493,7 @@ export class InlayHintsController implements IEditorContribution {
 				const cssProperties: CssProperties = {
 					fontSize: `${fontSize}px`,
 					fontFamily: `var(${fontFamilyVar}), ${EDITOR_FONT_DEFAULTS.fontFamily}`,
-					verticalAlign: 'middle',
+					verticalAlign: isUniform ? 'baseline' : 'middle',
 				};
 
 				if (isNonEmptyArray(item.hint.textEdits)) {
@@ -587,18 +587,28 @@ export class InlayHintsController implements IEditorContribution {
 
 	private _getLayoutInfo() {
 		const options = this._editor.getOption(EditorOption.inlayHints);
+		const padding = options.padding;
+
 		const editorFontSize = this._editor.getOption(EditorOption.fontSize);
+		const editorFontFamily = this._editor.getOption(EditorOption.fontFamily);
+
 		let fontSize = options.fontSize;
 		if (!fontSize || fontSize < 5 || fontSize > editorFontSize) {
 			fontSize = editorFontSize;
 		}
-		const fontFamily = options.fontFamily || this._editor.getOption(EditorOption.fontFamily);
-		return { fontSize, fontFamily, padding: options.padding };
+
+		const fontFamily = options.fontFamily || editorFontFamily;
+
+		const isUniform = !padding
+			&& fontFamily === editorFontFamily
+			&& fontSize === editorFontSize;
+
+		return { fontSize, fontFamily, padding, isUniform };
 	}
 
 	private _removeAllDecorations(): void {
-		this._editor.deltaDecorations(Array.from(this._decorationsMetadata.keys()), []);
-		for (let obj of this._decorationsMetadata.values()) {
+		this._editor.removeDecorations(Array.from(this._decorationsMetadata.keys()));
+		for (const obj of this._decorationsMetadata.values()) {
 			obj.classNameRef.dispose();
 		}
 		this._decorationsMetadata.clear();
@@ -613,7 +623,7 @@ export class InlayHintsController implements IEditorContribution {
 		}
 		const set = new Set<languages.InlayHint>();
 		const result: InlayHintItem[] = [];
-		for (let deco of this._editor.getLineDecorations(line)) {
+		for (const deco of this._editor.getLineDecorations(line)) {
 			const data = this._decorationsMetadata.get(deco.id);
 			if (data && !set.has(data.item.hint)) {
 				set.add(data.item.hint);

@@ -56,9 +56,7 @@ class InPlaceReplaceController implements IEditorContribution {
 	public run(source: string, up: boolean): Promise<void> | undefined {
 
 		// cancel any pending request
-		if (this.currentRequest) {
-			this.currentRequest.cancel();
-		}
+		this.currentRequest?.cancel();
 
 		const editorSelection = this.editor.getSelection();
 		const model = this.editor.getModel();
@@ -92,9 +90,9 @@ class InPlaceReplaceController implements IEditorContribution {
 			}
 
 			// Selection
-			let editRange = Range.lift(result.range);
+			const editRange = Range.lift(result.range);
 			let highlightRange = result.range;
-			let diff = result.value.length - (selection!.endColumn - selection!.startColumn);
+			const diff = result.value.length - (selection!.endColumn - selection!.startColumn);
 
 			// highlight
 			highlightRange = {
@@ -121,9 +119,7 @@ class InPlaceReplaceController implements IEditorContribution {
 			}]);
 
 			// remove decoration after delay
-			if (this.decorationRemover) {
-				this.decorationRemover.cancel();
-			}
+			this.decorationRemover?.cancel();
 			this.decorationRemover = timeout(350);
 			this.decorationRemover.then(() => this.decorations.clear()).catch(onUnexpectedError);
 

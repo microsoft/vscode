@@ -22,7 +22,7 @@ suite('Workbench - TerminalUriLinkDetector', () => {
 
 		instantiationService.stub(IConfigurationService, configurationService);
 
-		xterm = new Terminal({ cols: 80, rows: 30 });
+		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
 		detector = instantiationService.createInstance(TerminalUriLinkDetector, xterm, resolveLinkForTest);
 	});
 
@@ -77,6 +77,16 @@ suite('Workbench - TerminalUriLinkDetector', () => {
 		await assertLink(TerminalBuiltinLinkType.Url, 'http://foo.bar http://bar.foo', [
 			{ range: [[1, 1], [14, 1]], text: 'http://foo.bar' },
 			{ range: [[16, 1], [29, 1]], text: 'http://bar.foo' }
+		]);
+	});
+	test('should detect file:// links with :line suffix', async () => {
+		await assertLink(TerminalBuiltinLinkType.LocalFile, 'file:///c:/folder/file:23', [
+			{ range: [[1, 1], [25, 1]], text: 'file:///c:/folder/file:23' }
+		]);
+	});
+	test('should detect file:// links with :line:col suffix', async () => {
+		await assertLink(TerminalBuiltinLinkType.LocalFile, 'file:///c:/folder/file:23:10', [
+			{ range: [[1, 1], [28, 1]], text: 'file:///c:/folder/file:23:10' }
 		]);
 	});
 	test('should filter out https:// link that exceed 4096 characters', async () => {

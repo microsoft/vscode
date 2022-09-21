@@ -10,7 +10,7 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IPastFutureElements, IResourceUndoRedoElement, IUndoRedoElement, IUndoRedoService, IWorkspaceUndoRedoElement, ResourceEditStackSnapshot, UndoRedoElementType, UndoRedoGroup, UndoRedoSource, UriComparisonKeyComputer } from 'vs/platform/undoRedo/common/undoRedo';
 
@@ -90,7 +90,7 @@ class RemovedResources {
 			dest.push(element.resourceLabel);
 		}
 
-		let messages: string[] = [];
+		const messages: string[] = [];
 		if (externalRemoval.length > 0) {
 			messages.push(
 				nls.localize(
@@ -226,7 +226,7 @@ class ResourceEditStack {
 	}
 
 	public toString(): string {
-		let result: string[] = [];
+		const result: string[] = [];
 		result.push(`* ${this.strResource}:`);
 		for (let i = 0; i < this._past.length; i++) {
 			result.push(`   * [UNDO] ${this._past[i]}`);
@@ -495,7 +495,7 @@ export class UndoRedoService implements IUndoRedoService {
 	private _print(label: string): void {
 		console.log(`------------------------------------`);
 		console.log(`AFTER ${label}: `);
-		let str: string[] = [];
+		const str: string[] = [];
 		for (const element of this._editStacks) {
 			str.push(element[1].toString());
 		}
@@ -1393,4 +1393,4 @@ class WorkspaceVerificationError {
 	constructor(public readonly returnValue: Promise<void> | void) { }
 }
 
-registerSingleton(IUndoRedoService, UndoRedoService);
+registerSingleton(IUndoRedoService, UndoRedoService, InstantiationType.Delayed);

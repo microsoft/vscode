@@ -19,7 +19,7 @@ import { OutlineElement, OutlineGroup, OutlineModel, OutlineModelService } from 
 
 suite('OutlineModel', function () {
 
-	let disposables = new DisposableStore();
+	const disposables = new DisposableStore();
 	const languageFeaturesService = new LanguageFeaturesService();
 
 	teardown(function () {
@@ -32,9 +32,9 @@ suite('OutlineModel', function () {
 		const modelService = insta.get(IModelService);
 		const service = new OutlineModelService(languageFeaturesService, new LanguageFeatureDebounceService(new NullLogService()), modelService);
 
-		let model = createTextModel('foo', undefined, undefined, URI.file('/fome/path.foo'));
+		const model = createTextModel('foo', undefined, undefined, URI.file('/fome/path.foo'));
 		let count = 0;
-		let reg = languageFeaturesService.documentSymbolProvider.register({ pattern: '**/path.foo' }, {
+		const reg = languageFeaturesService.documentSymbolProvider.register({ pattern: '**/path.foo' }, {
 			provideDocumentSymbols() {
 				count += 1;
 				return [];
@@ -62,10 +62,10 @@ suite('OutlineModel', function () {
 		const insta = createModelServices(disposables);
 		const modelService = insta.get(IModelService);
 		const service = new OutlineModelService(languageFeaturesService, new LanguageFeatureDebounceService(new NullLogService()), modelService);
-		let model = createTextModel('foo', undefined, undefined, URI.file('/fome/path.foo'));
+		const model = createTextModel('foo', undefined, undefined, URI.file('/fome/path.foo'));
 		let isCancelled = false;
 
-		let reg = languageFeaturesService.documentSymbolProvider.register({ pattern: '**/path.foo' }, {
+		const reg = languageFeaturesService.documentSymbolProvider.register({ pattern: '**/path.foo' }, {
 			provideDocumentSymbols(d, token) {
 				return new Promise(resolve => {
 					token.onCancellationRequested(_ => {
@@ -109,11 +109,11 @@ suite('OutlineModel', function () {
 
 	test('OutlineElement - updateMarker', function () {
 
-		let e0 = new OutlineElement('foo1', null!, fakeSymbolInformation(new Range(1, 1, 1, 10)));
-		let e1 = new OutlineElement('foo2', null!, fakeSymbolInformation(new Range(2, 1, 5, 1)));
-		let e2 = new OutlineElement('foo3', null!, fakeSymbolInformation(new Range(6, 1, 10, 10)));
+		const e0 = new OutlineElement('foo1', null!, fakeSymbolInformation(new Range(1, 1, 1, 10)));
+		const e1 = new OutlineElement('foo2', null!, fakeSymbolInformation(new Range(2, 1, 5, 1)));
+		const e2 = new OutlineElement('foo3', null!, fakeSymbolInformation(new Range(6, 1, 10, 10)));
 
-		let group = new OutlineGroup('group', null!, null!, 1);
+		const group = new OutlineGroup('group', null!, null!, 1);
 		group.children.set(e0.id, e0);
 		group.children.set(e1.id, e1);
 		group.children.set(e2.id, e2);
@@ -135,11 +135,11 @@ suite('OutlineModel', function () {
 
 	test('OutlineElement - updateMarker, 2', function () {
 
-		let p = new OutlineElement('A', null!, fakeSymbolInformation(new Range(1, 1, 11, 1)));
-		let c1 = new OutlineElement('A/B', null!, fakeSymbolInformation(new Range(2, 4, 5, 4)));
-		let c2 = new OutlineElement('A/C', null!, fakeSymbolInformation(new Range(6, 4, 9, 4)));
+		const p = new OutlineElement('A', null!, fakeSymbolInformation(new Range(1, 1, 11, 1)));
+		const c1 = new OutlineElement('A/B', null!, fakeSymbolInformation(new Range(2, 4, 5, 4)));
+		const c2 = new OutlineElement('A/C', null!, fakeSymbolInformation(new Range(6, 4, 9, 4)));
 
-		let group = new OutlineGroup('group', null!, null!, 1);
+		const group = new OutlineGroup('group', null!, null!, 1);
 		group.children.set(p.id, p);
 		p.children.set(c1.id, c1);
 		p.children.set(c2.id, c2);
@@ -175,7 +175,7 @@ suite('OutlineModel', function () {
 
 	test('OutlineElement - updateMarker/multiple groups', function () {
 
-		let model = new class extends OutlineModel {
+		const model = new class extends OutlineModel {
 			constructor() {
 				super(null!);
 			}

@@ -47,7 +47,7 @@ import { basename, extname } from 'vs/base/common/resources';
 import { hash } from 'vs/base/common/hash';
 
 // sticky suggest widget which doesn't disappear on focus out and such
-let _sticky = false;
+const _sticky = false;
 // _sticky = Boolean("true"); // done "weirdly" so that a lint warning prevents you from pushing this
 
 class LineSuffix {
@@ -226,8 +226,11 @@ export class SuggestController implements IEditorContribution {
 			this._lineSuffix.value = new LineSuffix(this.editor.getModel()!, e.position);
 		}));
 		this._toDispose.add(this.model.onDidSuggest(e => {
-			if (!e.shy) {
-				let index = -1;
+			if (e.shy) {
+				return;
+			}
+			let index = -1;
+			if (!e.noSelect) {
 				for (const selector of this._selectors.itemsOrderedByPriorityDesc) {
 					index = selector.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
 					if (index !== -1) {
@@ -237,8 +240,8 @@ export class SuggestController implements IEditorContribution {
 				if (index === -1) {
 					index = this._memoryService.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
 				}
-				this.widget.value.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
 			}
+			this.widget.value.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
 		}));
 		this._toDispose.add(this.model.onDidCancel(e => {
 			if (!e.retrigger) {
@@ -253,8 +256,8 @@ export class SuggestController implements IEditorContribution {
 		}));
 
 		// Manage the acceptSuggestionsOnEnter context key
-		let acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
-		let updateFromConfig = () => {
+		const acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
+		const updateFromConfig = () => {
 			const acceptSuggestionOnEnter = this.editor.getOption(EditorOption.acceptSuggestionOnEnter);
 			acceptSuggestionsOnEnter.set(acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart');
 		};
@@ -329,7 +332,7 @@ export class SuggestController implements IEditorContribution {
 					docListener.dispose();
 					return;
 				}
-				for (let change of e.changes) {
+				for (const change of e.changes) {
 					const thisPosition = Range.getEndPosition(change.range);
 					if (!position || Position.isBefore(thisPosition, position)) {
 						position = thisPosition;
@@ -337,10 +340,10 @@ export class SuggestController implements IEditorContribution {
 				}
 			});
 
-			let oldFlags = flags;
+			const oldFlags = flags;
 			flags |= InsertFlags.NoAfterUndoStop;
 			let didType = false;
-			let typeListener = this.editor.onWillType(() => {
+			const typeListener = this.editor.onWillType(() => {
 				typeListener.dispose();
 				didType = true;
 				if (!(oldFlags & InsertFlags.NoAfterUndoStop)) {
@@ -400,7 +403,7 @@ export class SuggestController implements IEditorContribution {
 
 		} else if (item.completion.command.id === TriggerSuggestAction.id) {
 			// retigger
-			this.model.trigger({ auto: true, shy: false }, true);
+			this.model.trigger({ auto: true, shy: false, noSelect: false }, true);
 
 		} else {
 			// exec command, done
@@ -489,14 +492,14 @@ export class SuggestController implements IEditorContribution {
 
 	private _alertCompletionItem(item: CompletionItem): void {
 		if (isNonEmptyArray(item.completion.additionalTextEdits)) {
-			let msg = nls.localize('aria.alert.snippet', "Accepting '{0}' made {1} additional edits", item.textLabel, item.completion.additionalTextEdits.length);
+			const msg = nls.localize('aria.alert.snippet', "Accepting '{0}' made {1} additional edits", item.textLabel, item.completion.additionalTextEdits.length);
 			alert(msg);
 		}
 	}
 
-	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>, auto?: boolean, noFilter?: boolean): void {
+	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>, auto?: boolean, noFilter?: boolean, noSelect?: boolean): void {
 		if (this.editor.hasModel()) {
-			this.model.trigger({ auto: auto ?? false, shy: false }, false, onlyFrom, undefined, noFilter);
+			this.model.trigger({ auto: auto ?? false, shy: false, noSelect: noSelect ?? false }, false, onlyFrom, undefined, noFilter);
 			this.editor.revealPosition(this.editor.getPosition(), ScrollType.Smooth);
 			this.editor.focus();
 		}
@@ -539,7 +542,7 @@ export class SuggestController implements IEditorContribution {
 
 		Event.once(this.model.onDidTrigger)(_ => {
 			// wait for trigger because only then the cancel-event is trustworthy
-			let listener: IDisposable[] = [];
+			const listener: IDisposable[] = [];
 
 			Event.any<any>(this.model.onDidTrigger, this.model.onDidCancel)(() => {
 				// retrigger or cancel -> try to type default text
@@ -565,7 +568,7 @@ export class SuggestController implements IEditorContribution {
 			}, undefined, listener);
 		});
 
-		this.model.trigger({ auto: false, shy: true });
+		this.model.trigger({ auto: false, shy: true, noSelect: false });
 		this.editor.revealPosition(positionNow, ScrollType.Smooth);
 		this.editor.focus();
 	}
@@ -706,15 +709,19 @@ export class TriggerSuggestAction extends EditorAction {
 			return;
 		}
 
-		type TriggerArgs = { auto: boolean };
+		type TriggerArgs = { auto: boolean; noSelection: boolean };
 		let auto: boolean | undefined;
+		let noSelect: boolean | undefined;
 		if (args && typeof args === 'object') {
 			if ((<TriggerArgs>args).auto === true) {
 				auto = true;
 			}
+			if ((<TriggerArgs>args).noSelection === true) {
+				noSelect = true;
+			}
 		}
 
-		controller.triggerSuggest(undefined, auto);
+		controller.triggerSuggest(undefined, auto, undefined, noSelect);
 	}
 }
 
@@ -728,7 +735,7 @@ const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(Sugge
 
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestion',
-	precondition: SuggestContext.Visible,
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.HasFocusedSuggestion),
 	handler(x) {
 		x.acceptSelectedSuggestion(true, false);
 	},
@@ -766,7 +773,7 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptAlternativeSelectedSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus, SuggestContext.HasFocusedSuggestion),
 	kbOpts: {
 		weight: weight,
 		kbExpr: EditorContextKeys.textInputFocus,

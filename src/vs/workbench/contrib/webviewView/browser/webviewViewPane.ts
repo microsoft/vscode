@@ -169,6 +169,7 @@ export class WebviewViewPane extends ViewPane {
 		const webviewId = generateUuid();
 		const webview = this.webviewService.createWebviewOverlay({
 			id: webviewId,
+			providedViewType: this.id,
 			options: { purpose: WebviewContentPurpose.WebviewView },
 			contentOptions: {},
 			extension: this.extensionId ? { id: this.extensionId } : undefined
@@ -204,7 +205,7 @@ export class WebviewViewPane extends ViewPane {
 		this.withProgress(async () => {
 			await this.extensionService.activateByEvent(`onView:${this.id}`);
 
-			let self = this;
+			const self = this;
 			const webviewView: WebviewView = {
 				webview,
 				onDidChangeVisibility: this.onDidChangeBodyVisibility,
@@ -283,8 +284,8 @@ export class WebviewViewPane extends ViewPane {
 		}
 
 		if (this._rootContainer) {
-			const clip = computeClippingRect(this._container, this._rootContainer);
-			webviewEntry.container.style.clip = `rect(${clip.top}px, ${clip.right}px, ${clip.bottom}px, ${clip.left}px)`;
+			const { top, left, right, bottom } = computeClippingRect(this._container, this._rootContainer);
+			webviewEntry.container.style.clipPath = `polygon(${left}px ${top}px, ${right}px ${top}px, ${right}px ${bottom}px, ${left}px ${bottom}px)`;
 		}
 	}
 

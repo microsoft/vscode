@@ -21,5 +21,6 @@ jobs:
         with:
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           slack_token: ${{ secrets.SLACK_TOKEN }}
+          slack_user_token: ${{ secrets.SLACK_USER_TOKEN }}
           slack_bot_name: "VSCodeBot"
           notification_channel: codereview

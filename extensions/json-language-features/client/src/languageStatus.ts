@@ -3,7 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, languages, Uri, LanguageStatusSeverity, Disposable, commands, QuickPickItem, extensions, workspace, Extension, WorkspaceFolder, QuickPickItemKind, ThemeIcon } from 'vscode';
+import {
+	window, languages, Uri, Disposable, commands, QuickPickItem,
+	extensions, workspace, Extension, WorkspaceFolder, QuickPickItemKind,
+	ThemeIcon, TextDocument, LanguageStatusSeverity
+} from 'vscode';
 import { JSONLanguageStatus, JSONSchemaSettings } from './jsonClient';
 
 import * as nls from 'vscode-nls';
@@ -187,13 +191,13 @@ export function createLanguageStatusItem(documentSelector: string[], statusReque
 				statusItem.detail = undefined;
 				if (schemas.length === 0) {
 					statusItem.text = localize('status.noSchema.short', "No Schema Validation");
-					statusItem.detail = localize('status.noSchema', 'No JSON schema configured.');
+					statusItem.detail = localize('status.noSchema', 'no JSON schema configured');
 				} else if (schemas.length === 1) {
 					statusItem.text = localize('status.withSchema.short', "Schema Validated");
-					statusItem.detail = localize('status.singleSchema', 'JSON schema configured.');
+					statusItem.detail = localize('status.singleSchema', 'JSON schema configured');
 				} else {
 					statusItem.text = localize('status.withSchemas.short', "Schema Validated");
-					statusItem.detail = localize('status.multipleSchema', 'Multiple JSON schemas configured.');
+					statusItem.detail = localize('status.multipleSchema', 'multiple JSON schemas configured');
 				}
 				statusItem.command = {
 					command: '_json.showAssociatedSchemaList',
@@ -215,5 +219,87 @@ export function createLanguageStatusItem(documentSelector: string[], statusReque
 	updateLanguageStatus();
 
 	return Disposable.from(statusItem, activeEditorListener, showSchemasCommand);
+}
+
+export function createLimitStatusItem(newItem: (limit: number) => Disposable) {
+	let statusItem: Disposable | undefined;
+	const activeLimits: Map<TextDocument, number> = new Map();
+
+	const toDispose: Disposable[] = [];
+	toDispose.push(window.onDidChangeActiveTextEditor(textEditor => {
+		statusItem?.dispose();
+		statusItem = undefined;
+		const doc = textEditor?.document;
+		if (doc) {
+			const limit = activeLimits.get(doc);
+			if (limit !== undefined) {
+				statusItem = newItem(limit);
+			}
+		}
+	}));
+	toDispose.push(workspace.onDidCloseTextDocument(document => {
+		activeLimits.delete(document);
+	}));
+
+	function update(document: TextDocument, limitApplied: number | false) {
+		if (limitApplied === false) {
+			activeLimits.delete(document);
+			if (statusItem && document === window.activeTextEditor?.document) {
+				statusItem.dispose();
+				statusItem = undefined;
+			}
+		} else {
+			activeLimits.set(document, limitApplied);
+			if (document === window.activeTextEditor?.document) {
+				if (!statusItem || limitApplied !== activeLimits.get(document)) {
+					statusItem?.dispose();
+					statusItem = newItem(limitApplied);
+				}
+			}
+		}
+	}
+	return {
+		update,
+		dispose() {
+			statusItem?.dispose();
+			toDispose.forEach(d => d.dispose());
+			toDispose.length = 0;
+			statusItem = undefined;
+			activeLimits.clear();
+		}
+	};
+}
+
+const openSettingsCommand = 'workbench.action.openSettings';
+const configureSettingsLabel = localize('status.button.configure', "Configure");
+
+export function createFoldingRangeLimitItem(documentSelector: string[], settingId: string, limit: number): Disposable {
+	const statusItem = languages.createLanguageStatusItem('json.foldingRangesStatus', documentSelector);
+	statusItem.name = localize('foldingRangesStatusItem.name', "JSON Folding Status");
+	statusItem.severity = LanguageStatusSeverity.Warning;
+	statusItem.text = localize('status.limitedFoldingRanges.short', "Folding Ranges Limited");
+	statusItem.detail = localize('status.limitedFoldingRanges.details', 'only {0} folding ranges shown', limit);
+	statusItem.command = { command: openSettingsCommand, arguments: [settingId], title: configureSettingsLabel };
+	return Disposable.from(statusItem);
+}
+
+export function createDocumentSymbolsLimitItem(documentSelector: string[], settingId: string, limit: number): Disposable {
+	const statusItem = languages.createLanguageStatusItem('json.documentSymbolsStatus', documentSelector);
+	statusItem.name = localize('documentSymbolsStatusItem.name', "JSON Outline Status");
+	statusItem.severity = LanguageStatusSeverity.Warning;
+	statusItem.text = localize('status.limitedDocumentSymbols.short', "Outline Limited");
+	statusItem.detail = localize('status.limitedDocumentSymbols.details', 'only {0} document symbols shown', limit);
+	statusItem.command = { command: openSettingsCommand, arguments: [settingId], title: configureSettingsLabel };
+	return Disposable.from(statusItem);
+}
+
+export function createDocumentColorsLimitItem(documentSelector: string[], settingId: string, limit: number): Disposable {
+	const statusItem = languages.createLanguageStatusItem('json.documentColorsStatus', documentSelector);
+	statusItem.name = localize('documentColorsStatusItem.name', "JSON Color Symbol Status");
+	statusItem.severity = LanguageStatusSeverity.Warning;
+	statusItem.text = localize('status.limitedDocumentColors.short', "Color Symbols Limited");
+	statusItem.detail = localize('status.limitedDocumentColors.details', 'only {0} color decorators shown', limit);
+	statusItem.command = { command: openSettingsCommand, arguments: [settingId], title: configureSettingsLabel };
+	return Disposable.from(statusItem);
 }
 

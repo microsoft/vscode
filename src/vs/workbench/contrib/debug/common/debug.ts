@@ -6,6 +6,7 @@
 import { IAction } from 'vs/base/common/actions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -24,7 +25,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ITaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const VIEWLET_ID = 'workbench.view.debug';
@@ -159,6 +160,13 @@ export interface IDebugger {
 	getCustomTelemetryEndpoint(): ITelemetryEndpoint | undefined;
 }
 
+export interface IDebuggerMetadata {
+	label: string;
+	type: string;
+	strings?: { [key in DebuggerString]: string };
+	interestedInLanguage(languageId: string): boolean;
+}
+
 export const enum State {
 	Inactive,
 	Initializing,
@@ -199,6 +207,7 @@ export interface IDebugSessionOptions {
 		simple?: boolean;
 	};
 	startedByUser?: boolean;
+	saveBeforeRestart?: boolean;
 }
 
 export interface IDataBreakpointInfoResponse {
@@ -289,6 +298,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly subId: string | undefined;
 	readonly compact: boolean;
 	readonly compoundRoot: DebugCompoundRoot | undefined;
+	readonly saveBeforeRestart: boolean;
 	readonly name: string;
 	readonly isSimpleUI: boolean;
 	readonly autoExpandLazyVariables: boolean;
@@ -366,7 +376,7 @@ export interface IDebugSession extends ITreeElement {
 	restartFrame(frameId: number, threadId: number): Promise<void>;
 	next(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
 	stepIn(threadId: number, targetId?: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
-	stepInTargets(frameId: number): Promise<{ id: number; label: string }[] | undefined>;
+	stepInTargets(frameId: number): Promise<DebugProtocol.StepInTarget[] | undefined>;
 	stepOut(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
 	stepBack(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
 	continue(threadId: number): Promise<void>;
@@ -595,6 +605,8 @@ export interface IDebugModel extends ITreeElement {
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent | undefined>;
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression | undefined>;
+
+	fetchCallstack(thread: IThread, levels?: number): Promise<void>;
 }
 
 /**
@@ -650,12 +662,13 @@ export interface IGlobalConfig {
 
 export interface IEnvConfig {
 	internalConsoleOptions?: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
-	preRestartTask?: string | TaskIdentifier;
-	postRestartTask?: string | TaskIdentifier;
-	preLaunchTask?: string | TaskIdentifier;
-	postDebugTask?: string | TaskIdentifier;
+	preRestartTask?: string | ITaskIdentifier;
+	postRestartTask?: string | ITaskIdentifier;
+	preLaunchTask?: string | ITaskIdentifier;
+	postDebugTask?: string | ITaskIdentifier;
 	debugServer?: number;
 	noDebug?: boolean;
+	suppressMultipleSessionWarning?: boolean;
 }
 
 export interface IConfigPresentation {
@@ -687,7 +700,7 @@ export interface IConfig extends IEnvConfig {
 export interface ICompound {
 	name: string;
 	stopAll?: boolean;
-	preLaunchTask?: string | TaskIdentifier;
+	preLaunchTask?: string | ITaskIdentifier;
 	configurations: (string | { name: string; folder: string })[];
 	presentation?: IConfigPresentation;
 }
@@ -772,6 +785,8 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 	configurationSnippets?: IJSONSchemaSnippet[];
 	variables?: { [key: string]: string };
 	when?: string;
+	deprecated?: string;
+	strings?: { [key in DebuggerString]: string };
 }
 
 export interface IBreakpointContribution {
@@ -847,6 +862,10 @@ export interface IConfigurationManager {
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any, token: CancellationToken): Promise<any>;
 }
 
+export enum DebuggerString {
+	UnverifiedBreakpoints = 'unverifiedBreakpoints'
+}
+
 export interface IAdapterManager {
 
 	onDidRegisterDebugger: Event<void>;
@@ -854,7 +873,8 @@ export interface IAdapterManager {
 	hasEnabledDebuggers(): boolean;
 	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
 	getDebuggerLabel(type: string): string | undefined;
-	isDebuggerInterestedInLanguage(language: string): boolean;
+	someDebuggerInterestedInLanguage(language: string): boolean;
+	getDebugger(type: string): IDebuggerMetadata | undefined;
 
 	activateDebuggers(activationEvent: string, debugType?: string): Promise<void>;
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable;
@@ -909,7 +929,7 @@ export interface ILaunch {
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
-	openConfigFile(preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditorPane | null; created: boolean }>;
+	openConfigFile(options: { preserveFocus: boolean; type?: string; suppressInitialConfigs?: boolean }, token?: CancellationToken): Promise<{ editor: IEditorPane | null; created: boolean }>;
 }
 
 // Debug service interfaces
@@ -1122,4 +1142,17 @@ export interface IBreakpointEditorContribution extends editorCommon.IEditorContr
 	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext): void;
 	closeBreakpointWidget(): void;
 	getContextMenuActionsAtPosition(lineNumber: number, model: EditorIModel): IAction[];
+}
+
+export interface IReplConfiguration {
+	readonly fontSize: number;
+	readonly fontFamily: string;
+	readonly lineHeight: number;
+	readonly cssLineHeight: string;
+	readonly backgroundColor: Color | undefined;
+	readonly fontSizeForTwistie: number;
+}
+
+export interface IReplOptions {
+	readonly replConfiguration: IReplConfiguration;
 }

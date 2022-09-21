@@ -46,7 +46,7 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 
 			// Check if the link is within the mouse position
 			const uri = computedLink.url
-				? (typeof computedLink.url === 'string' ? URI.parse(computedLink.url) : computedLink.url)
+				? (typeof computedLink.url === 'string' ? URI.parse(this._excludeLineAndColSuffix(computedLink.url)) : computedLink.url)
 				: undefined;
 
 			if (!uri) {
@@ -91,7 +91,8 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 					type = TerminalBuiltinLinkType.LocalFile;
 				}
 				links.push({
-					text: linkStat.link,
+					// Use computedLink.url if it's a string to retain the line/col suffix
+					text: typeof computedLink.url === 'string' ? computedLink.url : linkStat.link,
 					uri: linkStat.uri,
 					bufferRange,
 					type
@@ -115,6 +116,10 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 			}
 		}
 		return false;
+	}
+
+	private _excludeLineAndColSuffix(path: string): string {
+		return path.replace(/:\d+(:\d+)?$/, '');
 	}
 }
 

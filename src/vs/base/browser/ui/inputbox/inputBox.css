@@ -49,7 +49,6 @@
 
 .monaco-inputbox > .ibwrapper > textarea.input {
 	display: block;
-	-ms-overflow-style: none; /* IE 10+: hide scrollbars */
 	scrollbar-width: none; /* Firefox: hide scrollbars */
 	outline: none;
 }

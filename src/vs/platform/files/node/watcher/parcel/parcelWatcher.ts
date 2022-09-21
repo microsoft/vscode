@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as parcelWatcher from '@parcel/watcher';
-import { existsSync, unlinkSync } from 'fs';
+import { existsSync, statSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { DeferredPromise, RunOnceScheduler, ThrottledWorker } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { isEqualOrParent, randomPath } from 'vs/base/common/extpath';
-import { ParsedPattern, patternsEquals } from 'vs/base/common/glob';
+import { GLOBSTAR, ParsedPattern, patternsEquals } from 'vs/base/common/glob';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { normalizeNFC } from 'vs/base/common/normalization';
@@ -145,7 +145,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		// Logging
 
 		if (requestsToStartWatching.length) {
-			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? request.includes : '<all>'})`).join(',')}`);
+			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'})`).join(',')}`);
 		}
 
 		if (pathsToStopWatching.length) {
@@ -653,7 +653,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 	}
 
-	protected normalizeRequests(requests: IRecursiveWatchRequest[]): IRecursiveWatchRequest[] {
+	protected normalizeRequests(requests: IRecursiveWatchRequest[], validatePaths = true): IRecursiveWatchRequest[] {
 		const requestTrie = TernarySearchTree.forPaths<IRecursiveWatchRequest>(!isLinux);
 
 		// Sort requests by path length to have shortest first
@@ -663,22 +663,46 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 		// Only consider requests for watching that are not
 		// a child of an existing request path to prevent
-		// duplication.
+		// duplication. In addition, drop any request where
+		// everything is excluded (via `**` glob).
 		//
 		// However, allow explicit requests to watch folders
 		// that are symbolic links because the Parcel watcher
 		// does not allow to recursively watch symbolic links.
 		for (const request of requests) {
+			if (request.excludes.includes(GLOBSTAR)) {
+				continue; // path is ignored entirely (via `**` glob exclude)
+			}
+
+			// Check for overlapping requests
 			if (requestTrie.findSubstr(request.path)) {
 				try {
 					const realpath = realpathSync(request.path);
 					if (realpath === request.path) {
 						this.trace(`ignoring a path for watching who's parent is already watched: ${request.path}`);
 
-						continue; // path is not a symbolic link or similar
+						continue;
 					}
 				} catch (error) {
-					continue; // invalid path - ignore from watching
+					this.trace(`ignoring a path for watching who's realpath failed to resolve: ${request.path} (error: ${error})`);
+
+					continue;
+				}
+			}
+
+			// Check for invalid paths
+			if (validatePaths) {
+				try {
+					const stat = statSync(request.path);
+					if (!stat.isDirectory()) {
+						this.trace(`ignoring a path for watching that is a file and not a folder: ${request.path}`);
+
+						continue;
+					}
+				} catch (error) {
+					this.trace(`ignoring a path for watching who's stat info failed to resolve: ${request.path} (error: ${error})`);
+
+					continue;
 				}
 			}
 

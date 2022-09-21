@@ -25,8 +25,10 @@ import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
 import { TerminalEnvironmentManager } from './terminal';
 import { OutputChannelLogger } from './log';
-import { createIPCServer, IIPCServer } from './ipc/ipcServer';
-import { GitEditor } from './gitEditor/gitEditor';
+import { createIPCServer, IPCServer } from './ipc/ipcServer';
+import { GitEditor } from './gitEditor';
+import { GitPostCommitCommandsProvider } from './postCommitCommands';
+import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -62,22 +64,22 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 		return !skip;
 	});
 
-	let ipc: IIPCServer | undefined = undefined;
+	let ipcServer: IPCServer | undefined = undefined;
 
 	try {
-		ipc = await createIPCServer(context.storagePath);
+		ipcServer = await createIPCServer(context.storagePath);
 	} catch (err) {
 		outputChannelLogger.logError(`Failed to create git IPC: ${err}`);
 	}
 
-	const askpass = new Askpass(ipc);
+	const askpass = new Askpass(ipcServer);
 	disposables.push(askpass);
 
-	const gitEditor = new GitEditor(ipc);
+	const gitEditor = new GitEditor(ipcServer);
 	disposables.push(gitEditor);
 
-	const environment = { ...askpass.getEnv(), ...gitEditor.getEnv() };
-	const terminalEnvironmentManager = new TerminalEnvironmentManager(context, environment);
+	const environment = { ...askpass.getEnv(), ...gitEditor.getEnv(), ...ipcServer?.getEnv() };
+	const terminalEnvironmentManager = new TerminalEnvironmentManager(context, [askpass, gitEditor, ipcServer]);
 	disposables.push(terminalEnvironmentManager);
 
 	outputChannelLogger.logInfo(localize('using git', "Using git {0} from {1}", info.version, info.path));
@@ -103,7 +105,7 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 			lines.pop();
 		}
 
-		outputChannelLogger.logGitCommand(lines.join('\n'));
+		outputChannelLogger.log(lines.join('\n'));
 	};
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
@@ -113,9 +115,12 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 		cc,
 		new GitFileSystemProvider(model),
 		new GitDecorations(model),
-		new GitProtocolHandler(),
-		new GitTimelineProvider(model, cc)
+		new GitTimelineProvider(model, cc),
+		new GitEditSessionIdentityProvider(model)
 	);
+
+	const postCommitCommandsProvider = new GitPostCommitCommandsProvider();
+	model.registerPostCommitCommandsProvider(postCommitCommandsProvider);
 
 	checkGitVersion(info);
 
@@ -215,6 +220,8 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 		warnAboutMissingGit();
 
 		return new GitExtensionImpl();
+	} finally {
+		disposables.push(new GitProtocolHandler(outputChannelLogger));
 	}
 }
 

@@ -91,11 +91,11 @@ class ModelData implements IDisposable {
 		this._disposeLanguageSelection();
 	}
 
-	public setLanguage(languageSelection: ILanguageSelection): void {
+	public setLanguage(languageSelection: ILanguageSelection, source?: string): void {
 		this._disposeLanguageSelection();
 		this._languageSelection = languageSelection;
-		this._languageSelectionListener = this._languageSelection.onDidChange(() => this.model.setMode(languageSelection.languageId));
-		this.model.setMode(languageSelection.languageId);
+		this._languageSelectionListener = this._languageSelection.onDidChange(() => this.model.setMode(languageSelection.languageId, source));
+		this.model.setMode(languageSelection.languageId, source);
 	}
 }
 
@@ -516,7 +516,7 @@ export class ModelService extends Disposable implements IModelService {
 		return modelData.model;
 	}
 
-	public setMode(model: ITextModel, languageSelection: ILanguageSelection): void {
+	public setMode(model: ITextModel, languageSelection: ILanguageSelection, source?: string): void {
 		if (!languageSelection) {
 			return;
 		}
@@ -524,7 +524,7 @@ export class ModelService extends Disposable implements IModelService {
 		if (!modelData) {
 			return;
 		}
-		modelData.setLanguage(languageSelection);
+		modelData.setLanguage(languageSelection, source);
 	}
 
 	public destroyModel(resource: URI): void {
@@ -679,7 +679,7 @@ class SemanticColoringFeature extends Disposable {
 			delete this._watchers[model.uri.toString()];
 		};
 		const handleSettingOrThemeChange = () => {
-			for (let model of modelService.getModels()) {
+			for (const model of modelService.getModels()) {
 				const curr = this._watchers[model.uri.toString()];
 				if (isSemanticColoringEnabled(model, themeService, configurationService)) {
 					if (!curr) {

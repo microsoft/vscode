@@ -40,12 +40,15 @@ export interface IViewModel extends ICursorSimpleModel {
 	onCompositionStart(): void;
 	onCompositionEnd(): void;
 
-	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
-	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
+	getDecorationsInViewport(visibleRange: Range, onlyMinimapDecorations?: boolean): ViewModelDecoration[];
+	getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
+	getViewLineRenderingData(lineNumber: number): ViewLineRenderingData;
 	getViewLineData(lineNumber: number): ViewLineData;
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData;
 	getCompletelyVisibleViewRange(): Range;
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
+
+	getHiddenAreas(): Range[];
 
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
@@ -117,7 +120,8 @@ export interface IViewLayout {
 	isInTopPadding(verticalOffset: number): boolean;
 	isInBottomPadding(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
-	getVerticalOffsetForLineNumber(lineNumber: number): number;
+	getVerticalOffsetForLineNumber(lineNumber: number, includeViewZones?: boolean): number;
+	getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones?: boolean): number;
 	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
 
 	/**
@@ -133,7 +137,7 @@ export interface IEditorWhitespace {
 }
 
 /**
- * An accessor that allows for whtiespace to be added, removed or changed in bulk.
+ * An accessor that allows for whitespace to be added, removed or changed in bulk.
  */
 export interface IWhitespaceChangeAccessor {
 	insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): string;

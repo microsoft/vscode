@@ -14,14 +14,14 @@ export interface TokenText {
 }
 
 export function createFakeScopedLineTokens(rawTokens: TokenText[]): ScopedLineTokens {
-	let tokens = new Uint32Array(rawTokens.length << 1);
+	const tokens = new Uint32Array(rawTokens.length << 1);
 	let line = '';
 
 	for (let i = 0, len = rawTokens.length; i < len; i++) {
-		let rawToken = rawTokens[i];
+		const rawToken = rawTokens[i];
 
-		let startOffset = line.length;
-		let metadata = (
+		const startOffset = line.length;
+		const metadata = (
 			(rawToken.type << MetadataConsts.TOKEN_TYPE_OFFSET)
 		) >>> 0;
 

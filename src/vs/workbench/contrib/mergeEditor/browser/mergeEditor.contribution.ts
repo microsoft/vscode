@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { localize } from 'vs/nls';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { registerAction2 } from 'vs/platform/actions/common/actions';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { ctxIsMergeEditor, ctxUsesColumnLayout, MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditor';
-import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { AcceptAllInput1, AcceptAllInput2, CompareInput1WithBaseCommand, CompareInput2WithBaseCommand, GoToNextUnhandledConflict, GoToPreviousUnhandledConflict, OpenBaseFile, OpenMergeEditor, OpenResultResource, ResetDirtyConflictsToBaseCommand, ResetToBaseAndAutoMergeCommand, SetColumnLayout, SetMixedLayout, ShowHideBase, ToggleActiveConflictInput1, ToggleActiveConflictInput2 } from 'vs/workbench/contrib/mergeEditor/browser/commands/commands';
+import { MergeEditorCopyContentsToJSON, MergeEditorSaveContentsToFolder, MergeEditorLoadContentsFromFolder } from 'vs/workbench/contrib/mergeEditor/browser/commands/devCommands';
+import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
+import { MergeEditor, MergeEditorResolverContribution, MergeEditorOpenHandlerContribution } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { MergeEditorSerializer } from './mergeEditorSerializer';
-import { Codicon } from 'vs/base/common/codicons';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -34,121 +34,51 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 	MergeEditorSerializer
 );
 
-registerAction2(class ToggleLayout extends Action2 {
-
-	constructor() {
-		super({
-			id: 'merge.toggleLayout',
-			title: localize('toggle.title', "Switch to column view"),
-			icon: Codicon.layoutCentered,
-			toggled: {
-				condition: ctxUsesColumnLayout,
-				icon: Codicon.layoutPanel,
-				title: localize('toggle.title2', "Switch to 2 by 1 view"),
-			},
-			menu: [{
-				id: MenuId.EditorTitle,
-				when: ctxIsMergeEditor,
-				group: 'navigation'
-			}]
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		const { activeEditorPane } = accessor.get(IEditorService);
-		if (activeEditorPane instanceof MergeEditor) {
-			activeEditorPane.toggleLayout();
-		}
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	properties: {
+		'mergeEditor.diffAlgorithm': {
+			type: 'string',
+			enum: ['smart', 'experimental'],
+			default: 'smart',
+			markdownEnumDescriptions: [
+				localize('diffAlgorithm.smart', "Uses the default diffing algorithm."),
+				localize('diffAlgorithm.experimental', "Uses an experimental diffing algorithm."),
+			]
+		},
 	}
 });
 
-registerAction2(class Open extends Action2 {
+registerAction2(OpenResultResource);
+registerAction2(SetMixedLayout);
+registerAction2(SetColumnLayout);
+registerAction2(ShowHideBase);
+registerAction2(OpenMergeEditor);
+registerAction2(OpenBaseFile);
 
-	constructor() {
-		super({
-			id: '_open.mergeEditor',
-			title: localize('title', "Open Merge Editor"),
-		});
-	}
-	run(accessor: ServicesAccessor, ...args: any[]): void {
-		const validatedArgs = IRelaxedOpenArgs.validate(args[0]);
+registerAction2(GoToNextUnhandledConflict);
+registerAction2(GoToPreviousUnhandledConflict);
 
-		const instaService = accessor.get(IInstantiationService);
-		const input = instaService.createInstance(
-			MergeEditorInput,
-			validatedArgs.ancestor,
-			validatedArgs.input1,
-			validatedArgs.input2,
-			validatedArgs.output,
-		);
-		accessor.get(IEditorService).openEditor(input);
-	}
+registerAction2(ToggleActiveConflictInput1);
+registerAction2(ToggleActiveConflictInput2);
 
-});
+registerAction2(CompareInput1WithBaseCommand);
+registerAction2(CompareInput2WithBaseCommand);
 
-namespace IRelaxedOpenArgs {
-	function toUri(obj: unknown): URI {
-		if (typeof obj === 'string') {
-			return URI.parse(obj, true);
-		} else if (obj && typeof obj === 'object') {
-			return URI.revive(<UriComponents>obj);
-		}
-		throw new TypeError('invalid argument');
-	}
+registerAction2(AcceptAllInput1);
+registerAction2(AcceptAllInput2);
 
-	function isUriComponents(obj: unknown): obj is UriComponents {
-		if (!obj || typeof obj !== 'object') {
-			return false;
-		}
-		return typeof (<UriComponents>obj).scheme === 'string'
-			&& typeof (<UriComponents>obj).authority === 'string'
-			&& typeof (<UriComponents>obj).path === 'string'
-			&& typeof (<UriComponents>obj).query === 'string'
-			&& typeof (<UriComponents>obj).fragment === 'string';
-	}
+registerAction2(ResetToBaseAndAutoMergeCommand);
+registerAction2(ResetDirtyConflictsToBaseCommand);
 
-	function toInputResource(obj: unknown): MergeEditorInputData {
-		if (typeof obj === 'string') {
-			return new MergeEditorInputData(URI.parse(obj, true), undefined, undefined);
-		}
-		if (!obj || typeof obj !== 'object') {
-			throw new TypeError('invalid argument');
-		}
+// Dev Commands
+registerAction2(MergeEditorCopyContentsToJSON);
+registerAction2(MergeEditorSaveContentsToFolder);
+registerAction2(MergeEditorLoadContentsFromFolder);
 
-		if (isUriComponents(obj)) {
-			return new MergeEditorInputData(URI.revive(obj), undefined, undefined);
-		}
+Registry
+	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(MergeEditorOpenHandlerContribution, 'MergeEditorOpenHandlerContribution', LifecyclePhase.Restored);
 
-		let uri = toUri((<IRelaxedInputData>obj).uri);
-		let detail = (<IRelaxedInputData>obj).detail;
-		let description = (<IRelaxedInputData>obj).description;
-		return new MergeEditorInputData(uri, detail, description);
-	}
-
-	export function validate(obj: unknown): IOpenEditorArgs {
-		if (!obj || typeof obj !== 'object') {
-			throw new TypeError('invalid argument');
-		}
-		const ancestor = toUri((<IRelaxedOpenArgs>obj).ancestor);
-		const output = toUri((<IRelaxedOpenArgs>obj).output);
-		const input1 = toInputResource((<IRelaxedOpenArgs>obj).input1);
-		const input2 = toInputResource((<IRelaxedOpenArgs>obj).input2);
-		return { ancestor, input1, input2, output };
-	}
-}
-
-type IRelaxedInputData = { uri: UriComponents; detail?: string; description?: string };
-
-type IRelaxedOpenArgs = {
-	ancestor: UriComponents | string;
-	input1: IRelaxedInputData | string;
-	input2: IRelaxedInputData | string;
-	output: UriComponents | string;
-};
-
-interface IOpenEditorArgs {
-	ancestor: URI;
-	input1: MergeEditorInputData;
-	input2: MergeEditorInputData;
-	output: URI;
-}
+Registry
+	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(MergeEditorResolverContribution, 'MergeEditorResolverContribution', LifecyclePhase.Starting);

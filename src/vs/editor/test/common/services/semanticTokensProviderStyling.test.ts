@@ -131,4 +131,42 @@ suite('ModelService', () => {
 		]));
 		assert.deepStrictEqual(result.toString(), expected.toString());
 	});
+
+	test('issue #149130: vscode freezes because of Bracket Pair Colorization', () => {
+		const languageId = 'q';
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		const legend = {
+			tokenTypes: ['st0', 'st1', 'st2', 'st3', 'st4', 'st5'],
+			tokenModifiers: ['stm0', 'stm1', 'stm2']
+		};
+		instantiationService.stub(IThemeService, <Partial<IThemeService>>{
+			getColorTheme() {
+				return {
+					getTokenStyleMetadata: (tokenType, tokenModifiers, languageId): ITokenStyle => {
+						return {
+							foreground: parseInt(tokenType.substr(2), 10),
+							bold: undefined,
+							underline: undefined,
+							strikethrough: undefined,
+							italic: undefined
+						};
+					}
+				};
+			}
+		});
+		const styling = instantiationService.createInstance(SemanticTokensProviderStyling, legend);
+		const badTokens = {
+			data: new Uint32Array([
+				0, 11, 1, 1, 0,
+				0, 4, 1, 1, 0,
+				0, 4294967289, 1, 1, 0
+			])
+		};
+		const result = toMultilineTokens2(badTokens, styling, languageId);
+		const expected = SparseMultilineTokens.create(1, new Uint32Array([
+			0, 11, 12, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (1 << MetadataConsts.FOREGROUND_OFFSET)),
+			0, 15, 16, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (1 << MetadataConsts.FOREGROUND_OFFSET)),
+		]));
+		assert.deepStrictEqual(result.toString(), expected.toString());
+	});
 });

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vfs from 'vinyl-fs';
@@ -169,6 +167,7 @@ export const config = {
 			'F# script': ['fsx', 'fsscript'],
 			'SVG document': ['svg', 'svgz'],
 			'TOML document': 'toml',
+			'Swift source code': 'swift',
 		}, 'default'),
 		// Default icon with default name
 		darwinBundleDocumentType([

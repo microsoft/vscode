@@ -11,9 +11,9 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/com
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, SortBy, InstallExtensionResult, getTargetPlatform, IExtensionInfo
+	DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, getTargetPlatform, IExtensionInfo, UninstallExtensionEvent, SortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
@@ -54,16 +54,16 @@ suite('ExtensionsListView Tests', () => {
 	let testableView: ExtensionsListView;
 	let installEvent: Emitter<InstallExtensionEvent>,
 		didInstallEvent: Emitter<readonly InstallExtensionResult[]>,
-		uninstallEvent: Emitter<IExtensionIdentifier>,
+		uninstallEvent: Emitter<UninstallExtensionEvent>,
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 
-	const localEnabledTheme = aLocalExtension('first-enabled-extension', { categories: ['Themes', 'random'] });
-	const localEnabledLanguage = aLocalExtension('second-enabled-extension', { categories: ['Programming languages'] });
-	const localDisabledTheme = aLocalExtension('first-disabled-extension', { categories: ['themes'] });
-	const localDisabledLanguage = aLocalExtension('second-disabled-extension', { categories: ['programming languages'] });
-	const localRandom = aLocalExtension('random-enabled-extension', { categories: ['random'] });
-	const builtInTheme = aLocalExtension('my-theme', { contributes: { themes: ['my-theme'] } }, { type: ExtensionType.System });
-	const builtInBasic = aLocalExtension('my-lang', { contributes: { grammars: [{ language: 'my-language' }] } }, { type: ExtensionType.System });
+	const localEnabledTheme = aLocalExtension('first-enabled-extension', { categories: ['Themes', 'random'] }, { installedTimestamp: 123456 });
+	const localEnabledLanguage = aLocalExtension('second-enabled-extension', { categories: ['Programming languages'] }, { installedTimestamp: Date.now() });
+	const localDisabledTheme = aLocalExtension('first-disabled-extension', { categories: ['themes'] }, { installedTimestamp: 234567 });
+	const localDisabledLanguage = aLocalExtension('second-disabled-extension', { categories: ['programming languages'] }, { installedTimestamp: Date.now() - 50000 });
+	const localRandom = aLocalExtension('random-enabled-extension', { categories: ['random'] }, { installedTimestamp: 345678 });
+	const builtInTheme = aLocalExtension('my-theme', { contributes: { themes: ['my-theme'] } }, { type: ExtensionType.System, installedTimestamp: 222 });
+	const builtInBasic = aLocalExtension('my-lang', { contributes: { grammars: [{ language: 'my-language' }] } }, { type: ExtensionType.System, installedTimestamp: 666666 });
 
 	const workspaceRecommendationA = aGalleryExtension('workspace-recommendation-A');
 	const workspaceRecommendationB = aGalleryExtension('workspace-recommendation-B');
@@ -76,7 +76,7 @@ suite('ExtensionsListView Tests', () => {
 	suiteSetup(() => {
 		installEvent = new Emitter<InstallExtensionEvent>();
 		didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
-		uninstallEvent = new Emitter<IExtensionIdentifier>();
+		uninstallEvent = new Emitter<UninstallExtensionEvent>();
 		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 
 		instantiationService = new TestInstantiationService();
@@ -96,6 +96,7 @@ suite('ExtensionsListView Tests', () => {
 			onDidInstallExtensions: didInstallEvent.event,
 			onUninstallExtension: uninstallEvent.event,
 			onDidUninstallExtension: didUninstallEvent.event,
+			onDidChangeProfile: Event.None,
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {} }; },
@@ -105,7 +106,7 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IMenuService, new TestMenuService());
 
-		const localExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', id: 'vscode-local' };
+		const localExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService) as IProfileAwareExtensionManagementService, label: 'local', id: 'vscode-local' };
 		instantiationService.stub(IExtensionManagementServerService, <Partial<IExtensionManagementServerService>>{
 			get localExtensionManagementServer(): IExtensionManagementServer {
 				return localExtensionManagementServer;
@@ -205,10 +206,14 @@ suite('ExtensionsListView Tests', () => {
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@enabled'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@disabled'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@outdated'), true);
+		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@updates'), true);
+		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@sort:name'), true);
+		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@sort:updateDate'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@installed searchText'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@enabled searchText'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@disabled searchText'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@outdated searchText'), true);
+		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@updates searchText'), true);
 	});
 
 	test('Test empty query equates to sort by install count', () => {
@@ -343,6 +348,26 @@ suite('ExtensionsListView Tests', () => {
 		await testableView.show('@disabled category:"programming languages"').then(result => {
 			assert.strictEqual(result.length, 1, 'Unexpected number of results for @disabled query with quoted category inlcuding space');
 			assert.strictEqual(result.get(0).name, localDisabledLanguage.manifest.name, 'Unexpected extension for @disabled query with quoted category including space.');
+		});
+	});
+
+	test('Test local query with sorting order', async () => {
+		await testableView.show('@recentlyUpdated').then(result => {
+			assert.strictEqual(result.length, 2, 'Unexpected number of results for @recentlyUpdated');
+			const actual = [result.get(0).name, result.get(1).name];
+			const expected = [localEnabledLanguage.manifest.name, localDisabledLanguage.manifest.name];
+			for (let i = 0; i < actual.length; i++) {
+				assert.strictEqual(actual[i], expected[i], 'Unexpected default sort order of extensions for @recentlyUpdate query');
+			}
+		});
+
+		await testableView.show('@installed @sort:updateDate').then(result => {
+			assert.strictEqual(result.length, 5, 'Unexpected number of results for @sort:updateDate. Expected all localy installed Extension which are not builtin');
+			const actual = [result.get(0).local?.installedTimestamp, result.get(1).local?.installedTimestamp, result.get(2).local?.installedTimestamp, result.get(3).local?.installedTimestamp, result.get(4).local?.installedTimestamp];
+			const expected = [localEnabledLanguage.installedTimestamp, localDisabledLanguage.installedTimestamp, localRandom.installedTimestamp, localDisabledTheme.installedTimestamp, localEnabledTheme.installedTimestamp];
+			for (let i = 0; i < result.length; i++) {
+				assert.strictEqual(actual[i], expected[i], 'Unexpected extension sorting for @sort:updateDate query.');
+			}
 		});
 	});
 

@@ -8,14 +8,16 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { AbstractProblemCollector, StartStopProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
-import { TaskEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ITaskEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskService';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
+import { IMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 
-interface TerminalData {
+interface ITerminalData {
 	terminal: ITerminalInstance;
 	task: Task;
 	status: ITerminalStatus;
@@ -36,9 +38,9 @@ const INFO_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: C
 const INFO_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.info, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.infosInactive', "Task has infos and is waiting...") };
 
 export class TaskTerminalStatus extends Disposable {
-	private terminalMap: Map<string, TerminalData> = new Map();
-
-	constructor(taskService: ITaskService) {
+	private terminalMap: Map<string, ITerminalData> = new Map();
+	private _marker: IMarker | undefined;
+	constructor(@ITaskService taskService: ITaskService, @IAudioCueService private readonly _audioCueService: IAudioCueService) {
 		super();
 		this._register(taskService.onDidStateChange((event) => {
 			switch (event.kind) {
@@ -46,17 +48,36 @@ export class TaskTerminalStatus extends Disposable {
 				case TaskEventKind.Active: this.eventActive(event); break;
 				case TaskEventKind.Inactive: this.eventInactive(event); break;
 				case TaskEventKind.ProcessEnded: this.eventEnd(event); break;
+				case TaskEventKind.End: this._playEndSound(event.exitCode); break;
 			}
 		}));
 	}
 
+	private _playEndSound(exitCode?: number): void {
+		//TODO: determine sound based on exit code
+		this._audioCueService.playAudioCue(AudioCue.taskEnded);
+	}
+
+
 	addTerminal(task: Task, terminal: ITerminalInstance, problemMatcher: AbstractProblemCollector) {
 		const status: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, severity: Severity.Info };
 		terminal.statusList.add(status);
+		problemMatcher.onDidFindFirstMatch(() => {
+			this._marker = terminal.registerMarker();
+		});
+		problemMatcher.onDidFindErrors(() => {
+			if (this._marker) {
+				terminal.addBufferMarker({ marker: this._marker, hoverMessage: nls.localize('task.watchFirstError', "Beginning of detected errors for this run"), disableCommandStorage: true });
+			}
+		});
+		problemMatcher.onDidRequestInvalidateLastMarker(() => {
+			this._marker?.dispose();
+			this._marker = undefined;
+		});
 		this.terminalMap.set(task._id, { terminal, task, status, problemMatcher, taskRunEnded: false });
 	}
 
-	private terminalFromEvent(event: TaskEvent): TerminalData | undefined {
+	private terminalFromEvent(event: ITaskEvent): ITerminalData | undefined {
 		if (!event.__task) {
 			return undefined;
 		}
@@ -64,7 +85,7 @@ export class TaskTerminalStatus extends Disposable {
 		return this.terminalMap.get(event.__task._id);
 	}
 
-	private eventEnd(event: TaskEvent) {
+	private eventEnd(event: ITaskEvent) {
 		const terminalData = this.terminalFromEvent(event);
 		if (!terminalData) {
 			return;
@@ -72,7 +93,13 @@ export class TaskTerminalStatus extends Disposable {
 		terminalData.taskRunEnded = true;
 		terminalData.terminal.statusList.remove(terminalData.status);
 		if ((event.exitCode === 0) && (terminalData.problemMatcher.numberOfMatches === 0)) {
-			terminalData.terminal.statusList.add(SUCCEEDED_TASK_STATUS);
+			if (terminalData.task.configurationProperties.isBackground) {
+				for (const status of terminalData.terminal.statusList.statuses) {
+					terminalData.terminal.statusList.remove(status);
+				}
+			} else {
+				terminalData.terminal.statusList.add(SUCCEEDED_TASK_STATUS);
+			}
 		} else if (event.exitCode || terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Error) {
 			terminalData.terminal.statusList.add(FAILED_TASK_STATUS);
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Warning) {
@@ -82,7 +109,7 @@ export class TaskTerminalStatus extends Disposable {
 		}
 	}
 
-	private eventInactive(event: TaskEvent) {
+	private eventInactive(event: ITaskEvent) {
 		const terminalData = this.terminalFromEvent(event);
 		if (!terminalData || !terminalData.problemMatcher || terminalData.taskRunEnded) {
 			return;
@@ -99,7 +126,7 @@ export class TaskTerminalStatus extends Disposable {
 		}
 	}
 
-	private eventActive(event: TaskEvent) {
+	private eventActive(event: ITaskEvent) {
 		const terminalData = this.terminalFromEvent(event);
 		if (!terminalData) {
 			return;

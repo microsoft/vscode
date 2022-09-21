@@ -15,7 +15,7 @@ export enum TsServerLogLevel {
 
 export namespace TsServerLogLevel {
 	export function fromString(value: string): TsServerLogLevel {
-		switch (value && value.toLowerCase()) {
+		switch (value?.toLowerCase()) {
 			case 'normal':
 				return TsServerLogLevel.Normal;
 			case 'terse':

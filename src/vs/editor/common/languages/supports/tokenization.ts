@@ -132,7 +132,7 @@ function resolveParsedTokenThemeRules(parsedThemeRules: ParsedTokenThemeRule[], 
 	const colorMap = new ColorMap();
 
 	// start with token colors from custom token themes
-	for (let color of customTokenColors) {
+	for (const color of customTokenColors) {
 		colorMap.getId(color);
 	}
 

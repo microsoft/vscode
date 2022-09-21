@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
+import { decodeBase64, encodeBase64, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
@@ -15,9 +15,9 @@ import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Command } from 'vs/editor/common/languages';
+import { Command, WorkspaceEditMetadata } from 'vs/editor/common/languages';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -75,7 +75,7 @@ export const RENDERER_EQUIVALENT_EXTENSIONS: ReadonlyMap<string, ReadonlySet<str
 
 export const RENDERER_NOT_AVAILABLE = '_notAvailable';
 
-export type NotebookRendererEntrypoint = string | { extends: string; path: string };
+export type NotebookRendererEntrypoint = string | { readonly extends: string; readonly path: string };
 
 export enum NotebookRunState {
 	Running = 1,
@@ -124,12 +124,14 @@ export interface NotebookCellDefaultCollapseConfig {
 export type InteractiveWindowCollapseCodeCells = 'always' | 'never' | 'fromEditor';
 
 export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
+export type CellContentMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
 export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
 
 export interface TransientOptions {
 	transientOutputs: boolean;
 	transientCellMetadata: TransientCellMetadata;
 	transientDocumentMetadata: TransientDocumentMetadata;
+	cellContentMetadata: CellContentMetadata;
 }
 
 /** Note: enum values are used for sorting */
@@ -497,6 +499,14 @@ export interface ICellMoveEdit {
 export type IImmediateCellEditOperation = ICellOutputEditByHandle | ICellPartialMetadataEditByHandle | ICellOutputItemEdit | ICellPartialInternalMetadataEdit | ICellPartialInternalMetadataEditByHandle | ICellPartialMetadataEdit;
 export type ICellEditOperation = IImmediateCellEditOperation | ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellPartialMetadataEdit | ICellPartialInternalMetadataEdit | IDocumentMetadataEdit | ICellMoveEdit | ICellOutputItemEdit | ICellLanguageEdit;
 
+
+export interface IWorkspaceNotebookCellEdit {
+	metadata?: WorkspaceEditMetadata;
+	resource: URI;
+	notebookVersionId: number | undefined;
+	cellEdit: ICellPartialMetadataEdit | IDocumentMetadataEdit | ICellReplaceEdit;
+}
+
 export interface NotebookData {
 	readonly cells: ICellDto2[];
 	readonly metadata: NotebookDocumentMetadata;
@@ -516,30 +526,39 @@ export namespace CellUri {
 
 	export const scheme = Schemas.vscodeNotebookCell;
 
-	const _regex = /^ch(\d{7,})/;
+
+	const _lengths = ['W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f'];
+	const _padRegexp = new RegExp(`^[${_lengths.join('')}]+`);
+	const _radix = 7;
 
 	export function generate(notebook: URI, handle: number): URI {
-		return notebook.with({
-			scheme,
-			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
-		});
+
+		const s = handle.toString(_radix);
+		const p = s.length < _lengths.length ? _lengths[s.length - 1] : 'z';
+
+		const fragment = `${p}${s}s${encodeBase64(VSBuffer.fromString(notebook.scheme), true, true)}`;
+		return notebook.with({ scheme, fragment });
 	}
 
 	export function parse(cell: URI): { notebook: URI; handle: number } | undefined {
 		if (cell.scheme !== scheme) {
 			return undefined;
 		}
-		const match = _regex.exec(cell.fragment);
-		if (!match) {
+
+		const idx = cell.fragment.indexOf('s');
+		if (idx < 0) {
 			return undefined;
 		}
-		const handle = Number(match[1]);
+
+		const handle = parseInt(cell.fragment.substring(0, idx).replace(_padRegexp, ''), _radix);
+		const _scheme = decodeBase64(cell.fragment.substring(idx + 1)).toString();
+
+		if (isNaN(handle)) {
+			return undefined;
+		}
 		return {
 			handle,
-			notebook: cell.with({
-				scheme: cell.fragment.substring(match[0].length) || Schemas.file,
-				fragment: null
-			})
+			notebook: cell.with({ scheme: _scheme, fragment: null })
 		};
 	}
 
@@ -571,29 +590,16 @@ export namespace CellUri {
 		};
 	}
 
-	export function generateCellUri(notebook: URI, handle: number, scheme: string): URI {
-		return notebook.with({
-			scheme: scheme,
-			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
-		});
+	export function generateCellPropertyUri(notebook: URI, handle: number, scheme: string): URI {
+		return CellUri.generate(notebook, handle).with({ scheme: scheme });
 	}
 
-	export function parseCellUri(metadata: URI, scheme: string) {
-		if (metadata.scheme !== scheme) {
+	export function parseCellPropertyUri(uri: URI, propertyScheme: string) {
+		if (uri.scheme !== propertyScheme) {
 			return undefined;
 		}
-		const match = _regex.exec(metadata.fragment);
-		if (!match) {
-			return undefined;
-		}
-		const handle = Number(match[1]);
-		return {
-			handle,
-			notebook: metadata.with({
-				scheme: metadata.fragment.substring(match[0].length) || Schemas.file,
-				fragment: null
-			})
-		};
+
+		return CellUri.parse(uri.with({ scheme: scheme }));
 	}
 }
 
@@ -915,19 +921,12 @@ export const NotebookSetting = {
 	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode',
 	outputLineHeight: 'notebook.outputLineHeight',
 	outputFontSize: 'notebook.outputFontSize',
-	outputFontFamily: 'notebook.outputFontFamily',
-	interactiveWindowAlwaysScrollOnNewCell: 'interactiveWindow.alwaysScrollOnNewCell'
+	outputFontFamily: 'notebook.outputFontFamily'
 } as const;
 
 export const enum CellStatusbarAlignment {
 	Left = 1,
 	Right = 2
-}
-
-export interface INotebookDecorationRenderOptions {
-	backgroundColor?: string | ThemeColor;
-	borderColor?: string | ThemeColor;
-	top?: editorCommon.IContentDecorationRenderOptions;
 }
 
 export class NotebookWorkingCopyTypeIdentifier {
@@ -950,3 +949,11 @@ export interface NotebookExtensionDescription {
 	readonly id: ExtensionIdentifier;
 	readonly location: UriComponents | undefined;
 }
+
+/**
+ * Whether the provided mime type is a text streamn like `stdout`, `stderr`.
+ */
+export function isTextStreamMime(mimeType: string) {
+	return ['application/vnd.code.notebook.stdout', 'application/x.notebook.stdout', 'application/x.notebook.stream', 'application/vnd.code.notebook.stderr', 'application/x.notebook.stderr'].includes(mimeType);
+}
+

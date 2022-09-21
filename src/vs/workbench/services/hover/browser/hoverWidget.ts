@@ -507,7 +507,7 @@ export class HoverWidget extends Widget {
 }
 
 class CompositeMouseTracker extends Widget {
-	private _isMouseIn: boolean = false;
+	private _isMouseIn: boolean = true;
 	private _mouseTimeout: number | undefined;
 
 	private readonly _onMouseOut = this._register(new Emitter<void>());
@@ -520,7 +520,7 @@ class CompositeMouseTracker extends Widget {
 	) {
 		super();
 		this._elements.forEach(n => this.onmouseover(n, () => this._onTargetMouseOver()));
-		this._elements.forEach(n => this.onnonbubblingmouseout(n, () => this._onTargetMouseOut()));
+		this._elements.forEach(n => this.onmouseleave(n, () => this._onTargetMouseLeave()));
 	}
 
 	private _onTargetMouseOver(): void {
@@ -528,7 +528,7 @@ class CompositeMouseTracker extends Widget {
 		this._clearEvaluateMouseStateTimeout();
 	}
 
-	private _onTargetMouseOut(): void {
+	private _onTargetMouseLeave(): void {
 		this._isMouseIn = false;
 		this._evaluateMouseState();
 	}

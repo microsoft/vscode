@@ -11,6 +11,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 import { IUserDataSyncService, SyncResource, UserDataAutoSyncError, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
@@ -148,6 +149,8 @@ suite('UserDataAutoSyncService', () => {
 				{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 				// Machines
 				{ type: 'GET', url: `${target.url}/v1/resource/machines/latest`, headers: {} },
+				// Profiles
+				{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 				// Settings
 				{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 				{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '0' } },
@@ -209,9 +212,10 @@ suite('UserDataAutoSyncService', () => {
 			// Do changes in the client
 			const fileService = client.instantiationService.get(IFileService);
 			const environmentService = client.instantiationService.get(IEnvironmentService);
-			await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
-			await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
-			await fileService.writeFile(joinPath(environmentService.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
+			const userDataProfilesService = client.instantiationService.get(IUserDataProfilesService);
+			await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
+			await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+			await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
 			await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
 			await testObject.sync();
 

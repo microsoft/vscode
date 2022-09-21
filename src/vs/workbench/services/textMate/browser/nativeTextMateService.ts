@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractTextMateService } from 'vs/workbench/services/textMate/browser/abstractTextMateService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -238,7 +238,7 @@ export class TextMateService extends AbstractTextMateService {
 	}
 
 	private _killWorker(): void {
-		for (let key of Object.keys(this._tokenizers)) {
+		for (const key of Object.keys(this._tokenizers)) {
 			this._tokenizers[key].dispose();
 		}
 		this._tokenizers = Object.create(null);
@@ -259,4 +259,4 @@ export class TextMateService extends AbstractTextMateService {
 	}
 }
 
-registerSingleton(ITextMateService, TextMateService);
+registerSingleton(ITextMateService, TextMateService, InstantiationType.Eager);

@@ -37,11 +37,11 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 				}
 			}));
 
-			let setSelectionToClipboard = this._register(new RunOnceScheduler(() => {
+			const setSelectionToClipboard = this._register(new RunOnceScheduler(() => {
 				if (!editor.hasModel()) {
 					return;
 				}
-				let model = editor.getModel();
+				const model = editor.getModel();
 				let selections = editor.getSelections();
 				selections = selections.slice(0);
 				selections.sort(Range.compareRangesUsingStarts);
@@ -61,12 +61,12 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 					return;
 				}
 
-				let result: string[] = [];
+				const result: string[] = [];
 				for (const sel of selections) {
 					result.push(model.getValueInRange(sel, EndOfLinePreference.TextDefined));
 				}
 
-				let textToCopy = result.join(model.getEOL());
+				const textToCopy = result.join(model.getEOL());
 				clipboardService.writeText(textToCopy, 'selection');
 			}, 100));
 
@@ -135,7 +135,7 @@ class PasteSelectionClipboardAction extends EditorAction {
 }
 
 registerEditorContribution(SelectionClipboardContributionID, SelectionClipboard);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SelectionClipboardPastePreventer, LifecyclePhase.Ready);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SelectionClipboardPastePreventer, 'SelectionClipboardPastePreventer', LifecyclePhase.Ready);
 if (platform.isLinux) {
 	registerEditorAction(PasteSelectionClipboardAction);
 }

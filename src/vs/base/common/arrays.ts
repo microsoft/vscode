@@ -47,6 +47,18 @@ export function equals<T>(one: ReadonlyArray<T> | undefined, other: ReadonlyArra
 }
 
 /**
+ * Remove the element at `index` by replacing it with the last element. This is faster than `splice`
+ * but changes the order of the array
+ */
+export function removeFastWithoutKeepingOrder<T>(array: T[], index: number) {
+	const last = array.length - 1;
+	if (index < last) {
+		array[index] = array[last];
+	}
+	array.pop();
+}
+
+/**
  * Performs a binary search algorithm over a sorted array.
  *
  * @param array The array being searched.
@@ -126,12 +138,12 @@ export function quickSelect<T>(nth: number, data: T[], compare: Compare<T>): T {
 		throw new TypeError('invalid index');
 	}
 
-	let pivotValue = data[Math.floor(data.length * Math.random())];
-	let lower: T[] = [];
-	let higher: T[] = [];
-	let pivots: T[] = [];
+	const pivotValue = data[Math.floor(data.length * Math.random())];
+	const lower: T[] = [];
+	const higher: T[] = [];
+	const pivots: T[] = [];
 
-	for (let value of data) {
+	for (const value of data) {
 		const val = compare(value, pivotValue);
 		if (val < 0) {
 			lower.push(value);
@@ -677,6 +689,18 @@ export function compareBy<TItem, TCompareBy>(selector: (item: TItem) => TCompare
 	return (a, b) => comparator(selector(a), selector(b));
 }
 
+export function tieBreakComparators<TItem>(...comparators: Comparator<TItem>[]): Comparator<TItem> {
+	return (item1, item2) => {
+		for (const comparator of comparators) {
+			const result = comparator(item1, item2);
+			if (!CompareResult.isNeitherLessOrGreaterThan(result)) {
+				return result;
+			}
+		}
+		return CompareResult.neitherLessOrGreaterThan;
+	};
+}
+
 /**
  * The natural order on numbers.
 */
@@ -802,6 +826,82 @@ export class ArrayQueue<T> {
 	takeCount(count: number): T[] {
 		const result = this.items.slice(this.firstIdx, this.firstIdx + count);
 		this.firstIdx += count;
+		return result;
+	}
+}
+
+/**
+ * This class is faster than an iterator and array for lazy computed data.
+*/
+export class CallbackIterable<T> {
+	public static readonly empty = new CallbackIterable<never>(_callback => { });
+
+	constructor(
+		/**
+		 * Calls the callback for every item.
+		 * Stops when the callback returns false.
+		*/
+		public readonly iterate: (callback: (item: T) => boolean) => void
+	) {
+	}
+
+	forEach(handler: (item: T) => void) {
+		this.iterate(item => { handler(item); return true; });
+	}
+
+	toArray(): T[] {
+		const result: T[] = [];
+		this.iterate(item => { result.push(item); return true; });
+		return result;
+	}
+
+	filter(predicate: (item: T) => boolean): CallbackIterable<T> {
+		return new CallbackIterable(cb => this.iterate(item => predicate(item) ? cb(item) : true));
+	}
+
+	map<TResult>(mapFn: (item: T) => TResult): CallbackIterable<TResult> {
+		return new CallbackIterable<TResult>(cb => this.iterate(item => cb(mapFn(item))));
+	}
+
+	some(predicate: (item: T) => boolean): boolean {
+		let result = false;
+		this.iterate(item => { result = predicate(item); return !result; });
+		return result;
+	}
+
+	findFirst(predicate: (item: T) => boolean): T | undefined {
+		let result: T | undefined;
+		this.iterate(item => {
+			if (predicate(item)) {
+				result = item;
+				return false;
+			}
+			return true;
+		});
+		return result;
+	}
+
+	findLast(predicate: (item: T) => boolean): T | undefined {
+		let result: T | undefined;
+		this.iterate(item => {
+			if (predicate(item)) {
+				result = item;
+			}
+			return true;
+		});
+		return result;
+	}
+
+	findLastMaxBy(comparator: Comparator<T>): T | undefined {
+		let result: T | undefined;
+		let first = true;
+		this.iterate(item => {
+			if (first || CompareResult.isGreaterThan(comparator(item, result!))) {
+				first = false;
+				result = item;
+			}
+			return true;
+		});
 		return result;
 	}
 }

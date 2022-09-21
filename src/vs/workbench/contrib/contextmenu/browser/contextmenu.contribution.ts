@@ -25,4 +25,4 @@ class ContextMenuContribution implements IWorkbenchContribution {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(ContextMenuContribution, LifecyclePhase.Eventually);
+	.registerWorkbenchContribution(ContextMenuContribution, 'ContextMenuContribution', LifecyclePhase.Eventually);

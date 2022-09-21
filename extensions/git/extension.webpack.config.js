@@ -14,6 +14,6 @@ module.exports = withDefaults({
 	entry: {
 		main: './src/main.ts',
 		['askpass-main']: './src/askpass-main.ts',
-		['git-editor-main']: './src/gitEditor/main.ts'
+		['git-editor-main']: './src/git-editor-main.ts'
 	}
 });

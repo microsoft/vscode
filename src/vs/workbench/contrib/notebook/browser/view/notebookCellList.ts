@@ -16,7 +16,6 @@ import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -30,6 +29,7 @@ import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/vie
 import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const enum CellRevealType {
 	Line,
@@ -66,15 +66,6 @@ function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange[]) {
 	}
 
 	return result;
-}
-
-export interface IFocusNextPreviousDelegate {
-	onFocusNext(applyFocusNext: () => void): void;
-	onFocusPrevious(applyFocusPrevious: () => void): void;
-}
-
-export interface INotebookCellListOptions extends IWorkbenchListOptions<CellViewModel> {
-	focusNextPreviousDelegate: IFocusNextPreviousDelegate;
 }
 
 export const NOTEBOOK_WEBVIEW_BOUNDARY = 5000;
@@ -141,8 +132,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	private _isInLayout: boolean = false;
 
-	private readonly _focusNextPreviousDelegate: IFocusNextPreviousDelegate;
-
 	private readonly _viewContext: ViewContext;
 
 	private _webviewElement: FastDomNode<HTMLElement> | null = null;
@@ -159,16 +148,15 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		delegate: IListVirtualDelegate<CellViewModel>,
 		renderers: IListRenderer<CellViewModel, BaseCellRenderTemplate>[],
 		contextKeyService: IContextKeyService,
-		options: INotebookCellListOptions,
+		options: IWorkbenchListOptions<CellViewModel>,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
+		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, instantiationService);
 		NOTEBOOK_CELL_LIST_FOCUSED.bindTo(this.contextKeyService).set(true);
 		this._viewContext = viewContext;
-		this._focusNextPreviousDelegate = options.focusNextPreviousDelegate;
 		this._previousFocusedElements = this.getFocusedElements();
 		this._localDisposableStore.add(this.onDidChangeFocus((e) => {
 			this._previousFocusedElements.forEach(element => {
@@ -628,6 +616,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		const modelIndex = this._viewModel.getCellIndex(cell);
+		if (modelIndex === -1) {
+			return -1;
+		}
+
 		if (!this.hiddenRangesPrefixSum) {
 			return modelIndex;
 		}
@@ -679,18 +671,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	selectElements(elements: ICellViewModel[]) {
 		const indices = elements.map(cell => this._getViewIndexUpperBound(cell)).filter(index => index >= 0);
 		this.setSelection(indices);
-	}
-
-	override focusNext(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
-		this._focusNextPreviousDelegate.onFocusNext(() => {
-			super.focusNext(n, loop, browserEvent, filter);
-		});
-	}
-
-	override focusPrevious(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
-		this._focusNextPreviousDelegate.onFocusPrevious(() => {
-			super.focusPrevious(n, loop, browserEvent, filter);
-		});
 	}
 
 	override setFocus(indexes: number[], browserEvent?: UIEvent, ignoreTextModelUpdate?: boolean): void {
@@ -974,7 +954,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			// update element above viewport
 			const oldHeight = this.elementHeight(element);
 			const delta = oldHeight - size;
-			// const date = new Date();
 			if (this._webviewElement) {
 				Event.once(this.view.onWillScroll)(() => {
 					const webviewTop = parseInt(this._webviewElement!.domNode.style.top, 10);
@@ -1241,7 +1220,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (ignoreIfInsideViewport
 			&& elementTop >= scrollTop
-			&& elementTop < wrapperBottom) {
+			&& elementBottom < wrapperBottom) {
 
 			if (revealPosition === CellRevealPosition.Center
 				&& elementBottom > wrapperBottom
@@ -1287,7 +1266,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	private _revealInView(viewIndex: number) {
 		const firstIndex = this.view.firstVisibleIndex;
-		if (viewIndex < firstIndex) {
+		if (viewIndex <= firstIndex) {
 			this._revealInternal(viewIndex, true, CellRevealPosition.Top);
 		} else {
 			this._revealInternal(viewIndex, true, CellRevealPosition.Bottom);
@@ -1407,22 +1386,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows.drop-target,
 				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
 			`);
-		}
-
-		if (styles.listFilterWidgetBackground) {
-			content.push(`.monaco-list-type-filter { background-color: ${styles.listFilterWidgetBackground} }`);
-		}
-
-		if (styles.listFilterWidgetOutline) {
-			content.push(`.monaco-list-type-filter { border: 1px solid ${styles.listFilterWidgetOutline}; }`);
-		}
-
-		if (styles.listFilterWidgetNoMatchesOutline) {
-			content.push(`.monaco-list-type-filter.no-matches { border: 1px solid ${styles.listFilterWidgetNoMatchesOutline}; }`);
-		}
-
-		if (styles.listMatchesShadow) {
-			content.push(`.monaco-list-type-filter { box-shadow: 1px 1px 1px ${styles.listMatchesShadow}; }`);
 		}
 
 		const newStyles = content.join('\n');

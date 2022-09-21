@@ -69,7 +69,7 @@ export async function getModifiedRanges(accessor: ServicesAccessor, modified: IT
 		if (!isNonEmptyArray(changes)) {
 			return undefined;
 		}
-		for (let change of changes) {
+		for (const change of changes) {
 			ranges.push(modified.validateRange(new Range(
 				change.modifiedStartLineNumber, 1,
 				change.modifiedEndLineNumber || change.modifiedStartLineNumber /*endLineNumber is 0 when things got deleted*/, Number.MAX_SAFE_INTEGER)

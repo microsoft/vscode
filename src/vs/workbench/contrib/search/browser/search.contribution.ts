@@ -55,7 +55,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ISearchConfiguration, SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configurationMigration';
+import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -88,9 +88,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewsService));
-		if (searchView) {
-			searchView.focusPreviousInputBox();
-		}
+		searchView?.focusPreviousInputBox();
 	}
 });
 
@@ -365,7 +363,10 @@ registerAction2(class CancelSearchAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.cancel',
-			title: nls.localize('CancelSearchAction.label', "Cancel Search"),
+			title: {
+				value: nls.localize('CancelSearchAction.label', "Cancel Search"),
+				original: 'Cancel Search'
+			},
 			icon: searchStopIcon,
 			category,
 			f1: true,
@@ -392,7 +393,10 @@ registerAction2(class RefreshAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.refreshSearchResults',
-			title: nls.localize('RefreshAction.label', "Refresh"),
+			title: {
+				value: nls.localize('RefreshAction.label', "Refresh"),
+				original: 'Refresh'
+			},
 			icon: searchRefreshIcon,
 			precondition: Constants.ViewHasSearchPatternKey,
 			category,
@@ -414,7 +418,10 @@ registerAction2(class CollapseDeepestExpandedLevelAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.collapseSearchResults',
-			title: nls.localize('CollapseDeepestExpandedLevelAction.label', "Collapse All"),
+			title: {
+				value: nls.localize('CollapseDeepestExpandedLevelAction.label', "Collapse All"),
+				original: 'Collapse All'
+			},
 			category,
 			icon: searchCollapseAllIcon,
 			f1: true,
@@ -436,7 +443,10 @@ registerAction2(class ExpandAllAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.expandSearchResults',
-			title: nls.localize('ExpandAllAction.label', "Expand All"),
+			title: {
+				value: nls.localize('ExpandAllAction.label', "Expand All"),
+				original: 'Expand All'
+			},
 			category,
 			icon: searchExpandAllIcon,
 			f1: true,
@@ -458,7 +468,10 @@ registerAction2(class ClearSearchResultsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.clearSearchResults',
-			title: nls.localize('ClearSearchResultsAction.label', "Clear Search Results"),
+			title: {
+				value: nls.localize('ClearSearchResultsAction.label', "Clear Search Results"),
+				original: 'Clear Search Results'
+			},
 			category,
 			icon: searchClearIcon,
 			f1: true,
@@ -561,9 +574,7 @@ CommandsRegistry.registerCommand({
 
 		if (mode === 'view') {
 			const searchView = await openSearchView(accessor.get(IViewsService), true);
-			if (searchView) {
-				searchView.searchInFolders();
-			}
+			searchView?.searchInFolders();
 		}
 		else {
 			return accessor.get(ICommandService).executeCommand(SearchEditorConstants.OpenEditorCommandId, {
@@ -594,7 +605,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	when: ContextKeyExpr.and(ExplorerRootContext, ExplorerFolderContext.toNegated())
 });
 
-registerAction2(class ShowAllSymbolsAction extends Action2 {
+class ShowAllSymbolsAction extends Action2 {
 
 	static readonly ID = 'workbench.action.showAllSymbols';
 	static readonly LABEL = nls.localize('showTriggerActions', "Go to Symbol in Workspace...");
@@ -619,18 +630,20 @@ registerAction2(class ShowAllSymbolsAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		accessor.get(IQuickInputService).quickAccess.show(ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX);
 	}
-});
+}
+
+registerAction2(ShowAllSymbolsAction);
 
 const SEARCH_MODE_CONFIG = 'search.mode';
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
-	title: nls.localize('name', "Search"),
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	title: { value: nls.localize('name', "Search"), original: 'Search' },
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	hideIfEmpty: true,
 	icon: searchViewIcon,
 	order: 1,
-}, ViewContainerLocation.Sidebar, { donotRegisterOpenCommand: true });
+}, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
 
 const viewDescriptor: IViewDescriptor = {
 	id: VIEW_ID,
@@ -669,7 +682,7 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 			.registerConfigurationMigrations([{ key: 'search.location', migrateFn: (value: any) => ({ value: undefined }) }]);
 	}
 }
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterSearchViewContribution, LifecyclePhase.Starting);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterSearchViewContribution, 'RegisterSearchViewContribution', LifecyclePhase.Starting);
 
 // Actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
@@ -791,7 +804,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: AnythingQuickAccessProvider.PREFIX,
 	placeholder: nls.localize('anythingQuickAccessPlaceholder', "Search files by name (append {0} to go to line or {1} to go to symbol)", AbstractGotoLineQuickAccessProvider.PREFIX, GotoSymbolQuickAccessProvider.PREFIX),
 	contextKey: defaultQuickAccessContextKeyValue,
-	helpEntries: [{ description: nls.localize('anythingQuickAccess', "Go to File"), needsEditor: false }]
+	helpEntries: [{ description: nls.localize('anythingQuickAccess', "Go to File"), commandId: 'workbench.action.quickOpen' }]
 });
 
 quickAccessRegistry.registerQuickAccessProvider({
@@ -799,7 +812,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: SymbolsQuickAccessProvider.PREFIX,
 	placeholder: nls.localize('symbolsQuickAccessPlaceholder', "Type the name of a symbol to open."),
 	contextKey: 'inWorkspaceSymbolsPicker',
-	helpEntries: [{ description: nls.localize('symbolsQuickAccess', "Go to Symbol in Workspace"), needsEditor: false }]
+	helpEntries: [{ description: nls.localize('symbolsQuickAccess', "Go to Symbol in Workspace"), commandId: ShowAllSymbolsAction.ID }]
 });
 
 // Configuration
@@ -827,7 +840,7 @@ configurationRegistry.registerConfiguration({
 								type: 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
 								pattern: '\\w*\\$\\(basename\\)\\w*',
 								default: '$(basename).ext',
-								markdownDescription: nls.localize('exclude.when', 'Additional check on the siblings of a matching file. Use \\$(basename) as variable for the matching file name.')
+								markdownDescription: nls.localize({ key: 'exclude.when', comment: ['\\$(basename) should not be translated'] }, 'Additional check on the siblings of a matching file. Use \\$(basename) as variable for the matching file name.')
 							}
 						}
 					}
@@ -979,7 +992,7 @@ configurationRegistry.registerConfiguration({
 		'search.searchOnTypeDebouncePeriod': {
 			type: 'number',
 			default: 300,
-			markdownDescription: nls.localize('search.searchOnTypeDebouncePeriod', "When `#search.searchOnType#` is enabled, controls the timeout in milliseconds between a character being typed and the search starting. Has no effect when `search.searchOnType` is disabled.")
+			markdownDescription: nls.localize('search.searchOnTypeDebouncePeriod', "When {0} is enabled, controls the timeout in milliseconds between a character being typed and the search starting. Has no effect when {0} is disabled.", '`#search.searchOnType#`')
 		},
 		'search.searchEditor.doubleClickBehaviour': {
 			type: 'string',
@@ -1015,7 +1028,17 @@ configurationRegistry.registerConfiguration({
 				nls.localize('searchSortOrder.countAscending', "Results are sorted by count per file, in ascending order.")
 			],
 			'description': nls.localize('search.sortOrder', "Controls sorting order of search results.")
-		}
+		},
+		'search.decorations.colors': {
+			type: 'boolean',
+			description: nls.localize('search.decorations.colors', "Controls whether search file decorations should use colors."),
+			default: true
+		},
+		'search.decorations.badges': {
+			type: 'boolean',
+			description: nls.localize('search.decorations.badges', "Controls whether search file decorations should use badges."),
+			default: true
+		},
 	}
 });
 

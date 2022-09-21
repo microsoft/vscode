@@ -16,7 +16,7 @@ import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/ext
 import { ICommentInfo, ICommentService, INotebookCommentInfo } from 'vs/workbench/contrib/comments/browser/commentService';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from '../common/extHost.protocol';
-import { COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
+import { COMMENTS_VIEW_ID, COMMENTS_VIEW_STORAGE_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -110,11 +110,23 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 
 	set collapsibleState(newState: languages.CommentThreadCollapsibleState | undefined) {
 		this._collapsibleState = newState;
-		this._onDidChangeCollasibleState.fire(this._collapsibleState);
+		this._onDidChangeCollapsibleState.fire(this._collapsibleState);
 	}
 
-	private readonly _onDidChangeCollasibleState = new Emitter<languages.CommentThreadCollapsibleState | undefined>();
-	public onDidChangeCollasibleState = this._onDidChangeCollasibleState.event;
+	private _initialCollapsibleState: languages.CommentThreadCollapsibleState | undefined;
+	get initialCollapsibleState() {
+		return this._initialCollapsibleState;
+	}
+
+	private set initialCollapsibleState(initialCollapsibleState: languages.CommentThreadCollapsibleState | undefined) {
+		this._initialCollapsibleState = initialCollapsibleState;
+		this._onDidChangeInitialCollapsibleState.fire(initialCollapsibleState);
+	}
+
+	private readonly _onDidChangeCollapsibleState = new Emitter<languages.CommentThreadCollapsibleState | undefined>();
+	public onDidChangeCollapsibleState = this._onDidChangeCollapsibleState.event;
+	private readonly _onDidChangeInitialCollapsibleState = new Emitter<languages.CommentThreadCollapsibleState | undefined>();
+	public onDidChangeInitialCollapsibleState = this._onDidChangeInitialCollapsibleState.event;
 
 	private _isDisposed: boolean;
 
@@ -164,7 +176,7 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		if (modified('label')) { this._label = changes.label; }
 		if (modified('contextValue')) { this._contextValue = changes.contextValue === null ? undefined : changes.contextValue; }
 		if (modified('comments')) { this._comments = changes.comments; }
-		if (modified('collapseState')) { this._collapsibleState = changes.collapseState; }
+		if (modified('collapseState')) { this.initialCollapsibleState = changes.collapseState; }
 		if (modified('canReply')) { this.canReply = changes.canReply!; }
 		if (modified('state')) { this.state = changes.state!; }
 		if (modified('isTemplate')) { this._isTemplate = changes.isTemplate!; }
@@ -172,7 +184,7 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 
 	dispose() {
 		this._isDisposed = true;
-		this._onDidChangeCollasibleState.dispose();
+		this._onDidChangeCollapsibleState.dispose();
 		this._onDidChangeComments.dispose();
 		this._onDidChangeInput.dispose();
 		this._onDidChangeLabel.dispose();
@@ -252,7 +264,7 @@ export class MainThreadCommentController {
 		range: IRange | ICellRange,
 		isTemplate: boolean
 	): languages.CommentThread<IRange | ICellRange> {
-		let thread = new MainThreadCommentThread(
+		const thread = new MainThreadCommentThread(
 			commentThreadHandle,
 			this.handle,
 			extensionId,
@@ -286,7 +298,7 @@ export class MainThreadCommentController {
 		threadId: string,
 		resource: UriComponents,
 		changes: CommentThreadChanges): void {
-		let thread = this.getKnownThread(commentThreadHandle);
+		const thread = this.getKnownThread(commentThreadHandle);
 		thread.batchUpdate(changes);
 
 		if (thread.isDocumentCommentThread()) {
@@ -306,7 +318,7 @@ export class MainThreadCommentController {
 	}
 
 	deleteCommentThread(commentThreadHandle: number) {
-		let thread = this.getKnownThread(commentThreadHandle);
+		const thread = this.getKnownThread(commentThreadHandle);
 		this._threads.delete(commentThreadHandle);
 		thread.dispose();
 
@@ -334,10 +346,10 @@ export class MainThreadCommentController {
 	}
 
 	updateInput(input: string) {
-		let thread = this.activeCommentThread;
+		const thread = this.activeCommentThread;
 
 		if (thread && thread.input) {
-			let commentInput = thread.input;
+			const commentInput = thread.input;
 			commentInput.value = input;
 			thread.input = commentInput;
 		}
@@ -368,15 +380,15 @@ export class MainThreadCommentController {
 			};
 		}
 
-		let ret: languages.CommentThread<IRange | ICellRange>[] = [];
-		for (let thread of [...this._threads.keys()]) {
+		const ret: languages.CommentThread<IRange | ICellRange>[] = [];
+		for (const thread of [...this._threads.keys()]) {
 			const commentThread = this._threads.get(thread)!;
 			if (commentThread.resource === resource.toString()) {
 				ret.push(commentThread);
 			}
 		}
 
-		let commentingRanges = await this._proxy.$provideCommentingRanges(this.handle, resource, token);
+		const commentingRanges = await this._proxy.$provideCommentingRanges(this.handle, resource, token);
 
 		return <ICommentInfo>{
 			owner: this._uniqueId,
@@ -398,8 +410,8 @@ export class MainThreadCommentController {
 			};
 		}
 
-		let ret: languages.CommentThread<IRange | ICellRange>[] = [];
-		for (let thread of [...this._threads.keys()]) {
+		const ret: languages.CommentThread<IRange | ICellRange>[] = [];
+		for (const thread of [...this._threads.keys()]) {
 			const commentThread = this._threads.get(thread)!;
 			if (commentThread.resource === resource.toString()) {
 				ret.push(commentThread);
@@ -414,7 +426,7 @@ export class MainThreadCommentController {
 	}
 
 	async getCommentingRanges(resource: URI, token: CancellationToken): Promise<IRange[]> {
-		let commentingRanges = await this._proxy.$provideCommentingRanges(this.handle, resource, token);
+		const commentingRanges = await this._proxy.$provideCommentingRanges(this.handle, resource, token);
 		return commentingRanges || [];
 	}
 
@@ -423,8 +435,8 @@ export class MainThreadCommentController {
 	}
 
 	getAllComments(): MainThreadCommentThread<IRange | ICellRange>[] {
-		let ret: MainThreadCommentThread<IRange | ICellRange>[] = [];
-		for (let thread of [...this._threads.keys()]) {
+		const ret: MainThreadCommentThread<IRange | ICellRange>[] = [];
+		for (const thread of [...this._threads.keys()]) {
 			ret.push(this._threads.get(thread)!);
 		}
 
@@ -474,8 +486,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
 
 		this._register(this._commentService.onDidChangeActiveCommentThread(async thread => {
-			let handle = (thread as MainThreadCommentThread<IRange | ICellRange>).controllerHandle;
-			let controller = this._commentControllers.get(handle);
+			const handle = (thread as MainThreadCommentThread<IRange | ICellRange>).controllerHandle;
+			const controller = this._commentControllers.get(handle);
 
 			if (!controller) {
 				return;
@@ -517,7 +529,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void {
-		let provider = this._commentControllers.get(handle);
+		const provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return undefined;
@@ -534,7 +546,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		extensionId: ExtensionIdentifier,
 		isTemplate: boolean
 	): languages.CommentThread<IRange | ICellRange> | undefined {
-		let provider = this._commentControllers.get(handle);
+		const provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return undefined;
@@ -548,7 +560,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		threadId: string,
 		resource: UriComponents,
 		changes: CommentThreadChanges): void {
-		let provider = this._commentControllers.get(handle);
+		const provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return undefined;
@@ -558,7 +570,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	$deleteCommentThread(handle: number, commentThreadHandle: number) {
-		let provider = this._commentControllers.get(handle);
+		const provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return;
@@ -568,7 +580,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	$updateCommentingRanges(handle: number) {
-		let provider = this._commentControllers.get(handle);
+		const provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return;
@@ -582,8 +594,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 				id: COMMENTS_VIEW_ID,
 				title: COMMENTS_VIEW_TITLE,
-				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [COMMENTS_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
-				storageId: COMMENTS_VIEW_TITLE,
+				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [COMMENTS_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
+				storageId: COMMENTS_VIEW_STORAGE_ID,
 				hideIfEmpty: true,
 				icon: commentsViewIcon,
 				order: 10,
@@ -605,7 +617,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	private setComments() {
 		[...this._commentControllers.keys()].forEach(handle => {
-			let threads = this._commentControllers.get(handle)!.getAllComments();
+			const threads = this._commentControllers.get(handle)!.getAllComments();
 
 			if (threads.length) {
 				const providerId = this.getHandler(handle);

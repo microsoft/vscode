@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "jsonc-parser": "^2.2.1",
-    "vscode-nls": "^5.0.0"
+    "vscode-nls": "^5.1.0"
   },
   "capabilities": {
     "virtualWorkspaces": true,
@@ -52,7 +52,8 @@
           ".devcontainer.json"
         ],
         "filenamePatterns": [
-          "**/User/snippets/*.json"
+          "**/User/snippets/*.json",
+          "**/User/profiles/*/snippets/*.json"
         ]
       }, {
         "id": "json",
@@ -77,6 +78,10 @@
       {
         "fileMatch": "%APP_SETTINGS_HOME%/settings.json",
         "url": "vscode://schemas/settings/user"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/profiles/*/settings.json",
+        "url": "vscode://schemas/settings/profile"
       },
       {
         "fileMatch": "%MACHINE_SETTINGS_HOME%/settings.json",

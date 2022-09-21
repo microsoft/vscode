@@ -13,7 +13,7 @@ import { format } from 'vs/base/common/strings';
 import { isString } from 'vs/base/common/types';
 import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 
 export function getWindowsBuildNumber(): number {
 	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
@@ -50,7 +50,7 @@ export async function findExecutable(command: string, cwd?: string, paths?: stri
 	}
 	// We have a simple file name. We get the path variable from the env
 	// and try to find the executable on the path.
-	for (let pathEntry of paths) {
+	for (const pathEntry of paths) {
 		// The path entry is absolute.
 		let fullPath: string;
 		if (path.isAbsolute(pathEntry)) {
@@ -104,13 +104,14 @@ export interface IShellIntegrationConfigInjection {
 export function getShellIntegrationInjection(
 	shellLaunchConfig: IShellLaunchConfig,
 	options: ITerminalProcessOptions['shellIntegration'],
+	env: ITerminalEnvironment | undefined,
 	logService: ILogService
 ): IShellIntegrationConfigInjection | undefined {
 	// Shell integration arg injection is disabled when:
 	// - The global setting is disabled
 	// - There is no executable (not sure what script to run)
 	// - The terminal is used by a feature like tasks or debugging
-	if (!options.enabled || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal || shellLaunchConfig.hideFromUser) {
+	if (!options.enabled || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal || shellLaunchConfig.hideFromUser || shellLaunchConfig.ignoreShellIntegration) {
 		return undefined;
 	}
 
@@ -118,6 +119,9 @@ export function getShellIntegrationInjection(
 	const shell = process.platform === 'win32' ? path.basename(shellLaunchConfig.executable).toLowerCase() : path.basename(shellLaunchConfig.executable);
 	const appRoot = path.dirname(FileAccess.asFileUri('', require).fsPath);
 	let newArgs: string[] | undefined;
+	const envMixin: IProcessEnvironment = {
+		'VSCODE_INJECTION': '1'
+	};
 
 	// Windows
 	if (isWindows) {
@@ -130,18 +134,15 @@ export function getShellIntegrationInjection(
 			if (!newArgs) {
 				return undefined;
 			}
-			if (newArgs) {
-				newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
-				newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
-			}
-			return { newArgs };
+			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
+			return { newArgs, envMixin };
 		}
 		logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
 		return undefined;
 	}
 
 	// Linux & macOS
-	const envMixin: IProcessEnvironment = {};
 	switch (shell) {
 		case 'bash': {
 			if (!originalArgs || originalArgs.length === 0) {
@@ -168,7 +169,7 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
-			return { newArgs };
+			return { newArgs, envMixin };
 		}
 		case 'zsh': {
 			if (!originalArgs || originalArgs.length === 0) {
@@ -184,8 +185,10 @@ export function getShellIntegrationInjection(
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 			// Move .zshrc into $ZDOTDIR as the way to activate the script
-			const zdotdir = path.join(os.tmpdir(), 'vscode-zsh');
+			const zdotdir = path.join(os.tmpdir(), `${os.userInfo().username}-vscode-zsh`);
 			envMixin['ZDOTDIR'] = zdotdir;
+			const userZdotdir = env?.ZDOTDIR ?? os.homedir() ?? `~`;
+			envMixin['USER_ZDOTDIR'] = userZdotdir;
 			const filesToCopy: IShellIntegrationConfigInjection['filesToCopy'] = [];
 			filesToCopy.push({
 				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh'),
@@ -221,8 +224,9 @@ export enum ShellIntegrationExecutable {
 }
 
 export const shellIntegrationArgs: Map<ShellIntegrationExecutable, string[]> = new Map();
-shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', '-command', '. \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"{1}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', '-command', '. \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"{1}']);
+// The try catch swallows execution policy errors in the case of the archive distributable
+shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\" } catch {}{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\" } catch {}{1}']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"{1}']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-i']);

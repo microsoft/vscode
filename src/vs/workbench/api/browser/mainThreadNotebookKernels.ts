@@ -13,15 +13,16 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel, INotebookKernelChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 abstract class MainThreadKernel implements INotebookKernel {
 	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();
-	private readonly preloads: { uri: URI; provides: string[] }[];
+	private readonly preloads: { uri: URI; provides: readonly string[] }[];
 	readonly onDidChange: Event<INotebookKernelChangeEvent> = this._onDidChange.event;
 
 	readonly id: string;
@@ -89,6 +90,10 @@ abstract class MainThreadKernel implements INotebookKernel {
 			this.implementsExecutionOrder = data.supportsExecutionOrder;
 			event.hasExecutionOrder = true;
 		}
+		if (data.supportsInterrupt !== undefined) {
+			this.implementsInterrupt = data.supportsInterrupt;
+			event.hasInterruptHandler = true;
+		}
 		this._onDidChange.fire(event);
 	}
 
@@ -112,6 +117,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
+		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookKernels);
@@ -134,7 +140,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 	dispose(): void {
 		this._disposables.dispose();
-		for (let [, registration] of this._kernels.values()) {
+		for (const [, registration] of this._kernels.values()) {
 			registration.dispose();
 		}
 	}
@@ -151,7 +157,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			if (!selected) {
 				return;
 			}
-			for (let [handle, candidate] of this._kernels) {
+			for (const [handle, candidate] of this._kernels) {
 				if (candidate[0] === selected) {
 					this._proxy.$acceptKernelMessageFromRenderer(handle, editor.getId(), e.message);
 					break;
@@ -246,7 +252,16 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 	$createExecution(handle: number, controllerId: string, rawUri: UriComponents, cellHandle: number): void {
 		const uri = URI.revive(rawUri);
-		const execution = this._notebookExecutionStateService.createCellExecution(controllerId, uri, cellHandle);
+		const notebook = this._notebookService.getNotebookTextModel(uri);
+		if (!notebook) {
+			throw new Error(`Notebook not found: ${uri.toString()}`);
+		}
+
+		const kernel = this._notebookKernelService.getMatchingKernel(notebook);
+		if (!kernel.selected || kernel.selected.id !== controllerId) {
+			throw new Error(`Kernel is not selected: ${kernel.selected?.id} !== ${controllerId}`);
+		}
+		const execution = this._notebookExecutionStateService.createCellExecution(uri, cellHandle);
 		execution.confirm();
 		this._executions.set(handle, execution);
 	}
@@ -255,9 +270,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		const updates = data.value;
 		try {
 			const execution = this._executions.get(handle);
-			if (execution) {
-				execution.update(updates.map(NotebookDto.fromCellExecuteUpdateDto));
-			}
+			execution?.update(updates.map(NotebookDto.fromCellExecuteUpdateDto));
 		} catch (e) {
 			onUnexpectedError(e);
 		}
@@ -266,9 +279,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	$completeExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>): void {
 		try {
 			const execution = this._executions.get(handle);
-			if (execution) {
-				execution.complete(NotebookDto.fromCellExecuteCompleteDto(data.value));
-			}
+			execution?.complete(NotebookDto.fromCellExecuteCompleteDto(data.value));
 		} catch (e) {
 			onUnexpectedError(e);
 		} finally {

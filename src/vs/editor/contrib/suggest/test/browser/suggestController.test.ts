@@ -105,12 +105,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(1, 11, 1, 11));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
@@ -143,12 +143,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(2, 6, 2, 6));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
@@ -186,12 +186,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(2, 6, 2, 6));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
@@ -238,12 +238,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(2, 6, 2, 6));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
@@ -294,12 +294,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(1, 1, 1, 1));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
@@ -343,12 +343,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(2, 6, 2, 6));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
@@ -370,7 +370,7 @@ suite('SuggestController', function () {
 
 	test('resolve additionalTextEdits async when needed (cancel)', async function () {
 
-		let resolve: Function[] = [];
+		const resolve: Function[] = [];
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
@@ -401,12 +401,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(1, 1, 1, 1));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(true, false);
 		await p2;
 
@@ -449,12 +449,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(1, 1, 1, 1));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(true, false);
 		await p2;
 

@@ -38,20 +38,13 @@ export class StandaloneGotoSymbolQuickAccessProvider extends AbstractGotoSymbolQ
 	}
 }
 
-Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
-	ctor: StandaloneGotoSymbolQuickAccessProvider,
-	prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX,
-	helpEntries: [
-		{ description: QuickOutlineNLS.quickOutlineActionLabel, prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX, needsEditor: true },
-		{ description: QuickOutlineNLS.quickOutlineByCategoryActionLabel, prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX_BY_CATEGORY, needsEditor: true }
-	]
-});
+export class GotoSymbolAction extends EditorAction {
 
-export class GotoLineAction extends EditorAction {
+	static readonly ID = 'editor.action.quickOutline';
 
 	constructor() {
 		super({
-			id: 'editor.action.quickOutline',
+			id: GotoSymbolAction.ID,
 			label: QuickOutlineNLS.quickOutlineActionLabel,
 			alias: 'Go to Symbol...',
 			precondition: EditorContextKeys.hasDocumentSymbolProvider,
@@ -72,4 +65,13 @@ export class GotoLineAction extends EditorAction {
 	}
 }
 
-registerEditorAction(GotoLineAction);
+registerEditorAction(GotoSymbolAction);
+
+Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
+	ctor: StandaloneGotoSymbolQuickAccessProvider,
+	prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX,
+	helpEntries: [
+		{ description: QuickOutlineNLS.quickOutlineActionLabel, prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX, commandId: GotoSymbolAction.ID },
+		{ description: QuickOutlineNLS.quickOutlineByCategoryActionLabel, prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX_BY_CATEGORY }
+	]
+});

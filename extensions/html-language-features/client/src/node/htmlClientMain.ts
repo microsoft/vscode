@@ -5,20 +5,20 @@
 
 import { getNodeFileFS } from './nodeFs';
 import { Disposable, ExtensionContext } from 'vscode';
-import { startClient, LanguageClientConstructor } from '../htmlClient';
-import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient, BaseLanguageClient } from 'vscode-languageclient/node';
+import { startClient, LanguageClientConstructor, AsyncDisposable } from '../htmlClient';
+import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'vscode-languageclient/node';
 import { TextDecoder } from 'util';
 import * as fs from 'fs';
 import TelemetryReporter from '@vscode/extension-telemetry';
 
 
 let telemetry: TelemetryReporter | undefined;
-let client: BaseLanguageClient | undefined;
+let client: AsyncDisposable | undefined;
 
 // this method is called when vs code is activated
 export async function activate(context: ExtensionContext) {
 
-	let clientPackageJSON = getPackageInfo(context);
+	const clientPackageJSON = getPackageInfo(context);
 	telemetry = new TelemetryReporter(clientPackageJSON.name, clientPackageJSON.version, clientPackageJSON.aiKey);
 
 	const serverMain = `./server/${clientPackageJSON.main.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/htmlServerMain`;
@@ -50,7 +50,7 @@ export async function activate(context: ExtensionContext) {
 
 export async function deactivate(): Promise<void> {
 	if (client) {
-		await client.stop();
+		await client.dispose();
 		client = undefined;
 	}
 }

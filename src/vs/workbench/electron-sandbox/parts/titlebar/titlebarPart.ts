@@ -10,34 +10,46 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
-import { IMenuService } from 'vs/platform/actions/common/actions';
+import { isMacintosh, isWindows, isLinux, isNative } from 'vs/base/common/platform';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { TitlebarPart as BrowserTitleBarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { getTitleBarStyle } from 'vs/platform/window/common/window';
+import { getTitleBarStyle, useWindowControlsOverlay } from 'vs/platform/window/common/window';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 export class TitlebarPart extends BrowserTitleBarPart {
 	private maxRestoreControl: HTMLElement | undefined;
 	private dragRegion: HTMLElement | undefined;
 	private resizer: HTMLElement | undefined;
 	private cachedWindowControlStyles: { bgColor: string; fgColor: string } | undefined;
+	private cachedWindowControlHeight: number | undefined;
+
+	private isBigSurOrNewer(): boolean {
+		const osVersion = this.environmentService.os.release;
+		return parseFloat(osVersion) >= 20;
+	}
 
 	private getMacTitlebarSize() {
-		const osVersion = this.environmentService.os.release;
-		if (parseFloat(osVersion) >= 20) { // Big Sur increases title bar height
+		if (this.isBigSurOrNewer()) { // Big Sur increases title bar height
 			return 28;
 		}
 
 		return 22;
 	}
 
-	override get minimumHeight(): number { return isMacintosh ? this.getMacTitlebarSize() / getZoomFactor() : super.minimumHeight; }
+	override get minimumHeight(): number {
+		if (!isMacintosh) {
+			return super.minimumHeight;
+		}
+
+		return (this.isCommandCenterVisible ? 35 : this.getMacTitlebarSize()) / (this.useCounterZoom ? getZoomFactor() : 1);
+	}
 	override get maximumHeight(): number { return this.minimumHeight; }
 
 	protected override readonly environmentService: INativeWorkbenchEnvironmentService;
@@ -54,8 +66,9 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, menuService, contextKeyService, hostService);
+		super(contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, menuService, contextKeyService, hostService, hoverService);
 
 		this.environmentService = environmentService;
 	}
@@ -189,6 +202,19 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			this.onDidChangeWindowMaximized(this.layoutService.isWindowMaximized());
 		}
 
+		// Window System Context Menu
+		// See https://github.com/electron/electron/issues/24893
+		if (isWindows && getTitleBarStyle(this.configurationService) === 'custom') {
+			this._register(this.nativeHostService.onDidTriggerSystemContextMenu(({ windowId, x, y }) => {
+				if (this.nativeHostService.windowId !== windowId) {
+					return;
+				}
+
+				const zoomFactor = getZoomFactor();
+				this.onContextMenu(new MouseEvent('mouseup', { clientX: x / zoomFactor, clientY: y / zoomFactor }), MenuId.TitleBarContext);
+			}));
+		}
+
 		return ret;
 	}
 
@@ -196,11 +222,29 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		super.updateStyles();
 
 		// WCO styles only supported on Windows currently
-		if (isWindows) {
+		if (useWindowControlsOverlay(this.configurationService)) {
 			if (!this.cachedWindowControlStyles ||
 				this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
 				this.cachedWindowControlStyles.fgColor !== this.element.style.color) {
-				this.nativeHostService.updateTitleBarOverlay(this.element.style.backgroundColor, this.element.style.color);
+				this.nativeHostService.updateWindowControls({ backgroundColor: this.element.style.backgroundColor, foregroundColor: this.element.style.color });
+			}
+		}
+	}
+
+	override layout(width: number, height: number): void {
+		super.layout(width, height);
+
+		if (useWindowControlsOverlay(this.configurationService) ||
+			(isMacintosh && isNative && getTitleBarStyle(this.configurationService) === 'custom')) {
+			// When the user goes into full screen mode, the height of the title bar becomes 0.
+			// Instead, set it back to the default titlebar height for Catalina users
+			// so that they can have the traffic lights rendered at the proper offset.
+			// Ref https://github.com/microsoft/vscode/issues/159862
+			const newHeight = (height > 0 || this.isBigSurOrNewer()) ?
+				Math.round(height * getZoomFactor()) : this.getMacTitlebarSize();
+			if (newHeight !== this.cachedWindowControlHeight) {
+				this.cachedWindowControlHeight = newHeight;
+				this.nativeHostService.updateWindowControls({ height: newHeight });
 			}
 		}
 	}

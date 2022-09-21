@@ -96,10 +96,10 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 
 					const embeddedLanguages: IValidEmbeddedLanguagesMap = Object.create(null);
 					if (grammar.embeddedLanguages) {
-						let scopes = Object.keys(grammar.embeddedLanguages);
+						const scopes = Object.keys(grammar.embeddedLanguages);
 						for (let i = 0, len = scopes.length; i < len; i++) {
-							let scope = scopes[i];
-							let language = grammar.embeddedLanguages[scope];
+							const scope = scopes[i];
+							const language = grammar.embeddedLanguages[scope];
 							if (typeof language !== 'string') {
 								// never hurts to be too careful
 								continue;
@@ -291,7 +291,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	}
 
 	private static _toColorMap(colorMap: string[]): Color[] {
-		let result: Color[] = [null!];
+		const result: Color[] = [null!];
 		for (let i = 1, len = colorMap.length; i < len; i++) {
 			result[i] = Color.fromHex(colorMap[i]);
 		}
@@ -309,8 +309,8 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 
 	protected _doUpdateTheme(grammarFactory: TMGrammarFactory | null, theme: IRawTheme, tokenColorMap: string[]): void {
 		grammarFactory?.setTheme(theme, tokenColorMap);
-		let colorMap = AbstractTextMateService._toColorMap(tokenColorMap);
-		let cssRules = generateTokensCSSForColorMap(colorMap);
+		const colorMap = AbstractTextMateService._toColorMap(tokenColorMap);
+		const cssRules = generateTokensCSSForColorMap(colorMap);
 		this._styleElement.textContent = cssRules;
 		TokenizationRegistry.setColorMap(colorMap);
 	}
@@ -320,13 +320,13 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 			return false;
 		}
 		for (let i = b.length - 1; i >= 0; i--) {
-			let r1 = b[i];
-			let r2 = a[i];
+			const r1 = b[i];
+			const r2 = a[i];
 			if (r1.scope !== r2.scope) {
 				return false;
 			}
-			let s1 = r1.settings;
-			let s2 = r2.settings;
+			const s1 = r1.settings;
+			const s2 = r2.settings;
 			if (s1 && s2) {
 				if (s1.fontStyle !== s2.fontStyle || s1.foreground !== s2.foreground || s1.background !== s2.background) {
 					return false;

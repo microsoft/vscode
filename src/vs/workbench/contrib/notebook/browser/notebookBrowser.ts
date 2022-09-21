@@ -49,13 +49,31 @@ export const JUPYTER_EXTENSION_ID = 'ms-toolsai.jupyter';
 export const KERNEL_EXTENSIONS = new Map<string, string>([
 	[IPYNB_VIEW_TYPE, JUPYTER_EXTENSION_ID],
 ]);
+// @TODO lramos15, place this in a similar spot to our normal recommendations.
+export const KERNEL_RECOMMENDATIONS = new Map<string, Map<string, INotebookExtensionRecommendation>>();
+KERNEL_RECOMMENDATIONS.set(IPYNB_VIEW_TYPE, new Map<string, INotebookExtensionRecommendation>());
+KERNEL_RECOMMENDATIONS.get(IPYNB_VIEW_TYPE)?.set('python', {
+	extensionId: 'ms-python.python',
+	displayName: 'Python + Jupyter',
+});
+
+export interface INotebookExtensionRecommendation {
+	extensionId: string;
+	displayName?: string;
+}
 
 //#endregion
 
 //#region  Output related types
+
+// !! IMPORTANT !! ----------------------------------------------------------------------------------
+// NOTE that you MUST update vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts#L1986
+// whenever changing the values of this const enum. The webviewPreloads-files manually inlines these values
+// because it cannot have dependencies.
+// !! IMPORTANT !! ----------------------------------------------------------------------------------
 export const enum RenderOutputType {
-	Html,
-	Extension
+	Html = 0,
+	Extension = 1
 }
 
 export interface IRenderPlainHtmlOutput {
@@ -82,6 +100,8 @@ export interface ICellOutputViewModel extends IDisposable {
 	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
 	pickedMimeType: IOrderedMimeType | undefined;
 	hasMultiMimeType(): boolean;
+	readonly onDidResetRenderer: Event<void>;
+	resetRenderer(): void;
 	toRawJSON(): any;
 }
 
@@ -138,6 +158,7 @@ export interface CodeCellLayoutInfo {
 	readonly fontInfo: FontInfo | null;
 	readonly editorHeight: number;
 	readonly editorWidth: number;
+	readonly estimatedHasHorizontalScrolling: boolean;
 	readonly statusBarHeight: number;
 	readonly commentHeight: number;
 	readonly totalHeight: number;
@@ -162,7 +183,7 @@ export interface CodeCellLayoutChangeEvent {
 	font?: FontInfo;
 }
 
-export interface MarkdownCellLayoutInfo {
+export interface MarkupCellLayoutInfo {
 	readonly fontInfo: FontInfo | null;
 	readonly editorWidth: number;
 	readonly editorHeight: number;
@@ -178,7 +199,7 @@ export enum CellLayoutContext {
 	Fold
 }
 
-export interface MarkdownCellLayoutChangeEvent {
+export interface MarkupCellLayoutChangeEvent {
 	font?: FontInfo;
 	outerWidth?: number;
 	editorHeight?: number;
@@ -307,6 +328,7 @@ export interface INotebookEditorCreationOptions {
 	readonly menuIds: {
 		notebookToolbar: MenuId;
 		cellTitleToolbar: MenuId;
+		cellDeleteToolbar: MenuId;
 		cellInsertToolbar: MenuId;
 		cellTopInsertToolbar: MenuId;
 		cellExecuteToolbar: MenuId;
@@ -331,6 +353,7 @@ export interface INotebookEditorViewState {
 	focus?: number;
 	editorFocused?: boolean;
 	contributionsState?: { [id: string]: unknown };
+	selectedKernelId?: string;
 }
 
 export interface ICellModelDecorations {
@@ -413,8 +436,6 @@ export interface INotebookEditor {
 	getFocus(): ICellRange;
 	setFocus(focus: ICellRange): void;
 	getId(): string;
-
-	cursorNavigationMode: boolean;
 
 	_getViewModel(): INotebookViewModel | undefined;
 	hasModel(): this is IActiveNotebookEditor;
@@ -594,16 +615,6 @@ export interface INotebookEditor {
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 
 	/**
-	 * Set decoration key on cells in the range
-	 */
-	setEditorDecorations(key: string, range: ICellRange): void;
-
-	/**
-	 * Remove decoration key from the notebook editor
-	 */
-	removeEditorDecorations(key: string): void;
-
-	/**
 	 * Get a contribution of this editor.
 	 * @id Unique identifier of the contribution.
 	 * @return The contribution or null if contribution not found.
@@ -667,7 +678,7 @@ export interface INotebookEditorDelegate extends INotebookEditor {
 	 * Hide the inset in the webview layer without removing it
 	 */
 	hideInset(output: IDisplayOutputViewModel): void;
-	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]): void;
+	deltaCellContainerClassNames(cellId: string, added: string[], removed: string[]): void;
 }
 
 export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate {

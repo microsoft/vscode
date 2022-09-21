@@ -71,7 +71,7 @@ function assertTokenStyleMetaData(colorIndex: string[], actual: ITokenStyle | un
 function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClassifier: string]: TokenStyle }, language = 'typescript') {
 	const colorIndex = themeData.tokenColorMap;
 
-	for (let qualifiedClassifier in expected) {
+	for (const qualifiedClassifier in expected) {
 		const [type, ...modifiers] = qualifiedClassifier.split('.');
 
 		const expectedTokenStyle = expected[qualifiedClassifier];
@@ -160,7 +160,7 @@ suite('Themes - TokenStyleResolving', () => {
 		themeData.setCustomTokenColors(customTokenColors);
 
 		let tokenStyle;
-		let defaultTokenStyle = undefined;
+		const defaultTokenStyle = undefined;
 
 		tokenStyle = themeData.resolveScopes([['variable']]);
 		assertTokenStyle(tokenStyle, ts('#F8F8F2', unsetStyle), 'variable');

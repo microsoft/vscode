@@ -107,8 +107,8 @@ export default class CommandHandler implements vscode.Disposable {
 
 		const scheme = editor.document.uri.scheme;
 		let range = conflict.current.content;
-		let leftRanges = conflicts.map(conflict => [conflict.current.content, conflict.range]);
-		let rightRanges = conflicts.map(conflict => [conflict.incoming.content, conflict.range]);
+		const leftRanges = conflicts.map(conflict => [conflict.current.content, conflict.range]);
+		const rightRanges = conflicts.map(conflict => [conflict.incoming.content, conflict.range]);
 
 		const leftUri = editor.document.uri.with({
 			scheme: ContentProvider.scheme,
@@ -120,7 +120,7 @@ export default class CommandHandler implements vscode.Disposable {
 		const rightUri = leftUri.with({ query: JSON.stringify({ scheme, ranges: rightRanges }) });
 
 		let mergeConflictLineOffsets = 0;
-		for (let nextconflict of conflicts) {
+		for (const nextconflict of conflicts) {
 			if (nextconflict.range.isEqual(conflict.range)) {
 				break;
 			} else {
@@ -158,7 +158,7 @@ export default class CommandHandler implements vscode.Disposable {
 	}
 
 	async acceptSelection(editor: vscode.TextEditor): Promise<void> {
-		let conflict = await this.findConflictContainingSelection(editor);
+		const conflict = await this.findConflictContainingSelection(editor);
 
 		if (!conflict) {
 			vscode.window.showWarningMessage(localize('cursorNotInConflict', 'Editor cursor is not within a merge conflict'));
@@ -202,7 +202,7 @@ export default class CommandHandler implements vscode.Disposable {
 	}
 
 	private async navigate(editor: vscode.TextEditor, direction: NavigationDirection): Promise<void> {
-		let navigationResult = await this.findConflictForNavigation(editor, direction);
+		const navigationResult = await this.findConflictForNavigation(editor, direction);
 
 		if (!navigationResult) {
 			// Check for autoNavigateNextConflict, if it's enabled(which indicating no conflict remain), then do not show warning
@@ -258,7 +258,7 @@ export default class CommandHandler implements vscode.Disposable {
 	}
 
 	private async acceptAll(type: interfaces.CommitType, editor: vscode.TextEditor): Promise<void> {
-		let conflicts = await this.tracker.getConflicts(editor.document);
+		const conflicts = await this.tracker.getConflicts(editor.document);
 
 		if (!conflicts || conflicts.length === 0) {
 			vscode.window.showWarningMessage(localize('noConflicts', 'No merge conflicts found in this file'));
@@ -323,7 +323,7 @@ export default class CommandHandler implements vscode.Disposable {
 			return null;
 		}
 
-		let selection = editor.selection.active;
+		const selection = editor.selection.active;
 		if (conflicts.length === 1) {
 			if (conflicts[0].range.contains(selection)) {
 				return {
