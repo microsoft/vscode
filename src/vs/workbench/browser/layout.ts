@@ -110,7 +110,8 @@ interface IInitialEditorsState {
 	filesToOpenOrCreate?: IPathToOpen[];
 	filesToDiff?: IPathToOpen[];
 	filesToMerge?: IPathToOpen[];
-	editorLayout?: EditorGroupLayout;
+
+	layout?: EditorGroupLayout;
 }
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
@@ -476,7 +477,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const initialEditorsState = this.getInitialEditorsState();
 		const windowInitializationState: IWorkbenchLayoutWindowInitializationState = {
 			layout: {
-				editors: initialEditorsState?.editorLayout
+				editors: initialEditorsState?.layout
 			},
 			editor: {
 				restoreEditors: this.shouldRestoreEditors(this.contextService, initialEditorsState),
@@ -625,7 +626,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				if (resolvedFileToOpenOrCreate) {
 					filesToOpenOrCreate.push({
 						editor: resolvedFileToOpenOrCreate,
-						viewColumn: initialEditorsState.filesToOpenOrCreate?.[i].viewColumn
+						viewColumn: initialEditorsState.filesToOpenOrCreate?.[i].viewColumn // take over `viewColumn` from initial state
 					});
 				}
 			}
@@ -663,7 +664,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this._openedDefaultEditors = true;
 
 			return {
-				editorLayout: defaultLayout.layout?.editors,
+				layout: defaultLayout.layout?.editors,
 				filesToOpenOrCreate: defaultLayout?.editors?.map(editor => {
 					const legacySelection = editor.selection && editor.selection.start && isNumber(editor.selection.start.line) ? {
 						startLineNumber: editor.selection.start.line,
