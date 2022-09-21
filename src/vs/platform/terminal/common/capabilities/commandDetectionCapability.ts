@@ -664,8 +664,7 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 			if (!line) {
 				continue;
 			}
-			output = line.translateToString(!line.isWrapped) + (line.isWrapped ? '' : '\n') + output;
-			console.log('output', output);
+			output = line.translateToString(!line.isWrapped) + output;
 			const match = output.match(outputMatcher.lineMatcher);
 			if (match) {
 				return match;
@@ -677,7 +676,7 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 			if (!line) {
 				continue;
 			}
-			output += line.translateToString(!line.isWrapped) + (line.isWrapped ? '' : '\n');
+			output += line.translateToString(!line.isWrapped);
 			if (outputMatcher) {
 				const match = output.match(outputMatcher.lineMatcher);
 				if (match) {
