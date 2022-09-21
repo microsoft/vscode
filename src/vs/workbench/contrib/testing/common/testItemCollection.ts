@@ -209,9 +209,13 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 	public pushDiff(diff: TestsDiffOp) {
 		switch (diff.op) {
 			case TestDiffOpType.DocumentSynced: {
-				if (this.diff.some(d => d.op === TestDiffOpType.DocumentSynced && d.uri === diff.uri)) {
-					return;
+				for (const existing of this.diff) {
+					if (existing.op === TestDiffOpType.DocumentSynced && existing.uri === diff.uri) {
+						existing.docv = diff.docv;
+						return;
+					}
 				}
+
 				break;
 			}
 			case TestDiffOpType.Update: {
