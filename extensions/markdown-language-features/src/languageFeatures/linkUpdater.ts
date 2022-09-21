@@ -69,18 +69,11 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 		const renames = Array.from(this._pendingRenames);
 		this._pendingRenames.clear();
 
-		const edit = new vscode.WorkspaceEdit();
-		const resourcesBeingRenamed: vscode.Uri[] = [];
+		const result = await this.getEditsForFileRename(renames, noopToken);
 
-		for (const { oldUri, newUri } of renames) {
-			if (await this.withEditsForFileRename(edit, oldUri, newUri, noopToken)) {
-				resourcesBeingRenamed.push(newUri);
-			}
-		}
-
-		if (edit.size) {
-			if (await this.confirmActionWithUser(resourcesBeingRenamed)) {
-				await vscode.workspace.applyEdit(edit);
+		if (result && result.edit.size) {
+			if (await this.confirmActionWithUser(result.resourcesBeingRenamed)) {
+				await vscode.workspace.applyEdit(result.edit);
 			}
 		}
 	}
@@ -194,25 +187,25 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 		return false;
 	}
 
-	private async withEditsForFileRename(
-		workspaceEdit: vscode.WorkspaceEdit,
-		oldUri: vscode.Uri,
-		newUri: vscode.Uri,
-		token: vscode.CancellationToken,
-	): Promise<boolean> {
-		const edit = await this.client.getEditForFileRenames([{ oldUri: oldUri.toString(), newUri: newUri.toString() }], token);
-		if (!edit.documentChanges?.length) {
-			return false;
+	private async getEditsForFileRename(renames: readonly RenameAction[], token: vscode.CancellationToken): Promise<{ edit: vscode.WorkspaceEdit; resourcesBeingRenamed: vscode.Uri[] } | undefined> {
+		const result = await this.client.getEditForFileRenames(renames.map(rename => ({ oldUri: rename.oldUri.toString(), newUri: rename.newUri.toString() })), token);
+		if (!result?.edit.documentChanges?.length) {
+			return undefined;
 		}
 
-		for (const change of edit.documentChanges as TextDocumentEdit[]) {
+		const workspaceEdit = new vscode.WorkspaceEdit();
+
+		for (const change of result.edit.documentChanges as TextDocumentEdit[]) {
 			const uri = vscode.Uri.parse(change.textDocument.uri);
 			for (const edit of change.edits) {
 				workspaceEdit.replace(uri, convertRange(edit.range), edit.newText);
 			}
 		}
 
-		return true;
+		return {
+			edit: workspaceEdit,
+			resourcesBeingRenamed: result.participatingRenames.map(x => vscode.Uri.parse(x.newUri)),
+		};
 	}
 
 	private getConfirmMessage(start: string, resourcesToConfirm: readonly vscode.Uri[]): string {
