@@ -803,7 +803,7 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 		this._register(extensionsWorkbenchService.onChange(this.onServiceChange, this));
 	}
 
-	private async onServiceChange(): Promise<void> {
+	private onServiceChange(): void {
 		this.badgeHandle.clear();
 
 		const extensionsReloadRequired = this.extensionsWorkbenchService.installed.filter(e => e.reloadRequiredStatus !== undefined);

@@ -1018,7 +1018,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			const canRemoveRunningExtension = runningExtension && this.extensionService.canRemoveExtension(runningExtension);
 			const isSameExtensionRunning = runningExtension && (!extension.server || extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)));
 			if (!canRemoveRunningExtension && isSameExtensionRunning) {
-				alert(nls.localize('uninstallExtensionComplete', "Please reload Visual Studio Code to complete the uninstallation of the extension {0}.", extension.displayName));
 				return nls.localize('postUninstallTooltip', "Please reload Visual Studio Code to complete the uninstallation of this extension.");
 			}
 			return undefined;
@@ -1090,7 +1089,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					const extensionInOtherServer = this.local.filter(e => areSameExtensions(e.identifier, extension!.identifier) && e.server === otherServer)[0];
 					// Same extension in other server exists and
 					if (extensionInOtherServer && extensionInOtherServer.local && this.extensionEnablementService.isEnabled(extensionInOtherServer.local)) {
-						alert(nls.localize('installExtensionCompletedAndReloadRequired', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", extension.displayName));
 						return nls.localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
 					}
 				}
