@@ -33,7 +33,7 @@ import { ISelection } from 'vs/editor/common/core/selection';
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
 export abstract class CoreEditorCommand<T> extends EditorCommand {
-	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args?: T | null): void {
+	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args?: Partial<T> | null): void {
 		const viewModel = editor._getViewModel();
 		if (!viewModel) {
 			// the editor has no view => has no cursors
@@ -331,6 +331,21 @@ abstract class EditorOrNativeTextInputCommand {
 	public abstract runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: unknown): void | Promise<void>;
 }
 
+export const enum NavigationCommandRevealType {
+	/**
+	 * Do regular revealing.
+	 */
+	Regular = 0,
+	/**
+	 * Do only minimal revealing.
+	 */
+	Minimal = 1,
+	/**
+	 * Do not reveal the position.
+	 */
+	None = 2
+}
+
 export namespace CoreNavigationCommands {
 
 	export interface BaseCommandOptions {
@@ -340,16 +355,15 @@ export namespace CoreNavigationCommands {
 	export interface MoveCommandOptions extends BaseCommandOptions {
 		position: IPosition;
 		viewPosition?: IPosition;
+		revealType: NavigationCommandRevealType;
 	}
 
 	class BaseMoveToCommand extends CoreEditorCommand<MoveCommandOptions> {
 
-		private readonly _minimalReveal: boolean;
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { minimalReveal: boolean; inSelectionMode: boolean }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
-			this._minimalReveal = opts.minimalReveal;
 			this._inSelectionMode = opts.inSelectionMode;
 		}
 
@@ -365,22 +379,20 @@ export namespace CoreNavigationCommands {
 					CursorMoveCommands.moveTo(viewModel, viewModel.getPrimaryCursorState(), this._inSelectionMode, args.position, args.viewPosition)
 				]
 			);
-			if (cursorStateChanged) {
-				viewModel.revealPrimaryCursor(args.source, true, this._minimalReveal);
+			if (cursorStateChanged && args.revealType !== NavigationCommandRevealType.None) {
+				viewModel.revealPrimaryCursor(args.source, true, true);
 			}
 		}
 	}
 
 	export const MoveTo: CoreEditorCommand<MoveCommandOptions> = registerEditorCommand(new BaseMoveToCommand({
 		id: '_moveTo',
-		minimalReveal: true,
 		inSelectionMode: false,
 		precondition: undefined
 	}));
 
 	export const MoveToSelect: CoreEditorCommand<MoveCommandOptions> = registerEditorCommand(new BaseMoveToCommand({
 		id: '_moveToSelect',
-		minimalReveal: false,
 		inSelectionMode: true,
 		precondition: undefined
 	}));
@@ -415,8 +427,8 @@ export namespace CoreNavigationCommands {
 	export interface ColumnSelectCommandOptions extends BaseCommandOptions {
 		position: IPosition;
 		viewPosition: IPosition;
-		doColumnSelect: boolean;
 		mouseColumn: number;
+		doColumnSelect: boolean;
 	}
 
 	export const ColumnSelect: CoreEditorCommand<ColumnSelectCommandOptions> = registerEditorCommand(new class extends ColumnSelectCommand<ColumnSelectCommandOptions> {
@@ -1501,11 +1513,7 @@ export namespace CoreNavigationCommands {
 		}
 	});
 
-	export interface WordCommandOptions extends BaseCommandOptions {
-		position: IPosition;
-	}
-
-	class WordCommand extends CoreEditorCommand<WordCommandOptions> {
+	class WordCommand extends CoreEditorCommand<MoveCommandOptions> {
 
 		private readonly _inSelectionMode: boolean;
 
@@ -1514,7 +1522,7 @@ export namespace CoreNavigationCommands {
 			this._inSelectionMode = opts.inSelectionMode;
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: Partial<WordCommandOptions>): void {
+		public runCoreEditorCommand(viewModel: IViewModel, args: Partial<MoveCommandOptions>): void {
 			if (!args.position) {
 				return;
 			}
@@ -1526,23 +1534,25 @@ export namespace CoreNavigationCommands {
 					CursorMoveCommands.word(viewModel, viewModel.getPrimaryCursorState(), this._inSelectionMode, args.position)
 				]
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			if (args.revealType !== NavigationCommandRevealType.None) {
+				viewModel.revealPrimaryCursor(args.source, true, true);
+			}
 		}
 	}
 
-	export const WordSelect: CoreEditorCommand<WordCommandOptions> = registerEditorCommand(new WordCommand({
+	export const WordSelect: CoreEditorCommand<MoveCommandOptions> = registerEditorCommand(new WordCommand({
 		inSelectionMode: false,
 		id: '_wordSelect',
 		precondition: undefined
 	}));
 
-	export const WordSelectDrag: CoreEditorCommand<WordCommandOptions> = registerEditorCommand(new WordCommand({
+	export const WordSelectDrag: CoreEditorCommand<MoveCommandOptions> = registerEditorCommand(new WordCommand({
 		inSelectionMode: true,
 		id: '_wordSelectDrag',
 		precondition: undefined
 	}));
 
-	export const LastCursorWordSelect: CoreEditorCommand<WordCommandOptions> = registerEditorCommand(new class extends CoreEditorCommand<WordCommandOptions> {
+	export const LastCursorWordSelect: CoreEditorCommand<MoveCommandOptions> = registerEditorCommand(new class extends CoreEditorCommand<MoveCommandOptions> {
 		constructor() {
 			super({
 				id: 'lastCursorWordSelect',
@@ -1550,7 +1560,7 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: Partial<WordCommandOptions>): void {
+		public runCoreEditorCommand(viewModel: IViewModel, args: Partial<MoveCommandOptions>): void {
 			if (!args.position) {
 				return;
 			}
@@ -1590,7 +1600,9 @@ export namespace CoreNavigationCommands {
 					CursorMoveCommands.line(viewModel, viewModel.getPrimaryCursorState(), this._inSelectionMode, args.position, args.viewPosition)
 				]
 			);
-			viewModel.revealPrimaryCursor(args.source, false);
+			if (args.revealType !== NavigationCommandRevealType.None) {
+				viewModel.revealPrimaryCursor(args.source, false, true);
+			}
 		}
 	}
 
