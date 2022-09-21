@@ -1408,7 +1408,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 
 			// update cell listener
-			e.splices.reverse().forEach(splice => {
+			[...e.splices].reverse().forEach(splice => {
 				const [start, deleted, newCells] = splice;
 				const deletedCells = this._localCellStateListeners.splice(start, deleted, ...newCells.map(cell => this._bindCellListener(cell)));
 
