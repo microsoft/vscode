@@ -12,7 +12,7 @@ declare module 'vscode' {
 		/**
 		 * A string that can be pulled out of a localization bundle if it exists.
 		 */
-		export function t(options: { message: string; args: any[]; comment: string[] }): string;
+		export function t(options: { message: string; args?: any[]; comment: string[] }): string;
 		/**
 		 * The bundle of localized strings that have been loaded for the extension.
 		 */
