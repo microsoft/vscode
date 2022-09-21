@@ -35,7 +35,6 @@ export class ContentHoverController extends Disposable {
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
 	private _currentResult: HoverResult | null = null;
-	private _isChangingDecorations: boolean = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -62,12 +61,6 @@ export class ContentHoverController extends Disposable {
 			const messages = (result.hasLoadingMessage ? this._addLoadingMessage(result.value) : result.value);
 			this._withResult(new HoverResult(this._computer.anchor, messages, result.isComplete));
 		}));
-		this._register(this._editor.onDidChangeModelDecorations(() => {
-			if (this._isChangingDecorations) {
-				return;
-			}
-			this._onModelDecorationsChanged();
-		}));
 		this._register(dom.addStandardDisposableListener(this._widget.getDomNode(), 'keydown', (e) => {
 			if (e.equals(KeyCode.Escape)) {
 				this.hide();
@@ -79,18 +72,6 @@ export class ContentHoverController extends Disposable {
 				this._setCurrentResult(this._currentResult); // render again
 			}
 		}));
-	}
-
-	private _onModelDecorationsChanged(): void {
-		if (this._widget.position) {
-			// The decorations have changed and the hover is visible,
-			// we need to recompute the displayed text
-			this._hoverOperation.cancel();
-
-			if (!this._widget.isColorPickerVisible) { // TODO@Michel ensure that displayed text for other decorations is computed even if color picker is in place
-				this._hoverOperation.start(HoverStartMode.Delayed);
-			}
-		}
 	}
 
 	/**
@@ -197,6 +178,10 @@ export class ContentHoverController extends Disposable {
 	}
 
 	private _setCurrentResult(hoverResult: HoverResult | null): void {
+		if (this._currentResult === hoverResult) {
+			// avoid updating the DOM to avoid resetting the user selection
+			return;
+		}
 		if (hoverResult && hoverResult.messages.length === 0) {
 			hoverResult = null;
 		}
@@ -283,22 +268,12 @@ export class ContentHoverController extends Disposable {
 		if (fragment.hasChildNodes()) {
 			if (highlightRange) {
 				const highlightDecoration = this._editor.createDecorationsCollection();
-				try {
-					this._isChangingDecorations = true;
-					highlightDecoration.set([{
-						range: highlightRange,
-						options: ContentHoverController._DECORATION_OPTIONS
-					}]);
-				} finally {
-					this._isChangingDecorations = false;
-				}
+				highlightDecoration.set([{
+					range: highlightRange,
+					options: ContentHoverController._DECORATION_OPTIONS
+				}]);
 				disposables.add(toDisposable(() => {
-					try {
-						this._isChangingDecorations = true;
-						highlightDecoration.clear();
-					} finally {
-						this._isChangingDecorations = false;
-					}
+					highlightDecoration.clear();
 				}));
 			}
 
@@ -358,8 +333,11 @@ class HoverResult {
 		public readonly isComplete: boolean
 	) { }
 
-	public filter(anchor: HoverAnchor): HoverResult | null {
+	public filter(anchor: HoverAnchor): HoverResult {
 		const filteredMessages = this.messages.filter((m) => m.isValidForHoverAnchor(anchor));
+		if (filteredMessages.length === this.messages.length) {
+			return this;
+		}
 		return new FilteredHoverResult(this, this.anchor, filteredMessages, this.isComplete);
 	}
 }
@@ -375,7 +353,7 @@ class FilteredHoverResult extends HoverResult {
 		super(anchor, messages, isComplete);
 	}
 
-	public override filter(anchor: HoverAnchor): HoverResult | null {
+	public override filter(anchor: HoverAnchor): HoverResult {
 		return this.original.filter(anchor);
 	}
 }
