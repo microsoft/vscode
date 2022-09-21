@@ -224,7 +224,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		}
 
 		// #149034 Use entire selection range conditionally (i.e. When user is holding the Shift key)
-		let range = entireSelection ? entry.symbol.selectionRange : Range.collapseToStart(entry.symbol.selectionRange);
+		const range = entireSelection ? entry.symbol.selectionRange : Range.collapseToStart(entry.symbol.selectionRange);
 
 		await this._codeEditorService.openCodeEditor({
 			resource: model.uri,
