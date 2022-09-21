@@ -78,14 +78,14 @@
         {
             "command": "github.copyVscodeDevLinkFile",
             "when": "github.hasGitHubRepo",
-			"group": "0_vscode@0"
+            "group": "0_vscode@0"
         }
       ],
       "editor/context/share": [
         {
             "command": "github.copyVscodeDevLink",
             "when": "github.hasGitHubRepo && resourceScheme != untitled",
-			"group": "0_vscode@0"
+            "group": "0_vscode@0"
         }
       ]
     },
