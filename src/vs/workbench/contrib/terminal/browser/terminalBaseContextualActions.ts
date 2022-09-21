@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction } from 'vs/base/common/actions';
+import { isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ContextualMatchResult, ICommandAction, ITerminalContextualActionOptions, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -13,7 +14,7 @@ export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
 export const AnyCommandLineRegex = /.{4,}/;
 export const GitSimilarOutputRegex = /most similar command is\s+([^\s]{3,})/;
-export const FreePortOutputRegex = /address already in use \d\.\d\.\d\.\d:(\d\d\d\d)\s+/;
+export const FreePortOutputRegex = /address already in use \d\.\d\.\d\.\d:(\d\d\d\d)\s+|Unable to bind [^ ]*:(\d+)|can't listen on port (\d+)|listen EADDRINUSE [^ ]*:(\d+)/;
 export const GitPushOutputRegex = /git push --set-upstream origin ([^\s]+)\s+/;
 export const GitCreatePrOutputRegex = /Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s+remote:\s+(https:.+pull.+)\s+/;
 
@@ -44,8 +45,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 	return {
 		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Free port ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: AnyCommandLineRegex,
-		outputMatcher: { lineMatcher: FreePortOutputRegex, anchor: 'bottom' },
-		exitCode: 1,
+		outputMatcher: !isWindows ? { lineMatcher: FreePortOutputRegex, anchor: 'bottom' } : undefined,
 		getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
 			const port = matchResult?.outputMatch?.[1];
 			if (!port) {

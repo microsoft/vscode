@@ -84,7 +84,6 @@ suite('ContextualActionAddon', () => {
 		suite('freePort', () => {
 			const expected = new Map();
 			const portCommand = `yarn start dev`;
-			const exitCode = 1;
 			const output = `yarn run v1.22.17
 			warning ../../package.json: No license field
 			Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
@@ -113,14 +112,11 @@ suite('ContextualActionAddon', () => {
 			});
 			suite('returns undefined when', () => {
 				test('output does not match', () => {
-					strictEqual(getMatchActions(createCommand(portCommand, `invalid output`, FreePortOutputRegex, exitCode), expected), undefined);
-				});
-				test('exit code does not match', () => {
-					strictEqual(getMatchActions(createCommand(portCommand, output, FreePortOutputRegex, 2), expected), undefined);
+					strictEqual(getMatchActions(createCommand(portCommand, `invalid output`, FreePortOutputRegex), expected), undefined);
 				});
 			});
 			test('returns actions', () => {
-				assertMatchOptions(getMatchActions(createCommand(portCommand, output, FreePortOutputRegex, exitCode), expected), actionOptions);
+				assertMatchOptions(getMatchActions(createCommand(portCommand, output, FreePortOutputRegex), expected), actionOptions);
 			});
 		});
 		suite('gitPushSetUpstream', () => {
@@ -210,6 +206,8 @@ function createCommand(command: string, output: string, outputMatcher?: RegExp |
 		exitCode,
 		getOutput: () => { return output; },
 		getOutputMatch: (matcher: ITerminalOutputMatcher) => {
+			console.log(outputMatcher);
+			console.log(output);
 			if (outputMatcher) {
 				return output.match(outputMatcher) ?? undefined;
 			}
