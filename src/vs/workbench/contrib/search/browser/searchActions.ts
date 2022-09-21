@@ -255,8 +255,6 @@ export function expandAll(accessor: ServicesAccessor) {
 	if (searchView) {
 		const viewer = searchView.getControl();
 		viewer.expandAll();
-		viewer.domFocus();
-		viewer.focusFirst();
 	}
 }
 
@@ -294,15 +292,17 @@ export function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 		let canCollapseFileMatchLevel = false;
 		let canCollapseFirstLevel = false;
 
-		while (node = navigator.next()) {
-			if (node instanceof Match) {
-				canCollapseFileMatchLevel = true;
-				break;
-			}
-			if (searchView.isTreeViewVisible && !canCollapseFirstLevel) {
-				const immediateParent = node.parent();
-				if (!(immediateParent instanceof SearchResult) && !(immediateParent.parent() instanceof SearchResult)) {
-					canCollapseFirstLevel = true;
+		if (node instanceof FolderMatch) {
+			while (node = navigator.next()) {
+				if (node instanceof Match) {
+					canCollapseFileMatchLevel = true;
+					break;
+				}
+				if (searchView.isTreeLayoutViewVisible && !canCollapseFirstLevel) {
+					const immediateParent = node.parent();
+					if (!(immediateParent instanceof SearchResult) && !(immediateParent.parent() instanceof SearchResult)) {
+						canCollapseFirstLevel = true;
+					}
 				}
 			}
 		}
@@ -320,7 +320,7 @@ export function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 				do {
 					const immediateParent = node.parent();
 					if (!(immediateParent instanceof SearchResult) && !(immediateParent.parent() instanceof SearchResult)) {
-						viewer.collapse(immediateParent);
+						viewer.collapse(immediateParent, true);
 					}
 				} while (node = navigator.next());
 			}
@@ -328,8 +328,14 @@ export function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 			viewer.collapseAll();
 		}
 
-		viewer.domFocus();
-		viewer.focusFirst();
+		const firstFocusParent = viewer.getFocus()[0]?.parent();
+
+		if (firstFocusParent && (firstFocusParent instanceof FolderMatch || firstFocusParent instanceof FileMatch) &&
+			viewer.hasElement(firstFocusParent) && viewer.isCollapsed(firstFocusParent)) {
+			viewer.domFocus();
+			viewer.focusFirst();
+			viewer.setSelection(viewer.getFocus());
+		}
 	}
 }
 
@@ -471,7 +477,7 @@ class ReplaceActionRunner {
 				this.viewer.setFocus([elementToFocus], getSelectionKeyboardEvent());
 				this.viewer.setSelection([elementToFocus], getSelectionKeyboardEvent());
 			}
-			const elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus, currentBottomFocusElement, searchView?.isTreeViewVisible ?? false);
+			const elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus, currentBottomFocusElement, searchView?.isTreeLayoutViewVisible ?? false);
 
 			this.viewer.domFocus();
 
@@ -483,7 +489,7 @@ class ReplaceActionRunner {
 			}
 			return;
 		} else {
-			const nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, currentBottomFocusElement, searchView?.isTreeViewVisible ?? false);
+			const nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, currentBottomFocusElement, searchView?.isTreeLayoutViewVisible ?? false);
 
 			if (nextFocusElement) {
 				this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
@@ -583,7 +589,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		if (opInfo.mustReselect) {
 			for (const currentElement of elementsToRemove) {
 				const nextFocusElement = !currentElement || currentElement instanceof SearchResult || arrayContainsElementOrParent(currentElement, elementsToRemove) ?
-					this.getElementToFocusAfterRemoved(this.viewer, currentElement, searchView?.isTreeViewVisible ?? false) :
+					this.getElementToFocusAfterRemoved(this.viewer, currentElement, searchView?.isTreeLayoutViewVisible ?? false) :
 					null;
 				if (nextFocusElement && !arrayContainsElementOrParent(nextFocusElement, elementsToRemove)) {
 					this.viewer.reveal(nextFocusElement);

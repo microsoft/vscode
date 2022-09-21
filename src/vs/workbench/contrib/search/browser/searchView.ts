@@ -246,22 +246,22 @@ export class SearchView extends ViewPane {
 		this.triggerQueryDelayer = this._register(new Delayer<void>(0));
 
 		this.treeAccessibilityProvider = this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel);
-		this.isTreeViewVisible = (this.searchConfig.defaultViewMode === ViewMode.Tree);
+		this.isTreeLayoutViewVisible = (this.searchConfig.defaultViewMode === ViewMode.Tree);
 	}
 
-	get isTreeViewVisible(): boolean {
+	get isTreeLayoutViewVisible(): boolean {
 		return this.treeViewKey.get() ?? false;
 	}
 
-	private set isTreeViewVisible(visible: boolean) {
+	private set isTreeLayoutViewVisible(visible: boolean) {
 		this.treeViewKey.set(visible);
 	}
 
 	setTreeView(visible: boolean): void {
-		if (visible === this.isTreeViewVisible) {
+		if (visible === this.isTreeLayoutViewVisible) {
 			return;
 		}
-		this.isTreeViewVisible = visible;
+		this.isTreeLayoutViewVisible = visible;
 		this.refreshTree();
 	}
 
@@ -579,7 +579,7 @@ export class SearchView extends ViewPane {
 	private createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ITreeElement<RenderableMatch>> {
 		const sortOrder = this.searchConfig.sortOrder;
 
-		const matchArray = this.isTreeViewVisible ? folderMatch.matches() : folderMatch.downstreamFileMatches();
+		const matchArray = this.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.downstreamFileMatches();
 		const matches = matchArray.sort((a, b) => searchMatchComparer(a, b, sortOrder));
 
 		return Iterable.map(matches, match => {
