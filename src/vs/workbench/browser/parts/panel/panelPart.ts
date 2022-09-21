@@ -554,7 +554,8 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			orientation: ActionsOrientation.HORIZONTAL,
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
-			toggleMenuTitle: localize('moreActions', "More Actions...")
+			toggleMenuTitle: localize('moreActions', "More Actions..."),
+			resetMenu: this.globalActions.menuId
 		}));
 
 		this.updateGlobalToolbarActions();

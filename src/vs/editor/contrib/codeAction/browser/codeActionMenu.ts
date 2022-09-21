@@ -16,7 +16,6 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/
 import { OS } from 'vs/base/common/platform';
 import 'vs/css!./media/action';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Command } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CodeActionItem, CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeAction';
@@ -39,7 +38,7 @@ export const acceptSelectedCodeActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedCodeActionCommand = 'previewSelectedCodeAction';
 
 interface CodeActionWidgetDelegate {
-	onSelectCodeAction: (action: CodeActionItem, trigger: CodeActionTrigger) => Promise<any>;
+	onSelectCodeAction: (action: CodeActionItem, trigger: CodeActionTrigger, options: { readonly preview: boolean }) => Promise<any>;
 }
 
 export interface CodeActionShowOptions {
@@ -86,10 +85,12 @@ const uncategorizedCodeActionGroup = Object.freeze<CodeActionGroup>({ kind: Code
 
 const codeActionGroups = Object.freeze<CodeActionGroup[]>([
 	{ kind: CodeActionKind.QuickFix, title: localize('codeAction.widget.id.quickfix', 'Quick Fix...') },
-	{ kind: CodeActionKind.Extract, title: localize('codeAction.widget.id.extract', 'Extract...'), icon: { codicon: Codicon.wrench } },
-	{ kind: CodeActionKind.Convert, title: localize('codeAction.widget.id.convert', 'Convert...'), icon: { codicon: Codicon.zap, color: 'var(--vscode-editorLightBulbAutoFix-foreground)' } },
-	{ kind: CodeActionKind.SurroundWith, title: localize('codeAction.widget.id.surround', 'Surround With...'), icon: { codicon: Codicon.symbolArray } },
-	{ kind: CodeActionKind.Source, title: localize('codeAction.widget.id.source', 'Source Action...'), icon: { codicon: Codicon.lightBulb, color: 'var(--vscode-editorLightBulb-foreground)' } },
+	{ kind: CodeActionKind.RefactorExtract, title: localize('codeAction.widget.id.extract', 'Extract...'), icon: { codicon: Codicon.wrench } },
+	{ kind: CodeActionKind.RefactorInline, title: localize('codeAction.widget.id.inline', 'Inline...'), icon: { codicon: Codicon.wrench } },
+	{ kind: CodeActionKind.RefactorRewrite, title: localize('codeAction.widget.id.convert', 'Rewrite...'), icon: { codicon: Codicon.wrench } },
+	{ kind: CodeActionKind.RefactorMove, title: localize('codeAction.widget.id.move', 'Move...'), icon: { codicon: Codicon.wrench } },
+	{ kind: CodeActionKind.SurroundWith, title: localize('codeAction.widget.id.surround', 'Surround With...'), icon: { codicon: Codicon.symbolSnippet } },
+	{ kind: CodeActionKind.Source, title: localize('codeAction.widget.id.source', 'Source Action...'), icon: { codicon: Codicon.symbolFile } },
 	uncategorizedCodeActionGroup,
 ]);
 
@@ -177,6 +178,7 @@ class HeaderRenderer implements IListRenderer<CodeActionListItemHeader, HeaderTe
 	}
 }
 
+const previewSelectedEventType = 'previewSelectedCodeAction';
 class CodeActionList extends Disposable {
 
 	private readonly codeActionLineHeight = 24;
@@ -191,7 +193,7 @@ class CodeActionList extends Disposable {
 	constructor(
 		codeActions: readonly CodeActionItem[],
 		showHeaders: boolean,
-		private readonly onDidSelect: (action: CodeActionItem) => void,
+		private readonly onDidSelect: (action: CodeActionItem, options: { readonly preview: boolean }) => void,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super();
@@ -272,7 +274,7 @@ class CodeActionList extends Disposable {
 		this.list.focusNext(1, true, undefined, element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled);
 	}
 
-	public acceptSelected() {
+	public acceptSelected(options?: { readonly preview?: boolean }) {
 		const focused = this.list.getFocus();
 		if (focused.length === 0) {
 			return;
@@ -284,7 +286,8 @@ class CodeActionList extends Disposable {
 			return;
 		}
 
-		this.list.setSelection([focusIndex]);
+		const event = new UIEvent(options?.preview ? previewSelectedEventType : 'acceptSelectedCodeAction');
+		this.list.setSelection([focusIndex], event);
 	}
 
 	private onListSelection(e: IListEvent<ICodeActionMenuItem>): void {
@@ -294,7 +297,7 @@ class CodeActionList extends Disposable {
 
 		const element = e.elements[0];
 		if (element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled) {
-			this.onDidSelect(element.action);
+			this.onDidSelect(element.action, { preview: e.browserEvent?.type === previewSelectedEventType });
 		} else {
 			this.list.setSelection([]);
 		}
@@ -345,13 +348,7 @@ class CodeActionList extends Disposable {
 // TODO: Take a look at user storage for this so it is preserved across windows and on reload.
 let showDisabled = false;
 
-export class CodeActionMenu extends Disposable implements IEditorContribution {
-
-	public static readonly ID: string = 'editor.contrib.codeActionMenu';
-
-	public static get(editor: ICodeEditor): CodeActionMenu | null {
-		return editor.getContribution<CodeActionMenu>(CodeActionMenu.ID);
-	}
+export class CodeActionMenu extends Disposable {
 
 	private readonly codeActionList = this._register(new MutableDisposable<CodeActionList>());
 
@@ -386,7 +383,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, anchor: IAnchor, options: CodeActionShowOptions): Promise<void> {
 		this.currentShowingContext = undefined;
-		if (!this._editor.hasModel() || !this._editor.getDomNode()) {
+
+		const editorDom = this._editor.getDomNode();
+		if (!editorDom) {
 			return;
 		}
 
@@ -401,7 +400,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 			getAnchor: () => anchor,
 			render: (container: HTMLElement) => this.renderWidget(container, trigger, codeActions, options, actionsToShow),
 			onHide: (didCancel: boolean) => this.onWidgetClosed(trigger, options, codeActions, didCancel),
-		}, this._editor.getDomNode()!, false);
+		}, editorDom, false);
 	}
 
 	/**
@@ -418,8 +417,8 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.codeActionList.value?.focusNext();
 	}
 
-	public acceptSelected() {
-		this.codeActionList.value?.acceptSelected();
+	public acceptSelected(options?: { readonly preview?: boolean }) {
+		this.codeActionList.value?.acceptSelected(options);
 	}
 
 	public hide() {
@@ -443,9 +442,9 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this.codeActionList.value = new CodeActionList(
 			showingCodeActions,
 			this.shouldShowHeaders(),
-			action => {
+			(action, options) => {
 				this.hide();
-				this._delegate.onSelectCodeAction(action, trigger);
+				this._delegate.onSelectCodeAction(action, trigger, options);
 			},
 			this._keybindingService);
 

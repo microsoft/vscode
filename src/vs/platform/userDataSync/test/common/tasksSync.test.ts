@@ -280,21 +280,21 @@ suite('TasksSync', () => {
 		fileService.writeFile(tasksResource, VSBuffer.fromString(content));
 		await testObject.sync(await client.getResourceManifest());
 
+		const previewContent = (await fileService.readFile(testObject.conflicts.conflicts[0].previewResource)).value.toString();
 		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
 		assert.deepStrictEqual(testObject.conflicts.conflicts.length, 1);
 		assert.deepStrictEqual(testObject.conflicts.conflicts[0].mergeState, MergeState.Conflict);
 		assert.deepStrictEqual(testObject.conflicts.conflicts[0].localChange, Change.Modified);
 		assert.deepStrictEqual(testObject.conflicts.conflicts[0].remoteChange, Change.Modified);
-		assert.deepStrictEqual((await fileService.readFile(testObject.conflicts.conflicts[0].previewResource)).value.toString(), content);
 
 		await testObject.accept(testObject.conflicts.conflicts[0].previewResource);
 		await testObject.apply(false);
 		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
-		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData!.syncData!.content!, client.instantiationService.get(ILogService)), content);
-		assert.strictEqual((await fileService.readFile(tasksResource)).value.toString(), content);
+		assert.strictEqual(getTasksContentFromSyncContent(lastSyncUserData!.syncData!.content!, client.instantiationService.get(ILogService)), previewContent);
+		assert.strictEqual(getTasksContentFromSyncContent(remoteUserData!.syncData!.content!, client.instantiationService.get(ILogService)), previewContent);
+		assert.strictEqual((await fileService.readFile(tasksResource)).value.toString(), previewContent);
 	});
 
 	test('when tasks file has moved forward locally and remotely - accept modified preview', async () => {

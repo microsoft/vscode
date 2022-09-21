@@ -623,6 +623,17 @@ suite('PausableEmitter', function () {
 		assert.deepStrictEqual(data, [1, 1, 2, 2, 3, 3]);
 
 	});
+
+	test('empty pause with merge', function () {
+		const data: number[] = [];
+		const emitter = new PauseableEmitter<number>({ merge: a => a[0] });
+		emitter.event(e => data.push(1));
+
+		emitter.pause();
+		emitter.resume();
+		assert.deepStrictEqual(data, []);
+	});
+
 });
 
 suite('Event utils - ensureNoDisposablesAreLeakedInTestSuite', function () {

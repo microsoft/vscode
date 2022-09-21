@@ -86,7 +86,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	private readonly remoteResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
 	private readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
 
-	private readonly profileLocation: URI | undefined;
+	// profileLocation changes for default profile
+	profileLocation: URI | undefined;
 
 	constructor(
 		profile: IUserDataProfile,

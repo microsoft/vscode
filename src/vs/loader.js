@@ -291,9 +291,6 @@ var AMDLoader;
             if (typeof options.isBuild !== 'boolean') {
                 options.isBuild = false;
             }
-            if (typeof options.buildForceInvokeFactory !== 'object') {
-                options.buildForceInvokeFactory = {};
-            }
             if (typeof options.paths !== 'object') {
                 options.paths = {};
             }
@@ -325,9 +322,6 @@ var AMDLoader;
             }
             if (typeof options.preferScriptTags === 'undefined') {
                 options.preferScriptTags = false;
-            }
-            if (!Array.isArray(options.nodeModules)) {
-                options.nodeModules = [];
             }
             if (options.nodeCachedData && typeof options.nodeCachedData === 'object') {
                 if (typeof options.nodeCachedData.seed !== 'string') {
@@ -374,16 +368,10 @@ var AMDLoader;
             this._env = env;
             this.options = ConfigurationOptionsUtil.mergeConfigurationOptions(options);
             this._createIgnoreDuplicateModulesMap();
-            this._createNodeModulesMap();
             this._createSortedPathsRules();
             if (this.options.baseUrl === '') {
                 if (this.options.nodeRequire && this.options.nodeRequire.main && this.options.nodeRequire.main.filename && this._env.isNode) {
                     var nodeMain = this.options.nodeRequire.main.filename;
-                    var dirnameIndex = Math.max(nodeMain.lastIndexOf('/'), nodeMain.lastIndexOf('\\'));
-                    this.options.baseUrl = nodeMain.substring(0, dirnameIndex + 1);
-                }
-                if (this.options.nodeMain && this._env.isNode) {
-                    var nodeMain = this.options.nodeMain;
                     var dirnameIndex = Math.max(nodeMain.lastIndexOf('/'), nodeMain.lastIndexOf('\\'));
                     this.options.baseUrl = nodeMain.substring(0, dirnameIndex + 1);
                 }
@@ -394,14 +382,6 @@ var AMDLoader;
             this.ignoreDuplicateModulesMap = {};
             for (var i = 0; i < this.options.ignoreDuplicateModules.length; i++) {
                 this.ignoreDuplicateModulesMap[this.options.ignoreDuplicateModules[i]] = true;
-            }
-        };
-        Configuration.prototype._createNodeModulesMap = function () {
-            // Build a map out of nodeModules array
-            this.nodeModulesMap = Object.create(null);
-            for (var _i = 0, _a = this.options.nodeModules; _i < _a.length; _i++) {
-                var nodeModule = _a[_i];
-                this.nodeModulesMap[nodeModule] = true;
             }
         };
         Configuration.prototype._createSortedPathsRules = function () {
@@ -482,8 +462,8 @@ var AMDLoader;
          */
         Configuration.prototype.moduleIdToPaths = function (moduleId) {
             if (this._env.isNode) {
-                var isNodeModule = ((this.nodeModulesMap[moduleId] === true)
-                    || (this.options.amdModulesPattern instanceof RegExp && !this.options.amdModulesPattern.test(moduleId)));
+                var isNodeModule = (this.options.amdModulesPattern instanceof RegExp
+                    && !this.options.amdModulesPattern.test(moduleId));
                 if (isNodeModule) {
                     // This is a node module...
                     if (this.isBuild()) {
@@ -545,8 +525,13 @@ var AMDLoader;
                 return true;
             }
             // during a build, only explicitly marked or anonymous modules get their factories invoked
-            return (this.options.buildForceInvokeFactory[strModuleId]
-                || AMDLoader.Utilities.isAnonymousModule(strModuleId));
+            if (AMDLoader.Utilities.isAnonymousModule(strModuleId)) {
+                return true;
+            }
+            if (this.options.buildForceInvokeFactory && this.options.buildForceInvokeFactory[strModuleId]) {
+                return true;
+            }
+            return false;
         };
         /**
          * Test if module `moduleId` is expected to be defined multiple times

@@ -637,13 +637,13 @@
     node-addon-api "^3.2.1"
     node-gyp-build "^4.3.0"
 
-"@playwright/test@1.24.2":
-  version "1.24.2"
-  resolved "https://registry.yarnpkg.com/@playwright/test/-/test-1.24.2.tgz#283ea8cc497f9742037458659bf235f4776cf1f0"
-  integrity sha512-Q4X224pRHw4Dtkk5PoNJplZCokLNvVbXD9wDQEMrHcEuvWpJWEQDeJ9gEwkZ3iCWSFSWBshIX177B231XW4wOQ==
+"@playwright/test@1.25.2":
+  version "1.25.2"
+  resolved "https://registry.yarnpkg.com/@playwright/test/-/test-1.25.2.tgz#e726cf4844f096315c3954fdb3abf295cede43ba"
+  integrity sha512-6qPznIR4Fw02OMbqXUPMG6bFFg1hDVNEdihKy0t9K0dmRbus1DyP5Q5XFQhGwEHQkLG5hrSfBuu9CW/foqhQHQ==
   dependencies:
     "@types/node" "*"
-    playwright-core "1.24.2"
+    playwright-core "1.25.2"
 
 "@sindresorhus/is@^0.14.0":
   version "0.14.0"
@@ -1091,10 +1091,10 @@
     "@types/expect" "^1.20.4"
     "@types/node" "*"
 
-"@types/vscode-notebook-renderer@^1.60.0":
-  version "1.60.0"
-  resolved "https://registry.yarnpkg.com/@types/vscode-notebook-renderer/-/vscode-notebook-renderer-1.60.0.tgz#8a67d561f48ddf46a95dfa9f712a79c72c7b8f7a"
-  integrity sha512-u7TD2uuEZTVuitx0iijOJdKI0JLiQP6PsSBSRy2XmHXUOXcp5p1S56NrjOEDoF+PIHd3NL3eO6KTRSf5nukDqQ==
+"@types/vscode-notebook-renderer@^1.72.0":
+  version "1.72.0"
+  resolved "https://registry.yarnpkg.com/@types/vscode-notebook-renderer/-/vscode-notebook-renderer-1.72.0.tgz#8943dc3cef0ced2dfb1e04c0a933bd289e7d5199"
+  integrity sha512-5iTjb39DpLn03ULUwrDR3L2Dy59RV4blSUHy0oLdQuIY11PhgWO4mXIcoFS0VxY1GZQ4IcjSf3ooT2Jrrcahnw==
 
 "@types/webpack-sources@*":
   version "2.1.0"
@@ -8464,10 +8464,10 @@ playwright-core@1.23.4:
   resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-1.23.4.tgz#e8a45e549faf6bfad24a0e9998e451979514d41e"
   integrity sha512-h5V2yw7d8xIwotjyNrkLF13nV9RiiZLHdXeHo+nVJIYGVlZ8U2qV0pMxNJKNTvfQVT0N8/A4CW6/4EW2cOcTiA==
 
-playwright-core@1.24.2:
-  version "1.24.2"
-  resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-1.24.2.tgz#47bc5adf3dcfcc297a5a7a332449c9009987db26"
-  integrity sha512-zfAoDoPY/0sDLsgSgLZwWmSCevIg1ym7CppBwllguVBNiHeixZkc1AdMuYUPZC6AdEYc4CxWEyLMBTw2YcmRrA==
+playwright-core@1.25.2:
+  version "1.25.2"
+  resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-1.25.2.tgz#ea4baa398a4d45fcdfe48799482b599e3d0f033f"
+  integrity sha512-0yTbUE9lIddkEpLHL3u8PoCL+pWiZtj5A/j3U7YoNjcmKKDGBnCrgHJMzwd2J5vy6l28q4ki3JIuz7McLHhl1A==
 
 playwright@^1.23.1:
   version "1.23.4"
@@ -10817,10 +10817,10 @@ typescript@^2.6.2:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
 
-typescript@^4.9.0-dev.20220909:
-  version "4.9.0-dev.20220909"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.9.0-dev.20220909.tgz#cf90bff737ac177e6c4a86b04184a5ab91b93ac0"
-  integrity sha512-SC8F8fq2cOklfv72ROBl+qxx6HqRCTbMnj3pQp1rTUeTMLWOBym0a8YAcy7/nu/R+U7wuReUeFhZxhcItvfDCA==
+typescript@^4.9.0-dev.20220916:
+  version "4.9.0-dev.20220916"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.9.0-dev.20220916.tgz#9cf0a7e64385f9ee9c841bbd1ba9b0bfd113301b"
+  integrity sha512-UuHLjqwsPLARYlNFwXEblQsiPFPRbZEx8dbitbfbx5l++DCAL2/HZdZ3VMWAS84KRFCwUxpYXdD0EvBU5S79KQ==
 
 typical@^4.0.0:
   version "4.0.0"
