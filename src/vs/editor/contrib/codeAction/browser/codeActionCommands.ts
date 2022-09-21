@@ -11,7 +11,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, registerEditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -19,20 +19,21 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, refactorPreviewCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { acceptSelectedCodeActionCommand, CodeActionMenu, Context, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeActionMenu';
 import { CodeActionUi } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import * as nls from 'vs/nls';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from './types';
-import { acceptSelectedCodeActionCommand, Context, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeActionMenu';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -113,9 +114,8 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService));
 		this._register(this._model.onDidChangeState(newState => this.update(newState)));
 
-
 		this._ui = new Lazy(() =>
-			this._register(new CodeActionUi(editor, QuickFixAction.Id, AutoFixAction.Id, {
+			this._register(_instantiationService.createInstance(CodeActionUi, editor, QuickFixAction.Id, AutoFixAction.Id, {
 				applyCodeAction: async (action, retrigger, preview) => {
 					try {
 						await this._applyCodeAction(action, preview);
@@ -125,28 +125,12 @@ export class CodeActionController extends Disposable implements IEditorContribut
 						}
 					}
 				}
-			}, this._instantiationService))
+			}))
 		);
 	}
 
 	private update(newState: CodeActionsState.State): void {
 		this._ui.getValue().update(newState);
-	}
-
-	public hideCodeActionWidget() {
-		this._ui.rawValue?.hideCodeActionWidget();
-	}
-
-	public focusNext() {
-		this._ui.rawValue?.focusNext();
-	}
-
-	public focusPrevious() {
-		this._ui.rawValue?.focusPrevious();
-	}
-
-	public acceptSelected(options?: { preview?: boolean }) {
-		this._ui.rawValue?.acceptSelected(options);
 	}
 
 	public showCodeActions(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition) {
@@ -507,62 +491,116 @@ export class AutoFixAction extends EditorAction {
 	}
 }
 
-const CodeActionContribution = EditorCommand.bindToContribution<CodeActionController>(CodeActionController.get);
-
 const weight = KeybindingWeight.EditorContrib + 90;
 
-registerEditorCommand(new CodeActionContribution({
-	id: 'hideCodeActionWidget',
-	precondition: Context.Visible,
-	handler: controller => controller.hideCodeActionWidget(),
-	kbOpts: {
-		weight: weight,
-		primary: KeyCode.Escape,
-		secondary: [KeyMod.Shift | KeyCode.Escape]
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'hideCodeActionWidget',
+			title: {
+				value: nls.localize('hideCodeActionWidget.title', "Hide code action widget"),
+				original: 'Hide code action widget'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight: weight,
+				primary: KeyCode.Escape,
+				secondary: [KeyMod.Shift | KeyCode.Escape]
+			},
+		});
 	}
-}));
 
-registerEditorCommand(new CodeActionContribution({
-	id: 'selectPrevCodeAction',
-	precondition: Context.Visible,
-	handler: controller => controller.focusPrevious(),
-	kbOpts: {
-		weight: weight + 100000,
-		primary: KeyCode.UpArrow,
-		secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
-		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KeyP] },
+	run(): void {
+		CodeActionMenu.INSTANCE?.hide();
 	}
-}));
+});
 
-registerEditorCommand(new CodeActionContribution({
-	id: 'selectNextCodeAction',
-	precondition: Context.Visible,
-	handler: controller => controller.focusNext(),
-	kbOpts: {
-		weight: weight + 100000,
-		primary: KeyCode.DownArrow,
-		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
-		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KeyN] }
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'selectPrevCodeAction',
+			title: {
+				value: nls.localize('selectPrevCodeAction.title', "Select previous code action"),
+				original: 'Select previous code action'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight: weight + 100000,
+				primary: KeyCode.UpArrow,
+				secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
+				mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KeyP] },
+			}
+		});
 	}
-}));
 
-registerEditorCommand(new CodeActionContribution({
-	id: acceptSelectedCodeActionCommand,
-	precondition: Context.Visible,
-	handler: controller => controller.acceptSelected(),
-	kbOpts: {
-		weight: weight + 100000,
-		primary: KeyCode.Enter,
-		secondary: [KeyMod.CtrlCmd | KeyCode.Period],
+	run(): void {
+		CodeActionMenu.INSTANCE?.focusPrevious();
 	}
-}));
+});
 
-registerEditorCommand(new CodeActionContribution({
-	id: previewSelectedCodeActionCommand,
-	precondition: Context.Visible,
-	handler: controller => controller.acceptSelected({ preview: true }),
-	kbOpts: {
-		weight: weight + 100000,
-		primary: KeyMod.CtrlCmd | KeyCode.Enter,
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'selectNextCodeAction',
+			title: {
+				value: nls.localize('selectNextCodeAction.title', "Select next code action"),
+				original: 'Select next code action'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight: weight + 100000,
+				primary: KeyCode.DownArrow,
+				secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
+				mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KeyN] }
+			}
+		});
 	}
-}));
+
+	run(): void {
+		CodeActionMenu.INSTANCE?.focusNext();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: acceptSelectedCodeActionCommand,
+			title: {
+				value: nls.localize('acceptSelected.title', "Accept selected code action"),
+				original: 'Accept selected code action'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight: weight + 100000,
+				primary: KeyCode.Enter,
+				secondary: [KeyMod.CtrlCmd | KeyCode.Period],
+			}
+		});
+	}
+
+	run(): void {
+		CodeActionMenu.INSTANCE?.acceptSelected();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: previewSelectedCodeActionCommand,
+			title: {
+				value: nls.localize('previewSelected.title', "Preview selected code action"),
+				original: 'Preview selected code action'
+			},
+			precondition: Context.Visible,
+			keybinding: {
+				weight: weight + 100000,
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+			}
+		});
+	}
+
+	run(): void {
+		CodeActionMenu.INSTANCE?.acceptSelected({ preview: true });
+	}
+});
+
