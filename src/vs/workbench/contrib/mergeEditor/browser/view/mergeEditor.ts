@@ -11,7 +11,7 @@ import { Color } from 'vs/base/common/color';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, autorunWithStore, IObservable, IReader, observableValue } from 'vs/base/common/observable';
+import { autorun, autorunWithStore, IObservable, IReader, observableValue, transaction } from 'vs/base/common/observable';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -36,6 +36,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { readTransientState, writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
+import { IMergeEditorInputModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { deepMerge, thenIfNotDisposed } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { BaseCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/baseCodeEditorView';
@@ -76,7 +77,13 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	private readonly _ctxShowBase: IContextKey<boolean>;
 	private readonly _ctxResultUri: IContextKey<string>;
 	private readonly _ctxBaseUri: IContextKey<string>;
-	public get model(): MergeEditorModel | undefined { return this._viewModel.get()?.model; }
+	private readonly _inputModel = observableValue<IMergeEditorInputModel | undefined>('inputModel', undefined);
+	public get inputModel(): IObservable<IMergeEditorInputModel | undefined> {
+		return this._inputModel;
+	}
+	public get model(): MergeEditorModel | undefined {
+		return this.inputModel.get()?.model;
+	}
 
 	private get inputsWritable(): boolean {
 		return !!this._configurationService.getValue<boolean>('mergeEditor.writableInputs');
@@ -176,16 +183,23 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		await super.setInput(input, options, context, token);
 
 		this._sessionDisposables.clear();
-		this._viewModel.set(undefined, undefined);
+		transaction(tx => {
+			this._viewModel.set(undefined, tx);
+			this._inputModel.set(undefined, tx);
+		});
 
-		const model = await input.resolve();
+		const inputModel = await input.resolve();
+		const model = inputModel.model;
 
 		const viewModel = new MergeEditorViewModel(model, this.input1View, this.input2View, this.inputResultView, this.baseView);
-		this._viewModel.set(viewModel, undefined);
+		transaction(tx => {
+			this._viewModel.set(viewModel, tx);
+			this._inputModel.set(inputModel, tx);
+		});
 		this._sessionDisposables.add(viewModel);
 
 		// Set/unset context keys based on input
-		this._ctxResultUri.set(model.resultTextModel.uri.toString());
+		this._ctxResultUri.set(inputModel.resultUri.toString());
 		this._ctxBaseUri.set(model.base.uri.toString());
 		this._sessionDisposables.add(toDisposable(() => {
 			this._ctxBaseUri.reset();
@@ -552,7 +566,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	}
 
 	protected computeEditorViewState(resource: URI): IMergeEditorViewState | undefined {
-		if (!isEqual(this.model?.resultTextModel.uri, resource)) {
+		if (!isEqual(this.inputModel.get()?.resultUri, resource)) {
 			return undefined;
 		}
 		const result = this.inputResultView.editor.saveViewState();
