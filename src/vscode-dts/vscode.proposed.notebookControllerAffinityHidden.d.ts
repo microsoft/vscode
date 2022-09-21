@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-process.env.DEBUG='pw:install'; // enable logging for this (https://github.com/microsoft/playwright/issues/17394)
+declare module 'vscode' {
+	// https://github.com/microsoft/vscode/issues/161144
+	export enum NotebookControllerAffinity2 {
+		Default = 1,
+		Preferred = 2,
+		Hidden = -1
+	}
 
-const { installDefaultBrowsersForNpmInstall } = require('playwright-core/lib/server');
-
-async function install() {
-	await installDefaultBrowsersForNpmInstall();
+	export interface NotebookController {
+		updateNotebookAffinity(notebook: NotebookDocument, affinity: NotebookControllerAffinity | NotebookControllerAffinity2): void;
+	}
 }
-
-install();
