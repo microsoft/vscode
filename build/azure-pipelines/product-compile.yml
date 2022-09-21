@@ -131,11 +131,12 @@ steps:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Compile & Hygiene
 
-  - script: |
-      set -e
-      yarn --cwd build compile
-      ./.github/workflows/check-clean-git-state.sh
-    displayName: Check /build/ folder
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        yarn --cwd build compile
+        ./.github/workflows/check-clean-git-state.sh
+      displayName: Check /build/ folder
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
