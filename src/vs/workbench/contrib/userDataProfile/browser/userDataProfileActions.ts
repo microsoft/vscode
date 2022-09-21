@@ -14,7 +14,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { QuickPickItem, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
-import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileImportExportService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileImportExportService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT, MANAGE_PROFILES_ACTION_ID } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { CATEGORIES } from 'vs/workbench/common/actions';
@@ -282,11 +282,10 @@ registerAction2(class DeleteProfileAction extends Action2 {
 	}
 });
 
-export class MangeSettingsProfileAction extends Action2 {
-	static readonly ID = 'workbench.profiles.actions.manage';
+registerAction2(class MangeSettingsProfileAction extends Action2 {
 	constructor() {
 		super({
-			id: MangeSettingsProfileAction.ID,
+			id: MANAGE_PROFILES_ACTION_ID,
 			title: {
 				value: localize('mange', "Manage..."),
 				original: 'Manage...'
@@ -317,14 +316,13 @@ export class MangeSettingsProfileAction extends Action2 {
 					label: `${action.label}${action.checked ? ` $(${Codicon.check.id})` : ''}`,
 				};
 			});
-			const pick = await quickInputService.pick(picks, { canPickMany: false });
+			const pick = await quickInputService.pick(picks, { canPickMany: false, title: PROFILES_CATEGORY });
 			if (pick?.id) {
 				await commandService.executeCommand(pick.id);
 			}
 		}
 	}
-}
-registerAction2(MangeSettingsProfileAction);
+});
 
 registerAction2(class SwitchProfileAction extends Action2 {
 	constructor() {

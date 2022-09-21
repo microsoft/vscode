@@ -72,6 +72,7 @@ export interface IResourceProfile {
 }
 
 export const ManageProfilesSubMenu = new MenuId('SettingsProfiles');
+export const MANAGE_PROFILES_ACTION_ID = 'workbench.profiles.actions.manage';
 export const PROFILES_TTILE = { value: localize('settings profiles', "Settings Profiles"), original: 'Settings Profiles' };
 export const PROFILES_CATEGORY = PROFILES_TTILE.value;
 export const PROFILE_EXTENSION = 'code-profile';
