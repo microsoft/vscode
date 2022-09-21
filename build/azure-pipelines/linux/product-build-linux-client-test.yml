@@ -12,9 +12,7 @@ steps:
   - script: |
       set -e
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        DEBUG=pw:install yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
-    timeoutInMinutes: 5
-    retryCountOnTaskFailure: 3
+        yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     displayName: Download Electron and Playwright
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
