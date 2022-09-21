@@ -557,7 +557,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this._notification = notification;
 		const internal = notification !== undefined ?
 			{
-				message: notification.message,
+				message: MarkdownString.from(notification.message),
 				severity: notification.severity as any
 			} : undefined;
 		this.#proxy.$updateSourceControl(this.handle, { notification: internal ?? null });

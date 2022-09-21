@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as picomatch from 'picomatch';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, SourceControlNotificationSeverity } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, SourceControlNotificationSeverity, MarkdownString, SourceControlNotification } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
@@ -2101,13 +2101,22 @@ export class Repository implements Disposable {
 
 		this._onDidChangeStatus.fire();
 
-		// set notification
-		this._sourceControl.notification = didHitLimit ? {
-			message: localize('tooManyChangesWarning', "Too many changes were detected. Only the first {0} changes will be shown below.", limit),
-			severity: SourceControlNotificationSeverity.Warning
-		} : undefined;
-
+		this._sourceControl.notification = this.getNotification();
 		this._sourceControl.commitTemplate = await this.getInputTemplate();
+	}
+
+	private getNotification(): SourceControlNotification | undefined {
+		if (this.isRepositoryHuge) {
+			const message = new MarkdownString(localize('tooManyChangesWarning', "Too many changes were detected, and only the first {0} changes will be shown below. Only a subset of Git features will be enabled. [Configure limit](command:workbench.action.openSettings?%5B%22git.statusLimit%22%5D)", this.isRepositoryHuge.limit));
+			message.isTrusted = true;
+
+			return {
+				message,
+				severity: SourceControlNotificationSeverity.Warning
+			};
+		}
+
+		return undefined;
 	}
 
 	private setCountBadge(): void {

@@ -349,6 +349,7 @@ class NotificationRenderer implements ICompressibleTreeRenderer<ISCMNotification
 				},
 			});
 
+			templateData.message.textContent = '';
 			templateData.message.appendChild(mdElement);
 		}
 
