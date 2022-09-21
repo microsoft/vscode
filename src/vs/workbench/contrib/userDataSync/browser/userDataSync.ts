@@ -835,7 +835,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					icon: Codicon.stopCircle,
 					menu: {
 						id: MenuId.ViewContainerTitle,
-						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.notEqualsTo(AccountStatus.Uninitialized), CONTEXT_TURNING_ON_STATE, ContextKeyExpr.equals('viewContainer', SYNC_VIEW_CONTAINER_ID)),
+						when: ContextKeyExpr.and(CONTEXT_TURNING_ON_STATE, ContextKeyExpr.equals('viewContainer', SYNC_VIEW_CONTAINER_ID)),
 						group: 'navigation',
 						order: 1
 					}
@@ -1057,7 +1057,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						when
 					}, {
 						id: MenuId.ViewContainerTitle,
-						when: ContextKeyExpr.and(when, ContextKeyExpr.equals('viewContainer', SYNC_VIEW_CONTAINER_ID)),
+						when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, ContextKeyExpr.equals('viewContainer', SYNC_VIEW_CONTAINER_ID)),
 						group: 'navigation',
 						order: 2
 					}]
