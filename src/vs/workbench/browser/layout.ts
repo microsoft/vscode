@@ -2237,6 +2237,8 @@ function getZenModeConfiguration(configurationService: IConfigurationService): Z
 	return configurationService.getValue<ZenModeConfiguration>(WorkbenchLayoutSettings.ZEN_MODE_CONFIG);
 }
 
+//#endregion
+
 //#region Layout State Model
 
 interface IWorkbenchLayoutStateKey {
