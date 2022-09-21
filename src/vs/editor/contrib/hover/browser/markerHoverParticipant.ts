@@ -16,7 +16,7 @@ import { IModelDecoration } from 'vs/editor/common/model';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
 import { CodeActionSet, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { QuickFixAction, QuickFixController } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
+import { QuickFixAction, CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
 import { CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
 import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/browser/gotoError';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
@@ -224,7 +224,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 					commandId: QuickFixAction.Id,
 					run: (target) => {
 						showing = true;
-						const controller = QuickFixController.get(this._editor);
+						const controller = CodeActionController.get(this._editor);
 						const elementPosition = dom.getDomNodePagePosition(target);
 						// Hide the hover pre-emptively, otherwise the editor can close the code actions
 						// context menu as well when using keyboard navigation

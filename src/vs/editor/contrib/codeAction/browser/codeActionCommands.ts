@@ -87,12 +87,12 @@ const argsSchema: IJSONSchema = {
 	}
 };
 
-export class QuickFixController extends Disposable implements IEditorContribution {
+export class CodeActionController extends Disposable implements IEditorContribution {
 
-	public static readonly ID = 'editor.contrib.quickFixController';
+	public static readonly ID = 'editor.contrib.codeActionController';
 
-	public static get(editor: ICodeEditor): QuickFixController | null {
-		return editor.getContribution<QuickFixController>(QuickFixController.ID);
+	public static get(editor: ICodeEditor): CodeActionController | null {
+		return editor.getContribution<CodeActionController>(CodeActionController.ID);
 	}
 
 	private readonly _editor: ICodeEditor;
@@ -133,29 +133,20 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		this._ui.getValue().update(newState);
 	}
 
-	public hideCodeActionMenu() {
-		if (this._ui.hasValue()) {
-			this._ui.getValue().hideCodeActionWidget();
-		}
+	public hideCodeActionWidget() {
+		this._ui.rawValue?.hideCodeActionWidget();
 	}
 
-	public navigateCodeActionList(navUp: Boolean) {
-		if (this._ui.hasValue()) {
-			this._ui.getValue().navigateList(navUp);
-		}
+	public focusNext() {
+		this._ui.rawValue?.focusNext();
 	}
 
-	public selectedOption() {
-		if (this._ui.hasValue()) {
-			this._ui.getValue().onEnter();
-		}
+	public focusPrevious() {
+		this._ui.rawValue?.focusPrevious();
 	}
 
-	public selectedOptionWithPreview() {
-		if (this._ui.hasValue()) {
-			this._ui.getValue().onPreviewEnter();
-		}
-
+	public acceptSelected(options?: { preview?: boolean }) {
+		this._ui.rawValue?.acceptSelected(options);
 	}
 
 	public showCodeActions(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition) {
@@ -168,7 +159,6 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		filter?: CodeActionFilter,
 		autoApply?: CodeActionAutoApply,
 		preview?: boolean,
-
 	): void {
 		if (!this._editor.hasModel()) {
 			return;
@@ -273,7 +263,7 @@ function triggerCodeActionsForEditorSelection(
 	triggerAction: CodeActionTriggerSource = CodeActionTriggerSource.Default
 ): void {
 	if (editor.hasModel()) {
-		const controller = QuickFixController.get(editor);
+		const controller = CodeActionController.get(editor);
 		controller?.manualTriggerAtCurrentPosition(notAvailableMessage, triggerAction, filter, autoApply, preview);
 	}
 }
@@ -517,16 +507,14 @@ export class AutoFixAction extends EditorAction {
 	}
 }
 
-const CodeActionContribution = EditorCommand.bindToContribution<QuickFixController>(QuickFixController.get);
+const CodeActionContribution = EditorCommand.bindToContribution<CodeActionController>(CodeActionController.get);
 
 const weight = KeybindingWeight.EditorContrib + 90;
 
 registerEditorCommand(new CodeActionContribution({
 	id: 'hideCodeActionWidget',
 	precondition: Context.Visible,
-	handler(x) {
-		x.hideCodeActionMenu();
-	},
+	handler: controller => controller.hideCodeActionWidget(),
 	kbOpts: {
 		weight: weight,
 		primary: KeyCode.Escape,
@@ -537,9 +525,7 @@ registerEditorCommand(new CodeActionContribution({
 registerEditorCommand(new CodeActionContribution({
 	id: 'selectPrevCodeAction',
 	precondition: Context.Visible,
-	handler(x) {
-		x.navigateCodeActionList(true);
-	},
+	handler: controller => controller.focusPrevious(),
 	kbOpts: {
 		weight: weight + 100000,
 		primary: KeyCode.UpArrow,
@@ -551,9 +537,7 @@ registerEditorCommand(new CodeActionContribution({
 registerEditorCommand(new CodeActionContribution({
 	id: 'selectNextCodeAction',
 	precondition: Context.Visible,
-	handler(x) {
-		x.navigateCodeActionList(false);
-	},
+	handler: controller => controller.focusNext(),
 	kbOpts: {
 		weight: weight + 100000,
 		primary: KeyCode.DownArrow,
@@ -565,9 +549,7 @@ registerEditorCommand(new CodeActionContribution({
 registerEditorCommand(new CodeActionContribution({
 	id: acceptSelectedCodeActionCommand,
 	precondition: Context.Visible,
-	handler(x) {
-		x.selectedOption();
-	},
+	handler: controller => controller.acceptSelected(),
 	kbOpts: {
 		weight: weight + 100000,
 		primary: KeyCode.Enter,
@@ -578,9 +560,7 @@ registerEditorCommand(new CodeActionContribution({
 registerEditorCommand(new CodeActionContribution({
 	id: previewSelectedCodeActionCommand,
 	precondition: Context.Visible,
-	handler(x) {
-		x.selectedOptionWithPreview();
-	},
+	handler: controller => controller.acceptSelected({ preview: true }),
 	kbOpts: {
 		weight: weight + 100000,
 		primary: KeyMod.CtrlCmd | KeyCode.Enter,

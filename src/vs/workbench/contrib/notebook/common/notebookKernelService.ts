@@ -20,6 +20,7 @@ export interface INotebookKernelMatchResult {
 	readonly selected: INotebookKernel | undefined;
 	readonly suggestions: INotebookKernel[];
 	readonly all: INotebookKernel[];
+	readonly hidden: INotebookKernel[];
 }
 
 
