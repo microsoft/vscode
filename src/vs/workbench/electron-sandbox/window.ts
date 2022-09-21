@@ -32,7 +32,7 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { isWindows, isMacintosh, isCI } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -636,6 +636,30 @@ export class NativeWindow extends Disposable {
 			}
 		});
 
+		// Windows 7 warning
+		if (isWindows) {
+			this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {
+				const version = this.environmentService.os.release.split('.');
+
+				// Refs https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoa
+				if (parseInt(version[0]) === 6 && parseInt(version[1]) === 1) {
+					const message = localize('windows 7 eol', "{0} on Windows 7 will no longer receive any further updates.", this.productService.nameLong);
+
+					this.notificationService.prompt(
+						Severity.Warning,
+						message,
+						[{
+							label: localize('learnMore', "Learn More"),
+							run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-win7'))
+						}],
+						{
+							neverShowAgain: { id: 'windows7eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
+						}
+					);
+				}
+			});
+		}
+
 		// Touchbar menu (if enabled)
 		this.updateTouchbarMenu();
 
@@ -658,10 +682,18 @@ export class NativeWindow extends Disposable {
 
 	private setupDriver(): void {
 		const that = this;
+		let pendingQuit = false;
+
 		registerWindowDriver({
 			async exitApplication(): Promise<void> {
+				if (pendingQuit) {
+					that.logService.info('[driver] not handling exitApplication() due to pending quit() call');
+					return;
+				}
+
 				that.logService.info('[driver] handling exitApplication()');
 
+				pendingQuit = true;
 				return that.nativeHostService.quit();
 			}
 		});

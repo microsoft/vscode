@@ -34,7 +34,7 @@ suite('Files - ExplorerView', () => {
 		const s4 = createStat.call(this, '/path/to/stat', 'stat', false, false, 8096, d);
 		const noNavigationController = { getCompressedNavigationController: (stat: ExplorerItem) => undefined };
 
-		assert.deepStrictEqual(getContext([s1], [s2, s3, s4], true, noNavigationController), [s1]);
+		assert.deepStrictEqual(getContext([s1], [s2, s3, s4], true, noNavigationController), [s2, s3, s4]);
 		assert.deepStrictEqual(getContext([s1], [s1, s3, s4], true, noNavigationController), [s1, s3, s4]);
 		assert.deepStrictEqual(getContext([s1], [s3, s1, s4], false, noNavigationController), [s1]);
 		assert.deepStrictEqual(getContext([], [s3, s1, s4], false, noNavigationController), []);

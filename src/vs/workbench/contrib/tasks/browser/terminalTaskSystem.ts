@@ -49,6 +49,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -240,6 +241,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		private _configurationService: IConfigurationService,
 		private _notificationService: INotificationService,
 		taskService: ITaskService,
+		instantiationService: IInstantiationService,
 		taskSystemInfoResolver: ITaskSystemInfoResolver,
 	) {
 		super();
@@ -252,7 +254,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._sameTaskTerminals = Object.create(null);
 		this._onDidStateChange = new Emitter();
 		this._taskSystemInfoResolver = taskSystemInfoResolver;
-		this._register(this._terminalStatusManager = new TaskTerminalStatus(taskService));
+		this._register(this._terminalStatusManager = instantiationService.createInstance(TaskTerminalStatus));
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
@@ -1287,7 +1289,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		for (let i = 0; i < this._reconnectedTerminals.length; i++) {
 			const terminal = this._reconnectedTerminals[i];
 			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
-			if (taskForTerminal.lastTask === task.getMapKey()) {
+			if (taskForTerminal.lastTask === task.getCommonTaskId()) {
 				this._reconnectedTerminals.splice(i, 1);
 				return terminal;
 			}
@@ -1323,7 +1325,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
 		const createdTerminal = await this._terminalService.createTerminal({ location: TerminalLocation.Panel, config: launchConfigs });
-		this._logService.trace('Created a new task terminal');
 		createdTerminal.onDisposed((terminal) => this._fireTaskEvent({ kind: TaskEventKind.Terminated, exitReason: terminal.exitReason, taskId: task.getRecentlyUsedKey() }));
 		return createdTerminal;
 	}
@@ -1455,7 +1456,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 		this._terminalCreationQueue = this._terminalCreationQueue.then(() => this._doCreateTerminal(task, group, launchConfigs!));
 		const terminal: ITerminalInstance = (await this._terminalCreationQueue)!;
-		terminal.shellLaunchConfig.reconnectionProperties = { ownerId: ReconnectionType, data: { lastTask: taskKey, group, label: task._label, id: task._id } };
+		terminal.shellLaunchConfig.reconnectionProperties = { ownerId: ReconnectionType, data: { lastTask: task.getCommonTaskId(), group, label: task._label, id: task._id } };
 		const terminalKey = terminal.instanceId.toString();
 		const terminalData = { terminal: terminal, lastTask: taskKey, group };
 		terminal.onDisposed(() => this._deleteTaskAndTerminal(terminal, terminalData));

@@ -5,9 +5,10 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import { IDiffChange, ISequence, LcsDiff, IDiffResult } from 'vs/base/common/diff/diff';
-import { ILinesDiffComputer, ILinesDiff, ILinesDiffComputerOptions, LineRange, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { ILinesDiffComputer, ILinesDiff, ILinesDiffComputerOptions, LineRange, RangeMapping, LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
+import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 
 const MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
 
@@ -21,34 +22,61 @@ export class SmartLinesDiffComputer implements ILinesDiffComputer {
 			shouldPostProcessCharChanges: true,
 		});
 		const result = diffComputer.computeDiff();
+		const changes: LineRangeMapping[] = [];
+		let lastChange: LineRangeMapping | null = null;
+
+
+		for (const c of result.changes) {
+			let originalRange: LineRange;
+			if (c.originalEndLineNumber === 0) {
+				// Insertion
+				originalRange = new LineRange(c.originalStartLineNumber + 1, c.originalStartLineNumber + 1);
+			} else {
+				originalRange = new LineRange(c.originalStartLineNumber, c.originalEndLineNumber + 1);
+			}
+
+			let modifiedRange: LineRange;
+			if (c.modifiedEndLineNumber === 0) {
+				// Deletion
+				modifiedRange = new LineRange(c.modifiedStartLineNumber + 1, c.modifiedStartLineNumber + 1);
+			} else {
+				modifiedRange = new LineRange(c.modifiedStartLineNumber, c.modifiedEndLineNumber + 1);
+			}
+
+			let change = new LineRangeMapping(originalRange, modifiedRange, c.charChanges?.map(c => new RangeMapping(
+				new Range(c.originalStartLineNumber, c.originalStartColumn, c.originalEndLineNumber, c.originalEndColumn),
+				new Range(c.modifiedStartLineNumber, c.modifiedStartColumn, c.modifiedEndLineNumber, c.modifiedEndColumn),
+			)));
+			if (lastChange) {
+				if (lastChange.modifiedRange.endLineNumberExclusive === change.modifiedRange.startLineNumber
+					|| lastChange.originalRange.endLineNumberExclusive === change.originalRange.startLineNumber) {
+					// join touching diffs. Probably moving diffs up/down in the algorithm causes touching diffs.
+					change = new LineRangeMapping(
+						lastChange.originalRange.join(change.originalRange),
+						lastChange.modifiedRange.join(change.modifiedRange),
+						lastChange.innerChanges && change.innerChanges ?
+							lastChange.innerChanges.concat(change.innerChanges) : undefined
+					);
+					changes.pop();
+				}
+			}
+
+			changes.push(change);
+			lastChange = change;
+		}
+
+		assertFn(() => {
+			return checkAdjacentItems(changes,
+				(m1, m2) => m2.originalRange.startLineNumber - m1.originalRange.endLineNumberExclusive === m2.modifiedRange.startLineNumber - m1.modifiedRange.endLineNumberExclusive &&
+					// There has to be an unchanged line in between (otherwise both diffs should have been joined)
+					m1.originalRange.endLineNumberExclusive < m2.originalRange.startLineNumber &&
+					m1.modifiedRange.endLineNumberExclusive < m2.modifiedRange.startLineNumber,
+			);
+		});
+
 		return {
 			quitEarly: result.quitEarly,
-			changes: result.changes.map(c => {
-				let originalRange: LineRange;
-				if (c.originalEndLineNumber === 0) {
-					// Insertion
-					originalRange = new LineRange(c.originalStartLineNumber + 1, c.originalStartLineNumber + 1);
-				} else {
-					originalRange = new LineRange(c.originalStartLineNumber, c.originalEndLineNumber + 1);
-				}
-
-				let modifiedRange: LineRange;
-				if (c.modifiedEndLineNumber === 0) {
-					// Deletion
-					modifiedRange = new LineRange(c.modifiedStartLineNumber + 1, c.modifiedStartLineNumber + 1);
-				} else {
-					modifiedRange = new LineRange(c.modifiedStartLineNumber, c.modifiedEndLineNumber + 1);
-				}
-
-				return {
-					originalRange,
-					modifiedRange,
-					innerChanges: c.charChanges?.map(c => new RangeMapping(
-						new Range(c.originalStartLineNumber, c.originalStartColumn, c.originalEndLineNumber, c.originalEndColumn),
-						new Range(c.modifiedStartLineNumber, c.modifiedStartColumn, c.modifiedEndLineNumber, c.modifiedEndColumn),
-					))
-				};
-			})
+			changes,
 		};
 	}
 }

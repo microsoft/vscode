@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfilesService, UseDefaultProfileFlags, WorkspaceIdentifier } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -53,7 +53,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 	}
 
 	async createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean): Promise<IUserDataProfile> {
-		const profile = await this.userDataProfilesService.createProfile(name, useDefaultFlags, this.getWorkspaceIdentifier());
+		const profile = await this.userDataProfilesService.createNamedProfile(name, useDefaultFlags, this.getWorkspaceIdentifier());
 		await this.enterProfile(profile, !!fromExisting);
 		return profile;
 	}
@@ -132,4 +132,4 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 	}
 }
 
-registerSingleton(IUserDataProfileManagementService, UserDataProfileManagementService);
+registerSingleton(IUserDataProfileManagementService, UserDataProfileManagementService, InstantiationType.Eager /* Eager because it updates the current window profile by listening to profiles changes */);

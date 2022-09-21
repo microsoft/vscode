@@ -22,7 +22,9 @@
   "activationEvents": [
     "onCustomEditor:imagePreview.previewEditor",
     "onCommand:imagePreview.zoomIn",
-    "onCommand:imagePreview.zoomOut"
+    "onCommand:imagePreview.zoomOut",
+    "onCustomEditor:vscode.audioPreview",
+    "onCustomEditor:vscode.videoPreview"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -34,11 +36,31 @@
     "customEditors": [
       {
         "viewType": "imagePreview.previewEditor",
-        "displayName": "%customEditors.displayName%",
+        "displayName": "%customEditor.imagePreview.displayName%",
         "priority": "builtin",
         "selector": [
           {
             "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif}"
+          }
+        ]
+      },
+      {
+        "viewType": "vscode.audioPreview",
+        "displayName": "%customEditor.audioPreview.displayName%",
+        "priority": "builtin",
+        "selector": [
+          {
+            "filenamePattern": "*.{mp3,wav,opus,aac}"
+          }
+        ]
+      },
+      {
+        "viewType": "vscode.videoPreview",
+        "displayName": "%customEditor.videoPreview.displayName%",
+        "priority": "builtin",
+        "selector": [
+          {
+            "filenamePattern": "*.{mp4,webm}"
           }
         ]
       }

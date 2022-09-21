@@ -15,7 +15,7 @@ import { IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import { ctxIsMergeEditor, ctxMergeEditorLayout } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 abstract class MergeEditorAction extends Action2 {
@@ -152,7 +152,7 @@ export class SetMixedLayout extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
-			activeEditorPane.setLayout('mixed');
+			activeEditorPane.setLayoutKind('mixed');
 		}
 	}
 }
@@ -176,7 +176,36 @@ export class SetColumnLayout extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
-			activeEditorPane.setLayout('columns');
+			activeEditorPane.setLayoutKind('columns');
+		}
+	}
+}
+
+export class ShowHideBase extends Action2 {
+	constructor() {
+		super({
+			id: 'merge.showBase',
+			title: {
+				value: localize('layout.showBase', 'Show Base'),
+				original: 'Show Base',
+			},
+			toggled: ctxMergeEditorShowBase.isEqualTo(true),
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ctxIsMergeEditor,
+					group: '2_merge',
+					order: 9,
+				},
+			],
+			precondition: ctxIsMergeEditor,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const { activeEditorPane } = accessor.get(IEditorService);
+		if (activeEditorPane instanceof MergeEditor) {
+			activeEditorPane.toggleBase();
 		}
 	}
 }
@@ -452,5 +481,53 @@ export class AcceptAllInput2 extends MergeEditorAction {
 
 	override runWithViewModel(viewModel: MergeEditorViewModel): void {
 		viewModel.acceptAll(2);
+	}
+}
+
+export class ResetToBaseAndAutoMergeCommand extends MergeEditorAction {
+	constructor() {
+		super({
+			id: 'mergeEditor.resetResultToBaseAndAutoMerge',
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'mergeEditor.resetResultToBaseAndAutoMerge',
+					'Reset Result'
+				),
+				original: 'Reset Result',
+			},
+			shortTitle: localize('mergeEditor.resetResultToBaseAndAutoMerge.short', 'Reset'),
+			f1: true,
+			precondition: ctxIsMergeEditor,
+			menu: { id: MenuId.MergeInputResultToolbar }
+		});
+	}
+
+	override runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void {
+		viewModel.model.resetResultToBaseAndAutoMerge();
+	}
+}
+
+export class ResetDirtyConflictsToBaseCommand extends MergeEditorAction {
+	constructor() {
+		super({
+			id: 'mergeEditor.resetDirtyConflictsToBase',
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'mergeEditor.resetDirtyConflictsToBase',
+					'Reset Dirty Conflicts In Result To Base'
+				),
+				original: 'Reset Dirty Conflicts In Result To Base',
+			},
+			shortTitle: localize('mergeEditor.resetDirtyConflictsToBase.short', 'Reset Dirty Conflicts To Base'),
+			f1: true,
+			precondition: ctxIsMergeEditor,
+			menu: { id: MenuId.MergeInputResultToolbar }
+		});
+	}
+
+	override runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void {
+		viewModel.model.resetDirtyConflictsToBase();
 	}
 }

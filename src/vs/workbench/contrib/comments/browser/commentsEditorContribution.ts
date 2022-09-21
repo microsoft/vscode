@@ -50,6 +50,7 @@ import { CommentThreadRangeDecorator } from 'vs/workbench/contrib/comments/brows
 import { commentThreadRangeActiveBackground, commentThreadRangeActiveBorder, commentThreadRangeBackground, commentThreadRangeBorder } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 export const ID = 'editor.contrib.review';
 
@@ -179,10 +180,12 @@ class CommentingRangeDecorator {
 		}
 	}
 
-	public update(editor: ICodeEditor, commentInfos: ICommentInfo[]) {
-		this._editor = editor;
-		this._infos = commentInfos;
-		this._doUpdate(editor, commentInfos);
+	public update(editor: ICodeEditor | undefined, commentInfos: ICommentInfo[]) {
+		if (editor) {
+			this._editor = editor;
+			this._infos = commentInfos;
+			this._doUpdate(editor, commentInfos);
+		}
 	}
 
 	private _lineHasThread(editor: ICodeEditor, lineRange: Range) {
@@ -316,7 +319,7 @@ const WorkspaceHasCommenting = new RawContextKey<boolean>('workspaceHasCommentin
 export class CommentController implements IEditorContribution {
 	private readonly globalToDispose = new DisposableStore();
 	private readonly localToDispose = new DisposableStore();
-	private editor!: ICodeEditor;
+	private editor: ICodeEditor | undefined;
 	private _commentWidgets: ReviewZoneWidget[];
 	private _commentInfos: ICommentInfo[];
 	private _commentingRangeDecorator!: CommentingRangeDecorator;
@@ -407,9 +410,12 @@ export class CommentController implements IEditorContribution {
 
 	private registerEditorListeners() {
 		this._editorDisposables = [];
+		if (!this.editor) {
+			return;
+		}
 		this._editorDisposables.push(this.editor.onMouseMove(e => this.onEditorMouseMove(e)));
 		this._editorDisposables.push(this.editor.onDidChangeCursorPosition(e => this.onEditorChangeCursorPosition(e.position)));
-		this._editorDisposables.push(this.editor.onDidFocusEditorWidget(() => this.onEditorChangeCursorPosition(this.editor.getPosition())));
+		this._editorDisposables.push(this.editor.onDidFocusEditorWidget(() => this.onEditorChangeCursorPosition(withUndefinedAsNull(this.editor?.getPosition()))));
 		this._editorDisposables.push(this.editor.onDidChangeCursorSelection(e => this.onEditorChangeCursorSelection(e)));
 		this._editorDisposables.push(this.editor.onDidBlurEditorWidget(() => this.onEditorChangeCursorSelection()));
 	}
@@ -429,14 +435,14 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private onEditorChangeCursorSelection(e?: ICursorSelectionChangedEvent): void {
-		const position = this.editor.getPosition()?.lineNumber;
+		const position = this.editor?.getPosition()?.lineNumber;
 		if (position) {
 			this._commentingRangeDecorator.updateSelection(position, e?.selection);
 		}
 	}
 
 	private onEditorChangeCursorPosition(e: Position | null) {
-		const decorations = e ? this.editor.getDecorationsInRange(Range.fromPositions(e, { column: -1, lineNumber: e.lineNumber })) : undefined;
+		const decorations = e ? this.editor?.getDecorationsInRange(Range.fromPositions(e, { column: -1, lineNumber: e.lineNumber })) : undefined;
 		let hasCommentingRange = false;
 		if (decorations) {
 			for (const decoration of decorations) {
@@ -517,12 +523,24 @@ export class CommentController implements IEditorContribution {
 		}
 	}
 
+	public collapseAll(): void {
+		for (const widget of this._commentWidgets) {
+			widget.collapse();
+		}
+	}
+
+	public expandAll(): void {
+		for (const widget of this._commentWidgets) {
+			widget.expand();
+		}
+	}
+
 	public nextCommentThread(): void {
 		this._findNearestCommentThread();
 	}
 
 	private _findNearestCommentThread(reverse?: boolean): void {
-		if (!this._commentWidgets.length || !this.editor.hasModel()) {
+		if (!this._commentWidgets.length || !this.editor?.hasModel()) {
 			return;
 		}
 
@@ -598,6 +616,9 @@ export class CommentController implements IEditorContribution {
 		this.localToDispose.clear();
 
 		this.removeCommentWidgetsAndStoreCache();
+		if (!this.editor) {
+			return;
+		}
 
 		this.localToDispose.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
@@ -699,6 +720,9 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private displayCommentThread(owner: string, thread: languages.CommentThread, pendingComment: string | null): void {
+		if (!this.editor) {
+			return;
+		}
 		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, owner, thread, pendingComment);
 		zoneWidget.display(thread.range.endLineNumber);
 		this._commentWidgets.push(zoneWidget);
@@ -713,7 +737,7 @@ export class CommentController implements IEditorContribution {
 		const matchedLineNumber = isMouseUpEventDragFromMouseDown(this.mouseDownInfo, e);
 		this.mouseDownInfo = null;
 
-		if (matchedLineNumber === null || !e.target.element) {
+		if (!this.editor || matchedLineNumber === null || !e.target.element) {
 			return;
 		}
 		const mouseUpIsOnDecorator = (e.target.element.className.indexOf('comment-range-glyph') >= 0);
@@ -774,7 +798,7 @@ export class CommentController implements IEditorContribution {
 
 	public addCommentAtLine(range: Range, e: IEditorMouseEvent | undefined): Promise<void> {
 		const newCommentInfos = this._commentingRangeDecorator.getMatchedCommentAction(range);
-		if (!newCommentInfos.length || !this.editor.hasModel()) {
+		if (!newCommentInfos.length || !this.editor?.hasModel()) {
 			return Promise.resolve();
 		}
 
@@ -849,12 +873,19 @@ export class CommentController implements IEditorContribution {
 	}
 
 	public addCommentAtLine2(range: Range, ownerId: string) {
+		if (!this.editor) {
+			return;
+		}
 		this.commentService.createCommentThreadTemplate(ownerId, this.editor.getModel()!.uri, range);
 		this.processNextThreadToAdd();
 		return;
 	}
 
 	private tryUpdateReservedSpace() {
+		if (!this.editor) {
+			return;
+		}
+
 		let lineDecorationsWidth: number = this.editor.getLayoutInfo().decorationsWidth;
 		const hasCommentsOrRanges = this._commentInfos.some(info => {
 			const hasRanges = Boolean(info.commentingRanges && (Array.isArray(info.commentingRanges) ? info.commentingRanges : info.commentingRanges.ranges).length);
@@ -929,9 +960,10 @@ export class CommentController implements IEditorContribution {
 
 	public closeWidget(): void {
 		this._commentWidgets?.forEach(widget => widget.hide());
-
-		this.editor.focus();
-		this.editor.revealRangeInCenter(this.editor.getSelection()!);
+		if (this.editor) {
+			this.editor.focus();
+			this.editor.revealRangeInCenter(this.editor.getSelection()!);
+		}
 	}
 
 	private removeCommentWidgetsAndStoreCache() {
@@ -1063,6 +1095,40 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	when: ActiveCursorHasCommentingRange
 });
 
+const COLLAPSE_ALL_COMMENT_COMMAND = 'workbench.action.collapseAllComments';
+CommandsRegistry.registerCommand({
+	id: COLLAPSE_ALL_COMMENT_COMMAND,
+	handler: (accessor) => {
+		return getActiveController(accessor)?.collapseAll();
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: COLLAPSE_ALL_COMMENT_COMMAND,
+		title: nls.localize('comments.collapseAll', "Collapse All Comments"),
+		category: 'Comments'
+	},
+	when: WorkspaceHasCommenting
+});
+
+const EXPAND_ALL_COMMENT_COMMAND = 'workbench.action.expandAllComments';
+CommandsRegistry.registerCommand({
+	id: EXPAND_ALL_COMMENT_COMMAND,
+	handler: (accessor) => {
+		return getActiveController(accessor)?.expandAll();
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: EXPAND_ALL_COMMENT_COMMAND,
+		title: nls.localize('comments.expandAll', "Expand All Comments"),
+		category: 'Comments'
+	},
+	when: WorkspaceHasCommenting
+});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.submitComment',
 	weight: KeybindingWeight.EditorContrib,
@@ -1106,6 +1172,19 @@ export function getActiveEditor(accessor: ServicesAccessor): IActiveCodeEditor |
 	}
 
 	return activeTextEditorControl;
+}
+
+function getActiveController(accessor: ServicesAccessor): CommentController | undefined {
+	const activeEditor = getActiveEditor(accessor);
+	if (!activeEditor) {
+		return undefined;
+	}
+
+	const controller = CommentController.get(activeEditor);
+	if (!controller) {
+		return undefined;
+	}
+	return controller;
 }
 
 registerThemingParticipant((theme, collector) => {

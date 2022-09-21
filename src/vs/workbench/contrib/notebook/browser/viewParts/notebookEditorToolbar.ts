@@ -540,12 +540,14 @@ export class NotebookEditorToolbar extends Disposable {
 
 		for (let i = 0; i < toolbar.getItemsLength(); i++) {
 			const action = toolbar.getItemAction(i);
-			actions.push({
-				action: action,
-				size: toolbar.getItemWidth(i),
-				visible: true,
-				renderLabel: true
-			});
+			if (action) {
+				actions.push({
+					action: action,
+					size: toolbar.getItemWidth(i),
+					visible: true,
+					renderLabel: true
+				});
+			}
 		}
 
 		this._primaryActions = actions;

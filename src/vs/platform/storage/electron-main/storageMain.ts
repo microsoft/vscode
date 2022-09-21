@@ -64,6 +64,11 @@ export interface IStorageMain extends IDisposable {
 	readonly storage: IStorage;
 
 	/**
+	 * The file path of the underlying storage file if any.
+	 */
+	readonly path: string | undefined;
+
+	/**
 	 * Required call to ensure the service can be used.
 	 */
 	init(): Promise<void>;

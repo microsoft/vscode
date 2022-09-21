@@ -225,5 +225,5 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(WorkspaceChangeExtHostRelauncher, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, 'SettingsChangeRelauncher', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(WorkspaceChangeExtHostRelauncher, 'WorkspaceChangeExtHostRelauncher', LifecyclePhase.Restored);

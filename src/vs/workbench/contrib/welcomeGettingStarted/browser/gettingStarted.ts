@@ -277,6 +277,10 @@ export class GettingStartedPage extends EditorPane {
 		}));
 
 		this.recentlyOpened = workspacesService.getRecentlyOpened();
+		this._register(workspacesService.onDidChangeRecentlyOpened(() => {
+			this.recentlyOpened = workspacesService.getRecentlyOpened();
+			rerender();
+		}));
 	}
 
 	// remove when 'workbench.welcomePage.preferReducedMotion' deprecated
