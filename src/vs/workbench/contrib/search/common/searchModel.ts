@@ -764,6 +764,7 @@ export class FolderMatch extends Disposable {
 
 	private doRemoveFile(fileMatches: FileMatch[], dispose: boolean = true, trigger: boolean = true): void {
 
+		const removed = [];
 		for (const match of fileMatches as FileMatch[]) {
 			if (this.fileMatches().includes(match)) {
 				this._fileMatches.delete(match.resource);
@@ -772,10 +773,11 @@ export class FolderMatch extends Disposable {
 				} else {
 					this._unDisposedFileMatches.set(match.resource, match);
 				}
+				removed.push(match);
 			} else {
 				const folder = this.getFolderMatch(match.resource);
 				if (folder) {
-					folder.doRemoveFile([match], dispose, false);
+					folder.doRemoveFile([match], dispose, trigger);
 				} else {
 					throw Error(`FileMatch ${match.resource} is not located within FolderMatch ${this.resource}`);
 				}
@@ -783,33 +785,19 @@ export class FolderMatch extends Disposable {
 		}
 
 		if (trigger) {
-			this._onChange.fire({ elements: fileMatches, removed: true });
+			this._onChange.fire({ elements: removed, removed: true });
 		}
 	}
-
-	// private doRemoveFolder(folderMatches: FolderMatchWithResource[], dispose: boolean = true, trigger: boolean = true): void {
-
-	// 	for (const match of folderMatches as FolderMatchWithResource[]) {
-	// 		this._folderMatches.delete(match.resource);
-	// 		if (dispose) {
-	// 			match.dispose();
-	// 		} else {
-	// 			this._unDisposedFolderMatches.set(match.resource, match);
-	// 		}
-	// 	}
-
-	// 	if (trigger) {
-	// 		this._onChange.fire({ elements: folderMatches, removed: true });
-	// 	}
-	// }
 
 	private disposeMatches(): void {
 		[...this._fileMatches.values()].forEach((fileMatch: FileMatch) => fileMatch.dispose());
 		[...this._folderMatches.values()].forEach((folderMatch: FolderMatch) => folderMatch.disposeMatches());
 		[...this._unDisposedFileMatches.values()].forEach((fileMatch: FileMatch) => fileMatch.dispose());
-		[...this._unDisposedFolderMatches.values()].forEach((folderMatch: FolderMatch) => folderMatch.dispose());
+		[...this._unDisposedFolderMatches.values()].forEach((folderMatch: FolderMatch) => folderMatch.disposeMatches());
 		this._fileMatches.clear();
+		this._folderMatches.clear();
 		this._unDisposedFileMatches.clear();
+		this._unDisposedFolderMatches.clear();
 	}
 
 	override dispose(): void {
@@ -931,23 +919,7 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 		const elemAIndex = elementA.index();
 		const elemBIndex = elementB.index();
 		if (elemAIndex && elemBIndex) {
-
 			return elemAIndex - elemBIndex;
-		} else {
-			switch (sortOrder) {
-				case SearchSortOrder.CountDescending:
-					return elementB.count() - elementA.count();
-				case SearchSortOrder.CountAscending:
-					return elementA.count() - elementB.count();
-				case SearchSortOrder.Type:
-					return compareFileExtensions(elementA.name(), elementB.name());
-				case SearchSortOrder.FileNames:
-					return compareFileNames(elementA.name(), elementB.name());
-				// Fall through otherwise
-				default:
-					// todo: find how to put null resource first
-					return comparePaths(elementA.resource?.fsPath ?? '', elementB.resource?.fsPath ?? '') || compareFileNames(elementA.name(), elementB.name());
-			}
 		}
 	}
 
@@ -962,10 +934,12 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 			case SearchSortOrder.FileNames:
 				return compareFileNames(elementA.name(), elementB.name());
 			case SearchSortOrder.Modified: {
-				const fileStatA = elementA.fileStat;
-				const fileStatB = elementB.fileStat;
-				if (fileStatA && fileStatB) {
-					return fileStatB.mtime - fileStatA.mtime;
+				if (!(elementA instanceof FolderMatch) || !(elementB instanceof FolderMatch)) {
+					const fileStatA = elementA.fileStat;
+					const fileStatB = elementB.fileStat;
+					if (fileStatA && fileStatB) {
+						return fileStatB.mtime - fileStatA.mtime;
+					}
 				}
 			}
 			// Fall through otherwise
