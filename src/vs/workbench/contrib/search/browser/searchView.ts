@@ -246,7 +246,7 @@ export class SearchView extends ViewPane {
 		this.triggerQueryDelayer = this._register(new Delayer<void>(0));
 
 		this.treeAccessibilityProvider = this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel);
-		this.isTreeLayoutViewVisible = (this.searchConfig.defaultViewMode === ViewMode.Tree);
+		this.isTreeLayoutViewVisible = this.viewletState['view.treeLayout'] ?? (this.searchConfig.defaultViewMode === ViewMode.Tree);
 	}
 
 	get isTreeLayoutViewVisible(): boolean {
@@ -1908,6 +1908,7 @@ export class SearchView extends ViewPane {
 
 		const isReplaceShown = this.searchAndReplaceWidget.isReplaceShown();
 		this.viewletState['view.showReplace'] = isReplaceShown;
+		this.viewletState['view.treeLayout'] = this.isTreeLayoutViewVisible;
 		this.viewletState['query.replaceText'] = isReplaceShown && this.searchWidget.getReplaceValue();
 
 		const history: ISearchHistoryValues = Object.create(null);
