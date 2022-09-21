@@ -12,20 +12,31 @@ import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal'
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
 export const AnyCommandLineRegex = /.{4,}/;
-export const GitSimilarOutputRegex = getRegexForWrappedLines(['most', 'similar', 'command', 'is'], ['([^\\s]{3,})'], true);
+export const GitSimilarOutputRegex = getRegexForWrappedLines(['most', 'similar', 'command', 'is'], ['([^\\s]{3,})'], undefined, true);
 export const FreePortOutputRegex = getRegexForWrappedLines(['address', 'already', 'in', 'use'], [['\\d', '\\.', '\\d', '\\.', '\\d', '\\.', '\\d', ':', '(\\d\\d\\d\\d)'].join('\\s*')]);
-export const GitPushOutputRegex = /git\s+push\s+--set-upstream\s+origin\s+(.*)\s+/;
-export const GitCreatePrOutputRegex = /Create\s+a\s+pull\s+request\s+for\s+\'(.+)\'\s+on\s+GitHub\s+by\s+visiting\s*:\s+remote:\s+(https:.+pull.+)\s+/;
+export const GitPushOutputRegex = getRegexForWrappedLines(['git', 'push', '--set-upstream', 'origin'], ['([^\\s]+)'], undefined, true);
+export const GitCreatePrOutputRegex = getRegexForWrappedLines(['pull', 'request', 'for', 'on', 'GitHub', 'by', 'visiting:', 'remote:'], [`'([^\\s]+)'\\s+`, '\\s+(https:.+pull.+)\\s'], 3);
 
-function getRegexForWrappedLines(words: string[], unbrokenPatterns: string[] = [], endRequired?: boolean): RegExp {
+function getRegexForWrappedLines(words: string[], unbrokenPatterns: string[] = [], insertionIndex?: number, endRequired?: boolean): RegExp {
+	const endPattern = unbrokenPatterns[unbrokenPatterns.length - 1];
+	let regex;
 	// words may get split when the line wraps
 	const wordRegexes = words.map(word => word.split('').join('\\s*'));
 	// words and patterns should have at least one space between them
-	let regex = [...wordRegexes, ...unbrokenPatterns].join('\\s+');
+	if (insertionIndex) {
+		regex = [...wordRegexes.slice(0, insertionIndex)].join('\\s+') + unbrokenPatterns[0] + '\\s+' + [...wordRegexes.slice(insertionIndex)].join('\\s+');
+		if (endPattern) {
+			regex += endPattern;
+		}
+	} else {
+		// it's at the end
+		regex = [...wordRegexes, ...unbrokenPatterns].join('\\s+');
+	}
 	if (endRequired) {
 		// pattern terminates at the first space
 		regex += '\\s+';
 	}
+	console.log(new RegExp(regex));
 	return new RegExp(regex);
 }
 

@@ -43,7 +43,7 @@ suite.only('ContextualActionAddon', () => {
 		contextualActionAddon = instantiationService.createInstance(ContextualActionAddon, capabilities);
 		xterm.loadAddon(contextualActionAddon);
 	});
-	suite('registerCommandFinishedListener', () => {
+	suite('registerCommandFinishedListener & getMatchActions', () => {
 		suite('gitSimilarCommand', async () => {
 			const expectedMap = new Map();
 			const command = `git sttatus`;
@@ -75,7 +75,7 @@ suite.only('ContextualActionAddon', () => {
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
 				contextualActionAddon.registerCommandFinishedListener(command);
 			});
-			suite('getMatchOptions should return undefined when', () => {
+			suite('returns undefined when', () => {
 				test('output does not match', () => {
 					strictEqual(getMatchActions(createCommand(command, `invalid output`, GitSimilarOutputRegex, exitCode), expectedMap), undefined);
 				});
@@ -86,7 +86,7 @@ suite.only('ContextualActionAddon', () => {
 					strictEqual(getMatchActions(createCommand(command, output, GitSimilarOutputRegex, 2), expectedMap), undefined);
 				});
 			});
-			test('getMatchOptions should return match', () => {
+			test('returns actions', () => {
 				assertMatchOptions(getMatchActions(createCommand(command, output, GitSimilarOutputRegex, exitCode), expectedMap), actions);
 				assertMatchOptions(getMatchActions(createCommand(command, midWordWrappedOutput, GitSimilarOutputRegex, exitCode), expectedMap), actions);
 				assertMatchOptions(getMatchActions(createCommand(command, midSentenceWrappedOutput, GitSimilarOutputRegex, exitCode), expectedMap), actions);
@@ -130,7 +130,7 @@ suite.only('ContextualActionAddon', () => {
 				expected.set(command.commandLineMatcher.toString(), [command]);
 				contextualActionAddon.registerCommandFinishedListener(command);
 			});
-			suite('getMatchOptions should return undefined when', () => {
+			suite('returns undefined when', () => {
 				test('output does not match', () => {
 					strictEqual(getMatchActions(createCommand(portCommand, `invalid output`, FreePortOutputRegex, exitCode), expected), undefined);
 				});
@@ -138,7 +138,7 @@ suite.only('ContextualActionAddon', () => {
 					strictEqual(getMatchActions(createCommand(portCommand, output, FreePortOutputRegex, 2), expected), undefined);
 				});
 			});
-			test('getMatchOptions should return match', () => {
+			test('returns actions', () => {
 				assertMatchOptions(getMatchActions(createCommand(portCommand, output, FreePortOutputRegex, exitCode), expected), actionOptions);
 				assertMatchOptions(getMatchActions(createCommand(portCommand, midWordWrappedOutput, FreePortOutputRegex, exitCode), expected), actionOptions);
 				assertMatchOptions(getMatchActions(createCommand(portCommand, midMatchWrappedOutput, FreePortOutputRegex, exitCode), expected), actionOptions);
@@ -151,13 +151,32 @@ suite.only('ContextualActionAddon', () => {
 			To push the current branch and set the remote as upstream, use
 
 				git push --set-upstream origin test22 `;
+			const brokenWordOutput = `fatal: The current branch test22 has no upstream branch.
+				To push the current branch and set the remote as upstream, use
+
+					git pu
+					sh --set-upstream origin test22 `;
+			const brokenPatternOutput = `fatal: The current branch test22 has no upstream branch.
+			To push the current branch and set the remote as upstream, use
+
+				git push --set-upstream
+				origin test22 `;
 			const exitCode = 128;
+			const actions = [
+				{
+					id: 'terminal.gitPush',
+					label: 'Git push test22',
+					run: true,
+					tooltip: 'Git push test22',
+					enabled: true
+				}
+			];
 			setup(() => {
 				const command = gitPushSetUpstream();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
 				contextualActionAddon.registerCommandFinishedListener(command);
 			});
-			suite('getMatchOptions should return undefined when', () => {
+			suite('returns undefined when', () => {
 				test('output does not match', () => {
 					strictEqual(getMatchActions(createCommand(command, `invalid output`, GitPushOutputRegex, exitCode), expectedMap), undefined);
 				});
@@ -168,19 +187,10 @@ suite.only('ContextualActionAddon', () => {
 					strictEqual(getMatchActions(createCommand(command, output, GitPushOutputRegex, 2), expectedMap), undefined);
 				});
 			});
-			test('getMatchOptions should return match', () => {
-				assertMatchOptions(
-					getMatchActions(
-						createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap),
-					[
-						{
-							id: 'terminal.gitPush',
-							label: 'Git push test22',
-							run: true,
-							tooltip: 'Git push test22',
-							enabled: true
-						}
-					]);
+			test('returns actions', () => {
+				assertMatchOptions(getMatchActions(createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap), actions);
+				assertMatchOptions(getMatchActions(createCommand(command, brokenWordOutput, GitPushOutputRegex, exitCode), expectedMap), actions);
+				assertMatchOptions(getMatchActions(createCommand(command, brokenPatternOutput, GitPushOutputRegex, exitCode), expectedMap), actions);
 			});
 		});
 		suite('gitCreatePr', () => {
@@ -194,13 +204,31 @@ suite.only('ContextualActionAddon', () => {
 			To https://github.com/meganrogge/xterm.js
 			 * [new branch]        test22 -> test22
 			Branch 'test22' set up to track remote branch 'test22' from 'origin'. `;
+			const brokenPatternOutput = `remote: Create a pull request for
+			'test22' on GitHub by visiting:
+			remote:      https://github.com/meganrogge/xterm.js/pull/new/test22
+			remote:`;
+			const brokenWordOutput = `remote: Create a pull
+			request for 'test22' on GitHub by vis
+			iting:
+			remote:      https://github.com/meganrogge/xterm.js/pull/new/test22
+			remote:`;
 			const exitCode = 0;
+			const actions = [
+				{
+					id: 'terminal.gitCreatePr',
+					label: 'Create PR',
+					run: true,
+					tooltip: 'Create PR',
+					enabled: true
+				}
+			];
 			setup(() => {
 				const command = gitCreatePr(openerService);
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
 				contextualActionAddon.registerCommandFinishedListener(command);
 			});
-			suite('getMatchOptions should return undefined when', () => {
+			suite('returns undefined when', () => {
 				test('output does not match', () => {
 					strictEqual(getMatchActions(createCommand(command, `invalid output`, GitCreatePrOutputRegex, exitCode), expectedMap), undefined);
 				});
@@ -211,19 +239,10 @@ suite.only('ContextualActionAddon', () => {
 					strictEqual(getMatchActions(createCommand(command, output, GitCreatePrOutputRegex, 2), expectedMap), undefined);
 				});
 			});
-			test('getMatchOptions should return match', () => {
-				assertMatchOptions(
-					getMatchActions(
-						createCommand(command, output, GitCreatePrOutputRegex, exitCode), expectedMap),
-					[
-						{
-							id: 'terminal.gitCreatePr',
-							label: 'Create PR',
-							run: true,
-							tooltip: 'Create PR',
-							enabled: true
-						}
-					]);
+			test('returns actions', () => {
+				assertMatchOptions(getMatchActions(createCommand(command, output, GitCreatePrOutputRegex, exitCode), expectedMap), actions);
+				assertMatchOptions(getMatchActions(createCommand(command, brokenPatternOutput, GitCreatePrOutputRegex, exitCode), expectedMap), actions);
+				assertMatchOptions(getMatchActions(createCommand(command, brokenWordOutput, GitCreatePrOutputRegex, exitCode), expectedMap), actions);
 			});
 		});
 	});
