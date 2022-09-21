@@ -61,6 +61,15 @@ suite.only('ContextualActionAddon', () => {
 					The most similar command is
 							status `;
 			const exitCode = 1;
+			const actions = [
+				{
+					id: 'terminal.gitSimilarCommand',
+					label: 'Run git status',
+					run: true,
+					tooltip: 'Run git status',
+					enabled: true
+				}
+			];
 			setup(() => {
 				const command = gitSimilarCommand();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
@@ -78,43 +87,10 @@ suite.only('ContextualActionAddon', () => {
 				});
 			});
 			test('getMatchOptions should return match', () => {
-				assertMatchOptions(
-					getMatchActions(
-						createCommand(command, output, GitSimilarOutputRegex, exitCode), expectedMap),
-					[
-						{
-							id: 'terminal.gitSimilarCommand',
-							label: 'Run git status',
-							run: true,
-							tooltip: 'Run git status',
-							enabled: true
-						}
-					]);
+				assertMatchOptions(getMatchActions(createCommand(command, output, GitSimilarOutputRegex, exitCode), expectedMap), actions);
+				assertMatchOptions(getMatchActions(createCommand(command, midWordWrappedOutput, GitSimilarOutputRegex, exitCode), expectedMap), actions);
+				assertMatchOptions(getMatchActions(createCommand(command, midSentenceWrappedOutput, GitSimilarOutputRegex, exitCode), expectedMap), actions);
 			});
-			assertMatchOptions(
-				getMatchActions(
-					createCommand(command, midWordWrappedOutput, GitSimilarOutputRegex, exitCode), expectedMap),
-				[
-					{
-						id: 'terminal.gitSimilarCommand',
-						label: 'Run git status',
-						run: true,
-						tooltip: 'Run git status',
-						enabled: true
-					}
-				]);
-			assertMatchOptions(
-				getMatchActions(
-					createCommand(command, midSentenceWrappedOutput, GitSimilarOutputRegex, exitCode), expectedMap),
-				[
-					{
-						id: 'terminal.gitSimilarCommand',
-						label: 'Run git status',
-						run: true,
-						tooltip: 'Run git status',
-						enabled: true
-					}
-				]);
 		});
 		suite('freePort', () => {
 			const expected = new Map();
@@ -134,6 +110,21 @@ suite.only('ContextualActionAddon', () => {
 			}
 			error Command failed with exit code 1.
 			info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`;
+			const midWordWrappedOutput = ` address alread
+			y in use 0.0.0.0:3000
+			at Server.setupListenHandle [as _listen2] (node:net:1315:16)
+			at listenInCluster (n`;
+			const midMatchWrappedOutput = ` address already in use 0.0.0.0:
+			3000
+			at Server.setupListenHandle [as _listen2] (node:net:1315:16)
+			at listenInCluster (n`;
+			const actionOptions = [{
+				id: 'terminal.freePort',
+				label: 'Free port 3000',
+				run: true,
+				tooltip: 'Free port 3000',
+				enabled: true
+			}];
 			setup(() => {
 				const command = freePort(terminalInstance);
 				expected.set(command.commandLineMatcher.toString(), [command]);
@@ -148,17 +139,9 @@ suite.only('ContextualActionAddon', () => {
 				});
 			});
 			test('getMatchOptions should return match', () => {
-				assertMatchOptions(
-					getMatchActions(
-						createCommand(portCommand, output, FreePortOutputRegex, exitCode), expected),
-					[{
-						id: 'terminal.freePort',
-						label: 'Free port 3000',
-						run: true,
-						tooltip: 'Free port 3000',
-						enabled: true
-					}]
-				);
+				assertMatchOptions(getMatchActions(createCommand(portCommand, output, FreePortOutputRegex, exitCode), expected), actionOptions);
+				assertMatchOptions(getMatchActions(createCommand(portCommand, midWordWrappedOutput, FreePortOutputRegex, exitCode), expected), actionOptions);
+				assertMatchOptions(getMatchActions(createCommand(portCommand, midMatchWrappedOutput, FreePortOutputRegex, exitCode), expected), actionOptions);
 			});
 		});
 		suite('gitPushSetUpstream', () => {
