@@ -118,7 +118,6 @@ export class FoldingModel {
 	}
 
 	public updatePost(newRegions: FoldingRegions) {
-		console.log('In updatePost, newRegions : ', newRegions);
 		const newEditorDecorations: IModelDeltaDecoration[] = [];
 		let lastHiddenLine = -1;
 		for (let index = 0, limit = newRegions.length; index < limit; index++) {

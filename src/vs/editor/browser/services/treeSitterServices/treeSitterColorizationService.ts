@@ -14,6 +14,7 @@ import { TreeSitterColorizationTree } from 'vs/editor/browser/services/treeSitte
 import { Iterable } from 'vs/base/common/iterator';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ITreeSitterService } from 'vs/editor/browser/services/treeSitterServices/treeSitterService';
+import { IFileService } from 'vs/platform/files/common/files';
 
 const ITreeSitterColorizationService = createDecorator<ITreeSitterColorizationService>('ITreeSitterColorizationService');
 
@@ -33,6 +34,7 @@ export class TreeSitterColorizationService implements ITreeSitterColorizationSer
 		@ITreeSitterService private readonly _treeSitterService: ITreeSitterService,
 		@IModelService private readonly _modelService: IModelService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IFileService private readonly _fileService: IFileService
 	) {
 
 		init({
@@ -42,13 +44,15 @@ export class TreeSitterColorizationService implements ITreeSitterColorizationSer
 		}).then(async () => {
 			this._disposableStore.add(_modelService.onModelAdded((model) => {
 				if (model.getLanguageId() === 'typescript') {
-					this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService));
+					// ! true before
+					this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService, this._fileService, false));
 				}
 			}));
 			this._disposableStore.add(_modelService.onModelLanguageChanged((event) => {
 				const model = event.model;
 				if (model.getLanguageId() === 'typescript') {
-					this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService));
+					// ! true before
+					this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService, this._fileService, false));
 				}
 			}))
 			this._disposableStore.add(_modelService.onModelRemoved((model) => {
@@ -66,7 +70,8 @@ export class TreeSitterColorizationService implements ITreeSitterColorizationSer
 		const models = this._modelService.getModels();
 		for (const model of models) {
 			if (model.getLanguageId() === 'typescript') {
-				this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService));
+				// ! true before
+				this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService, this._fileService, false));
 			}
 		}
 	}

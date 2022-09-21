@@ -11,6 +11,7 @@ import { SemanticTokensProviderStylingConstants } from 'vs/editor/common/service
 import { FontStyle, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { ITreeSitterService } from 'vs/editor/browser/services/treeSitterServices/treeSitterService';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export class TreeSitterColorizationTree {
 
@@ -23,13 +24,17 @@ export class TreeSitterColorizationTree {
 	private _endPositionRow: number;
 	private _newEndPositionRow: number;
 	private _colorThemeData: ColorThemeData;
+	private _fileService: IFileService;
 
 	constructor(
 		private readonly _model: ITextModel,
 		@ITreeSitterService _treeSitterService: ITreeSitterService,
 		@IThemeService _themeService: IThemeService,
+		@IFileService _fileService: IFileService,
+		private readonly _asynchronous: boolean = true
 	) {
 		this.id = _model.id;
+		this._fileService = _fileService;
 		this._colorThemeData = _themeService.getColorTheme() as ColorThemeData;
 		this._contiguousMultilineToken = [];
 		this._beginningCaptureIndex = 0;
@@ -39,31 +44,36 @@ export class TreeSitterColorizationTree {
 		this._newEndPositionRow = this._model.getLineCount() - 1;
 
 		this.setTimeoutForRenderingInMs(10);
-
-		const uriString = FileAccess.asBrowserUri(`./treeSitterColorizationQueries.scm`, require).toString(true);
-		fetch(uriString).then((response) => {
-			response.text().then((query) => {
-				_treeSitterService.getTreeSitterCaptures(this._model, query).then((queryCaptures) => {
-					if (!queryCaptures) {
-						return;
-					}
-					this.setTokensUsingQueryCaptures(queryCaptures).then(() => {
-						this._disposableStore.add(this._model.onDidChangeContent((contentChangeEvent: IModelContentChangedEvent) => {
-							this.updateRowIndices(contentChangeEvent);
-							_treeSitterService.getTreeSitterCaptures(this._model, query).then((queryCaptures) => {
-								if (!queryCaptures) {
-									return;
-								}
-								this.setTokensUsingQueryCaptures(queryCaptures)
-							})
-						}));
-					})
-				});
-			})
+		let beforeFetchQueries = performance.now();
+		this._fetchQueries().then((query) => {
+			console.log('Time to fetch queries : ', performance.now() - beforeFetchQueries);
+			_treeSitterService.getTreeSitterCaptures(this._model, query, this._asynchronous).then((queryCaptures) => {
+				if (!queryCaptures) {
+					return;
+				}
+				console.log('Time to resolve queries : ', performance.now() - beforeFetchQueries);
+				this.setTokensUsingQueryCaptures(queryCaptures, this._asynchronous).then(() => {
+					console.log('Time to set the tokens : ', performance.now() - beforeFetchQueries);
+					this._disposableStore.add(this._model.onDidChangeContent((contentChangeEvent: IModelContentChangedEvent) => {
+						this.updateRowIndices(contentChangeEvent);
+						_treeSitterService.getTreeSitterCaptures(this._model, query, this._asynchronous).then((queryCaptures) => {
+							if (!queryCaptures) {
+								return;
+							}
+							this.setTokensUsingQueryCaptures(queryCaptures, this._asynchronous)
+						})
+					}));
+				})
+			});
 		})
 	}
 
-	public setTokensUsingQueryCaptures(queryCaptures: Parser.QueryCapture[]): Promise<void> {
+	private async _fetchQueries(): Promise<string> {
+		const query = await this._fileService.readFile(FileAccess.asFileUri(`./treeSitterColorizationQueries.scm`, require));
+		return Promise.resolve(query.value.toString());
+	}
+
+	public setTokensUsingQueryCaptures(queryCaptures: Parser.QueryCapture[], asynchronous: boolean = true): Promise<void> {
 		let that = this;
 		this._contiguousMultilineToken.splice(this._startPositionRow, this._endPositionRow - this._startPositionRow + 1); //? Do I need +1 there?
 
@@ -84,40 +94,47 @@ export class TreeSitterColorizationTree {
 			})
 		}
 		return new Promise(function (resolve, _reject) {
-			that.runSetTokensWithThemeData(queryCaptures, resolve);
+			that.runSetTokensWithThemeData(queryCaptures, resolve, asynchronous);
 		})
 	}
 
-	private runSetTokensWithThemeData(queryCaptures: Parser.QueryCapture[], resolve: () => void): void {
-		runWhenIdle(
-			(arg) => {
-				this.setTimeoutForRenderingInMs(arg.timeRemaining() * 1000);
-				let result;
-				try {
-					result = this.setTokensWithThemeDataWhenIdle(queryCaptures);
-					// Case 1: timeout in rendering
-					if (!result) {
-						return this.runSetTokensWithThemeData(queryCaptures, resolve);
-					}
-					// Case 2: rendering finished
-					else {
-						resolve();
+	private runSetTokensWithThemeData(queryCaptures: Parser.QueryCapture[], resolve: () => void, asynchronous: boolean = true): void {
+		if (asynchronous) {
+			runWhenIdle(
+				(arg) => {
+					this.setTimeoutForRenderingInMs(arg.timeRemaining() * 1000);
+					let result;
+					try {
+						result = this.setTokensWithThemeDataWhenIdle(queryCaptures, asynchronous);
+						// Case 1: timeout in rendering
+						if (!result) {
+							return this.runSetTokensWithThemeData(queryCaptures, resolve, asynchronous);
+						}
+						// Case 2: rendering finished
+						else {
+							resolve();
+							return;
+						}
+					} catch (e) {
 						return;
 					}
-				} catch (e) {
-					return;
-				}
-			},
-			10
-		)
+				},
+				10
+			)
+		} else {
+			this.setTokensWithThemeDataWhenIdle(queryCaptures, asynchronous);
+			resolve();
+			return;
+		}
 	}
 
-	private setTokensWithThemeDataWhenIdle(queryCaptures: Parser.QueryCapture[]): boolean {
+	private setTokensWithThemeDataWhenIdle(queryCaptures: Parser.QueryCapture[], asynchronous: boolean = true): boolean {
 		let time1 = performance.now();
 		let newBeginningIndexFound = true;
 		let numberCaptures = queryCaptures.length;
 		let beginningCaptureIndex = this._beginningCaptureIndex;
 
+		// ? instead of this._newEndPositionRow, should be the last possible line
 		for (let i = this._startPositionRow; i <= this._newEndPositionRow; i++) {
 			const contiguousMultilineTokensArray: number[] = [];
 			let j = beginningCaptureIndex;
@@ -130,9 +147,11 @@ export class TreeSitterColorizationTree {
 					}
 					contiguousMultilineTokensArray.push(queryCaptures[j].node.endPosition.column, this.findMetadata(j, queryCaptures));
 				}
-				let time2 = performance.now();
-				if (time2 - time1 >= this._timeoutForRender) {
-					return false;
+				if (asynchronous) {
+					let time2 = performance.now();
+					if (time2 - time1 >= this._timeoutForRender) {
+						return false;
+					}
 				}
 				j++;
 			}
@@ -145,7 +164,6 @@ export class TreeSitterColorizationTree {
 		this._model.tokenization.setTokens(this._contiguousMultilineToken);
 		return true;
 	}
-
 
 	private findMetadata(index: number, queryCaptures: Parser.QueryCapture[]): number {
 		const tokenStyle: TokenStyle | undefined = this._colorThemeData.resolveScopes([[queryCaptures![index].name]], {});

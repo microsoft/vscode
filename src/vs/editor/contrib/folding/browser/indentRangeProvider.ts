@@ -123,8 +123,6 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 	if (markers) {
 		pattern = new RegExp(`(${markers.start.source})|(?:${markers.end.source})`);
 	}
-
-	console.log('pattern : ', pattern);
 	const previousRegions: PreviousRegion[] = [];
 	const line = model.getLineCount() + 1;
 	previousRegions.push({ indent: -1, endAbove: line, line }); // sentinel, to make sure there's at least one entry
@@ -142,7 +140,6 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 			}
 			continue; // only whitespace
 		}
-		console.log('previous : ', previous);
 		let m;
 		if (pattern && (m = lineContent.match(pattern))) {
 			// folding pattern match
@@ -190,6 +187,5 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 			previousRegions.push({ indent, endAbove: line, line });
 		}
 	}
-	console.log('result : ', result);
 	return result.toIndentRanges(model);
 }
