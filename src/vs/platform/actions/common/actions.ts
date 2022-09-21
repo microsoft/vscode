@@ -199,8 +199,15 @@ export interface IMenuActionOptions {
 	renderShortTitle?: boolean;
 }
 
+export interface IMenuChangeEvent {
+	readonly menu: IMenu;
+	readonly isStructuralChange: boolean;
+	readonly isToggleChange: boolean;
+	readonly isEnablementChange: boolean;
+}
+
 export interface IMenu extends IDisposable {
-	readonly onDidChange: Event<IMenu>;
+	readonly onDidChange: Event<IMenuChangeEvent>;
 	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
 }
 
