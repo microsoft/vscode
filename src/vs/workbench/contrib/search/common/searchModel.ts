@@ -861,12 +861,14 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		const fileMatchParentParts: URI[] = [];
 		let uri = this.uriParent(rawFileMatch.resource);
 
+		let prev_uri;
 		while (!this.uriEquals(this.resource, uri)) {
-			if (uri.path === '/') {
+			fileMatchParentParts.unshift(uri);
+			prev_uri = uri;
+			uri = this.uriParent(uri);
+			if (this.uriEquals(prev_uri, uri)) {
 				throw Error(`${rawFileMatch.resource} is not correctly configured as a child of its ${this.resource}`);
 			}
-			fileMatchParentParts.unshift(uri);
-			uri = this.uriParent(uri);
 		}
 
 		const root = this.closestRoot ?? this;

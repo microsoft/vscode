@@ -23,6 +23,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { isWindows } from 'vs/base/common/platform';
 
 const nullEvent = new class {
 	id: number = -1;
@@ -126,10 +127,10 @@ suite('SearchModel', () => {
 
 	test('Search Model: Search adds to results', async () => {
 		const results = [
-			aRawMatch('1',
+			aRawMatch('/1',
 				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
-			aRawMatch('2', new TextSearchMatch('preview 2', lineOneRange))];
+			aRawMatch('/2', new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
 
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
@@ -156,10 +157,10 @@ suite('SearchModel', () => {
 	test('Search Model: Search reports telemetry on search completed', async () => {
 		const target = instantiationService.spy(ITelemetryService, 'publicLog');
 		const results = [
-			aRawMatch('1',
+			aRawMatch('/1',
 				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
-			aRawMatch('2',
+			aRawMatch('/2',
 				new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
 
@@ -198,7 +199,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
 		instantiationService.stub(ISearchService, searchServiceWithResults(
-			[aRawMatch('1', new TextSearchMatch('some preview', lineOneRange))],
+			[aRawMatch('/1', new TextSearchMatch('some preview', lineOneRange))],
 			{ results: [], stats: testSearchStats, messages: [] }));
 
 		const testObject = instantiationService.createInstance(SearchModel);
@@ -260,10 +261,10 @@ suite('SearchModel', () => {
 
 	test('Search Model: Search results are cleared during search', async () => {
 		const results = [
-			aRawMatch('1',
+			aRawMatch('/1',
 				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
-			aRawMatch('2',
+			aRawMatch('/2',
 				new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
@@ -290,7 +291,7 @@ suite('SearchModel', () => {
 
 	test('getReplaceString returns proper replace string for regExpressions', async () => {
 		const results = [
-			aRawMatch('1',
+			aRawMatch('/1',
 				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
@@ -323,8 +324,16 @@ suite('SearchModel', () => {
 		return { resource: createFileUriFromPathFromRoot(resource), results };
 	}
 
-	function createFileUriFromPathFromRoot(path: string = ''): URI {
-		return URI.file(`c:/${path}`);
+	function createFileUriFromPathFromRoot(path?: string): URI {
+		if (path) {
+			return URI.file(`c:${path}`);
+		} else {
+			if (isWindows) {
+				return URI.file(`c:/`);
+			} else {
+				return URI.file(`c:`);
+			}
+		}
 	}
 
 	function stub(arg1: any, arg2: any, arg3: any): sinon.SinonStub {
