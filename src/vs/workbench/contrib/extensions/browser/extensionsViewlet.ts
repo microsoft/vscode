@@ -25,7 +25,7 @@ import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, Reco
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import Severity from 'vs/base/common/severity';
-import { IActivityService, TextBadge } from 'vs/workbench/services/activity/common/activity';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewDescriptorService, IAddedViewDescriptorRef, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -820,7 +820,7 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 			if (extensionsReloadRequired.length) {
 				msg += localize('extensionsToReload', '{0} Extensions require reload', extensionsReloadRequired.length);
 			}
-			const badge = new TextBadge(msg, () => msg);
+			const badge = new NumberBadge(newBadgeNumber, () => msg);
 			this.badgeHandle.value = this.activityService.showViewContainerActivity(VIEWLET_ID, { badge, clazz: 'extensions-badge count-badge' });
 		}
 	}
