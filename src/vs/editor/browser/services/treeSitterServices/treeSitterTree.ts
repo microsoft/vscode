@@ -8,9 +8,9 @@ import { ITextModel } from 'vs/editor/common/model';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import Parser = require('web-tree-sitter');
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import Parser = require('web-tree-sitter');
 
 export class TreeSitterTree {
 
@@ -32,7 +32,7 @@ export class TreeSitterTree {
 			if (tree) {
 				this._tree = tree;
 			}
-		})
+		});
 		this._store.add(this._model.onDidChangeContent((contentChangeEvent: IModelContentChangedEvent) => {
 			this.registerTreeEdits(contentChangeEvent);
 		}));
@@ -61,7 +61,7 @@ export class TreeSitterTree {
 		this._nCallsParseTree = 0;
 		return this._parseTree(asynchronous).then(() => {
 			return Promise.resolve(this._nCallsParseTree);
-		})
+		});
 	}
 
 	private _currentParseOperation: Promise<Parser.Tree> | undefined;
@@ -81,7 +81,7 @@ export class TreeSitterTree {
 				}
 				this._nCallsParseTree += 1;
 				return tree;
-			})
+			});
 			this._nCallsParseTree += 1;
 			return this._currentParseOperation;
 		}
@@ -93,15 +93,13 @@ export class TreeSitterTree {
 	}
 
 	private async _tryParseSync(asynchronous: boolean = true): Promise<Parser.Tree> {
-		console.log('asynchronous : ', asynchronous);
 		if (asynchronous) {
 			this._parser.setTimeoutMicros(10000);
 		}
-		let tree = this.updateAndGetTree();
+		const tree = this.updateAndGetTree();
 		// Initially synchronous
 		try {
-			console.log('calling _parseSync');
-			let result = this._parser.parse(
+			const result = this._parser.parse(
 				(startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) =>
 					this._retrieveTextAtPosition(this._model, startIndex, startPoint, endIndex),
 				tree
@@ -111,15 +109,14 @@ export class TreeSitterTree {
 		}
 		// Else if parsing failed, asynchronous
 		catch (error) {
-			console.log('calling _parseAsync');
 			const textModel = createTextModel('');
 			textModel.setValue(this._model.createSnapshot());
 			return new Promise((resolve, _reject) => {
 				this._parseAsync(textModel, tree).then((tree) => {
 					this._tree = tree;
 					resolve(tree);
-				})
-			})
+				});
+			});
 		}
 	}
 
@@ -155,21 +152,20 @@ export class TreeSitterTree {
 					catch (error) {
 						return this._parseAsync(textModel, tree).then((tree) => {
 							resolve(tree);
-						})
+						});
 					}
 				},
 				1000
 			);
-		})
+		});
 	}
 
 	private _retrieveTextAtPosition(model: ITextModel, startIndex: number, _startPoint: Parser.Point | undefined, endIndex: number | undefined) {
 		const startPosition: Position = model.getPositionAt(startIndex);
-		let endPosition: Position;
 		if (typeof endIndex !== 'number') {
 			endIndex = startIndex + 5000;
 		}
-		endPosition = model.getPositionAt(endIndex);
+		const endPosition: Position = model.getPositionAt(endIndex);
 		return model.getValueInRange(Range.fromPositions(startPosition, endPosition));
 	}
 

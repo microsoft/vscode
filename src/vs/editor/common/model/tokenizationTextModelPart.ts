@@ -215,7 +215,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		tokens: SparseMultilineTokens[] | null,
 		isComplete: boolean
 	): void {
-		// this._semanticTokens.set(tokens, isComplete);
+		this._semanticTokens.set(tokens, isComplete);
 
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
@@ -353,14 +353,11 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		newText: string
 	): LineTokens | null {
 		const validatedPosition = this._textModel.validatePosition(position);
-		return null;
-		/*
 		return this._tokenization.tokenizeLineWithEdit(
 			validatedPosition,
 			length,
 			newText
 		);
-		*/
 	}
 
 	private getLanguageConfiguration(

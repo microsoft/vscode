@@ -20,8 +20,8 @@ const ITreeSitterColorizationService = createDecorator<ITreeSitterColorizationSe
 
 export interface ITreeSitterColorizationService {
 	readonly _serviceBrand: undefined;
-	registerTreeSittersForColorization(): void,
-	dispose(): void
+	registerTreeSittersForColorization(asynchronous: boolean): void;
+	dispose(): void;
 }
 
 export class TreeSitterColorizationService implements ITreeSitterColorizationService {
@@ -35,25 +35,39 @@ export class TreeSitterColorizationService implements ITreeSitterColorizationSer
 		@IModelService private readonly _modelService: IModelService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IFileService private readonly _fileService: IFileService
-	) {
+	) { }
 
+	registerTreeSittersForColorization(asynchronous: boolean = true) {
+		this._initializeTreeSitterService(asynchronous);
+		const models = this._modelService.getModels();
+		for (const model of models) {
+			if (model.getLanguageId() === 'typescript') {
+				model.tokenization.setTokens([]);
+				this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService, this._fileService, asynchronous));
+			}
+		}
+	}
+
+	private _initializeTreeSitterService(asynchronous: boolean = true) {
 		init({
 			locateFile(_file: string, _folder: string) {
 				return FileAccess.asBrowserUri('../../../../../../node_modules/web-tree-sitter/tree-sitter.wasm', require).toString(true);
 			}
 		}).then(async () => {
-			this._disposableStore.add(_modelService.onModelAdded((model) => {
+			this._disposableStore.add(this._modelService.onModelAdded((model) => {
 				if (model.getLanguageId() === 'typescript') {
-					this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService, this._fileService, true));
+					model.tokenization.setTokens([]);
+					this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService, this._fileService, asynchronous));
 				}
 			}));
-			this._disposableStore.add(_modelService.onModelLanguageChanged((event) => {
+			this._disposableStore.add(this._modelService.onModelLanguageChanged((event) => {
 				const model = event.model;
 				if (model.getLanguageId() === 'typescript') {
-					this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService, this._fileService, true));
+					model.tokenization.setTokens([]);
+					this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService, this._fileService, asynchronous));
 				}
-			}))
-			this._disposableStore.add(_modelService.onModelRemoved((model) => {
+			}));
+			this._disposableStore.add(this._modelService.onModelRemoved((model) => {
 				if (model.getLanguageId() === 'typescript') {
 					const treeSitterTreeToDispose = Iterable.find(this._treeSittersColorizationTrees, tree => tree.id === model.id);
 					if (treeSitterTreeToDispose) {
@@ -62,15 +76,6 @@ export class TreeSitterColorizationService implements ITreeSitterColorizationSer
 				}
 			}));
 		});
-	}
-
-	registerTreeSittersForColorization() {
-		const models = this._modelService.getModels();
-		for (const model of models) {
-			if (model.getLanguageId() === 'typescript') {
-				this._treeSittersColorizationTrees.push(new TreeSitterColorizationTree(model, this._treeSitterService, this._themeService, this._fileService, true));
-			}
-		}
 	}
 
 	dispose(): void {
@@ -83,12 +88,24 @@ export class TreeSitterColorizationService implements ITreeSitterColorizationSer
 
 registerSingleton(ITreeSitterColorizationService, TreeSitterColorizationService, true);
 
+// Asynchronous colorization that runs when the process is idle
 registerAction2(class extends Action2 {
 	constructor() {
-		super({ id: 'toggleTreeSitterColorization', title: 'Toggle Tree-Sitter Colorization', f1: true });
+		super({ id: 'toggleAsynchronousTreeSitterColorization', title: 'Toggle Asynchronous Tree-Sitter Colorization', f1: true });
 	}
 	run(accessor: ServicesAccessor) {
 		const treeSitterTokenizationService = accessor.get(ITreeSitterColorizationService);
-		treeSitterTokenizationService.registerTreeSittersForColorization();
+		treeSitterTokenizationService.registerTreeSittersForColorization(true);
+	}
+});
+
+// Synchronous colorization for testing the performance
+registerAction2(class extends Action2 {
+	constructor() {
+		super({ id: 'toggleSynchronousTreeSitterColorization', title: 'Toggle Synchronous Tree-Sitter Colorization', f1: true });
+	}
+	run(accessor: ServicesAccessor) {
+		const treeSitterTokenizationService = accessor.get(ITreeSitterColorizationService);
+		treeSitterTokenizationService.registerTreeSittersForColorization(false);
 	}
 });

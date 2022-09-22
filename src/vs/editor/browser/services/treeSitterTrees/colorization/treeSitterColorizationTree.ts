@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import Parser = require('web-tree-sitter');
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
@@ -33,6 +38,7 @@ export class TreeSitterColorizationTree {
 		@IFileService _fileService: IFileService,
 		private readonly _asynchronous: boolean = true
 	) {
+		console.log('Inside TreeSitterColorizationTree for _asynchronous : ', _asynchronous);
 		this.id = _model.id;
 		this._fileService = _fileService;
 		this._colorThemeData = _themeService.getColorTheme() as ColorThemeData;
@@ -56,12 +62,12 @@ export class TreeSitterColorizationTree {
 							if (!queryCaptures) {
 								return;
 							}
-							this.setTokensUsingQueryCaptures(queryCaptures, this._asynchronous)
-						})
+							this.setTokensUsingQueryCaptures(queryCaptures, this._asynchronous);
+						});
 					}));
-				})
+				});
 			});
-		})
+		});
 	}
 
 	private async _fetchQueries(): Promise<string> {
@@ -70,7 +76,7 @@ export class TreeSitterColorizationTree {
 	}
 
 	public setTokensUsingQueryCaptures(queryCaptures: Parser.QueryCapture[], asynchronous: boolean = true): Promise<void> {
-		let that = this;
+		const that = this;
 		this._contiguousMultilineToken.splice(this._startPositionRow, this._endPositionRow - this._startPositionRow + 1); //? Do I need +1 there?
 
 		// Case 1: code was removed
@@ -79,7 +85,7 @@ export class TreeSitterColorizationTree {
 				if (token._startLineNumber >= this._endPositionRow + 2) {
 					token._startLineNumber = token._startLineNumber - (this._endPositionRow - this._startPositionRow);
 				}
-			})
+			});
 		}
 		// Case 2: code was added
 		else if (this._newEndPositionRow > this._endPositionRow) {
@@ -87,11 +93,11 @@ export class TreeSitterColorizationTree {
 				if (token._startLineNumber >= this._endPositionRow + 2) {
 					token._startLineNumber = token._startLineNumber + (this._newEndPositionRow - this._startPositionRow);
 				}
-			})
+			});
 		}
 		return new Promise(function (resolve, _reject) {
 			that.runSetTokensWithThemeData(queryCaptures, resolve, asynchronous);
-		})
+		});
 	}
 
 	private runSetTokensWithThemeData(queryCaptures: Parser.QueryCapture[], resolve: () => void, asynchronous: boolean = true): void {
@@ -116,7 +122,7 @@ export class TreeSitterColorizationTree {
 					}
 				},
 				10
-			)
+			);
 		} else {
 			this.setTokensWithThemeDataWhenIdle(queryCaptures, asynchronous);
 			resolve();
@@ -125,9 +131,9 @@ export class TreeSitterColorizationTree {
 	}
 
 	private setTokensWithThemeDataWhenIdle(queryCaptures: Parser.QueryCapture[], asynchronous: boolean = true): boolean {
-		let time1 = performance.now();
+		const time1 = performance.now();
 		let newBeginningIndexFound = true;
-		let numberCaptures = queryCaptures.length;
+		const numberCaptures = queryCaptures.length;
 		let beginningCaptureIndex = this._beginningCaptureIndex;
 
 		// ? instead of this._newEndPositionRow, should be the last possible line
@@ -144,7 +150,7 @@ export class TreeSitterColorizationTree {
 					contiguousMultilineTokensArray.push(queryCaptures[j].node.endPosition.column, this.findMetadata(j, queryCaptures));
 				}
 				if (asynchronous) {
-					let time2 = performance.now();
+					const time2 = performance.now();
 					if (time2 - time1 >= this._timeoutForRender) {
 						return false;
 					}
@@ -185,7 +191,7 @@ export class TreeSitterColorizationTree {
 				metadata |= strikethroughBit | MetadataConsts.SEMANTIC_USE_STRIKETHROUGH;
 			}
 			if (tokenStyle.foreground) {
-				let tokenStyleForeground = this._colorThemeData.getTokenColorIndex().get(tokenStyle?.foreground);
+				const tokenStyleForeground = this._colorThemeData.getTokenColorIndex().get(tokenStyle?.foreground);
 				const foregroundBits = tokenStyleForeground << MetadataConsts.FOREGROUND_OFFSET;
 				metadata |= foregroundBits | MetadataConsts.SEMANTIC_USE_FOREGROUND;
 			}
@@ -207,10 +213,10 @@ export class TreeSitterColorizationTree {
 			if (change.range.startLineNumber - 1 < this._startPositionRow) {
 				this._startPositionRow = change.range.startLineNumber - 1;
 				this._beginningCaptureIndex = 0;
-			};
+			}
 			if (change.range.endLineNumber - 1 > this._endPositionRow) {
 				this._endPositionRow = change.range.endLineNumber - 1;
-			};
+			}
 			if (newEndPositionFromModel.lineNumber - 1 > this._newEndPositionRow) {
 				this._newEndPositionRow = newEndPositionFromModel.lineNumber - 1;
 			}
@@ -223,6 +229,6 @@ export class TreeSitterColorizationTree {
 
 	public dispose() {
 		this._disposableStore.clear();
-		this._contiguousMultilineToken.length === 0;
+		this._contiguousMultilineToken.length = 0;
 	}
 }

@@ -45,7 +45,7 @@ export class Colorizer {
 			const trustedhtml = ttPolicy?.createHTML(str) ?? str;
 			domNode.innerHTML = trustedhtml as string;
 		};
-		// return this.colorize(languageService, text || '', languageId, options).then(render, (err) => console.error(err));
+		return this.colorize(languageService, text || '', languageId, options).then(render, (err) => console.error(err));
 	}
 
 	public static async colorize(languageService: ILanguageService, text: string, languageId: string, options: IColorizerOptions | null | undefined): Promise<string> {

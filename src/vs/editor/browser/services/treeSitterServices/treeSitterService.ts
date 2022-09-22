@@ -57,7 +57,7 @@ export class TreeSitterService implements ITreeSitterService {
 			return this.fetchLanguage(model.getLanguageId()).then((language) => {
 				this._language = language;
 				return this._getTreeSitterCaptures(model, queryString, asychronous);
-			})
+			});
 		} else {
 			return this._getTreeSitterCaptures(model, queryString, asychronous);
 		}
@@ -83,7 +83,7 @@ export class TreeSitterService implements ITreeSitterService {
 			return this.fetchLanguage(model.getLanguageId()).then((language) => {
 				this._language = language;
 				return this._getTreeSitterTree(model);
-			})
+			});
 		} else {
 			return this._getTreeSitterTree(model);
 		}
@@ -106,11 +106,12 @@ export class TreeSitterService implements ITreeSitterService {
 			throw new Error('Unsupported language in tree-sitter');
 		}
 		const languageFile = await this._fileService.readFile(FileAccess.asFileUri(this.supportedLanguages.get(language)!, require));
+		console.log('languageFile : ', languageFile);
 		return Parser.Language.load(languageFile.value.buffer).then((language: Uint8Array) => {
 			return new Promise(function (resolve, _reject) {
 				resolve(language);
-			})
-		})
+			});
+		});
 	}
 
 	dispose(): void {
