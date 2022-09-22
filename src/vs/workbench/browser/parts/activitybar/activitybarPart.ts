@@ -13,6 +13,7 @@ import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activ
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
 import { ToggleActivityBarVisibilityAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND, ACTIVITY_BAR_SETTINGS_PROFILE_FOREGROUND } from 'vs/workbench/common/theme';
@@ -276,7 +277,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		}));
 
 		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.toggleProfilesActivityAction()));
-		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.profilesActivityAction ? this.profilesActivityAction.activity = this.createProfilesActivity() : undefined));
+		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => this.profilesActivityAction ? this.profilesActivityAction.activity = this.createProfilesActivity() : undefined));
 	}
 
 	private onDidChangeViewContainers(added: readonly { container: ViewContainer; location: ViewContainerLocation }[], removed: readonly { container: ViewContainer; location: ViewContainerLocation }[]) {
@@ -1049,7 +1050,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private get profilesVisibilityPreference(): boolean {
-		return this.userDataProfilesService.profiles.length > 1 && this.storageService.getBoolean(ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, true);
+		return this.userDataProfilesService.profiles.length > 1 && !this.userDataProfileService.currentProfile.isDefault && this.storageService.getBoolean(ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, true);
 	}
 
 	private set profilesVisibilityPreference(value: boolean) {
