@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
+import { DebounceEmitter, Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuCreateOptions, IMenuItem, IMenuItemHide, IMenuService, isIMenuItem, isISubmenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandAction, ILocalizedString } from 'vs/platform/action/common/action';
@@ -175,56 +175,47 @@ class Menu implements IMenu {
 		// we only do that when someone listens on this menu because (1) these events are
 		// firing often and (2) menu are often leaked
 		const lazyListener = this._disposables.add(new DisposableStore());
+
+		const merge = (events: IMenuChangeEvent[]): IMenuChangeEvent => {
+
+			let isStructuralChange = false;
+			let isEnablementChange = false;
+			let isToggleChange = false;
+
+			for (const item of events) {
+				isStructuralChange = isStructuralChange || item.isStructuralChange;
+				isEnablementChange = isEnablementChange || item.isEnablementChange;
+				isToggleChange = isToggleChange || item.isToggleChange;
+				if (isStructuralChange && isEnablementChange && isToggleChange) {
+					// everything is TRUE, no need to continue iterating
+					break;
+				}
+			}
+
+			return { menu: this, isStructuralChange, isEnablementChange, isToggleChange };
+		};
+
 		const startLazyListener = () => {
-			const events: IMenuChangeEvent[] = [];
-			const fireChangeSoon = new RunOnceScheduler(() => {
-				if (events.length === 0) {
-					return;
-				}
 
-				let isStructuralChange = false;
-				let isEnablementChange = false;
-				let isToggleChange = false;
-
-				for (const item of events) {
-					isStructuralChange = isStructuralChange || item.isStructuralChange;
-					isEnablementChange = isEnablementChange || item.isEnablementChange;
-					isToggleChange = isToggleChange || item.isToggleChange;
-					if (isStructuralChange && isEnablementChange && isToggleChange) {
-						// everything is TRUE, no need to continue iterating
-						break;
-					}
-				}
-				events.length = 0;
-				this._onDidChange.fire({ menu: this, isStructuralChange, isEnablementChange, isToggleChange });
-
-			}, _options.eventDebounceDelay);
-
-			lazyListener.add(fireChangeSoon);
 			lazyListener.add(_contextKeyService.onDidChangeContext(e => {
 				const isStructuralChange = e.affectsSome(this._structureContextKeys);
 				const isEnablementChange = e.affectsSome(this._preconditionContextKeys);
 				const isToggleChange = e.affectsSome(this._toggledContextKeys);
 				if (isStructuralChange || isEnablementChange || isToggleChange) {
-					events.push({ menu: this, isStructuralChange, isEnablementChange, isToggleChange });
-					fireChangeSoon.schedule();
+					this._onDidChange.fire({ menu: this, isStructuralChange, isEnablementChange, isToggleChange });
 				}
 			}));
-			lazyListener.add(_hiddenStates.onDidChange(() => {
-				events.push({
-					menu: this,
-					isStructuralChange: true,
-					isEnablementChange: false,
-					isToggleChange: false
-				});
-				fireChangeSoon.schedule();
+			lazyListener.add(_hiddenStates.onDidChange(e => {
+				this._onDidChange.fire({ menu: this, isStructuralChange: true, isEnablementChange: false, isToggleChange: false });
 			}));
 		};
 
-		this._onDidChange = new Emitter({
+		this._onDidChange = new DebounceEmitter({
 			// start/stop context key listener
 			onFirstListenerAdd: startLazyListener,
-			onLastListenerRemove: lazyListener.clear.bind(lazyListener)
+			onLastListenerRemove: lazyListener.clear.bind(lazyListener),
+			delay: _options.eventDebounceDelay,
+			merge
 		});
 		this.onDidChange = this._onDidChange.event;
 
