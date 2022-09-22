@@ -1071,7 +1071,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.findWidget.reveal();
+			accessor.get(ITerminalService).activeInstance?.findWidget.value.reveal();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1091,7 +1091,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.findWidget.hide();
+			accessor.get(ITerminalService).activeInstance?.findWidget.value.hide();
 		}
 	});
 
@@ -1444,7 +1444,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const state = terminalService.activeInstance?.findWidget.findState;
+			const state = terminalService.activeInstance?.findWidget.value.findState;
 			state?.change({ isRegex: !state.isRegex }, false);
 		}
 	});
@@ -1466,7 +1466,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const state = terminalService.activeInstance?.findWidget.findState;
+			const state = terminalService.activeInstance?.findWidget.value.findState;
 			state?.change({ wholeWord: !state.wholeWord }, false);
 		}
 	});
@@ -1488,7 +1488,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const state = terminalService.activeInstance?.findWidget.findState;
+			const state = terminalService.activeInstance?.findWidget.value.findState;
 			state?.change({ matchCase: !state.matchCase }, false);
 		}
 	});
@@ -1517,8 +1517,8 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			terminalService.activeInstance?.findWidget.show();
-			terminalService.activeInstance?.findWidget.find(false);
+			terminalService.activeInstance?.findWidget.value.show();
+			terminalService.activeInstance?.findWidget.value.find(false);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1546,8 +1546,8 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			terminalService.activeInstance?.findWidget.show();
-			terminalService.activeInstance?.findWidget.find(true);
+			terminalService.activeInstance?.findWidget.value.show();
+			terminalService.activeInstance?.findWidget.value.find(true);
 		}
 	});
 	registerAction2(class extends Action2 {

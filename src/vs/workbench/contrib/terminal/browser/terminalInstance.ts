@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { AutoOpenBarrier, Promises } from 'vs/base/common/async';
+import { AutoOpenBarrier, LazyValue, Promises } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
@@ -209,7 +209,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
 
-	readonly findWidget: TerminalFindWidget;
+	readonly findWidget: LazyValue<TerminalFindWidget>;
 
 	xterm?: XtermTerminal;
 	disableLayout: boolean = false;
@@ -346,6 +346,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
 	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number } | undefined>();
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
+	private readonly _onDidFocusFindWidget = new Emitter<void>();
+	readonly onDidFocusFindWidget = this._onDidFocusFindWidget.event;
 
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
@@ -437,7 +439,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalAltBufferActiveContextKey = TerminalContextKeys.altBufferActive.bindTo(scopedContextKeyService);
 		this._terminalShellIntegrationEnabledContextKey = TerminalContextKeys.terminalShellIntegrationEnabled.bindTo(scopedContextKeyService);
 
-		this.findWidget = this._scopedInstantiationService.createInstance(TerminalFindWidget, new FindReplaceState(), this);
+		this.findWidget = new LazyValue(() => {
+			const findWidget = this._scopedInstantiationService.createInstance(TerminalFindWidget, new FindReplaceState(), this);
+			this._register(findWidget.focusTracker.onDidFocus(() => {
+				this._container?.classList.toggle('find-focused', true);
+				this._onDidFocusFindWidget.fire();
+			}));
+			this._register(findWidget.focusTracker.onDidBlur(() => this._container?.classList.toggle('find-focused', false)));
+			if (this._container) {
+				this._container.appendChild(findWidget.getDomNode());
+			}
+			return findWidget;
+		});
 
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
 		this._register(this.capabilities.onDidAddCapability(e => {
@@ -563,9 +576,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				window.clearTimeout(initialDataEventsTimeout);
 			}
 		}));
-
-		this._register(this.findWidget.focusTracker.onDidFocus(() => this._container?.classList.toggle('find-focused', true)));
-		this._register(this.findWidget.focusTracker.onDidBlur(() => this._container?.classList.toggle('find-focused', false)));
 	}
 
 	private _getIcon(): TerminalIcon | undefined {
@@ -861,7 +871,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// The container changed, reattach
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
-		this._container.appendChild(this.findWidget.getDomNode());
+		if (this.findWidget.isInitialized) {
+			this._container.appendChild(this.findWidget.value.getDomNode());
+		}
 		setTimeout(() => this._initDragAndDrop(container));
 	}
 
@@ -883,7 +895,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement.appendChild(xtermElement);
 
 		this._container.appendChild(this._wrapperElement);
-		this._container.appendChild(this.findWidget.getDomNode());
+		if (this.findWidget.isInitialized) {
+			this._container.appendChild(this.findWidget.value.getDomNode());
+		}
 
 		const xterm = this.xterm;
 
@@ -892,7 +906,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		const screenElement = xterm.attachToElement(xtermElement);
 
-		this._register(xterm.onDidChangeFindResults(() => this.findWidget.updateResultCount()));
+		this._register(xterm.onDidChangeFindResults(() => this.findWidget.value.updateResultCount()));
 		this._register(xterm.shellIntegration.onDidChangeStatus(() => {
 			if (this.hasFocus) {
 				this._setShellIntegrationContextKey();
@@ -1163,7 +1177,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		dispose(this._linkManager);
 		this._linkManager = undefined;
 		dispose(this._widgetManager);
-		dispose(this.findWidget);
+		dispose(this.findWidget.peekValue);
 
 		if (this.xterm?.raw.element) {
 			this._hadFocusOnExit = this.hasFocus;
@@ -1814,7 +1828,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		this._resize();
-		this.findWidget.layout(dimension.width);
+		this.findWidget.peekValue?.layout(dimension.width);
 
 		// Signal the container is ready
 		this._containerReadyBarrier.open();

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { LazyValue } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
@@ -456,7 +457,7 @@ export interface ITerminalInstance {
 
 	readonly statusList: ITerminalStatusList;
 
-	readonly findWidget: TerminalFindWidget;
+	readonly findWidget: LazyValue<TerminalFindWidget>;
 
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated
@@ -578,6 +579,8 @@ export interface ITerminalInstance {
 	onExit: Event<number | ITerminalLaunchError | undefined>;
 
 	onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number } | undefined>;
+
+	onDidFocusFindWidget: Event<void>;
 
 	readonly exitCode: number | undefined;
 

@@ -1103,7 +1103,7 @@ export class ThrottledWorker<T> extends Disposable {
 	}
 }
 
-//#region -- run on idle tricks ------------
+//#region -- deferred objects / run on idle tricks ------------
 
 export interface IdleDeadline {
 	readonly didTimeout: boolean;
@@ -1161,19 +1161,21 @@ declare function cancelIdleCallback(handle: number): void;
 })();
 
 /**
- * An implementation of the "idle-until-urgent"-strategy as introduced
- * here: https://philipwalton.com/articles/idle-until-urgent/
+ * Defers an object's initialization until the first time it's used. Use this
+ * when a value is not needed until a later point and it should avoid being
+ * initialized to conserve memory.
  */
-export class IdleValue<T> {
+export class LazyValue<T> {
 
 	private readonly _executor: () => void;
-	private readonly _handle: IDisposable;
 
-	private _didRun: boolean = false;
+	protected _didRun: boolean = false;
 	private _value?: T;
-	private _error: unknown;
+	private _error?: unknown;
 
-	constructor(executor: () => T) {
+	constructor(
+		executor: () => T
+	) {
 		this._executor = () => {
 			try {
 				this._value = executor();
@@ -1183,16 +1185,10 @@ export class IdleValue<T> {
 				this._didRun = true;
 			}
 		};
-		this._handle = runWhenIdle(() => this._executor());
-	}
-
-	dispose(): void {
-		this._handle.dispose();
 	}
 
 	get value(): T {
 		if (!this._didRun) {
-			this._handle.dispose();
 			this._executor();
 		}
 		if (this._error) {
@@ -1203,6 +1199,39 @@ export class IdleValue<T> {
 
 	get isInitialized(): boolean {
 		return this._didRun;
+	}
+
+	get peekValue(): T | undefined {
+		return this._value;
+	}
+}
+
+/**
+ * Defers an object's initializations until the an idle callback or first time
+ * it's used, whichever comes first. Use this when a value is not needed until
+ * a later point and it should ideally be ready before it's needed.
+ *
+ * This is an implementation of the "idle-until-urgent"-strategy as introduced
+ * here: https://philipwalton.com/articles/idle-until-urgent/
+ */
+export class IdleValue<T> extends LazyValue<T> implements IDisposable {
+
+	private readonly _handle: IDisposable;
+
+	constructor(executor: () => T) {
+		super(executor);
+		this._handle = runWhenIdle(() => this.value);
+	}
+
+	dispose(): void {
+		this._handle.dispose();
+	}
+
+	override get value(): T {
+		if (!this._didRun) {
+			this._handle.dispose();
+		}
+		return super.value;
 	}
 }
 
