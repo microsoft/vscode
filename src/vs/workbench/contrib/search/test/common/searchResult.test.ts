@@ -167,7 +167,7 @@ suite('SearchResult', () => {
 
 		const actual = testObject.matches();
 		assert.strictEqual(1, actual.length);
-		assert.strictEqual('file:///c%3A/1', actual[0].resource.toString());
+		assert.strictEqual(`file:///${encodeURIComponent(getRootName())}/1`, actual[0].resource.toString());
 
 		const actuaMatches = actual[0].matches();
 		assert.strictEqual(3, actuaMatches.length);
@@ -197,7 +197,7 @@ suite('SearchResult', () => {
 
 		const actual = testObject.matches();
 		assert.strictEqual(2, actual.length);
-		assert.strictEqual('file:///c%3A/1', actual[0].resource.toString());
+		assert.strictEqual(`file:///${encodeURIComponent(getRootName())}/1`, actual[0].resource.toString());
 
 		let actuaMatches = actual[0].matches();
 		assert.strictEqual(2, actuaMatches.length);
@@ -481,14 +481,23 @@ suite('SearchResult', () => {
 	}
 
 	function createFileUriFromPathFromRoot(path?: string): URI {
+		const rootName = getRootName();
 		if (path) {
-			return URI.file(`c:${path}`);
+			return URI.file(`${rootName}${path}`);
 		} else {
 			if (isWindows) {
-				return URI.file(`c:/`);
+				return URI.file(`${rootName}/`);
 			} else {
-				return URI.file(`c:`);
+				return URI.file(rootName);
 			}
+		}
+	}
+
+	function getRootName(): string {
+		if (isWindows) {
+			return `c:`;
+		} else {
+			return `c`;
 		}
 	}
 
