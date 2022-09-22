@@ -224,7 +224,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		});
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
 			onDidChangeExtensions: Event.None,
-			async getExtensions() { return Promise.resolve([]); },
+			extensions: [],
 			async whenInstalledExtensionsRegistered() { return true; }
 		});
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
