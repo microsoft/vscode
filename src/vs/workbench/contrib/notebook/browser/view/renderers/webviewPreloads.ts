@@ -1548,7 +1548,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 
 			const cell = new MarkupCell(init.cellId, init.mime, init.content, top, init.metadata);
-			cell.element.style.visibility = visible ? 'visible' : 'hidden';
+			cell.element.style.visibility = visible ? '' : 'hidden';
 			this._markupCells.set(init.cellId, cell);
 
 			await cell.ready;
@@ -1558,7 +1558,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public async ensureMarkupCell(info: webviewMessages.IMarkupCellInitialization): Promise<void> {
 			let cell = this._markupCells.get(info.cellId);
 			if (cell) {
-				cell.element.style.visibility = info.visible ? 'visible' : 'hidden';
+				cell.element.style.visibility = info.visible ? '' : 'hidden';
 				await cell.updateContentAndRender(info.content, info.metadata);
 			} else {
 				cell = await this.createMarkupCell(info, info.offset, info.visible);
@@ -1900,7 +1900,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		public show(top: number, newContent: string | undefined, metadata: NotebookCellMetadata | undefined): void {
-			this.element.style.visibility = 'visible';
+			this.element.style.visibility = '';
 			this.element.style.top = `${top}px`;
 			if (typeof newContent === 'string' || metadata) {
 				this.updateContentAndRender(newContent ?? this._content.value, metadata ?? this._content.metadata);
@@ -1914,7 +1914,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		public unhide() {
-			this.element.style.visibility = 'visible';
+			this.element.style.visibility = '';
 			this.updateMarkupDimensions();
 		}
 
@@ -1993,7 +1993,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			await outputElement.render(data.content, preloadErrors, signal);
 
 			// don't hide until after this step so that the height is right
-			outputElement.element.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
+			outputElement.element.style.visibility = data.initiallyHidden ? 'hidden' : '';
 		}
 
 		public clearOutput(outputId: string, rendererId: string | undefined) {
@@ -2009,7 +2009,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				return;
 			}
 
-			this.element.style.visibility = 'visible';
+			this.element.style.visibility = '';
 			this.element.style.top = `${top}px`;
 
 			dimensionUpdater.updateHeight(outputId, outputContainer.element.offsetHeight, {
@@ -2041,7 +2041,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.outputElements.get(request.outputId)?.updateScroll(request.outputOffset);
 
 			if (request.forceDisplay) {
-				this.element.style.visibility = 'visible';
+				this.element.style.visibility = '';
 			}
 		}
 	}
