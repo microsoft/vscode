@@ -76,7 +76,7 @@ export class WebviewThemeDataProvider extends Disposable {
 			};
 
 			const activeTheme = ApiThemeClassName.fromTheme(theme);
-			this._cachedWebViewThemeData = { styles, activeTheme, themeLabel: theme.label, themeId: theme.id };
+			this._cachedWebViewThemeData = { styles, activeTheme, themeLabel: theme.label, themeId: theme.settingsId };
 		}
 
 		return this._cachedWebViewThemeData;

@@ -493,10 +493,9 @@
 				}
 
 				body.dataset.vscodeThemeKind = initData.activeTheme;
-				/** @deprecated data-vscode-theme-name will be removed, use data-vscode-theme-label instead */
+				/** @deprecated data-vscode-theme-name will be removed, use data-vscode-theme-id instead */
 				body.dataset.vscodeThemeName = initData.themeLabel || '';
 				body.dataset.vscodeThemeId = initData.themeId || '';
-				body.dataset.vscodeThemeLabel = initData.themeLabel || '';
 			}
 
 			if (initData.styles) {

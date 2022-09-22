@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-1yWYKd7Rfl89uUX9d1Hhzos25fucqhbNJNvqLQFbn60=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-wwaDxsm1+SKIUb5YJXiZlYMyV7QPB8+zd6HPcTjigZs=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -494,10 +494,9 @@
 				}
 
 				body.dataset.vscodeThemeKind = initData.activeTheme;
-				/** @deprecated data-vscode-theme-name will be removed, use data-vscode-theme-label instead */
+				/** @deprecated data-vscode-theme-name will be removed, use data-vscode-theme-id instead */
 				body.dataset.vscodeThemeName = initData.themeLabel || '';
 				body.dataset.vscodeThemeId = initData.themeId || '';
-				body.dataset.vscodeThemeLabel = initData.themeLabel || '';
 			}
 
 			if (initData.styles) {
