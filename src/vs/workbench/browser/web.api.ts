@@ -30,12 +30,12 @@ export interface IWorkbench {
 	commands: {
 
 		/**
-		* Allows to execute any command if known with the provided arguments.
-		*
-		* @param command Identifier of the command to execute.
-		* @param rest Parameters passed to the command function.
-		* @return A promise that resolves to the returned value of the given command.
-		*/
+		 * Allows to execute any command if known with the provided arguments.
+		 *
+		 * @param command Identifier of the command to execute.
+		 * @param rest Parameters passed to the command function.
+		 * @return A promise that resolves to the returned value of the given command.
+		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	};
 
@@ -107,7 +107,7 @@ export interface IWorkbench {
 		 *
 		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
 		 */
-		openTunnel(tunnelOptions: ITunnelOptions): Thenable<ITunnel>;
+		openTunnel(tunnelOptions: ITunnelOptions): Promise<ITunnel>;
 	};
 
 	/**
