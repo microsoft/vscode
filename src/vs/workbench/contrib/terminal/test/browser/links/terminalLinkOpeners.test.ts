@@ -25,6 +25,7 @@ import { TestContextService } from 'vs/workbench/test/common/workbenchTestServic
 import { Terminal } from 'xterm';
 import { IFileQuery, ISearchComplete, ISearchService } from 'vs/workbench/services/search/common/search';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
+import { ITerminalOutputMatcher } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export interface ITerminalLinkActivationResult {
 	source: 'editor' | 'search';
@@ -131,6 +132,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				cwd: '/initial/cwd',
 				timestamp: 0,
 				getOutput() { return undefined; },
+				getOutputMatch(outputMatcher: ITerminalOutputMatcher) { return undefined; },
 				marker: {
 					line: 0
 				} as Partial<IXtermMarker> as any,
@@ -267,6 +269,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					cwd,
 					timestamp: 0,
 					getOutput() { return undefined; },
+					getOutputMatch(outputMatcher: ITerminalOutputMatcher) { return undefined; },
 					marker: {
 						line: 0
 					} as Partial<IXtermMarker> as any,
@@ -351,6 +354,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					cwd,
 					timestamp: 0,
 					getOutput() { return undefined; },
+					getOutputMatch(outputMatcher: ITerminalOutputMatcher) { return undefined; },
 					marker: {
 						line: 0
 					} as Partial<IXtermMarker> as any,

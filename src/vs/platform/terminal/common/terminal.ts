@@ -331,6 +331,7 @@ export interface IPtyService extends IPtyHostController {
 	reduceConnectionGraceTime(): Promise<void>;
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
 	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
+	freePortKillProcess?(id: number, port: string): Promise<{ port: string; processId: string }>;
 	/**
 	 * Serializes and returns terminal state.
 	 * @param ids The persistent terminal IDs to serialize.
@@ -648,6 +649,11 @@ export interface ITerminalChildProcess {
 	 * @param forcePersist Whether to force the process to persist if it supports persistence.
 	 */
 	detach?(forcePersist?: boolean): Promise<void>;
+
+	/**
+	 * Frees the port and kills the process
+	 */
+	freePortKillProcess?(port: string): Promise<{ port: string; processId: string }>;
 
 	/**
 	 * Shutdown the terminal process.
