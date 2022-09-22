@@ -621,7 +621,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		return {
 			id: 'workbench.actions.profiles',
 			name: icon ? this.userDataProfileService.currentProfile.name : this.userDataProfileService.currentProfile.shortName ? this.userDataProfileService.currentProfile.shortName.toUpperCase() : this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase(),
-			cssClass: icon ? ThemeIcon.asClassName(icon) : 'profile-activity-item',
+			cssClass: icon ? `${ThemeIcon.asClassName(icon)} profile-activity-item` : 'profile-activity-item',
 			icon: !!icon
 		};
 	}
