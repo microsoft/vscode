@@ -1,4 +1,4 @@
-[# Comparison of current tokenization/colorization system with the tree-sitter implementation
+# Comparison of current tokenization/colorization system with the tree-sitter implementation
 
 _memory_
 
