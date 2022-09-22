@@ -201,6 +201,9 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 				const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
 				this.label.style.color = foreground ? foreground.toString() : '';
 				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : '';
+				if (colors.activeBackgroundColor) {
+					this.label.style.backgroundColor = colors.activeBackgroundColor.toString();
+				}
 			}
 
 			this.container.style.setProperty('--insert-border-color', colors.dragAndDropBorder ? colors.dragAndDropBorder.toString() : '');
@@ -368,7 +371,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		});
 	}
 
-	private computeTitle(): string {
+	protected computeTitle(): string {
 		this.keybindingLabel = this.computeKeybindingLabel();
 		let title = this.keybindingLabel ? localize('titleKeybinding', "{0} ({1})", this.activity.name, this.keybindingLabel) : this.activity.name;
 		const badge = (this.action as ActivityAction).getBadge();
