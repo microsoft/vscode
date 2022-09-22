@@ -486,7 +486,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				getOutputMatch: (outputMatcher?: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }) => getOutputMatchForCommand(executedMarker, endMarker, buffer, outputMatcher),
+				getOutputMatch: (outputMatcher?: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }) => getOutputMatchForCommand(executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
 				markProperties: options?.markProperties
 			};
 			this._commands.push(newCommand);
@@ -611,7 +611,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: e.exitCode,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				getOutputMatch: (outputMatcher: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }) => getOutputMatchForCommand(executedMarker, endMarker, buffer, outputMatcher),
+				getOutputMatch: (outputMatcher: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }) => getOutputMatchForCommand(executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
 				markProperties: e.markProperties
 			};
 			this._commands.push(newCommand);
@@ -643,7 +643,7 @@ function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMa
 	return output === '' ? undefined : output;
 }
 
-export function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, outputMatcher: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number } | undefined): RegExpMatchArray | undefined {
+export function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number } | undefined): RegExpMatchArray | undefined {
 	if (!executedMarker || !endMarker) {
 		return undefined;
 	}
@@ -657,14 +657,11 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 		return undefined;
 	}
 	let output = '';
-	let line: IBufferLine | undefined;
+	let line: string | undefined;
 	if (outputMatcher?.anchor === 'bottom') {
 		for (let i = endLine - (outputMatcher.offset || 0); i >= startLine; i--) {
-			line = buffer.getLine(i);
-			if (!line) {
-				continue;
-			}
-			output = line.translateToString(!line.isWrapped) + output;
+			line = getXtermLineContent(buffer, i, i, cols);
+			output = line + output;
 			const match = output.match(outputMatcher.lineMatcher);
 			if (match) {
 				return match;
@@ -672,11 +669,8 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 		}
 	} else {
 		for (let i = startLine + (outputMatcher?.offset || 0); i < endLine; i++) {
-			line = buffer.getLine(i);
-			if (!line) {
-				continue;
-			}
-			output += line.translateToString(!line.isWrapped);
+			line = getXtermLineContent(buffer, i, i, cols);
+			output += line;
 			if (outputMatcher) {
 				const match = output.match(outputMatcher.lineMatcher);
 				if (match) {
@@ -686,4 +680,21 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 		}
 	}
 	return undefined;
+}
+
+function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
+	// Cap the maximum number of lines generated to prevent potential performance problems. This is
+	// more of a sanity check as the wrapped line should already be trimmed down at this point.
+	const maxLineLength = Math.max(2048 / cols * 2);
+	lineEnd = Math.min(lineEnd, lineStart + maxLineLength);
+	let content = '';
+	for (let i = lineStart; i <= lineEnd; i++) {
+		// Make sure only 0 to cols are considered as resizing when windows mode is enabled will
+		// retain buffer data outside of the terminal width as reflow is disabled.
+		const line = buffer.getLine(i);
+		if (line) {
+			content += line.translateToString(true, 0, cols);
+		}
+	}
+	return content;
 }

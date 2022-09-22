@@ -206,8 +206,6 @@ function createCommand(command: string, output: string, outputMatcher?: RegExp |
 		exitCode,
 		getOutput: () => { return output; },
 		getOutputMatch: (matcher: ITerminalOutputMatcher) => {
-			console.log(outputMatcher);
-			console.log(output);
 			if (outputMatcher) {
 				return output.match(outputMatcher) ?? undefined;
 			}
