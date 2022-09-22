@@ -37,7 +37,6 @@ import { Before2D, CompositeDragAndDropObserver, ICompositeDragAndDrop, toggleDr
 import { IActivity } from 'vs/workbench/common/activity';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { Extensions as PaneCompositeExtensions, PaneComposite, PaneCompositeDescriptor, PaneCompositeRegistry } from 'vs/workbench/browser/panecomposite';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IComposite } from 'vs/workbench/common/composite';
@@ -46,6 +45,7 @@ import { IPartOptions } from 'vs/workbench/browser/part';
 import { StringSHA1 } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
 import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 interface ICachedPanel {
 	id: string;
@@ -110,7 +110,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	private compositeBar: CompositeBar;
 	private readonly compositeActions = new Map<string, { activityAction: PanelActivityAction; pinnedAction: ToggleCompositePinnedAction }>();
 
-	private globalToolBar: ToolBar | undefined;
+	private globalToolBar: WorkbenchToolBar | undefined;
 	private globalActions: CompositeMenuActions;
 
 	private readonly panelDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
@@ -549,12 +549,13 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		const globalTitleActionsContainer = element.appendChild($('.global-actions'));
 
 		// Global Actions Toolbar
-		this.globalToolBar = this._register(new ToolBar(globalTitleActionsContainer, this.contextMenuService, {
+		this.globalToolBar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, globalTitleActionsContainer, {
 			actionViewItemProvider: action => this.actionViewItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
-			toggleMenuTitle: localize('moreActions', "More Actions...")
+			toggleMenuTitle: localize('moreActions', "More Actions..."),
+			resetMenu: this.globalActions.menuId
 		}));
 
 		this.updateGlobalToolbarActions();

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
 import { ICommentService, CommentService } from 'vs/workbench/contrib/comments/browser/commentService';
@@ -38,4 +38,4 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	}
 });
 
-registerSingleton(ICommentService, CommentService, false);
+registerSingleton(ICommentService, CommentService, InstantiationType.Delayed);

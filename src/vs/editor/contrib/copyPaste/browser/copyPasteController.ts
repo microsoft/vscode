@@ -13,16 +13,15 @@ import { Mimes } from 'vs/base/common/mime';
 import { generateUuid } from 'vs/base/common/uuid';
 import { toVSDataTransfer, UriList } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Handler, IEditorContribution, PastePayload } from 'vs/editor/common/editorCommon';
-import { DocumentPasteEdit, DocumentPasteEditProvider } from 'vs/editor/common/languages';
+import { DocumentPasteEdit, DocumentPasteEditProvider, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
-import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -210,11 +209,18 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			}
 
 			if (providerEdit) {
-				performSnippetEdit(this._editor, typeof providerEdit.insertText === 'string' ? SnippetParser.escape(providerEdit.insertText) : providerEdit.insertText.snippet, selections);
-
-				if (providerEdit.additionalEdit) {
-					await this._bulkEditService.apply(providerEdit.additionalEdit, { editor: this._editor });
-				}
+				const snippet = typeof providerEdit.insertText === 'string' ? SnippetParser.escape(providerEdit.insertText) : providerEdit.insertText.snippet;
+				const combinedWorkspaceEdit: WorkspaceEdit = {
+					edits: [
+						new ResourceTextEdit(model.uri, {
+							range: Selection.liftSelection(this._editor.getSelection()),
+							text: snippet,
+							insertAsSnippet: true,
+						}),
+						...(providerEdit.additionalEdit?.edits ?? [])
+					]
+				};
+				await this._bulkEditService.apply(combinedWorkspaceEdit, { editor: this._editor });
 				return;
 			}
 

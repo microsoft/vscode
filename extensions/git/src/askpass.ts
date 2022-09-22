@@ -16,6 +16,7 @@ const localize = nls.loadMessageBundle();
 export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 
 	private env: { [key: string]: string };
+	private sshEnv: { [key: string]: string };
 	private disposable: IDisposable = EmptyDisposable;
 	private cache = new Map<string, Credentials>();
 	private credentialsProviders = new Set<CredentialsProvider>();
@@ -28,13 +29,16 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 		this.env = {
 			// GIT_ASKPASS
 			GIT_ASKPASS: path.join(__dirname, this.ipc ? 'askpass.sh' : 'askpass-empty.sh'),
-			// SSH_ASKPASS
-			SSH_ASKPASS: path.join(__dirname, this.ipc ? 'ssh-askpass.sh' : 'ssh-askpass-empty.sh'),
-			SSH_ASKPASS_REQUIRE: 'force',
 			// VSCODE_GIT_ASKPASS
 			VSCODE_GIT_ASKPASS_NODE: process.execPath,
 			VSCODE_GIT_ASKPASS_EXTRA_ARGS: (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '',
 			VSCODE_GIT_ASKPASS_MAIN: path.join(__dirname, 'askpass-main.js'),
+		};
+
+		this.sshEnv = {
+			// SSH_ASKPASS
+			SSH_ASKPASS: path.join(__dirname, this.ipc ? 'ssh-askpass.sh' : 'ssh-askpass-empty.sh'),
+			SSH_ASKPASS_REQUIRE: 'force',
 		};
 	}
 
@@ -122,7 +126,7 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 
 	getEnv(): { [key: string]: string } {
 		const config = workspace.getConfiguration('git');
-		return config.get<boolean>('useIntegratedAskPass') ? this.env : {};
+		return config.get<boolean>('useIntegratedAskPass') ? { ...this.env, ...this.sshEnv } : {};
 	}
 
 	getTerminalEnv(): { [key: string]: string } {

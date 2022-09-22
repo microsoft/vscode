@@ -163,7 +163,7 @@ export interface IDebugger {
 export interface IDebuggerMetadata {
 	label: string;
 	type: string;
-	uiMessages?: { [key in DebuggerUiMessage]: string };
+	strings?: { [key in DebuggerString]: string };
 	interestedInLanguage(languageId: string): boolean;
 }
 
@@ -786,7 +786,7 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 	variables?: { [key: string]: string };
 	when?: string;
 	deprecated?: string;
-	uiMessages?: { [key in DebuggerUiMessage]: string };
+	strings?: { [key in DebuggerString]: string };
 }
 
 export interface IBreakpointContribution {
@@ -862,7 +862,7 @@ export interface IConfigurationManager {
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any, token: CancellationToken): Promise<any>;
 }
 
-export enum DebuggerUiMessage {
+export enum DebuggerString {
 	UnverifiedBreakpoints = 'unverifiedBreakpoints'
 }
 

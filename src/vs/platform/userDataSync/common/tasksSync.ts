@@ -13,7 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractFileSynchroniser, AbstractInitializer, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { Change, IRemoteUserData, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
@@ -45,7 +45,8 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 	private readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
 
 	constructor(
-		tasksResource: URI,
+		profile: IUserDataProfile,
+		collection: string | undefined,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
@@ -57,7 +58,7 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(tasksResource, SyncResource.Tasks, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
+		super(profile.tasksResource, { syncResource: SyncResource.Tasks, profile }, collection, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
 	}
 
 	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean, userDataSyncConfiguration: IUserDataSyncConfiguration): Promise<ITasksResourcePreview[]> {
@@ -98,7 +99,7 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 		}
 
 		const previewResult: IMergeResult = {
-			content,
+			content: hasConflicts ? lastSyncContent : content,
 			localChange: hasLocalChanged ? fileContent ? Change.Modified : Change.Added : Change.None,
 			remoteChange: hasRemoteChanged ? Change.Modified : Change.None,
 			hasConflicts
@@ -109,7 +110,7 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 			fileContent,
 
 			baseResource: this.baseResource,
-			baseContent: lastSyncContent !== null ? lastSyncContent : localContent,
+			baseContent: lastSyncContent,
 
 			localResource: this.localResource,
 			localContent,

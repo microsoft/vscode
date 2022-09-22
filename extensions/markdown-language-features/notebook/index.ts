@@ -377,7 +377,7 @@ function slugify(text: string): string {
 			.toLowerCase()
 			.replace(/\s+/g, '-') // Replace whitespace with -
 			// allow-any-unicode-next-line
-			.replace(/[\]\[\!\'\#\$\%\&\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~\`。，、；：？！…—·ˉ¨‘’“”々～‖∶＂＇｀｜〃〔〕〈〉《》「」『』．〖〗【】（）［］｛｝]/g, '') // Remove known punctuators
+			.replace(/[\]\[\!\/\'\"\#\$\%\&\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\{\|\}\~\`。，、；：？！…—·ˉ¨‘’“”々～‖∶＂＇｀｜〃〔〕〈〉《》「」『』．〖〗【】（）［］｛｝]/g, '') // Remove known punctuators
 			.replace(/^\-+/, '') // Remove leading -
 			.replace(/\-+$/, '') // Remove trailing -
 	);

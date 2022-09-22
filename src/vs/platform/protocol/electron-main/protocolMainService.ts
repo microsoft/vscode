@@ -96,7 +96,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 		let headers: Record<string, string> | undefined;
 		if (this.environmentService.crossOriginIsolated) {
-			if (path.endsWith('/workbench.html')) {
+			if (path.endsWith('/workbench.html') || path.endsWith('/workbench-dev.html')) {
 				headers = COI.CoopAndCoep;
 			} else {
 				headers = COI.getHeadersFromQuery(request.url);

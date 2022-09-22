@@ -15,18 +15,14 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import 'vs/css!./media/action';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { Command } from 'vs/editor/common/languages';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CodeActionItem, CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CodeActionKeybindingResolver } from './codeActionKeybindingResolver';
@@ -39,12 +35,14 @@ export const acceptSelectedCodeActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedCodeActionCommand = 'previewSelectedCodeAction';
 
 interface CodeActionWidgetDelegate {
-	onSelectCodeAction: (action: CodeActionItem, trigger: CodeActionTrigger) => Promise<any>;
+	onSelectCodeAction(action: CodeActionItem, trigger: CodeActionTrigger, options: { readonly preview: boolean }): Promise<any>;
+	onHide(cancelled: boolean): void;
 }
 
 export interface CodeActionShowOptions {
 	readonly includeDisabledActions: boolean;
 	readonly fromLightbulb?: boolean;
+	readonly showHeaders?: boolean;
 }
 
 enum CodeActionListItemKind {
@@ -55,11 +53,12 @@ enum CodeActionListItemKind {
 interface CodeActionListItemCodeAction {
 	readonly kind: CodeActionListItemKind.CodeAction;
 	readonly action: CodeActionItem;
+	readonly group: CodeActionGroup;
 }
 
 interface CodeActionListItemHeader {
 	readonly kind: CodeActionListItemKind.Header;
-	readonly headerTitle: string;
+	readonly group: CodeActionGroup;
 }
 
 type ICodeActionMenuItem = CodeActionListItemCodeAction | CodeActionListItemHeader;
@@ -74,6 +73,25 @@ interface ICodeActionMenuTemplateData {
 function stripNewlines(str: string): string {
 	return str.replace(/\r\n|\r|\n/g, ' ');
 }
+
+interface CodeActionGroup {
+	readonly kind: CodeActionKind;
+	readonly title: string;
+	readonly icon?: { readonly codicon: Codicon; readonly color?: string };
+}
+
+const uncategorizedCodeActionGroup = Object.freeze<CodeActionGroup>({ kind: CodeActionKind.Empty, title: localize('codeAction.widget.id.more', 'More Actions...') });
+
+const codeActionGroups = Object.freeze<CodeActionGroup[]>([
+	{ kind: CodeActionKind.QuickFix, title: localize('codeAction.widget.id.quickfix', 'Quick Fix...') },
+	{ kind: CodeActionKind.RefactorExtract, title: localize('codeAction.widget.id.extract', 'Extract...'), icon: { codicon: Codicon.wrench } },
+	{ kind: CodeActionKind.RefactorInline, title: localize('codeAction.widget.id.inline', 'Inline...'), icon: { codicon: Codicon.wrench } },
+	{ kind: CodeActionKind.RefactorRewrite, title: localize('codeAction.widget.id.convert', 'Rewrite...'), icon: { codicon: Codicon.wrench } },
+	{ kind: CodeActionKind.RefactorMove, title: localize('codeAction.widget.id.move', 'Move...'), icon: { codicon: Codicon.wrench } },
+	{ kind: CodeActionKind.SurroundWith, title: localize('codeAction.widget.id.surround', 'Surround With...'), icon: { codicon: Codicon.symbolSnippet } },
+	{ kind: CodeActionKind.Source, title: localize('codeAction.widget.id.source', 'Source Action...'), icon: { codicon: Codicon.symbolFile } },
+	uncategorizedCodeActionGroup,
+]);
 
 class CodeActionItemRenderer implements IListRenderer<CodeActionListItemCodeAction, ICodeActionMenuTemplateData> {
 	constructor(
@@ -100,21 +118,12 @@ class CodeActionItemRenderer implements IListRenderer<CodeActionListItemCodeActi
 	}
 
 	renderElement(element: CodeActionListItemCodeAction, _index: number, data: ICodeActionMenuTemplateData): void {
-		// Icons and Label modification based on group
-		const kind = element.action.action.kind ? new CodeActionKind(element.action.action.kind) : CodeActionKind.None;
-		if (CodeActionKind.SurroundWith.contains(kind)) {
-			data.icon.className = Codicon.symbolArray.classNames;
-		} else if (CodeActionKind.Extract.contains(kind)) {
-			data.icon.className = Codicon.wrench.classNames;
-		} else if (CodeActionKind.Convert.contains(kind)) {
-			data.icon.className = Codicon.zap.classNames;
-			data.icon.style.color = `var(--vscode-editorLightBulbAutoFix-foreground)`;
-		} else if (CodeActionKind.QuickFix.contains(kind)) {
-			data.icon.className = Codicon.lightBulb.classNames;
-			data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
+		if (element.group.icon) {
+			data.icon.className = element.group.icon.codicon.classNames;
+			data.icon.style.color = element.group.icon.color ?? '';
 		} else {
 			data.icon.className = Codicon.lightBulb.classNames;
-			data.icon.style.color = `var(--vscode-editorLightBulb-foreground)`;
+			data.icon.style.color = 'var(--vscode-editorLightBulb-foreground)';
 		}
 
 		data.text.textContent = stripNewlines(element.action.action.title);
@@ -160,7 +169,7 @@ class HeaderRenderer implements IListRenderer<CodeActionListItemHeader, HeaderTe
 	}
 
 	renderElement(element: CodeActionListItemHeader, _index: number, templateData: HeaderTemplateData): void {
-		templateData.text.textContent = element.headerTitle;
+		templateData.text.textContent = element.group.title;
 	}
 
 	disposeTemplate(_templateData: HeaderTemplateData): void {
@@ -168,6 +177,7 @@ class HeaderRenderer implements IListRenderer<CodeActionListItemHeader, HeaderTe
 	}
 }
 
+const previewSelectedEventType = 'previewSelectedCodeAction';
 class CodeActionList extends Disposable {
 
 	private readonly codeActionLineHeight = 24;
@@ -182,7 +192,7 @@ class CodeActionList extends Disposable {
 	constructor(
 		codeActions: readonly CodeActionItem[],
 		showHeaders: boolean,
-		private readonly onDidSelect: (action: CodeActionItem) => void,
+		private readonly onDidSelect: (action: CodeActionItem, options: { readonly preview: boolean }) => void,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super();
@@ -263,7 +273,7 @@ class CodeActionList extends Disposable {
 		this.list.focusNext(1, true, undefined, element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled);
 	}
 
-	public acceptSelected() {
+	public acceptSelected(options?: { readonly preview?: boolean }) {
 		const focused = this.list.getFocus();
 		if (focused.length === 0) {
 			return;
@@ -275,7 +285,8 @@ class CodeActionList extends Disposable {
 			return;
 		}
 
-		this.list.setSelection([focusIndex]);
+		const event = new UIEvent(options?.preview ? previewSelectedEventType : 'acceptSelectedCodeAction');
+		this.list.setSelection([focusIndex], event);
 	}
 
 	private onListSelection(e: IListEvent<ICodeActionMenuItem>): void {
@@ -285,7 +296,7 @@ class CodeActionList extends Disposable {
 
 		const element = e.elements[0];
 		if (element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled) {
-			this.onDidSelect(element.action);
+			this.onDidSelect(element.action, { preview: e.browserEvent?.type === previewSelectedEventType });
 		} else {
 			this.list.setSelection([]);
 		}
@@ -303,49 +314,28 @@ class CodeActionList extends Disposable {
 
 	private toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ICodeActionMenuItem[] {
 		if (!showHeaders) {
-			return inputCodeActions.map((action): ICodeActionMenuItem => ({ kind: CodeActionListItemKind.CodeAction, action }));
+			return inputCodeActions.map((action): ICodeActionMenuItem => ({ kind: CodeActionListItemKind.CodeAction, action, group: uncategorizedCodeActionGroup }));
 		}
 
-		// Groups code actions by their kind
-		const quickfixGroup: CodeActionItem[] = [];
-		const extractGroup: CodeActionItem[] = [];
-		const convertGroup: CodeActionItem[] = [];
-		const surroundGroup: CodeActionItem[] = [];
-		const sourceGroup: CodeActionItem[] = [];
-		const otherGroup: CodeActionItem[] = [];
+		// Group code actions
+		const menuEntries = codeActionGroups.map(group => ({ group, actions: [] as CodeActionItem[] }));
 
 		for (const action of inputCodeActions) {
 			const kind = action.action.kind ? new CodeActionKind(action.action.kind) : CodeActionKind.None;
-			if (CodeActionKind.SurroundWith.contains(kind)) {
-				surroundGroup.push(action);
-			} else if (CodeActionKind.QuickFix.contains(kind)) {
-				quickfixGroup.push(action);
-			} else if (CodeActionKind.Extract.contains(kind)) {
-				extractGroup.push(action);
-			} else if (CodeActionKind.Convert.contains(kind)) {
-				convertGroup.push(action);
-			} else if (CodeActionKind.Source.contains(kind)) {
-				sourceGroup.push(action);
-			} else {
-				otherGroup.push(action);
+			for (const menuEntry of menuEntries) {
+				if (menuEntry.group.kind.contains(kind)) {
+					menuEntry.actions.push(action);
+					break;
+				}
 			}
 		}
-
-		const menuEntries: ReadonlyArray<{ title: string; actions: CodeActionItem[] }> = [
-			{ title: localize('codeAction.widget.id.quickfix', 'Quick Fix...'), actions: quickfixGroup },
-			{ title: localize('codeAction.widget.id.extract', 'Extract...'), actions: extractGroup },
-			{ title: localize('codeAction.widget.id.convert', 'Convert...'), actions: convertGroup },
-			{ title: localize('codeAction.widget.id.surround', 'Surround With...'), actions: surroundGroup },
-			{ title: localize('codeAction.widget.id.source', 'Source Action...'), actions: sourceGroup },
-			{ title: localize('codeAction.widget.id.more', 'More Actions...'), actions: otherGroup },
-		];
 
 		const allMenuItems: ICodeActionMenuItem[] = [];
 		for (const menuEntry of menuEntries) {
 			if (menuEntry.actions.length) {
-				allMenuItems.push({ kind: CodeActionListItemKind.Header, headerTitle: menuEntry.title });
+				allMenuItems.push({ kind: CodeActionListItemKind.Header, group: menuEntry.group });
 				for (const action of menuEntry.actions) {
-					allMenuItems.push({ kind: CodeActionListItemKind.CodeAction, action });
+					allMenuItems.push({ kind: CodeActionListItemKind.CodeAction, action, group: menuEntry.group });
 				}
 			}
 		}
@@ -357,12 +347,17 @@ class CodeActionList extends Disposable {
 // TODO: Take a look at user storage for this so it is preserved across windows and on reload.
 let showDisabled = false;
 
-export class CodeActionMenu extends Disposable implements IEditorContribution {
+export class CodeActionMenu extends Disposable {
 
-	public static readonly ID: string = 'editor.contrib.codeActionMenu';
+	private static _instance?: CodeActionMenu;
 
-	public static get(editor: ICodeEditor): CodeActionMenu | null {
-		return editor.getContribution<CodeActionMenu>(CodeActionMenu.ID);
+	public static get INSTANCE(): CodeActionMenu | undefined { return this._instance; }
+
+	public static getOrCreateInstance(instantiationService: IInstantiationService): CodeActionMenu {
+		if (!this._instance) {
+			this._instance = instantiationService.createInstance(CodeActionMenu);
+		}
+		return this._instance;
 	}
 
 	private readonly codeActionList = this._register(new MutableDisposable<CodeActionList>());
@@ -371,20 +366,18 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		readonly options: CodeActionShowOptions;
 		readonly trigger: CodeActionTrigger;
 		readonly anchor: IAnchor;
+		readonly container: HTMLElement | undefined;
 		readonly codeActions: CodeActionSet;
+		readonly delegate: CodeActionWidgetDelegate;
 	};
 
 	private readonly _ctxMenuWidgetVisible: IContextKey<boolean>;
 
 	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _delegate: CodeActionWidgetDelegate,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
@@ -396,42 +389,33 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		return !!this.currentShowingContext;
 	}
 
-	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, anchor: IAnchor, options: CodeActionShowOptions): Promise<void> {
+	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, anchor: IAnchor, container: HTMLElement | undefined, options: CodeActionShowOptions, delegate: CodeActionWidgetDelegate): Promise<void> {
 		this.currentShowingContext = undefined;
-		if (!this._editor.hasModel() || !this._editor.getDomNode()) {
-			return;
-		}
 
 		const actionsToShow = options.includeDisabledActions && (showDisabled || codeActions.validActions.length === 0) ? codeActions.allActions : codeActions.validActions;
 		if (!actionsToShow.length) {
 			return;
 		}
 
-		this.currentShowingContext = { trigger, codeActions, anchor, options };
+		this.currentShowingContext = { trigger, codeActions, anchor, container, delegate, options };
 
 		this._contextViewService.showContextView({
 			getAnchor: () => anchor,
-			render: (container: HTMLElement) => this.renderWidget(container, trigger, codeActions, options, actionsToShow),
-			onHide: (didCancel: boolean) => this.onWidgetClosed(trigger, options, codeActions, didCancel),
-		}, this._editor.getDomNode()!, false);
+			render: (container: HTMLElement) => this.renderWidget(container, trigger, codeActions, options, actionsToShow, delegate),
+			onHide: (didCancel: boolean) => this.onWidgetClosed(trigger, options, codeActions, didCancel, delegate),
+		}, container, false);
 	}
 
-	/**
-	 * Focuses on the previous item in the list using the list widget.
-	 */
 	public focusPrevious() {
 		this.codeActionList.value?.focusPrevious();
 	}
 
-	/**
-	 * Focuses on the next item in the list using the list widget.
-	 */
 	public focusNext() {
 		this.codeActionList.value?.focusNext();
 	}
 
-	public acceptSelected() {
-		this.codeActionList.value?.acceptSelected();
+	public acceptSelected(options?: { readonly preview?: boolean }) {
+		this.codeActionList.value?.acceptSelected(options);
 	}
 
 	public hide() {
@@ -440,12 +424,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this._contextViewService.hideContextView();
 	}
 
-	private shouldShowHeaders(): boolean {
-		const model = this._editor.getModel();
-		return this._configurationService.getValue('editor.codeActionWidget.showHeaders', { resource: model?.uri });
-	}
-
-	private renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: CodeActionShowOptions, showingCodeActions: readonly CodeActionItem[]): IDisposable {
+	private renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: CodeActionShowOptions, showingCodeActions: readonly CodeActionItem[], delegate: CodeActionWidgetDelegate): IDisposable {
 		const renderDisposables = new DisposableStore();
 
 		const widget = document.createElement('div');
@@ -454,10 +433,10 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		this.codeActionList.value = new CodeActionList(
 			showingCodeActions,
-			this.shouldShowHeaders(),
-			action => {
+			options.showHeaders ?? true,
+			(action, options) => {
 				this.hide();
-				this._delegate.onSelectCodeAction(action, trigger);
+				delegate.onSelectCodeAction(action, trigger, options);
 			},
 			this._keybindingService);
 
@@ -495,7 +474,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		// Action bar
 		let actionBarWidth = 0;
 		if (!options.fromLightbulb) {
-			const actionBar = this.createActionBar(trigger, showingCodeActions, codeActions, options);
+			const actionBar = this.createActionBar(codeActions, options);
 			if (actionBar) {
 				widget.appendChild(actionBar.getContainer().parentElement!);
 				renderDisposables.add(actionBar);
@@ -505,8 +484,6 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 
 		const width = this.codeActionList.value.layout(actionBarWidth);
 		widget.style.width = `${width}px`;
-
-		renderDisposables.add(this._editor.onDidLayoutChange(() => this.hide()));
 
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
 		renderDisposables.add(focusTracker.onDidBlur(() => this.hide()));
@@ -520,18 +497,18 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 	 * Toggles whether the disabled actions in the code action widget are visible or not.
 	 */
 	private toggleShowDisabled(newShowDisabled: boolean): void {
-		const previouslyShowingActions = this.currentShowingContext;
+		const previousCtx = this.currentShowingContext;
 
 		this.hide();
 
 		showDisabled = newShowDisabled;
 
-		if (previouslyShowingActions) {
-			this.show(previouslyShowingActions.trigger, previouslyShowingActions.codeActions, previouslyShowingActions.anchor, previouslyShowingActions.options);
+		if (previousCtx) {
+			this.show(previousCtx.trigger, previousCtx.codeActions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.delegate);
 		}
 	}
 
-	private onWidgetClosed(trigger: CodeActionTrigger, options: CodeActionShowOptions, codeActions: CodeActionSet, didCancel: boolean): void {
+	private onWidgetClosed(trigger: CodeActionTrigger, options: CodeActionShowOptions, codeActions: CodeActionSet, cancelled: boolean, delegate: CodeActionWidgetDelegate): void {
 		type ApplyCodeActionEvent = {
 			codeActionFrom: CodeActionTriggerSource;
 			validCodeActions: number;
@@ -549,15 +526,15 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
 			codeActionFrom: options.fromLightbulb ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction,
 			validCodeActions: codeActions.validActions.length,
-			cancelled: didCancel,
+			cancelled: cancelled,
 		});
 
 		this.currentShowingContext = undefined;
-		this._editor.focus();
+		delegate.onHide(cancelled);
 	}
 
-	private createActionBar(trigger: CodeActionTrigger, inputCodeActions: readonly CodeActionItem[], codeActions: CodeActionSet, options: CodeActionShowOptions): ActionBar | undefined {
-		const actions = this.getActionBarActions(trigger, inputCodeActions, codeActions, options);
+	private createActionBar(codeActions: CodeActionSet, options: CodeActionShowOptions): ActionBar | undefined {
+		const actions = this.getActionBarActions(codeActions, options);
 		if (!actions.length) {
 			return undefined;
 		}
@@ -568,8 +545,15 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 		return actionBar;
 	}
 
-	private getActionBarActions(trigger: CodeActionTrigger, inputCodeActions: readonly CodeActionItem[], codeActions: CodeActionSet, options: CodeActionShowOptions): IAction[] {
-		const actions = this.getDocumentationActions(trigger, inputCodeActions, codeActions.documentation);
+	private getActionBarActions(codeActions: CodeActionSet, options: CodeActionShowOptions): IAction[] {
+		const actions = codeActions.documentation.map((command): IAction => ({
+			id: command.id,
+			label: command.title,
+			tooltip: command.tooltip ?? '',
+			class: undefined,
+			enabled: true,
+			run: () => this._commandService.executeCommand(command.id, ...(command.arguments ?? [])),
+		}));
 
 		if (options.includeDisabledActions && codeActions.validActions.length > 0 && codeActions.allActions.length !== codeActions.validActions.length) {
 			actions.push(showDisabled ? {
@@ -588,32 +572,7 @@ export class CodeActionMenu extends Disposable implements IEditorContribution {
 				run: () => this.toggleShowDisabled(true)
 			});
 		}
+
 		return actions;
-	}
-
-	private getDocumentationActions(
-		trigger: CodeActionTrigger,
-		actionsToShow: readonly CodeActionItem[],
-		documentation: readonly Command[],
-	): IAction[] {
-		const allDocumentation: Command[] = [...documentation];
-
-		const model = this._editor.getModel();
-		if (model && actionsToShow.length) {
-			for (const provider of this._languageFeaturesService.codeActionProvider.all(model)) {
-				if (provider._getAdditionalMenuItems) {
-					allDocumentation.push(...provider._getAdditionalMenuItems({ trigger: trigger.type, only: trigger.filter?.include?.value }, actionsToShow.map(item => item.action)));
-				}
-			}
-		}
-
-		return allDocumentation.map((command): IAction => ({
-			id: command.id,
-			label: command.title,
-			tooltip: command.tooltip ?? '',
-			class: undefined,
-			enabled: true,
-			run: () => this._commandService.executeCommand(command.id, ...(command.arguments ?? [])),
-		}));
 	}
 }

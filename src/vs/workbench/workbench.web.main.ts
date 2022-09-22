@@ -62,6 +62,7 @@ import 'vs/workbench/services/tunnel/browser/tunnelService';
 import 'vs/workbench/services/files/browser/elevatedFileService';
 import 'vs/workbench/services/workingCopy/browser/workingCopyHistoryService';
 import 'vs/workbench/services/userDataSync/browser/webUserDataSyncEnablementService';
+import 'vs/workbench/services/userDataSync/browser/userDataSyncProfilesStorageService';
 import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -177,7 +178,7 @@ import 'vs/workbench/contrib/offline/browser/offline.contribution';
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 import { create, commands, env, window, workspace, logger } from 'vs/workbench/browser/web.factory';
-import { IWorkbench, ICommand, ICommonTelemetryPropertiesResolver, IDefaultEditor, IDefaultLayout, IDefaultView, IDevelopmentOptions, IExternalUriResolver, IExternalURLOpener, IHomeIndicator, IInitialColorTheme, IPosition, IProductQualityChangeHandler, IRange, IResourceUriProvider, ISettingsSyncOptions, IShowPortCandidate, ITunnel, ITunnelFactory, ITunnelOptions, ITunnelProvider, IWelcomeBanner, IWelcomeBannerAction, IWindowIndicator, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
+import { IWorkbench, ICommand, ICommonTelemetryPropertiesResolver, IDefaultEditor, IDefaultLayout, IDefaultView, IDevelopmentOptions, IExternalUriResolver, IExternalURLOpener, IHomeIndicator, IInitialColorTheme, IProductQualityChangeHandler, IResourceUriProvider, ISettingsSyncOptions, IShowPortCandidate, ITunnel, ITunnelFactory, ITunnelOptions, ITunnelProvider, IWelcomeBanner, IWelcomeBannerAction, IWindowIndicator, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -190,6 +191,7 @@ import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/url
 import type { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
 // eslint-disable-next-line no-duplicate-imports
 import type { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
+import { EditorGroupLayout, GroupLayoutArgument, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export {
 
@@ -272,11 +274,12 @@ export {
 	IInitialColorTheme,
 
 	// Default layout
+	IDefaultLayout,
 	IDefaultView,
 	IDefaultEditor,
-	IDefaultLayout,
-	IPosition,
-	IRange as ISelection,
+	EditorGroupLayout,
+	GroupOrientation,
+	GroupLayoutArgument,
 
 	// Env
 	env,

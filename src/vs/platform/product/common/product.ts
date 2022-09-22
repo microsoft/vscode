@@ -32,7 +32,6 @@ else if (typeof require?.__$__nodeRequire === 'function') {
 	const rootPath = dirname(FileAccess.asFileUri('', require));
 
 	product = require.__$__nodeRequire(joinPath(rootPath, 'product.json').fsPath);
-	const pkg = require.__$__nodeRequire(joinPath(rootPath, 'package.json').fsPath) as { version: string };
 
 	// Running out of sources
 	if (env['VSCODE_DEV']) {
@@ -44,9 +43,16 @@ else if (typeof require?.__$__nodeRequire === 'function') {
 		});
 	}
 
-	Object.assign(product, {
-		version: pkg.version
-	});
+	// Version is added during built time, but we still
+	// want to have it running out of sources so we
+	// read it from package.json only when we need it.
+	if (!product.version) {
+		const pkg = require.__$__nodeRequire(joinPath(rootPath, 'package.json').fsPath) as { version: string };
+
+		Object.assign(product, {
+			version: pkg.version
+		});
+	}
 }
 
 // Web environment or unknown
@@ -58,7 +64,7 @@ else {
 	// Running out of sources
 	if (Object.keys(product).length === 0) {
 		Object.assign(product, {
-			version: '1.67.0-dev',
+			version: '1.72.0-dev',
 			nameShort: 'Code - OSS Dev',
 			nameLong: 'Code - OSS Dev',
 			applicationName: 'code-oss',

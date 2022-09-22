@@ -332,7 +332,7 @@
 
 				if (!crypto.subtle) {
 					// cannot validate, not running in a secure context
-					throw new Error(`Cannot validate in current context!`);
+					throw new Error(`'crypto.subtle' is not available so webviews will not work. This is likely because the editor is not running in a secure context (https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts).`);
 				}
 
 				// Here the `parentOriginHash()` function from `src/vs/workbench/common/webview.ts` is inlined

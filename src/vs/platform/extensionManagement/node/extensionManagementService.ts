@@ -48,7 +48,7 @@ import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/use
 interface InstallableExtension {
 	zipPath: string;
 	key: ExtensionKey;
-	metadata?: Metadata;
+	metadata: Metadata;
 }
 
 export const INativeServerExtensionManagementService = refineServiceDecorator<IExtensionManagementService, INativeServerExtensionManagementService>(IExtensionManagementService);
@@ -287,7 +287,7 @@ class ExtensionsScanner extends Disposable {
 		return Promise.all(scannedExtensions.map(extension => this.toLocalExtension(extension)));
 	}
 
-	async extractUserExtension(extensionKey: ExtensionKey, zipPath: string, metadata: Metadata | undefined, token: CancellationToken): Promise<ILocalExtension> {
+	async extractUserExtension(extensionKey: ExtensionKey, zipPath: string, metadata: Metadata, token: CancellationToken): Promise<ILocalExtension> {
 		const folderName = extensionKey.toString();
 		const tempPath = path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, `.${generateUuid()}`);
 		const extensionPath = path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, folderName);
@@ -299,7 +299,6 @@ class ExtensionsScanner extends Disposable {
 		}
 
 		await this.extractAtLocation(extensionKey, zipPath, tempPath, token);
-		metadata = { ...metadata, installedTimestamp: Date.now() };
 		await this.extensionsScannerService.updateMetadata(URI.file(tempPath), metadata);
 
 		try {
@@ -546,7 +545,7 @@ abstract class InstallExtensionTask extends AbstractExtensionTask<{ local: ILoca
 		try {
 			const local = await this.unsetUninstalledAndGetLocal(installableExtension.key);
 			if (local) {
-				return installableExtension.metadata ? this.extensionsScanner.updateMetadata(local, installableExtension.metadata) : local;
+				return this.extensionsScanner.updateMetadata(local, installableExtension.metadata);
 			}
 		} catch (e) {
 			if (isMacintosh) {
@@ -617,6 +616,7 @@ class InstallGalleryExtensionTask extends InstallExtensionTask {
 			isSystem: existingExtension?.type === ExtensionType.System ? true : undefined,
 			updated: !!existingExtension,
 			isPreReleaseVersion: this.gallery.properties.isPreReleaseVersion,
+			installedTimestamp: Date.now(),
 			preRelease: this.gallery.properties.isPreReleaseVersion ||
 				(isBoolean(this.options.installPreReleaseVersion)
 					? this.options.installPreReleaseVersion /* Respect the passed flag */
@@ -691,6 +691,7 @@ class InstallVSIXTask extends InstallExtensionTask {
 		metadata.isApplicationScoped = isApplicationScopedExtension(this.manifest);
 		metadata.isMachineScoped = this.options.isMachineScoped || existing?.isMachineScoped;
 		metadata.isBuiltin = this.options.isBuiltin || existing?.isBuiltin;
+		metadata.installedTimestamp = Date.now();
 
 		if (existing) {
 			this._operation = InstallOperation.Update;
