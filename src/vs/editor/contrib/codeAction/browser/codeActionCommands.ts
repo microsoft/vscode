@@ -19,7 +19,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, refactorPreviewCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { acceptSelectedCodeActionCommand, CodeActionMenu, Context, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeActionMenu';
+import { acceptSelectedCodeActionCommand, CodeActionWidget, Context, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeActionWidget';
 import { CodeActionUi } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import * as nls from 'vs/nls';
@@ -511,7 +511,7 @@ registerAction2(class extends Action2 {
 	}
 
 	run(): void {
-		CodeActionMenu.INSTANCE?.hide();
+		CodeActionWidget.INSTANCE?.hide();
 	}
 });
 
@@ -534,7 +534,7 @@ registerAction2(class extends Action2 {
 	}
 
 	run(): void {
-		CodeActionMenu.INSTANCE?.focusPrevious();
+		CodeActionWidget.INSTANCE?.focusPrevious();
 	}
 });
 
@@ -557,7 +557,7 @@ registerAction2(class extends Action2 {
 	}
 
 	run(): void {
-		CodeActionMenu.INSTANCE?.focusNext();
+		CodeActionWidget.INSTANCE?.focusNext();
 	}
 });
 
@@ -579,7 +579,7 @@ registerAction2(class extends Action2 {
 	}
 
 	run(): void {
-		CodeActionMenu.INSTANCE?.acceptSelected();
+		CodeActionWidget.INSTANCE?.acceptSelected();
 	}
 });
 
@@ -600,7 +600,7 @@ registerAction2(class extends Action2 {
 	}
 
 	run(): void {
-		CodeActionMenu.INSTANCE?.acceptSelected({ preview: true });
+		CodeActionWidget.INSTANCE?.acceptSelected({ preview: true });
 	}
 });
 

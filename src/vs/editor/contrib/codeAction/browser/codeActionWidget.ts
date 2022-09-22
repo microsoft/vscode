@@ -14,7 +14,7 @@ import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
-import 'vs/css!./media/action';
+import 'vs/css!./codeActionWidget';
 import { CodeActionItem, CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
@@ -347,15 +347,15 @@ class CodeActionList extends Disposable {
 // TODO: Take a look at user storage for this so it is preserved across windows and on reload.
 let showDisabled = false;
 
-export class CodeActionMenu extends Disposable {
+export class CodeActionWidget extends Disposable {
 
-	private static _instance?: CodeActionMenu;
+	private static _instance?: CodeActionWidget;
 
-	public static get INSTANCE(): CodeActionMenu | undefined { return this._instance; }
+	public static get INSTANCE(): CodeActionWidget | undefined { return this._instance; }
 
-	public static getOrCreateInstance(instantiationService: IInstantiationService): CodeActionMenu {
+	public static getOrCreateInstance(instantiationService: IInstantiationService): CodeActionWidget {
 		if (!this._instance) {
-			this._instance = instantiationService.createInstance(CodeActionMenu);
+			this._instance = instantiationService.createInstance(CodeActionWidget);
 		}
 		return this._instance;
 	}
