@@ -182,7 +182,7 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 			await this.backupLocal(this.stringifyLocalProfiles(this.getLocalUserDataProfiles(), false));
 			const promises: Promise<any>[] = [];
 			for (const profile of local.added) {
-				promises.push(this.userDataProfilesService.createProfile(profile.id, profile.name));
+				promises.push(this.userDataProfilesService.createProfile(profile.id, profile.name, { shortName: profile.shortName }));
 			}
 			for (const profile of local.removed) {
 				promises.push(this.userDataProfilesService.removeProfile(profile));
