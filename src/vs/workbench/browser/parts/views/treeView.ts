@@ -589,6 +589,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private create() {
 		this.domNode = DOM.$('.tree-explorer-viewlet-tree-view');
 		this.messageElement = DOM.append(this.domNode, DOM.$('.message'));
+		this.updateMessage();
 		this.treeContainer = DOM.append(this.domNode, DOM.$('.customview-tree'));
 		this.treeContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 		const focusTracker = this._register(DOM.trackFocus(this.domNode));
