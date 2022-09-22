@@ -123,7 +123,6 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 	if (markers) {
 		pattern = new RegExp(`(${markers.start.source})|(?:${markers.end.source})`);
 	}
-
 	const previousRegions: PreviousRegion[] = [];
 	const line = model.getLineCount() + 1;
 	previousRegions.push({ indent: -1, endAbove: line, line }); // sentinel, to make sure there's at least one entry

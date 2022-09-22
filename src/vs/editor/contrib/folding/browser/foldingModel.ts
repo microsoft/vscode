@@ -136,9 +136,13 @@ export class FoldingModel {
 				lastHiddenLine = endLineNumber;
 			}
 		}
-		this._decorationProvider.changeDecorations(accessor => this._editorDecorationIds = accessor.deltaDecorations(this._editorDecorationIds, newEditorDecorations));
+		// this._decorationProvider.changeDecorations(accessor => this._editorDecorationIds = accessor.deltaDecorations(this._editorDecorationIds, newEditorDecorations));
 		this._regions = newRegions;
 		this._updateEventEmitter.fire({ model: this });
+	}
+
+	public setRegions(_regions: FoldingRegions) {
+		this._regions = _regions;
 	}
 
 	private _currentFoldedOrManualRanges(blockedLineNumers: number[] = []): FoldRange[] {
@@ -323,6 +327,7 @@ export function toggleCollapseState(foldingModel: FoldingModel, levels: number, 
 			}
 		}
 	}
+	console.log('toToggle in toggleCollapseState : ', toToggle);
 	foldingModel.toggleCollapseState(toToggle);
 }
 

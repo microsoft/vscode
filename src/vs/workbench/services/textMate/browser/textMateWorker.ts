@@ -57,7 +57,7 @@ class TextMateWorkerModel extends MirrorTextModel {
 		this._languageId = languageId;
 		this._encodedLanguageId = encodedLanguageId;
 		this._isDisposed = false;
-		this._resetTokenization();
+		// this._resetTokenization();
 	}
 
 	public override dispose(): void {
@@ -73,6 +73,7 @@ class TextMateWorkerModel extends MirrorTextModel {
 
 	override onEvents(e: IModelChangedEvent): void {
 		super.onEvents(e);
+		/*
 		if (this._tokenizationStateStore) {
 			for (let i = 0; i < e.changes.length; i++) {
 				const change = e.changes[i];
@@ -81,6 +82,7 @@ class TextMateWorkerModel extends MirrorTextModel {
 			}
 		}
 		this._ensureTokens();
+		*/
 	}
 
 	private _resetTokenization(): void {
@@ -99,7 +101,7 @@ class TextMateWorkerModel extends MirrorTextModel {
 			} else {
 				this._tokenizationStateStore = null;
 			}
-			this._ensureTokens();
+			// this._ensureTokens();
 		});
 	}
 
@@ -137,6 +139,7 @@ export class TextMateWorker {
 		this._host = ctx.host;
 		this._models = Object.create(null);
 		this._grammarCache = [];
+		/*
 		const grammarDefinitions = createData.grammarDefinitions.map<IValidGrammarDefinition>((def) => {
 			return {
 				location: URI.revive(def.location),
@@ -150,6 +153,7 @@ export class TextMateWorker {
 			};
 		});
 		this._grammarFactory = this._loadTMGrammarFactory(grammarDefinitions);
+		*/
 	}
 
 	private async _loadTMGrammarFactory(grammarDefinitions: IValidGrammarDefinition[]): Promise<TMGrammarFactory> {

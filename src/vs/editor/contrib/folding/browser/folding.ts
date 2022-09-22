@@ -457,6 +457,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		}
 
 		const region = foldingModel.getRegionAtLine(lineNumber);
+		console.log('region : ', region);
 		if (region && region.startLineNumber === lineNumber) {
 			const isCollapsed = region.isCollapsed;
 			if (iconClicked || isCollapsed) {
@@ -479,6 +480,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 					const recursive = e.event.middleButton || e.event.shiftKey;
 					if (recursive) {
 						for (const r of foldingModel.getRegionsInside(region)) {
+							console.log('r : ', r);
 							if (r.isCollapsed === isCollapsed) {
 								toToggle.push(r);
 							}
@@ -489,6 +491,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 						toToggle.push(region);
 					}
 				}
+				console.log('region toToggle : ', toToggle);
 				foldingModel.toggleCollapseState(toToggle);
 				this.reveal({ lineNumber, column: 1 });
 			}

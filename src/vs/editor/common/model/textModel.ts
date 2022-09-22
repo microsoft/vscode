@@ -1860,6 +1860,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					const internalDecorationId = (++this._lastDecorationId);
 					const decorationId = `${this._instanceId};${internalDecorationId}`;
 					node = new IntervalNode(decorationId, 0, 0);
+					// no eager evaluation below
 					this._decorations[decorationId] = node;
 				}
 
@@ -2061,6 +2062,7 @@ class DecorationsTrees {
 	}
 
 	public insert(node: IntervalNode): void {
+		// -> the tree of interest is the one marked with 0
 		if (isNodeInjectedText(node)) {
 			this._injectedTextDecorationsTree.insert(node);
 		} else if (isNodeInOverviewRuler(node)) {
