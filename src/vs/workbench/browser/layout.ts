@@ -667,11 +667,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return {
 				layout: defaultLayout.layout?.editors,
 				filesToOpenOrCreate: defaultLayout?.editors?.map(editor => {
-					const legacySelection = editor.selection && editor.selection.start && isNumber(editor.selection.start.line) ? {
-						startLineNumber: editor.selection.start.line,
-						startColumn: isNumber(editor.selection.start.column) ? editor.selection.start.column : 1,
-						endLineNumber: isNumber(editor.selection.end.line) ? editor.selection.end.line : undefined,
-						endColumn: isNumber(editor.selection.end.line) ? (isNumber(editor.selection.end.column) ? editor.selection.end.column : 1) : undefined,
+					// TODO@bpasero remove me eventually
+					const editor2 = editor as any;
+					const legacySelection = editor2.selection && editor2.selection.start && isNumber(editor2.selection.start.line) ? {
+						startLineNumber: editor2.selection.start.line,
+						startColumn: isNumber(editor2.selection.start.column) ? editor2.selection.start.column : 1,
+						endLineNumber: isNumber(editor2.selection.end.line) ? editor2.selection.end.line : undefined,
+						endColumn: isNumber(editor2.selection.end.line) ? (isNumber(editor2.selection.end.column) ? editor2.selection.end.column : 1) : undefined,
 					} : undefined;
 
 					return {
