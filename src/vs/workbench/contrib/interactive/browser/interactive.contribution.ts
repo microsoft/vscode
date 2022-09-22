@@ -747,11 +747,6 @@ registerAction2(class extends Action2 {
 			title: { value: localize('interactive.history.focus', "Focus history in the interactive window"), original: 'Focus input editor in the interactive window' },
 			category: 'Interactive Window',
 			f1: true,
-			keybinding: {
-				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
-				primary: KeyMod.Shift | KeyCode.Tab,
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			},
 			precondition: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
 		});
 	}
