@@ -1489,7 +1489,7 @@ export class ReloadAction extends ExtensionAction {
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
-		this._register(this.extensionService.onDidChangeExtensions(this.update));
+		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
 		this.update();
 	}
 

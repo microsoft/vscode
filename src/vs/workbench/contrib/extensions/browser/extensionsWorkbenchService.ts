@@ -790,7 +790,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
 
-		this._register(this.extensionService.onDidChangeExtensions(this.updateRunningExtensions));
+		this._register(this.extensionService.onDidChangeExtensions(() => this.updateRunningExtensions()));
 		this.updateRunningExtensions();
 	}
 	private _reportTelemetry() {

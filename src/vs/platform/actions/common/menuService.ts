@@ -175,21 +175,38 @@ class Menu implements IMenu {
 		// we only do that when someone listens on this menu because (1) these events are
 		// firing often and (2) menu are often leaked
 		const lazyListener = this._disposables.add(new DisposableStore());
+
+		const merge = (events: IMenuChangeEvent[]): IMenuChangeEvent => {
+
+			let isStructuralChange = false;
+			let isEnablementChange = false;
+			let isToggleChange = false;
+
+			for (const item of events) {
+				isStructuralChange = isStructuralChange || item.isStructuralChange;
+				isEnablementChange = isEnablementChange || item.isEnablementChange;
+				isToggleChange = isToggleChange || item.isToggleChange;
+				if (isStructuralChange && isEnablementChange && isToggleChange) {
+					// everything is TRUE, no need to continue iterating
+					break;
+				}
+			}
+
+			return { menu: this, isStructuralChange, isEnablementChange, isToggleChange };
+		};
+
 		const startLazyListener = () => {
 
 			lazyListener.add(_contextKeyService.onDidChangeContext(e => {
 				const isStructuralChange = e.affectsSome(this._structureContextKeys);
 				const isEnablementChange = e.affectsSome(this._preconditionContextKeys);
 				const isToggleChange = e.affectsSome(this._toggledContextKeys);
-				this._onDidChange.fire({ menu: this, isStructuralChange, isEnablementChange, isToggleChange });
+				if (isStructuralChange || isEnablementChange || isToggleChange) {
+					this._onDidChange.fire({ menu: this, isStructuralChange, isEnablementChange, isToggleChange });
+				}
 			}));
-			lazyListener.add(_hiddenStates.onDidChange(() => {
-				this._onDidChange.fire({
-					menu: this,
-					isStructuralChange: true,
-					isEnablementChange: false,
-					isToggleChange: false
-				});
+			lazyListener.add(_hiddenStates.onDidChange(e => {
+				this._onDidChange.fire({ menu: this, isStructuralChange: true, isEnablementChange: false, isToggleChange: false });
 			}));
 		};
 
@@ -198,18 +215,10 @@ class Menu implements IMenu {
 			onFirstListenerAdd: startLazyListener,
 			onLastListenerRemove: lazyListener.clear.bind(lazyListener),
 			delay: _options.eventDebounceDelay,
-			merge: input => {
-				return input.reduce((prev, cur) => {
-					return {
-						menu: this,
-						isStructuralChange: prev.isStructuralChange || cur.isStructuralChange,
-						isEnablementChange: prev.isEnablementChange || cur.isEnablementChange,
-						isToggleChange: prev.isToggleChange || cur.isToggleChange
-					};
-				});
-			}
+			merge
 		});
 		this.onDidChange = this._onDidChange.event;
+
 	}
 
 	dispose(): void {
