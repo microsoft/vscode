@@ -5,9 +5,11 @@
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
+import { Event } from 'vs/base/common/event';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -15,8 +17,13 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IUserDataProfile, IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { RenameProfileAction } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfileActions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { charCount } from 'vs/base/common/strings';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export class UserDataProfilesWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
@@ -72,6 +79,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 		this.registerProfilesActions();
 		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.registerProfilesActions()));
+
+		this.registerCurrentProfilesActions();
+		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => this.registerCurrentProfilesActions()));
 	}
 
 	private registerManageProfilesSubMenu(): void {
@@ -127,6 +137,85 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				if (that.userDataProfileService.currentProfile.id !== profile.id) {
 					return that.userDataProfileManagementService.switchProfile(profile);
 				}
+			}
+		});
+	}
+
+	private readonly currentprofileActionsDisposable = this._register(new MutableDisposable<DisposableStore>());
+	private registerCurrentProfilesActions(): void {
+		this.currentprofileActionsDisposable.value = new DisposableStore();
+		this.currentprofileActionsDisposable.value.add(this.registerUpdateCurrentProfileShortNameAction());
+		this.currentprofileActionsDisposable.value.add(this.registerRenameCurrentProfileAction());
+	}
+
+	private registerUpdateCurrentProfileShortNameAction(): IDisposable {
+		const that = this;
+		return registerAction2(class UpdateCurrentProfileShortName extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.profiles.actions.updateCurrentProfileShortName`,
+					title: {
+						value: localize('change short name profile', "Change Short Name ({0})...", that.userDataProfileService.currentProfile.shortName),
+						original: `Change Short Name (${that.userDataProfileService.currentProfile.shortName})...`
+					},
+					menu: [
+						{
+							id: ManageProfilesSubMenu,
+							group: '2_manage_current',
+							when: ContextKeyExpr.notEquals(CURRENT_PROFILE_CONTEXT.key, that.userDataProfilesService.defaultProfile.id),
+							order: 1
+						}
+					]
+				});
+			}
+			async run(accessor: ServicesAccessor) {
+				const quickInputService = accessor.get(IQuickInputService);
+				const notificationService = accessor.get(INotificationService);
+
+				const profile = that.userDataProfileService.currentProfile;
+				const shortName = await quickInputService.input({
+					value: profile.shortName,
+					title: localize('change short name', "Change Short Name..."),
+					validateInput: async (value: string) => {
+						if (profile.shortName !== value && !ThemeIcon.fromString(value) && charCount(value) > 2) {
+							return localize('invalid short name', "Short name should be at most 2 characters long.");
+						}
+						return undefined;
+					}
+				});
+				if (shortName && shortName !== profile.shortName) {
+					try {
+						await that.userDataProfileManagementService.updateProfile(profile, { shortName });
+					} catch (error) {
+						notificationService.error(error);
+					}
+				}
+			}
+		});
+	}
+
+	private registerRenameCurrentProfileAction(): IDisposable {
+		const that = this;
+		return registerAction2(class RenameCurrentProfileAction extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.profiles.actions.renameCurrentProfile`,
+					title: {
+						value: localize('rename profile', "Rename ({0})...", that.userDataProfileService.currentProfile.name),
+						original: `Rename (${that.userDataProfileService.currentProfile.name})...`
+					},
+					menu: [
+						{
+							id: ManageProfilesSubMenu,
+							group: '2_manage_current',
+							when: ContextKeyExpr.notEquals(CURRENT_PROFILE_CONTEXT.key, that.userDataProfilesService.defaultProfile.id),
+							order: 2
+						}
+					]
+				});
+			}
+			async run(accessor: ServicesAccessor) {
+				accessor.get(ICommandService).executeCommand(RenameProfileAction.ID, that.userDataProfileService.currentProfile);
 			}
 		});
 	}
