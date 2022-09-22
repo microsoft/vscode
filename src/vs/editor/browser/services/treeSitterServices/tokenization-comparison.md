@@ -4,7 +4,7 @@ _memory_
 
 - tree-sitter-typescript.wasm file is 1300 kB
 - web-tree-sitter library when unpacked has size 246 kB
-- TODO: Tried to use webpack-bundle-analyzer (among others) in order to find the effect of the library on the bundle size. Attempt to display the data from the stats.json shows empty visualization.
+- TODO: Tried to use webpack-bundle-analyzer (among others) in order to find the effect of the web-tree-sitter library on the bundle size. Attempt to display the data from the stats.json shows empty visualization.
 
 _performance_
 
