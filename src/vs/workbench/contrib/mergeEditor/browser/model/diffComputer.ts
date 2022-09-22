@@ -47,6 +47,10 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 			}
 		);
 
+		if (textModel1.isDisposed() || textModel2.isDisposed()) {
+			return { diffs: null };
+		}
+
 		const changes = result.changes.map(c =>
 			new DetailedLineRangeMapping(
 				toLineRange(c.originalRange),

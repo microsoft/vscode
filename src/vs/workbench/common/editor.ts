@@ -19,7 +19,6 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
 import { FileType, IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/window/common/window';
-import { coalesce } from 'vs/base/common/arrays';
 import { IExtUri } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -1382,20 +1381,20 @@ class EditorFactoryRegistry implements IEditorFactoryRegistry {
 
 Registry.add(EditorExtensions.EditorFactory, new EditorFactoryRegistry());
 
-export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceEditorInput | IUntitledTextResourceEditorInput)[]> {
+export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<ReadonlyArray<IResourceEditorInput | IUntitledTextResourceEditorInput | undefined>> {
 	if (!paths || !paths.length) {
 		return [];
 	}
 
-	const editors = await Promise.all(paths.map(async path => {
+	return await Promise.all(paths.map(async path => {
 		const resource = URI.revive(path.fileUri);
 		if (!resource) {
-			return;
+			return undefined;
 		}
 
 		const canHandleResource = await fileService.canHandleResource(resource);
 		if (!canHandleResource) {
-			return;
+			return undefined;
 		}
 
 		let exists = path.exists;
@@ -1410,11 +1409,11 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 		}
 
 		if (!exists && path.openOnlyIfExists) {
-			return;
+			return undefined;
 		}
 
 		if (type === FileType.Directory) {
-			return;
+			return undefined;
 		}
 
 		const options: IEditorOptions = {
@@ -1422,17 +1421,12 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			pinned: true
 		};
 
-		let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
 		if (!exists) {
-			input = { resource, options, forceUntitled: true };
-		} else {
-			input = { resource, options };
+			return { resource, options, forceUntitled: true };
 		}
 
-		return input;
+		return { resource, options };
 	}));
-
-	return coalesce(editors);
 }
 
 export const enum EditorsOrder {

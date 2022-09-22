@@ -60,6 +60,7 @@ const homeDir = homedir();
 const NULL_PROFILE = {
 	name: '',
 	id: '',
+	shortName: '',
 	isDefault: false,
 	location: URI.file(homeDir),
 	settingsResource: joinPath(URI.file(homeDir), 'settings.json'),
@@ -84,7 +85,7 @@ export const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	product,
 	homeDir: homeDir,
 	tmpDir: tmpdir(),
-	userDataDir: getUserDataPath(args),
+	userDataDir: getUserDataPath(args, product.nameShort),
 	profiles: { profile: NULL_PROFILE, all: [NULL_PROFILE] },
 	...args
 };

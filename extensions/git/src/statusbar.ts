@@ -25,12 +25,12 @@ class CheckoutStatusBar {
 	get command(): Command | undefined {
 		const rebasing = !!this.repository.rebaseCommit;
 		const isBranchProtected = this.repository.isBranchProtected();
-		const title = `${isBranchProtected ? '$(lock)' : '$(git-branch)'} ${this.repository.headLabel}${rebasing ? ` (${localize('rebasing', 'Rebasing')})` : ''}`;
+		const label = `${this.repository.headLabel}${rebasing ? ` (${localize('rebasing', 'Rebasing')})` : ''}`;
 
 		return {
 			command: 'git.checkout',
-			tooltip: localize('checkout', "Checkout branch/tag..."),
-			title,
+			tooltip: localize('checkout', "{0}, Checkout branch/tag...", label),
+			title: `${isBranchProtected ? '$(lock)' : '$(git-branch)'} ${label}`,
 			arguments: [this.repository.sourceControl]
 		};
 	}

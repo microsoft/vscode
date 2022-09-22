@@ -11,7 +11,6 @@ import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileType } from 'vs/platform/files/common/files';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
@@ -164,9 +163,9 @@ export function getTitleBarStyle(configurationService: IConfigurationService): '
 	return isLinux ? 'native' : 'custom'; // default to custom on all macOS and Windows
 }
 
-export function useWindowControlsOverlay(configurationService: IConfigurationService, environmentService: IEnvironmentService): boolean {
-	if (!isWindows || isWeb || !environmentService.isBuilt) {
-		return false; // only supported on a built desktop windows instance
+export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
+	if (!isWindows || isWeb) {
+		return false; // only supported on a desktop Windows instance
 	}
 
 	if (getTitleBarStyle(configurationService) === 'native') {

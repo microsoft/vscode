@@ -228,7 +228,15 @@ export async function startServer(connection: Connection, serverConfig: {
 	}));
 
 	connection.onRequest(protocol.getEditForFileRenames, (async (params, token: CancellationToken) => {
-		return mdLs!.getRenameFilesInWorkspaceEdit(params.map(x => ({ oldUri: URI.parse(x.oldUri), newUri: URI.parse(x.newUri) })), token);
+		const result = await mdLs!.getRenameFilesInWorkspaceEdit(params.map(x => ({ oldUri: URI.parse(x.oldUri), newUri: URI.parse(x.newUri) })), token);
+		if (!result) {
+			return result;
+		}
+
+		return {
+			edit: result.edit,
+			participatingRenames: result.participatingRenames.map(rename => ({ oldUri: rename.oldUri.toString(), newUri: rename.newUri.toString() }))
+		};
 	}));
 
 	connection.onRequest(protocol.resolveLinkTarget, (async (params, token: CancellationToken) => {

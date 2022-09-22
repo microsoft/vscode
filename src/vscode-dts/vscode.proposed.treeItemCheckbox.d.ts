@@ -9,7 +9,7 @@ declare module 'vscode' {
 		/**
 		 * [TreeItemCheckboxState](#TreeItemCheckboxState) of the tree item.
 		 */
-		checkboxState?: TreeItemCheckboxState | { state: TreeItemCheckboxState; tooltip?: string };
+		checkboxState?: TreeItemCheckboxState | { readonly state: TreeItemCheckboxState; readonly tooltip?: string };
 	}
 
 	/**
@@ -40,6 +40,6 @@ declare module 'vscode' {
 		/**
 		* The item that was checked or unchecked.
 		*/
-		readonly items: [T, TreeItemCheckboxState][];
+		readonly items: ReadonlyArray<[T, TreeItemCheckboxState]>;
 	}
 }

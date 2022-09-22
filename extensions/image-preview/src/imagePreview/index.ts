@@ -119,6 +119,12 @@ class ImagePreview extends MediaPreview {
 		this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
 	}
 
+	public override dispose(): void {
+		super.dispose();
+		this.sizeStatusBarEntry.hide(this);
+		this.zoomStatusBarEntry.hide(this);
+	}
+
 	public zoomIn() {
 		if (this.previewState === PreviewState.Active) {
 			this.webviewEditor.webview.postMessage({ type: 'zoomIn' });

@@ -334,7 +334,7 @@ export async function main(argv: string[]): Promise<any> {
 									return false;
 								}
 								if (target.type === 'page') {
-									return target.url.indexOf('workbench/workbench.html') > 0;
+									return target.url.indexOf('workbench/workbench.html') > 0 || target.url.indexOf('workbench/workbench-dev.html') > 0;
 								} else {
 									return true;
 								}

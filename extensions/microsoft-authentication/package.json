@@ -16,7 +16,8 @@
     "onAuthenticationRequest:microsoft"
   ],
   "enabledApiProposals": [
-    "idToken"
+    "idToken",
+    "extensionLog"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
