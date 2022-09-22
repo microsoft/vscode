@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import VsCodeTelemetryReporter from '@vscode/extension-telemetry';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
 import { registerBaseCommands } from './commands/index';
@@ -17,6 +18,7 @@ import API from './utils/api';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import { BrowserServiceConfigurationProvider } from './utils/configuration.browser';
 import { PluginManager } from './utils/plugins';
+import { ExperimentTelemetryReporter } from './experimentationService';
 
 class StaticVersionProvider implements ITypeScriptVersionProvider {
 
@@ -57,6 +59,13 @@ export function activate(
 			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript/tsserver.web.js').toString(),
 			API.fromSimpleString('4.8.2')));
 
+	const extension = context.extension;
+	const id = extension.id;
+	const { version = '', aiKey = '' } = extension.packageJSON as PackageInfo;
+	const vscTelemetryReporter = new VsCodeTelemetryReporter(id, version, aiKey);
+	const experimentTelemetryReporter = new ExperimentTelemetryReporter(vscTelemetryReporter);
+	context.subscriptions.push(experimentTelemetryReporter);
+
 	const lazyClientHost = createLazyClientHost(context, false, {
 		pluginManager,
 		commandManager,
@@ -66,6 +75,7 @@ export function activate(
 		processFactory: WorkerServerProcess,
 		activeJsTsEditorTracker,
 		serviceConfigurationProvider: new BrowserServiceConfigurationProvider(),
+		experimentTelemetryReporter,
 	}, item => {
 		onCompletionAccepted.fire(item);
 	});
@@ -81,4 +91,10 @@ export function activate(
 	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker));
 
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);
+}
+
+interface PackageInfo {
+	readonly name: string;
+	readonly version: string;
+	readonly aiKey: string;
 }

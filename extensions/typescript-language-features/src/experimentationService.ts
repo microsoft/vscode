@@ -15,9 +15,9 @@ export class ExperimentationService implements vscode.Disposable {
 	private _experimentationServicePromise: Promise<tas.IExperimentationService>;
 	private _telemetryReporter: ExperimentTelemetryReporter;
 
-	constructor(private readonly _extensionContext: vscode.ExtensionContext) {
-		this._telemetryReporter = new ExperimentTelemetryReporter(_extensionContext);
-		this._experimentationServicePromise = this.createExperimentationService();
+	constructor(telemetryReporter: ExperimentTelemetryReporter, id: string, version: string, globalState: vscode.Memento) {
+		this._telemetryReporter = telemetryReporter;
+		this._experimentationServicePromise = createExperimentationService(this._telemetryReporter, id, version, globalState);
 	}
 
 	public async getTreatmentVariable<K extends keyof ExperimentTypes>(name: K, defaultValue: ExperimentTypes[K]): Promise<ExperimentTypes[K]> {
@@ -30,49 +30,24 @@ export class ExperimentationService implements vscode.Disposable {
 		}
 	}
 
-	private async createExperimentationService(): Promise<tas.IExperimentationService> {
-		let targetPopulation: tas.TargetPopulation;
-		switch (vscode.env.uriScheme) {
-			case 'vscode':
-				targetPopulation = tas.TargetPopulation.Public;
-			case 'vscode-insiders':
-				targetPopulation = tas.TargetPopulation.Insiders;
-			case 'vscode-exploration':
-				targetPopulation = tas.TargetPopulation.Internal;
-			case 'code-oss':
-				targetPopulation = tas.TargetPopulation.Team;
-			default:
-				targetPopulation = tas.TargetPopulation.Public;
-		}
-
-		const id = this._extensionContext.extension.id;
-		const version = this._extensionContext.extension.packageJSON.version || '';
-		const experimentationService = tas.getExperimentationService(id, version, targetPopulation, this._telemetryReporter, this._extensionContext.globalState);
-		await experimentationService.initialFetch;
-		return experimentationService;
-	}
-
-
 	/**
 	 * @inheritdoc
 	 */
 	public dispose() {
-		this._telemetryReporter.dispose();
+		// Assume the extension will dispose of the reporter.
 	}
 }
 
+/**
+ * This reporter *supports* experimentation telemetry,
+ * but will only do so when passed to an {@link ExperimentationService}.
+ */
 export class ExperimentTelemetryReporter
 	implements tas.IExperimentationTelemetry, vscode.Disposable {
 	private _sharedProperties: Record<string, string> = {};
 	private _reporter: VsCodeTelemetryReporter;
-	constructor(ctxt: vscode.ExtensionContext) {
-		const extension = ctxt.extension;
-		const packageJSON = extension.packageJSON;
-		this._reporter = new VsCodeTelemetryReporter(
-			extension.id,
-			packageJSON.version || '',
-			packageJSON.aiKey || '');
-
+	constructor(reporter: VsCodeTelemetryReporter) {
+		this._reporter = reporter;
 	}
 
 	setSharedProperty(name: string, value: string): void {
@@ -87,7 +62,39 @@ export class ExperimentTelemetryReporter
 		this._reporter.sendTelemetryEvent(eventName, propsObject);
 	}
 
+	postEventObj(eventName: string, props: { [prop: string]: string }) {
+		this._reporter.sendTelemetryEvent(eventName, {
+			...this._sharedProperties,
+			...props,
+		});
+	}
+
 	dispose() {
 		this._reporter.dispose();
 	}
+}
+
+async function createExperimentationService(
+	reporter: ExperimentTelemetryReporter,
+	id: string,
+	version: string,
+	globalState: vscode.Memento,
+): Promise<tas.IExperimentationService> {
+	let targetPopulation: tas.TargetPopulation;
+	switch (vscode.env.uriScheme) {
+		case 'vscode':
+			targetPopulation = tas.TargetPopulation.Public;
+		case 'vscode-insiders':
+			targetPopulation = tas.TargetPopulation.Insiders;
+		case 'vscode-exploration':
+			targetPopulation = tas.TargetPopulation.Internal;
+		case 'code-oss':
+			targetPopulation = tas.TargetPopulation.Team;
+		default:
+			targetPopulation = tas.TargetPopulation.Public;
+	}
+
+	const experimentationService = tas.getExperimentationService(id, version, targetPopulation, reporter, globalState);
+	await experimentationService.initialFetch;
+	return experimentationService;
 }

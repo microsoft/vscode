@@ -10,6 +10,7 @@
 
 import * as vscode from 'vscode';
 import { CommandManager } from './commands/commandManager';
+import { ExperimentTelemetryReporter } from './experimentationService';
 import { DiagnosticKind } from './languageFeatures/diagnostics';
 import FileConfigurationManager from './languageFeatures/fileConfigurationManager';
 import LanguageProvider from './languageProvider';
@@ -72,6 +73,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			processFactory: TsServerProcessFactory;
 			activeJsTsEditorTracker: ActiveJsTsEditorTracker;
 			serviceConfigurationProvider: ServiceConfigurationProvider;
+			experimentTelemetryReporter: ExperimentTelemetryReporter;
 		},
 		onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {

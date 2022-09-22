@@ -5,10 +5,11 @@
 
 import * as fs from 'fs';
 import * as vscode from 'vscode';
+import VsCodeTelemetryReporter from '@vscode/extension-telemetry';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
 import { registerBaseCommands } from './commands/index';
-import { ExperimentationService } from './experimentationService';
+import { ExperimentationService, ExperimentTelemetryReporter } from './experimentationService';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
@@ -42,6 +43,16 @@ export function activate(
 	const jsWalkthroughState = new JsWalkthroughState();
 	context.subscriptions.push(jsWalkthroughState);
 
+	const extension = context.extension;
+	const id = extension.id;
+	const { version = '', aiKey = '' } = extension.packageJSON as PackageInfo;
+	const vscTelemetryReporter = new VsCodeTelemetryReporter(id, version, aiKey);
+	const experimentTelemetryReporter = new ExperimentTelemetryReporter(vscTelemetryReporter);
+	context.subscriptions.push(experimentTelemetryReporter);
+	// Currently no variables in use.
+	const globalState = context.globalState;
+	context.subscriptions.push(new ExperimentationService(experimentTelemetryReporter, id, version, globalState));
+
 	const lazyClientHost = createLazyClientHost(context, onCaseInsensitiveFileSystem(), {
 		pluginManager,
 		commandManager,
@@ -51,15 +62,13 @@ export function activate(
 		processFactory: new ElectronServiceProcessFactory(),
 		activeJsTsEditorTracker,
 		serviceConfigurationProvider: new ElectronServiceConfigurationProvider(),
+		experimentTelemetryReporter,
 	}, item => {
 		onCompletionAccepted.fire(item);
 	});
 
 	registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker);
 	registerJsNodeWalkthrough(commandManager, jsWalkthroughState);
-
-	// Currently no variables in use.
-	context.subscriptions.push(new ExperimentationService(context));
 
 	import('./task/taskProvider').then(module => {
 		context.subscriptions.push(module.register(lazyClientHost.map(x => x.serviceClient)));
@@ -76,4 +85,10 @@ export function activate(
 
 export function deactivate() {
 	fs.rmSync(temp.getInstanceTempDir(), { recursive: true, force: true });
+}
+
+interface PackageInfo {
+	readonly name: string;
+	readonly version: string;
+	readonly aiKey: string;
 }
