@@ -1,4 +1,4 @@
-# Comparison of current tokenization/colorization system with the tree-sitter implementation
+[# Comparison of current tokenization/colorization system with the tree-sitter implementation
 
 _memory_
 
@@ -10,6 +10,6 @@ _performance_
 
 File | size | lines | current speed | time to resolve queries | time to set tokens |
 --- | --- | --- | --- |--- |--- |
-checker.ts | 301 | 283 | 290 | 286 | 289 |
+[checker.ts](https://github.com/microsoft/TypeScript/blob/main/src/compiler/checker.ts) | 301 | 283 | 290 | 286 | 289 |
 --- | --- | --- | --- |--- |--- |
 test.ts | 
