@@ -24,6 +24,7 @@ pub const LAUNCHER_ASSET_NAME: Option<&'static str> =
 
 pub const LAUNCHER_AI_KEY: Option<&'static str> = option_env!("LAUNCHER_AI_KEY");
 pub const LAUNCHER_AI_ENDPOINT: Option<&'static str> = option_env!("LAUNCHER_AI_ENDPOINT");
+pub const VSCODE_CLI_UPDATE_ENDPOINT: Option<&'static str> = option_env!("LAUNCHER_AI_ENDPOINT");
 
 pub const TUNNEL_SERVICE_USER_AGENT_ENV_VAR: &str = "TUNNEL_SERVICE_USER_AGENT";
 

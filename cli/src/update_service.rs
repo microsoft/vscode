@@ -8,9 +8,12 @@ use std::path::Path;
 use serde::Deserialize;
 
 use crate::{
+    constants::VSCODE_CLI_UPDATE_ENDPOINT,
     debug, log, options, spanf,
     util::{
-        errors::{AnyError, StatusError, UnsupportedPlatformError, WrappedError},
+        errors::{
+            AnyError, StatusError, UnsupportedPlatformError, UpdatesNotConfigured, WrappedError,
+        },
         io::ReportCopyProgress,
     },
 };
@@ -54,11 +57,13 @@ impl UpdateService {
         quality: options::Quality,
         version: &str,
     ) -> Result<Release, AnyError> {
+        let update_endpoint = VSCODE_CLI_UPDATE_ENDPOINT.ok_or(UpdatesNotConfigured())?;
         let download_segment = target
             .download_segment(platform)
             .ok_or(UnsupportedPlatformError())?;
         let download_url = format!(
-            "https://update.code.visualstudio.com/api/versions/{}/{}/{}",
+            "{}/api/versions/{}/{}/{}",
+            update_endpoint,
             version,
             download_segment,
             quality_download_segment(quality),
@@ -92,11 +97,13 @@ impl UpdateService {
         target: TargetKind,
         quality: options::Quality,
     ) -> Result<Release, AnyError> {
+        let update_endpoint = VSCODE_CLI_UPDATE_ENDPOINT.ok_or(UpdatesNotConfigured())?;
         let download_segment = target
             .download_segment(platform)
             .ok_or(UnsupportedPlatformError())?;
         let download_url = format!(
-            "https://update.code.visualstudio.com/api/latest/{}/{}",
+            "{}/api/latest/{}/{}",
+            update_endpoint,
             download_segment,
             quality_download_segment(quality),
         );
@@ -127,13 +134,15 @@ impl UpdateService {
         &self,
         release: &Release,
     ) -> Result<reqwest::Response, AnyError> {
+        let update_endpoint = VSCODE_CLI_UPDATE_ENDPOINT.ok_or(UpdatesNotConfigured())?;
         let download_segment = release
             .target
             .download_segment(release.platform)
             .ok_or(UnsupportedPlatformError())?;
 
         let download_url = format!(
-            "https://update.code.visualstudio.com/commit:{}/{}/{}",
+            "{}/commit:{}/{}/{}",
+            update_endpoint,
             release.commit,
             download_segment,
             quality_download_segment(release.quality),
