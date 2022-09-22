@@ -48,14 +48,19 @@ export async function createExperimentationService(
 	switch (vscode.env.uriScheme) {
 		case 'vscode':
 			targetPopulation = tas.TargetPopulation.Public;
+			break;
 		case 'vscode-insiders':
 			targetPopulation = tas.TargetPopulation.Insiders;
+			break;
 		case 'vscode-exploration':
 			targetPopulation = tas.TargetPopulation.Internal;
+			break;
 		case 'code-oss':
 			targetPopulation = tas.TargetPopulation.Team;
+			break;
 		default:
 			targetPopulation = tas.TargetPopulation.Public;
+			break;
 	}
 
 	const experimentationService = tas.getExperimentationService(id, version, targetPopulation, reporter, globalState);

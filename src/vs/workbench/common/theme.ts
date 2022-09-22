@@ -625,6 +625,27 @@ export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.for
 	hcLight: Color.white
 }, localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
+export const ACTIVITY_BAR_SETTINGS_PROFILE_FOREGROUND = registerColor('activityBarItem.settingsProfilesForeground', {
+	dark: ACTIVITY_BAR_BADGE_FOREGROUND,
+	light: ACTIVITY_BAR_BADGE_FOREGROUND,
+	hcDark: ACTIVITY_BAR_BADGE_FOREGROUND,
+	hcLight: ACTIVITY_BAR_BADGE_FOREGROUND
+}, localize('statusBarItemSettingsProfileForeground', "Foreground color for the settings profile entry on the activity bar."));
+
+export const ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND = registerColor('activityBarItem.settingsProfilesBackground', {
+	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
+	light: ACTIVITY_BAR_BADGE_BACKGROUND,
+	hcDark: ACTIVITY_BAR_BADGE_BACKGROUND,
+	hcLight: ACTIVITY_BAR_BADGE_BACKGROUND
+}, localize('statusBarItemSettingsProfileBackground', "Background color for the settings profile entry on the activity bar."));
+
+export const ACTIVITY_BAR_SETTINGS_PROFILE_HOVER_BACKGROUND = registerColor('activityBarItem.settingsProfilesHoverBackground', {
+	dark: lighten(ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND, 0.12),
+	light: darken(ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND, 0.12),
+	hcDark: null,
+	hcLight: null
+}, localize('activityBarItem.settingsProfilesHoverBackground', "Background color for the settings profile entry on the activity bar when hovering."));
+
 
 // < --- Remote --- >
 
