@@ -277,7 +277,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		}));
 
 		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.toggleProfilesActivityAction()));
-		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => this.profilesActivityAction ? this.profilesActivityAction.activity = this.createProfilesActivity() : undefined));
+		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => this.updateProfilesActivityAction()));
 	}
 
 	private onDidChangeViewContainers(added: readonly { container: ViewContainer; location: ViewContainerLocation }[], removed: readonly { container: ViewContainer; location: ViewContainerLocation }[]) {
@@ -598,6 +598,20 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 				this.profilesActivityAction = undefined;
 			} else {
 				this.globalActivityActionBar.push(this.profilesActivityAction = new ActivityAction(this.createProfilesActivity()));
+			}
+		}
+	}
+
+	private updateProfilesActivityAction() {
+		if (this.profilesActivityAction) {
+			const activity = this.createProfilesActivity();
+			if ((<IProfileActivity>this.profilesActivityAction.activity).icon === activity.icon) {
+				this.profilesActivityAction.activity = activity;
+			}
+			// the icon has changed, so we need to recreate the action
+			else if (this.globalActivityActionBar) {
+				this.globalActivityActionBar.pull(this.globalActivityActionBar.length() - 1);
+				this.globalActivityActionBar.push(this.profilesActivityAction = new ActivityAction(activity));
 			}
 		}
 	}
