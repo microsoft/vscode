@@ -8,8 +8,8 @@ _memory_
 
 _performance_
 
-File | size | lines | current speed | time to resolve queries | time to set tokens |
+File | size | lines | `Force Retokenization` (unknown units - milliseconds?) | Time to resolve queries (milliseconds) | Time to set tokens (milliseconds) |
 --- | --- | --- | --- |--- |--- |
-[checker.ts](https://github.com/microsoft/TypeScript/blob/main/src/compiler/checker.ts) | 301 | 283 | 290 | 286 | 289 |
---- | --- | --- | --- |--- |--- |
+[checker.ts](https://github.com/microsoft/TypeScript/blob/main/src/compiler/checker.ts) | 2000 kB | 2'800'000 | 0.100 | 3499 | long |
 test.ts | 
+
