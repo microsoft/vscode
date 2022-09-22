@@ -744,33 +744,35 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		const turnOnSyncWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.notEqualsTo(AccountStatus.Uninitialized), CONTEXT_TURNING_ON_STATE.negate());
 		CommandsRegistry.registerCommand(turnOnSyncCommand.id, () => this.turnOn());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_sync',
+			group: '5_settings',
 			command: {
 				id: turnOnSyncCommand.id,
 				title: localize('global activity turn on sync', "Turn on Settings Sync...")
 			},
 			when: ContextKeyExpr.and(turnOnSyncWhenContext, CONTEXT_SYNC_AFTER_INITIALIZATION.negate()),
-			order: 1
+			order: 3
 		});
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: turnOnSyncCommand,
 			when: turnOnSyncWhenContext,
 		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-			group: '5_sync',
+			group: '5_settings',
 			command: {
 				id: turnOnSyncCommand.id,
 				title: localize('global activity turn on sync', "Turn on Settings Sync...")
 			},
 			when: turnOnSyncWhenContext,
+			order: 3
 		});
 		MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
-			group: '1_sync',
+			group: '1_settings',
 			command: {
 				id: turnOnSyncCommand.id,
 				title: localize('global activity turn on sync', "Turn on Settings Sync...")
 			},
-			when: turnOnSyncWhenContext
+			when: turnOnSyncWhenContext,
+			order: 2
 		});
 	}
 
@@ -784,10 +786,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					id,
 					title: localize('ask to turn on in global', "Settings Sync is Off (1)"),
 					menu: {
-						group: '5_sync',
+						group: '5_settings',
 						id: MenuId.GlobalActivity,
 						when,
-						order: 2
+						order: 3
 					}
 				});
 			}
@@ -810,12 +812,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					title: localize('turnin on sync', "Turning on Settings Sync..."),
 					precondition: ContextKeyExpr.false(),
 					menu: [{
-						group: '5_sync',
+						group: '5_settings',
 						id: MenuId.GlobalActivity,
 						when,
-						order: 2
+						order: 3
 					}, {
-						group: '1_sync',
+						group: '1_settings',
 						id: MenuId.AccountsContext,
 						when,
 					}]
@@ -857,10 +859,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					id: 'workbench.userData.actions.signin',
 					title: localize('sign in global', "Sign in to Sync Settings"),
 					menu: {
-						group: '5_sync',
+						group: '5_settings',
 						id: MenuId.GlobalActivity,
 						when,
-						order: 2
+						order: 3
 					}
 				});
 			}
@@ -873,7 +875,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 		}));
 		this._register(MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
-			group: '1_sync',
+			group: '1_settings',
 			command: {
 				id,
 				title: localize('sign in accounts', "Sign in to Sync Settings (1)"),
@@ -886,7 +888,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		CommandsRegistry.registerCommand(showConflictsCommand.id, () => this.userDataSyncWorkbenchService.showConflicts());
 		const getTitle = () => localize('resolveConflicts_global', "{0}: Show Conflicts ({1})", SYNC_TITLE, this.getConflictsCount());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_sync',
+			group: '5_settings',
 			command: {
 				id: showConflictsCommand.id,
 				get title() { return getTitle(); }
@@ -895,7 +897,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			order: 2
 		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-			group: '5_sync',
+			group: '5_settings',
 			command: {
 				id: showConflictsCommand.id,
 				get title() { return getTitle(); }
@@ -920,19 +922,19 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					menu: [
 						{
 							id: MenuId.GlobalActivity,
-							group: '5_sync',
+							group: '5_settings',
 							when,
 							order: 3
 						},
 						{
 							id: MenuId.MenubarPreferencesMenu,
-							group: '5_sync',
+							group: '5_settings',
 							when,
 							order: 3,
 						},
 						{
 							id: MenuId.AccountsContext,
-							group: '1_sync',
+							group: '1_settings',
 							when,
 						}
 					],
