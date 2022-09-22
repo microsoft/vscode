@@ -60,6 +60,7 @@ const homeDir = homedir();
 const NULL_PROFILE = {
 	name: '',
 	id: '',
+	shortName: '',
 	isDefault: false,
 	location: URI.file(homeDir),
 	settingsResource: joinPath(URI.file(homeDir), 'settings.json'),

@@ -165,7 +165,7 @@ suite('UserDataProfilesManifestSync', () => {
 		await testObject.sync(await testClient.getResourceManifest());
 		await client2.sync();
 
-		await testClient.instantiationService.get(IUserDataProfilesService).updateProfile(profile, 'name 2');
+		await testClient.instantiationService.get(IUserDataProfilesService).updateProfile(profile, { name: 'name 2', shortName: '2' });
 		await testObject.sync(await testClient.getResourceManifest());
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
@@ -177,7 +177,7 @@ suite('UserDataProfilesManifestSync', () => {
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseRemoteProfiles(content!);
-		assert.deepStrictEqual(actual, [{ id: '1', name: 'name 2', collection: '1' }]);
+		assert.deepStrictEqual(actual, [{ id: '1', name: 'name 2', collection: '1', shortName: '2' }]);
 	});
 
 	test('sync removing a profile', async () => {

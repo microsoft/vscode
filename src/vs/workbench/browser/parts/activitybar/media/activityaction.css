@@ -177,15 +177,9 @@
 }
 
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label.profile-activity-item {
-	width: 28px;
-	height: 20px;
-	margin: 6px 9px 14px 9px;
-	line-height: 16px;
-	align-items: center;
 	padding: 0px;
-	display: flex;
 	justify-content: center;
-	font-size: 12px;
+	align-items: center;
 }
 
 /* Right aligned */

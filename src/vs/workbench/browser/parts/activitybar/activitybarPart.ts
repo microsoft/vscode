@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { GLOBAL_ACTIVITY_ID, IActivity, ACCOUNTS_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { Part } from 'vs/workbench/browser/part';
-import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewContainerActivityAction, AccountsActivityActionViewItem, ProfilesActivityActionViewItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewContainerActivityAction, AccountsActivityActionViewItem, ProfilesActivityActionViewItem, IProfileActivity } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -16,7 +16,7 @@ import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/
 import { Event } from 'vs/base/common/event';
 import { ToggleActivityBarVisibilityAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND, ACTIVITY_BAR_SETTINGS_PROFILE_FOREGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_SETTINGS_PROFILE_FOREGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
 import { Dimension, createCSSRule, asCSSUrl, addDisposableListener, EventType, isAncestor } from 'vs/base/browser/dom';
@@ -277,7 +277,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		}));
 
 		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.toggleProfilesActivityAction()));
-		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => this.profilesActivityAction ? this.profilesActivityAction.activity = this.createProfilesActivity() : undefined));
+		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => this.updateProfilesActivityAction()));
 	}
 
 	private onDidChangeViewContainers(added: readonly { container: ViewContainer; location: ViewContainerLocation }[], removed: readonly { container: ViewContainer; location: ViewContainerLocation }[]) {
@@ -602,11 +602,27 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		}
 	}
 
-	private createProfilesActivity(): IActivity {
+	private updateProfilesActivityAction() {
+		if (this.profilesActivityAction) {
+			const activity = this.createProfilesActivity();
+			if ((<IProfileActivity>this.profilesActivityAction.activity).icon === activity.icon) {
+				this.profilesActivityAction.activity = activity;
+			}
+			// the icon has changed, so we need to recreate the action
+			else if (this.globalActivityActionBar) {
+				this.globalActivityActionBar.pull(this.globalActivityActionBar.length() - 1);
+				this.globalActivityActionBar.push(this.profilesActivityAction = new ActivityAction(activity));
+			}
+		}
+	}
+
+	private createProfilesActivity(): IProfileActivity {
+		const icon = this.userDataProfileService.currentProfile.shortName ? ThemeIcon.fromString(this.userDataProfileService.currentProfile.shortName) : undefined;
 		return {
 			id: 'workbench.actions.profiles',
-			name: this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase(),
-			cssClass: 'profile-activity-item'
+			name: icon ? this.userDataProfileService.currentProfile.name : this.userDataProfileService.currentProfile.shortName ? this.userDataProfileService.currentProfile.shortName.toUpperCase() : this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase(),
+			cssClass: icon ? ThemeIcon.asClassName(icon) : 'profile-activity-item',
+			icon: !!icon
 		};
 	}
 
@@ -826,16 +842,9 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 
 	private getSettingsProfileItemColors(theme: IColorTheme): ICompositeBarColors {
 		return {
+			...this.getActivitybarItemColors(theme),
 			activeForegroundColor: theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_FOREGROUND),
 			inactiveForegroundColor: theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_FOREGROUND),
-			activeBackground: theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND),
-			activeBackgroundColor: theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND),
-			inactiveBackgroundColor: theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND),
-			activeBorderColor: undefined,
-			badgeBackground: undefined,
-			badgeForeground: undefined,
-			dragAndDropBorder: undefined,
-			activeBorderBottomColor: undefined,
 		};
 	}
 

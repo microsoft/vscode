@@ -19,7 +19,7 @@ import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platf
 import { ActivityAction, ActivityActionViewItem, IActivityActionViewItemOptions, IActivityHoverOptions, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IActivity } from 'vs/workbench/common/activity';
-import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_SETTINGS_PROFILE_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_SETTINGS_PROFILE_HOVER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -336,6 +336,10 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 	}
 }
 
+export interface IProfileActivity extends IActivity {
+	readonly icon: boolean;
+}
+
 export class ProfilesActivityActionViewItem extends AbstractGlobalActivityActionViewItem {
 
 	static readonly PROFILES_VISIBILITY_PREFERENCE_KEY = 'workbench.activity.showProfiles';
@@ -357,7 +361,7 @@ export class ProfilesActivityActionViewItem extends AbstractGlobalActivityAction
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(action, contextMenuActionsProvider, { draggable: false, colors, icon: false, hasPopup: true, hoverOptions }, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
+		super(action, contextMenuActionsProvider, { draggable: false, colors, icon: (<IProfileActivity>action.activity).icon, hasPopup: true, hoverOptions }, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
 	}
 
 	protected run(): Promise<void> {
@@ -505,13 +509,13 @@ registerThemingParticipant((theme, collector) => {
 		`);
 	}
 
-	const activityBarSettingsProfileHoveBgrColor = theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_HOVER_BACKGROUND);
-	if (activityBarSettingsProfileHoveBgrColor) {
+	const activityBarSettingsProfileHoveFgColor = theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_HOVER_FOREGROUND);
+	if (activityBarSettingsProfileHoveFgColor) {
 		collector.addRule(`
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label.profile-activity-item,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label.profile-activity-item,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label.profile-activity-item {
-				background-color: ${activityBarSettingsProfileHoveBgrColor} !important;
+				color: ${activityBarSettingsProfileHoveFgColor} !important;
 			}
 		`);
 	}
