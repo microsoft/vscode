@@ -310,14 +310,14 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		}
 
 		if (menus.length && otherCommands.length) {
-			menus.push(disposables.add(new Separator()));
+			menus.push(new Separator());
 		}
 
 		otherCommands.forEach((group, i) => {
 			const actions = group[1];
 			menus = menus.concat(actions);
 			if (i !== otherCommands.length - 1) {
-				menus.push(disposables.add(new Separator()));
+				menus.push(new Separator());
 			}
 		});
 
