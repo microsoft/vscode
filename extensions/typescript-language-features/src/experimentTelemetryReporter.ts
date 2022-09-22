@@ -7,13 +7,17 @@ import * as vscode from 'vscode';
 import VsCodeTelemetryReporter from '@vscode/extension-telemetry';
 import * as tas from 'vscode-tas-client';
 
+export interface IExperimentationTelemetryReporter extends tas.IExperimentationTelemetry, vscode.Disposable {
+	postEventObj(eventName: string, props: { [prop: string]: string }): void;
+}
+
 /**
  * This reporter *supports* experimentation telemetry,
  * but will only do so when passed to an {@link ExperimentationService}.
  */
 
-export class ExperimentTelemetryReporter
-	implements tas.IExperimentationTelemetry, vscode.Disposable {
+export class ExperimentationTelemetryReporter
+	implements IExperimentationTelemetryReporter {
 	private _sharedProperties: Record<string, string> = {};
 	private _reporter: VsCodeTelemetryReporter;
 	constructor(reporter: VsCodeTelemetryReporter) {
@@ -43,3 +47,4 @@ export class ExperimentTelemetryReporter
 		this._reporter.dispose();
 	}
 }
+

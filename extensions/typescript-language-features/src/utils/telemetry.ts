@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExperimentTelemetryReporter } from '../experimentTelemetryReporter';
+import { IExperimentationTelemetryReporter } from '../experimentTelemetryReporter';
 
 export interface TelemetryProperties {
 	readonly [prop: string]: string | number | boolean | undefined;
@@ -17,7 +17,7 @@ export interface TelemetryReporter {
 
 export class VSCodeTelemetryReporter implements TelemetryReporter {
 	constructor(
-		private readonly reporter: ExperimentTelemetryReporter | null,
+		private readonly reporter: IExperimentationTelemetryReporter | null,
 		private readonly clientVersionDelegate: () => string
 	) { }
 

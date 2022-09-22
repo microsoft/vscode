@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as tas from 'vscode-tas-client';
 
-import { ExperimentTelemetryReporter } from './experimentTelemetryReporter';
+import { IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 
 interface ExperimentTypes {
 	// None for now.
@@ -14,9 +14,9 @@ interface ExperimentTypes {
 
 export class ExperimentationService implements vscode.Disposable {
 	private _experimentationServicePromise: Promise<tas.IExperimentationService>;
-	private _telemetryReporter: ExperimentTelemetryReporter;
+	private _telemetryReporter: IExperimentationTelemetryReporter;
 
-	constructor(telemetryReporter: ExperimentTelemetryReporter, id: string, version: string, globalState: vscode.Memento) {
+	constructor(telemetryReporter: IExperimentationTelemetryReporter, id: string, version: string, globalState: vscode.Memento) {
 		this._telemetryReporter = telemetryReporter;
 		this._experimentationServicePromise = createExperimentationService(this._telemetryReporter, id, version, globalState);
 	}
@@ -40,7 +40,7 @@ export class ExperimentationService implements vscode.Disposable {
 }
 
 export async function createExperimentationService(
-	reporter: ExperimentTelemetryReporter,
+	reporter: IExperimentationTelemetryReporter,
 	id: string,
 	version: string,
 	globalState: vscode.Memento): Promise<tas.IExperimentationService> {

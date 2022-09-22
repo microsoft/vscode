@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import { ExperimentTelemetryReporter } from './experimentTelemetryReporter';
+import { IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { DiagnosticKind, DiagnosticsManager } from './languageFeatures/diagnostics';
 import * as Proto from './protocol';
 import { EventName } from './protocol.const';
@@ -138,7 +138,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			versionProvider: ITypeScriptVersionProvider;
 			processFactory: TsServerProcessFactory;
 			serviceConfigurationProvider: ServiceConfigurationProvider;
-			experimentTelemetryReporter: ExperimentTelemetryReporter;
+			experimentTelemetryReporter: IExperimentationTelemetryReporter | null;
 		},
 		allModeIds: readonly string[]
 	) {

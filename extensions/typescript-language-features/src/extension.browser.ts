@@ -18,7 +18,8 @@ import API from './utils/api';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import { BrowserServiceConfigurationProvider } from './utils/configuration.browser';
 import { PluginManager } from './utils/plugins';
-import { ExperimentTelemetryReporter } from './experimentTelemetryReporter';
+import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
+import { getPackageInfo } from './utils/packageInfo';
 
 class StaticVersionProvider implements ITypeScriptVersionProvider {
 
@@ -59,12 +60,14 @@ export function activate(
 			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript/tsserver.web.js').toString(),
 			API.fromSimpleString('4.8.2')));
 
-	const extension = context.extension;
-	const id = extension.id;
-	const { version = '', aiKey = '' } = extension.packageJSON as PackageInfo;
-	const vscTelemetryReporter = new VsCodeTelemetryReporter(id, version, aiKey);
-	const experimentTelemetryReporter = new ExperimentTelemetryReporter(vscTelemetryReporter);
-	context.subscriptions.push(experimentTelemetryReporter);
+	let experimentTelemetryReporter: IExperimentationTelemetryReporter | null = null;
+	const packageInfo = getPackageInfo(context);
+	if (packageInfo) {
+		const { name: id, version, aiKey } = packageInfo;
+		const vscTelemetryReporter = new VsCodeTelemetryReporter(id, version, aiKey);
+		experimentTelemetryReporter = new ExperimentationTelemetryReporter(vscTelemetryReporter);
+		context.subscriptions.push(experimentTelemetryReporter);
+	}
 
 	const lazyClientHost = createLazyClientHost(context, false, {
 		pluginManager,
@@ -91,10 +94,4 @@ export function activate(
 	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker));
 
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);
-}
-
-interface PackageInfo {
-	readonly name: string;
-	readonly version: string;
-	readonly aiKey: string;
 }

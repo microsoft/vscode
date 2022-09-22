@@ -10,7 +10,7 @@ import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
 import { registerBaseCommands } from './commands/index';
 import { ExperimentationService } from './experimentationService';
-import { ExperimentTelemetryReporter } from './experimentTelemetryReporter';
+import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
@@ -22,6 +22,7 @@ import { ElectronServiceConfigurationProvider } from './utils/configuration.elec
 import { onCaseInsensitiveFileSystem } from './utils/fileSystem.electron';
 import { PluginManager } from './utils/plugins';
 import * as temp from './utils/temp.electron';
+import { getPackageInfo } from './utils/packageInfo';
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -44,15 +45,18 @@ export function activate(
 	const jsWalkthroughState = new JsWalkthroughState();
 	context.subscriptions.push(jsWalkthroughState);
 
-	const extension = context.extension;
-	const id = extension.id;
-	const { version = '', aiKey = '' } = extension.packageJSON as PackageInfo;
-	const vscTelemetryReporter = new VsCodeTelemetryReporter(id, version, aiKey);
-	const experimentTelemetryReporter = new ExperimentTelemetryReporter(vscTelemetryReporter);
-	context.subscriptions.push(experimentTelemetryReporter);
-	// Currently no variables in use.
-	const globalState = context.globalState;
-	context.subscriptions.push(new ExperimentationService(experimentTelemetryReporter, id, version, globalState));
+	let experimentTelemetryReporter: IExperimentationTelemetryReporter | null = null;
+	const packageInfo = getPackageInfo(context);
+	if (packageInfo) {
+		const { name: id, version, aiKey } = packageInfo;
+		const vscTelemetryReporter = new VsCodeTelemetryReporter(id, version, aiKey);
+		experimentTelemetryReporter = new ExperimentationTelemetryReporter(vscTelemetryReporter);
+		context.subscriptions.push(experimentTelemetryReporter);
+
+		// Don't bother creating an experimentation service if we don't have a valid reporter.
+		const globalState = context.globalState;
+		context.subscriptions.push(new ExperimentationService(experimentTelemetryReporter, id, version, globalState));
+	}
 
 	const lazyClientHost = createLazyClientHost(context, onCaseInsensitiveFileSystem(), {
 		pluginManager,
@@ -86,10 +90,4 @@ export function activate(
 
 export function deactivate() {
 	fs.rmSync(temp.getInstanceTempDir(), { recursive: true, force: true });
-}
-
-interface PackageInfo {
-	readonly name: string;
-	readonly version: string;
-	readonly aiKey: string;
 }
