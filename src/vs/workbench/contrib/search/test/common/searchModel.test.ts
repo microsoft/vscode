@@ -139,7 +139,7 @@ suite('SearchModel', () => {
 		const actual = testObject.searchResult.matches();
 
 		assert.strictEqual(2, actual.length);
-		assert.strictEqual(`file:///${encodeURIComponent(getRootName())}/1`, actual[0].resource.toString());
+		assert.strictEqual(URI.parse(`${getRootName()}/1`).toString(), actual[0].resource.toString());
 
 		let actuaMatches = actual[0].matches();
 		assert.strictEqual(2, actuaMatches.length);
@@ -325,7 +325,7 @@ suite('SearchModel', () => {
 	}
 
 	function createFileUriFromPathFromRoot(path?: string): URI {
-		const rootName = getRootName();
+		const rootName = getRootName(false);
 		if (path) {
 			return URI.file(`${rootName}${path}`);
 		} else {
@@ -337,9 +337,9 @@ suite('SearchModel', () => {
 		}
 	}
 
-	function getRootName(): string {
+	function getRootName(shouldEncode: boolean = true): string {
 		if (isWindows) {
-			return 'c:';
+			return shouldEncode ? encodeURIComponent('c:') : 'c:';
 		} else {
 			return '';
 		}

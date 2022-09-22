@@ -72,8 +72,8 @@ suite('Search - Viewlet', () => {
 		const fileMatch = result.matches()[0];
 		const lineMatch = fileMatch.matches()[0];
 
-		assert.strictEqual(fileMatch.id(), `file:///${encodeURIComponent(getRootName())}/foo`);
-		assert.strictEqual(lineMatch.id(), `file:///${encodeURIComponent(getRootName())}/foo>[2,1 -> 2,2]b`);
+		assert.strictEqual(fileMatch.id(), URI.parse(`${getRootName()}/foo`).toString());
+		assert.strictEqual(lineMatch.id(), `${URI.parse(`${getRootName()}/foo`).toString()}>[2,1 -> 2,2]b`);
 	});
 
 	test('Comparer', () => {
@@ -189,7 +189,7 @@ suite('Search - Viewlet', () => {
 	}
 
 	function createFileUriFromPathFromRoot(path?: string): URI {
-		const rootName = getRootName();
+		const rootName = getRootName(false);
 		if (path) {
 			return URI.file(`${rootName}${path}`);
 		} else {
@@ -201,9 +201,9 @@ suite('Search - Viewlet', () => {
 		}
 	}
 
-	function getRootName(): string {
+	function getRootName(shouldEncode: boolean = true): string {
 		if (isWindows) {
-			return 'c:';
+			return shouldEncode ? encodeURIComponent('c:') : 'c:';
 		} else {
 			return '';
 		}
