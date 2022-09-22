@@ -18,7 +18,7 @@ import API from './utils/api';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import { BrowserServiceConfigurationProvider } from './utils/configuration.browser';
 import { PluginManager } from './utils/plugins';
-import { ExperimentTelemetryReporter } from './experimentationService';
+import { ExperimentTelemetryReporter } from './experimentTelemetryReporter';
 
 class StaticVersionProvider implements ITypeScriptVersionProvider {
 

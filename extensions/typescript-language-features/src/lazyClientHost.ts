@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { CommandManager } from './commands/commandManager';
-import { ExperimentTelemetryReporter } from './experimentationService';
+import { ExperimentTelemetryReporter } from './experimentTelemetryReporter';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { TsServerProcessFactory } from './tsServer/server';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExperimentTelemetryReporter } from '../experimentationService';
+import { ExperimentTelemetryReporter } from '../experimentTelemetryReporter';
 
 export interface TelemetryProperties {
 	readonly [prop: string]: string | number | boolean | undefined;

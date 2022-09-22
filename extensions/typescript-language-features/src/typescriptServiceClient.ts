@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import { ExperimentTelemetryReporter } from './experimentationService';
+import { ExperimentTelemetryReporter } from './experimentTelemetryReporter';
 import { DiagnosticKind, DiagnosticsManager } from './languageFeatures/diagnostics';
 import * as Proto from './protocol';
 import { EventName } from './protocol.const';
