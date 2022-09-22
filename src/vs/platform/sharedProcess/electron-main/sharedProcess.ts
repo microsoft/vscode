@@ -250,7 +250,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		});
 
 		// Load with config
-		this.window.loadURL(FileAccess.asBrowserUri('vs/code/electron-browser/sharedProcess/sharedProcess.html', require).toString(true));
+		this.window.loadURL(FileAccess.asBrowserUri(`vs/code/electron-browser/sharedProcess/sharedProcess${this.environmentMainService.isBuilt ? '' : '-dev'}.html`, require).toString(true));
 	}
 
 	private registerWindowListeners(): void {

@@ -320,6 +320,7 @@ export interface ISyncUserDataProfile {
 	readonly id: string;
 	readonly collection: string;
 	readonly name: string;
+	readonly shortName?: string;
 }
 
 export interface ISyncExtension {

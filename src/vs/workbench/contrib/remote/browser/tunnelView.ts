@@ -1006,7 +1006,7 @@ export class TunnelPanel extends ViewPane {
 		event.browserEvent.preventDefault();
 		event.browserEvent.stopPropagation();
 
-		const node: ITunnelItem | undefined = event.element;
+		const node: TunnelItem | undefined = event.element;
 
 		if (node) {
 			this.table.setFocus([this.table.indexOf(node)]);
@@ -1043,7 +1043,7 @@ export class TunnelPanel extends ViewPane {
 					this.table.domFocus();
 				}
 			},
-			getActionsContext: () => node,
+			getActionsContext: () => node?.strip(),
 			actionRunner
 		});
 	}
@@ -1287,7 +1287,7 @@ export namespace OpenPortInBrowserAction {
 	export function handler(): ICommandHandler {
 		return async (accessor, arg) => {
 			let key: string | undefined;
-			if (arg instanceof TunnelItem) {
+			if (isITunnelItem(arg)) {
 				key = makeAddress(arg.remoteHost, arg.remotePort);
 			} else if (arg.tunnelRemoteHost && arg.tunnelRemotePort) {
 				key = makeAddress(arg.tunnelRemoteHost, arg.tunnelRemotePort);
@@ -1316,7 +1316,7 @@ export namespace OpenPortInPreviewAction {
 	export function handler(): ICommandHandler {
 		return async (accessor, arg) => {
 			let key: string | undefined;
-			if (arg instanceof TunnelItem) {
+			if (isITunnelItem(arg)) {
 				key = makeAddress(arg.remoteHost, arg.remotePort);
 			} else if (arg.tunnelRemoteHost && arg.tunnelRemotePort) {
 				key = makeAddress(arg.tunnelRemoteHost, arg.tunnelRemotePort);
@@ -1498,7 +1498,7 @@ namespace ChangeLocalPortAction {
 namespace ChangeTunnelPrivacyAction {
 	export function handler(privacyId: string): ICommandHandler {
 		return async (accessor, arg) => {
-			if (arg instanceof TunnelItem) {
+			if (isITunnelItem(arg)) {
 				const remoteExplorerService = accessor.get(IRemoteExplorerService);
 				await remoteExplorerService.close({ host: arg.remoteHost, port: arg.remotePort });
 				return remoteExplorerService.forward({
@@ -1521,7 +1521,7 @@ namespace SetTunnelProtocolAction {
 	export const LABEL_HTTPS = nls.localize('remote.tunnel.protocolHttps', "HTTPS");
 
 	async function handler(arg: any, protocol: TunnelProtocol, remoteExplorerService: IRemoteExplorerService) {
-		if (arg instanceof TunnelItem) {
+		if (isITunnelItem(arg)) {
 			const attributes: Partial<Attributes> = {
 				protocol
 			};

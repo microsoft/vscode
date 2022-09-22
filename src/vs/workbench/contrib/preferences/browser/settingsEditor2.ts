@@ -699,7 +699,7 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}
 
-		if (!recursed && revealFailed) {
+		if (!recursed && (!targetElement || revealFailed)) {
 			// We'll call this event handler again after clearing the search query,
 			// so that more settings show up in the list.
 			const p = this.triggerSearch('');
