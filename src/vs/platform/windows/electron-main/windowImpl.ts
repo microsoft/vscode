@@ -532,6 +532,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 
 		// Window close
+		this._win.once('close', () => {
+			if (this._win && !this._win.isDestroyed()) {
+				this._win.webContents.session.clearStorageData({
+					storages: ['serviceworkers'],
+				});
+			}
+		});
+
 		this._win.on('closed', () => {
 			this._onDidClose.fire();
 
