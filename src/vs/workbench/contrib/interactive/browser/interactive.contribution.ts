@@ -711,7 +711,7 @@ registerAction2(class extends Action2 {
 			id: 'interactive.input.focus',
 			title: { value: localize('interactive.input.focus', "Focus input editor in the interactive window"), original: 'Focus input editor in the interactive window' },
 			category: 'Interactive',
-			f1: false
+			f1: true
 		});
 	}
 
@@ -746,7 +746,13 @@ registerAction2(class extends Action2 {
 			id: 'interactive.history.focus',
 			title: { value: localize('interactive.history.focus', "Focus history in the interactive window"), original: 'Focus input editor in the interactive window' },
 			category: 'Interactive',
-			f1: false
+			f1: true,
+			keybinding: {
+				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+				primary: KeyMod.Shift | KeyCode.Tab,
+				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+			},
+			precondition: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
 		});
 	}
 
