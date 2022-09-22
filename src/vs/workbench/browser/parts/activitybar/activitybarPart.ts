@@ -8,14 +8,14 @@ import { localize } from 'vs/nls';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { GLOBAL_ACTIVITY_ID, IActivity, ACCOUNTS_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { Part } from 'vs/workbench/browser/part';
-import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewContainerActivityAction, AccountsActivityActionViewItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewContainerActivityAction, AccountsActivityActionViewItem, ProfilesActivityActionViewItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND, ACTIVITY_BAR_SETTINGS_PROFILE_FOREGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
 import { Dimension, createCSSRule, asCSSUrl, addDisposableListener, EventType, isAncestor } from 'vs/base/browser/dom';
@@ -44,6 +44,8 @@ import { GestureEvent } from 'vs/base/browser/touch';
 import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
+import { IUserDataProfileService, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -107,6 +109,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	private readonly globalActivity: ICompositeActivity[] = [];
 
 	private accountsActivityAction: ActivityAction | undefined;
+	private profilesActivityAction: ActivityAction | undefined;
 
 	private readonly accountsActivity: ICompositeActivity[] = [];
 
@@ -131,6 +134,8 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -190,6 +195,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 				// Accounts
 				actions.push(new Separator());
 				actions.push(toAction({ id: 'toggleAccountsVisibility', label: localize('accounts', "Accounts"), checked: this.accountsVisibilityPreference, run: () => this.accountsVisibilityPreference = !this.accountsVisibilityPreference }));
+				actions.push(toAction({ id: 'toggleProfilesVisibility', label: PROFILES_TTILE.value, checked: this.profilesVisibilityPreference, run: () => this.profilesVisibilityPreference = !this.profilesVisibilityPreference }));
 				actions.push(new Separator());
 
 				// Toggle Sidebar
@@ -268,6 +274,9 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 				}
 			}
 		}));
+
+		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.toggleProfilesActivityAction()));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.profilesActivityAction ? this.profilesActivityAction.activity = this.createProfilesActivity() : undefined));
 	}
 
 	private onDidChangeViewContainers(added: readonly { container: ViewContainer; location: ViewContainerLocation }[], removed: readonly { container: ViewContainer; location: ViewContainerLocation }[]) {
@@ -522,6 +531,10 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 					return this.instantiationService.createInstance(AccountsActivityActionViewItem, action as ActivityAction, () => this.compositeBar.getContextMenuActions(), (theme: IColorTheme) => this.getActivitybarItemColors(theme), this.getActivityHoverOptions());
 				}
 
+				if (action.id === 'workbench.actions.profiles') {
+					return this.instantiationService.createInstance(ProfilesActivityActionViewItem, action as ActivityAction, () => this.compositeBar.getContextMenuActions(), (theme: IColorTheme) => this.getSettingsProfileItemColors(theme), this.getActivityHoverOptions());
+				}
+
 				throw new Error(`No view item for action '${action.id}'`);
 			},
 			orientation: ActionsOrientation.VERTICAL,
@@ -547,6 +560,10 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		}
 
 		this.globalActivityActionBar.push(this.globalActivityAction);
+
+		if (this.profilesVisibilityPreference) {
+			this.globalActivityActionBar.push(this.profilesActivityAction = new ActivityAction(this.createProfilesActivity()));
+		}
 	}
 
 	private toggleAccountsActivity() {
@@ -568,6 +585,28 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		}
 
 		this.updateGlobalActivity(ACCOUNTS_ACTIVITY_ID);
+	}
+
+	private toggleProfilesActivityAction() {
+		if (!!this.profilesActivityAction === this.profilesVisibilityPreference) {
+			return;
+		}
+		if (this.globalActivityActionBar) {
+			if (this.profilesActivityAction) {
+				this.globalActivityActionBar.pull(this.globalActivityActionBar.length() - 1);
+				this.profilesActivityAction = undefined;
+			} else {
+				this.globalActivityActionBar.push(this.profilesActivityAction = new ActivityAction(this.createProfilesActivity()));
+			}
+		}
+	}
+
+	private createProfilesActivity(): IActivity {
+		return {
+			id: 'workbench.actions.profiles',
+			name: this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase(),
+			cssClass: 'profile-activity-item'
+		};
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction; pinnedAction: ToggleCompositePinnedAction } {
@@ -784,6 +823,21 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		};
 	}
 
+	private getSettingsProfileItemColors(theme: IColorTheme): ICompositeBarColors {
+		return {
+			activeForegroundColor: theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_FOREGROUND),
+			inactiveForegroundColor: theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_FOREGROUND),
+			activeBackground: theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND),
+			activeBackgroundColor: theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND),
+			inactiveBackgroundColor: theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND),
+			activeBorderColor: undefined,
+			badgeBackground: undefined,
+			badgeForeground: undefined,
+			dragAndDropBorder: undefined,
+			activeBorderBottomColor: undefined,
+		};
+	}
+
 	override layout(width: number, height: number): void {
 		if (!this.layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
 			return;
@@ -849,6 +903,9 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 
 		if (e.key === AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY && e.scope === StorageScope.PROFILE) {
 			this.toggleAccountsActivity();
+		}
+		if (e.key === ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY && e.scope === StorageScope.PROFILE) {
+			this.toggleProfilesActivityAction();
 		}
 	}
 
@@ -989,6 +1046,14 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 
 	private set accountsVisibilityPreference(value: boolean) {
 		this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, value, StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	private get profilesVisibilityPreference(): boolean {
+		return this.userDataProfilesService.profiles.length > 1 && this.storageService.getBoolean(ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, true);
+	}
+
+	private set profilesVisibilityPreference(value: boolean) {
+		this.storageService.store(ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	toJSON(): object {

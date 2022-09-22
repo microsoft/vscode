@@ -380,8 +380,7 @@ suite('ExtensionsListView Tests', () => {
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', workspaceRecommendedExtensions);
 
 		return testableView.show('@recommended:workspace').then(result => {
-			assert.ok(target.calledOnce);
-			const extensionInfos: IExtensionInfo[] = target.args[0][0];
+			const extensionInfos: IExtensionInfo[] = target.args[1][0];
 			assert.strictEqual(extensionInfos.length, workspaceRecommendedExtensions.length);
 			assert.strictEqual(result.length, workspaceRecommendedExtensions.length);
 			for (let i = 0; i < workspaceRecommendedExtensions.length; i++) {
@@ -401,9 +400,8 @@ suite('ExtensionsListView Tests', () => {
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', allRecommendedExtensions);
 
 		return testableView.show('@recommended').then(result => {
-			const extensionInfos: IExtensionInfo[] = target.args[0][0];
+			const extensionInfos: IExtensionInfo[] = target.args[1][0];
 
-			assert.ok(target.calledOnce);
 			assert.strictEqual(extensionInfos.length, allRecommendedExtensions.length);
 			assert.strictEqual(result.length, allRecommendedExtensions.length);
 			for (let i = 0; i < allRecommendedExtensions.length; i++) {
@@ -427,9 +425,8 @@ suite('ExtensionsListView Tests', () => {
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', allRecommendedExtensions);
 
 		return testableView.show('@recommended:all').then(result => {
-			const extensionInfos: IExtensionInfo[] = target.args[0][0];
+			const extensionInfos: IExtensionInfo[] = target.args[1][0];
 
-			assert.ok(target.calledOnce);
 			assert.strictEqual(extensionInfos.length, allRecommendedExtensions.length);
 			assert.strictEqual(result.length, allRecommendedExtensions.length);
 			for (let i = 0; i < allRecommendedExtensions.length; i++) {
@@ -449,10 +446,9 @@ suite('ExtensionsListView Tests', () => {
 
 		return testableView.show('curated:mykey').then(result => {
 			const curatedKey: string = experimentTarget.args[0][0];
-			const extensionInfos: IExtensionInfo[] = queryTarget.args[0][0];
+			const extensionInfos: IExtensionInfo[] = queryTarget.args[1][0];
 
 			assert.ok(experimentTarget.calledOnce);
-			assert.ok(queryTarget.calledOnce);
 			assert.strictEqual(extensionInfos.length, curatedList.length);
 			assert.strictEqual(result.length, curatedList.length);
 			for (let i = 0; i < curatedList.length; i++) {

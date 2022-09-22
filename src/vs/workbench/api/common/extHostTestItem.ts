@@ -68,7 +68,24 @@ const evSetProps = <T>(fn: (newValue: T) => Partial<ITestItem>): (newValue: T) =
 	v => ({ op: TestItemEventOp.SetProp, update: fn(v) });
 
 const makePropDescriptors = (api: IExtHostTestItemApi, label: string): { [K in keyof Required<WritableProps>]: PropertyDescriptor } => ({
-	range: testItemPropAccessor<'range'>(api, undefined, propComparators.range, evSetProps(r => ({ range: editorRange.Range.lift(Convert.Range.from(r)) }))),
+	range: (() => {
+		let value: vscode.Range | undefined;
+		const updateProps = evSetProps<vscode.Range | undefined>(r => ({ range: editorRange.Range.lift(Convert.Range.from(r)) }));
+		return {
+			enumerable: true,
+			configurable: false,
+			get() {
+				return value;
+			},
+			set(newValue: vscode.Range | undefined) {
+				api.listener?.({ op: TestItemEventOp.DocumentSynced });
+				if (!propComparators.range(value, newValue)) {
+					value = newValue;
+					api.listener?.(updateProps(newValue));
+				}
+			},
+		};
+	})(),
 	label: testItemPropAccessor<'label'>(api, label, propComparators.label, evSetProps(label => ({ label }))),
 	description: testItemPropAccessor<'description'>(api, undefined, propComparators.description, evSetProps(description => ({ description }))),
 	sortText: testItemPropAccessor<'sortText'>(api, undefined, propComparators.sortText, evSetProps(sortText => ({ sortText }))),

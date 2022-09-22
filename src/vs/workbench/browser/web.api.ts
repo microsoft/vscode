@@ -15,10 +15,10 @@ import type { IProductConfiguration } from 'vs/base/common/product';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
-import { IObservableValue } from 'vs/base/common/observableValue';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
+import type { IObservableValue } from 'vs/base/common/observableValue';
+import type { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import type { IEditorOptions } from 'vs/platform/editor/common/editor';
+import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -31,12 +31,12 @@ export interface IWorkbench {
 	commands: {
 
 		/**
-		* Allows to execute any command if known with the provided arguments.
-		*
-		* @param command Identifier of the command to execute.
-		* @param rest Parameters passed to the command function.
-		* @return A promise that resolves to the returned value of the given command.
-		*/
+		 * Allows to execute any command if known with the provided arguments.
+		 *
+		 * @param command Identifier of the command to execute.
+		 * @param rest Parameters passed to the command function.
+		 * @return A promise that resolves to the returned value of the given command.
+		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	};
 
@@ -108,7 +108,7 @@ export interface IWorkbench {
 		 *
 		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
 		 */
-		openTunnel(tunnelOptions: ITunnelOptions): Thenable<ITunnel>;
+		openTunnel(tunnelOptions: ITunnelOptions): Promise<ITunnel>;
 	};
 
 	/**
