@@ -20,8 +20,7 @@ The following data is obtained from one time iterations (not averages). Some cla
 File | size in kB | lines | `Force Retokenization` (unknown units - milliseconds?) | Time to resolve queries (milliseconds) | Time to set tokens (milliseconds) |
 --- | --- | --- | --- |--- |--- |
 [perfLogger.ts](https://github.com/microsoft/TypeScript/blob/main/src/compiler/perfLogger.ts) | 2 | 1625 | 0 | 516.6 | 544 |
-[sys.ts](https://github.com/microsoft/TypeScript/blob/main/src/compiler/sys.ts) | 91 | ~92'000 | 0 | 691 |  |
+[sys.ts](https://github.com/microsoft/TypeScript/blob/main/src/compiler/sys.ts) | 91 | ~92'000 | 0 | 691 | 494394 |
 [scanner.ts](https://github.com/microsoft/TypeScript/blob/main/src/compiler/scanner.ts) | 151 | ~154'000 | 0 | 980 | 568374 |
 [emitter.ts](https://github.com/microsoft/TypeScript/blob/main/src/compiler/emitter.ts) | 281 | ~290'000 | 0.100 | 750 | 490830| 
 [checker.ts](https://github.com/microsoft/TypeScript/blob/main/src/compiler/checker.ts) | 2000 | ~2'800'000 | 0.100 | 3499 | very long |
-
