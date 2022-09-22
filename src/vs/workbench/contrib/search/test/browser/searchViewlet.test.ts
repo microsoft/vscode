@@ -203,9 +203,9 @@ suite('Search - Viewlet', () => {
 
 	function getRootName(): string {
 		if (isWindows) {
-			return `c:`;
+			return 'c:';
 		} else {
-			return `c`;
+			return '';
 		}
 	}
 });
