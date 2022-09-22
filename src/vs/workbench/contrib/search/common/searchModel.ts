@@ -920,7 +920,7 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 	if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
 		const elemAIndex = elementA.index();
 		const elemBIndex = elementB.index();
-		if (elemAIndex && elemBIndex) {
+		if (elemAIndex !== null && elemBIndex !== null) {
 			return elemAIndex - elemBIndex;
 		}
 	}
