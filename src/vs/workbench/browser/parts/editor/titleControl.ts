@@ -189,7 +189,8 @@ export abstract class TitleControl extends Themable {
 			actionRunner: this._register(new EditorCommandsContextActionRunner(context)),
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
 			renderDropdownAsChildElement: this.renderDropdownAsChildElement,
-			telemetrySource: 'editorPart'
+			telemetrySource: 'editorPart',
+			resetMenu: MenuId.EditorTitle
 		}));
 
 		// Context

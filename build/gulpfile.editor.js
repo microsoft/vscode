@@ -7,7 +7,7 @@ const gulp = require('gulp');
 const path = require('path');
 const util = require('./lib/util');
 const task = require('./lib/task');
-const common = require('./lib/optimize');
+const optimize = require('./lib/optimize');
 const es = require('event-stream');
 const File = require('vinyl');
 const i18n = require('./lib/i18n');
@@ -86,26 +86,29 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 
 const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true));
 
-const optimizeEditorAMDTask = task.define('optimize-editor-amd', common.optimizeTask({
-	src: 'out-editor-build',
-	entryPoints: editorEntryPoints,
-	resources: editorResources,
-	loaderConfig: {
-		paths: {
-			'vs': 'out-editor-build/vs',
-			'vs/css': 'out-editor-build/vs/css.build',
-			'vs/nls': 'out-editor-build/vs/nls.build',
-			'vscode': 'empty:'
+const optimizeEditorAMDTask = task.define('optimize-editor-amd', optimize.optimizeTask(
+	{
+		out: 'out-editor',
+		amd: {
+			src: 'out-editor-build',
+			entryPoints: editorEntryPoints,
+			resources: editorResources,
+			loaderConfig: {
+				paths: {
+					'vs': 'out-editor-build/vs',
+					'vs/css': 'out-editor-build/vs/css.build',
+					'vs/nls': 'out-editor-build/vs/nls.build',
+					'vscode': 'empty:'
+				}
+			},
+			header: BUNDLED_FILE_HEADER,
+			bundleInfo: true,
+			languages
 		}
-	},
-	bundleLoader: false,
-	header: BUNDLED_FILE_HEADER,
-	bundleInfo: true,
-	out: 'out-editor',
-	languages: languages
-}));
+	}
+));
 
-const minifyEditorAMDTask = task.define('minify-editor-amd', common.minifyTask('out-editor'));
+const minifyEditorAMDTask = task.define('minify-editor-amd', optimize.minifyTask('out-editor'));
 
 const createESMSourcesAndResourcesTask = task.define('extract-editor-esm', () => {
 	standalone.createESMSourcesAndResources2({

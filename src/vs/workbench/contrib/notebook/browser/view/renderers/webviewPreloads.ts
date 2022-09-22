@@ -209,13 +209,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return text;
 	}
 
-	interface RendererContext {
-		getState<T>(): T | undefined;
-		setState<T>(newState: T): void;
-		getRenderer(id: string): Promise<any | undefined>;
-		postMessage?(message: unknown): void;
-		onDidReceiveMessage?: Event<unknown>;
-		readonly workspace: { readonly isTrusted: boolean };
+	interface RendererContext extends rendererApi.RendererContext<unknown> {
 		readonly settings: { readonly lineLimit: number };
 	}
 
@@ -714,16 +708,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 				return disposable;
 			},
 		};
-	}
-
-	async function renderOutputItem(rendererApi: rendererApi.RendererApi, rendererId: string, item: rendererApi.OutputItem, element: HTMLElement, signal: AbortSignal) {
-		try {
-			await rendererApi.renderOutputItem(item, element, signal);
-		} catch (e) {
-			if (!signal.aborted) {
-				showRenderError(`Error rendering output item using '${rendererId}'`, element, e instanceof Error ? [e] : []);
-			}
-		}
 	}
 
 	function showRenderError(errorText: string, outputNode: HTMLElement, errors: readonly Error[]) {
@@ -1240,27 +1224,47 @@ async function webviewPreloads(ctx: PreloadContext) {
 	});
 
 	class Renderer {
-		constructor(
-			public readonly data: webviewMessages.RendererMetadata,
-			private readonly loadExtension: (id: string) => Promise<void>,
-		) { }
 
 		private _onMessageEvent = createEmitter();
 		private _loadPromise?: Promise<rendererApi.RendererApi | undefined>;
 		private _api: rendererApi.RendererApi | undefined;
 
-		public get api() { return this._api; }
-
-		public load(): Promise<rendererApi.RendererApi | undefined> {
-			if (!this._loadPromise) {
-				this._loadPromise = this._load();
-			}
-
-			return this._loadPromise;
-		}
+		constructor(
+			public readonly data: webviewMessages.RendererMetadata,
+		) { }
 
 		public receiveMessage(message: unknown) {
 			this._onMessageEvent.fire(message);
+		}
+
+		public async renderOutputItem(item: rendererApi.OutputItem, element: HTMLElement, signal: AbortSignal): Promise<void> {
+			try {
+				await this.load();
+			} catch (e) {
+				if (!signal.aborted) {
+					showRenderError(`Error loading renderer '${this.data.id}'`, element, e instanceof Error ? [e] : []);
+				}
+				return;
+			}
+
+			if (!this._api) {
+				if (!signal.aborted) {
+					showRenderError(`Renderer '${this.data.id}' does not implement renderOutputItem`, element, []);
+				}
+				return;
+			}
+
+			try {
+				await this._api.renderOutputItem(item, element, signal);
+			} catch (e) {
+				if (!signal.aborted) {
+					showRenderError(`Error rendering output item using '${this.data.id}'`, element, e instanceof Error ? [e] : []);
+				}
+			}
+		}
+
+		public disposeOutputItem(id?: string): void {
+			this._api?.disposeOutputItem?.(id);
 		}
 
 		private createRendererContext(): RendererContext {
@@ -1271,9 +1275,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 					const state = vscode.getState();
 					return typeof state === 'object' && state ? state[id] as T : undefined;
 				},
-				// TODO: This is async so that we can return a promise to the API in the future.
-				// Currently the API is always resolved before we call `createRendererContext`.
-				getRenderer: async (id: string) => renderers.getRenderer(id)?.api,
+				getRenderer: async (id: string) => {
+					const renderer = renderers.getRenderer(id);
+					if (!renderer) {
+						return undefined;
+					}
+					if (renderer._api) {
+						return renderer._api;
+					}
+					return renderer.load();
+				},
 				workspace: {
 					get isTrusted() { return isWorkspaceTrusted; }
 				},
@@ -1287,7 +1298,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 				context.postMessage = message => postNotebookMessage('customRendererMessage', { rendererId: id, message });
 			}
 
-			return context;
+			return Object.freeze(context);
+		}
+
+		private load(): Promise<rendererApi.RendererApi | undefined> {
+			if (!this._loadPromise) {
+				this._loadPromise = this._load();
+			}
+
+			return this._loadPromise;
 		}
 
 		/** Inner function cached in the _loadPromise(). */
@@ -1297,17 +1316,29 @@ async function webviewPreloads(ctx: PreloadContext) {
 				return;
 			}
 
-			const api = await module.activate(this.createRendererContext());
-			this._api = api;
+			this._api = await module.activate(this.createRendererContext());
 
-			// Squash any errors extends errors. They won't prevent the renderer
-			// itself from working, so just log them.
-			await Promise.all(ctx.rendererData
-				.filter(d => d.extends === this.data.id)
-				.map(d => this.loadExtension(d.id).catch(console.error)),
-			);
+			// Load all renderers that extend this renderer
+			await Promise.all(
+				ctx.rendererData
+					.filter(d => d.extends === this.data.id)
+					.map(async d => {
+						const renderer = renderers.getRenderer(d.id);
+						if (!renderer) {
+							throw new Error(`Could not find extending renderer: ${d.id}`);
+						}
 
-			return api;
+						try {
+							return await renderer.load();
+						} catch (e) {
+							// Squash any errors extends errors. They won't prevent the renderer
+							// itself from working, so just log them.
+							console.error(e);
+							return undefined;
+						}
+					}));
+
+			return this._api;
 		}
 	}
 
@@ -1393,17 +1424,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		constructor() {
 			for (const renderer of ctx.rendererData) {
-				this._renderers.set(renderer.id, new Renderer(renderer, async (extensionId) => {
-					const ext = this._renderers.get(extensionId);
-					if (!ext) {
-						throw new Error(`Could not find extending renderer: ${extensionId}`);
-					}
-					await ext.load();
-				}));
+				this.addRenderer(renderer);
 			}
 		}
 
-		public getRenderer(id: string) {
+		public getRenderer(id: string): Renderer | undefined {
 			return this._renderers.get(id);
 		}
 
@@ -1435,13 +1460,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					continue;
 				}
 
-				this._renderers.set(renderer.id, new Renderer(renderer, async (extensionId) => {
-					const ext = this._renderers.get(extensionId);
-					if (!ext) {
-						throw new Error(`Could not find extending renderer: ${extensionId}`);
-					}
-					await ext.load();
-				}));
+				this.addRenderer(renderer);
 			}
 
 			for (const key of oldKeys) {
@@ -1451,30 +1470,25 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 		}
 
-		public async load(id: string) {
-			const renderer = this._renderers.get(id);
-			if (!renderer) {
-				throw new Error('Could not find renderer');
-			}
-
-			return renderer.load();
+		private addRenderer(renderer: webviewMessages.RendererMetadata) {
+			this._renderers.set(renderer.id, new Renderer(renderer));
 		}
 
 		public clearAll() {
 			outputRunner.cancelAll();
 			for (const renderer of this._renderers.values()) {
-				renderer.api?.disposeOutputItem?.();
+				renderer.disposeOutputItem();
 			}
 		}
 
 		public clearOutput(rendererId: string, outputId: string) {
 			outputRunner.cancelOutput(outputId);
-			this._renderers.get(rendererId)?.api?.disposeOutputItem?.(outputId);
+			this._renderers.get(rendererId)?.disposeOutputItem(outputId);
 		}
 
 		public async render(info: rendererApi.OutputItem, element: HTMLElement, signal: AbortSignal): Promise<void> {
-			const renderers = Array.from(this._renderers.entries())
-				.filter(([_, renderer]) => renderer.data.mimeTypes.includes(info.mime) && !renderer.data.extends);
+			const renderers = Array.from(this._renderers.values())
+				.filter((renderer) => renderer.data.mimeTypes.includes(info.mime) && !renderer.data.extends);
 
 			if (!renderers.length) {
 				const errorContainer = document.createElement('div');
@@ -1497,23 +1511,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 
 			// De-prioritize built-in renderers
-			renderers.sort((a, b) => +a[1].data.isBuiltin - +b[1].data.isBuiltin);
-			const renderer = renderers[0];
+			renderers.sort((a, b) => +a.data.isBuiltin - +b.data.isBuiltin);
 
-			let renderApi: rendererApi.RendererApi | undefined;
-			try {
-				renderApi = await renderer[1].load();
-				if (!renderApi) {
-					return;
-				}
-			} catch (e) {
-				if (!signal.aborted) {
-					showRenderError(`Error loading renderer '${renderer[0]}'`, element, e instanceof Error ? [e] : []);
-				}
-				return;
-			}
-
-			await renderOutputItem(renderApi, renderer[0], info, element, signal);
+			// Use first renderer we find in sorted list
+			await renderers[0].renderOutputItem(info, element, signal);
 		}
 	}();
 
@@ -1637,17 +1638,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		public async renderOutputCell(data: webviewMessages.ICreationRequestMessage, signal: AbortSignal): Promise<void> {
-			const preloadsAndErrors = await Promise.all<unknown>([
-				data.rendererId ? renderers.load(data.rendererId) : undefined,
-				...data.requiredPreloads.map(p => kernelPreloads.waitFor(p.uri)),
-			].map(p => p?.catch(err => err)));
-
+			const preloadErrors = await Promise.all<undefined | Error>(
+				data.requiredPreloads.map(p => kernelPreloads.waitFor(p.uri).then(() => undefined, err => err))
+			);
 			if (signal.aborted) {
 				return;
 			}
 
 			const cellOutput = this.ensureOutputCell(data.cellId, data.cellTop, false);
-			await cellOutput.renderOutputElement(data, data.rendererId ?? 'preload', preloadsAndErrors, signal);
+			return cellOutput.renderOutputElement(data, preloadErrors, signal);
 		}
 
 		public ensureOutputCell(cellId: string, cellTop: number, skipCellTopUpdateIfExist: boolean): OutputCell {
@@ -1753,7 +1752,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.ready = new Promise<void>(r => resolveReady = r);
 
 			let cachedData: { readonly version: number; readonly value: Uint8Array } | undefined;
-			this.outputItem = Object.freeze(<rendererApi.OutputItem>{
+			this.outputItem = Object.freeze<rendererApi.OutputItem>({
 				id,
 				mime,
 
@@ -1989,9 +1988,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return outputContainer.createOutputElement(data.outputId, data.outputOffset, data.left, data.cellId);
 		}
 
-		public async renderOutputElement(data: webviewMessages.ICreationRequestMessage, rendererId: string, preloadsAndErrors: unknown[], signal: AbortSignal) {
+		public async renderOutputElement(data: webviewMessages.ICreationRequestMessage, preloadErrors: ReadonlyArray<Error | undefined>, signal: AbortSignal) {
 			const outputElement = this.createOutputElement(data);
-			await outputElement.render(data.content, rendererId, preloadsAndErrors, signal);
+			await outputElement.render(data.content, preloadErrors, signal);
 
 			// don't hide until after this step so that the height is right
 			outputElement.element.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
@@ -2121,9 +2120,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 	class OutputElement {
 		public readonly element: HTMLElement;
 		private _content?: {
-			content: webviewMessages.ICreationContent;
-			rendererId: string;
-			preloadsAndErrors: unknown[];
+			readonly content: webviewMessages.ICreationContent;
+			readonly preloadErrors: ReadonlyArray<Error | undefined>;
 		};
 		private hasResizeObserver = false;
 
@@ -2155,20 +2153,19 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.renderTaskAbort = undefined;
 		}
 
-		public async render(content: webviewMessages.ICreationContent, rendererId: string, preloadsAndErrors: unknown[], signal?: AbortSignal) {
+		public async render(content: webviewMessages.ICreationContent, preloadErrors: ReadonlyArray<Error | undefined>, signal?: AbortSignal) {
 			this.renderTaskAbort?.abort();
 			this.renderTaskAbort = undefined;
 
-			this._content = { content, rendererId, preloadsAndErrors };
+			this._content = { content, preloadErrors };
 			if (content.type === 0 /* RenderOutputType.Html */) {
 				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
 				this.element.innerHTML = trustedHtml as string;
 				domEval(this.element);
-			} else if (preloadsAndErrors.some(e => e instanceof Error)) {
-				const errors = preloadsAndErrors.filter((e): e is Error => e instanceof Error);
+			} else if (preloadErrors.some(e => e instanceof Error)) {
+				const errors = preloadErrors.filter((e): e is Error => e instanceof Error);
 				showRenderError(`Error loading preloads`, this.element, errors);
 			} else {
-				const rendererApi = preloadsAndErrors[0] as rendererApi.RendererApi;
 				const item = createOutputItem(this.outputId, content.mimeType, content.metadata, content.valueBytes);
 
 				const controller = new AbortController();
@@ -2178,7 +2175,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				signal?.addEventListener('abort', () => controller.abort());
 
 				try {
-					await renderOutputItem(rendererApi, rendererId, item, this.element, controller.signal);
+					await renderers.render(item, this.element, controller.signal);
 				} finally {
 					if (this.renderTaskAbort === controller) {
 						this.renderTaskAbort = undefined;
@@ -2221,14 +2218,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public rerender() {
 			if (this._content) {
-				this.render(this._content.content, this._content.rendererId, this._content.preloadsAndErrors);
+				this.render(this._content.content, this._content.preloadErrors);
 			}
 		}
 
 		public updateAndRerender(content: webviewMessages.ICreationContent) {
 			if (this._content) {
-				this._content.content = content;
-				this.render(this._content.content, this._content.rendererId, this._content.preloadsAndErrors);
+				this._content = { content, preloadErrors: this._content.preloadErrors };
+				this.rerender();
 			}
 		}
 	}

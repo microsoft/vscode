@@ -300,6 +300,7 @@ export abstract class ViewPane extends Pane implements IView {
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			renderDropdownAsChildElement: true,
 			actionRunner: this.getActionRunner(),
+			resetMenu: this.menuActions.menuId
 		});
 
 		this._register(this.toolbar);

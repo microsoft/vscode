@@ -70,20 +70,20 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			// handle the case where the mouse is over the view zone
 			const viewZoneData = target.detail;
 			if (controller.shouldShowHoverAtViewZone(viewZoneData.viewZoneId)) {
-				return new HoverForeignElementAnchor(1000, this, Range.fromPositions(viewZoneData.positionBefore || viewZoneData.position, viewZoneData.positionBefore || viewZoneData.position));
+				return new HoverForeignElementAnchor(1000, this, Range.fromPositions(viewZoneData.positionBefore || viewZoneData.position, viewZoneData.positionBefore || viewZoneData.position), mouseEvent.event.posx, mouseEvent.event.posy);
 			}
 		}
 		if (target.type === MouseTargetType.CONTENT_EMPTY) {
 			// handle the case where the mouse is over the empty portion of a line following ghost text
 			if (controller.shouldShowHoverAt(target.range)) {
-				return new HoverForeignElementAnchor(1000, this, target.range);
+				return new HoverForeignElementAnchor(1000, this, target.range, mouseEvent.event.posx, mouseEvent.event.posy);
 			}
 		}
 		if (target.type === MouseTargetType.CONTENT_TEXT) {
 			// handle the case where the mouse is directly over ghost text
 			const mightBeForeignElement = target.detail.mightBeForeignElement;
 			if (mightBeForeignElement && controller.shouldShowHoverAt(target.range)) {
-				return new HoverForeignElementAnchor(1000, this, target.range);
+				return new HoverForeignElementAnchor(1000, this, target.range, mouseEvent.event.posx, mouseEvent.event.posy);
 			}
 		}
 		return null;

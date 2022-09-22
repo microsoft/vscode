@@ -20,6 +20,7 @@ export interface INotebookKernelMatchResult {
 	readonly selected: INotebookKernel | undefined;
 	readonly suggestions: INotebookKernel[];
 	readonly all: INotebookKernel[];
+	readonly hidden: INotebookKernel[];
 }
 
 
@@ -68,6 +69,7 @@ export interface INotebookProxyKernelChangeEvent extends INotebookKernelChangeEv
 export interface ISourceAction {
 	readonly action: IAction;
 	readonly onDidChangeState: Event<void>;
+	readonly isPrimary?: boolean;
 	execution: Promise<void> | undefined;
 	runAction: () => Promise<void>;
 }

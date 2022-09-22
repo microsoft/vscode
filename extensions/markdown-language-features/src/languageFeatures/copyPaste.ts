@@ -85,7 +85,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 		const baseName = path.basename(file.name, ext);
 		for (let i = 0; ; ++i) {
 			const name = i === 0 ? baseName : `${baseName}-${i}`;
-			const uri = vscode.Uri.joinPath(root, `${name}.${ext}`);
+			const uri = vscode.Uri.joinPath(root, `${name}${ext}`);
 			try {
 				await vscode.workspace.fs.stat(uri);
 			} catch {

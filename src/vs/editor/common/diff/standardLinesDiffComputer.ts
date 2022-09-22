@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { SequenceFromIntArray, OffsetRange, SequenceDiff, ISequence } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
@@ -91,7 +92,9 @@ export function lineRangeMappingFromRangeMappings(alignments: RangeMapping[]): L
 	const changes: LineRangeMapping[] = [];
 	for (const g of group(
 		alignments,
-		(a1, a2) => a2.modifiedRange.startLineNumber - (a1.modifiedRange.endLineNumber - (a1.modifiedRange.endColumn > 1 ? 0 : 1)) <= 1
+		(a1, a2) =>
+			(a2.originalRange.startLineNumber - (a1.originalRange.endLineNumber - (a1.originalRange.endColumn > 1 ? 0 : 1)) <= 1)
+			|| (a2.modifiedRange.startLineNumber - (a1.modifiedRange.endLineNumber - (a1.modifiedRange.endColumn > 1 ? 0 : 1)) <= 1)
 	)) {
 		const first = g[0];
 		const last = g[g.length - 1];
@@ -108,6 +111,17 @@ export function lineRangeMappingFromRangeMappings(alignments: RangeMapping[]): L
 			g
 		));
 	}
+
+	assertFn(() => {
+		return checkAdjacentItems(changes,
+			(m1, m2) => m2.originalRange.startLineNumber - m1.originalRange.endLineNumberExclusive === m2.modifiedRange.startLineNumber - m1.modifiedRange.endLineNumberExclusive &&
+				// There has to be an unchanged line in between (otherwise both diffs should have been joined)
+				m1.originalRange.endLineNumberExclusive < m2.originalRange.startLineNumber &&
+				m1.modifiedRange.endLineNumberExclusive < m2.modifiedRange.startLineNumber,
+		);
+	});
+
+
 	return changes;
 }
 
