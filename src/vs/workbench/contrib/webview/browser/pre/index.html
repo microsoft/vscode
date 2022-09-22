@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-j+I5FRqQBE2aQY6H/U/pjZI3buJy36yZ/upZTKZov3c=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-JLx+LG3LboPnZ7e91Q6dkbi50CHab+JYYk7+m6GKJxI=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -333,7 +333,7 @@
 
 				if (!crypto.subtle) {
 					// cannot validate, not running in a secure context
-					throw new Error(`Cannot validate in current context!`);
+					throw new Error(`'crypto.subtle' is not available so webviews will not work. This is likely because the editor is not running in a secure context (https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts).`);
 				}
 
 				// Here the `parentOriginHash()` function from `src/vs/workbench/common/webview.ts` is inlined
