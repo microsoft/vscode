@@ -708,8 +708,8 @@ export class CustomMenubarControl extends MenubarControl {
 					if (action instanceof SubmenuItemAction) {
 						let submenu = this.menus[action.item.submenu.id];
 						if (!submenu) {
-							submenu = this._register(this.menus[action.item.submenu.id] = this.menuService.createMenu(action.item.submenu, this.contextKeyService));
-							this._register(submenu.onDidChange(() => {
+							submenu = this.mainMenuDisposables.add(this.menus[action.item.submenu.id] = this.menuService.createMenu(action.item.submenu, this.contextKeyService));
+							this.mainMenuDisposables.add(submenu.onDidChange(() => {
 								if (!this.focusInsideMenubar) {
 									const actions: IAction[] = [];
 									updateActions(menu, actions, topLevelTitle);
