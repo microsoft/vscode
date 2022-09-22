@@ -106,13 +106,7 @@ export class TreeSitterService implements ITreeSitterService {
 			throw new Error('Unsupported language in tree-sitter');
 		}
 		const languageFile = await this._fileService.readFile(FileAccess.asFileUri(this.supportedLanguages.get(language)!, require));
-		for (let i = 0; i < 5; i++) {
-			console.log('buffer for index : ', i, ' is : ', languageFile.value.buffer[i]);
-		}
-		console.log('Parser : ', Parser);
-		console.log('Parser.Language : ', Parser.Language);
-		console.log('languageFile : ', languageFile);
-		return Parser.Language.load(languageFile.value.buffer).then((language) => {
+		return Parser.Language.load(languageFile.value.buffer).then((language: Uint8Array) => {
 			return new Promise(function (resolve, _reject) {
 				resolve(language);
 			})

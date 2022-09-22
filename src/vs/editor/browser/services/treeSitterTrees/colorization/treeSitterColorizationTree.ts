@@ -44,16 +44,12 @@ export class TreeSitterColorizationTree {
 		this._newEndPositionRow = this._model.getLineCount() - 1;
 
 		this.setTimeoutForRenderingInMs(10);
-		let beforeFetchQueries = performance.now();
 		this._fetchQueries().then((query) => {
-			console.log('Time to fetch queries : ', performance.now() - beforeFetchQueries);
 			_treeSitterService.getTreeSitterCaptures(this._model, query, this._asynchronous).then((queryCaptures) => {
 				if (!queryCaptures) {
 					return;
 				}
-				console.log('Time to resolve queries : ', performance.now() - beforeFetchQueries);
 				this.setTokensUsingQueryCaptures(queryCaptures, this._asynchronous).then(() => {
-					console.log('Time to set the tokens : ', performance.now() - beforeFetchQueries);
 					this._disposableStore.add(this._model.onDidChangeContent((contentChangeEvent: IModelContentChangedEvent) => {
 						this.updateRowIndices(contentChangeEvent);
 						_treeSitterService.getTreeSitterCaptures(this._model, query, this._asynchronous).then((queryCaptures) => {

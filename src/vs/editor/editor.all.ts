@@ -61,11 +61,5 @@ import 'vs/editor/contrib/readOnlyMessage/browser/contribution';
 import 'vs/editor/common/standaloneStrings';
 
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicons are defined here and must be loaded
-<<<<<<< HEAD
-import 'vs/editor/browser/services/treeSitterTokenizationService';
-=======
-
-import 'vs/editor/browser/services/treeSitterServices/treeSitterColorizationService';
->>>>>>> private/treeSitterTokenization
 
 import 'vs/editor/browser/services/treeSitterServices/treeSitterColorizationService';
