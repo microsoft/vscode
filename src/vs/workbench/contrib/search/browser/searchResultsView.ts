@@ -95,7 +95,6 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<FolderMatch>, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): void {
 		const compressed = node.element;
 		const folder = compressed.elements[compressed.elements.length - 1];
-
 		const label = compressed.elements.map(e => e.name());
 
 		if (folder.resource) {
@@ -108,20 +107,9 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 			templateData.label.setLabel(nls.localize('searchFolderMatch.other.label', "Other files"));
 		}
 
-		const count = this.searchView.isTreeLayoutViewVisible ? folder.count() : folder.recursiveFileCount();
-		templateData.badge.setCount(count);
-		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchFileMatches', "{0} files found", count) : nls.localize('searchFileMatch', "{0} file found", count));
-
 		templateData.actions.clear();
 		templateData.actions.context = folder;
-
-		const actions: IAction[] = [];
-		if (this.searchModel.isReplaceActive() && count > 0) {
-			actions.push(this.instantiationService.createInstance(ReplaceAllInFolderAction, this.searchView.getControl(), folder));
-		}
-
-		actions.push(this.instantiationService.createInstance(RemoveAction, this.searchView.getControl(), folder));
-		templateData.actions.push(actions, { icon: true, label: false });
+		this.renderFolderDetails(folder, templateData);
 	}
 
 	renderTemplate(container: HTMLElement): IFolderMatchTemplate {
@@ -156,19 +144,8 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		} else {
 			templateData.label.setLabel(nls.localize('searchFolderMatch.other.label', "Other files"));
 		}
-		const count = this.searchView.isTreeLayoutViewVisible ? folderMatch.count() : folderMatch.recursiveFileCount();
-		templateData.badge.setCount(count);
-		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchFileMatches', "{0} files found", count) : nls.localize('searchFileMatch', "{0} file found", count));
-
 		templateData.actions.clear();
-
-		const actions: IAction[] = [];
-		if (this.searchModel.isReplaceActive() && count > 0) {
-			actions.push(this.instantiationService.createInstance(ReplaceAllInFolderAction, this.searchView.getControl(), folderMatch));
-		}
-
-		actions.push(this.instantiationService.createInstance(RemoveAction, this.searchView.getControl(), folderMatch));
-		templateData.actions.push(actions, { icon: true, label: false });
+		this.renderFolderDetails(folderMatch, templateData);
 	}
 
 	disposeElement(element: ITreeNode<RenderableMatch, any>, index: number, templateData: IFolderMatchTemplate): void {
@@ -176,6 +153,20 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 
 	disposeTemplate(templateData: IFolderMatchTemplate): void {
 		dispose(templateData.disposables);
+	}
+
+	private renderFolderDetails(folder: FolderMatch, templateData: IFolderMatchTemplate) {
+		const count = this.searchView.isTreeLayoutViewVisible ? folder.count() : folder.recursiveFileCount();
+		templateData.badge.setCount(count);
+		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchFileMatches', "{0} files found", count) : nls.localize('searchFileMatch', "{0} file found", count));
+
+		const actions: IAction[] = [];
+		if (this.searchModel.isReplaceActive() && count > 0) {
+			actions.push(this.instantiationService.createInstance(ReplaceAllInFolderAction, this.searchView.getControl(), folder));
+		}
+
+		actions.push(this.instantiationService.createInstance(RemoveAction, this.searchView.getControl(), folder));
+		templateData.actions.push(actions, { icon: true, label: false });
 	}
 }
 
