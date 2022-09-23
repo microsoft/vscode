@@ -461,6 +461,9 @@ export class CompareInput2WithBaseCommand extends MergeEditorAction {
 }
 
 async function mergeEditorCompare(viewModel: MergeEditorViewModel, editorService: IEditorService, inputNumber: 1 | 2) {
+
+	editorService.openEditor(editorService.activeEditor!, { pinned: true });
+
 	const model = viewModel.model;
 	const base = model.base;
 	const input = inputNumber === 1 ? viewModel.inputCodeEditorView1.editor : viewModel.inputCodeEditorView2.editor;
