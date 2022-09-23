@@ -38,11 +38,11 @@ import { readTransientState, writeTransientState } from 'vs/workbench/contrib/co
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { IMergeEditorInputModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
-import { deepMerge, thenIfNotDisposed } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { deepMerge, PersistentStore, thenIfNotDisposed } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { BaseCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/baseCodeEditorView';
 import { ScrollSynchronizer } from 'vs/workbench/contrib/mergeEditor/browser/view/scrollSynchronizer';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import { ctxIsMergeEditor, ctxMergeBaseUri, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeResultUri, MergeEditorLayoutKind } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { ctxIsMergeEditor, ctxMergeBaseUri, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowNonConflictingChanges, ctxMergeResultUri, MergeEditorLayoutKind } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorResolverService, MergeEditorInputFactoryFunction, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -77,6 +77,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	private readonly _ctxShowBase: IContextKey<boolean>;
 	private readonly _ctxResultUri: IContextKey<string>;
 	private readonly _ctxBaseUri: IContextKey<string>;
+	private readonly _ctxShowNonConflictingChanges: IContextKey<boolean>;
 	private readonly _inputModel = observableValue<IMergeEditorInputModel | undefined>('inputModel', undefined);
 	public get inputModel(): IObservable<IMergeEditorInputModel | undefined> {
 		return this._inputModel;
@@ -109,6 +110,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		this._ctxBaseUri = ctxMergeBaseUri.bindTo(contextKeyService);
 		this._ctxResultUri = ctxMergeResultUri.bindTo(contextKeyService);
 		this._ctxShowBase = ctxMergeEditorShowBase.bindTo(contextKeyService);
+		this._ctxShowNonConflictingChanges = ctxMergeEditorShowNonConflictingChanges.bindTo(contextKeyService);
 
 		this._layoutMode = instantiation.createInstance(MergeEditorLayoutStore);
 
@@ -119,6 +121,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		this._sessionDisposables.dispose();
 		this._ctxIsMergeEditor.reset();
 		this._ctxUsesColumnLayout.reset();
+		this._ctxShowNonConflictingChanges.reset();
 		super.dispose();
 	}
 
@@ -191,7 +194,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		const inputModel = await input.resolve();
 		const model = inputModel.model;
 
-		const viewModel = new MergeEditorViewModel(model, this.input1View, this.input2View, this.inputResultView, this.baseView);
+		const viewModel = new MergeEditorViewModel(model, this.input1View, this.input2View, this.inputResultView, this.baseView, this.showNonConflictingChanges);
 		transaction(tx => {
 			this._viewModel.set(viewModel, tx);
 			this._inputModel.set(inputModel, tx);
@@ -583,6 +586,15 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	protected tracksEditorViewState(input: EditorInput): boolean {
 		return input instanceof MergeEditorInput;
 	}
+
+	private readonly showNonConflictingChangesStore = this.instantiationService.createInstance(PersistentStore<boolean>, 'mergeEditor/showNonConflictingChanges');
+	private readonly showNonConflictingChanges = observableValue('showNonConflictingChanges', this.showNonConflictingChangesStore.get() ?? false);
+
+	public toggleShowNonConflictingChanges(): void {
+		this.showNonConflictingChanges.set(!this.showNonConflictingChanges.get(), undefined);
+		this.showNonConflictingChangesStore.set(this.showNonConflictingChanges.get());
+		this._ctxShowNonConflictingChanges.set(this.showNonConflictingChanges.get());
+	}
 }
 
 interface IMergeEditorLayout {
@@ -590,6 +602,7 @@ interface IMergeEditorLayout {
 	readonly showBase: boolean;
 }
 
+// TODO use PersistentStore
 class MergeEditorLayoutStore {
 	private static readonly _key = 'mergeEditor/layout';
 	private _value: IMergeEditorLayout = { kind: 'mixed', showBase: false };

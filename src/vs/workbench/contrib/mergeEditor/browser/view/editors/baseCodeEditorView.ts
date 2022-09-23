@@ -69,6 +69,7 @@ export class BaseCodeEditorView extends CodeEditorView {
 		const model = viewModel.model;
 
 		const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
+		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
 
 		const result: IModelDeltaDecoration[] = [];
 		for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
@@ -78,8 +79,12 @@ export class BaseCodeEditorView extends CodeEditorView {
 				continue;
 			}
 
-			const blockClassNames = ['merge-editor-block'];
 			const isHandled = model.isHandled(modifiedBaseRange).read(reader);
+			if (!modifiedBaseRange.isConflicting && isHandled && !showNonConflictingChanges) {
+				continue;
+			}
+
+			const blockClassNames = ['merge-editor-block'];
 			if (isHandled) {
 				blockClassNames.push('handled');
 			}
