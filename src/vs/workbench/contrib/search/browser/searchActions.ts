@@ -320,7 +320,11 @@ export function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 				do {
 					const immediateParent = node.parent();
 					if (immediateParent instanceof FolderMatchWorkspaceRoot || immediateParent instanceof FolderMatchNoRoot) {
-						viewer.collapse(immediateParent, true);
+						if (viewer.hasElement(immediateParent) && viewer.isCollapsed(immediateParent)) {
+							viewer.collapse(immediateParent, true);
+						} else {
+							viewer.collapseAll();
+						}
 					}
 				} while (node = navigator.next());
 			}
