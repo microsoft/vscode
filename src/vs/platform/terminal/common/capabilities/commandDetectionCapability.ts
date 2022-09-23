@@ -97,6 +97,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	readonly onBeforeCommandFinished = this._onBeforeCommandFinished.event;
 	private readonly _onCommandFinished = new Emitter<ITerminalCommand>();
 	readonly onCommandFinished = this._onCommandFinished.event;
+	private readonly _onCommandExecutedUnix = new Emitter<void>();
+	readonly onCommandExecutedUnix = this._onCommandExecutedUnix.event;
 	private readonly _onCommandInvalidated = new Emitter<ITerminalCommand[]>();
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
 	private readonly _onCurrentCommandInvalidated = new Emitter<ICommandInvalidationRequest>();
@@ -422,6 +424,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		if (y === commandExecutedLine) {
 			this._currentCommand.command += this._terminal.buffer.active.getLine(commandExecutedLine)?.translateToString(true, undefined, this._currentCommand.commandExecutedX) || '';
 		}
+		this._onCommandExecutedUnix.fire();
 	}
 
 	private _handleCommandExecutedWindows(): void {

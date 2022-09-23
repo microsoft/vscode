@@ -85,6 +85,7 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 		if (!terminal || !commandDetection) {
 			return;
 		}
+		this._register(commandDetection.onCommandExecutedUnix(() => this._decoration?.dispose()));
 		this._register(commandDetection.onCommandFinished(async command => {
 			this._decoration?.dispose();
 			this._matchActions = getMatchActions(command, this._commandListeners, this._onDidRequestRerunCommand);
