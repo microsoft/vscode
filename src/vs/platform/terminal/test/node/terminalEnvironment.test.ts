@@ -99,7 +99,6 @@ suite('platform - terminalEnvironment', () => {
 					const username = userInfo().username;
 					const expectedDir = new RegExp(`.+\/${username}-vscode-zsh`);
 					const customZdotdir = '/custom/zsh/dotdir';
-					const customUserZdotdir = '/custom/zsh/user_dotdir';
 					const expectedDests = [
 						new RegExp(`.+\/${username}-vscode-zsh\/\.zshrc`),
 						new RegExp(`.+\/${username}-vscode-zsh\/\.zprofile`),
@@ -161,23 +160,6 @@ suite('platform - terminalEnvironment', () => {
 							const result1 = getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, undefined, logService);
 							deepStrictEqual(result1?.newArgs, ['-i']);
 							assertIsEnabled(result1);
-						});
-					});
-					suite('should incorporate global USER_ZDOTDIR env variable', () => {
-						test('when custom ZDOTDIR and USER_ZDOTDIR is undefined', () => {
-							const result1 = getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, { ...defaultEnvironment, ZDOTDIR: customZdotdir }, logService);
-							deepStrictEqual(result1?.newArgs, ['-i']);
-							assertIsEnabled(result1, customZdotdir);
-						});
-						test('when custom ZDOTDIR and USER_ZDOTDIR', () => {
-							const result1 = getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, { ...defaultEnvironment, ZDOTDIR: customZdotdir, USER_ZDOTDIR: customUserZdotdir }, logService);
-							deepStrictEqual(result1?.newArgs, ['-i']);
-							assertIsEnabled(result1, customUserZdotdir);
-						});
-						test('when undefined', () => {
-							const result1 = getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, undefined, logService);
-							deepStrictEqual(result1?.newArgs, ['-i']);
-							assertIsEnabled(result1, homedir());
 						});
 					});
 				});
