@@ -13,21 +13,21 @@ pub const VSCODE_CLI_ASSET_NAME: Option<&'static str> = option_env!("VSCODE_CLI_
 pub const VSCODE_CLI_AI_KEY: Option<&'static str> = option_env!("VSCODE_CLI_AI_KEY");
 pub const VSCODE_CLI_AI_ENDPOINT: Option<&'static str> = option_env!("VSCODE_CLI_AI_ENDPOINT");
 pub const VSCODE_CLI_UPDATE_ENDPOINT: Option<&'static str> =
-    option_env!("VSCODE_CLI_UPDATE_ENDPOINT");
+	option_env!("VSCODE_CLI_UPDATE_ENDPOINT");
 
 pub const TUNNEL_SERVICE_USER_AGENT_ENV_VAR: &str = "TUNNEL_SERVICE_USER_AGENT";
 
 pub fn get_default_user_agent() -> String {
-    format!(
-        "vscode-server-launcher/{}",
-        VSCODE_CLI_VERSION.unwrap_or("dev")
-    )
+	format!(
+		"vscode-server-launcher/{}",
+		VSCODE_CLI_VERSION.unwrap_or("dev")
+	)
 }
 
 lazy_static! {
-    pub static ref TUNNEL_SERVICE_USER_AGENT: String =
-        match std::env::var(TUNNEL_SERVICE_USER_AGENT_ENV_VAR) {
-            Ok(ua) if !ua.is_empty() => format!("{} {}", ua, get_default_user_agent()),
-            _ => get_default_user_agent(),
-        };
+	pub static ref TUNNEL_SERVICE_USER_AGENT: String =
+		match std::env::var(TUNNEL_SERVICE_USER_AGENT_ENV_VAR) {
+			Ok(ua) if !ua.is_empty() => format!("{} {}", ua, get_default_user_agent()),
+			_ => get_default_user_agent(),
+		};
 }
