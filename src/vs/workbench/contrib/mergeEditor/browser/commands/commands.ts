@@ -17,7 +17,7 @@ import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mer
 import { IMergeEditorInputModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel';
 import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowNonConflictingChanges } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 abstract class MergeEditorAction extends Action2 {
@@ -214,6 +214,35 @@ export class SetColumnLayout extends Action2 {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
 			activeEditorPane.setLayoutKind('columns');
+		}
+	}
+}
+
+export class ShowNonConflictingChanges extends Action2 {
+	constructor() {
+		super({
+			id: 'merge.showNonConflictingChanges',
+			title: {
+				value: localize('showNonConflictingChanges', 'Show Non-Conflicting Changes'),
+				original: 'Show Non-Conflicting Changes',
+			},
+			toggled: ctxMergeEditorShowNonConflictingChanges.isEqualTo(true),
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ctxIsMergeEditor,
+					group: '3_merge',
+					order: 9,
+				},
+			],
+			precondition: ctxIsMergeEditor,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const { activeEditorPane } = accessor.get(IEditorService);
+		if (activeEditorPane instanceof MergeEditor) {
+			activeEditorPane.toggleShowNonConflictingChanges();
 		}
 	}
 }
