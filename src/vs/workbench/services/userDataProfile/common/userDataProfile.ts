@@ -79,4 +79,5 @@ export const PROFILE_EXTENSION = 'code-profile';
 export const PROFILE_FILTER = [{ name: localize('profile', "Settings Profile"), extensions: [PROFILE_EXTENSION] }];
 export const PROFILES_ENABLEMENT_CONTEXT = ContextKeyExpr.or(ProductQualityContext.notEqualsTo('stable'), ContextKeyDefinedExpr.create(`config.${PROFILES_ENABLEMENT_CONFIG}`));
 export const CURRENT_PROFILE_CONTEXT = new RawContextKey<string>('currentSettingsProfile', '');
+export const IS_CURRENT_PROFILE_TRANSIENT_CONTEXT = new RawContextKey<boolean>('isCurrentSettingsProfileTransient', false);
 export const HAS_PROFILES_CONTEXT = new RawContextKey<boolean>('hasSettingsProfiles', false);

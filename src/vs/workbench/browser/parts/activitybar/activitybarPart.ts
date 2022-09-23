@@ -46,7 +46,7 @@ import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/bro
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 import { IUserDataProfileService, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -620,10 +620,20 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		const icon = this.userDataProfileService.currentProfile.shortName ? ThemeIcon.fromString(this.userDataProfileService.currentProfile.shortName) : undefined;
 		return {
 			id: 'workbench.actions.profiles',
-			name: icon ? this.userDataProfileService.currentProfile.name : this.userDataProfileService.currentProfile.shortName ? this.userDataProfileService.currentProfile.shortName.toUpperCase() : this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase(),
+			name: icon ? this.userDataProfileService.currentProfile.name : this.getProfileEntryDisplayName(this.userDataProfileService.currentProfile),
 			cssClass: icon ? `${ThemeIcon.asClassName(icon)} profile-activity-item` : 'profile-activity-item',
 			icon: !!icon
 		};
+	}
+
+	private getProfileEntryDisplayName(profile: IUserDataProfile): string {
+		if (profile.shortName) {
+			return profile.shortName;
+		}
+		if (profile.isTransient) {
+			return `T${this.userDataProfileService.currentProfile.name.charAt(this.userDataProfileService.currentProfile.name.length - 1)}`;
+		}
+		return this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase();
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction; pinnedAction: ToggleCompositePinnedAction } {

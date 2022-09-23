@@ -225,7 +225,7 @@ export class RenameProfileAction extends Action2 {
 	}
 
 	private async pickProfile(quickInputService: IQuickInputService, userDataProfileService: IUserDataProfileService, userDataProfilesService: IUserDataProfilesService): Promise<IUserDataProfile | undefined> {
-		const profiles = userDataProfilesService.profiles.filter(p => !p.isDefault);
+		const profiles = userDataProfilesService.profiles.filter(p => !p.isDefault && !p.isTransient);
 		if (!profiles.length) {
 			return undefined;
 		}
@@ -273,7 +273,7 @@ registerAction2(class DeleteProfileAction extends Action2 {
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 		const notificationService = accessor.get(INotificationService);
 
-		const profiles = userDataProfilesService.profiles.filter(p => !p.isDefault);
+		const profiles = userDataProfilesService.profiles.filter(p => !p.isDefault && !p.isTransient);
 		if (profiles.length) {
 			const picks = await quickInputService.pick(
 				profiles.map(profile => ({
