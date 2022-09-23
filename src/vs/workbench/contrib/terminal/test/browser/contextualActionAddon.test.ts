@@ -115,7 +115,7 @@ suite('ContextualActionAddon', () => {
 					strictEqual(getMatchActions(createCommand(portCommand, `invalid output`, FreePortOutputRegex), expected), undefined);
 				});
 			});
-			test('returns actions', () => {
+			test.skip('returns actions', () => {
 				assertMatchOptions(getMatchActions(createCommand(portCommand, output, FreePortOutputRegex), expected), actionOptions);
 			});
 		});
