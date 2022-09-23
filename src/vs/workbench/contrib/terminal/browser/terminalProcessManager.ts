@@ -36,6 +36,8 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
+import Severity from 'vs/base/common/severity';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -136,7 +138,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		super();
 
@@ -168,6 +171,17 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
 			this.environmentVariableInfo = new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection);
 			this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
+		}
+	}
+
+	async freePortKillProcess(port: string): Promise<void> {
+		try {
+			if (this._process?.freePortKillProcess) {
+				const result = await this._process?.freePortKillProcess(port);
+				this._notificationService.notify({ message: `Killed process w ID: ${result.processId} to free port ${result.port}`, severity: Severity.Info });
+			}
+		} catch (e) {
+			this._notificationService.notify({ message: `Could not kill process for port ${port} wth error ${e}`, severity: Severity.Warning });
 		}
 	}
 

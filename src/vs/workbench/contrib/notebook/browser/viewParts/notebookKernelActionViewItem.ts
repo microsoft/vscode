@@ -99,7 +99,9 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 	private _updateActionFromKernelInfo(info: INotebookKernelMatchResult): void {
 		this._action.enabled = true;
 		this._action.class = ThemeIcon.asClassName(selectKernelIcon);
-		const selectedOrSuggested = info.selected ?? (info.suggestions.length === 1 ? info.suggestions[0] : undefined);
+		const selectedOrSuggested = info.selected
+			?? (info.suggestions.length === 1 ? info.suggestions[0] : undefined)
+			?? (info.all.length === 1 ? info.all[0] : undefined);
 		if (selectedOrSuggested) {
 			// selected or suggested kernel
 			this._action.label = this._generateKenrelLabel(selectedOrSuggested);
