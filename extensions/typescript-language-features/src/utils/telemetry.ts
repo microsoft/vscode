@@ -11,13 +11,11 @@ export interface TelemetryProperties {
 
 export interface TelemetryReporter {
 	logTelemetry(eventName: string, properties?: TelemetryProperties): void;
-
-	dispose(): void;
 }
 
 export class VSCodeTelemetryReporter implements TelemetryReporter {
 	constructor(
-		private readonly reporter: IExperimentationTelemetryReporter | null,
+		private readonly reporter: IExperimentationTelemetryReporter | undefined,
 		private readonly clientVersionDelegate: () => string
 	) { }
 
@@ -35,9 +33,5 @@ export class VSCodeTelemetryReporter implements TelemetryReporter {
 		properties['version'] = this.clientVersionDelegate();
 
 		reporter.postEventObj(eventName, properties);
-	}
-
-	public dispose() {
-		// Assume the reporter is disposed by the extension.
 	}
 }

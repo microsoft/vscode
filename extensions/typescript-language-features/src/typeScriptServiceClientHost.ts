@@ -73,7 +73,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			processFactory: TsServerProcessFactory;
 			activeJsTsEditorTracker: ActiveJsTsEditorTracker;
 			serviceConfigurationProvider: ServiceConfigurationProvider;
-			experimentTelemetryReporter: IExperimentationTelemetryReporter | null;
+			experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 		},
 		onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {

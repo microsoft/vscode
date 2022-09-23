@@ -45,7 +45,7 @@ export function activate(
 	const jsWalkthroughState = new JsWalkthroughState();
 	context.subscriptions.push(jsWalkthroughState);
 
-	let experimentTelemetryReporter: IExperimentationTelemetryReporter | null = null;
+	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	const packageInfo = getPackageInfo(context);
 	if (packageInfo) {
 		const { name: id, version, aiKey } = packageInfo;
@@ -53,9 +53,9 @@ export function activate(
 		experimentTelemetryReporter = new ExperimentationTelemetryReporter(vscTelemetryReporter);
 		context.subscriptions.push(experimentTelemetryReporter);
 
-		// Don't bother creating an experimentation service if we don't have a valid reporter.
-		const globalState = context.globalState;
-		context.subscriptions.push(new ExperimentationService(experimentTelemetryReporter, id, version, globalState));
+		// Currently we have no experiments, but creating the service adds the appropriate
+		// shared properties to the ExperimentationTelemetryReporter we just created.
+		new ExperimentationService(experimentTelemetryReporter, id, version, context.globalState);
 	}
 
 	const lazyClientHost = createLazyClientHost(context, onCaseInsensitiveFileSystem(), {

@@ -60,7 +60,7 @@ export function activate(
 			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript/tsserver.web.js').toString(),
 			API.fromSimpleString('4.8.2')));
 
-	let experimentTelemetryReporter: IExperimentationTelemetryReporter | null = null;
+	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	const packageInfo = getPackageInfo(context);
 	if (packageInfo) {
 		const { name: id, version, aiKey } = packageInfo;

@@ -12,7 +12,7 @@ interface ExperimentTypes {
 	// None for now.
 }
 
-export class ExperimentationService implements vscode.Disposable {
+export class ExperimentationService {
 	private _experimentationServicePromise: Promise<tas.IExperimentationService>;
 	private _telemetryReporter: IExperimentationTelemetryReporter;
 
@@ -29,13 +29,6 @@ export class ExperimentationService implements vscode.Disposable {
 		} catch {
 			return defaultValue;
 		}
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public dispose() {
-		// Assume the extension will dispose of the reporter.
 	}
 }
 

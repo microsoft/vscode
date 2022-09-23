@@ -31,7 +31,7 @@ export function createLazyClientHost(
 		processFactory: TsServerProcessFactory;
 		activeJsTsEditorTracker: ActiveJsTsEditorTracker;
 		serviceConfigurationProvider: ServiceConfigurationProvider;
-		experimentTelemetryReporter: IExperimentationTelemetryReporter | null;
+		experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	},
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {
