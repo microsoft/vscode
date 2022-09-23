@@ -74,29 +74,3 @@ export interface ReplayEntry {
 	rows: number;
 	data: string;
 }
-export interface ISerializedCommand {
-	command: string;
-	cwd: string | undefined;
-	startLine: number | undefined;
-	startX: number | undefined;
-	endLine: number | undefined;
-	executedLine: number | undefined;
-	exitCode: number | undefined;
-	commandStartLineContent: string | undefined;
-	timestamp: number;
-	genericMarkProperties?: IGenericMarkProperties;
-}
-
-export interface IGenericMarkProperties {
-	hoverMessage?: string;
-	disableCommandStorage?: boolean;
-}
-
-export interface ISerializedCommandDetectionCapability {
-	isWindowsPty: boolean;
-	commands: ISerializedCommand[];
-}
-export interface IPtyHostProcessReplayEvent {
-	events: ReplayEntry[];
-	commands: ISerializedCommandDetectionCapability;
-}

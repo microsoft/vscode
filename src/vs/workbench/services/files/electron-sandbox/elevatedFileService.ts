@@ -49,4 +49,4 @@ export class NativeElevatedFileService implements IElevatedFileService {
 	}
 }
 
-registerSingleton(IElevatedFileService, NativeElevatedFileService, false);
+registerSingleton(IElevatedFileService, NativeElevatedFileService, true);

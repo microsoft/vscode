@@ -41,6 +41,9 @@ interface IFindOptions {
 	type?: 'Terminal' | 'Webview';
 }
 
+const SIMPLE_FIND_WIDGET_INITIAL_WIDTH = 310;
+const MATCHES_COUNT_WIDTH = 68;
+
 export abstract class SimpleFindWidget extends Widget {
 	private readonly _findInput: FindInput;
 	private readonly _domNode: HTMLElement;
@@ -54,6 +57,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 	private _isVisible: boolean = false;
 	private _foundMatch: boolean = false;
+	private _width: number = 0;
 
 	constructor(
 		state: FindReplaceState = new FindReplaceState(),
@@ -178,6 +182,9 @@ export abstract class SimpleFindWidget extends Widget {
 
 		if (options?.showResultCount) {
 			this._domNode.classList.add('result-count');
+			this._matchesCount = document.createElement('div');
+			this._matchesCount.className = 'matchesCount';
+			this._findInput.domNode.insertAdjacentElement('afterend', this._matchesCount);
 			this._register(this._findInput.onDidChange(() => {
 				this.updateResultCount();
 				this.updateButtons(this._foundMatch);
@@ -239,6 +246,10 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 	}
 
+	public isVisible(): boolean {
+		return this._isVisible;
+	}
+
 	public getDomNode() {
 		return this._domNode;
 	}
@@ -255,6 +266,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 		this._isVisible = true;
 		this.updateButtons(this._foundMatch);
+		this.layout();
 
 		setTimeout(() => {
 			this._innerDomNode.classList.add('visible', 'visible-transition');
@@ -269,6 +281,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 
 		this._isVisible = true;
+		this.layout();
 
 		setTimeout(() => {
 			this._innerDomNode.classList.add('visible', 'visible-transition');
@@ -286,6 +299,22 @@ export abstract class SimpleFindWidget extends Widget {
 				this.updateButtons(this._foundMatch);
 				this._innerDomNode.classList.remove('visible');
 			}, 200);
+		}
+	}
+
+	public layout(width: number = this._width): void {
+		this._width = width;
+
+		if (!this._isVisible) {
+			return;
+		}
+
+		if (this._matchesCount) {
+			let reducedFindWidget = false;
+			if (SIMPLE_FIND_WIDGET_INITIAL_WIDTH + MATCHES_COUNT_WIDTH + 28 >= width) {
+				reducedFindWidget = true;
+			}
+			this._innerDomNode.classList.toggle('reduced-find-widget', reducedFindWidget);
 		}
 	}
 
@@ -323,11 +352,11 @@ export abstract class SimpleFindWidget extends Widget {
 	}
 
 	async updateResultCount(): Promise<void> {
-		const count = await this._getResultCount();
 		if (!this._matchesCount) {
-			this._matchesCount = document.createElement('div');
-			this._matchesCount.className = 'matchesCount';
+			return;
 		}
+
+		const count = await this._getResultCount();
 		this._matchesCount.innerText = '';
 		let label = '';
 		this._matchesCount.classList.toggle('no-results', false);
@@ -341,7 +370,6 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 		alertFn(this._announceSearchResults(label, this.inputValue));
 		this._matchesCount.appendChild(document.createTextNode(label));
-		this._findInput?.domNode.insertAdjacentElement('afterend', this._matchesCount);
 		this._foundMatch = !!count && count.resultCount > 0;
 	}
 

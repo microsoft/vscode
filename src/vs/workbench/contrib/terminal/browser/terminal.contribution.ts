@@ -242,10 +242,6 @@ registerSendSequenceKeybinding(String.fromCharCode('A'.charCodeAt(0) - 64), {
 registerSendSequenceKeybinding(String.fromCharCode('E'.charCodeAt(0) - 64), {
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
 });
-// Break: ctrl+C
-registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - 64), {
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.Period }
-});
 // NUL: ctrl+shift+2
 registerSendSequenceKeybinding('\u0000', {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit2,

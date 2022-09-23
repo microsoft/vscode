@@ -7,8 +7,8 @@ import { timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
 import type { IBuffer, IBufferLine, IDisposable, IMarker, Terminal } from 'xterm-headless';
@@ -73,6 +73,23 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		return undefined;
 	}
 	get cwd(): string | undefined { return this._cwd; }
+	private get _isInputting(): boolean {
+		return !!(this._currentCommand.commandStartMarker && !this._currentCommand.commandExecutedMarker);
+	}
+
+	get hasInput(): boolean | undefined {
+		if (!this._isInputting || !this._currentCommand?.commandStartMarker) {
+			return undefined;
+		}
+		if (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY === this._currentCommand.commandStartMarker?.line) {
+			const line = this._terminal.buffer.active.getLine(this._terminal.buffer.active.cursorY)?.translateToString(true, this._currentCommand.commandStartX);
+			if (line === undefined) {
+				return undefined;
+			}
+			return line.length > 0;
+		}
+		return true;
+	}
 
 	private readonly _onCommandStarted = new Emitter<ITerminalCommand>();
 	readonly onCommandStarted = this._onCommandStarted.event;
@@ -317,7 +334,17 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 		this._currentCommand.commandStartMarker = options?.marker || this._terminal.registerMarker(0);
-		this._onCommandStarted.fire({ marker: options?.marker || this._currentCommand.commandStartMarker, genericMarkProperties: options?.genericMarkProperties } as ITerminalCommand);
+
+		// Clear executed as it must happen after command start
+		this._currentCommand.commandExecutedMarker?.dispose();
+		this._currentCommand.commandExecutedMarker = undefined;
+		this._currentCommand.commandExecutedX = undefined;
+		for (const m of this._commandMarkers) {
+			m.dispose();
+		}
+		this._commandMarkers.length = 0;
+
+		this._onCommandStarted.fire({ marker: options?.marker || this._currentCommand.commandStartMarker, markProperties: options?.markProperties } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
 
@@ -353,7 +380,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	}
 
 	handleGenericCommand(options?: IHandleCommandOptions): void {
-		if (options?.genericMarkProperties?.disableCommandStorage) {
+		if (options?.markProperties?.disableCommandStorage) {
 			this.setIsCommandStorageDisabled();
 		}
 		this.handlePromptStart(options);
@@ -459,7 +486,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				genericMarkProperties: options?.genericMarkProperties
+				getOutputMatch: (outputMatcher?: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }) => getOutputMatchForCommand(executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
+				markProperties: options?.markProperties
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
@@ -526,7 +554,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				cwd: e.cwd,
 				exitCode: e.exitCode,
 				commandStartLineContent: e.commandStartLineContent,
-				timestamp: e.timestamp
+				timestamp: e.timestamp,
+				markProperties: e.markProperties
 			};
 		});
 		if (this._currentCommand.commandStartMarker) {
@@ -540,6 +569,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: undefined,
 				commandStartLineContent: undefined,
 				timestamp: 0,
+				markProperties: undefined
 			});
 		}
 		return {
@@ -581,7 +611,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: e.exitCode,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				genericMarkProperties: e.genericMarkProperties
+				getOutputMatch: (outputMatcher: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }) => getOutputMatchForCommand(executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
+				markProperties: e.markProperties
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
@@ -610,4 +641,60 @@ function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMa
 		output += line.translateToString(!line.isWrapped) + (line.isWrapped ? '' : '\n');
 	}
 	return output === '' ? undefined : output;
+}
+
+export function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number } | undefined): RegExpMatchArray | undefined {
+	if (!executedMarker || !endMarker) {
+		return undefined;
+	}
+	const startLine = executedMarker.line;
+	const endLine = endMarker.line;
+
+	if (startLine === endLine) {
+		return undefined;
+	}
+	if (outputMatcher?.length && (endLine - startLine) < outputMatcher.length) {
+		return undefined;
+	}
+	let output = '';
+	let line: string | undefined;
+	if (outputMatcher?.anchor === 'bottom') {
+		for (let i = endLine - (outputMatcher.offset || 0); i >= startLine; i--) {
+			line = getXtermLineContent(buffer, i, i, cols);
+			output = line + output;
+			const match = output.match(outputMatcher.lineMatcher);
+			if (match) {
+				return match;
+			}
+		}
+	} else {
+		for (let i = startLine + (outputMatcher?.offset || 0); i < endLine; i++) {
+			line = getXtermLineContent(buffer, i, i, cols);
+			output += line;
+			if (outputMatcher) {
+				const match = output.match(outputMatcher.lineMatcher);
+				if (match) {
+					return match;
+				}
+			}
+		}
+	}
+	return undefined;
+}
+
+function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
+	// Cap the maximum number of lines generated to prevent potential performance problems. This is
+	// more of a sanity check as the wrapped line should already be trimmed down at this point.
+	const maxLineLength = Math.max(2048 / cols * 2);
+	lineEnd = Math.min(lineEnd, lineStart + maxLineLength);
+	let content = '';
+	for (let i = lineStart; i <= lineEnd; i++) {
+		// Make sure only 0 to cols are considered as resizing when windows mode is enabled will
+		// retain buffer data outside of the terminal width as reflow is disabled.
+		const line = buffer.getLine(i);
+		if (line) {
+			content += line.translateToString(true, 0, cols);
+		}
+	}
+	return content;
 }

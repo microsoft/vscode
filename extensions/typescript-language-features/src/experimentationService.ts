@@ -23,7 +23,7 @@ export class ExperimentationService implements vscode.Disposable {
 	public async getTreatmentVariable<K extends keyof ExperimentTypes>(name: K, defaultValue: ExperimentTypes[K]): Promise<ExperimentTypes[K]> {
 		const experimentationService = await this._experimentationServicePromise;
 		try {
-			const treatmentVariable = experimentationService.getTreatmentVariableAsync('vscode', name, /*checkCache*/ true) as ExperimentTypes[K];
+			const treatmentVariable = experimentationService.getTreatmentVariableAsync('vscode', name, /*checkCache*/ true) as Promise<ExperimentTypes[K]>;
 			return treatmentVariable;
 		} catch {
 			return defaultValue;
@@ -35,14 +35,19 @@ export class ExperimentationService implements vscode.Disposable {
 		switch (vscode.env.uriScheme) {
 			case 'vscode':
 				targetPopulation = tas.TargetPopulation.Public;
+				break;
 			case 'vscode-insiders':
 				targetPopulation = tas.TargetPopulation.Insiders;
+				break;
 			case 'vscode-exploration':
 				targetPopulation = tas.TargetPopulation.Internal;
+				break;
 			case 'code-oss':
 				targetPopulation = tas.TargetPopulation.Team;
+				break;
 			default:
 				targetPopulation = tas.TargetPopulation.Public;
+				break;
 		}
 
 		const id = this._extensionContext.extension.id;

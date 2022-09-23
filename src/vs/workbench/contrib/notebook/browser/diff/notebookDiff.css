@@ -167,7 +167,6 @@
 .monaco-workbench .notebook-text-diff-editor .cell-body .output-view-container {
 	user-select: text;
 	-webkit-user-select: text;
-	-ms-user-select: text;
 	white-space: initial;
 	cursor: auto;
 	position: relative;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR } from './constants';
 
 class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 
@@ -50,7 +51,7 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 
 		// create updated metadata for cell (prep for WorkspaceEdit)
 		const b64string = encodeBase64(fileDataAsUint8);
-		const startingAttachments = currentCell.metadata.custom?.attachments;
+		const startingAttachments = currentCell.metadata.attachments;
 		const newAttachment = buildAttachment(b64string, currentCell, filename, filetype, startingAttachments);
 
 		// build edits
@@ -123,13 +124,11 @@ function encodeBase64(buffer: Uint8Array, padded = true, urlSafe = false) {
 }
 
 function buildAttachment(b64: string, cell: vscode.NotebookCell, filename: string, filetype: string, startingAttachments: any): { metadata: { [key: string]: any }; filename: string } {
-	const outputMetadata = { ...cell.metadata };
+	const cellMetadata = { ...cell.metadata };
 	let tempFilename = filename + filetype;
 
-	if (!outputMetadata.custom) {
-		outputMetadata['custom'] = { 'attachments': { [tempFilename]: { 'image/png': b64 } } };
-	} else if (!outputMetadata.custom.attachments) {
-		outputMetadata.custom['attachments'] = { [tempFilename]: { 'image/png': b64 } };
+	if (!cellMetadata.attachments) {
+		cellMetadata['attachments'] = { [tempFilename]: { 'image/png': b64 } };
 	} else {
 		for (let appendValue = 2; tempFilename in startingAttachments; appendValue++) {
 			const objEntries = Object.entries(startingAttachments[tempFilename]);
@@ -142,17 +141,17 @@ function buildAttachment(b64: string, cell: vscode.NotebookCell, filename: strin
 				}
 			}
 		}
-		outputMetadata.custom.attachments[tempFilename] = { 'image/png': b64 };
+		cellMetadata.attachments[tempFilename] = { 'image/png': b64 };
 	}
+
 	return {
-		metadata: outputMetadata,
+		metadata: cellMetadata,
 		filename: tempFilename
 	};
 }
 
-export function imagePasteSetup() {
-	const selector: vscode.DocumentSelector = { notebookType: 'jupyter-notebook', language: 'markdown' }; // this is correct provider
-	return vscode.languages.registerDocumentPasteEditProvider(selector, new CopyPasteEditProvider(), {
+export function notebookImagePasteSetup() {
+	return vscode.languages.registerDocumentPasteEditProvider(JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR, new CopyPasteEditProvider(), {
 		pasteMimeTypes: ['image/png'],
 	});
 }

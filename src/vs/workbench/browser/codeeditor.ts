@@ -12,13 +12,9 @@ import { $, append, clearNode } from 'vs/base/browser/dom';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { hasWorkspaceFileExtension, isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { isEqual } from 'vs/base/common/resources';
-import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
@@ -251,100 +247,5 @@ export class FloatingClickMenu extends Disposable implements IEditorContribution
 		this._store.add(menuDisposables);
 		this._store.add(menu.onDidChange(renderMenuAsFloatingClickBtn));
 		renderMenuAsFloatingClickBtn();
-	}
-}
-
-export class OpenWorkspaceButtonContribution extends Disposable implements IEditorContribution {
-
-	static get(editor: ICodeEditor): OpenWorkspaceButtonContribution | null {
-		return editor.getContribution<OpenWorkspaceButtonContribution>(OpenWorkspaceButtonContribution.ID);
-	}
-
-	public static readonly ID = 'editor.contrib.openWorkspaceButton';
-
-	private openWorkspaceButton: FloatingClickWidget | undefined;
-
-	constructor(
-		private editor: ICodeEditor,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IHostService private readonly hostService: IHostService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IFileService private readonly fileService: IFileService
-	) {
-		super();
-
-		this.update();
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this._register(this.editor.onDidChangeModel(e => this.update()));
-	}
-
-	private update(): void {
-		if (!this.shouldShowButton(this.editor)) {
-			this.disposeOpenWorkspaceWidgetRenderer();
-			return;
-		}
-
-		this.createOpenWorkspaceWidgetRenderer();
-	}
-
-	private shouldShowButton(editor: ICodeEditor): boolean {
-		const model = editor.getModel();
-		if (!model) {
-			return false; // we need a model
-		}
-
-		if (!hasWorkspaceFileExtension(model.uri)) {
-			return false; // we need a workspace file
-		}
-
-		if (!this.fileService.hasProvider(model.uri)) {
-			return false; // needs to be backed by a file service
-		}
-
-		if (isTemporaryWorkspace(this.contextService.getWorkspace())) {
-			return false; // unsupported in temporary workspaces
-		}
-
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			const workspaceConfiguration = this.contextService.getWorkspace().configuration;
-			if (workspaceConfiguration && isEqual(workspaceConfiguration, model.uri)) {
-				return false; // already inside workspace
-			}
-		}
-
-		if (editor.getOption(EditorOption.inDiffEditor)) {
-			// in diff editor
-			return false;
-		}
-
-		return true;
-	}
-
-	private createOpenWorkspaceWidgetRenderer(): void {
-		if (!this.openWorkspaceButton) {
-			this.openWorkspaceButton = this.instantiationService.createInstance(FloatingClickWidget, this.editor, localize('openWorkspace', "Open Workspace"), null);
-			this._register(this.openWorkspaceButton.onClick(() => {
-				const model = this.editor.getModel();
-				if (model) {
-					this.hostService.openWindow([{ workspaceUri: model.uri }]);
-				}
-			}));
-
-			this.openWorkspaceButton.render();
-		}
-	}
-
-	private disposeOpenWorkspaceWidgetRenderer(): void {
-		dispose(this.openWorkspaceButton);
-		this.openWorkspaceButton = undefined;
-	}
-
-	override dispose(): void {
-		this.disposeOpenWorkspaceWidgetRenderer();
-
-		super.dispose();
 	}
 }

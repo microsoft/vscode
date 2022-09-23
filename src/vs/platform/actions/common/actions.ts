@@ -167,6 +167,8 @@ export class MenuId {
 	static readonly NewFile = new MenuId('NewFile');
 	static readonly MergeInput1Toolbar = new MenuId('MergeToolbar1Toolbar');
 	static readonly MergeInput2Toolbar = new MenuId('MergeToolbar2Toolbar');
+	static readonly MergeBaseToolbar = new MenuId('MergeBaseToolbar');
+	static readonly MergeInputResultToolbar = new MenuId('MergeToolbarResultToolbar');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier
@@ -197,8 +199,15 @@ export interface IMenuActionOptions {
 	renderShortTitle?: boolean;
 }
 
+export interface IMenuChangeEvent {
+	readonly menu: IMenu;
+	readonly isStructuralChange: boolean;
+	readonly isToggleChange: boolean;
+	readonly isEnablementChange: boolean;
+}
+
 export interface IMenu extends IDisposable {
-	readonly onDidChange: Event<IMenu>;
+	readonly onDidChange: Event<IMenuChangeEvent>;
 	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
 }
 
@@ -225,6 +234,11 @@ export interface IMenuService {
 	 * Reset **all** menu item hidden states.
 	 */
 	resetHiddenStates(): void;
+
+	/**
+	 * Reset the menu's hidden states.
+	 */
+	resetHiddenStates(menuId: MenuId | undefined): void;
 }
 
 export type ICommandsMap = Map<string, ICommandAction>;
@@ -366,6 +380,7 @@ export class SubmenuItemAction extends SubmenuAction {
 
 	constructor(
 		readonly item: ISubmenuItem,
+		readonly hideActions: IMenuItemHide | undefined,
 		private readonly _menuService: IMenuService,
 		private readonly _contextKeyService: IContextKeyService,
 		private readonly _options?: IMenuActionOptions

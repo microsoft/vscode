@@ -53,8 +53,12 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTr
 		}
 	}
 
+	return createUriListSnippet(document, uris);
+}
+
+export function createUriListSnippet(document: vscode.TextDocument, uris: readonly vscode.Uri[]): vscode.SnippetString | undefined {
 	if (!uris.length) {
-		return;
+		return undefined;
 	}
 
 	const dir = getDocumentDir(document);
@@ -74,7 +78,6 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTr
 			snippet.appendText(' ');
 		}
 	});
-
 	return snippet;
 }
 
