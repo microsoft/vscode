@@ -188,7 +188,7 @@ export function getShellIntegrationInjection(
 			const zdotdir = path.join(os.tmpdir(), `${os.userInfo().username}-vscode-zsh`);
 			envMixin['ZDOTDIR'] = zdotdir;
 			const userZdotdir = env?.ZDOTDIR ?? os.homedir() ?? `~`;
-			envMixin['USER_ZDOTDIR'] = userZdotdir;
+			envMixin['USER_ZDOTDIR'] = env?.USER_ZDOTDIR ?? userZdotdir;
 			const filesToCopy: IShellIntegrationConfigInjection['filesToCopy'] = [];
 			filesToCopy.push({
 				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh'),
