@@ -64,16 +64,16 @@ export class TreeSitterService implements ITreeSitterService {
 		}
 	}
 
-	private async _getTreeSitterCaptures(model: ITextModel, queryString: string, asychronous: boolean = true, startLine?: number): Promise<Parser.QueryCapture[]> {
+	private async _getTreeSitterCaptures(model: ITextModel, queryString: string, asynchronous: boolean = true, startLine?: number): Promise<Parser.QueryCapture[]> {
 		if (!this._language) {
 			throw new Error('Parser language should be defined');
 		}
 		if (!this._trees.has(model.uri)) {
-			this._trees.set(model.uri, new TreeSitterTree(model, this._language));
+			this._trees.set(model.uri, new TreeSitterTree(model, this._language, asynchronous));
 		}
 		const tree = this._trees.get(model.uri);
 		const sw = StopWatch.create(true);
-		const parsedTree = await tree!.parseTree(asychronous);
+		const parsedTree = await tree!.parseTree();
 		const timeTreeParse = sw.elapsed();
 		console.log('Time to parse tree : ', timeTreeParse);
 		const query = this._language.query(queryString);

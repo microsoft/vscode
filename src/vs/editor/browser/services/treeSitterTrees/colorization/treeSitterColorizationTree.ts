@@ -38,7 +38,7 @@ export class TreeSitterColorizationTree {
 		@ITreeSitterService _treeSitterService: ITreeSitterService,
 		@IThemeService _themeService: IThemeService,
 		@IFileService _fileService: IFileService,
-		private readonly _asynchronous: boolean = true
+		_asynchronous: boolean = true
 	) {
 		console.log('Inside TreeSitterColorizationTree for _asynchronous : ', _asynchronous);
 		this.id = _model.id;
@@ -54,21 +54,21 @@ export class TreeSitterColorizationTree {
 
 		this.setTimeoutForRenderingInMs(10);
 		this._fetchQueries().then((query) => {
-			_treeSitterService.getTreeSitterCaptures(this._model, query, this._asynchronous).then((queryCaptures) => {
+			_treeSitterService.getTreeSitterCaptures(this._model, query, _asynchronous).then((queryCaptures) => {
 				if (!queryCaptures) {
 					return;
 				}
 				const sw = StopWatch.create(true);
-				this.setTokensUsingQueryCaptures(queryCaptures, this._asynchronous).then(() => {
+				this.setTokensUsingQueryCaptures(queryCaptures, _asynchronous).then(() => {
 					console.log('Time to set tokens : ', sw.elapsed());
 					console.log('Number of calls to runSetTokensWithThemeData : ', this._nCallsToRunSetTokensWithThemeData);
 					this._disposableStore.add(this._model.onDidChangeContent((contentChangeEvent: IModelContentChangedEvent) => {
 						this.updateRowIndices(contentChangeEvent);
-						_treeSitterService.getTreeSitterCaptures(this._model, query, this._asynchronous, this._startPositionRow).then((queryCaptures) => {
+						_treeSitterService.getTreeSitterCaptures(this._model, query, _asynchronous, this._startPositionRow).then((queryCaptures) => {
 							if (!queryCaptures) {
 								return;
 							}
-							this.setTokensUsingQueryCaptures(queryCaptures, this._asynchronous);
+							this.setTokensUsingQueryCaptures(queryCaptures, _asynchronous);
 						});
 					}));
 				});
@@ -169,7 +169,6 @@ export class TreeSitterColorizationTree {
 			}
 			newBeginningIndexFound = false;
 			this._contiguousMultilineToken.splice(i, 0, new ContiguousMultilineTokens(i + 1, [new Uint32Array(contiguousMultilineTokensArray)]));
-			// this._model.tokenization.setTokens(this._contiguousMultilineToken);
 			this._beginningCaptureIndex = beginningCaptureIndex;
 			this._startPositionRow = i + 1;
 		}

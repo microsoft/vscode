@@ -23,7 +23,8 @@ export class TreeSitterTree {
 
 	constructor(
 		private readonly _model: ITextModel,
-		_language: Parser.Language
+		_language: Parser.Language,
+		private readonly _asynchronous: boolean = true
 	) {
 		this._parser = new Parser();
 		this._parser.setLanguage(_language);
@@ -54,32 +55,32 @@ export class TreeSitterTree {
 		}
 	}
 
-	public async parseTree(asynchronous: boolean = true): Promise<Parser.Tree> {
+	public async parseTree(): Promise<Parser.Tree> {
 		this._nCallsParseTree = 0;
-		return this._parseTree(asynchronous);
+		return this._parseTree();
 	}
 
-	public async parseTreeAndCountCalls(asynchronous: boolean = true): Promise<number> {
+	public async parseTreeAndCountCalls(): Promise<number> {
 		this._nCallsParseTree = 0;
-		return this._parseTree(asynchronous).then(() => {
+		return this._parseTree().then(() => {
 			return Promise.resolve(this._nCallsParseTree);
 		});
 	}
 
 	private _currentParseOperation: Promise<Parser.Tree> | undefined;
 
-	private async _parseTree(asynchronous: boolean = true): Promise<Parser.Tree> {
+	private async _parseTree(): Promise<Parser.Tree> {
 		await this._currentParseOperation;
 		// Case 1: Either there is no tree yet or there are edits to parse
 		if (!this._tree || this._edits.length !== 0) {
-			const myParseOperation = this._tryParseSync(asynchronous);
+			const myParseOperation = this._tryParseSync();
 			this._currentParseOperation = myParseOperation;
 			myParseOperation.then((tree) => {
 				if (this._currentParseOperation === myParseOperation) {
 					this._currentParseOperation = undefined;
 				}
 				if (this._edits.length !== 0) {
-					return this._parseTree(asynchronous);
+					return this._parseTree();
 				}
 				this._nCallsParseTree += 1;
 				return tree;
@@ -94,11 +95,9 @@ export class TreeSitterTree {
 		}
 	}
 
-	private async _tryParseSync(asynchronous: boolean = true): Promise<Parser.Tree> {
-		if (asynchronous) {
+	private async _tryParseSync(): Promise<Parser.Tree> {
+		if (this._asynchronous) {
 			this._parser.setTimeoutMicros(10000);
-		} else {
-			this._parser.setTimeoutMicros(Infinity);
 		}
 		const tree = this.updateAndGetTree();
 		// Initially synchronous
