@@ -1043,12 +1043,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 		const event = rawEvent as ({ data: webviewMessages.ToWebviewMessage });
 
 		switch (event.data.type) {
-			case 'initializeMarkup':
-				await Promise.all(event.data.cells.map(info => viewModel.ensureMarkupCell(info)));
-				dimensionUpdater.updateImmediately();
-				postNotebookMessage('initializedMarkup', {});
+			case 'initializeMarkup': {
+				try {
+					await Promise.all(event.data.cells.map(info => viewModel.ensureMarkupCell(info)));
+				} finally {
+					dimensionUpdater.updateImmediately();
+					postNotebookMessage('initializedMarkup', {});
+				}
 				break;
-
+			}
 			case 'createMarkupCell':
 				viewModel.ensureMarkupCell(event.data.cell);
 				break;
@@ -1741,6 +1744,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		/// Internal field that holds text content
 		private _content: { readonly value: string; readonly version: number; readonly metadata: NotebookCellMetadata };
 
+		private _isDisposed = false;
 		private renderTaskAbort?: AbortController;
 
 		constructor(id: string, mime: string, content: string, top: number, metadata: NotebookCellMetadata) {
@@ -1748,8 +1752,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.id = id;
 			this._content = { value: content, version: 0, metadata: metadata };
 
-			let resolveReady: () => void;
-			this.ready = new Promise<void>(r => resolveReady = r);
+			let resolve: () => void;
+			let reject: () => void;
+			this.ready = new Promise<void>((res, rej) => {
+				resolve = res;
+				reject = rej;
+			});
 
 			let cachedData: { readonly version: number; readonly value: Uint8Array } | undefined;
 			this.outputItem = Object.freeze<rendererApi.OutputItem>({
@@ -1801,12 +1809,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.addEventListeners();
 
 			this.updateContentAndRender(this._content.value, this._content.metadata).then(() => {
-				resizeObserver.observe(this.element, this.id, false, this.id);
-				resolveReady();
-			});
+				if (!this._isDisposed) {
+					resizeObserver.observe(this.element, this.id, false, this.id);
+				}
+				resolve();
+			}, () => reject());
 		}
 
 		public dispose() {
+			this._isDisposed = true;
 			this.renderTaskAbort?.abort();
 			this.renderTaskAbort = undefined;
 		}
