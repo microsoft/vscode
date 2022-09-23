@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+// eslint-disable-next-line local/code-import-patterns
 import Parser = require('web-tree-sitter');
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
@@ -71,6 +71,7 @@ export class TreeSitterService implements ITreeSitterService {
 		if (!this._trees.has(model.uri)) {
 			this._trees.set(model.uri, new TreeSitterTree(model, this._language, asynchronous));
 		}
+
 		const tree = this._trees.get(model.uri);
 		const sw = StopWatch.create(true);
 		const parsedTree = await tree!.parseTree();
