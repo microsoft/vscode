@@ -7,7 +7,7 @@ import { IAction } from 'vs/base/common/actions';
 import { isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { QuickFixMatchResult, ICommandAction, ITerminalQuickFixActionOptions, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { QuickFixMatchResult, ITerminalQuickFixAction, ITerminalQuickFixOptions, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export const GitCommandLineRegex = /git/;
@@ -18,14 +18,14 @@ export const FreePortOutputRegex = /address already in use \d\.\d\.\d\.\d:(\d\d\
 export const GitPushOutputRegex = /git push --set-upstream origin ([^\s]+)\s+/;
 export const GitCreatePrOutputRegex = /Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s+remote:\s+(https:.+pull.+)\s+/;
 
-export function terminalGitSimilarCommand(): ITerminalQuickFixActionOptions {
+export function terminalGitSimilarCommand(): ITerminalQuickFixOptions {
 	return {
 		commandLineMatcher: GitCommandLineRegex,
 		outputMatcher: { lineMatcher: GitSimilarOutputRegex, anchor: 'bottom' },
-		actionName: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Run git ${matchResult.outputMatch[1]}` : ``,
+		quickFixLabel: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Run git ${matchResult.outputMatch[1]}` : ``,
 		exitStatus: false,
-		getActions: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
-			const actions: ICommandAction[] = [];
+		getQuickFixes: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
+			const actions: ITerminalQuickFixAction[] = [];
 			const fixedCommand = matchResult?.outputMatch?.[1];
 			if (!fixedCommand) {
 				return;
@@ -41,17 +41,17 @@ export function terminalGitSimilarCommand(): ITerminalQuickFixActionOptions {
 		}
 	};
 }
-export function terminalFreePort(terminalInstance?: Partial<ITerminalInstance>): ITerminalQuickFixActionOptions {
+export function terminalFreePort(terminalInstance?: Partial<ITerminalInstance>): ITerminalQuickFixOptions {
 	return {
-		actionName: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Free port ${matchResult.outputMatch[1]}` : '',
+		quickFixLabel: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Free port ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: AnyCommandLineRegex,
 		outputMatcher: !isWindows ? { lineMatcher: FreePortOutputRegex, anchor: 'bottom' } : undefined,
-		getActions: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
+		getQuickFixes: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
 			const port = matchResult?.outputMatch?.[1];
 			if (!port) {
 				return;
 			}
-			const actions: ICommandAction[] = [];
+			const actions: ITerminalQuickFixAction[] = [];
 			const label = localize("terminal.freePort", "Free port {0}", port);
 			actions.push({
 				class: undefined, tooltip: label, id: 'terminal.freePort', label, enabled: true,
@@ -65,18 +65,18 @@ export function terminalFreePort(terminalInstance?: Partial<ITerminalInstance>):
 		}
 	};
 }
-export function terminalGitPushSetUpstream(): ITerminalQuickFixActionOptions {
+export function terminalGitPushSetUpstream(): ITerminalQuickFixOptions {
 	return {
-		actionName: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Git push ${matchResult.outputMatch[1]}` : '',
+		quickFixLabel: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Git push ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: GitPushCommandLineRegex,
 		outputMatcher: { lineMatcher: GitPushOutputRegex, anchor: 'bottom' },
 		exitStatus: false,
-		getActions: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
+		getQuickFixes: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
 			const branch = matchResult?.outputMatch?.[1];
 			if (!branch) {
 				return;
 			}
-			const actions: ICommandAction[] = [];
+			const actions: ITerminalQuickFixAction[] = [];
 			const label = localize("terminal.gitPush", "Git push {0}", branch);
 			command.command = `git push --set-upstream origin ${branch}`;
 			actions.push({
@@ -90,13 +90,13 @@ export function terminalGitPushSetUpstream(): ITerminalQuickFixActionOptions {
 	};
 }
 
-export function terminalGitCreatePr(openerService: IOpenerService): ITerminalQuickFixActionOptions {
+export function terminalGitCreatePr(openerService: IOpenerService): ITerminalQuickFixOptions {
 	return {
-		actionName: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Create PR for ${matchResult.outputMatch[1]}` : '',
+		quickFixLabel: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Create PR for ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: GitPushCommandLineRegex,
 		outputMatcher: { lineMatcher: GitCreatePrOutputRegex, anchor: 'bottom' },
 		exitStatus: true,
-		getActions: (matchResult: QuickFixMatchResult, command?: ITerminalCommand) => {
+		getQuickFixes: (matchResult: QuickFixMatchResult, command?: ITerminalCommand) => {
 			if (!command) {
 				return;
 			}
