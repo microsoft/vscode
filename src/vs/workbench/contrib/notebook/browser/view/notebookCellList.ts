@@ -934,7 +934,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
-		this.view.triggerScrollFromMouseWheelEvent(browserEvent);
+		this.view.delegateScrollFromMouseWheelEvent(browserEvent);
+	}
+
+	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent) {
+		this.view.delegateVerticalScrollbarPointerDown(browserEvent);
 	}
 
 	isElementAboveViewport(index: number) {
