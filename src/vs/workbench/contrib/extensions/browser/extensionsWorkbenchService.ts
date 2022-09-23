@@ -1778,6 +1778,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		else if (this.isAutoUpdateIgnored(extensionKey)) {
 			this.ignoredAutoUpdateExtensions = this.ignoredAutoUpdateExtensions.filter(extensionId => extensionId !== extensionKey.toString());
 		}
+		else {
+			return;
+		}
+		this._onChange.fire(extension);
 	}
 
 	isExtensionIgnoresUpdates(extension: IExtension): boolean {

@@ -138,7 +138,7 @@ async function setupTest() {
 
 	instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
 	instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', []);
-	instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{ extensions: [], onDidChangeExtensions: Event.None, canAddExtension: (extension: IExtensionDescription) => false, canRemoveExtension: (extension: IExtensionDescription) => false });
+	instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{ extensions: [], onDidChangeExtensions: Event.None, canAddExtension: (extension: IExtensionDescription) => false, canRemoveExtension: (extension: IExtensionDescription) => false, async whenInstalledExtensionsRegistered() { return true; } });
 	(<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
 
 	instantiationService.stub(IUserDataSyncEnablementService, instantiationService.createInstance(UserDataSyncEnablementService));
@@ -783,6 +783,7 @@ suite('ExtensionsActions', () => {
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
 			extensions: [toExtensionDescription(local)],
 			onDidChangeExtensions: Event.None,
+			async whenInstalledExtensionsRegistered() { return true; }
 		});
 
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);

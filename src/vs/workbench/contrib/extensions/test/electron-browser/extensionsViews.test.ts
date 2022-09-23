@@ -184,7 +184,9 @@ suite('ExtensionsListView Tests', () => {
 				toExtensionDescription(localRandom),
 				toExtensionDescription(builtInTheme),
 				toExtensionDescription(builtInBasic)
-			]
+			],
+			canAddExtension: (extension) => true,
+			async whenInstalledExtensionsRegistered() { return true; }
 		});
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledTheme], EnablementState.DisabledGlobally);
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledLanguage], EnablementState.DisabledGlobally);
@@ -238,6 +240,17 @@ suite('ExtensionsListView Tests', () => {
 			assert.ok(target.calledOnce);
 			const options: IQueryOptions = target.args[0][0];
 			assert.strictEqual(options.sortBy, SortBy.WeightedRating);
+		});
+	});
+
+	test('Test default view actions required sorting', async () => {
+		await testableView.show('').then(result => {
+			assert.strictEqual(result.length, 5, 'Unexpected number of results for @installed query');
+			const actual = [result.get(0).name, result.get(1).name, result.get(2).name, result.get(3).name, result.get(4).name].sort();
+			const expected = [localDisabledTheme.manifest.name, localEnabledTheme.manifest.name, localRandom.manifest.name, localDisabledLanguage.manifest.name, localEnabledLanguage.manifest.name];
+			for (let i = 0; i < result.length; i++) {
+				assert.strictEqual(actual[i], expected[i], 'Unexpected extension for @installed query.');
+			}
 		});
 	});
 

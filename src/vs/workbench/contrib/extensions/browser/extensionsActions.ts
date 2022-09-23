@@ -890,7 +890,6 @@ export class SkipUpdateAction extends AbstractUpdateAction {
 		alert(localize('ignoreExtensionUpdate', "Ignoring {0} updates", this.extension.displayName));
 		const newIgnoresAutoUpdates = !this.extensionsWorkbenchService.isExtensionIgnoresUpdates(this.extension);
 		this.extensionsWorkbenchService.setExtensionIgnoresUpdate(this.extension, newIgnoresAutoUpdates);
-		this.update();
 		this._onDidChange.fire({ checked: newIgnoresAutoUpdates });
 	}
 }
