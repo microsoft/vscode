@@ -36,7 +36,7 @@ import { SinonStub } from 'sinon';
 import { IExperimentService, ExperimentState, ExperimentActionType, ExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentService';
-import { ExtensionType, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -178,15 +178,13 @@ suite('ExtensionsListView Tests', () => {
 
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
 			onDidChangeExtensions: Event.None,
-			getExtensions: (): Promise<IExtensionDescription[]> => {
-				return Promise.resolve([
-					toExtensionDescription(localEnabledTheme),
-					toExtensionDescription(localEnabledLanguage),
-					toExtensionDescription(localRandom),
-					toExtensionDescription(builtInTheme),
-					toExtensionDescription(builtInBasic)
-				]);
-			}
+			extensions: [
+				toExtensionDescription(localEnabledTheme),
+				toExtensionDescription(localEnabledLanguage),
+				toExtensionDescription(localRandom),
+				toExtensionDescription(builtInTheme),
+				toExtensionDescription(builtInBasic)
+			]
 		});
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledTheme], EnablementState.DisabledGlobally);
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledLanguage], EnablementState.DisabledGlobally);
@@ -380,7 +378,7 @@ suite('ExtensionsListView Tests', () => {
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', workspaceRecommendedExtensions);
 
 		return testableView.show('@recommended:workspace').then(result => {
-			const extensionInfos: IExtensionInfo[] = target.args[1][0];
+			const extensionInfos: IExtensionInfo[] = target.args[0][0];
 			assert.strictEqual(extensionInfos.length, workspaceRecommendedExtensions.length);
 			assert.strictEqual(result.length, workspaceRecommendedExtensions.length);
 			for (let i = 0; i < workspaceRecommendedExtensions.length; i++) {
@@ -400,7 +398,7 @@ suite('ExtensionsListView Tests', () => {
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', allRecommendedExtensions);
 
 		return testableView.show('@recommended').then(result => {
-			const extensionInfos: IExtensionInfo[] = target.args[1][0];
+			const extensionInfos: IExtensionInfo[] = target.args[0][0];
 
 			assert.strictEqual(extensionInfos.length, allRecommendedExtensions.length);
 			assert.strictEqual(result.length, allRecommendedExtensions.length);
@@ -425,7 +423,7 @@ suite('ExtensionsListView Tests', () => {
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', allRecommendedExtensions);
 
 		return testableView.show('@recommended:all').then(result => {
-			const extensionInfos: IExtensionInfo[] = target.args[1][0];
+			const extensionInfos: IExtensionInfo[] = target.args[0][0];
 
 			assert.strictEqual(extensionInfos.length, allRecommendedExtensions.length);
 			assert.strictEqual(result.length, allRecommendedExtensions.length);
@@ -446,7 +444,7 @@ suite('ExtensionsListView Tests', () => {
 
 		return testableView.show('curated:mykey').then(result => {
 			const curatedKey: string = experimentTarget.args[0][0];
-			const extensionInfos: IExtensionInfo[] = queryTarget.args[1][0];
+			const extensionInfos: IExtensionInfo[] = queryTarget.args[0][0];
 
 			assert.ok(experimentTarget.calledOnce);
 			assert.strictEqual(extensionInfos.length, curatedList.length);
