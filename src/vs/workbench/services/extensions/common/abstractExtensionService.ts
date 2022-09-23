@@ -138,8 +138,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private readonly _onDidChangeExtensionsStatus: Emitter<ExtensionIdentifier[]> = this._register(new Emitter<ExtensionIdentifier[]>());
 	public readonly onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = this._onDidChangeExtensionsStatus.event;
 
-	private readonly _onDidChangeExtensions: Emitter<void> = this._register(new Emitter<void>({ leakWarningThreshold: 400 }));
-	public readonly onDidChangeExtensions: Event<void> = this._onDidChangeExtensions.event;
+	private readonly _onDidChangeExtensions = this._register(new Emitter<{ readonly added: ReadonlyArray<IExtensionDescription>; readonly removed: ReadonlyArray<IExtensionDescription> }>({ leakWarningThreshold: 400 }));
+	public readonly onDidChangeExtensions = this._onDidChangeExtensions.event;
 
 	private readonly _onWillActivateByEvent = this._register(new Emitter<IWillActivateEvent>());
 	public readonly onWillActivateByEvent: Event<IWillActivateEvent> = this._onWillActivateByEvent.event;
@@ -596,7 +596,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		// Update the local registry
 		const result = this._registry.deltaExtensions(toAdd, toRemove.map(e => e.identifier));
-		this._onDidChangeExtensions.fire(undefined);
+		this._onDidChangeExtensions.fire({ added: toAdd, removed: toRemove });
 
 		toRemove = toRemove.concat(result.removedDueToLooping);
 		if (result.removedDueToLooping.length > 0) {
@@ -1049,10 +1049,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return this._installedExtensionsReady.wait();
 	}
 
-	public getExtensions(): Promise<IExtensionDescription[]> {
-		return this._installedExtensionsReady.wait().then(() => {
-			return this._registry.getAllExtensionDescriptions();
-		});
+	get extensions(): IExtensionDescription[] {
+		return this._registry.getAllExtensionDescriptions();
+	}
+
+	protected getExtensions(): Promise<IExtensionDescription[]> {
+		return this._installedExtensionsReady.wait().then(() => this.extensions);
 	}
 
 	public getExtension(id: string): Promise<IExtensionDescription | undefined> {

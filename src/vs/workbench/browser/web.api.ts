@@ -15,9 +15,10 @@ import type { IProductConfiguration } from 'vs/base/common/product';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
-import { IObservableValue } from 'vs/base/common/observableValue';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import type { IObservableValue } from 'vs/base/common/observableValue';
+import type { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -30,12 +31,12 @@ export interface IWorkbench {
 	commands: {
 
 		/**
-		* Allows to execute any command if known with the provided arguments.
-		*
-		* @param command Identifier of the command to execute.
-		* @param rest Parameters passed to the command function.
-		* @return A promise that resolves to the returned value of the given command.
-		*/
+		 * Allows to execute any command if known with the provided arguments.
+		 *
+		 * @param command Identifier of the command to execute.
+		 * @param rest Parameters passed to the command function.
+		 * @return A promise that resolves to the returned value of the given command.
+		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	};
 
@@ -99,6 +100,7 @@ export interface IWorkbench {
 	};
 
 	workspace: {
+
 		/**
 		 * Forwards a port. If the current embedder implements a tunnelFactory then that will be used to make the tunnel.
 		 * By default, openTunnel only support localhost; however, a tunnelFactory can be used to support other ips.
@@ -107,7 +109,7 @@ export interface IWorkbench {
 		 *
 		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
 		 */
-		openTunnel(tunnelOptions: ITunnelOptions): Thenable<ITunnel>;
+		openTunnel(tunnelOptions: ITunnelOptions): Promise<ITunnel>;
 	};
 
 	/**
@@ -253,7 +255,9 @@ export interface IWorkbenchConstructionOptions {
 	readonly commands?: readonly ICommand[];
 
 	/**
-	 * Optional default layout to apply on first time the workspace is opened (unless `force` is specified).
+	 * Optional default layout to apply on first time the workspace is opened
+	 * (unless `force` is specified). This includes visibility of views and
+	 * editors including editor grid layout.
 	 */
 	readonly defaultLayout?: IDefaultLayout;
 
@@ -587,47 +591,66 @@ export interface IInitialColorTheme {
 }
 
 export interface IDefaultView {
+
+	/**
+	 * The identifier of the view to show by default.
+	 */
 	readonly id: string;
-}
-
-/**
- * @deprecated use `IDefaultEditor.options` instead
- */
-export interface IPosition {
-	readonly line: number;
-	readonly column: number;
-}
-
-/**
- * @deprecated use `IDefaultEditor.options` instead
- */
-export interface IRange {
-	readonly start: IPosition;
-	readonly end: IPosition;
 }
 
 export interface IDefaultEditor {
 
+	/**
+	 * The location of the editor in the editor grid layout.
+	 * Editors are layed out in editor groups and the view
+	 * column is counted from top left to bottom right in
+	 * the order of appearance beginning with `1`.
+	 *
+	 * If not provided, the editor will open in the active
+	 * group.
+	 */
+	readonly viewColumn?: number;
+
+	/**
+	 * The resource of the editor to open.
+	 */
 	readonly uri: UriComponents;
-	readonly options?: IEditorOptions;
 
+	/**
+	 * Optional extra options like which editor
+	 * to use or which text to select.
+	 */
+	readonly options?: ITextEditorOptions;
+
+	/**
+	 * Will not open an untitled editor in case
+	 * the resource does not exist.
+	 */
 	readonly openOnlyIfExists?: boolean;
-
-	/**
-	 * @deprecated use `options` instead
-	 */
-	readonly selection?: IRange;
-
-	/**
-	 * @deprecated use `options.override` instead
-	 */
-	readonly openWith?: string;
 }
 
 export interface IDefaultLayout {
 
+	/**
+	 * A list of views to show by default.
+	 */
 	readonly views?: IDefaultView[];
+
+	/**
+	 * A list of editors to show by default.
+	 */
 	readonly editors?: IDefaultEditor[];
+
+	/**
+	 * The layout to use for the workbench.
+	 */
+	readonly layout?: {
+
+		/**
+		 * The layout of the editor area.
+		 */
+		readonly editors?: EditorGroupLayout;
+	};
 
 	/**
 	 * Forces this layout to be applied even if this isn't

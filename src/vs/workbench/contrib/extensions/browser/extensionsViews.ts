@@ -296,7 +296,6 @@ export class ExtensionsListView extends ViewPane {
 
 	private async onContextMenu(e: IListContextMenuEvent<IExtension>): Promise<void> {
 		if (e.element) {
-			const runningExtensions = await this.extensionService.getExtensions();
 			const disposables = new DisposableStore();
 			const manageExtensionAction = disposables.add(this.instantiationService.createInstance(ManageExtensionAction));
 			const extension = e.element ? this.extensionsWorkbenchService.local.find(local => areSameExtensions(local.identifier, e.element!.identifier) && (!e.element!.server || e.element!.server === local.server)) || e.element
@@ -304,7 +303,7 @@ export class ExtensionsListView extends ViewPane {
 			manageExtensionAction.extension = extension;
 			let groups: IAction[][] = [];
 			if (manageExtensionAction.enabled) {
-				groups = await manageExtensionAction.getActionGroups(runningExtensions);
+				groups = await manageExtensionAction.getActionGroups();
 			} else if (extension) {
 				groups = await getContextMenuActions(extension, this.contextKeyService, this.instantiationService);
 				groups.forEach(group => group.forEach(extensionAction => {
@@ -375,8 +374,7 @@ export class ExtensionsListView extends ViewPane {
 
 	private async queryLocal(query: Query, options: IQueryOptions): Promise<IQueryResult> {
 		const local = await this.extensionsWorkbenchService.queryLocal(this.options.server);
-		const runningExtensions = await this.extensionService.getExtensions();
-		let { extensions, canIncludeInstalledExtensions } = await this.filterLocal(local, runningExtensions, query, options);
+		let { extensions, canIncludeInstalledExtensions } = await this.filterLocal(local, this.extensionService.extensions, query, options);
 		const disposables = new DisposableStore();
 		const onDidChangeModel = disposables.add(new Emitter<IPagedModel<IExtension>>());
 
@@ -388,8 +386,7 @@ export class ExtensionsListView extends ViewPane {
 				this.extensionService.onDidChangeExtensions
 			), () => undefined)(async () => {
 				const local = this.options.server ? this.extensionsWorkbenchService.installed.filter(e => e.server === this.options.server) : this.extensionsWorkbenchService.local;
-				const runningExtensions = await this.extensionService.getExtensions();
-				const { extensions: newExtensions } = await this.filterLocal(local, runningExtensions, query, options);
+				const { extensions: newExtensions } = await this.filterLocal(local, this.extensionService.extensions, query, options);
 				if (!isDisposed) {
 					const mergedExtensions = this.mergeAddedExtensions(extensions, newExtensions);
 					if (mergedExtensions) {
@@ -407,7 +404,7 @@ export class ExtensionsListView extends ViewPane {
 		};
 	}
 
-	private async filterLocal(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): Promise<{ extensions: IExtension[]; canIncludeInstalledExtensions: boolean }> {
+	private async filterLocal(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions): Promise<{ extensions: IExtension[]; canIncludeInstalledExtensions: boolean }> {
 		const value = query.value;
 		let extensions: IExtension[] = [];
 		let canIncludeInstalledExtensions = true;
@@ -510,7 +507,7 @@ export class ExtensionsListView extends ViewPane {
 		return { value, categories };
 	}
 
-	private filterInstalledExtensions(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
+	private filterInstalledExtensions(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
 		let { value, categories } = this.parseCategories(query.value);
 
 		value = value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
@@ -526,7 +523,7 @@ export class ExtensionsListView extends ViewPane {
 			const runningExtensionsById = runningExtensions.reduce((result, e) => { result.set(ExtensionIdentifier.toKey(e.identifier.value), e); return result; }, new Map<string, IExtensionDescription>());
 			result = result.sort((e1, e2) => {
 				const running1 = runningExtensionsById.get(ExtensionIdentifier.toKey(e1.identifier.id));
-				const isE1Running = running1 && this.extensionManagementServerService.getExtensionManagementServer(toExtension(running1)) === e1.server;
+				const isE1Running = !!running1 && this.extensionManagementServerService.getExtensionManagementServer(toExtension(running1)) === e1.server;
 				const running2 = runningExtensionsById.get(ExtensionIdentifier.toKey(e2.identifier.id));
 				const isE2Running = running2 && this.extensionManagementServerService.getExtensionManagementServer(toExtension(running2)) === e2.server;
 				if ((isE1Running && isE2Running)) {
@@ -566,7 +563,7 @@ export class ExtensionsListView extends ViewPane {
 		return this.sortExtensions(result, options);
 	}
 
-	private filterDisabledExtensions(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
+	private filterDisabledExtensions(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
 		let { value, categories } = this.parseCategories(query.value);
 
 		value = value.replace(/@disabled/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
@@ -580,7 +577,7 @@ export class ExtensionsListView extends ViewPane {
 		return this.sortExtensions(result, options);
 	}
 
-	private filterEnabledExtensions(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
+	private filterEnabledExtensions(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
 		let { value, categories } = this.parseCategories(query.value);
 
 		value = value ? value.replace(/@enabled/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';

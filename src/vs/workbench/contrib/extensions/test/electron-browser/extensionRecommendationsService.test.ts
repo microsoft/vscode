@@ -223,6 +223,8 @@ suite('ExtensionRecommendationsService Test', () => {
 			async getTargetPlatform() { return getTargetPlatform(platform, arch); }
 		});
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+			onDidChangeExtensions: Event.None,
+			extensions: [],
 			async whenInstalledExtensionsRegistered() { return true; }
 		});
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));

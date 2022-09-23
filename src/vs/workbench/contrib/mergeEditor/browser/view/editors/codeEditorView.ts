@@ -15,6 +15,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
@@ -58,6 +59,16 @@ export abstract class CodeEditorView extends Disposable {
 		// snap?: boolean | undefined;
 	};
 
+	protected readonly checkboxesVisible = observableFromEvent<boolean>(
+		this.configurationService.onDidChangeConfiguration,
+		() => /** @description checkboxesVisible */ this.configurationService.getValue('mergeEditor.showCheckboxes') ?? true
+	);
+
+	protected readonly codeLensesVisible = observableFromEvent<boolean>(
+		this.configurationService.onDidChangeConfiguration,
+		() => /** @description codeLensesVisible */ this.configurationService.getValue('mergeEditor.showCodeLenses') ?? false
+	);
+
 	public readonly editor = this.instantiationService.createInstance(
 		CodeEditorWidget,
 		this.htmlElements.editor,
@@ -89,11 +100,12 @@ export abstract class CodeEditorView extends Disposable {
 	public readonly cursorLineNumber = this.cursorPosition.map(p => /** @description cursorPosition.lineNumber */ p?.lineNumber);
 
 	constructor(
-		@IInstantiationService
 		private readonly instantiationService: IInstantiationService,
 		public readonly viewModel: IObservable<undefined | MergeEditorViewModel>,
+		private readonly configurationService: IConfigurationService,
 	) {
 		super();
+
 	}
 
 	protected getEditorContributions(): IEditorContributionDescription[] | undefined {
