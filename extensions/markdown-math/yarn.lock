@@ -2,9 +2,9 @@
 # yarn lockfile v1
 
 
-"@iktakahiro/markdown-it-katex@https://github.com/mjbvz/markdown-it-katex.git":
+"@iktakahiro/markdown-it-katex@mjbvz/markdown-it-katex":
   version "4.0.1"
-  resolved "https://github.com/mjbvz/markdown-it-katex.git#b1ed14de467031f5d4f9c1588dd1868cab0b8744"
+  resolved "https://codeload.github.com/mjbvz/markdown-it-katex/tar.gz/1e0d09f9174b3ee1537de2586ce8d8a460284ce4"
   dependencies:
     katex "^0.13.0"
 

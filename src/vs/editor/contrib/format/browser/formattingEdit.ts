@@ -13,9 +13,9 @@ export class FormattingEdit {
 
 	private static _handleEolEdits(editor: ICodeEditor, edits: TextEdit[]): ISingleEditOperation[] {
 		let newEol: EndOfLineSequence | undefined = undefined;
-		let singleEdits: ISingleEditOperation[] = [];
+		const singleEdits: ISingleEditOperation[] = [];
 
-		for (let edit of edits) {
+		for (const edit of edits) {
 			if (typeof edit.eol === 'number') {
 				newEol = edit.eol;
 			}

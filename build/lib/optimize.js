@@ -1,10 +1,10 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.minifyTask = exports.optimizeTask = exports.loaderConfig = void 0;
+exports.minifyTask = exports.optimizeTask = exports.optimizeLoaderTask = exports.loaderConfig = void 0;
 const es = require("event-stream");
 const gulp = require("gulp");
 const concat = require("gulp-concat");
@@ -35,39 +35,57 @@ function loaderConfig() {
 }
 exports.loaderConfig = loaderConfig;
 const IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
-function loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo) {
-    let sources = [
-        `${src}/vs/loader.js`
-    ];
-    if (bundleLoader) {
-        sources = sources.concat([
-            `${src}/vs/css.js`,
-            `${src}/vs/nls.js`
-        ]);
-    }
-    let isFirst = true;
+function loaderPlugin(src, base, amdModuleId) {
     return (gulp
-        .src(sources, { base: `${src}` })
+        .src(src, { base })
         .pipe(es.through(function (data) {
-        if (isFirst) {
-            isFirst = false;
-            this.emit('data', new VinylFile({
-                path: 'fake',
-                base: '.',
-                contents: Buffer.from(bundledFileHeader)
-            }));
-            this.emit('data', data);
+        if (amdModuleId) {
+            let contents = data.contents.toString('utf8');
+            contents = contents.replace(/^define\(/m, `define("${amdModuleId}",`);
+            data.contents = Buffer.from(contents);
         }
-        else {
-            this.emit('data', data);
+        this.emit('data', data);
+    })));
+}
+function loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo) {
+    let loaderStream = gulp.src(`${src}/vs/loader.js`, { base: `${src}` });
+    if (bundleLoader) {
+        loaderStream = es.merge(loaderStream, loaderPlugin(`${src}/vs/css.js`, `${src}`, 'vs/css'), loaderPlugin(`${src}/vs/nls.js`, `${src}`, 'vs/nls'));
+    }
+    const files = [];
+    const order = (f) => {
+        if (f.path.endsWith('loader.js')) {
+            return 0;
         }
+        if (f.path.endsWith('css.js')) {
+            return 1;
+        }
+        if (f.path.endsWith('nls.js')) {
+            return 2;
+        }
+        return 3;
+    };
+    return (loaderStream
+        .pipe(es.through(function (data) {
+        files.push(data);
     }, function () {
+        files.sort((a, b) => {
+            return order(a) - order(b);
+        });
+        files.unshift(new VinylFile({
+            path: 'fake',
+            base: '.',
+            contents: Buffer.from(bundledFileHeader)
+        }));
         if (externalLoaderInfo !== undefined) {
-            this.emit('data', new VinylFile({
+            files.push(new VinylFile({
                 path: 'fake2',
                 base: '.',
                 contents: Buffer.from(`require.config(${JSON.stringify(externalLoaderInfo, undefined, 2)});`)
             }));
+        }
+        for (const file of files) {
+            this.emit('data', file);
         }
         this.emit('end');
     }))
@@ -117,56 +135,94 @@ const DEFAULT_FILE_HEADER = [
     ' * Copyright (C) Microsoft Corporation. All rights reserved.',
     ' *--------------------------------------------------------*/'
 ].join('\n');
-function optimizeTask(opts) {
+function optimizeAMDTask(opts) {
     const src = opts.src;
     const entryPoints = opts.entryPoints;
     const resources = opts.resources;
     const loaderConfig = opts.loaderConfig;
     const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
-    const bundleLoader = (typeof opts.bundleLoader === 'undefined' ? true : opts.bundleLoader);
-    const out = opts.out;
     const fileContentMapper = opts.fileContentMapper || ((contents, _path) => contents);
-    return function () {
-        const sourcemaps = require('gulp-sourcemaps');
-        const bundlesStream = es.through(); // this stream will contain the bundled files
-        const resourcesStream = es.through(); // this stream will contain the resources
-        const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
-        bundle.bundle(entryPoints, loaderConfig, function (err, result) {
-            if (err || !result) {
-                return bundlesStream.emit('error', JSON.stringify(err));
+    const sourcemaps = require('gulp-sourcemaps');
+    const bundlesStream = es.through(); // this stream will contain the bundled files
+    const resourcesStream = es.through(); // this stream will contain the resources
+    const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
+    bundle.bundle(entryPoints, loaderConfig, function (err, result) {
+        if (err || !result) {
+            return bundlesStream.emit('error', JSON.stringify(err));
+        }
+        toBundleStream(src, bundledFileHeader, result.files, fileContentMapper).pipe(bundlesStream);
+        // Remove css inlined resources
+        const filteredResources = resources.slice();
+        result.cssInlinedResources.forEach(function (resource) {
+            if (process.env['VSCODE_BUILD_VERBOSE']) {
+                log('optimizer', 'excluding inlined: ' + resource);
             }
-            toBundleStream(src, bundledFileHeader, result.files, fileContentMapper).pipe(bundlesStream);
-            // Remove css inlined resources
-            const filteredResources = resources.slice();
-            result.cssInlinedResources.forEach(function (resource) {
-                if (process.env['VSCODE_BUILD_VERBOSE']) {
-                    log('optimizer', 'excluding inlined: ' + resource);
-                }
-                filteredResources.push('!' + resource);
-            });
-            gulp.src(filteredResources, { base: `${src}`, allowEmpty: true }).pipe(resourcesStream);
-            const bundleInfoArray = [];
-            if (opts.bundleInfo) {
-                bundleInfoArray.push(new VinylFile({
-                    path: 'bundleInfo.json',
-                    base: '.',
-                    contents: Buffer.from(JSON.stringify(result.bundleData, null, '\t'))
-                }));
-            }
-            es.readArray(bundleInfoArray).pipe(bundleInfoStream);
+            filteredResources.push('!' + resource);
         });
-        const result = es.merge(loader(src, bundledFileHeader, bundleLoader, opts.externalLoaderInfo), bundlesStream, resourcesStream, bundleInfoStream);
-        return result
-            .pipe(sourcemaps.write('./', {
-            sourceRoot: undefined,
-            addComment: true,
-            includeContent: true
-        }))
-            .pipe(opts.languages && opts.languages.length ? (0, i18n_1.processNlsFiles)({
-            fileHeader: bundledFileHeader,
-            languages: opts.languages
-        }) : es.through())
-            .pipe(gulp.dest(out));
+        gulp.src(filteredResources, { base: `${src}`, allowEmpty: true }).pipe(resourcesStream);
+        const bundleInfoArray = [];
+        if (opts.bundleInfo) {
+            bundleInfoArray.push(new VinylFile({
+                path: 'bundleInfo.json',
+                base: '.',
+                contents: Buffer.from(JSON.stringify(result.bundleData, null, '\t'))
+            }));
+        }
+        es.readArray(bundleInfoArray).pipe(bundleInfoStream);
+    });
+    const result = es.merge(loader(src, bundledFileHeader, false, opts.externalLoaderInfo), bundlesStream, resourcesStream, bundleInfoStream);
+    return result
+        .pipe(sourcemaps.write('./', {
+        sourceRoot: undefined,
+        addComment: true,
+        includeContent: true
+    }))
+        .pipe(opts.languages && opts.languages.length ? (0, i18n_1.processNlsFiles)({
+        fileHeader: bundledFileHeader,
+        languages: opts.languages
+    }) : es.through());
+}
+function optimizeCommonJSTask(opts) {
+    const esbuild = require('esbuild');
+    const src = opts.src;
+    const entryPoints = opts.entryPoints;
+    return gulp.src(entryPoints, { base: `${src}`, allowEmpty: true })
+        .pipe(es.map((f, cb) => {
+        esbuild.build({
+            entryPoints: [f.path],
+            bundle: true,
+            platform: opts.platform,
+            write: false,
+            external: opts.external
+        }).then(res => {
+            const jsFile = res.outputFiles[0];
+            f.contents = Buffer.from(jsFile.contents);
+            cb(undefined, f);
+        });
+    }));
+}
+function optimizeManualTask(options) {
+    const concatenations = options.map(opt => {
+        return gulp
+            .src(opt.src)
+            .pipe(concat(opt.out));
+    });
+    return es.merge(...concatenations);
+}
+function optimizeLoaderTask(src, out, bundleLoader, bundledFileHeader = '', externalLoaderInfo) {
+    return () => loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo).pipe(gulp.dest(out));
+}
+exports.optimizeLoaderTask = optimizeLoaderTask;
+function optimizeTask(opts) {
+    return function () {
+        const optimizers = [optimizeAMDTask(opts.amd)];
+        if (opts.commonJS) {
+            optimizers.push(optimizeCommonJSTask(opts.commonJS));
+        }
+        if (opts.manual) {
+            optimizers.push(optimizeManualTask(opts.manual));
+        }
+        return es.merge(...optimizers).pipe(gulp.dest(opts.out));
     };
 }
 exports.optimizeTask = optimizeTask;

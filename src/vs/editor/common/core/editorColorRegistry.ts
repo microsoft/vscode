@@ -85,7 +85,13 @@ export const editorUnicodeHighlightBackground = registerColor('editorUnicodeHigh
 registerThemingParticipant((theme, collector) => {
 	const background = theme.getColor(editorBackground);
 	if (background) {
-		collector.addRule(`.monaco-editor, .monaco-editor-background, .monaco-editor .inputarea.ime-input { background-color: ${background}; }`);
+		collector.addRule(`.monaco-editor, .monaco-editor-background { background-color: ${background}; }`);
+	}
+
+	const lineHighlight = theme.getColor(editorLineHighlight);
+	const imeBackground = (lineHighlight && !lineHighlight.isTransparent() ? lineHighlight : background);
+	if (imeBackground) {
+		collector.addRule(`.monaco-editor .inputarea.ime-input { background-color: ${imeBackground}; }`);
 	}
 
 	const foreground = theme.getColor(editorForeground);

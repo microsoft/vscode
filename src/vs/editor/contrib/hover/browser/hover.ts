@@ -256,7 +256,7 @@ class ShowHoverAction extends EditorAction {
 		if (!editor.hasModel()) {
 			return;
 		}
-		let controller = ModesHoverController.get(editor);
+		const controller = ModesHoverController.get(editor);
 		if (!controller) {
 			return;
 		}

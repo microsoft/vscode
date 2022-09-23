@@ -128,7 +128,6 @@
 	font-size: var(--notebook-cell-output-font-size);
 	user-select: text;
 	-webkit-user-select: text;
-	-ms-user-select: text;
 	cursor: auto;
 	box-sizing: border-box;
 	z-index: var(--z-index-notebook-output);
@@ -429,7 +428,7 @@
 	outline: none !important;
 }
 
-.monaco-workbench .notebookOverlay.notebook-editor-editable > .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar.visible {
+.monaco-workbench .notebookOverlay.notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar.visible {
 	z-index: var(--z-index-notebook-scrollbar);
 	cursor: default;
 }

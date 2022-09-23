@@ -25,11 +25,12 @@ const optimist = require('optimist')
 
 
 const TEST_GLOB = '**/test/**/*.test.js';
-const excludeGlob = '**/{browser,electron-sandbox,electron-browser,electron-main}/**/*.test.js';
-const excludeModules = [
-	'vs/platform/environment/test/node/nativeModules.test.js', // native modules are compiled against Electron and this test would fail with node.js
-	'vs/base/parts/storage/test/node/storage.test.js', // same as above, due to direct dependency to sqlite native module
-	'vs/workbench/contrib/testing/test/common/testResultService.test.js' // flaky (https://github.com/microsoft/vscode/issues/137853)
+
+const excludeGlobs = [
+	'**/{browser,electron-sandbox,electron-browser,electron-main}/**/*.test.js',
+	'**/vs/platform/environment/test/node/nativeModules.test.js', // native modules are compiled against Electron and this test would fail with node.js
+	'**/vs/base/parts/storage/test/node/storage.test.js', // same as above, due to direct dependency to sqlite native module
+	'**/vs/workbench/contrib/testing/test/**' // flaky (https://github.com/microsoft/vscode/issues/137853)
 ];
 
 /**
@@ -93,7 +94,6 @@ function main() {
 
 	const loaderConfig = {
 		nodeRequire: require,
-		nodeMain: __filename,
 		baseUrl: fileUriFromPath(src, { isWindows: process.platform === 'win32' }),
 		catchError: true
 	};
@@ -151,8 +151,8 @@ function main() {
 			glob(TEST_GLOB, { cwd: src }, function (err, files) {
 				/** @type {string[]} */
 				const modules = [];
-				for (let file of files) {
-					if (!minimatch(file, excludeGlob) && excludeModules.indexOf(file) === -1) {
+				for (const file of files) {
+					if (!excludeGlobs.some(excludeGlob => minimatch(file, excludeGlob))) {
 						modules.push(file.replace(/\.js$/, ''));
 					}
 				}
@@ -179,7 +179,7 @@ function main() {
 		}
 
 		// report failing test for every unexpected error during any of the tests
-		let unexpectedErrors = [];
+		const unexpectedErrors = [];
 		mocha.suite('Errors', function () {
 			test('should not have unexpected errors in tests', function () {
 				if (unexpectedErrors.length) {

@@ -13,9 +13,14 @@ export class CodeActionKind {
 	public static readonly Empty = new CodeActionKind('');
 	public static readonly QuickFix = new CodeActionKind('quickfix');
 	public static readonly Refactor = new CodeActionKind('refactor');
+	public static readonly RefactorExtract = CodeActionKind.Refactor.append('extract');
+	public static readonly RefactorInline = CodeActionKind.Refactor.append('inline');
+	public static readonly RefactorMove = CodeActionKind.Refactor.append('move');
+	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
 	public static readonly Source = new CodeActionKind('source');
 	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
 	public static readonly SourceFixAll = CodeActionKind.Source.append('fixAll');
+	public static readonly SurroundWith = CodeActionKind.Refactor.append('surround');
 
 	constructor(
 		public readonly value: string
@@ -42,6 +47,21 @@ export const enum CodeActionAutoApply {
 	IfSingle = 'ifSingle',
 	First = 'first',
 	Never = 'never',
+}
+
+export enum CodeActionTriggerSource {
+	Refactor = 'refactor',
+	RefactorPreview = 'refactor preview',
+	Lightbulb = 'lightbulb',
+	Default = 'other (default)',
+	SourceAction = 'source action',
+	QuickFix = 'quick fix action',
+	FixAll = 'fix all',
+	OrganizeImports = 'organize imports',
+	AutoFix = 'auto fix',
+	QuickFixHover = 'quick fix hover window',
+	OnSave = 'save participants',
+	ProblemsView = 'problems view'
 }
 
 export interface CodeActionFilter {
@@ -116,12 +136,14 @@ function excludesAction(providedKind: CodeActionKind, exclude: CodeActionKind, i
 
 export interface CodeActionTrigger {
 	readonly type: CodeActionTriggerType;
+	readonly triggerAction: CodeActionTriggerSource;
 	readonly filter?: CodeActionFilter;
 	readonly autoApply?: CodeActionAutoApply;
 	readonly context?: {
 		readonly notAvailableMessage: string;
 		readonly position: Position;
 	};
+	readonly preview?: boolean;
 }
 
 export class CodeActionCommandArgs {

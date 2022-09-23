@@ -279,7 +279,7 @@ export function lastNonWhitespaceIndex(str: string, startIndex: number = str.len
  * replace function is allowed to be async and return a Promise.
  */
 export function replaceAsync(str: string, search: RegExp, replacer: (match: string, ...args: any[]) => Promise<string>): Promise<string> {
-	let parts: (string | Promise<string>)[] = [];
+	const parts: (string | Promise<string>)[] = [];
 
 	let last = 0;
 	for (const match of str.matchAll(search)) {
@@ -309,8 +309,8 @@ export function compare(a: string, b: string): number {
 
 export function compareSubstring(a: string, b: string, aStart: number = 0, aEnd: number = a.length, bStart: number = 0, bEnd: number = b.length): number {
 	for (; aStart < aEnd && bStart < bEnd; aStart++, bStart++) {
-		let codeA = a.charCodeAt(aStart);
-		let codeB = b.charCodeAt(bStart);
+		const codeA = a.charCodeAt(aStart);
+		const codeB = b.charCodeAt(bStart);
 		if (codeA < codeB) {
 			return -1;
 		} else if (codeA > codeB) {
@@ -378,6 +378,10 @@ export function compareSubstringIgnoreCase(a: string, b: string, aStart: number 
 	return 0;
 }
 
+export function isAsciiDigit(code: number): boolean {
+	return code >= CharCode.Digit0 && code <= CharCode.Digit9;
+}
+
 export function isLowerAsciiLetter(code: number): boolean {
 	return code >= CharCode.a && code <= CharCode.z;
 }
@@ -404,8 +408,8 @@ export function startsWithIgnoreCase(str: string, candidate: string): boolean {
  */
 export function commonPrefixLength(a: string, b: string): number {
 
-	let i: number,
-		len = Math.min(a.length, b.length);
+	const len = Math.min(a.length, b.length);
+	let i: number;
 
 	for (i = 0; i < len; i++) {
 		if (a.charCodeAt(i) !== b.charCodeAt(i)) {
@@ -421,8 +425,8 @@ export function commonPrefixLength(a: string, b: string): number {
  */
 export function commonSuffixLength(a: string, b: string): number {
 
-	let i: number,
-		len = Math.min(a.length, b.length);
+	const len = Math.min(a.length, b.length);
+	let i: number;
 
 	const aLastIndex = a.length - 1;
 	const bLastIndex = b.length - 1;
@@ -596,15 +600,31 @@ export function getCharContainingOffset(str: string, offset: number): [number, n
 	return [startOffset, endOffset];
 }
 
-/**
- * Generated using https://github.com/alexdima/unicode-utils/blob/main/rtl-test.js
- */
-const CONTAINS_RTL = /(?:[\u05BE\u05C0\u05C3\u05C6\u05D0-\u05F4\u0608\u060B\u060D\u061B-\u064A\u066D-\u066F\u0671-\u06D5\u06E5\u06E6\u06EE\u06EF\u06FA-\u0710\u0712-\u072F\u074D-\u07A5\u07B1-\u07EA\u07F4\u07F5\u07FA\u07FE-\u0815\u081A\u0824\u0828\u0830-\u0858\u085E-\u088E\u08A0-\u08C9\u200F\uFB1D\uFB1F-\uFB28\uFB2A-\uFD3D\uFD50-\uFDC7\uFDF0-\uFDFC\uFE70-\uFEFC]|\uD802[\uDC00-\uDD1B\uDD20-\uDE00\uDE10-\uDE35\uDE40-\uDEE4\uDEEB-\uDF35\uDF40-\uDFFF]|\uD803[\uDC00-\uDD23\uDE80-\uDEA9\uDEAD-\uDF45\uDF51-\uDF81\uDF86-\uDFF6]|\uD83A[\uDC00-\uDCCF\uDD00-\uDD43\uDD4B-\uDFFF]|\uD83B[\uDC00-\uDEBB])/;
+export function charCount(str: string): number {
+	const iterator = new GraphemeIterator(str);
+	let length = 0;
+	while (!iterator.eol()) {
+		length++;
+		iterator.nextGraphemeLength();
+	}
+	return length;
+}
+
+let CONTAINS_RTL: RegExp | undefined = undefined;
+
+function makeContainsRtl() {
+	// Generated using https://github.com/alexdima/unicode-utils/blob/main/rtl-test.js
+	return /(?:[\u05BE\u05C0\u05C3\u05C6\u05D0-\u05F4\u0608\u060B\u060D\u061B-\u064A\u066D-\u066F\u0671-\u06D5\u06E5\u06E6\u06EE\u06EF\u06FA-\u0710\u0712-\u072F\u074D-\u07A5\u07B1-\u07EA\u07F4\u07F5\u07FA\u07FE-\u0815\u081A\u0824\u0828\u0830-\u0858\u085E-\u088E\u08A0-\u08C9\u200F\uFB1D\uFB1F-\uFB28\uFB2A-\uFD3D\uFD50-\uFDC7\uFDF0-\uFDFC\uFE70-\uFEFC]|\uD802[\uDC00-\uDD1B\uDD20-\uDE00\uDE10-\uDE35\uDE40-\uDEE4\uDEEB-\uDF35\uDF40-\uDFFF]|\uD803[\uDC00-\uDD23\uDE80-\uDEA9\uDEAD-\uDF45\uDF51-\uDF81\uDF86-\uDFF6]|\uD83A[\uDC00-\uDCCF\uDD00-\uDD43\uDD4B-\uDFFF]|\uD83B[\uDC00-\uDEBB])/;
+}
 
 /**
  * Returns true if `str` contains any Unicode character that is classified as "R" or "AL".
  */
 export function containsRTL(str: string): boolean {
+	if (!CONTAINS_RTL) {
+		CONTAINS_RTL = makeContainsRtl();
+	}
+
 	return CONTAINS_RTL.test(str);
 }
 

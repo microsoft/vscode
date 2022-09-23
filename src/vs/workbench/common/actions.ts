@@ -44,7 +44,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		// keybinding
 		const weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingWeight.WorkbenchContrib : descriptor.keybindingWeight);
 		const keybindings = descriptor.keybindings;
-		KeybindingsRegistry.registerKeybindingRule({
+		registrations.add(KeybindingsRegistry.registerKeybindingRule({
 			id: descriptor.id,
 			weight: weight,
 			when:
@@ -56,14 +56,14 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 			win: keybindings?.win,
 			mac: keybindings?.mac,
 			linux: keybindings?.linux
-		});
+		}));
 
 		// menu item
 		// TODO@Rob slightly weird if-check required because of
 		// https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/search/electron-browser/search.contribution.ts#L266
 		if (descriptor.label) {
 
-			let idx = alias.indexOf(': ');
+			const idx = alias.indexOf(': ');
 			let categoryOriginal = '';
 			if (idx > 0) {
 				categoryOriginal = alias.substr(0, idx);
@@ -76,14 +76,10 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 				category: category ? { value: category, original: categoryOriginal } : undefined
 			};
 
-			MenuRegistry.addCommand(command);
+			registrations.add(MenuRegistry.addCommand(command));
 
 			registrations.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command, when }));
 		}
-
-		// TODO@alex,joh
-		// support removal of keybinding rule
-		// support removal of command-ui
 		return registrations;
 	}
 

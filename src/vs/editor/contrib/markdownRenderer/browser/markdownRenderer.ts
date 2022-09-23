@@ -23,6 +23,7 @@ export interface IMarkdownRenderResult extends IDisposable {
 export interface IMarkdownRendererOptions {
 	editor?: ICodeEditor;
 	codeBlockFontFamily?: string;
+	codeBlockFontSize?: string;
 }
 
 /**
@@ -91,6 +92,10 @@ export class MarkdownRenderer {
 					applyFontInfo(element, fontInfo);
 				} else if (this._options.codeBlockFontFamily) {
 					element.style.fontFamily = this._options.codeBlockFontFamily;
+				}
+
+				if (this._options.codeBlockFontSize !== undefined) {
+					element.style.fontSize = this._options.codeBlockFontSize;
 				}
 
 				return element;

@@ -21,7 +21,7 @@ export function fetchSelectItem(direction: string): void {
 		return;
 	}
 
-	let newSelections: vscode.Selection[] = [];
+	const newSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
 		const selectionStart = selection.isReversed ? selection.active : selection.anchor;
 		const selectionEnd = selection.isReversed ? selection.anchor : selection.active;

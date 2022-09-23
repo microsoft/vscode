@@ -1,8 +1,8 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.config = void 0;
 const fs = require("fs");
@@ -152,6 +152,7 @@ exports.config = {
             'F# script': ['fsx', 'fsscript'],
             'SVG document': ['svg', 'svgz'],
             'TOML document': 'toml',
+            'Swift source code': 'swift',
         }, 'default'),
         // Default icon with default name
         darwinBundleDocumentType([

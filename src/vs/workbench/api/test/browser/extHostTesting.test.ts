@@ -17,6 +17,8 @@ import { Location, Position, Range, TestMessage, TestResultState, TestRunProfile
 import { TestDiffOpType, TestItemExpandState, TestMessageType, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import type { TestItem, TestRunRequest } from 'vscode';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import * as editorRange from 'vs/editor/common/core/range';
 
 const simplify = (item: TestItem) => ({
 	id: item.id,
@@ -36,8 +38,8 @@ const assertTreesEqual = (a: TestItemImpl | undefined, b: TestItemImpl | undefin
 
 	assert.deepStrictEqual(simplify(a), simplify(b));
 
-	const aChildren = [...a.children].map(c => c.id).sort();
-	const bChildren = [...b.children].map(c => c.id).sort();
+	const aChildren = [...a.children].map(([_, c]) => c.id).sort();
+	const bChildren = [...b.children].map(([_, c]) => c.id).sort();
 	assert.strictEqual(aChildren.length, bChildren.length, `expected ${a.label}.children.length == ${b.label}.children.length`);
 	aChildren.forEach(key => assertTreesEqual(a.children.get(key) as TestItemImpl, b.children.get(key) as TestItemImpl));
 };
@@ -69,7 +71,9 @@ suite('ExtHost Testing', () => {
 
 	let single: TestExtHostTestItemCollection;
 	setup(() => {
-		single = new TestExtHostTestItemCollection('ctrlId', 'root');
+		single = new TestExtHostTestItemCollection('ctrlId', 'root', {
+			getDocument: () => undefined,
+		} as Partial<ExtHostDocumentsAndEditors> as ExtHostDocumentsAndEditors);
 		single.resolveHandler = item => {
 			if (item === undefined) {
 				const a = new TestItemImpl('ctrlId', 'id-a', 'a', URI.file('/'));
@@ -242,7 +246,7 @@ suite('ExtHost Testing', () => {
 
 			const oldA = single.root.children.get('id-a') as TestItemImpl;
 			const newA = new TestItemImpl('ctrlId', 'id-a', 'Hello world', undefined);
-			newA.children.replace([...oldA.children]);
+			newA.children.replace([...oldA.children].map(([_, item]) => item));
 			single.root.children.replace([
 				newA,
 				new TestItemImpl('ctrlId', 'id-b', single.root.children.get('id-b')!.label, undefined),
@@ -334,8 +338,60 @@ suite('ExtHost Testing', () => {
 				},
 			]);
 
-			assert.deepStrictEqual([...single.root.children], [single.root.children.get('id-a')]);
+			assert.deepStrictEqual([...single.root.children].map(([_, item]) => item), [single.root.children.get('id-a')]);
 			assert.deepStrictEqual(b.parent, a);
+		});
+
+		test('sends document sync events', async () => {
+			await single.expand(single.root.id, 0);
+			single.collectDiff();
+
+			const a = single.root.children.get('id-a') as TestItemImpl;
+			a.range = new Range(new Position(0, 0), new Position(1, 0));
+
+			assert.deepStrictEqual(single.collectDiff(), [
+				{
+					op: TestDiffOpType.DocumentSynced,
+					docv: undefined,
+					uri: URI.file('/')
+				},
+				{
+					op: TestDiffOpType.Update,
+					item: {
+						extId: new TestId(['ctrlId', 'id-a']).toString(),
+						item: {
+							range: editorRange.Range.lift({
+								endColumn: 1,
+								endLineNumber: 2,
+								startColumn: 1,
+								startLineNumber: 1
+							})
+						}
+					},
+				},
+			]);
+
+			// sends on replace even if it's a no-op
+			a.range = a.range;
+			assert.deepStrictEqual(single.collectDiff(), [
+				{
+					op: TestDiffOpType.DocumentSynced,
+					docv: undefined,
+					uri: URI.file('/')
+				},
+			]);
+
+			// sends on a child replacement
+			const a2 = new TestItemImpl('ctrlId', 'id-a', 'a', URI.file('/'));
+			a2.range = a.range;
+			single.root.children.replace([a2, single.root.children.get('id-b')!]);
+			assert.deepStrictEqual(single.collectDiff(), [
+				{
+					op: TestDiffOpType.DocumentSynced,
+					docv: undefined,
+					uri: URI.file('/')
+				},
+			]);
 		});
 	});
 

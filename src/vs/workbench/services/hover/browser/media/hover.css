@@ -38,6 +38,12 @@
 	width: 5px;
 	height: 5px;
 }
+.monaco-workbench .locked .workbench-hover-pointer:after {
+	width: 4px;
+	height: 4px;
+	border-right-width: 2px;
+	border-bottom-width: 2px;
+}
 
 .monaco-workbench .workbench-hover-pointer.left   { left: -3px; }
 .monaco-workbench .workbench-hover-pointer.right  { right: 3px; }

@@ -10,7 +10,9 @@ import { Logger, measureAndLog } from './logger';
 export const enum Quality {
 	Dev,
 	Insiders,
-	Stable
+	Stable,
+	Exploration,
+	OSS
 }
 
 export interface ApplicationOptions extends LaunchOptions {
@@ -67,7 +69,7 @@ export class Application {
 	}
 
 	async restart(options?: { workspaceOrFolder?: string; extraArgs?: string[] }): Promise<void> {
-		await measureAndLog((async () => {
+		await measureAndLog(() => (async () => {
 			await this.stop();
 			await this._start(options?.workspaceOrFolder, options?.extraArgs);
 		})(), 'Application#restart()', this.logger);
@@ -80,7 +82,7 @@ export class Application {
 		const code = await this.startApplication(extraArgs);
 
 		// ...and make sure the window is ready to interact
-		await measureAndLog(this.checkWindowReady(code), 'Application#checkWindowReady()', this.logger);
+		await measureAndLog(() => this.checkWindowReady(code), 'Application#checkWindowReady()', this.logger);
 	}
 
 	async stop(): Promise<void> {
@@ -107,7 +109,7 @@ export class Application {
 			extraArgs: [...(this.options.extraArgs || []), ...extraArgs],
 		});
 
-		this._workbench = new Workbench(this._code, this.userDataPath);
+		this._workbench = new Workbench(this._code);
 
 		return code;
 	}
@@ -115,11 +117,12 @@ export class Application {
 	private async checkWindowReady(code: Code): Promise<void> {
 
 		// We need a rendered workbench
-		await this.checkWorkbenchReady(code);
+		await measureAndLog(() => code.didFinishLoad(), 'Application#checkWindowReady: wait for navigation to be committed', this.logger);
+		await measureAndLog(() => code.waitForElement('.monaco-workbench'), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
 
 		// Remote but not web: wait for a remote connection state change
 		if (this.remote) {
-			await measureAndLog(code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', undefined, statusHostLabel => {
+			await measureAndLog(() => code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', undefined, statusHostLabel => {
 				this.logger.log(`checkWindowReady: remote indicator text is ${statusHostLabel}`);
 
 				// The absence of "Opening Remote" is not a strict
@@ -132,29 +135,6 @@ export class Application {
 				// we return.
 				return !statusHostLabel.includes('Opening Remote');
 			}, 300 /* = 30s of retry */), 'Application#checkWindowReady: wait for remote indicator', this.logger);
-		}
-	}
-
-	private async checkWorkbenchReady(code: Code): Promise<void> {
-
-		// Web / Legacy: just poll for workbench element
-		if (this.web) {
-			await measureAndLog(code.waitForElement('.monaco-workbench'), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
-		}
-
-		// Desktop (playwright): we see hangs, where IPC messages
-		// are not delivered (https://github.com/microsoft/vscode/issues/146785)
-		// Workaround is to try to reload the window when that happens
-		else {
-			try {
-				await measureAndLog(code.waitForElement('.monaco-workbench', undefined, 100 /* 10s of retry */), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
-			} catch (error) {
-				this.logger.log(`checkWindowReady: giving up after 10s, reloading window and trying again...`);
-
-				await code.driver.reload();
-
-				return this.checkWorkbenchReady(code);
-			}
 		}
 	}
 }

@@ -15,6 +15,7 @@ import { Emitter, Event as BaseEvent } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
+import { localize } from 'vs/nls';
 import 'vs/css!./button';
 
 export interface IButtonOptions extends IButtonStyles {
@@ -27,6 +28,7 @@ export interface IButtonStyles {
 	buttonBackground?: Color;
 	buttonHoverBackground?: Color;
 	buttonForeground?: Color;
+	buttonSeparator?: Color;
 	buttonSecondaryBackground?: Color;
 	buttonSecondaryHoverBackground?: Color;
 	buttonSecondaryForeground?: Color;
@@ -36,6 +38,7 @@ export interface IButtonStyles {
 const defaultOptions: IButtonStyles = {
 	buttonBackground: Color.fromHex('#0E639C'),
 	buttonHoverBackground: Color.fromHex('#006BB3'),
+	buttonSeparator: Color.white,
 	buttonForeground: Color.white
 };
 
@@ -136,8 +139,8 @@ export class Button extends Disposable implements IButton {
 
 		// Also set hover background when button is focused for feedback
 		this.focusTracker = this._register(trackFocus(this._element));
-		this._register(this.focusTracker.onDidFocus(() => this.setHoverBackground()));
-		this._register(this.focusTracker.onDidBlur(() => this.applyStyles())); // restore standard styles
+		this._register(this.focusTracker.onDidFocus(() => { if (this.enabled) { this.setHoverBackground(); } }));
+		this._register(this.focusTracker.onDidBlur(() => { if (this.enabled) { this.applyStyles(); } }));
 
 		this.applyStyles();
 	}
@@ -195,7 +198,26 @@ export class Button extends Disposable implements IButton {
 	set label(value: string) {
 		this._element.classList.add('monaco-text-button');
 		if (this.options.supportIcons) {
-			reset(this._element, ...renderLabelWithIcons(value));
+			const content: HTMLSpanElement[] = [];
+			for (let segment of renderLabelWithIcons(value)) {
+				if (typeof (segment) === 'string') {
+					segment = segment.trim();
+
+					// Ignore empty segment
+					if (segment === '') {
+						continue;
+					}
+
+					// Convert string segments to <span> nodes
+					const node = document.createElement('span');
+					node.textContent = segment;
+					content.push(node);
+				} else {
+					content.push(segment);
+				}
+			}
+
+			reset(this._element, ...content);
 		} else {
 			this._element.textContent = value;
 		}
@@ -238,6 +260,7 @@ export interface IButtonWithDropdownOptions extends IButtonOptions {
 	readonly contextMenuProvider: IContextMenuProvider;
 	readonly actions: IAction[];
 	readonly actionRunner?: IActionRunner;
+	readonly addPrimaryActionToDropdown?: boolean;
 }
 
 export class ButtonWithDropdown extends Disposable implements IButton {
@@ -245,6 +268,8 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 	private readonly button: Button;
 	private readonly action: Action;
 	private readonly dropdownButton: Button;
+	private readonly separatorContainer: HTMLDivElement;
+	private readonly separator: HTMLDivElement;
 
 	readonly element: HTMLElement;
 	private readonly _onDidClick = this._register(new Emitter<Event | undefined>());
@@ -261,13 +286,23 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this._register(this.button.onDidClick(e => this._onDidClick.fire(e)));
 		this.action = this._register(new Action('primaryAction', this.button.label, undefined, true, async () => this._onDidClick.fire(undefined)));
 
+		this.separatorContainer = document.createElement('div');
+		this.separatorContainer.classList.add('monaco-button-dropdown-separator');
+
+		this.separator = document.createElement('div');
+		this.separatorContainer.appendChild(this.separator);
+		this.element.appendChild(this.separatorContainer);
+
 		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));
+		this.dropdownButton.element.title = localize("button dropdown more actions", 'More Actions...');
+		this.dropdownButton.element.setAttribute('aria-haspopup', 'true');
+		this.dropdownButton.element.setAttribute('aria-expanded', 'false');
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');
 		this.dropdownButton.icon = Codicon.dropDownButton;
 		this._register(this.dropdownButton.onDidClick(e => {
 			options.contextMenuProvider.showContextMenu({
 				getAnchor: () => this.dropdownButton.element,
-				getActions: () => [this.action, ...options.actions],
+				getActions: () => options.addPrimaryActionToDropdown === false ? [...options.actions] : [this.action, ...options.actions],
 				actionRunner: options.actionRunner,
 				onHide: () => this.dropdownButton.element.setAttribute('aria-expanded', 'false')
 			});
@@ -287,6 +322,8 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 	set enabled(enabled: boolean) {
 		this.button.enabled = enabled;
 		this.dropdownButton.enabled = enabled;
+
+		this.element.classList.toggle('disabled', !enabled);
 	}
 
 	get enabled(): boolean {
@@ -296,6 +333,20 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 	style(styles: IButtonStyles): void {
 		this.button.style(styles);
 		this.dropdownButton.style(styles);
+
+		// Separator
+		const border = styles.buttonBorder ? styles.buttonBorder.toString() : '';
+
+		this.separatorContainer.style.borderTopWidth = border ? '1px' : '';
+		this.separatorContainer.style.borderTopStyle = border ? 'solid' : '';
+		this.separatorContainer.style.borderTopColor = border;
+
+		this.separatorContainer.style.borderBottomWidth = border ? '1px' : '';
+		this.separatorContainer.style.borderBottomStyle = border ? 'solid' : '';
+		this.separatorContainer.style.borderBottomColor = border;
+
+		this.separatorContainer.style.backgroundColor = styles.buttonBackground?.toString() ?? '';
+		this.separator.style.backgroundColor = styles.buttonSeparator?.toString() ?? '';
 	}
 
 	focus(): void {
@@ -319,12 +370,10 @@ export class ButtonWithDescription extends Button implements IButtonWithDescript
 
 		this._labelElement = document.createElement('div');
 		this._labelElement.classList.add('monaco-button-label');
-		this._labelElement.tabIndex = -1;
 		this._element.appendChild(this._labelElement);
 
 		this._descriptionElement = document.createElement('div');
 		this._descriptionElement.classList.add('monaco-button-description');
-		this._descriptionElement.tabIndex = -1;
 		this._element.appendChild(this._descriptionElement);
 	}
 

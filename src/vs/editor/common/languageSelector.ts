@@ -21,13 +21,13 @@ export interface LanguageFilter {
 
 export type LanguageSelector = string | LanguageFilter | ReadonlyArray<string | LanguageFilter>;
 
-export function score(selector: LanguageSelector | undefined, candidateUri: URI, candidateLanguage: string, candidateIsSynchronized: boolean, candidateNotebookType: string | undefined): number {
+export function score(selector: LanguageSelector | undefined, candidateUri: URI, candidateLanguage: string, candidateIsSynchronized: boolean, candidateNotebookUri: URI | undefined, candidateNotebookType: string | undefined): number {
 
 	if (Array.isArray(selector)) {
 		// array -> take max individual value
 		let ret = 0;
 		for (const filter of selector) {
-			const value = score(filter, candidateUri, candidateLanguage, candidateIsSynchronized, candidateNotebookType);
+			const value = score(filter, candidateUri, candidateLanguage, candidateIsSynchronized, candidateNotebookUri, candidateNotebookType);
 			if (value === 10) {
 				return value; // already at the highest
 			}
@@ -62,6 +62,12 @@ export function score(selector: LanguageSelector | undefined, candidateUri: URI,
 			return 0;
 		}
 
+		// selector targets a notebook -> use the notebook uri instead
+		// of the "normal" document uri.
+		if (notebookType && candidateNotebookUri) {
+			candidateUri = candidateNotebookUri;
+		}
+
 		let ret = 0;
 
 		if (scheme) {
@@ -87,7 +93,7 @@ export function score(selector: LanguageSelector | undefined, candidateUri: URI,
 		if (notebookType) {
 			if (notebookType === candidateNotebookType) {
 				ret = 10;
-			} else if (notebookType === '*') {
+			} else if (notebookType === '*' && candidateNotebookType !== undefined) {
 				ret = Math.max(ret, 5);
 			} else {
 				return 0;

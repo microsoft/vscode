@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension } from 'vs/base/browser/dom';
+import { computeClippingRect, Dimension } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, IWebview, WebviewContentOptions, IWebviewElement, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions, IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webviewElement';
 
 /**
  * Webview that is absolutely positioned over another element and that can creates and destroys an underlying webview as needed.
@@ -29,6 +31,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private _html: string = '';
 	private _initialScrollProgress: number = 0;
 	private _state: string | undefined = undefined;
+	private _repositionTimeout: any | undefined = undefined;
 
 	private _extension: WebviewExtensionDescription | undefined;
 	private _contentOptions: WebviewContentOptions;
@@ -39,21 +42,28 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
 	private _findWidgetVisible: IContextKey<boolean> | undefined;
 	private _findWidgetEnabled: IContextKey<boolean> | undefined;
+	// This isn't associated with an editor action so doesn't need to be a context key
+	private _findActiveWhenHidden: boolean | undefined = false;
+
+	public readonly id: string;
+	public readonly providedViewType?: string;
+	public readonly origin: string;
 
 	public constructor(
-		public readonly id: string,
-		initialOptions: WebviewOptions,
-		initialContentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
+		initInfo: WebviewInitInfo,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@IContextKeyService private readonly _baseContextKeyService: IContextKeyService
 	) {
 		super();
 
-		this._extension = extension;
-		this._options = initialOptions;
-		this._contentOptions = initialContentOptions;
+		this.id = initInfo.id;
+		this.providedViewType = initInfo.providedViewType;
+		this.origin = initInfo.origin ?? generateUuid();
+
+		this._extension = initInfo.extension;
+		this._options = initInfo.options;
+		this._contentOptions = initInfo.contentOptions;
 	}
 
 	public get isFocused() {
@@ -76,6 +86,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		}
 		this._firstLoadPendingMessages.clear();
 
+		clearTimeout(this._repositionTimeout);
+
 		this._onDidDispose.fire();
 
 		super.dispose();
@@ -96,8 +108,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			// Webviews cannot be reparented in the dom as it will destroy their contents.
 			// Mount them to a high level node to avoid this.
 			this._layoutService.container.appendChild(this._container);
-
 		}
+
 		return this._container;
 	}
 
@@ -137,13 +149,28 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		if (this._container) {
 			this._container.style.visibility = 'hidden';
 		}
-		if (!this._options.retainContextWhenHidden) {
+		if (this._options.retainContextWhenHidden) {
+			// https://github.com/microsoft/vscode/issues/157424
+			// We need to record the current state when retaining context so we can try to showFind() when showing webview again
+			this.hideFind();
+		} else {
 			this._webview.clear();
 			this._webviewEvents.clear();
 		}
 	}
 
-	public layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension) {
+	public layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement) {
+		this.doLayoutWebviewOverElement(element, dimension, clippingContainer);
+
+		// Temporary fix for https://github.com/microsoft/vscode/issues/110450
+		// There is an animation that lasts about 200ms, update the webview positioning once this animation is complete.
+		clearTimeout(this._repositionTimeout);
+		this._repositionTimeout = setTimeout(() => {
+			this.doLayoutWebviewOverElement(element, dimension, clippingContainer);
+		}, 200);
+	}
+
+	public doLayoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement) {
 		if (!this._container || !this._container.parentElement) {
 			return;
 		}
@@ -158,6 +185,11 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._container.style.left = `${frameRect.left - containerRect.left - parentBorderLeft}px`;
 		this._container.style.width = `${dimension ? dimension.width : frameRect.width}px`;
 		this._container.style.height = `${dimension ? dimension.height : frameRect.height}px`;
+
+		if (clippingContainer) {
+			const { top, left, right, bottom } = computeClippingRect(frameRect, clippingContainer);
+			this._container.style.clipPath = `polygon(${left}px ${top}px, ${right}px ${top}px, ${right}px ${bottom}px, ${left}px ${bottom}px)`;
+		}
 	}
 
 	private show() {
@@ -166,13 +198,23 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		}
 
 		if (!this._webview.value) {
-			const webview = this._webviewService.createWebviewElement(this.id, this._options, this._contentOptions, this.extension);
+			const webview = this._webviewService.createWebviewElement({
+				id: this.id,
+				providedViewType: this.providedViewType,
+				origin: this.origin,
+				options: this._options,
+				contentOptions: this._contentOptions,
+				extension: this.extension,
+			});
 			this._webview.value = webview;
 			webview.state = this._state;
 
 			if (this._scopedContextKeyService.value) {
 				this._webview.value.setContextKeyService(this._scopedContextKeyService.value);
 			}
+
+			// https://github.com/microsoft/vscode/issues/157424
+			this.tryShowFind();
 
 			if (this._html) {
 				webview.html = this._html;
@@ -303,6 +345,20 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	undo(): void { this._webview.value?.undo(); }
 	redo(): void { this._webview.value?.redo(); }
 
+	/**
+	 * Only meant to be used when we're showing webview as an attempt to reload the previously hidden
+	 * find widget when retaining context
+	 */
+	tryShowFind() {
+		const shouldShowFind: boolean | undefined = (
+			(this.options.retainContextWhenHidden && this._findActiveWhenHidden)
+		);
+
+		if (shouldShowFind) {
+			this.showFind();
+		}
+	}
+
 	showFind() {
 		if (this._webview.value) {
 			this._webview.value.showFind();
@@ -311,6 +367,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	}
 
 	hideFind() {
+		this._findActiveWhenHidden = this._findWidgetVisible?.get();
 		this._findWidgetVisible?.reset();
 		this._webview.value?.hideFind();
 	}

@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
-import { VIEWLET_ID, ISCMRepository, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
+import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { SCMActiveResourceContextKeyController, SCMStatusController } from './activity';
@@ -39,7 +39,7 @@ ModesRegistry.registerLanguage({
 });
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(DirtyDiffWorkbenchController, 'DirtyDiffWorkbenchController', LifecyclePhase.Restored);
 
 const sourceControlViewIcon = registerIcon('source-control-view-icon', Codicon.sourceControl, localize('sourceControlViewIcon', 'View icon of the Source Control view.'));
 
@@ -52,7 +52,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 	alwaysUseContainerInfo: true,
 	order: 2,
 	hideIfEmpty: true,
-}, ViewContainerLocation.Sidebar, { donotRegisterOpenCommand: true });
+}, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
@@ -76,7 +76,6 @@ viewsRegistry.registerViews([{
 	name: localize('source control', "Source Control"),
 	ctorDescriptor: new SyncDescriptor(SCMViewPane),
 	canToggleVisibility: true,
-	workspace: true,
 	canMoveView: true,
 	weight: 80,
 	order: -999,
@@ -100,7 +99,6 @@ viewsRegistry.registerViews([{
 	ctorDescriptor: new SyncDescriptor(SCMRepositoriesViewPane),
 	canToggleVisibility: true,
 	hideByDefault: true,
-	workspace: true,
 	canMoveView: true,
 	weight: 20,
 	order: -1000,
@@ -110,10 +108,10 @@ viewsRegistry.registerViews([{
 }], viewContainer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(SCMActiveResourceContextKeyController, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(SCMActiveResourceContextKeyController, 'SCMActiveResourceContextKeyController', LifecyclePhase.Restored);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(SCMStatusController, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(SCMStatusController, 'SCMStatusController', LifecyclePhase.Restored);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'scm',
@@ -236,7 +234,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('scm.defaultViewSortKey.path', "Sort the repository changes by path."),
 				localize('scm.defaultViewSortKey.status', "Sort the repository changes by Source Control status.")
 			],
-			description: localize('scm.defaultViewSortKey', "Controls the default Source Control repository sort mode."),
+			description: localize('scm.defaultViewSortKey', "Controls the default Source Control repository changes sort order when viewed as a list."),
 			default: 'path'
 		},
 		'scm.autoReveal': {
@@ -292,15 +290,23 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: accessor => {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const context = contextKeyService.getContext(document.activeElement);
-		const repository = context.getValue<ISCMRepository>('scmRepository');
+		const repositoryId = context.getValue<string | undefined>('scmRepository');
 
-		if (!repository || !repository.provider.acceptInputCommand) {
+		if (!repositoryId) {
 			return Promise.resolve(null);
 		}
+
+		const scmService = accessor.get(ISCMService);
+		const repository = scmService.getRepository(repositoryId);
+
+		if (!repository?.provider.acceptInputCommand) {
+			return Promise.resolve(null);
+		}
+
 		const id = repository.provider.acceptInputCommand.id;
 		const args = repository.provider.acceptInputCommand.arguments;
-
 		const commandService = accessor.get(ICommandService);
+
 		return commandService.executeCommand(id, ...(args || []));
 	}
 });
@@ -310,8 +316,10 @@ const viewNextCommitCommand = {
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: (accessor: ServicesAccessor) => {
 		const contextKeyService = accessor.get(IContextKeyService);
+		const scmService = accessor.get(ISCMService);
 		const context = contextKeyService.getContext(document.activeElement);
-		const repository = context.getValue<ISCMRepository>('scmRepository');
+		const repositoryId = context.getValue<string | undefined>('scmRepository');
+		const repository = repositoryId ? scmService.getRepository(repositoryId) : undefined;
 		repository?.input.showNextHistoryValue();
 	}
 };
@@ -321,8 +329,10 @@ const viewPreviousCommitCommand = {
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: (accessor: ServicesAccessor) => {
 		const contextKeyService = accessor.get(IContextKeyService);
+		const scmService = accessor.get(ISCMService);
 		const context = contextKeyService.getContext(document.activeElement);
-		const repository = context.getValue<ISCMRepository>('scmRepository');
+		const repositoryId = context.getValue<string | undefined>('scmRepository');
+		const repository = repositoryId ? scmService.getRepository(repositoryId) : undefined;
 		repository?.input.showPreviousHistoryValue();
 	}
 };
@@ -373,5 +383,5 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 	when: ContextKeyExpr.equals('scmProviderHasRootUri', true)
 });
 
-registerSingleton(ISCMService, SCMService);
-registerSingleton(ISCMViewService, SCMViewService);
+registerSingleton(ISCMService, SCMService, false);
+registerSingleton(ISCMViewService, SCMViewService, false);

@@ -15,7 +15,7 @@ import * as platform from 'vs/base/common/platform';
 	const endButton = <HTMLButtonElement>document.getElementById('endRecording')!;
 
 	let inputarea: HTMLTextAreaElement;
-	let disposables = new DisposableStore();
+	const disposables = new DisposableStore();
 	let originTimeStamp = 0;
 	let recorded: IRecorded = {
 		env: null!,

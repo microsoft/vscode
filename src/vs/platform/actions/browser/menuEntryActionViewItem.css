@@ -11,14 +11,25 @@
 	background-size: 16px;
 }
 
-.monaco-action-bar .action-item.menu-entry .action-label,
-.hc-light .monaco-action-bar .action-item.menu-entry .action-label {
-	background-image: var(--menu-entry-icon-light);
+
+@keyframes shift {
+	0% {
+		transform: scale(1);
+	}
+
+	15%{
+		transform: scale(1.1);
+	}
+
+	100% {
+		transform: scale(1);
+	}
 }
 
-.vs-dark .monaco-action-bar .action-item.menu-entry .action-label,
-.hc-black .monaco-action-bar .action-item.menu-entry .action-label {
-	background-image: var(--menu-entry-icon-dark);
+.monaco-toolbar.config .monaco-action-bar .action-item {
+	animation-duration: 1.2s;
+	animation-iteration-count: 1;
+	animation-name: shift;
 }
 
 
@@ -38,16 +49,6 @@
 	background-repeat: no-repeat;
 	background-position: 50%;
 	background-size: 16px;
-}
-
-.monaco-dropdown-with-default > .action-container.menu-entry > .action-label,
-.hc-light .monaco-dropdown-with-default > .action-container.menu-entry > .action-label {
-	background-image: var(--menu-entry-icon-light);
-}
-
-.vs-dark .monaco-dropdown-with-default > .action-container.menu-entry > .action-label,
-.hc-black .monaco-dropdown-with-default > .action-container.menu-entry > .action-label {
-	background-image: var(--menu-entry-icon-dark);
 }
 
 .monaco-dropdown-with-default > .dropdown-action-container > .monaco-dropdown > .dropdown-label .codicon[class*='codicon-'] {

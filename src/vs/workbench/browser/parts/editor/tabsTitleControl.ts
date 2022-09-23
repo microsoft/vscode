@@ -15,7 +15,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -62,7 +61,7 @@ interface EditorInputLabel {
 	ariaLabel?: string;
 }
 
-interface ITabsTitleControlLayoutOtions {
+interface ITabsTitleControlLayoutOptions {
 
 	/**
 	 * Whether to force revealing the active tab, even when
@@ -77,7 +76,7 @@ interface IScheduledTabsTitleControlLayout extends IDisposable {
 	/**
 	 * Associated options with the layout call.
 	 */
-	options?: ITabsTitleControlLayoutOtions;
+	options?: ITabsTitleControlLayoutOptions;
 }
 
 type EditorInputLabelAndEditor = EditorInputLabel & { editor: EditorInput };
@@ -96,6 +95,8 @@ export class TabsTitleControl extends TitleControl {
 	};
 
 	private static readonly TAB_HEIGHT = 35;
+
+	private static readonly DRAG_OVER_OPEN_TAB_THRESHOLD = 1500;
 
 	private static readonly MOUSE_WHEEL_EVENT_THRESHOLD = 150;
 	private static readonly MOUSE_WHEEL_DISTANCE_THRESHOLD = 1.5;
@@ -134,7 +135,6 @@ export class TabsTitleControl extends TitleControl {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 		@IMenuService menuService: IMenuService,
 		@IQuickInputService quickInputService: IQuickInputService,
@@ -146,7 +146,7 @@ export class TabsTitleControl extends TitleControl {
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@ITreeViewsService private readonly treeViewsDragAndDropService: ITreeViewsService
 	) {
-		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickInputService, themeService, configurationService, fileService);
+		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, menuService, quickInputService, themeService, configurationService, fileService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the
@@ -204,7 +204,9 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		tabsScrollbar.onScroll(e => {
-			scrollable.scrollLeft = e.scrollLeft;
+			if (e.scrollLeftChanged) {
+				scrollable.scrollLeft = e.scrollLeft;
+			}
 		});
 
 		return tabsScrollbar;
@@ -662,7 +664,7 @@ export class TabsTitleControl extends TitleControl {
 		const tabActionRunner = new EditorCommandsContextActionRunner({ groupId: this.group.id, editorIndex: index });
 
 		const tabActionBar = new ActionBar(tabActionsContainer, { ariaLabel: localize('ariaLabelTabActions', "Tab actions"), actionRunner: tabActionRunner });
-		tabActionBar.onBeforeRun(e => {
+		tabActionBar.onWillRun(e => {
 			if (e.action.id === this.closeEditorAction.id) {
 				this.blockRevealActiveTabOnce();
 			}
@@ -898,6 +900,15 @@ export class TabsTitleControl extends TitleControl {
 				this.updateDropFeedback(tab, true, index);
 			},
 
+			onDragOver: (_, dragDuration) => {
+				if (dragDuration >= TabsTitleControl.DRAG_OVER_OPEN_TAB_THRESHOLD) {
+					const draggedOverTab = this.group.getEditorByIndex(index);
+					if (draggedOverTab && this.group.activeEditor !== draggedOverTab) {
+						this.group.openEditor(draggedOverTab, { preserveFocus: true });
+					}
+				}
+			},
+
 			onDragLeave: () => {
 				tab.classList.remove('dragged-over');
 				this.updateDropFeedback(tab, false, index);
@@ -1078,11 +1089,15 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private redraw(options?: ITabsTitleControlLayoutOtions): void {
+	private redraw(options?: ITabsTitleControlLayoutOptions): void {
 
-		// Border below tabs if any
-		const tabsContainerBorderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER);
+		// Border below tabs if any with explicit high contrast support
 		if (this.tabsAndActionsContainer) {
+			let tabsContainerBorderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER);
+			if (!tabsContainerBorderColor && isHighContrast(this.theme.type)) {
+				tabsContainerBorderColor = this.getColor(TAB_BORDER) || this.getColor(contrastBorder);
+			}
+
 			if (tabsContainerBorderColor) {
 				this.tabsAndActionsContainer.classList.add('tabs-border-bottom');
 				this.tabsAndActionsContainer.style.setProperty('--tabs-border-bottom-color', tabsContainerBorderColor.toString());
@@ -1139,9 +1154,9 @@ export class TabsTitleControl extends TitleControl {
 			tabContainer.classList.toggle(`sticky-${option}`, isTabSticky && options.pinnedTabSizing === option);
 		}
 
-		// Sticky compact/shrink tabs need a position to remain at their location
+		// If not wrapping tabs, sticky compact/shrink tabs need a position to remain at their location
 		// when scrolling to stay in view (requirement for position: sticky)
-		if (isTabSticky && options.pinnedTabSizing !== 'normal') {
+		if (!options.wrapTabs && isTabSticky && options.pinnedTabSizing !== 'normal') {
 			let stickyTabWidth = 0;
 			switch (options.pinnedTabSizing) {
 				case 'compact':
@@ -1386,7 +1401,7 @@ export class TabsTitleControl extends TitleControl {
 		return { total, offset };
 	}
 
-	layout(dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOtions): Dimension {
+	layout(dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOptions): Dimension {
 
 		// Remember dimensions that we get
 		Object.assign(this.dimensions, dimensions);
@@ -1420,7 +1435,7 @@ export class TabsTitleControl extends TitleControl {
 		return this.dimensions.used;
 	}
 
-	private doLayout(dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOtions): void {
+	private doLayout(dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOptions): void {
 
 		// Only layout if we have valid tab index and dimensions
 		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
@@ -1459,7 +1474,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOtions): void {
+	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOptions): void {
 
 		// Always first layout tabs with wrapping support even if wrapping
 		// is disabled. The result indicates if tabs wrap and if not, we
@@ -1601,7 +1616,7 @@ export class TabsTitleControl extends TitleControl {
 		return tabsWrapMultiLine;
 	}
 
-	private doLayoutTabsNonWrapping(activeTab: HTMLElement, activeIndex: number, options?: ITabsTitleControlLayoutOtions): void {
+	private doLayoutTabsNonWrapping(activeTab: HTMLElement, activeIndex: number, options?: ITabsTitleControlLayoutOptions): void {
 		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
 
 		//
@@ -1881,18 +1896,6 @@ export class TabsTitleControl extends TitleControl {
 
 registerThemingParticipant((theme, collector) => {
 
-	// Add border between tabs and breadcrumbs in high contrast mode.
-	if (isHighContrast(theme.type)) {
-		const borderColor = (theme.getColor(TAB_BORDER) || theme.getColor(contrastBorder));
-		if (borderColor) {
-			collector.addRule(`
-				.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container {
-					border-bottom: 1px solid ${borderColor};
-				}
-			`);
-		}
-	}
-
 	// Add bottom border to tabs when wrapping
 	const borderColor = theme.getColor(TAB_BORDER);
 	if (borderColor) {
@@ -1907,9 +1910,14 @@ registerThemingParticipant((theme, collector) => {
 	const activeContrastBorderColor = theme.getColor(activeContrastBorder);
 	if (activeContrastBorderColor) {
 		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active,
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover  {
+			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active,
+			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active:hover  {
 				outline: 1px solid;
+				outline-offset: -5px;
+			}
+
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
+				outline: 1px dotted;
 				outline-offset: -5px;
 			}
 

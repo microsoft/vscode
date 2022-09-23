@@ -14,6 +14,7 @@ import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { once } from 'vs/base/common/functional';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -62,21 +63,23 @@ export function renderExpressionValue(expressionOrValue: IExpressionContainer | 
 		if (value !== Expression.DEFAULT_VALUE) {
 			container.classList.add('error');
 		}
-	} else if ((expressionOrValue instanceof ExpressionContainer) && options.showChanged && expressionOrValue.valueChanged && value !== Expression.DEFAULT_VALUE) {
-		// value changed color has priority over other colors.
-		container.className = 'value changed';
-		expressionOrValue.valueChanged = false;
-	}
+	} else {
+		if ((expressionOrValue instanceof ExpressionContainer) && options.showChanged && expressionOrValue.valueChanged && value !== Expression.DEFAULT_VALUE) {
+			// value changed color has priority over other colors.
+			container.className = 'value changed';
+			expressionOrValue.valueChanged = false;
+		}
 
-	if (options.colorize && typeof expressionOrValue !== 'string') {
-		if (expressionOrValue.type === 'number' || expressionOrValue.type === 'boolean' || expressionOrValue.type === 'string') {
-			container.classList.add(expressionOrValue.type);
-		} else if (!isNaN(+value)) {
-			container.classList.add('number');
-		} else if (booleanRegex.test(value)) {
-			container.classList.add('boolean');
-		} else if (stringRegex.test(value)) {
-			container.classList.add('string');
+		if (options.colorize && typeof expressionOrValue !== 'string') {
+			if (expressionOrValue.type === 'number' || expressionOrValue.type === 'boolean' || expressionOrValue.type === 'string') {
+				container.classList.add(expressionOrValue.type);
+			} else if (!isNaN(+value)) {
+				container.classList.add('number');
+			} else if (booleanRegex.test(value)) {
+				container.classList.add('boolean');
+			} else if (stringRegex.test(value)) {
+				container.classList.add('string');
+			}
 		}
 	}
 
@@ -113,7 +116,6 @@ export function renderVariable(variable: Variable, data: IVariableTemplateData, 
 	}
 
 	data.expression.classList.toggle('lazy', !!variable.presentationHint?.lazy);
-	data.lazyButton.title = variable.presentationHint?.lazy ? variable.value : '';
 	renderExpressionValue(variable, data.value, {
 		showChanged,
 		maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
@@ -159,6 +161,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		const name = dom.append(expression, $('span.name'));
 		const lazyButton = dom.append(expression, $('span.lazy-button'));
 		lazyButton.classList.add(...Codicon.eye.classNamesArray);
+		lazyButton.title = localize('debug.lazyButton.tooltip', "Click to expand");
 		const value = dom.append(expression, $('span.value'));
 
 		const label = new HighlightedLabel(name);

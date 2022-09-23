@@ -10,21 +10,32 @@ import { LogLevel } from 'vs/platform/log/common/log';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 
+export interface IExtensionDescriptionDelta {
+	readonly toRemove: ExtensionIdentifier[];
+	readonly toAdd: IExtensionDescription[];
+	readonly myToRemove: ExtensionIdentifier[];
+	readonly myToAdd: ExtensionIdentifier[];
+}
+
 export interface IExtensionHostInitData {
 	version: string;
 	commit?: string;
-	parentPid: number;
+	/**
+	 * When set to `0`, no polling for the parent process still running will happen.
+	 */
+	parentPid: number | 0;
 	environment: IEnvironment;
 	workspace?: IStaticWorkspaceData | null;
-	resolvedExtensions: ExtensionIdentifier[];
-	hostExtensions: ExtensionIdentifier[];
-	extensions: IExtensionDescription[];
+	allExtensions: IExtensionDescription[];
+	myExtensions: ExtensionIdentifier[];
+	nlsBaseUrl?: URI;
 	telemetryInfo: ITelemetryInfo;
 	logLevel: LogLevel;
 	logsLocation: URI;
 	logFile: URI;
 	autoStart: boolean;
 	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | null };
+	consoleForward: { includeStack: boolean; logNative: boolean };
 	uiKind: UIKind;
 	messagePorts?: ReadonlyMap<string, MessagePortLike>;
 }
@@ -115,4 +126,9 @@ export function isMessageOfType(message: VSBuffer, type: MessageType): boolean {
 		case 3: return type === MessageType.Terminate;
 		default: return false;
 	}
+}
+
+export const enum NativeLogMarkers {
+	Start = 'START_NATIVE_LOG',
+	End = 'END_NATIVE_LOG',
 }

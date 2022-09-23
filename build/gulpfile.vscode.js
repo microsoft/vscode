@@ -6,6 +6,7 @@
 'use strict';
 
 const gulp = require('gulp');
+const merge = require('gulp-merge-json');
 const fs = require('fs');
 const os = require('os');
 const cp = require('child_process');
@@ -19,7 +20,7 @@ const _ = require('underscore');
 const util = require('./lib/util');
 const task = require('./lib/task');
 const buildfile = require('../src/buildfile');
-const common = require('./lib/optimize');
+const optimize = require('./lib/optimize');
 const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 const packageJson = require('../package.json');
@@ -33,6 +34,9 @@ const minimist = require('minimist');
 const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
 const { getSettingsSearchBuildId, shouldSetupSettingsSearch } = require('./azure-pipelines/upload-configuration');
+const { promisify } = require('util');
+const glob = promisify(require('glob'));
+const rcedit = promisify(require('rcedit'));
 
 // Build
 const vscodeEntryPoints = _.flatten([
@@ -48,27 +52,22 @@ const vscodeEntryPoints = _.flatten([
 ]);
 
 const vscodeResources = [
-	'out-build/main.js',
-	'out-build/cli.js',
 	'out-build/bootstrap.js',
 	'out-build/bootstrap-fork.js',
 	'out-build/bootstrap-amd.js',
 	'out-build/bootstrap-node.js',
 	'out-build/bootstrap-window.js',
-	'out-build/vs/**/*.{svg,png,html,jpg,opus}',
+	'out-build/vs/**/*.{svg,png,html,jpg,mp3}',
 	'!out-build/vs/code/browser/**/*.html',
 	'!out-build/vs/editor/standalone/**/*.svg',
 	'out-build/vs/base/common/performance.js',
-	'out-build/vs/base/common/stripComments.js',
-	'out-build/vs/base/node/languagePacks.js',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh,ps.sh}',
 	'out-build/vs/base/browser/ui/codicons/codicon/**',
 	'out-build/vs/base/parts/sandbox/electron-browser/preload.js',
-	'out-build/vs/platform/environment/node/userDataPath.js',
-	'out-build/vs/platform/extensions/node/extensionHostStarterWorkerMain.js',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/contrib/debug/**/*.json',
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
+	'out-build/vs/workbench/contrib/terminal/browser/media/*.fish',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.ps1',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.sh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.zsh',
@@ -77,23 +76,58 @@ const vscodeResources = [
 	'out-build/vs/workbench/contrib/tasks/**/*.json',
 	'out-build/vs/platform/files/**/*.exe',
 	'out-build/vs/platform/files/**/*.md',
-	'out-build/vs/code/electron-browser/workbench/**',
-	'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js',
-	'out-build/vs/code/electron-sandbox/issue/issueReporter.js',
-	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js',
 	'!**/test/**'
+];
+
+// Do not change the order of these files! They will
+// be inlined into the target window file in this order
+// and they depend on each other in this way.
+const windowBootstrapFiles = [
+	'out-build/bootstrap.js',
+	'out-build/vs/loader.js',
+	'out-build/bootstrap-window.js'
 ];
 
 const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 	util.rimraf('out-vscode'),
-	common.optimizeTask({
-		src: 'out-build',
-		entryPoints: vscodeEntryPoints,
-		resources: vscodeResources,
-		loaderConfig: common.loaderConfig(),
-		out: 'out-vscode',
-		bundleInfo: undefined
-	})
+	// Optimize: bundles source files automatically based on
+	// AMD and CommonJS import statements based on the passed
+	// in entry points. In addition, concat window related
+	// bootstrap files into a single file.
+	optimize.optimizeTask(
+		{
+			out: 'out-vscode',
+			amd: {
+				src: 'out-build',
+				entryPoints: vscodeEntryPoints,
+				resources: vscodeResources,
+				loaderConfig: optimize.loaderConfig(),
+				bundleInfo: undefined
+			},
+			commonJS: {
+				src: 'out-build',
+				entryPoints: [
+					'out-build/main.js',
+					'out-build/cli.js'
+				],
+				platform: 'node',
+				external: [
+					'electron',
+					'minimist',
+					// TODO: we cannot inline `product.json` because
+					// it is being changed during build time at a later
+					// point in time (such as `checksums`)
+					'../product.json'
+				]
+			},
+			manual: [
+				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/workbench/workbench.js'], out: 'vs/code/electron-sandbox/workbench/workbench.js' },
+				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/issue/issueReporter.js'], out: 'vs/code/electron-sandbox/issue/issueReporter.js' },
+				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js'], out: 'vs/code/electron-sandbox/processExplorer/processExplorer.js' },
+				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js'], out: 'vs/code/electron-browser/sharedProcess/sharedProcess.js' }
+			]
+		}
+	)
 ));
 gulp.task(optimizeVSCodeTask);
 
@@ -101,7 +135,7 @@ const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${
 const minifyVSCodeTask = task.define('minify-vscode', task.series(
 	optimizeVSCodeTask,
 	util.rimraf('out-vscode-min'),
-	common.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
+	optimize.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
 ));
 gulp.task(minifyVSCodeTask);
 
@@ -123,9 +157,9 @@ gulp.task(core);
  * @return {Object} A map of paths to checksums.
  */
 function computeChecksums(out, filenames) {
-	let result = {};
+	const result = {};
 	filenames.forEach(function (filename) {
-		let fullPath = path.join(process.cwd(), out, filename);
+		const fullPath = path.join(process.cwd(), out, filename);
 		result[filename] = computeChecksum(fullPath);
 	});
 	return result;
@@ -138,9 +172,9 @@ function computeChecksums(out, filenames) {
  * @return {string} The checksum for `filename`.
  */
 function computeChecksum(filename) {
-	let contents = fs.readFileSync(filename);
+	const contents = fs.readFileSync(filename);
 
-	let hash = crypto
+	const hash = crypto
 		.createHash('md5')
 		.update(contents)
 		.digest('base64')
@@ -166,8 +200,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			'vs/workbench/workbench.desktop.main.js',
 			'vs/workbench/workbench.desktop.main.css',
 			'vs/workbench/api/node/extensionHostProcess.js',
-			'vs/code/electron-browser/workbench/workbench.html',
-			'vs/code/electron-browser/workbench/workbench.js'
+			'vs/code/electron-sandbox/workbench/workbench.html',
+			'vs/code/electron-sandbox/workbench/workbench.js'
 		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })
@@ -207,7 +241,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(json(packageJsonUpdates));
 
 		const date = new Date().toISOString();
-		const productJsonUpdate = { commit, date, checksums };
+		const productJsonUpdate = { commit, date, checksums, version };
 
 		if (shouldSetupSettingsSearch()) {
 			productJsonUpdate.settingsSearchBuildId = getSettingsSearchBuildId(packageJson);
@@ -289,6 +323,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }));
 		} else if (platform === 'darwin') {
 			const shortcut = gulp.src('resources/darwin/bin/code.sh')
+				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename('bin/code'));
 
 			all = es.merge(all, shortcut);
@@ -330,14 +365,47 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 			result = es.merge(result, gulp.src('resources/win32/VisualElementsManifest.xml', { base: 'resources/win32' })
 				.pipe(rename(product.nameShort + '.VisualElementsManifest.xml')));
+
+			result = es.merge(result, gulp.src('.build/policies/win32/**', { base: '.build/policies/win32' })
+				.pipe(rename(f => f.dirname = `policies/${f.dirname}`)));
+
 		} else if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
 				.pipe(replace('@@PRODNAME@@', product.nameLong))
-				.pipe(replace('@@NAME@@', product.applicationName))
+				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename('bin/' + product.applicationName)));
 		}
 
 		return result.pipe(vfs.dest(destination));
+	};
+}
+
+function patchWin32DependenciesTask(destinationFolderName) {
+	const cwd = path.join(path.dirname(root), destinationFolderName);
+
+	return async () => {
+		const deps = await glob('**/*.node', { cwd });
+		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, 'resources', 'app', 'package.json'), 'utf8'));
+		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, 'resources', 'app', 'product.json'), 'utf8'));
+		const baseVersion = packageJson.version.replace(/-.*$/, '');
+
+		await Promise.all(deps.map(async dep => {
+			const basename = path.basename(dep);
+
+			await rcedit(path.join(cwd, dep), {
+				'file-version': baseVersion,
+				'version-string': {
+					'CompanyName': 'Microsoft Corporation',
+					'FileDescription': product.nameLong,
+					'FileVersion': packageJson.version,
+					'InternalName': basename,
+					'LegalCopyright': 'Copyright (C) 2022 Microsoft. All rights reserved',
+					'OriginalFilename': basename,
+					'ProductName': product.nameLong,
+					'ProductVersion': packageJson.version,
+				}
+			});
+		}));
 	};
 }
 
@@ -364,10 +432,16 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const sourceFolderName = `out-vscode${dashed(minified)}`;
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
-		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
+		const tasks = [
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
-		));
+		];
+
+		if (platform === 'win32') {
+			tasks.push(patchWin32DependenciesTask(destinationFolderName));
+		}
+
+		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...tasks));
 		gulp.task(vscodeTaskCI);
 
 		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
@@ -388,6 +462,8 @@ BUILD_TARGETS.forEach(buildTarget => {
 	}
 });
 
+// #region nls
+
 const innoSetupConfig = {
 	'zh-cn': { codePage: 'CP936', defaultInfo: { name: 'Simplified Chinese', id: '$0804', } },
 	'zh-tw': { codePage: 'CP950', defaultInfo: { name: 'Traditional Chinese', id: '$0404' } },
@@ -403,46 +479,23 @@ const innoSetupConfig = {
 	'tr': { codePage: 'CP1254' }
 };
 
-// Transifex Localizations
-
-const apiHostname = process.env.TRANSIFEX_API_URL;
-const apiName = process.env.TRANSIFEX_API_NAME;
-const apiToken = process.env.TRANSIFEX_API_TOKEN;
-
-gulp.task(task.define(
-	'vscode-translations-push',
-	task.series(
-		compileBuildTask,
-		compileExtensionsBuildTask,
-		optimizeVSCodeTask,
-		function () {
-			const pathToMetadata = './out-vscode/nls.metadata.json';
-			const pathToExtensions = '.build/extensions/*';
-			const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
-
-			return es.merge(
-				gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
-				gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
-				gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
-			).pipe(i18n.findObsoleteResources(apiHostname, apiName, apiToken)
-			).pipe(i18n.pushXlfFiles(apiHostname, apiName, apiToken));
-		}
-	)
-));
-
 gulp.task(task.define(
 	'vscode-translations-export',
 	task.series(
-		compileBuildTask,
+		core,
 		compileExtensionsBuildTask,
-		optimizeVSCodeTask,
 		function () {
 			const pathToMetadata = './out-vscode/nls.metadata.json';
+			const pathToRehWebMetadata = './out-vscode-reh-web/nls.metadata.json';
 			const pathToExtensions = '.build/extensions/*';
 			const pathToSetup = 'build/win32/i18n/messages.en.isl';
 
 			return es.merge(
-				gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
+				gulp.src([pathToMetadata, pathToRehWebMetadata]).pipe(merge({
+					fileName: 'nls.metadata.json',
+					jsonSpace: '',
+					concatArrays: true
+				})).pipe(i18n.createXlfFilesForCoreBundle()),
 				gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
 				gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
 			).pipe(vfs.dest('../vscode-translations-export'));
@@ -450,24 +503,19 @@ gulp.task(task.define(
 	)
 ));
 
-gulp.task('vscode-translations-pull', function () {
-	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
-		let includeDefault = !!innoSetupConfig[language.id].defaultInfo;
-		return i18n.pullSetupXlfFiles(apiHostname, apiName, apiToken, language, includeDefault).pipe(vfs.dest(`../vscode-translations-import/${language.id}/setup`));
-	}));
-});
-
 gulp.task('vscode-translations-import', function () {
-	let options = minimist(process.argv.slice(2), {
+	const options = minimist(process.argv.slice(2), {
 		string: 'location',
 		default: {
 			location: '../vscode-translations-import'
 		}
 	});
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
-		let id = language.id;
+		const id = language.id;
 		return gulp.src(`${options.location}/${id}/vscode-setup/messages.xlf`)
 			.pipe(i18n.prepareIslFiles(language, innoSetupConfig[language.id]))
 			.pipe(vfs.dest(`./build/win32/i18n`));
 	}));
 });
+
+// #endregion

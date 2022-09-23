@@ -27,6 +27,7 @@ import { setup as setupMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
+import { setup as setupTaskTests } from './areas/task/task.test';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
 
@@ -75,6 +76,21 @@ const logsRootPath = (() => {
 	}
 
 	return path.join(logsParentPath, logsName);
+})();
+
+const crashesRootPath = (() => {
+	const crashesParentPath = path.join(rootPath, '.build', 'crashes');
+
+	let crashesName: string;
+	if (opts.web) {
+		crashesName = 'smoke-tests-browser';
+	} else if (opts.remote) {
+		crashesName = 'smoke-tests-remote';
+	} else {
+		crashesName = 'smoke-tests-electron';
+	}
+
+	return path.join(crashesParentPath, crashesName);
 })();
 
 const logger = createLogger();
@@ -137,6 +153,27 @@ function parseVersion(version: string): { major: number; minor: number; patch: n
 	return { major: parseInt(major), minor: parseInt(minor), patch: parseInt(patch) };
 }
 
+function parseQuality(): Quality {
+	if (process.env.VSCODE_DEV === '1') {
+		return Quality.Dev;
+	}
+
+	const quality = process.env.VSCODE_QUALITY ?? '';
+
+	switch (quality) {
+		case 'stable':
+			return Quality.Stable;
+		case 'insider':
+			return Quality.Insiders;
+		case 'exploration':
+			return Quality.Exploration;
+		case 'oss':
+			return Quality.OSS;
+		default:
+			return Quality.Dev;
+	}
+}
+
 //
 // #### Electron Smoke Tests ####
 //
@@ -159,13 +196,7 @@ if (!opts.web) {
 		fail(`Can't find VSCode at ${electronPath}. Please run VSCode once first (scripts/code.sh, scripts\\code.bat) and try again.`);
 	}
 
-	if (process.env.VSCODE_DEV === '1') {
-		quality = Quality.Dev;
-	} else if (electronPath.indexOf('Code - Insiders') >= 0 /* macOS/Windows */ || electronPath.indexOf('code-insiders') /* Linux */ >= 0) {
-		quality = Quality.Insiders;
-	} else {
-		quality = Quality.Stable;
-	}
+	quality = parseQuality();
 
 	if (opts.remote) {
 		logger.log(`Running desktop remote smoke tests against ${electronPath}`);
@@ -196,12 +227,10 @@ else {
 		logger.log(`Running web smoke out of sources`);
 	}
 
-	if (process.env.VSCODE_DEV === '1') {
-		quality = Quality.Dev;
-	} else {
-		quality = Quality.Insiders;
-	}
+	quality = parseQuality();
 }
+
+logger.log(`VS Code product quality: ${quality}.`);
 
 const userDataDir = path.join(testDataPath, 'd');
 
@@ -218,12 +247,15 @@ async function setupRepository(): Promise<void> {
 	} else {
 		if (!fs.existsSync(workspacePath)) {
 			logger.log('Cloning test project repository...');
-			cp.spawnSync('git', ['clone', testRepoUrl, workspacePath]);
+			const res = cp.spawnSync('git', ['clone', testRepoUrl, workspacePath], { stdio: 'inherit' });
+			if (!fs.existsSync(workspacePath)) {
+				throw new Error(`Clone operation failed: ${res.stderr.toString()}`);
+			}
 		} else {
 			logger.log('Cleaning test project repository...');
-			cp.spawnSync('git', ['fetch'], { cwd: workspacePath });
-			cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath });
-			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
+			cp.spawnSync('git', ['fetch'], { cwd: workspacePath, stdio: 'inherit' });
+			cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath, stdio: 'inherit' });
+			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath, stdio: 'inherit' });
 		}
 	}
 }
@@ -233,13 +265,13 @@ async function ensureStableCode(): Promise<void> {
 	if (!stableCodePath) {
 		const { major, minor } = parseVersion(version!);
 		const majorMinorVersion = `${major}.${minor - 1}`;
-		const versionsReq = await retry(() => measureAndLog(fetch('https://update.code.visualstudio.com/api/releases/stable', { headers: { 'x-api-version': '2' } }), 'versionReq', logger), 1000, 20);
+		const versionsReq = await retry(() => measureAndLog(() => fetch('https://update.code.visualstudio.com/api/releases/stable', { headers: { 'x-api-version': '2' } }), 'versionReq', logger), 1000, 20);
 
 		if (!versionsReq.ok) {
 			throw new Error('Could not fetch releases from update server');
 		}
 
-		const versions: { version: string }[] = await measureAndLog(versionsReq.json(), 'versionReq.json()', logger);
+		const versions: { version: string }[] = await measureAndLog(() => versionsReq.json(), 'versionReq.json()', logger);
 		const prefix = `${majorMinorVersion}.`;
 		const previousVersion = versions.find(v => v.version.startsWith(prefix));
 
@@ -252,7 +284,7 @@ async function ensureStableCode(): Promise<void> {
 		let lastProgressMessage: string | undefined = undefined;
 		let lastProgressReportedAt = 0;
 		const stableCodeDestination = path.join(testDataPath, 's');
-		const stableCodeExecutable = await retry(() => measureAndLog(vscodetest.download({
+		const stableCodeExecutable = await retry(() => measureAndLog(() => vscodetest.download({
 			cachePath: stableCodeDestination,
 			version: previousVersion.version,
 			extractSync: true,
@@ -307,9 +339,9 @@ async function setup(): Promise<void> {
 
 	if (!opts.web && !opts.remote && opts.build) {
 		// only enabled when running with --build and not in web or remote
-		await measureAndLog(ensureStableCode(), 'ensureStableCode', logger);
+		await measureAndLog(() => ensureStableCode(), 'ensureStableCode', logger);
 	}
-	await measureAndLog(setupRepository(), 'setupRepository', logger);
+	await measureAndLog(() => setupRepository(), 'setupRepository', logger);
 
 	logger.log('Smoketest setup done!\n');
 }
@@ -326,6 +358,7 @@ before(async function () {
 		extensionsPath,
 		logger,
 		logsPath: path.join(logsRootPath, 'suite_unknown'),
+		crashesPath: path.join(crashesRootPath, 'suite_unknown'),
 		verbose: opts.verbose,
 		remote: opts.remote,
 		web: opts.web,
@@ -342,7 +375,7 @@ before(async function () {
 after(async function () {
 	try {
 		let deleted = false;
-		await measureAndLog(Promise.race([
+		await measureAndLog(() => Promise.race([
 			new Promise<void>((resolve, reject) => rimraf(testDataPath, { maxBusyTries: 10 }, error => {
 				if (error) {
 					reject(error);
@@ -368,10 +401,11 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	setupSearchTests(logger);
 	setupNotebookTests(logger);
 	setupLanguagesTests(logger);
-	if (opts.web) { setupTerminalTests(logger); } // Tests require playwright driver (https://github.com/microsoft/vscode/issues/146811)
+	if (opts.web) { setupTerminalTests(logger); } // Not stable on desktop/remote https://github.com/microsoft/vscode/issues/146811
+	setupTaskTests(logger);
 	setupStatusbarTests(logger);
-	if (quality !== Quality.Dev) { setupExtensionTests(logger); }
+	if (quality !== Quality.Dev && quality !== Quality.OSS) { setupExtensionTests(logger); }
 	setupMultirootTests(logger);
-	if (!opts.web && !opts.remote && quality !== Quality.Dev) { setupLocalizationTests(logger); }
+	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupLocalizationTests(logger); }
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
 });

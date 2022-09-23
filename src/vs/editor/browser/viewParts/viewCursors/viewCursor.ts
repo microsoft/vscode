@@ -172,7 +172,13 @@ export class ViewCursor {
 		}
 
 		const range = firstVisibleRangeForCharacter.ranges[0];
-		const width = range.width < 1 ? this._typicalHalfwidthCharacterWidth : range.width;
+		const width = (
+			nextGrapheme === '\t'
+				? this._typicalHalfwidthCharacterWidth
+				: (range.width < 1
+					? this._typicalHalfwidthCharacterWidth
+					: range.width)
+		);
 
 		let textContentClassName = '';
 		if (this._cursorStyle === TextEditorCursorStyle.Block) {

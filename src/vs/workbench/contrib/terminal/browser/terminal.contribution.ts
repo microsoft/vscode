@@ -16,7 +16,7 @@ import { KeybindingWeight, KeybindingsRegistry, IKeybindings } from 'vs/platform
 import { Registry } from 'vs/platform/registry/common/platform';
 import { getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
-import { Extensions as DragAndDropExtensions, IDragAndDropContributionRegistry, IDraggedResourceEditorInput } from 'vs/workbench/browser/dnd';
+import { Extensions as DragAndDropExtensions, IDragAndDropContributionRegistry, IDraggedResourceEditorInput } from 'vs/platform/dnd/browser/dnd';
 import { registerTerminalActions, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { TERMINAL_VIEW_ID, TerminalCommandId, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -68,7 +68,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: TerminalQuickAccessProvider.PREFIX,
 	contextKey: inTerminalsPicker,
 	placeholder: nls.localize('tasksQuickAccessPlaceholder', "Type the name of a terminal to open."),
-	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Show All Opened Terminals"), needsEditor: false }]
+	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Show All Opened Terminals"), commandId: TerminalCommandId.QuickOpenTerm }]
 });
 const quickAccessNavigateNextInTerminalPickerId = 'workbench.action.quickOpenNavigateNextInTerminalPicker';
 CommandsRegistry.registerCommand({ id: quickAccessNavigateNextInTerminalPickerId, handler: getQuickNavigateHandler(quickAccessNavigateNextInTerminalPickerId, true) });
@@ -77,8 +77,8 @@ CommandsRegistry.registerCommand({ id: quickAccessNavigatePreviousInTerminalPick
 
 // Register workbench contributions
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(TerminalMainContribution, LifecyclePhase.Starting);
-workbenchRegistry.registerWorkbenchContribution(RemoteTerminalBackendContribution, LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(TerminalMainContribution, 'TerminalMainContribution', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(RemoteTerminalBackendContribution, 'RemoteTerminalBackendContribution', LifecyclePhase.Restored);
 
 // Register configurations
 registerTerminalPlatformConfiguration();
@@ -123,11 +123,11 @@ const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensi
 	id: TERMINAL_VIEW_ID,
 	title: nls.localize('terminal', "Terminal"),
 	icon: terminalViewIcon,
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TERMINAL_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TERMINAL_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: TERMINAL_VIEW_ID,
 	hideIfEmpty: true,
 	order: 3,
-}, ViewContainerLocation.Panel, { donotRegisterOpenCommand: true, isDefault: true });
+}, ViewContainerLocation.Panel, { doNotRegisterOpenCommand: true, isDefault: true });
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: TERMINAL_VIEW_ID,
 	name: nls.localize('terminal', "Terminal"),
@@ -177,6 +177,33 @@ if (isWindows) {
 	});
 }
 
+// Map certain keybindings in pwsh to unused keys which get handled by PSReadLine handlers in the
+// shell integration script. This allows keystrokes that cannot be sent via VT sequences to work.
+// See https://github.com/microsoft/terminal/issues/879#issuecomment-497775007
+registerSendSequenceKeybinding('\x1b[24~a', { // F12,a -> ctrl+space (MenuComplete)
+	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+	primary: KeyMod.CtrlCmd | KeyCode.Space,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
+});
+registerSendSequenceKeybinding('\x1b[24~b', { // F12,b -> alt+space (SetMark)
+	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+	primary: KeyMod.Alt | KeyCode.Space
+});
+registerSendSequenceKeybinding('\x1b[24~c', { // F12,c -> shift+enter (AddLine)
+	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+	primary: KeyMod.Shift | KeyCode.Enter
+});
+registerSendSequenceKeybinding('\x1b[24~d', { // F12,d -> shift+end (SelectLine) - HACK: \x1b[1;2F is supposed to work but it doesn't
+	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+	mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.RightArrow }
+});
+
+// Always on pwsh keybindings
+registerSendSequenceKeybinding('\x1b[1;2H', { // Shift+home
+	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.PowerShell)),
+	mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.LeftArrow }
+});
+
 // send ctrl+c to the iPad when the terminal is focused and ctrl+c is pressed to kill the process (work around for #114009)
 if (isIOS) {
 	registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - CTRL_LETTER_OFFSET), { // ctrl+c
@@ -214,10 +241,6 @@ registerSendSequenceKeybinding(String.fromCharCode('A'.charCodeAt(0) - 64), {
 // Move to line end: ctrl+E
 registerSendSequenceKeybinding(String.fromCharCode('E'.charCodeAt(0) - 64), {
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
-});
-// Break: ctrl+C
-registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - 64), {
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.Period }
 });
 // NUL: ctrl+shift+2
 registerSendSequenceKeybinding('\u0000', {

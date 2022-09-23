@@ -23,6 +23,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { isWindows } from 'vs/base/common/platform';
 
 const nullEvent = new class {
 	id: number = -1;
@@ -64,7 +65,7 @@ suite('SearchModel', () => {
 	};
 
 	const folderQueries: IFolderQuery[] = [
-		{ folder: URI.parse('file://c:/') }
+		{ folder: createFileUriFromPathFromRoot() }
 	];
 
 	setup(() => {
@@ -113,9 +114,7 @@ suite('SearchModel', () => {
 	function canceleableSearchService(tokenSource: CancellationTokenSource): ISearchService {
 		return <ISearchService>{
 			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
-				if (token) {
-					token.onCancellationRequested(() => tokenSource.cancel());
-				}
+				token?.onCancellationRequested(() => tokenSource.cancel());
 
 				return new Promise(resolve => {
 					queueMicrotask(() => {
@@ -128,10 +127,10 @@ suite('SearchModel', () => {
 
 	test('Search Model: Search adds to results', async () => {
 		const results = [
-			aRawMatch('file://c:/1',
+			aRawMatch('/1',
 				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
-			aRawMatch('file://c:/2', new TextSearchMatch('preview 2', lineOneRange))];
+			aRawMatch('/2', new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
 
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
@@ -140,7 +139,7 @@ suite('SearchModel', () => {
 		const actual = testObject.searchResult.matches();
 
 		assert.strictEqual(2, actual.length);
-		assert.strictEqual('file://c:/1', actual[0].resource.toString());
+		assert.strictEqual(URI.file(`${getRootName()}/1`).toString(), actual[0].resource.toString());
 
 		let actuaMatches = actual[0].matches();
 		assert.strictEqual(2, actuaMatches.length);
@@ -158,10 +157,10 @@ suite('SearchModel', () => {
 	test('Search Model: Search reports telemetry on search completed', async () => {
 		const target = instantiationService.spy(ITelemetryService, 'publicLog');
 		const results = [
-			aRawMatch('file://c:/1',
+			aRawMatch('/1',
 				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
-			aRawMatch('file://c:/2',
+			aRawMatch('/2',
 				new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
 
@@ -200,7 +199,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
 		instantiationService.stub(ISearchService, searchServiceWithResults(
-			[aRawMatch('file://c:/1', new TextSearchMatch('some preview', lineOneRange))],
+			[aRawMatch('/1', new TextSearchMatch('some preview', lineOneRange))],
 			{ results: [], stats: testSearchStats, messages: [] }));
 
 		const testObject = instantiationService.createInstance(SearchModel);
@@ -262,10 +261,10 @@ suite('SearchModel', () => {
 
 	test('Search Model: Search results are cleared during search', async () => {
 		const results = [
-			aRawMatch('file://c:/1',
+			aRawMatch('/1',
 				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
-			aRawMatch('file://c:/2',
+			aRawMatch('/2',
 				new TextSearchMatch('preview 2', lineOneRange))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
@@ -292,7 +291,7 @@ suite('SearchModel', () => {
 
 	test('getReplaceString returns proper replace string for regExpressions', async () => {
 		const results = [
-			aRawMatch('file://c:/1',
+			aRawMatch('/1',
 				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)))];
 		instantiationService.stub(ISearchService, searchServiceWithResults(results));
@@ -322,7 +321,28 @@ suite('SearchModel', () => {
 	});
 
 	function aRawMatch(resource: string, ...results: ITextSearchMatch[]): IFileMatch {
-		return { resource: URI.parse(resource), results };
+		return { resource: createFileUriFromPathFromRoot(resource), results };
+	}
+
+	function createFileUriFromPathFromRoot(path?: string): URI {
+		const rootName = getRootName();
+		if (path) {
+			return URI.file(`${rootName}${path}`);
+		} else {
+			if (isWindows) {
+				return URI.file(`${rootName}/`);
+			} else {
+				return URI.file(rootName);
+			}
+		}
+	}
+
+	function getRootName(): string {
+		if (isWindows) {
+			return 'c:';
+		} else {
+			return '';
+		}
 	}
 
 	function stub(arg1: any, arg2: any, arg3: any): sinon.SinonStub {

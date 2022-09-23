@@ -141,7 +141,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		const pick = await quickInputService.pick(picks, {
 			contextKey: inRecentFilesPickerContextKey,
 			activeItem: [...workspacePicks, ...filePicks][autoFocusSecondEntry ? 1 : 0],
-			placeHolder: isMacintosh ? localize('openRecentPlaceholderMac', "Select to open (hold Cmd-key to force new window or Alt-key for same window)") : localize('openRecentPlaceholder', "Select to open (hold Ctrl-key to force new window or Alt-key for same window)"),
+			placeHolder: isMacintosh ? localize('openRecentPlaceholderMac', "Select to open (hold Cmd-key to force new window or Option-key for same window)") : localize('openRecentPlaceholder', "Select to open (hold Ctrl-key to force new window or Alt-key for same window)"),
 			matchOnDescription: true,
 			onKeyMods: mods => keyMods = mods,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: keybindingService.lookupKeybindings(this.desc.id) } : undefined,
@@ -270,7 +270,7 @@ class QuickPickRecentAction extends BaseOpenRecentAction {
 			id: 'workbench.action.quickOpenRecent',
 			title: { value: localize('quickOpenRecent', "Quick Open Recent..."), original: 'Quick Open Recent...' },
 			category: fileCategory,
-			f1: true
+			f1: false // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 		});
 	}
 

@@ -11,11 +11,11 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 export enum DiffSide {
 	Original = 0,
@@ -43,8 +43,8 @@ export interface INotebookTextDiffEditor {
 	 */
 	triggerScroll(event: IMouseWheelEvent): void;
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
-	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
-	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
+	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): Promise<void>;
+	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): Promise<void>;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, height: number, isInit: boolean): void;
 	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]): void;
 }
@@ -83,7 +83,7 @@ export interface CellDiffSideBySideRenderTemplate extends CellDiffCommonRenderTe
 	readonly sourceEditor: DiffEditorWidget;
 	readonly editorContainer: HTMLElement;
 	readonly inputToolbarContainer: HTMLElement;
-	readonly toolbar: ToolBar;
+	readonly toolbar: WorkbenchToolBar;
 	readonly metadataHeaderContainer: HTMLElement;
 	readonly metadataInfoContainer: HTMLElement;
 	readonly outputHeaderContainer: HTMLElement;

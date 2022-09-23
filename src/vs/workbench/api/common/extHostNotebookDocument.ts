@@ -141,7 +141,6 @@ export class ExtHostNotebookDocument {
 	private _metadata: Record<string, any>;
 	private _versionId: number = 0;
 	private _isDirty: boolean = false;
-	private _backup?: vscode.NotebookDocumentBackup;
 	private _disposed: boolean = false;
 
 	constructor(
@@ -190,16 +189,6 @@ export class ExtHostNotebookDocument {
 		return this._notebook;
 	}
 
-	updateBackup(backup: vscode.NotebookDocumentBackup): void {
-		this._backup?.delete();
-		this._backup = backup;
-	}
-
-	disposeBackup(): void {
-		this._backup?.delete();
-		this._backup = undefined;
-	}
-
 	acceptDocumentPropertiesChanged(data: extHostProtocol.INotebookDocumentPropertiesChangeData) {
 		if (data.metadata) {
 			this._metadata = Object.freeze({ ...this._metadata, ...data.metadata });
@@ -218,11 +207,11 @@ export class ExtHostNotebookDocument {
 		const result = {
 			notebook: this.apiNotebook,
 			metadata: newMetadata,
-			cellChanges: <vscode.NotebookDocumentContentCellChange[]>[],
+			cellChanges: <vscode.NotebookDocumentCellChange[]>[],
 			contentChanges: <vscode.NotebookDocumentContentChange[]>[],
 		};
 
-		type RelaxedCellChange = Partial<vscode.NotebookDocumentContentCellChange> & { cell: vscode.NotebookCell };
+		type RelaxedCellChange = Partial<vscode.NotebookDocumentCellChange> & { cell: vscode.NotebookCell };
 		const relaxedCellChanges: RelaxedCellChange[] = [];
 
 		// -- apply change and populate content changes
@@ -366,7 +355,7 @@ export class ExtHostNotebookDocument {
 		});
 
 		if (bucket) {
-			for (let changeEvent of contentChangeEvents) {
+			for (const changeEvent of contentChangeEvents) {
 				bucket.push(changeEvent.asApiEvent());
 			}
 		}

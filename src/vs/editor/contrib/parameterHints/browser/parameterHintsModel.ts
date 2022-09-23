@@ -9,11 +9,11 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
+import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import * as languages from 'vs/editor/common/languages';
 import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 
 export interface TriggerContext {
 	readonly triggerKind: languages.SignatureHelpTriggerKind;

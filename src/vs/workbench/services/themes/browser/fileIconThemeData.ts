@@ -99,7 +99,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
 
 	static fromStorageData(storageService: IStorageService): FileIconThemeData | undefined {
-		const input = storageService.get(FileIconThemeData.STORAGE_KEY, StorageScope.GLOBAL);
+		const input = storageService.get(FileIconThemeData.STORAGE_KEY, StorageScope.PROFILE);
 		if (!input) {
 			return undefined;
 		}
@@ -146,7 +146,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
 			watch: this.watch
 		});
-		storageService.store(FileIconThemeData.STORAGE_KEY, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		storageService.store(FileIconThemeData.STORAGE_KEY, data, StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 }
 

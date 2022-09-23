@@ -244,7 +244,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 					],
 					{
 						sticky: true,
-						neverShowAgain: { id: 'terminalConfigHelper/launchRecommendationsIgnore', scope: NeverShowAgainScope.GLOBAL },
+						neverShowAgain: { id: 'terminalConfigHelper/launchRecommendationsIgnore', scope: NeverShowAgainScope.APPLICATION },
 						onCancel: () => { }
 					}
 				);

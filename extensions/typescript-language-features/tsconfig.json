@@ -11,6 +11,7 @@
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
 		"../../src/vscode-dts/vscode.proposed.inlayHints.d.ts",
+		"../../src/vscode-dts/vscode.proposed.workspaceEditIsRefactoring.d.ts",
 		"../../src/vscode-dts/vscode.proposed.languageStatus.d.ts",
 		"../../src/vscode-dts/vscode.proposed.resolvers.d.ts",
 		"../../src/vscode-dts/vscode.proposed.workspaceTrust.d.ts",

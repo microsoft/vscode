@@ -17,7 +17,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { getTitleBarStyle } from 'vs/platform/window/common/window';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -25,6 +25,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { coalesce } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
+import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
 
@@ -83,9 +84,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		const actions = delegate.getActions();
 		if (actions.length) {
 			const onHide = once(() => {
-				if (delegate.onHide) {
-					delegate.onHide(false);
-				}
+				delegate.onHide?.(false);
 
 				dom.ModifierKeyEmitter.getInstance().resetKeyStatus();
 				this._onDidHideContextMenu.fire();
@@ -97,12 +96,48 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			let x: number;
 			let y: number;
 
-			const zoom = getZoomFactor();
+			let zoom = getZoomFactor();
 			if (dom.isHTMLElement(anchor)) {
 				const elementPosition = dom.getDomNodePagePosition(anchor);
 
-				x = elementPosition.left;
-				y = elementPosition.top + elementPosition.height;
+				// When drawing context menus, we adjust the pixel position for native menus using zoom level
+				// In areas where zoom is applied to the element or its ancestors, we need to adjust accordingly
+				// e.g. The title bar has counter zoom behavior meaning it applies the inverse of zoom level.
+				// Window Zoom Level: 1.5, Title Bar Zoom: 1/1.5, Coordinate Multiplier: 1.5 * 1.0 / 1.5 = 1.0
+				zoom *= dom.getDomNodeZoomLevel(anchor);
+
+				// Position according to the axis alignment and the anchor alignment:
+				// `HORIZONTAL` aligns at the top left or right of the anchor and
+				//  `VERTICAL` aligns at the bottom left of the anchor.
+				if (delegate.anchorAxisAlignment === AnchorAxisAlignment.HORIZONTAL) {
+					if (delegate.anchorAlignment === AnchorAlignment.LEFT) {
+						x = elementPosition.left;
+						y = elementPosition.top;
+					} else {
+						x = elementPosition.left + elementPosition.width;
+						y = elementPosition.top;
+					}
+
+					if (!isMacintosh) {
+						const availableHeightForMenu = window.screen.height - y;
+						if (availableHeightForMenu < actions.length * (isWindows ? 45 : 32) /* guess of 1 menu item height */) {
+							// this is a guess to detect whether the context menu would
+							// open to the bottom from this point or to the top. If the
+							// menu opens to the top, make sure to align it to the bottom
+							// of the anchor and not to the top.
+							// this seems to be only necessary for Windows and Linux.
+							y += elementPosition.height;
+						}
+					}
+				} else {
+					if (delegate.anchorAlignment === AnchorAlignment.LEFT) {
+						x = elementPosition.left;
+						y = elementPosition.top + elementPosition.height;
+					} else {
+						x = elementPosition.left + elementPosition.width;
+						y = elementPosition.top + elementPosition.height;
+					}
+				}
 
 				// Shift macOS menus by a few pixels below elements
 				// to account for extra padding on top of native menu

@@ -7,6 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
@@ -20,6 +21,7 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { stripIcons } from 'vs/base/common/iconLabels';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
@@ -53,7 +55,6 @@ import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listSe
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
@@ -65,7 +66,6 @@ import { AutoOpenPeekViewWhen, getTestingConfiguration, TestingConfigKeys } from
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -75,6 +75,7 @@ import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testPro
 import { ITestResult, maxCountPriority, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 class TestDto {
@@ -418,7 +419,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	 */
 	public readonly historyVisible = MutableObservableValue.stored(new StoredValue<boolean>({
 		key: 'testHistoryVisibleInPeek',
-		scope: StorageScope.GLOBAL,
+		scope: StorageScope.PROFILE,
 		target: StorageTarget.USER,
 	}, this.storageService), true);
 
@@ -759,7 +760,6 @@ class TestingOutputPeek extends PeekViewWidget {
 
 		this.show(dto.revealLocation.range, TestingOutputPeek.lastHeightInLines || hintMessagePeekHeight(message));
 		this.editor.revealPositionNearTop(dto.revealLocation.range.getStartPosition(), ScrollType.Smooth);
-		this.editor.focus();
 
 		return this.showInPlace(dto);
 	}
@@ -770,7 +770,7 @@ class TestingOutputPeek extends PeekViewWidget {
 	 */
 	public async showInPlace(dto: TestDto) {
 		const message = dto.messages[dto.messageIndex];
-		this.setTitle(firstLine(renderStringAsPlaintext(message.message)), dto.test.label);
+		this.setTitle(firstLine(renderStringAsPlaintext(message.message)), stripIcons(dto.test.label));
 		this.didReveal.fire(dto);
 		this.visibilityChange.fire(true);
 		await Promise.all(this.contentProviders.map(p => p.update(dto, message)));
@@ -836,6 +836,7 @@ const diffEditorOptions: IDiffEditorConstructionOptions = {
 	renderSideBySide: true,
 	originalAriaLabel: localize('testingOutputExpected', 'Expected result'),
 	modifiedAriaLabel: localize('testingOutputActual', 'Actual result'),
+	diffAlgorithm: 'smart',
 };
 
 const isDiffable = (message: ITestMessage): message is ITestErrorMessage & { actualOutput: string; expectedOutput: string } =>
@@ -903,7 +904,8 @@ class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
 }
 
 class ScrollableMarkdownMessage extends Disposable {
-	private scrollable: DomScrollableElement;
+	private readonly scrollable: DomScrollableElement;
+	private readonly element: HTMLElement;
 
 	constructor(container: HTMLElement, markdown: MarkdownRenderer, message: IMarkdownString) {
 		super();
@@ -912,6 +914,7 @@ class ScrollableMarkdownMessage extends Disposable {
 		rendered.element.style.height = '100%';
 		rendered.element.style.userSelect = 'text';
 		container.appendChild(rendered.element);
+		this.element = rendered.element;
 
 		this.scrollable = this._register(new DomScrollableElement(rendered.element, {
 			className: 'preview-text',
@@ -926,7 +929,13 @@ class ScrollableMarkdownMessage extends Disposable {
 	}
 
 	public layout(height: number, width: number) {
-		this.scrollable.setScrollDimensions({ width, height });
+		// Remove padding of `.monaco-editor .zone-widget.test-output-peek .preview-text`
+		this.scrollable.setScrollDimensions({
+			width: width - 32,
+			height: height - 16,
+			scrollWidth: this.element.scrollWidth,
+			scrollHeight: this.element.scrollHeight
+		});
 	}
 }
 
@@ -1084,6 +1093,7 @@ interface ITreeElement {
 	context: unknown;
 	id: string;
 	label: string;
+	labelWithIcons?: readonly (HTMLSpanElement | string)[];
 	icon?: ThemeIcon;
 	description?: string;
 	ariaLabel?: string;
@@ -1111,6 +1121,7 @@ export class TestCaseElement implements ITreeElement {
 	public readonly context = this.test.item.extId;
 	public readonly id = `${this.results.id}/${this.test.item.extId}`;
 	public readonly label = this.test.item.label;
+	public readonly labelWithIcons = renderLabelWithIcons(this.label);
 	public readonly description?: string;
 
 	public get icon() {
@@ -1207,7 +1218,6 @@ class OutputPeekTree extends Disposable {
 		super();
 
 		this.treeActions = instantiationService.createInstance(TreeActionsProvider);
-		const labels = instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility });
 		const diffIdentityProvider: IIdentityProvider<TreeElement> = {
 			getId(e: TreeElement) {
 				return e.id;
@@ -1222,7 +1232,7 @@ class OutputPeekTree extends Disposable {
 				getHeight: () => 22,
 				getTemplateId: () => TestRunElementRenderer.ID,
 			},
-			[instantiationService.createInstance(TestRunElementRenderer, labels, this.treeActions)],
+			[instantiationService.createInstance(TestRunElementRenderer, this.treeActions)],
 			{
 				compressionEnabled: true,
 				hideTwistiesOfChildlessElements: true,
@@ -1358,6 +1368,7 @@ class OutputPeekTree extends Disposable {
 
 			this.tree.setFocus([messageNode]);
 			this.tree.setSelection([messageNode]);
+			this.tree.domFocus();
 		}));
 
 		this._register(this.tree.onDidOpen(async e => {
@@ -1400,11 +1411,10 @@ class OutputPeekTree extends Disposable {
 		const actions = this.treeActions.provideActionBar(evt.element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => evt.anchor,
-			getActions: () => actions.value.secondary.length
-				? [...actions.value.primary, new Separator(), ...actions.value.secondary]
-				: actions.value.primary,
-			getActionsContext: () => evt.element?.context,
-			onHide: () => actions.dispose(),
+			getActions: () => actions.secondary.length
+				? [...actions.primary, new Separator(), ...actions.secondary]
+				: actions.primary,
+			getActionsContext: () => evt.element?.context
 		});
 	}
 
@@ -1415,7 +1425,7 @@ class OutputPeekTree extends Disposable {
 }
 
 interface TemplateData {
-	label: IResourceLabel;
+	label: HTMLElement;
 	icon: HTMLElement;
 	actionBar: ActionBar;
 	elementDisposable: DisposableStore;
@@ -1427,7 +1437,6 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 	public readonly templateId = TestRunElementRenderer.ID;
 
 	constructor(
-		private readonly labels: ResourceLabels,
 		private readonly treeActions: TreeActionsProvider,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
@@ -1448,10 +1457,7 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 		const templateDisposable = new DisposableStore();
 		const wrapper = dom.append(container, dom.$('.test-peek-item'));
 		const icon = dom.append(wrapper, dom.$('.state'));
-		const name = dom.append(wrapper, dom.$('.name'));
-
-		const label = this.labels.create(name, { supportHighlights: true });
-		templateDisposable.add(label);
+		const label = dom.append(wrapper, dom.$('.name'));
 
 		const actionBar = new ActionBar(wrapper, {
 			actionViewItemProvider: action =>
@@ -1483,16 +1489,21 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 
 	private doRender(element: ITreeElement, templateData: TemplateData) {
 		templateData.elementDisposable.clear();
-		templateData.label.setLabel(element.label, element.description);
+		if (element.labelWithIcons) {
+			dom.reset(templateData.label, ...element.labelWithIcons);
+		} else if (element.description) {
+			dom.reset(templateData.label, element.label, dom.$('span.test-label-description', {}, element.description));
+		} else {
+			dom.reset(templateData.label, element.label);
+		}
 
 		const icon = element.icon;
 		templateData.icon.className = `computed-state ${icon ? ThemeIcon.asClassName(icon) : ''}`;
 
 		const actions = this.treeActions.provideActionBar(element);
-		templateData.elementDisposable.add(actions);
 		templateData.actionBar.clear();
 		templateData.actionBar.context = element;
-		templateData.actionBar.push(actions.value.primary, { icon: true, label: false });
+		templateData.actionBar.push(actions.primary, { icon: true, label: false });
 	}
 }
 
@@ -1587,11 +1598,11 @@ class TreeActionsProvider {
 			}
 
 			const result = { primary, secondary };
-			const actionsDisposable = createAndFillInActionBarActions(menu, {
+			createAndFillInActionBarActions(menu, {
 				shouldForwardArgs: true,
 			}, result, 'inline');
 
-			return { value: result, dispose: () => actionsDisposable.dispose };
+			return result;
 		} finally {
 			menu.dispose();
 		}
@@ -1659,7 +1670,7 @@ export class GoToNextMessageAction extends EditorAction2 {
 		super({
 			id: GoToNextMessageAction.ID,
 			f1: true,
-			title: localize('testing.goToNextMessage', "Go to Next Test Failure"),
+			title: { value: localize('testing.goToNextMessage', "Go to Next Test Failure"), original: 'Go to Next Test Failure' },
 			icon: Codicon.arrowDown,
 			category: CATEGORIES.Test,
 			keybinding: {
@@ -1689,7 +1700,7 @@ export class GoToPreviousMessageAction extends EditorAction2 {
 		super({
 			id: GoToPreviousMessageAction.ID,
 			f1: true,
-			title: localize('testing.goToPreviousMessage', "Go to Previous Test Failure"),
+			title: { value: localize('testing.goToPreviousMessage', "Go to Previous Test Failure"), original: 'Go to Previous Test Failure' },
 			icon: Codicon.arrowUp,
 			category: CATEGORIES.Test,
 			keybinding: {
@@ -1719,7 +1730,7 @@ export class OpenMessageInEditorAction extends EditorAction2 {
 		super({
 			id: OpenMessageInEditorAction.ID,
 			f1: false,
-			title: localize('testing.openMessageInEditor', "Open in Editor"),
+			title: { value: localize('testing.openMessageInEditor', "Open in Editor"), original: 'Open in Editor' },
 			icon: Codicon.linkExternal,
 			category: CATEGORIES.Test,
 			menu: [{ id: MenuId.TestPeekTitle }],
@@ -1737,7 +1748,7 @@ export class ToggleTestingPeekHistory extends EditorAction2 {
 		super({
 			id: ToggleTestingPeekHistory.ID,
 			f1: true,
-			title: localize('testing.toggleTestingPeekHistory', "Toggle Test History in Peek"),
+			title: { value: localize('testing.toggleTestingPeekHistory', "Toggle Test History in Peek"), original: 'Toggle Test History in Peek' },
 			icon: Codicon.history,
 			category: CATEGORIES.Test,
 			menu: [{

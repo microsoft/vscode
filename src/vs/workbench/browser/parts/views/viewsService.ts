@@ -14,7 +14,7 @@ import { isString } from 'vs/base/common/types';
 import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -337,8 +337,8 @@ export class ViewsService extends Disposable implements IViewsService {
 	private registerOpenViewContainerAction(viewContainer: ViewContainer): IDisposable {
 		const disposables = new DisposableStore();
 		if (viewContainer.openCommandActionDescriptor) {
-			let { id, title, mnemonicTitle, keybindings, order } = viewContainer.openCommandActionDescriptor ?? { id: viewContainer.id };
-			title = title ?? viewContainer.title;
+			const { id, mnemonicTitle, keybindings, order } = viewContainer.openCommandActionDescriptor ?? { id: viewContainer.id };
+			const title = viewContainer.openCommandActionDescriptor.title ?? viewContainer.title;
 			const that = this;
 			disposables.add(registerAction2(class OpenViewContainerAction extends Action2 {
 				constructor() {
@@ -346,10 +346,12 @@ export class ViewsService extends Disposable implements IViewsService {
 						id,
 						get title(): ICommandActionTitle {
 							const viewContainerLocation = that.viewDescriptorService.getViewContainerLocation(viewContainer);
+							const localizedTitle = typeof title === 'string' ? title : title.value;
+							const originalTitle = typeof title === 'string' ? title : title.original;
 							if (viewContainerLocation === ViewContainerLocation.Sidebar) {
-								return { value: localize('show view', "Show {0}", title), original: `Show ${title}` };
+								return { value: localize('show view', "Show {0}", localizedTitle), original: `Show ${originalTitle}` };
 							} else {
-								return { value: localize('toggle view', "Toggle {0}", title), original: `Toggle ${title}` };
+								return { value: localize('toggle view', "Toggle {0}", localizedTitle), original: `Toggle ${originalTitle}` };
 							}
 						},
 						category: CATEGORIES.View,
@@ -412,10 +414,12 @@ export class ViewsService extends Disposable implements IViewsService {
 						id: commandId,
 						get title(): ICommandActionTitle {
 							const viewContainerLocation = that.viewDescriptorService.getViewLocationById(viewDescriptor.id);
+							const localizedTitle = typeof title === 'string' ? title : title.value;
+							const originalTitle = typeof title === 'string' ? title : title.original;
 							if (viewContainerLocation === ViewContainerLocation.Sidebar) {
-								return { value: localize('show view', "Show {0}", title), original: `Show ${title}` };
+								return { value: localize('show view', "Show {0}", localizedTitle), original: `Show ${originalTitle}` };
 							} else {
-								return { value: localize('toggle view', "Toggle {0}", title), original: `Toggle ${title}` };
+								return { value: localize('toggle view', "Toggle {0}", localizedTitle), original: `Toggle ${originalTitle}` };
 							}
 						},
 						category: CATEGORIES.View,
@@ -589,7 +593,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		Registry.as<PaneCompositeRegistry>(getPaneCompositeExtension(viewContainerLocation)).registerPaneComposite(PaneCompositeDescriptor.create(
 			PaneContainer,
 			viewContainer.id,
-			viewContainer.title,
+			typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
 			isString(viewContainer.icon) ? viewContainer.icon : undefined,
 			viewContainer.order,
 			viewContainer.requestedIndex,
@@ -644,4 +648,4 @@ export function getPartByLocation(viewContainerLocation: ViewContainerLocation):
 	}
 }
 
-registerSingleton(IViewsService, ViewsService);
+registerSingleton(IViewsService, ViewsService, InstantiationType.Eager /* Eager because it registers viewlets and panels in the constructor which are required during workbench layout */);

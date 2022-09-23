@@ -35,17 +35,17 @@ export class ExtensionHostProfiler {
 	}
 
 	private _distill(profile: IV8Profile, extensions: IExtensionDescription[]): IExtensionHostProfile {
-		let searchTree = TernarySearchTree.forUris<IExtensionDescription>();
-		for (let extension of extensions) {
+		const searchTree = TernarySearchTree.forUris<IExtensionDescription>();
+		for (const extension of extensions) {
 			if (extension.extensionLocation.scheme === Schemas.file) {
 				searchTree.set(URI.file(extension.extensionLocation.fsPath), extension);
 			}
 		}
 
-		let nodes = profile.nodes;
-		let idsToNodes = new Map<number, IV8ProfileNode>();
-		let idsToSegmentId = new Map<number, ProfileSegmentId | null>();
-		for (let node of nodes) {
+		const nodes = profile.nodes;
+		const idsToNodes = new Map<number, IV8ProfileNode>();
+		const idsToSegmentId = new Map<number, ProfileSegmentId | null>();
+		for (const node of nodes) {
 			idsToNodes.set(node.id, node);
 		}
 
@@ -89,15 +89,15 @@ export class ExtensionHostProfiler {
 		visit(nodes[0], null);
 
 		const samples = profile.samples || [];
-		let timeDeltas = profile.timeDeltas || [];
-		let distilledDeltas: number[] = [];
-		let distilledIds: ProfileSegmentId[] = [];
+		const timeDeltas = profile.timeDeltas || [];
+		const distilledDeltas: number[] = [];
+		const distilledIds: ProfileSegmentId[] = [];
 
 		let currSegmentTime = 0;
 		let currSegmentId: string | undefined;
 		for (let i = 0; i < samples.length; i++) {
-			let id = samples[i];
-			let segmentId = idsToSegmentId.get(id);
+			const id = samples[i];
+			const segmentId = idsToSegmentId.get(id);
 			if (segmentId !== currSegmentId) {
 				if (currSegmentId) {
 					distilledIds.push(currSegmentId);
@@ -120,9 +120,9 @@ export class ExtensionHostProfiler {
 			ids: distilledIds,
 			data: profile,
 			getAggregatedTimes: () => {
-				let segmentsToTime = new Map<ProfileSegmentId, number>();
+				const segmentsToTime = new Map<ProfileSegmentId, number>();
 				for (let i = 0; i < distilledIds.length; i++) {
-					let id = distilledIds[i];
+					const id = distilledIds[i];
 					segmentsToTime.set(id, (segmentsToTime.get(id) || 0) + distilledDeltas[i]);
 				}
 				return segmentsToTime;

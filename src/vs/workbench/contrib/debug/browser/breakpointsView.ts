@@ -3,48 +3,53 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as resources from 'vs/base/common/resources';
 import * as dom from 'vs/base/browser/dom';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { Gesture } from 'vs/base/browser/touch';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IListContextMenuEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Action, IAction } from 'vs/base/common/actions';
-import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINTS_FOCUSED, State, DEBUG_SCHEME, IFunctionBreakpoint, IExceptionBreakpoint, IEnablement, IDebugModel, IDataBreakpoint, BREAKPOINTS_VIEW_ID, CONTEXT_BREAKPOINT_ITEM_TYPE, CONTEXT_BREAKPOINT_SUPPORTS_CONDITION, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_IN_DEBUG_MODE, IBaseBreakpoint, IBreakpointEditorContribution, BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_INPUT_FOCUSED, IInstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
-import { ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, DataBreakpoint, InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
+import { equals } from 'vs/base/common/arrays';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { Codicon } from 'vs/base/common/codicons';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import * as resources from 'vs/base/common/resources';
+import { Constants } from 'vs/base/common/uint';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { localize } from 'vs/nls';
+import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { Constants } from 'vs/base/common/uint';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IListVirtualDelegate, IListContextMenuEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ViewPane, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Gesture } from 'vs/base/browser/touch';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IEditorPane } from 'vs/workbench/common/editor';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { registerAction2, Action2, MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { createAndFillInContextMenuActions, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Codicon } from 'vs/base/common/codicons';
-import { equals } from 'vs/base/common/arrays';
-import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { DisassemblyView } from 'vs/workbench/contrib/debug/browser/disassemblyView';
+import { BREAKPOINTS_VIEW_ID, BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_BREAKPOINT_ITEM_TYPE, CONTEXT_BREAKPOINT_SUPPORTS_CONDITION, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_IN_DEBUG_MODE, DebuggerString, DEBUG_SCHEME, IBaseBreakpoint, IBreakpoint, IBreakpointEditorContribution, IDataBreakpoint, IDebugModel, IDebugService, IEnablement, IExceptionBreakpoint, IFunctionBreakpoint, IInstructionBreakpoint, State } from 'vs/workbench/contrib/debug/common/debug';
+import { Breakpoint, DataBreakpoint, ExceptionBreakpoint, FunctionBreakpoint, InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
+import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 const $ = dom.$;
 
@@ -82,6 +87,9 @@ export class BreakpointsView extends ViewPane {
 	breakpointInputFocused: IContextKey<boolean>;
 	private autoFocusedIndex = -1;
 
+	private hintContainer: IconLabel | undefined;
+	private hintDelayer: RunOnceScheduler;
+
 	constructor(
 		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -97,7 +105,9 @@ export class BreakpointsView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IMenuService menuService: IMenuService
+		@IMenuService menuService: IMenuService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -107,7 +117,9 @@ export class BreakpointsView extends ViewPane {
 		this.breakpointSupportsCondition = CONTEXT_BREAKPOINT_SUPPORTS_CONDITION.bindTo(contextKeyService);
 		this.breakpointInputFocused = CONTEXT_BREAKPOINT_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
+		this._register(this.debugService.getViewModel().onDidFocusSession(() => this.updateBreakpointsHint()));
 		this._register(this.debugService.onDidChangeState(() => this.onStateChange()));
+		this.hintDelayer = this._register(new RunOnceScheduler(() => this.updateBreakpointsHint(true), 4000));
 	}
 
 	override renderBody(container: HTMLElement): void {
@@ -194,11 +206,22 @@ export class BreakpointsView extends ViewPane {
 		}));
 	}
 
+	protected override renderHeaderTitle(container: HTMLElement, title: string): void {
+		super.renderHeaderTitle(container, title);
+
+		const iconLabelContainer = dom.append(container, $('span.breakpoint-warning'));
+		this.hintContainer = this._register(new IconLabel(iconLabelContainer, {
+			supportIcons: true, hoverDelegate: {
+				showHover: (options, focus?) => this.hoverService.showHover({ content: options.content, target: this.hintContainer!.element }, focus),
+				delay: <number>this.configurationService.getValue('workbench.hover.delay')
+			}
+		}));
+		dom.hide(this.hintContainer.element);
+	}
+
 	override focus(): void {
 		super.focus();
-		if (this.list) {
-			this.list.domFocus();
-		}
+		this.list?.domFocus();
 	}
 
 	renderInputBox(data: InputBoxData | undefined): void {
@@ -217,9 +240,7 @@ export class BreakpointsView extends ViewPane {
 		}
 
 		super.layoutBody(height, width);
-		if (this.list) {
-			this.list.layout(height, width);
-		}
+		this.list?.layout(height, width);
 		try {
 			this.ignoreLayout = true;
 			this.updateSize();
@@ -239,13 +260,12 @@ export class BreakpointsView extends ViewPane {
 		this.breakpointSupportsCondition.set(conditionSupported);
 
 		const secondary: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: e.element, shouldForwardArgs: false }, { primary: [], secondary }, 'inline');
+		createAndFillInContextMenuActions(this.menu, { arg: e.element, shouldForwardArgs: false }, { primary: [], secondary }, 'inline');
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => secondary,
-			getActionsContext: () => element,
-			onHide: () => dispose(actionsDisposable)
+			getActionsContext: () => element
 		});
 	}
 
@@ -255,6 +275,36 @@ export class BreakpointsView extends ViewPane {
 		// Adjust expanded body size
 		this.minimumBodySize = this.orientation === Orientation.VERTICAL ? getExpandedBodySize(this.debugService.getModel(), MAX_VISIBLE_BREAKPOINTS) : 170;
 		this.maximumBodySize = this.orientation === Orientation.VERTICAL && containerModel.visibleViewDescriptors.length > 1 ? getExpandedBodySize(this.debugService.getModel(), Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+	}
+
+	private updateBreakpointsHint(delayed = false): void {
+		if (!this.hintContainer) {
+			return;
+		}
+
+		const currentType = this.debugService.getViewModel().focusedSession?.configuration.type;
+		const dbg = currentType ? this.debugService.getAdapterManager().getDebugger(currentType) : undefined;
+		const message = dbg?.strings?.[DebuggerString.UnverifiedBreakpoints];
+		const debuggerHasUnverifiedBps = message && this.debugService.getModel().getBreakpoints().filter(bp => {
+			if (bp.verified || !bp.enabled) {
+				return false;
+			}
+
+			const langId = this.languageService.guessLanguageIdByFilepathOrFirstLine(bp.uri);
+			return langId && dbg.interestedInLanguage(langId);
+		});
+
+		if (message && debuggerHasUnverifiedBps?.length) {
+			if (delayed) {
+				const mdown = new MarkdownString(undefined, { isTrusted: true }).appendMarkdown(message);
+				this.hintContainer.setLabel('$(warning)', undefined, { title: { markdown: mdown, markdownNotSupportedFallback: message } });
+				dom.show(this.hintContainer.element);
+			} else {
+				this.hintDelayer.schedule();
+			}
+		} else {
+			dom.hide(this.hintContainer.element);
+		}
 	}
 
 	private onBreakpointsChange(): void {
@@ -270,6 +320,7 @@ export class BreakpointsView extends ViewPane {
 					this.list.focusNth(Math.min(lastFocusIndex, this.list.length - 1));
 				}
 			}
+			this.updateBreakpointsHint();
 		} else {
 			this.needsRefresh = true;
 		}
@@ -304,6 +355,7 @@ export class BreakpointsView extends ViewPane {
 				}
 				this.autoFocusedIndex = -1;
 			}
+			this.updateBreakpointsHint();
 		} else {
 			this.needsStateChange = true;
 		}
@@ -364,7 +416,6 @@ interface IBaseBreakpointTemplateData {
 	context: BreakpointItem;
 	actionBar: ActionBar;
 	toDispose: IDisposable[];
-	elementDisposable: IDisposable[];
 }
 
 interface IBaseBreakpointWithIconTemplateData extends IBaseBreakpointTemplateData {
@@ -399,6 +450,7 @@ interface IFunctionBreakpointInputTemplateData {
 	breakpoint: IFunctionBreakpoint;
 	toDispose: IDisposable[];
 	type: 'hitCount' | 'condition' | 'name';
+	updating?: boolean;
 }
 
 interface IExceptionBreakpointInputTemplateData {
@@ -434,7 +486,6 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		data.icon = $('.icon');
 		data.checkbox = createCheckbox();
 		data.toDispose = [];
-		data.elementDisposable = [];
 		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
@@ -478,14 +529,10 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		const session = this.debugService.getViewModel().focusedSession;
 		this.breakpointSupportsCondition.set(!session || !!session.capabilities.supportsConditionalBreakpoints);
 		this.breakpointItemType.set('breakpoint');
-		data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: breakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline'));
+		createAndFillInActionBarActions(this.menu, { arg: breakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline');
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
 		breakpointIdToActionBarDomeNode.set(breakpoint.getId(), data.actionBar.domNode);
-	}
-
-	disposeElement(_element: IBreakpoint, _index: number, templateData: IBreakpointTemplateData): void {
-		dispose(templateData.elementDisposable);
 	}
 
 	disposeTemplate(templateData: IBreakpointTemplateData): void {
@@ -516,7 +563,6 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 
 		data.checkbox = createCheckbox();
 		data.toDispose = [];
-		data.elementDisposable = [];
 		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
@@ -544,14 +590,10 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 		const primary: IAction[] = [];
 		this.breakpointSupportsCondition.set((exceptionBreakpoint as ExceptionBreakpoint).supportsCondition);
 		this.breakpointItemType.set('exceptionBreakpoint');
-		data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: exceptionBreakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline'));
+		createAndFillInActionBarActions(this.menu, { arg: exceptionBreakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline');
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
 		breakpointIdToActionBarDomeNode.set(exceptionBreakpoint.getId(), data.actionBar.domNode);
-	}
-
-	disposeElement(_element: IExceptionBreakpoint, _index: number, templateData: IExceptionBreakpointTemplateData): void {
-		dispose(templateData.elementDisposable);
 	}
 
 	disposeTemplate(templateData: IExceptionBreakpointTemplateData): void {
@@ -584,7 +626,6 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 		data.icon = $('.icon');
 		data.checkbox = createCheckbox();
 		data.toDispose = [];
-		data.elementDisposable = [];
 		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
@@ -625,14 +666,10 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 		const primary: IAction[] = [];
 		this.breakpointSupportsCondition.set(!session || !!session.capabilities.supportsConditionalBreakpoints);
 		this.breakpointItemType.set('functionBreakpoint');
-		data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: functionBreakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline'));
+		createAndFillInActionBarActions(this.menu, { arg: functionBreakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline');
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
 		breakpointIdToActionBarDomeNode.set(functionBreakpoint.getId(), data.actionBar.domNode);
-	}
-
-	disposeElement(_element: IFunctionBreakpoint, _index: number, templateData: IFunctionBreakpointTemplateData): void {
-		dispose(templateData.elementDisposable);
 	}
 
 	disposeTemplate(templateData: IFunctionBreakpointTemplateData): void {
@@ -725,7 +762,6 @@ class InstructionBreakpointsRenderer implements IListRenderer<IInstructionBreakp
 		data.icon = $('.icon');
 		data.checkbox = createCheckbox();
 		data.toDispose = [];
-		data.elementDisposable = [];
 		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
@@ -757,10 +793,6 @@ class InstructionBreakpointsRenderer implements IListRenderer<IInstructionBreakp
 		if (debugActive && !breakpoint.verified) {
 			data.breakpoint.classList.add('disabled');
 		}
-	}
-
-	disposeElement(_element: IInstructionBreakpoint, _index: number, templateData: IInstructionBreakpointTemplateData): void {
-		dispose(templateData.elementDisposable);
 	}
 
 	disposeTemplate(templateData: IInstructionBreakpointTemplateData): void {
@@ -802,25 +834,30 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 		const toDispose: IDisposable[] = [inputBox, styler];
 
 		const wrapUp = (success: boolean) => {
-			this.view.breakpointInputFocused.set(false);
-			const id = template.breakpoint.getId();
+			template.updating = true;
+			try {
+				this.view.breakpointInputFocused.set(false);
+				const id = template.breakpoint.getId();
 
-			if (success) {
-				if (template.type === 'name') {
-					this.debugService.updateFunctionBreakpoint(id, { name: inputBox.value });
-				}
-				if (template.type === 'condition') {
-					this.debugService.updateFunctionBreakpoint(id, { condition: inputBox.value });
-				}
-				if (template.type === 'hitCount') {
-					this.debugService.updateFunctionBreakpoint(id, { hitCondition: inputBox.value });
-				}
-			} else {
-				if (template.type === 'name' && !template.breakpoint.name) {
-					this.debugService.removeFunctionBreakpoints(id);
+				if (success) {
+					if (template.type === 'name') {
+						this.debugService.updateFunctionBreakpoint(id, { name: inputBox.value });
+					}
+					if (template.type === 'condition') {
+						this.debugService.updateFunctionBreakpoint(id, { condition: inputBox.value });
+					}
+					if (template.type === 'hitCount') {
+						this.debugService.updateFunctionBreakpoint(id, { hitCondition: inputBox.value });
+					}
 				} else {
-					this.view.renderInputBox(undefined);
+					if (template.type === 'name' && !template.breakpoint.name) {
+						this.debugService.removeFunctionBreakpoints(id);
+					} else {
+						this.view.renderInputBox(undefined);
+					}
 				}
+			} finally {
+				template.updating = false;
 			}
 		};
 
@@ -834,10 +871,9 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 			}
 		}));
 		toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
-			// Need to react with a timeout on the blur event due to possible concurent splices #56443
-			setTimeout(() => {
+			if (!template.updating) {
 				wrapUp(!!inputBox.value);
-			});
+			}
 		}));
 
 		template.inputBox = inputBox;
@@ -1022,7 +1058,7 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 	}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 }
 
-export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: boolean, breakpoint: BreakpointItem, labelService?: ILabelService): { message?: string; icon: ThemeIcon } {
+export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: boolean, breakpoint: BreakpointItem, labelService?: ILabelService): { message?: string; icon: ThemeIcon; showAdapterUnverifiedMessage?: boolean } {
 	const debugActive = state === State.Running || state === State.Stopped;
 
 	const breakpointIcon = breakpoint instanceof DataBreakpoint ? icons.dataBreakpoint : breakpoint instanceof FunctionBreakpoint ? icons.functionBreakpoint : breakpoint.logMessage ? icons.logBreakpoint : icons.breakpoint;
@@ -1041,6 +1077,7 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 		return {
 			icon: breakpointIcon.unverified,
 			message: ('message' in breakpoint && breakpoint.message) ? breakpoint.message : (breakpoint.logMessage ? localize('unverifiedLogpoint', "Unverified Logpoint") : localize('unverifiedBreakpoint', "Unverified Breakpoint")),
+			showAdapterUnverifiedMessage: true
 		};
 	}
 
@@ -1382,7 +1419,7 @@ registerAction2(class extends ViewAction<BreakpointsView> {
 			}
 		} else if (breakpoint instanceof FunctionBreakpoint) {
 			const contextMenuService = accessor.get(IContextMenuService);
-			const actions: IAction[] = [new Action('breakpoint.editCondition', localize('editCondition', "Edit Condition..."), undefined, true, async () => view.renderInputBox({ breakpoint, type: 'condition' })),
+			const actions: Action[] = [new Action('breakpoint.editCondition', localize('editCondition', "Edit Condition..."), undefined, true, async () => view.renderInputBox({ breakpoint, type: 'condition' })),
 			new Action('breakpoint.editCondition', localize('editHitCount', "Edit Hit Count..."), undefined, true, async () => view.renderInputBox({ breakpoint, type: 'hitCount' }))];
 			const domNode = breakpointIdToActionBarDomeNode.get(breakpoint.getId());
 

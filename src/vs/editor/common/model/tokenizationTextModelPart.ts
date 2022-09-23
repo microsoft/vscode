@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { getWordAtText, IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { StandardTokenType } from 'vs/editor/common/languages';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -485,7 +485,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		return lineTokens.getLanguageId(lineTokens.findTokenIndexAtOffset(position.column - 1));
 	}
 
-	public setLanguageId(languageId: string): void {
+	public setLanguageId(languageId: string, source: string = 'api'): void {
 		if (this._languageId === languageId) {
 			// There's nothing to do
 			return;
@@ -493,7 +493,8 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 
 		const e: IModelLanguageChangedEvent = {
 			oldLanguage: this._languageId,
-			newLanguage: languageId
+			newLanguage: languageId,
+			source
 		};
 
 		this._languageId = languageId;

@@ -53,10 +53,10 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
-export const NEW_FILE_LABEL = nls.localize('newFile', "New Text File");
+export const NEW_FILE_LABEL = nls.localize('newFile', "New File...");
 export const NEW_FOLDER_COMMAND_ID = 'explorer.newFolder';
-export const NEW_FOLDER_LABEL = nls.localize('newFolder', "New Folder");
-export const TRIGGER_RENAME_LABEL = nls.localize('rename', "Rename");
+export const NEW_FOLDER_LABEL = nls.localize('newFolder', "New Folder...");
+export const TRIGGER_RENAME_LABEL = nls.localize('rename', "Rename...");
 export const MOVE_FILE_TO_TRASH_LABEL = nls.localize('delete', "Delete");
 export const COPY_FILE_LABEL = nls.localize('copyFile', "Copy");
 export const PASTE_FILE_LABEL = nls.localize('pasteFile', "Paste");
@@ -296,7 +296,7 @@ function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean
 }
 
 
-export function findValidPasteFileTarget(explorerService: IExplorerService, targetFolder: ExplorerItem, fileToPaste: { resource: URI; isDirectory?: boolean; allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart'): URI {
+export function findValidPasteFileTarget(explorerService: IExplorerService, targetFolder: ExplorerItem, fileToPaste: { resource: URI; isDirectory?: boolean; allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart' | 'disabled'): URI {
 	let name = resources.basenameOrAuthority(fileToPaste.resource);
 
 	let candidate = resources.joinPath(targetFolder.resource, name);
@@ -305,7 +305,9 @@ export function findValidPasteFileTarget(explorerService: IExplorerService, targ
 			break;
 		}
 
-		name = incrementFileName(name, !!fileToPaste.isDirectory, incrementalNaming);
+		if (incrementalNaming !== 'disabled') {
+			name = incrementFileName(name, !!fileToPaste.isDirectory, incrementalNaming);
+		}
 		candidate = resources.joinPath(targetFolder.resource, name);
 	}
 
@@ -326,7 +328,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		const suffixRegex = /^(.+ copy)( \d+)?$/;
 		if (suffixRegex.test(namePrefix)) {
 			return namePrefix.replace(suffixRegex, (match, g1?, g2?) => {
-				let number = (g2 ? parseInt(g2) : 1);
+				const number = (g2 ? parseInt(g2) : 1);
 				return number === 0
 					? `${g1}`
 					: (number < Constants.MAX_SAFE_SMALL_INTEGER
@@ -343,10 +345,10 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 	const maxNumber = Constants.MAX_SAFE_SMALL_INTEGER;
 
 	// file.1.txt=>file.2.txt
-	let suffixFileRegex = RegExp('(.*' + separators + ')(\\d+)(\\..*)$');
+	const suffixFileRegex = RegExp('(.*' + separators + ')(\\d+)(\\..*)$');
 	if (!isFolder && name.match(suffixFileRegex)) {
 		return name.replace(suffixFileRegex, (match, g1?, g2?, g3?) => {
-			let number = parseInt(g2);
+			const number = parseInt(g2);
 			return number < maxNumber
 				? g1 + String(number + 1).padStart(g2.length, '0') + g3
 				: `${g1}${g2}.1${g3}`;
@@ -354,10 +356,10 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 	}
 
 	// 1.file.txt=>2.file.txt
-	let prefixFileRegex = RegExp('(\\d+)(' + separators + '.*)(\\..*)$');
+	const prefixFileRegex = RegExp('(\\d+)(' + separators + '.*)(\\..*)$');
 	if (!isFolder && name.match(prefixFileRegex)) {
 		return name.replace(prefixFileRegex, (match, g1?, g2?, g3?) => {
-			let number = parseInt(g1);
+			const number = parseInt(g1);
 			return number < maxNumber
 				? String(number + 1).padStart(g1.length, '0') + g2 + g3
 				: `${g1}${g2}.1${g3}`;
@@ -365,10 +367,10 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 	}
 
 	// 1.txt=>2.txt
-	let prefixFileNoNameRegex = RegExp('(\\d+)(\\..*)$');
+	const prefixFileNoNameRegex = RegExp('(\\d+)(\\..*)$');
 	if (!isFolder && name.match(prefixFileNoNameRegex)) {
 		return name.replace(prefixFileNoNameRegex, (match, g1?, g2?) => {
-			let number = parseInt(g1);
+			const number = parseInt(g1);
 			return number < maxNumber
 				? String(number + 1).padStart(g1.length, '0') + g2
 				: `${g1}.1${g2}`;
@@ -382,10 +384,10 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 	}
 
 	// 123 => 124
-	let noNameNoExtensionRegex = RegExp('(\\d+)$');
+	const noNameNoExtensionRegex = RegExp('(\\d+)$');
 	if (!isFolder && lastIndexOfDot === -1 && name.match(noNameNoExtensionRegex)) {
 		return name.replace(noNameNoExtensionRegex, (match, g1?) => {
-			let number = parseInt(g1);
+			const number = parseInt(g1);
 			return number < maxNumber
 				? String(number + 1).padStart(g1.length, '0')
 				: `${g1}.1`;
@@ -394,7 +396,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 
 	// file => file1
 	// file1 => file2
-	let noExtensionRegex = RegExp('(.*)(\\d*)$');
+	const noExtensionRegex = RegExp('(.*)(\\d*)$');
 	if (!isFolder && lastIndexOfDot === -1 && name.match(noExtensionRegex)) {
 		return name.replace(noExtensionRegex, (match, g1?, g2?) => {
 			let number = parseInt(g2);
@@ -410,7 +412,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 	// folder.1=>folder.2
 	if (isFolder && name.match(/(\d+)$/)) {
 		return name.replace(/(\d+)$/, (match, ...groups) => {
-			let number = parseInt(groups[0]);
+			const number = parseInt(groups[0]);
 			return number < maxNumber
 				? String(number + 1).padStart(groups[0].length, '0')
 				: `${groups[0]}.1`;
@@ -420,7 +422,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 	// 1.folder=>2.folder
 	if (isFolder && name.match(/^(\d+)/)) {
 		return name.replace(/^(\d+)(.*)$/, (match, ...groups) => {
-			let number = parseInt(groups[0]);
+			const number = parseInt(groups[0]);
 			return number < maxNumber
 				? String(number + 1).padStart(groups[0].length, '0') + groups[1]
 				: `${groups[0]}${groups[1]}.1`;
@@ -429,6 +431,23 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 
 	// file/folder=>file.1/folder.1
 	return `${name}.1`;
+}
+
+/**
+ * Checks to see if the resource already exists, if so prompts the user if they would be ok with it being overwritten
+ * @param fileService The file service
+ * @param dialogService The dialog service
+ * @param targetResource The resource to be overwritten
+ * @return A boolean indicating if the user is ok with resource being overwritten, if the resource does not exist it returns true.
+ */
+async function askForOverwrite(fileService: IFileService, dialogService: IDialogService, targetResource: URI): Promise<boolean> {
+	const exists = await fileService.exists(targetResource);
+	if (!exists) {
+		return true;
+	}
+	// Ask for overwrite confirmation
+	const result = await dialogService.show(Severity.Warning, nls.localize('confirmOverwrite', "A file or folder with the name '{0}' already exists in the destination folder. Do you want to replace it?", basename(targetResource.path)), [nls.localize('replaceButtonLabel', "Replace"), nls.localize('cancel', "Cancel")], { cancelId: 1 });
+	return result.choice === 0;
 }
 
 // Global Compare with
@@ -658,8 +677,10 @@ export function validateFileName(pathService: IPathService, item: ExplorerItem, 
 
 	// Check for invalid file name.
 	if (names.some(folderName => !pathService.hasValidBasename(item.resource, os, folderName))) {
+		// Escape * characters
+		const escapedName = name.replace(/\*/g, '\\*');
 		return {
-			content: nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name)),
+			content: nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(escapedName)),
 			severity: Severity.Error
 		};
 	}
@@ -906,9 +927,7 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 
 export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const configurationService = accessor.get(IConfigurationService);
-	const groupNests = configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting.operateAsGroup;
-	const stats = explorerService.getContext(true, groupNests).filter(s => !s.isRoot);
+	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
 	if (stats.length) {
 		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, true);
 	}
@@ -916,9 +935,7 @@ export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 
 export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const configurationService = accessor.get(IConfigurationService);
-	const groupNests = configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting.operateAsGroup;
-	const stats = explorerService.getContext(true, groupNests).filter(s => !s.isRoot);
+	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
 
 	if (stats.length) {
 		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, false);
@@ -928,9 +945,7 @@ export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 let pasteShouldMove = false;
 export const copyFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const configurationService = accessor.get(IConfigurationService);
-	const groupNests = configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting.operateAsGroup;
-	const stats = explorerService.getContext(true, groupNests);
+	const stats = explorerService.getContext(true);
 	if (stats.length > 0) {
 		await explorerService.setToCopy(stats, false);
 		pasteShouldMove = false;
@@ -939,9 +954,7 @@ export const copyFileHandler = async (accessor: ServicesAccessor) => {
 
 export const cutFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const configurationService = accessor.get(IConfigurationService);
-	const groupNests = configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting.operateAsGroup;
-	const stats = explorerService.getContext(true, groupNests);
+	const stats = explorerService.getContext(true);
 	if (stats.length > 0) {
 		await explorerService.setToCopy(stats, true);
 		pasteShouldMove = true;
@@ -1006,14 +1019,16 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
 	const configurationService = accessor.get(IConfigurationService);
 	const uriIdentityService = accessor.get(IUriIdentityService);
+	const dialogService = accessor.get(IDialogService);
 
 	const context = explorerService.getContext(true);
 	const toPaste = resources.distinctParents(await clipboardService.readResources(), r => r);
 	const element = context.length ? context[0] : explorerService.roots[0];
+	const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
 
 	try {
 		// Check if target is ancestor of pasted folder
-		const sourceTargetPairs = await Promise.all(toPaste.map(async fileToPaste => {
+		const sourceTargetPairs = coalesce(await Promise.all(toPaste.map(async fileToPaste => {
 
 			if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
 				throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
@@ -1028,11 +1043,17 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 				target = element.isDirectory ? element : element.parent!;
 			}
 
-			const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-			const targetFile = findValidPasteFileTarget(explorerService, target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove }, incrementalNaming);
+			const targetFile = findValidPasteFileTarget(explorerService, target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove || incrementalNaming === 'disabled' }, incrementalNaming);
+
+			if (incrementalNaming === 'disabled') {
+				const canOverwrite = await askForOverwrite(fileService, dialogService, targetFile);
+				if (!canOverwrite) {
+					return;
+				}
+			}
 
 			return { source: fileToPaste, target: targetFile };
-		}));
+		})));
 
 		if (sourceTargetPairs.length >= 1) {
 			// Move/Copy File
@@ -1047,7 +1068,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 				};
 				await explorerService.applyBulkEdit(resourceFileEdits, options);
 			} else {
-				const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target, { copy: true }));
+				const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target, { copy: true, overwrite: incrementalNaming === 'disabled' }));
 				const undoLevel = configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo;
 				const options = {
 					confirmBeforeUndo: undoLevel === UndoConfirmLevel.Default || undoLevel === UndoConfirmLevel.Verbose,

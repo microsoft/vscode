@@ -11,7 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LanguageDetectionSimpleWorker } from 'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
@@ -53,7 +53,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@ILanguageService private readonly _languageService: ILanguageService,
+		@ILanguageService languageService: ILanguageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IDiagnosticsService private readonly _diagnosticsService: IDiagnosticsService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -68,6 +68,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 
 		this._languageDetectionWorkerClient = new LanguageDetectionWorkerClient(
 			modelService,
+			languageService,
 			telemetryService,
 			// TODO: See if it's possible to bundle vscode-languagedetection
 			this._environmentService.isBuilt && !isWeb
@@ -95,7 +96,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 
 		let count = 0;
 		for (const ext of fileExtensions.extensions) {
-			const langId = this.getLanguageId(ext);
+			const langId = this._languageDetectionWorkerClient.getLanguageId(ext);
 			if (langId && count < TOP_LANG_COUNTS) {
 				this.workspaceLanguageIds.add(langId);
 				count++;
@@ -109,15 +110,6 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		return !!languageId && this._configurationService.getValue<boolean>(LanguageDetectionService.enablementSettingKey, { overrideIdentifier: languageId });
 	}
 
-	private getLanguageId(language: string | undefined): string | undefined {
-		if (!language) {
-			return undefined;
-		}
-		if (this._languageService.isRegisteredLanguageId(language)) {
-			return language;
-		}
-		return this._languageService.guessLanguageIdByFilepathOrFirstLine(URI.file(`file.${language}`)) ?? undefined;
-	}
 
 	private getLanguageBiases(): Record<string, number> {
 		if (!this.dirtyBiases) { return this.langBiases; }
@@ -147,24 +139,22 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		return biases;
 	}
 
-	async detectLanguage(resource: URI): Promise<string | undefined> {
+	async detectLanguage(resource: URI, supportedLangs?: string[]): Promise<string | undefined> {
 		const useHistory = this._configurationService.getValue<string[]>(LanguageDetectionService.historyBasedEnablementConfig);
 		const preferHistory = this._configurationService.getValue<boolean>(LanguageDetectionService.preferHistoryConfig);
 		if (useHistory) {
 			await this.resolveWorkspaceLanguageIds();
 		}
 		const biases = useHistory ? this.getLanguageBiases() : undefined;
-		const language = await this._languageDetectionWorkerClient.detectLanguage(resource, biases, preferHistory);
-
-		if (language) {
-			return this.getLanguageId(language);
-		}
-		return undefined;
+		return this._languageDetectionWorkerClient.detectLanguage(resource, biases, preferHistory, supportedLangs);
 	}
 
+	// TODO: explore using the history service or something similar to provide this list of opened editors
+	// so this service can support delayed instantiation. This may be tricky since it seems the IHistoryService
+	// only gives history for a workspace... where this takes advantage of history at a global level as well.
 	private initEditorOpenedListeners(storageService: IStorageService) {
 		try {
-			const globalLangHistroyData = JSON.parse(storageService.get(LanguageDetectionService.globalOpenedLanguagesStorageKey, StorageScope.GLOBAL, '[]'));
+			const globalLangHistroyData = JSON.parse(storageService.get(LanguageDetectionService.globalOpenedLanguagesStorageKey, StorageScope.PROFILE, '[]'));
 			this.historicalGlobalOpenedLanguageIds.fromJSON(globalLangHistroyData);
 		} catch (e) { console.error(e); }
 
@@ -179,7 +169,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 				this.sessionOpenedLanguageIds.add(activeLanguage);
 				this.historicalGlobalOpenedLanguageIds.set(activeLanguage, true);
 				this.historicalWorkspaceOpenedLanguageIds.set(activeLanguage, true);
-				storageService.store(LanguageDetectionService.globalOpenedLanguagesStorageKey, JSON.stringify(this.historicalGlobalOpenedLanguageIds.toJSON()), StorageScope.GLOBAL, StorageTarget.MACHINE);
+				storageService.store(LanguageDetectionService.globalOpenedLanguagesStorageKey, JSON.stringify(this.historicalGlobalOpenedLanguageIds.toJSON()), StorageScope.PROFILE, StorageTarget.MACHINE);
 				storageService.store(LanguageDetectionService.workspaceOpenedLanguagesStorageKey, JSON.stringify(this.historicalWorkspaceOpenedLanguageIds.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 				this.dirtyBiases = true;
 			}
@@ -216,9 +206,11 @@ export class LanguageDetectionWorkerHost {
 	async sendTelemetryEvent(languages: string[], confidences: number[], timeSpent: number): Promise<void> {
 		type LanguageDetectionStats = { languages: string; confidences: string; timeSpent: number };
 		type LanguageDetectionStatsClassification = {
-			languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			owner: 'TylerLeonhardt';
+			comment: 'Helps understand how effective language detection is via confidences and how long it takes to run';
+			languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The languages that are guessed' };
+			confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The confidences of each language guessed' };
+			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took to run language detection' };
 		};
 
 		this._telemetryService.publicLog2<LanguageDetectionStats, LanguageDetectionStatsClassification>('automaticlanguagedetection.stats', {
@@ -234,6 +226,7 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 
 	constructor(
 		modelService: IModelService,
+		private readonly _languageService: ILanguageService,
 		private readonly _telemetryService: ITelemetryService,
 		private readonly _indexJsUri: string,
 		private readonly _modelJsonUri: string,
@@ -260,6 +253,14 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		return this.workerPromise;
 	}
 
+	private _guessLanguageIdByUri(uri: URI): string | undefined {
+		const guess = this._languageService.guessLanguageIdByFilepathOrFirstLine(uri);
+		if (guess && guess !== 'unknown') {
+			return guess;
+		}
+		return undefined;
+	}
+
 	override async _getProxy(): Promise<LanguageDetectionSimpleWorker> {
 		return (await this._getOrCreateLanguageDetectionWorker()).getProxyObject();
 	}
@@ -275,6 +276,8 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 				return this.getWeightsUri();
 			case 'getRegexpModelUri':
 				return this.getRegexpModelUri();
+			case 'getLanguageId':
+				return this.getLanguageId(args[0]);
 			case 'sendTelemetryEvent':
 				return this.sendTelemetryEvent(args[0], args[1], args[2]);
 			default:
@@ -284,6 +287,20 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 
 	async getIndexJsUri() {
 		return this._indexJsUri;
+	}
+
+	getLanguageId(languageIdOrExt: string | undefined) {
+		if (!languageIdOrExt) {
+			return undefined;
+		}
+		if (this._languageService.isRegisteredLanguageId(languageIdOrExt)) {
+			return languageIdOrExt;
+		}
+		const guessed = this._guessLanguageIdByUri(URI.file(`file.${languageIdOrExt}`));
+		if (!guessed || guessed === 'unknown') {
+			return undefined;
+		}
+		return guessed;
 	}
 
 	async getModelJsonUri() {
@@ -306,10 +323,39 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		});
 	}
 
-	public async detectLanguage(resource: URI, langBiases: Record<string, number> | undefined, preferHistory: boolean): Promise<string | undefined> {
+	public async detectLanguage(resource: URI, langBiases: Record<string, number> | undefined, preferHistory: boolean, supportedLangs?: string[]): Promise<string | undefined> {
+		const startTime = Date.now();
+		const quickGuess = this._guessLanguageIdByUri(resource);
+		if (quickGuess) {
+			return quickGuess;
+		}
+
 		await this._withSyncedResources([resource]);
-		return (await this._getProxy()).detectLanguage(resource.toString(), langBiases, preferHistory);
+		const modelId = await (await this._getProxy()).detectLanguage(resource.toString(), langBiases, preferHistory, supportedLangs);
+		const langaugeId = this.getLanguageId(modelId);
+
+		const LanguageDetectionStatsId = 'automaticlanguagedetection.perf';
+
+		interface ILanguageDetectionPerf {
+			timeSpent: number;
+			detection: string;
+		}
+
+		type LanguageDetectionPerfClassification = {
+			owner: 'TylerLeonhardt';
+			comment: 'Helps understand how effective language detection and how long it takes to run';
+			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The time it took to run language detection' };
+			detection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language that was detected' };
+		};
+
+		this._telemetryService.publicLog2<ILanguageDetectionPerf, LanguageDetectionPerfClassification>(LanguageDetectionStatsId, {
+			timeSpent: Date.now() - startTime,
+			detection: langaugeId || 'unknown',
+		});
+
+		return langaugeId;
 	}
 }
 
-registerSingleton(ILanguageDetectionService, LanguageDetectionService);
+// For now we use Eager until we handle keeping track of history better.
+registerSingleton(ILanguageDetectionService, LanguageDetectionService, InstantiationType.Eager);

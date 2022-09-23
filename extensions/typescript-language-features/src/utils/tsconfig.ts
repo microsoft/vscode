@@ -26,7 +26,7 @@ const defaultProjectConfig = Object.freeze<Proto.ExternalProjectCompilerOptions>
 	module: 'ESNext' as Proto.ModuleKind,
 	moduleResolution: 'Node' as Proto.ModuleResolutionKind,
 	target: 'ES2020' as Proto.ScriptTarget,
-	jsx: 'preserve' as Proto.JsxEmit,
+	jsx: 'react' as Proto.JsxEmit,
 });
 
 export function inferredProjectCompilerOptions(

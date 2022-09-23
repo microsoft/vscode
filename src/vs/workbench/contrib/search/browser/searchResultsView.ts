@@ -24,7 +24,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction } from 'vs/workbench/contrib/search/browser/searchActions';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
-import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch, FolderMatchNoRoot } from 'vs/workbench/contrib/search/common/searchModel';
 import { isEqual } from 'vs/base/common/resources';
 
 interface IFolderMatchTemplate {
@@ -117,12 +117,12 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 			if (workspaceFolder && isEqual(workspaceFolder.uri, folderMatch.resource)) {
 				templateData.label.setFile(folderMatch.resource, { fileKind: FileKind.ROOT_FOLDER, hidePath: true });
 			} else {
-				templateData.label.setFile(folderMatch.resource, { fileKind: FileKind.FOLDER });
+				templateData.label.setFile(folderMatch.resource, { fileKind: FileKind.FOLDER, hidePath: this.searchView.isTreeLayoutViewVisible });
 			}
 		} else {
 			templateData.label.setLabel(nls.localize('searchFolderMatch.other.label', "Other files"));
 		}
-		const count = folderMatch.fileCount();
+		const count = this.searchView.isTreeLayoutViewVisible ? folderMatch.count() : folderMatch.recursiveFileCount();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchFileMatches', "{0} files found", count) : nls.localize('searchFileMatch', "{0} file found", count));
 
@@ -156,7 +156,8 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 		private labels: ResourceLabels,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 	}
@@ -184,7 +185,9 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 	renderElement(node: ITreeNode<FileMatch, any>, index: number, templateData: IFileMatchTemplate): void {
 		const fileMatch = node.element;
 		templateData.el.setAttribute('data-resource', fileMatch.resource.toString());
-		templateData.label.setFile(fileMatch.resource, { hideIcon: false });
+
+		const decorationConfig = this.configurationService.getValue<ISearchConfigurationProperties>('search').decorations;
+		templateData.label.setFile(fileMatch.resource, { hidePath: this.searchView.isTreeLayoutViewVisible && !(fileMatch.parent() instanceof FolderMatchNoRoot), hideIcon: false, fileDecorations: { colors: decorationConfig.colors, badges: decorationConfig.badges } });
 		const count = fileMatch.count();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
@@ -312,9 +315,10 @@ export class SearchAccessibilityProvider implements IListAccessibilityProvider<R
 
 	getAriaLabel(element: RenderableMatch): string | null {
 		if (element instanceof FolderMatch) {
+			const count = element.downstreamFileMatches().reduce((total, current) => total + current.count(), 0);
 			return element.resource ?
-				nls.localize('folderMatchAriaLabel', "{0} matches in folder root {1}, Search result", element.count(), element.name()) :
-				nls.localize('otherFilesAriaLabel', "{0} matches outside of the workspace, Search result", element.count());
+				nls.localize('folderMatchAriaLabel', "{0} matches in folder root {1}, Search result", count, element.name()) :
+				nls.localize('otherFilesAriaLabel', "{0} matches outside of the workspace, Search result", count);
 		}
 
 		if (element instanceof FileMatch) {

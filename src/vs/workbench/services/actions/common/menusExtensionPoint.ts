@@ -7,7 +7,6 @@ import { localize } from 'vs/nls';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import * as resources from 'vs/base/common/resources';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { forEach } from 'vs/base/common/collections';
 import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, IMenuItem, ISubmenuItem } from 'vs/platform/actions/common/actions';
@@ -18,7 +17,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { index } from 'vs/base/common/arrays';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
-import { ILocalizedString, ICommandAction } from 'vs/platform/action/common/action';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 interface IAPIMenu {
 	readonly key: string;
@@ -60,6 +59,12 @@ const apiMenus: IAPIMenu[] = [
 		key: 'editor/context/copy',
 		id: MenuId.EditorContextCopy,
 		description: localize('menus.editorContextCopyAs', "'Copy as' submenu in the editor context menu")
+	},
+	{
+		key: 'editor/context/share',
+		id: MenuId.EditorContextShare,
+		description: localize('menus.editorContextShare', "'Share' submenu in the editor context menu"),
+		proposed: 'contribShareMenu'
 	},
 	{
 		key: 'explorer/context',
@@ -156,6 +161,12 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'comments/commentThread/title/context',
+		id: MenuId.CommentThreadTitleContext,
+		description: localize('commentThread.titleContext', "The contributed comment thread title's peek context menu, rendered as a right click menu on the comment thread's peek title."),
+		proposed: 'contribCommentPeekContext'
+	},
+	{
 		key: 'comments/comment/title',
 		id: MenuId.CommentTitle,
 		description: localize('comment.title', "The contributed comment title menu")
@@ -167,9 +178,21 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'comments/commentThread/comment/context',
+		id: MenuId.CommentThreadCommentContext,
+		description: localize('comment.commentContext', "The contributed comment context menu, rendered as a right click menu on the an individual comment in the comment thread's peek view."),
+		proposed: 'contribCommentPeekContext'
+	},
+	{
 		key: 'notebook/toolbar',
 		id: MenuId.NotebookToolbar,
 		description: localize('notebook.toolbar', "The contributed notebook toolbar menu")
+	},
+	{
+		key: 'notebook/kernelSource',
+		id: MenuId.NotebookKernelSource,
+		description: localize('notebook.kernelSource', "The contributed notebook kernel sources menu"),
+		proposed: 'notebookKernelSource'
 	},
 	{
 		key: 'notebook/cell/title',
@@ -191,13 +214,11 @@ const apiMenus: IAPIMenu[] = [
 		key: 'interactive/toolbar',
 		id: MenuId.InteractiveToolbar,
 		description: localize('interactive.toolbar', "The contributed interactive toolbar menu"),
-		proposed: 'notebookEditor'
 	},
 	{
 		key: 'interactive/cell/title',
 		id: MenuId.InteractiveCellTitle,
 		description: localize('interactive.cell.title', "The contributed interactive cell title menu"),
-		proposed: 'notebookEditor'
 	},
 	{
 		key: 'testing/item/context',
@@ -242,15 +263,38 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'file/newFile',
 		id: MenuId.NewFile,
-		description: localize('file.newEditor', "The 'New Editor...' quick pick, shown on welcome page and File menu."),
+		description: localize('file.newFile', "The 'New File...' quick pick, shown on welcome page and File menu."),
 		supportsSubmenus: false,
+	},
+	{
+		key: 'webview/context',
+		id: MenuId.WebviewContext,
+		description: localize('webview.context', "The webview context menu")
+	},
+	{
+		key: 'file/share',
+		id: MenuId.MenubarShare,
+		description: localize('menus.share', "Share submenu shown in the top level File menu."),
+		proposed: 'contribShareMenu'
 	},
 	{
 		key: 'editor/inlineCompletions/actions',
 		id: MenuId.InlineCompletionsActions,
 		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),
 		supportsSubmenus: false,
-		proposed: 'inlineCompletions'
+		proposed: 'inlineCompletionsAdditions'
+	},
+	{
+		key: 'editor/content',
+		id: MenuId.EditorContent,
+		description: localize('merge.toolbar', "The prominent button in an editor, overlays its content"),
+		proposed: 'contribEditorContentMenu'
+	},
+	{
+		key: 'mergeEditor/result/title',
+		id: MenuId.MergeInputResultToolbar,
+		description: localize('menus.mergeEditorResult', "The result toolbar of the merge editor"),
+		proposed: 'contribMergeEditorMenus'
 	},
 ];
 
@@ -325,7 +369,7 @@ namespace schema {
 			return false;
 		}
 
-		for (let item of items) {
+		for (const item of items) {
 			if (isMenuItem(item)) {
 				if (!isValidMenuItem(item, collector)) {
 					return false;
@@ -591,7 +635,7 @@ export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<
 
 commandsExtensionPoint.setHandler(extensions => {
 
-	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>, bucket: ICommandAction[]) {
+	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>) {
 
 		if (!schema.isValidCommand(userFriendlyCommand, extension.collector)) {
 			return;
@@ -615,7 +659,7 @@ commandsExtensionPoint.setHandler(extensions => {
 		if (MenuRegistry.getCommand(command)) {
 			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
 		}
-		bucket.push({
+		_commandRegistrations.add(MenuRegistry.addCommand({
 			id: command,
 			title,
 			source: extension.description.displayName ?? extension.description.name,
@@ -624,24 +668,22 @@ commandsExtensionPoint.setHandler(extensions => {
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
 			icon: absoluteIcon
-		});
+		}));
 	}
 
 	// remove all previous command registrations
 	_commandRegistrations.clear();
 
-	const newCommands: ICommandAction[] = [];
 	for (const extension of extensions) {
 		const { value } = extension;
 		if (Array.isArray(value)) {
 			for (const command of value) {
-				handleCommand(command, extension, newCommands);
+				handleCommand(command, extension);
 			}
 		} else {
-			handleCommand(value, extension, newCommands);
+			handleCommand(value, extension);
 		}
 	}
-	_commandRegistrations.add(MenuRegistry.addCommands(newCommands));
 });
 
 interface IRegisteredSubmenu {
@@ -661,53 +703,54 @@ submenusExtensionPoint.setHandler(extensions => {
 
 	_submenus.clear();
 
-	for (let extension of extensions) {
+	for (const extension of extensions) {
 		const { value, collector } = extension;
 
-		forEach(value, entry => {
-			if (!schema.isValidSubmenu(entry.value, collector)) {
-				return;
+		for (const [, submenuInfo] of Object.entries(value)) {
+
+			if (!schema.isValidSubmenu(submenuInfo, collector)) {
+				continue;
 			}
 
-			if (!entry.value.id) {
-				collector.warn(localize('submenuId.invalid.id', "`{0}` is not a valid submenu identifier", entry.value.id));
-				return;
+			if (!submenuInfo.id) {
+				collector.warn(localize('submenuId.invalid.id', "`{0}` is not a valid submenu identifier", submenuInfo.id));
+				continue;
 			}
-			if (_submenus.has(entry.value.id)) {
-				collector.warn(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", entry.value.id));
-				return;
+			if (_submenus.has(submenuInfo.id)) {
+				collector.info(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", submenuInfo.id));
+				continue;
 			}
-			if (!entry.value.label) {
-				collector.warn(localize('submenuId.invalid.label', "`{0}` is not a valid submenu label", entry.value.label));
-				return;
+			if (!submenuInfo.label) {
+				collector.warn(localize('submenuId.invalid.label', "`{0}` is not a valid submenu label", submenuInfo.label));
+				continue;
 			}
 
 			let absoluteIcon: { dark: URI; light?: URI } | ThemeIcon | undefined;
-			if (entry.value.icon) {
-				if (typeof entry.value.icon === 'string') {
-					absoluteIcon = ThemeIcon.fromString(entry.value.icon) || { dark: resources.joinPath(extension.description.extensionLocation, entry.value.icon) };
+			if (submenuInfo.icon) {
+				if (typeof submenuInfo.icon === 'string') {
+					absoluteIcon = ThemeIcon.fromString(submenuInfo.icon) || { dark: resources.joinPath(extension.description.extensionLocation, submenuInfo.icon) };
 				} else {
 					absoluteIcon = {
-						dark: resources.joinPath(extension.description.extensionLocation, entry.value.icon.dark),
-						light: resources.joinPath(extension.description.extensionLocation, entry.value.icon.light)
+						dark: resources.joinPath(extension.description.extensionLocation, submenuInfo.icon.dark),
+						light: resources.joinPath(extension.description.extensionLocation, submenuInfo.icon.light)
 					};
 				}
 			}
 
 			const item: IRegisteredSubmenu = {
-				id: new MenuId(`api:${entry.value.id}`),
-				label: entry.value.label,
+				id: MenuId.for(`api:${submenuInfo.id}`),
+				label: submenuInfo.label,
 				icon: absoluteIcon
 			};
 
-			_submenus.set(entry.value.id, item);
-		});
+			_submenus.set(submenuInfo.id, item);
+		}
 	}
 });
 
 const _apiMenusByKey = new Map(Iterable.map(Iterable.from(apiMenus), menu => ([menu.key, menu])));
 const _menuRegistrations = new DisposableStore();
-const _submenuMenuItems = new Map<number /* menu id */, Set<number /* submenu id */>>();
+const _submenuMenuItems = new Map<string /* menu id */, Set<string /* submenu id */>>();
 
 const menusExtensionPoint = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: (schema.IUserFriendlyMenuItem | schema.IUserFriendlySubmenuItem)[] }>({
 	extensionPoint: 'menus',
@@ -721,24 +764,22 @@ menusExtensionPoint.setHandler(extensions => {
 	_menuRegistrations.clear();
 	_submenuMenuItems.clear();
 
-	const items: { id: MenuId; item: IMenuItem | ISubmenuItem }[] = [];
-
-	for (let extension of extensions) {
+	for (const extension of extensions) {
 		const { value, collector } = extension;
 
-		forEach(value, entry => {
-			if (!schema.isValidItems(entry.value, collector)) {
-				return;
+		for (const entry of Object.entries(value)) {
+			if (!schema.isValidItems(entry[1], collector)) {
+				continue;
 			}
 
-			let menu = _apiMenusByKey.get(entry.key);
+			let menu = _apiMenusByKey.get(entry[0]);
 
 			if (!menu) {
-				const submenu = _submenus.get(entry.key);
+				const submenu = _submenus.get(entry[0]);
 
 				if (submenu) {
 					menu = {
-						key: entry.key,
+						key: entry[0],
 						id: submenu.id,
 						description: ''
 					};
@@ -746,16 +787,15 @@ menusExtensionPoint.setHandler(extensions => {
 			}
 
 			if (!menu) {
-				collector.info(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry.key));
-				return;
+				continue;
 			}
 
 			if (menu.proposed && !isProposedApiEnabled(extension.description, menu.proposed)) {
-				collector.error(localize('proposedAPI.invalid', "{0} is a proposed menu identifier. It requires 'package.json#enabledApiProposals: [\"{1}\"]' and is only available when running out of dev or with the following command line switch: --enable-proposed-api {2}", entry.key, menu.proposed, extension.description.identifier.value));
-				return;
+				collector.error(localize('proposedAPI.invalid', "{0} is a proposed menu identifier. It requires 'package.json#enabledApiProposals: [\"{1}\"]' and is only available when running out of dev or with the following command line switch: --enable-proposed-api {2}", entry[0], menu.proposed, extension.description.identifier.value));
+				continue;
 			}
 
-			for (const menuItem of entry.value) {
+			for (const menuItem of entry[1]) {
 				let item: IMenuItem | ISubmenuItem;
 
 				if (schema.isMenuItem(menuItem)) {
@@ -795,7 +835,7 @@ menusExtensionPoint.setHandler(extensions => {
 					}
 
 					if (submenuRegistrations.has(submenu.id.id)) {
-						collector.warn(localize('submenuItem.duplicate', "The `{0}` submenu was already contributed to the `{1}` menu.", menuItem.submenu, entry.key));
+						collector.warn(localize('submenuItem.duplicate', "The `{0}` submenu was already contributed to the `{1}` menu.", menuItem.submenu, entry[0]));
 						continue;
 					}
 
@@ -815,10 +855,8 @@ menusExtensionPoint.setHandler(extensions => {
 				}
 
 				item.when = ContextKeyExpr.deserialize(menuItem.when);
-				items.push({ id: menu.id, item });
+				_menuRegistrations.add(MenuRegistry.appendMenuItem(menu.id, item));
 			}
-		});
+		}
 	}
-
-	_menuRegistrations.add(MenuRegistry.appendMenuItems(items));
 });

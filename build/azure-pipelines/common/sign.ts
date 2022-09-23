@@ -17,7 +17,7 @@ function getParams(type: string): string {
 		case 'darwin-sign':
 			return '[{"keyCode":"CP-401337-Apple","operationSetCode":"MacAppDeveloperSign","parameters":[{"parameterName":"Hardening","parameterValue":"--options=runtime"}],"toolName":"sign","toolVersion":"1.0"}]';
 		case 'darwin-notarize':
-			return '[{"keyCode":"CP-401337-Apple","operationSetCode":"MacAppNotarize","parameters":[{"parameterName":"BundleId","parameterValue":"$(BundleIdentifier)"}],"toolName":"sign","toolVersion":"1.0"}]';
+			return '[{"keyCode":"CP-401337-Apple","operationSetCode":"MacAppNotarize","parameters":[],"toolName":"sign","toolVersion":"1.0"}]';
 		default:
 			throw new Error(`Sign type ${type} not found`);
 	}

@@ -28,9 +28,7 @@ suite('LineDataEventAddon', () => {
 		let events: string[];
 
 		setup(() => {
-			xterm = new Terminal({
-				cols: 4
-			});
+			xterm = new Terminal({ allowProposedApi: true, cols: 4 });
 			lineDataEventAddon = new LineDataEventAddon();
 			xterm.loadAddon(lineDataEventAddon);
 

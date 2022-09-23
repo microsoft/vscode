@@ -19,8 +19,6 @@ import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { isEqual } from 'vs/base/common/resources';
-import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { generateUuid } from 'vs/base/common/uuid';
 import { Event } from 'vs/base/common/event';
 import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
@@ -54,15 +52,10 @@ suite('NotebookCell#Document', function () {
 		});
 		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
-		const extHostStoragePaths = new class extends mock<IExtensionStoragePaths>() {
-			override workspaceValue() {
-				return URI.from({ scheme: 'test', path: generateUuid() });
-			}
-		};
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments, extHostStoragePaths);
+		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments);
 		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
 
-		let reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
+		const reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
 			// async openNotebook() { }
 		});
 		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({
@@ -115,18 +108,16 @@ suite('NotebookCell#Document', function () {
 		assert.ok(d1);
 		assert.strictEqual(d1.languageId, c1.document.languageId);
 		assert.strictEqual(d1.version, 1);
-		assert.ok(d1.notebook === notebook.apiNotebook);
 
 		const d2 = extHostDocuments.getDocument(c2.document.uri);
 		assert.ok(d2);
 		assert.strictEqual(d2.languageId, c2.document.languageId);
 		assert.strictEqual(d2.version, 1);
-		assert.ok(d2.notebook === notebook.apiNotebook);
 	});
 
 	test('cell document goes when notebook closes', async function () {
 		const cellUris: string[] = [];
-		for (let cell of notebook.apiNotebook.getCells()) {
+		for (const cell of notebook.apiNotebook.getCells()) {
 			assert.ok(extHostDocuments.getDocument(cell.document.uri));
 			cellUris.push(cell.document.uri.toString());
 		}
@@ -205,7 +196,7 @@ suite('NotebookCell#Document', function () {
 
 		const docs: vscode.TextDocument[] = [];
 		const addData: IModelAddedData[] = [];
-		for (let cell of notebook.apiNotebook.getCells()) {
+		for (const cell of notebook.apiNotebook.getCells()) {
 			const doc = extHostDocuments.getDocument(cell.document.uri);
 			assert.ok(doc);
 			assert.strictEqual(extHostDocuments.getDocument(cell.document.uri).isClosed, false);
@@ -227,17 +218,17 @@ suite('NotebookCell#Document', function () {
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({ removedDocuments: docs.map(d => d.uri) });
 
 		// notebook is still open -> cell documents stay open
-		for (let cell of notebook.apiNotebook.getCells()) {
+		for (const cell of notebook.apiNotebook.getCells()) {
 			assert.ok(extHostDocuments.getDocument(cell.document.uri));
 			assert.strictEqual(extHostDocuments.getDocument(cell.document.uri).isClosed, false);
 		}
 
 		// close notebook -> docs are closed
 		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ removedDocuments: [notebook.uri] }));
-		for (let cell of notebook.apiNotebook.getCells()) {
+		for (const cell of notebook.apiNotebook.getCells()) {
 			assert.throws(() => extHostDocuments.getDocument(cell.document.uri));
 		}
-		for (let doc of docs) {
+		for (const doc of docs) {
 			assert.strictEqual(doc.isClosed, true);
 		}
 	});
@@ -262,12 +253,6 @@ suite('NotebookCell#Document', function () {
 		assert.strictEqual(cell2.document.isClosed, false);
 
 		assert.throws(() => extHostDocuments.getDocument(cell1.document.uri));
-	});
-
-	test('cell document knows notebook', function () {
-		for (let cells of notebook.apiNotebook.getCells()) {
-			assert.strictEqual(cells.document.notebook === notebook.apiNotebook, true);
-		}
 	});
 
 	test('cell#index', function () {

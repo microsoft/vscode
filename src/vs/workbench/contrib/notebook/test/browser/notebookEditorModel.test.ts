@@ -10,7 +10,6 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { IFileService } from 'vs/platform/files/common/files';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -55,7 +54,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 			const model = new NotebookFileWorkingCopyModel(
 				notebook,
 				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: true, transientCellMetadata: {}, transientDocumentMetadata: {} };
+					override options: TransientOptions = { transientOutputs: true, transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {} };
 					override async notebookToData(notebook: NotebookData) {
 						callCount += 1;
 						assert.strictEqual(notebook.cells.length, 1);
@@ -74,7 +73,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 			const model = new NotebookFileWorkingCopyModel(
 				notebook,
 				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {} };
+					override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {} };
 					override async notebookToData(notebook: NotebookData) {
 						callCount += 1;
 						assert.strictEqual(notebook.cells.length, 1);
@@ -103,7 +102,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 			const model = new NotebookFileWorkingCopyModel(
 				notebook,
 				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: true, transientCellMetadata: {}, transientDocumentMetadata: { bar: true } };
+					override options: TransientOptions = { transientOutputs: true, transientCellMetadata: {}, transientDocumentMetadata: { bar: true }, cellContentMetadata: {} };
 					override async notebookToData(notebook: NotebookData) {
 						callCount += 1;
 						assert.strictEqual(notebook.metadata.foo, 123);
@@ -122,7 +121,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 			const model = new NotebookFileWorkingCopyModel(
 				notebook,
 				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {} };
+					override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {} };
 					override async notebookToData(notebook: NotebookData) {
 						callCount += 1;
 						assert.strictEqual(notebook.metadata.foo, 123);
@@ -151,7 +150,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 			const model = new NotebookFileWorkingCopyModel(
 				notebook,
 				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: true, transientDocumentMetadata: {}, transientCellMetadata: { bar: true } };
+					override options: TransientOptions = { transientOutputs: true, transientDocumentMetadata: {}, transientCellMetadata: { bar: true }, cellContentMetadata: {} };
 					override async notebookToData(notebook: NotebookData) {
 						callCount += 1;
 						assert.strictEqual(notebook.cells[0].metadata!.foo, 123);
@@ -170,7 +169,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 			const model = new NotebookFileWorkingCopyModel(
 				notebook,
 				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {} };
+					override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {} };
 					override async notebookToData(notebook: NotebookData) {
 						callCount += 1;
 						assert.strictEqual(notebook.cells[0].metadata!.foo, 123);
@@ -187,7 +186,6 @@ suite('NotebookFileWorkingCopyModel', function () {
 
 suite('ComplexNotebookEditorModel', function () {
 
-	const instaService = new InstantiationService();
 	const notebokService = new class extends mock<INotebookService>() { };
 	const backupService = new class extends mock<IWorkingCopyBackupService>() { };
 	const notificationService = new class extends mock<INotificationService>() { };
@@ -214,8 +212,8 @@ suite('ComplexNotebookEditorModel', function () {
 			}
 		};
 
-		new ComplexNotebookEditorModel(r1, 'fff', notebookDataProvider, instaService, notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), untitledTextEditorService, labelService);
-		new ComplexNotebookEditorModel(r2, 'fff', notebookDataProvider, instaService, notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), untitledTextEditorService, labelService);
+		new ComplexNotebookEditorModel(r1, 'fff', notebookDataProvider, notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), untitledTextEditorService, labelService);
+		new ComplexNotebookEditorModel(r2, 'fff', notebookDataProvider, notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), untitledTextEditorService, labelService);
 
 		assert.strictEqual(copies.length, 2);
 		assert.strictEqual(!isEqual(copies[0].resource, copies[1].resource), true);

@@ -77,7 +77,7 @@ export const grammarsExtPoint: IExtensionPoint<ITMSyntaxExtensionPoint[]> = Exte
 				},
 				unbalancedBracketScopes: {
 					description: nls.localize('vscode.extension.contributes.grammars.unbalancedBracketScopes', 'Defines which scope names do not contain balanced brackets.'),
-					type: 'object',
+					type: 'array',
 					items: {
 						type: 'string'
 					},

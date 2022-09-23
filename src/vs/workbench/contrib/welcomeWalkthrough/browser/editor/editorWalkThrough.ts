@@ -12,7 +12,6 @@ import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/contrib/
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IEditorSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
 
 const typeId = 'workbench.editors.walkThroughInput';
 const inputOptions: WalkThroughInputOptions = {
@@ -42,7 +41,8 @@ export class EditorWalkThroughAction extends Action {
 
 	public override run(): Promise<void> {
 		const input = this.instantiationService.createInstance(WalkThroughInput, inputOptions);
-		return this.editorService.openEditor(input, { pinned: true, override: EditorResolution.DISABLED })
+		// TODO @lramos15 adopt the resolver here
+		return this.editorService.openEditor(input, { pinned: true })
 			.then(() => void (0));
 	}
 }

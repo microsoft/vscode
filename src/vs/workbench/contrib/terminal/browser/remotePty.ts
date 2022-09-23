@@ -8,8 +8,8 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
-import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
@@ -37,7 +37,9 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		shellType: undefined,
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
-		overrideDimensions: undefined
+		overrideDimensions: undefined,
+		failedShellIntegrationActivation: false,
+		usedShellIntegrationInjection: undefined
 	};
 
 	get id(): number { return this._id; }
@@ -74,9 +76,9 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		return undefined;
 	}
 
-	async detach(): Promise<void> {
+	async detach(forcePersist?: boolean): Promise<void> {
 		await this._startBarrier.wait();
-		return this._remoteTerminalChannel.detachFromProcess(this.id);
+		return this._remoteTerminalChannel.detachFromProcess(this.id, forcePersist);
 	}
 
 	shutdown(immediate: boolean): void {
@@ -103,6 +105,13 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 
 			this._remoteTerminalChannel.resize(this._id, cols, rows);
 		});
+	}
+
+	freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
+		if (!this._remoteTerminalChannel.freePortKillProcess) {
+			throw new Error('freePortKillProcess does not exist on the local pty service');
+		}
+		return this._remoteTerminalChannel.freePortKillProcess(this.id, port);
 	}
 
 	acknowledgeDataEvent(charCount: number): void {

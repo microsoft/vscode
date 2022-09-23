@@ -16,12 +16,13 @@ import * as languages from 'vs/editor/common/languages';
 import { IModelService } from 'vs/editor/common/services/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
-import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './types';
+import { CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from './types';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export const codeActionCommandId = 'editor.action.codeAction';
 export const refactorCommandId = 'editor.action.refactor';
+export const refactorPreviewCommandId = 'editor.action.refactor.preview';
 export const sourceActionCommandId = 'editor.action.sourceAction';
 export const organizeImportsCommandId = 'editor.action.organizeImports';
 export const fixAllCommandId = 'editor.action.fixAll';
@@ -59,23 +60,23 @@ export interface CodeActionSet extends IDisposable {
 
 class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
-	private static codeActionsComparator({ action: a }: CodeActionItem, { action: b }: CodeActionItem): number {
+	private static codeActionsPreferredComparator(a: languages.CodeAction, b: languages.CodeAction): number {
 		if (a.isPreferred && !b.isPreferred) {
 			return -1;
 		} else if (!a.isPreferred && b.isPreferred) {
 			return 1;
+		} else {
+			return 0;
 		}
+	}
 
+	private static codeActionsComparator({ action: a }: CodeActionItem, { action: b }: CodeActionItem): number {
 		if (isNonEmptyArray(a.diagnostics)) {
-			if (isNonEmptyArray(b.diagnostics)) {
-				return a.diagnostics[0].message.localeCompare(b.diagnostics[0].message);
-			} else {
-				return -1;
-			}
+			return isNonEmptyArray(b.diagnostics) ? ManagedCodeActionSet.codeActionsPreferredComparator(a, b) : -1;
 		} else if (isNonEmptyArray(b.diagnostics)) {
 			return 1;
 		} else {
-			return 0;	// both have no diagnostics
+			return ManagedCodeActionSet.codeActionsPreferredComparator(a, b); // both have no diagnostics
 		}
 	}
 
@@ -88,7 +89,9 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 		disposables: DisposableStore,
 	) {
 		super();
+
 		this._register(disposables);
+
 		this.allActions = [...actions].sort(ManagedCodeActionSet.codeActionsComparator);
 		this.validActions = this.allActions.filter(({ action }) => !action.disabled);
 	}
@@ -101,7 +104,7 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
 const emptyCodeActionsResponse = { actions: [] as CodeActionItem[], documentation: undefined };
 
-export function getCodeActions(
+export async function getCodeActions(
 	registry: LanguageFeatureRegistry<languages.CodeActionProvider>,
 	model: ITextModel,
 	rangeOrSelection: Range | Selection,
@@ -133,7 +136,7 @@ export function getCodeActions(
 			}
 
 			const filteredActions = (providedCodeActions?.actions || []).filter(action => action && filtersAction(filter, action));
-			const documentation = getDocumentation(provider, filteredActions, filter.include);
+			const documentation = getDocumentationFromProvider(provider, filteredActions, filter.include);
 			return {
 				actions: filteredActions.map(action => new CodeActionItem(action, provider)),
 				documentation
@@ -154,15 +157,18 @@ export function getCodeActions(
 		}
 	});
 
-	return Promise.all(promises).then(actions => {
+	try {
+		const actions = await Promise.all(promises);
 		const allActions = actions.map(x => x.actions).flat();
-		const allDocumentation = coalesce(actions.map(x => x.documentation));
+		const allDocumentation = [
+			...coalesce(actions.map(x => x.documentation)),
+			...getAdditionalDocumentationForShowingActions(registry, model, trigger, allActions)
+		];
 		return new ManagedCodeActionSet(allActions, allDocumentation, disposables);
-	})
-		.finally(() => {
-			listener.dispose();
-			cts.dispose();
-		});
+	} finally {
+		listener.dispose();
+		cts.dispose();
+	}
 }
 
 function getCodeActionProviders(
@@ -181,7 +187,22 @@ function getCodeActionProviders(
 		});
 }
 
-function getDocumentation(
+function* getAdditionalDocumentationForShowingActions(
+	registry: LanguageFeatureRegistry<languages.CodeActionProvider>,
+	model: ITextModel,
+	trigger: CodeActionTrigger,
+	actionsToShow: readonly CodeActionItem[],
+): Iterable<languages.Command> {
+	if (model && actionsToShow.length) {
+		for (const provider of registry.all(model)) {
+			if (provider._getAdditionalMenuItems) {
+				yield* provider._getAdditionalMenuItems?.({ trigger: trigger.type, only: trigger.filter?.include?.value }, actionsToShow.map(item => item.action));
+			}
+		}
+	}
+}
+
+function getDocumentationFromProvider(
 	provider: languages.CodeActionProvider,
 	providedCodeActions: readonly languages.CodeAction[],
 	only?: CodeActionKind
@@ -223,7 +244,6 @@ function getDocumentation(
 			}
 		}
 	}
-
 	return undefined;
 }
 
@@ -253,7 +273,7 @@ CommandsRegistry.registerCommand('_executeCodeActionProvider', async function (a
 		codeActionProvider,
 		model,
 		validatedRangeOrSelection,
-		{ type: languages.CodeActionTriggerType.Invoke, filter: { includeSourceActions: true, include } },
+		{ type: languages.CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.Default, filter: { includeSourceActions: true, include } },
 		Progress.None,
 		CancellationToken.None);
 

@@ -57,8 +57,8 @@ type GettingStartedStartEntryContent = BuiltinGettingStartedStartEntry[];
 export const startEntries: GettingStartedStartEntryContent = [
 	{
 		id: 'welcome.showNewFileEntries',
-		title: localize('gettingStarted.newEditor.title', "New Editor..."),
-		description: localize('gettingStarted.newEditor.description', "Open a new untitled file, notebook, or custom editor."),
+		title: localize('gettingStarted.newFile.title', "New File..."),
+		description: localize('gettingStarted.newFile.description', "Open a new untitled file, notebook, or custom editor."),
 		icon: Codicon.newFile,
 		content: {
 			type: 'startEntry',

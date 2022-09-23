@@ -133,7 +133,7 @@ export namespace IMarkerData {
 	}
 
 	export function makeKeyOptionalMessage(markerData: IMarkerData, useMessage: boolean): string {
-		let result: string[] = [emptyString];
+		const result: string[] = [emptyString];
 		if (markerData.source) {
 			result.push(markerData.source.replace('¦', '\\¦'));
 		} else {

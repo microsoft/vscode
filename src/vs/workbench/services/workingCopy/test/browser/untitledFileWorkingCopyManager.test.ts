@@ -226,7 +226,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 		const workingCopy = await manager.untitled.resolve({ associatedResource: { path: '/some/associated.txt' } });
 		workingCopy.model?.updateContents('Simple Save with associated resource');
 
-		accessor.fileService.notExistsSet.set(URI.from({ scheme: Schemas.vscodeRemote, path: '/some/associated.txt' }), true);
+		accessor.fileService.notExistsSet.set(URI.from({ scheme: Schemas.file, path: '/some/associated.txt' }), true);
 
 		const result = await workingCopy.save();
 		assert.ok(result);
