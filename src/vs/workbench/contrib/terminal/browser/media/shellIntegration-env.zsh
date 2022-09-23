@@ -9,4 +9,5 @@ if [[ -f $USER_ZDOTDIR/.zshenv ]]; then
 	. $USER_ZDOTDIR/.zshenv
 
 	USER_ZDOTDIR=$ZDOTDIR
+	ZDOTDIR=$VSCODE_ZDOTDIR
 fi
