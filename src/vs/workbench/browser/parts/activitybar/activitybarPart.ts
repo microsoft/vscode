@@ -617,10 +617,11 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private createProfilesActivity(): IProfileActivity {
-		const icon = this.userDataProfileService.currentProfile.shortName ? ThemeIcon.fromString(this.userDataProfileService.currentProfile.shortName) : undefined;
+		const shortName = this.userDataProfileService.getShortName(this.userDataProfileService.currentProfile);
+		const icon = ThemeIcon.fromString(shortName);
 		return {
 			id: 'workbench.actions.profiles',
-			name: icon ? this.userDataProfileService.currentProfile.name : this.userDataProfileService.getShortName(this.userDataProfileService.currentProfile),
+			name: icon ? this.userDataProfileService.currentProfile.name : shortName,
 			cssClass: icon ? `${ThemeIcon.asClassName(icon)} profile-activity-item` : 'profile-activity-item',
 			icon: !!icon
 		};
