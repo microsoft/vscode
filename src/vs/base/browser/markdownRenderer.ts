@@ -358,6 +358,26 @@ function sanitizeRenderedMarkdown(
 	}
 }
 
+export const allowedMarkdownAttr = [
+	'align',
+	'alt',
+	'class',
+	'controls',
+	'data-code',
+	'data-href',
+	'height',
+	'href',
+	'loop',
+	'muted',
+	'playsinline',
+	'poster',
+	'src',
+	'style',
+	'target',
+	'title',
+	'width',
+];
+
 function getSanitizerOptions(options: { readonly isTrusted?: boolean }): { config: dompurify.Config; allowedSchemes: string[] } {
 	const allowedSchemes = [
 		Schemas.http,
@@ -381,7 +401,7 @@ function getSanitizerOptions(options: { readonly isTrusted?: boolean }): { confi
 			// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
 			// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
 			ALLOWED_TAGS: [...DOM.basicMarkupHtmlTags],
-			ALLOWED_ATTR: ['href', 'data-href', 'target', 'title', 'src', 'alt', 'class', 'style', 'data-code', 'width', 'height', 'align'],
+			ALLOWED_ATTR: allowedMarkdownAttr,
 			ALLOW_UNKNOWN_PROTOCOLS: true,
 		},
 		allowedSchemes
