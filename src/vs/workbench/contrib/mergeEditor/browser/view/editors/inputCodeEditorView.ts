@@ -122,8 +122,10 @@ export class InputCodeEditorView extends CodeEditorView {
 		const model = viewModel.model;
 		const inputNumber = this.inputNumber;
 
+		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
+
 		return model.modifiedBaseRanges.read(reader)
-			.filter((r) => r.getInputDiffs(this.inputNumber).length > 0)
+			.filter((r) => r.getInputDiffs(this.inputNumber).length > 0 && (showNonConflictingChanges || r.isConflicting || !model.isHandled(r).read(reader)))
 			.map((baseRange, idx) => new ModifiedBaseRangeGutterItemModel(idx.toString(), baseRange, inputNumber, viewModel));
 	});
 
@@ -137,6 +139,8 @@ export class InputCodeEditorView extends CodeEditorView {
 		const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
 
 		const result = new Array<IModelDeltaDecoration>();
+
+		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
 
 		for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
 			const range = modifiedBaseRange.getInputRange(this.inputNumber);
@@ -157,6 +161,10 @@ export class InputCodeEditorView extends CodeEditorView {
 			}
 			const inputClassName = this.inputNumber === 1 ? 'input1' : 'input2';
 			blockClassNames.push(inputClassName);
+
+			if (!modifiedBaseRange.isConflicting && !showNonConflictingChanges && isHandled) {
+				continue;
+			}
 
 			result.push({
 				range: range.toInclusiveRangeOrEmpty(),
@@ -208,7 +216,7 @@ export class InputCodeEditorView extends CodeEditorView {
 	});
 
 	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
-		if (this.codeLensesVisible) {
+		if (this.codeLensesVisible.get()) {
 			return undefined;
 		}
 		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeLensContribution.ID);
@@ -245,12 +253,19 @@ class CodeLensPart extends Disposable {
 			const model = viewModel.model;
 			const inputData = inputCodeEditorView.inputNumber === 1 ? viewModel.model.input1 : viewModel.model.input2;
 
+			const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
+
 			return {
 				codeLenses: viewModel.model.modifiedBaseRanges.read(reader).flatMap<CodeLens>(r => {
 					const range = r.getInputRange(inputCodeEditorView.inputNumber).toRange();
 
+					const handled = model.isHandled(r).read(reader);
 					const state = model.getState(r).read(reader);
 					const result: CodeLens[] = [];
+
+					if (!r.isConflicting && handled && !showNonConflictingChanges) {
+						return [];
+					}
 
 					if (!state.conflicting && !state.isInputIncluded(inputCodeEditorView.inputNumber)) {
 						result.push(
@@ -281,7 +296,7 @@ class CodeLensPart extends Disposable {
 							}
 						);
 
-						if (r.canBeCombined) {
+						if (r.canBeCombined && state.isEmpty) {
 							result.push({
 								range,
 								command:
@@ -310,6 +325,12 @@ class CodeLensPart extends Disposable {
 										}),
 							});
 						}
+					}
+					if (result.length === 0) {
+						result.push({
+							range: range,
+							command: command(` `, async () => { })
+						});
 					}
 					return result;
 				}),

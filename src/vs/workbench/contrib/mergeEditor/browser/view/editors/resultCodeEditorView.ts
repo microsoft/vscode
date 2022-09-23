@@ -145,6 +145,8 @@ export class ResultCodeEditorView extends CodeEditorView {
 
 		const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
 
+		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
+
 		for (const m of baseRangeWithStoreAndTouchingDiffs) {
 			const modifiedBaseRange = m.left;
 
@@ -161,6 +163,10 @@ export class ResultCodeEditorView extends CodeEditorView {
 					blockClassNames.push('conflicting');
 				}
 				blockClassNames.push('result');
+
+				if (!modifiedBaseRange.isConflicting && !showNonConflictingChanges && isHandled) {
+					continue;
+				}
 
 				result.push({
 					range: model.getLineRangeInResult(modifiedBaseRange.baseRange, reader).toInclusiveRangeOrEmpty(),
@@ -242,14 +248,19 @@ class CodeLensPart extends Disposable {
 				return undefined;
 			}
 			const model = viewModel.model;
+			const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
 
 			return {
 				codeLenses: viewModel.model.modifiedBaseRanges.read(reader).flatMap<CodeLens>(r => {
 					const range = model.getLineRangeInResult(r.baseRange, reader).toRange();
 
+					const handled = model.isHandled(r).read(reader);
 					const state = model.getState(r).read(reader);
 					const result: CodeLens[] = [];
 
+					if (!r.isConflicting && handled && !showNonConflictingChanges) {
+						return [];
+					}
 
 					const stateLabel = ((state: ModifiedBaseRangeState): string => {
 						if (state.conflicting) {

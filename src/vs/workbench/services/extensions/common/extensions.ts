@@ -446,7 +446,10 @@ export interface IExtensionService {
 	onDidChangeExtensions: Event<{ readonly added: readonly IExtensionDescription[]; readonly removed: readonly IExtensionDescription[] }>;
 
 	/**
-	 * All registered extensions. Can be empty.
+	 * All registered extensions.
+	 * - List will be empty initially during workbench startup and will be filled with extensions as they are registered
+	 * - Listen to `onDidChangeExtensions` event for any changes to the extensions list. It will change as extensions get registered or de-reigstered.
+	 * - Listen to `onDidRegisterExtensions` event or wait for `whenInstalledExtensionsRegistered` promise to get the initial list of registered extensions.
 	 */
 	readonly extensions: readonly IExtensionDescription[];
 
