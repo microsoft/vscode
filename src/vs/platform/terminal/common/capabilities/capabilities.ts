@@ -153,6 +153,7 @@ export interface ICommandDetectionCapability {
 	readonly hasInput: boolean | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
+	readonly onCommandExecuted: Event<void>;
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
 	setCwd(value: string): void;
