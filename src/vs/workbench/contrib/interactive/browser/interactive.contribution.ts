@@ -54,6 +54,7 @@ import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/noteb
 import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { CellEditType, CellKind, CellUri, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -474,6 +475,7 @@ registerAction2(class extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const bulkEditService = accessor.get(IBulkEditService);
 		const historyService = accessor.get(IInteractiveHistoryService);
+		const notebookEditorService = accessor.get(INotebookEditorService);
 		let editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
 		if (context) {
 			if (context.scheme === Schemas.vscodeInteractive) {
@@ -514,6 +516,7 @@ registerAction2(class extends Action2 {
 						outputCollapsed: false
 					} :
 					undefined;
+
 				await bulkEditService.apply([
 					new ResourceNotebookCellEdit(notebookDocument.uri,
 						{
@@ -534,8 +537,16 @@ registerAction2(class extends Action2 {
 				]);
 
 				// reveal the cell into view first
-				editorControl.notebookEditor.revealCellRangeInView({ start: index, end: index + 1 });
+				const range = { start: index, end: index + 1 };
+				editorControl.notebookEditor.revealCellRangeInView(range);
 				await editorControl.notebookEditor.executeNotebookCells(editorControl.notebookEditor.getCellsInRange({ start: index, end: index + 1 }));
+
+				// update the selection and focus in the extension host model
+				const editor = notebookEditorService.getNotebookEditor(editorControl.notebookEditor.getId());
+				if (editor) {
+					editor.setSelections([range]);
+					editor.setFocus(range);
+				}
 			}
 		}
 	}
