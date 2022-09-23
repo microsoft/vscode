@@ -18,7 +18,7 @@ import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, Git
 import { ContextualActionAddon, getMatchActions } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
 import { Terminal } from 'xterm';
 
-suite.only('ContextualActionAddon', () => {
+suite('ContextualActionAddon', () => {
 	let contextualActionAddon: ContextualActionAddon;
 	let terminalInstance: Pick<ITerminalInstance, 'freePortKillProcess'>;
 	let commandDetection: CommandDetectionCapability;
