@@ -127,7 +127,7 @@ suite('ContextualActionAddon', () => {
 			const output = `fatal: The current branch test22 has no upstream branch.
 			To push the current branch and set the remote as upstream, use
 
-				git push --set-upstream origin test22 `;
+				git push --set-upstream origin test22`;
 			const exitCode = 128;
 			const actions = [
 				{
@@ -210,7 +210,7 @@ suite('ContextualActionAddon', () => {
 		const output = `fatal: The current branch test22 has no upstream branch.
 		To push the current branch and set the remote as upstream, use
 
-			git push --set-upstream origin test22 `;
+			git push --set-upstream origin test22`;
 		const exitCode = 128;
 		const actions = [
 			{
