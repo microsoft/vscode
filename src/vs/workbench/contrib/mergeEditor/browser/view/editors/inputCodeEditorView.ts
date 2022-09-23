@@ -216,7 +216,7 @@ export class InputCodeEditorView extends CodeEditorView {
 	});
 
 	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
-		if (this.codeLensesVisible) {
+		if (this.codeLensesVisible.get()) {
 			return undefined;
 		}
 		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeLensContribution.ID);
@@ -296,7 +296,7 @@ class CodeLensPart extends Disposable {
 							}
 						);
 
-						if (r.canBeCombined) {
+						if (r.canBeCombined && state.isEmpty) {
 							result.push({
 								range,
 								command:
@@ -325,6 +325,12 @@ class CodeLensPart extends Disposable {
 										}),
 							});
 						}
+					}
+					if (result.length === 0) {
+						result.push({
+							range: range,
+							command: command(` `, async () => { })
+						});
 					}
 					return result;
 				}),
