@@ -51,7 +51,7 @@ abstract class MergeEditorAction2 extends Action2 {
 		super(desc);
 	}
 
-	run(accessor: ServicesAccessor): void {
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
 			const vm = activeEditorPane.viewModel.get();
@@ -67,11 +67,11 @@ abstract class MergeEditorAction2 extends Action2 {
 					editor: activeEditorPane.input,
 					groupId: activeEditorPane.group.id,
 				}
-			}, accessor) as any;
+			}, accessor, ...args) as any;
 		}
 	}
 
-	abstract runWithMergeEditor(args: MergeEditorAction2Args, accessor: ServicesAccessor): unknown;
+	abstract runWithMergeEditor(context: MergeEditorAction2Args, accessor: ServicesAccessor, ...args: any[]): unknown;
 }
 
 export class OpenMergeEditor extends Action2 {
