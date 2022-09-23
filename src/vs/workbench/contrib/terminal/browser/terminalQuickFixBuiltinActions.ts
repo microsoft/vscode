@@ -7,7 +7,7 @@ import { IAction } from 'vs/base/common/actions';
 import { isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ContextualMatchResult, ICommandAction, ITerminalContextualActionOptions, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { QuickFixMatchResult, ICommandAction, ITerminalQuickFixActionOptions, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export const GitCommandLineRegex = /git/;
@@ -18,13 +18,13 @@ export const FreePortOutputRegex = /address already in use \d\.\d\.\d\.\d:(\d\d\
 export const GitPushOutputRegex = /git push --set-upstream origin ([^\s]+)\s+/;
 export const GitCreatePrOutputRegex = /Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s+remote:\s+(https:.+pull.+)\s+/;
 
-export function gitSimilarCommand(): ITerminalContextualActionOptions {
+export function terminalGitSimilarCommand(): ITerminalQuickFixActionOptions {
 	return {
 		commandLineMatcher: GitCommandLineRegex,
 		outputMatcher: { lineMatcher: GitSimilarOutputRegex, anchor: 'bottom' },
-		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Run git ${matchResult.outputMatch[1]}` : ``,
+		actionName: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Run git ${matchResult.outputMatch[1]}` : ``,
 		exitCode: 1,
-		getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
+		getActions: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
 			const actions: ICommandAction[] = [];
 			const fixedCommand = matchResult?.outputMatch?.[1];
 			if (!fixedCommand) {
@@ -41,12 +41,12 @@ export function gitSimilarCommand(): ITerminalContextualActionOptions {
 		}
 	};
 }
-export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITerminalContextualActionOptions {
+export function terminalFreePort(terminalInstance?: Partial<ITerminalInstance>): ITerminalQuickFixActionOptions {
 	return {
-		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Free port ${matchResult.outputMatch[1]}` : '',
+		actionName: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Free port ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: AnyCommandLineRegex,
 		outputMatcher: !isWindows ? { lineMatcher: FreePortOutputRegex, anchor: 'bottom' } : undefined,
-		getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
+		getActions: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
 			const port = matchResult?.outputMatch?.[1];
 			if (!port) {
 				return;
@@ -65,13 +65,13 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 		}
 	};
 }
-export function gitPushSetUpstream(): ITerminalContextualActionOptions {
+export function terminalGitPushSetUpstream(): ITerminalQuickFixActionOptions {
 	return {
-		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Git push ${matchResult.outputMatch[1]}` : '',
+		actionName: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Git push ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: GitPushCommandLineRegex,
 		outputMatcher: { lineMatcher: GitPushOutputRegex, anchor: 'bottom' },
 		exitCode: 128,
-		getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
+		getActions: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
 			const branch = matchResult?.outputMatch?.[1];
 			if (!branch) {
 				return;
@@ -90,13 +90,13 @@ export function gitPushSetUpstream(): ITerminalContextualActionOptions {
 	};
 }
 
-export function gitCreatePr(openerService: IOpenerService): ITerminalContextualActionOptions {
+export function terminalGitCreatePr(openerService: IOpenerService): ITerminalQuickFixActionOptions {
 	return {
-		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Create PR for ${matchResult.outputMatch[1]}` : '',
+		actionName: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Create PR for ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: GitPushCommandLineRegex,
 		outputMatcher: { lineMatcher: GitCreatePrOutputRegex, anchor: 'bottom' },
 		exitCode: 0,
-		getActions: (matchResult: ContextualMatchResult, command?: ITerminalCommand) => {
+		getActions: (matchResult: QuickFixMatchResult, command?: ITerminalCommand) => {
 			if (!command) {
 				return;
 			}

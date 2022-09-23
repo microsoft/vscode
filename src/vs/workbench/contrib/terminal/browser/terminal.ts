@@ -19,7 +19,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { IContextualAction } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
+import { QuickFixAction } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IMarker } from 'xterm';
@@ -459,7 +459,7 @@ export interface ITerminalInstance {
 
 	readonly statusList: ITerminalStatusList;
 
-	contextualActions: IContextualAction | undefined;
+	quickFixActions: QuickFixAction | undefined;
 
 	readonly findWidget: Lazy<TerminalFindWidget>;
 
@@ -914,21 +914,21 @@ export interface ITerminalInstance {
 	/**
 	 * Registers contextual action listeners
 	 */
-	registerContextualActions(...options: ITerminalContextualActionOptions[]): void;
+	registerQuickFixActions(...options: ITerminalQuickFixActionOptions[]): void;
 
 	freePortKillProcess(port: string): Promise<void>;
 }
 
-export interface ITerminalContextualActionOptions {
+export interface ITerminalQuickFixActionOptions {
 	actionName: string | DynamicActionName;
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
-	getActions: ContextualActionCallback;
+	getActions: QuickFixCallback;
 	exitCode?: number;
 }
-export type ContextualMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
-export type DynamicActionName = (matchResult: ContextualMatchResult) => string;
-export type ContextualActionCallback = (matchResult: ContextualMatchResult, command: ITerminalCommand) => ICommandAction[] | undefined;
+export type QuickFixMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
+export type DynamicActionName = (matchResult: QuickFixMatchResult) => string;
+export type QuickFixCallback = (matchResult: QuickFixMatchResult, command: ITerminalCommand) => ICommandAction[] | undefined;
 
 export interface ICommandAction extends IAction {
 	commandToRunInTerminal?: string;

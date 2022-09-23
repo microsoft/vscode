@@ -14,12 +14,12 @@ import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/commo
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { ICommandAction, ITerminalInstance, ITerminalOutputMatcher } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, gitSimilarCommand, GitSimilarOutputRegex } from 'vs/workbench/contrib/terminal/browser/terminalBuiltinContextualActions';
-import { ContextualActionAddon, getMatchActions } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
+import { terminalFreePort, FreePortOutputRegex, terminalGitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, terminalGitPushSetUpstream, terminalGitSimilarCommand, GitSimilarOutputRegex } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
+import { QuickFixAddon, getMatchActions } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { Terminal } from 'xterm';
 
-suite('ContextualActionAddon', () => {
-	let contextualActionAddon: ContextualActionAddon;
+suite('QuickFixAddon', () => {
+	let quickFixAddon: QuickFixAddon;
 	let terminalInstance: Pick<ITerminalInstance, 'freePortKillProcess'>;
 	let commandDetection: CommandDetectionCapability;
 	let openerService: OpenerService;
@@ -40,8 +40,8 @@ suite('ContextualActionAddon', () => {
 		terminalInstance = {
 			async freePortKillProcess(port: string): Promise<void> { }
 		} as Pick<ITerminalInstance, 'freePortKillProcess'>;
-		contextualActionAddon = instantiationService.createInstance(ContextualActionAddon, capabilities);
-		xterm.loadAddon(contextualActionAddon);
+		quickFixAddon = instantiationService.createInstance(QuickFixAddon, capabilities);
+		xterm.loadAddon(quickFixAddon);
 	});
 	suite('registerCommandFinishedListener & getMatchActions', () => {
 		suite('gitSimilarCommand', async () => {
@@ -62,9 +62,9 @@ suite('ContextualActionAddon', () => {
 				}
 			];
 			setup(() => {
-				const command = gitSimilarCommand();
+				const command = terminalGitSimilarCommand();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
-				contextualActionAddon.registerCommandFinishedListener(command);
+				quickFixAddon.registerCommandFinishedListener(command);
 			});
 			suite('returns undefined when', () => {
 				test('output does not match', () => {
@@ -106,9 +106,9 @@ suite('ContextualActionAddon', () => {
 				enabled: true
 			}];
 			setup(() => {
-				const command = freePort(terminalInstance);
+				const command = terminalFreePort(terminalInstance);
 				expected.set(command.commandLineMatcher.toString(), [command]);
-				contextualActionAddon.registerCommandFinishedListener(command);
+				quickFixAddon.registerCommandFinishedListener(command);
 			});
 			suite('returns undefined when', () => {
 				test('output does not match', () => {
@@ -137,9 +137,9 @@ suite('ContextualActionAddon', () => {
 				}
 			];
 			setup(() => {
-				const command = gitPushSetUpstream();
+				const command = terminalGitPushSetUpstream();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
-				contextualActionAddon.registerCommandFinishedListener(command);
+				quickFixAddon.registerCommandFinishedListener(command);
 			});
 			suite('returns undefined when', () => {
 				test('output does not match', () => {
@@ -178,9 +178,9 @@ suite('ContextualActionAddon', () => {
 				}
 			];
 			setup(() => {
-				const command = gitCreatePr(openerService);
+				const command = terminalGitCreatePr(openerService);
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
-				contextualActionAddon.registerCommandFinishedListener(command);
+				quickFixAddon.registerCommandFinishedListener(command);
 			});
 			suite('returns undefined when', () => {
 				test('output does not match', () => {

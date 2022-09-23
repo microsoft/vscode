@@ -10,13 +10,13 @@ import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '
 import type { ITerminalAddon } from 'xterm-headless';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ICommandAction, ITerminalContextualActionOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICommandAction, ITerminalQuickFixActionOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Terminal } from 'xterm';
 import { IAction } from 'vs/base/common/actions';
 
-export interface IContextualAction {
+export interface QuickFixAction {
 	/**
 	 * Shows the quick fix menu
 	 */
@@ -26,14 +26,14 @@ export interface IContextualAction {
 	 * Registers a listener on onCommandFinished scoped to a particular command or regular
 	 * expression and provides a callback to be executed for commands that match.
 	 */
-	registerCommandFinishedListener(options: ITerminalContextualActionOptions): void;
+	registerCommandFinishedListener(options: ITerminalQuickFixActionOptions): void;
 }
 
-export interface IContextualActionAdddon extends IContextualAction {
+export interface ITerminalQuickFixActionAddon extends QuickFixAction {
 	onDidRequestRerunCommand: Event<{ command: string; addNewLine?: boolean }>;
 }
 
-export class ContextualActionAddon extends Disposable implements ITerminalAddon, IContextualActionAdddon {
+export class QuickFixAddon extends Disposable implements ITerminalAddon, ITerminalQuickFixActionAddon {
 	private readonly _onDidRequestRerunCommand = new Emitter<{ command: string; addNewLine?: boolean }>();
 	readonly onDidRequestRerunCommand = this._onDidRequestRerunCommand.event;
 
@@ -43,7 +43,7 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 
 	private _decorationMarkerIds = new Set<number>();
 
-	private _commandListeners: Map<string, ITerminalContextualActionOptions[]> = new Map();
+	private _commandListeners: Map<string, ITerminalQuickFixActionOptions[]> = new Map();
 
 	private _matchActions: ICommandAction[] | undefined;
 
@@ -70,7 +70,7 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 		this._currentQuickFixElement?.click();
 	}
 
-	registerCommandFinishedListener(options: ITerminalContextualActionOptions): void {
+	registerCommandFinishedListener(options: ITerminalQuickFixActionOptions): void {
 		const matcherKey = options.commandLineMatcher.toString();
 		const currentOptions = this._commandListeners.get(matcherKey) || [];
 		currentOptions.push(options);
@@ -125,7 +125,7 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 	}
 }
 
-export function getMatchActions(command: ITerminalCommand, actionOptions: Map<string, ITerminalContextualActionOptions[]>, onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>): IAction[] | undefined {
+export function getMatchActions(command: ITerminalCommand, actionOptions: Map<string, ITerminalQuickFixActionOptions[]>, onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>): IAction[] | undefined {
 	const matchActions: IAction[] = [];
 	const newCommand = command.command;
 	for (const options of actionOptions.values()) {
