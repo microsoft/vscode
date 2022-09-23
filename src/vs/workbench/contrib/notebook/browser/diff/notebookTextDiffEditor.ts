@@ -559,7 +559,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _setViewModel(viewModels: DiffElementViewModelBase[]) {
 		this._diffElementViewModels = viewModels;
 		this._list.splice(0, this._list.length, this._diffElementViewModels);
-		this._overviewRuler.updateViewModels(this._diffElementViewModels);
+		this._overviewRuler.updateViewModels(this._diffElementViewModels, this._eventDispatcher);
 	}
 
 	/**
