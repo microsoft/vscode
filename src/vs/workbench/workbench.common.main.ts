@@ -339,9 +339,6 @@ import 'vs/workbench/contrib/workspace/browser/workspace.contribution';
 // Workspaces
 import 'vs/workbench/contrib/workspaces/browser/workspaces.contribution';
 
-// WorkspaceUnderAppRoot
-import 'vs/workbench/contrib/workspaceUnderAppRoot/browser/workspaceUnderAppRoot.contribution';
-
 // List
 import 'vs/workbench/contrib/list/browser/list.contribution';
 
