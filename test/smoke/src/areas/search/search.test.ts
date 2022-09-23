@@ -8,7 +8,7 @@ import { Application, Logger } from '../../../../automation';
 import { installAllHandlers, retry } from '../../utils';
 
 export function setup(logger: Logger) {
-	describe('Search', () => {
+	describe.only('Search', () => {
 
 		// Shared before/after handling
 		installAllHandlers(logger);
@@ -29,14 +29,16 @@ export function setup(logger: Logger) {
 
 		it('searches only for *.js files & checks for correct result number', async function () {
 			const app = this.app as Application;
-			await app.workbench.search.searchFor('body');
-			await app.workbench.search.showQueryDetails();
-			await app.workbench.search.setFilesToIncludeText('*.js');
-			await app.workbench.search.submitSearch();
+			try {
+				await app.workbench.search.searchFor('body');
+				await app.workbench.search.showQueryDetails();
+				await app.workbench.search.setFilesToIncludeText('*.js');
 
-			await app.workbench.search.waitForResultText('4 results in 1 file');
-			await app.workbench.search.setFilesToIncludeText('');
-			await app.workbench.search.hideQueryDetails();
+				await app.workbench.search.waitForResultText('4 results in 1 file');
+			} finally {
+				await app.workbench.search.setFilesToIncludeText('');
+				await app.workbench.search.hideQueryDetails();
+			}
 		});
 
 		it('dismisses result & checks for correct result number', async function () {
