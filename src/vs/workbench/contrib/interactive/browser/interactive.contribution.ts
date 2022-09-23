@@ -475,6 +475,7 @@ registerAction2(class extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const bulkEditService = accessor.get(IBulkEditService);
 		const historyService = accessor.get(IInteractiveHistoryService);
+		const notebookEditorService = accessor.get(INotebookEditorService);
 		let editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
 		if (context) {
 			if (context.scheme === Schemas.vscodeInteractive) {
@@ -516,7 +517,6 @@ registerAction2(class extends Action2 {
 					} :
 					undefined;
 
-				const notebookEditorService = accessor.get(INotebookEditorService);
 				await bulkEditService.apply([
 					new ResourceNotebookCellEdit(notebookDocument.uri,
 						{
