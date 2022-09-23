@@ -921,7 +921,7 @@ export interface ITerminalContextualActionOptions {
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
 	getActions: ContextualActionCallback;
-	exitCode?: number;
+	exitStatus?: boolean;
 }
 export type ContextualMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
 export type DynamicActionName = (matchResult: ContextualMatchResult) => string;
