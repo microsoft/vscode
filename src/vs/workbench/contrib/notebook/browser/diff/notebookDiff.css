@@ -18,7 +18,7 @@
 
 .notebook-text-diff-editor {
 	position: relative;
-};
+}
 
 .notebook-text-diff-editor .cell-body {
 	display: flex;
