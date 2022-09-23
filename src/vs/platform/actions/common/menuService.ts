@@ -10,7 +10,7 @@ import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuCreateOptions, IMenuI
 import { ICommandAction, ILocalizedString } from 'vs/platform/action/common/action';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAction, toAction } from 'vs/base/common/actions';
+import { IAction, Separator, toAction } from 'vs/base/common/actions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { removeFastWithoutKeepingOrder } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
@@ -29,7 +29,7 @@ export class MenuService implements IMenuService {
 	}
 
 	createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
-		return new Menu(id, this._hiddenStates, { emitEventsForSubmenuChanges: false, eventDebounceDelay: 50, ...options }, this._commandService, contextKeyService, this);
+		return new MenuImpl(id, this._hiddenStates, { emitEventsForSubmenuChanges: false, eventDebounceDelay: 50, ...options }, this._commandService, contextKeyService);
 	}
 
 	resetHiddenStates(id?: MenuId): void {
@@ -135,12 +135,7 @@ class PersistedMenuHideState {
 
 type MenuItemGroup = [string, Array<IMenuItem | ISubmenuItem>];
 
-class Menu implements IMenu {
-
-	private readonly _disposables = new DisposableStore();
-
-	private readonly _onDidChange: Emitter<IMenuChangeEvent>;
-	readonly onDidChange: Event<IMenuChangeEvent>;
+class MenuInfo {
 
 	private _menuGroups: MenuItemGroup[] = [];
 	private _structureContextKeys: Set<string> = new Set();
@@ -150,83 +145,26 @@ class Menu implements IMenu {
 	constructor(
 		private readonly _id: MenuId,
 		private readonly _hiddenStates: PersistedMenuHideState,
-		private readonly _options: Required<IMenuCreateOptions>,
+		private readonly _collectContextKeysForSubmenus: boolean,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IMenuService private readonly _menuService: IMenuService
 	) {
-		this._build();
-
-		// Rebuild this menu whenever the menu registry reports an event for this MenuId.
-		// This usually happen while code and extensions are loaded and affects the over
-		// structure of the menu
-		const rebuildMenuSoon = new RunOnceScheduler(() => {
-			this._build();
-			this._onDidChange.fire({ menu: this, isStructuralChange: true, isEnablementChange: true, isToggleChange: true });
-		}, _options.eventDebounceDelay);
-		this._disposables.add(rebuildMenuSoon);
-		this._disposables.add(MenuRegistry.onDidChangeMenu(e => {
-			if (e.has(_id)) {
-				rebuildMenuSoon.schedule();
-			}
-		}));
-
-		// When context keys or storage state changes we need to check if the menu also has changed. However,
-		// we only do that when someone listens on this menu because (1) these events are
-		// firing often and (2) menu are often leaked
-		const lazyListener = this._disposables.add(new DisposableStore());
-
-		const merge = (events: IMenuChangeEvent[]): IMenuChangeEvent => {
-
-			let isStructuralChange = false;
-			let isEnablementChange = false;
-			let isToggleChange = false;
-
-			for (const item of events) {
-				isStructuralChange = isStructuralChange || item.isStructuralChange;
-				isEnablementChange = isEnablementChange || item.isEnablementChange;
-				isToggleChange = isToggleChange || item.isToggleChange;
-				if (isStructuralChange && isEnablementChange && isToggleChange) {
-					// everything is TRUE, no need to continue iterating
-					break;
-				}
-			}
-
-			return { menu: this, isStructuralChange, isEnablementChange, isToggleChange };
-		};
-
-		const startLazyListener = () => {
-
-			lazyListener.add(_contextKeyService.onDidChangeContext(e => {
-				const isStructuralChange = e.affectsSome(this._structureContextKeys);
-				const isEnablementChange = e.affectsSome(this._preconditionContextKeys);
-				const isToggleChange = e.affectsSome(this._toggledContextKeys);
-				if (isStructuralChange || isEnablementChange || isToggleChange) {
-					this._onDidChange.fire({ menu: this, isStructuralChange, isEnablementChange, isToggleChange });
-				}
-			}));
-			lazyListener.add(_hiddenStates.onDidChange(e => {
-				this._onDidChange.fire({ menu: this, isStructuralChange: true, isEnablementChange: false, isToggleChange: false });
-			}));
-		};
-
-		this._onDidChange = new DebounceEmitter({
-			// start/stop context key listener
-			onFirstListenerAdd: startLazyListener,
-			onLastListenerRemove: lazyListener.clear.bind(lazyListener),
-			delay: _options.eventDebounceDelay,
-			merge
-		});
-		this.onDidChange = this._onDidChange.event;
-
+		this.refresh();
 	}
 
-	dispose(): void {
-		this._disposables.dispose();
-		this._onDidChange.dispose();
+	get structureContextKeys(): ReadonlySet<string> {
+		return this._structureContextKeys;
 	}
 
-	private _build(): void {
+	get preconditionContextKeys(): ReadonlySet<string> {
+		return this._preconditionContextKeys;
+	}
+
+	get toggledContextKeys(): ReadonlySet<string> {
+		return this._toggledContextKeys;
+	}
+
+	refresh(): void {
 
 		// reset
 		this._menuGroups.length = 0;
@@ -237,7 +175,7 @@ class Menu implements IMenu {
 		const menuItems = MenuRegistry.getMenuItems(this._id);
 
 		let group: MenuItemGroup | undefined;
-		menuItems.sort(Menu._compareMenuItems);
+		menuItems.sort(MenuInfo._compareMenuItems);
 
 		for (const item of menuItems) {
 			// group by groupId
@@ -255,27 +193,27 @@ class Menu implements IMenu {
 
 	private _collectContextKeys(item: IMenuItem | ISubmenuItem): void {
 
-		Menu._fillInKbExprKeys(item.when, this._structureContextKeys);
+		MenuInfo._fillInKbExprKeys(item.when, this._structureContextKeys);
 
 		if (isIMenuItem(item)) {
 			// keep precondition keys for event if applicable
 			if (item.command.precondition) {
-				Menu._fillInKbExprKeys(item.command.precondition, this._preconditionContextKeys);
+				MenuInfo._fillInKbExprKeys(item.command.precondition, this._preconditionContextKeys);
 			}
 			// keep toggled keys for event if applicable
 			if (item.command.toggled) {
 				const toggledExpression: ContextKeyExpression = (item.command.toggled as { condition: ContextKeyExpression }).condition || item.command.toggled;
-				Menu._fillInKbExprKeys(toggledExpression, this._toggledContextKeys);
+				MenuInfo._fillInKbExprKeys(toggledExpression, this._toggledContextKeys);
 			}
 
-		} else if (this._options.emitEventsForSubmenuChanges) {
+		} else if (this._collectContextKeysForSubmenus) {
 			// recursively collect context keys from submenus so that this
 			// menu fires events when context key changes affect submenus
 			MenuRegistry.getMenuItems(item.submenu).forEach(this._collectContextKeys, this);
 		}
 	}
 
-	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][] {
+	createActionGroups(options: IMenuActionOptions | undefined): [string, Array<MenuItemAction | SubmenuItemAction>][] {
 		const result: [string, Array<MenuItemAction | SubmenuItemAction>][] = [];
 		const allToggleActions: IAction[][] = [];
 
@@ -287,21 +225,19 @@ class Menu implements IMenu {
 			const activeActions: Array<MenuItemAction | SubmenuItemAction> = [];
 			for (const item of items) {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
-					let action: MenuItemAction | SubmenuItemAction | undefined;
 					const isMenuItem = isIMenuItem(item);
 					const menuHide = createMenuHide(this._id, isMenuItem ? item.command : item, this._hiddenStates);
 					if (isMenuItem) {
-						action = new MenuItemAction(item.command, item.alt, options, menuHide, this._contextKeyService, this._commandService);
+						// MenuItemAction
+						activeActions.push(new MenuItemAction(item.command, item.alt, options, menuHide, this._contextKeyService, this._commandService));
 
 					} else {
-						action = new SubmenuItemAction(item, menuHide, this._menuService, this._contextKeyService, options);
-						if (action.actions.length === 0) {
-							action = undefined;
+						// SubmenuItemAction
+						const groups = new MenuInfo(item.submenu, this._hiddenStates, this._collectContextKeysForSubmenus, this._commandService, this._contextKeyService).createActionGroups(options);
+						const submenuActions = Separator.join(...groups.map(g => g[1]));
+						if (submenuActions.length > 0) {
+							activeActions.push(new SubmenuItemAction(item, menuHide, submenuActions));
 						}
-					}
-
-					if (action) {
-						activeActions.push(action);
 					}
 				}
 			}
@@ -361,7 +297,7 @@ class Menu implements IMenu {
 		}
 
 		// sort on titles
-		return Menu._compareTitles(
+		return MenuInfo._compareTitles(
 			isIMenuItem(a) ? a.command.title : a.title,
 			isIMenuItem(b) ? b.command.title : b.title
 		);
@@ -371,6 +307,96 @@ class Menu implements IMenu {
 		const aStr = typeof a === 'string' ? a : a.original;
 		const bStr = typeof b === 'string' ? b : b.original;
 		return aStr.localeCompare(bStr);
+	}
+}
+
+class MenuImpl implements IMenu {
+
+	private readonly _menuInfo: MenuInfo;
+	private readonly _disposables = new DisposableStore();
+
+	private readonly _onDidChange: Emitter<IMenuChangeEvent>;
+	readonly onDidChange: Event<IMenuChangeEvent>;
+
+	constructor(
+		id: MenuId,
+		hiddenStates: PersistedMenuHideState,
+		options: Required<IMenuCreateOptions>,
+		@ICommandService commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		this._menuInfo = new MenuInfo(id, hiddenStates, options.emitEventsForSubmenuChanges, commandService, contextKeyService);
+
+		// Rebuild this menu whenever the menu registry reports an event for this MenuId.
+		// This usually happen while code and extensions are loaded and affects the over
+		// structure of the menu
+		const rebuildMenuSoon = new RunOnceScheduler(() => {
+			this._menuInfo.refresh();
+			this._onDidChange.fire({ menu: this, isStructuralChange: true, isEnablementChange: true, isToggleChange: true });
+		}, options.eventDebounceDelay);
+		this._disposables.add(rebuildMenuSoon);
+		this._disposables.add(MenuRegistry.onDidChangeMenu(e => {
+			if (e.has(id)) {
+				rebuildMenuSoon.schedule();
+			}
+		}));
+
+		// When context keys or storage state changes we need to check if the menu also has changed. However,
+		// we only do that when someone listens on this menu because (1) these events are
+		// firing often and (2) menu are often leaked
+		const lazyListener = this._disposables.add(new DisposableStore());
+
+		const merge = (events: IMenuChangeEvent[]): IMenuChangeEvent => {
+
+			let isStructuralChange = false;
+			let isEnablementChange = false;
+			let isToggleChange = false;
+
+			for (const item of events) {
+				isStructuralChange = isStructuralChange || item.isStructuralChange;
+				isEnablementChange = isEnablementChange || item.isEnablementChange;
+				isToggleChange = isToggleChange || item.isToggleChange;
+				if (isStructuralChange && isEnablementChange && isToggleChange) {
+					// everything is TRUE, no need to continue iterating
+					break;
+				}
+			}
+
+			return { menu: this, isStructuralChange, isEnablementChange, isToggleChange };
+		};
+
+		const startLazyListener = () => {
+
+			lazyListener.add(contextKeyService.onDidChangeContext(e => {
+				const isStructuralChange = e.affectsSome(this._menuInfo.structureContextKeys);
+				const isEnablementChange = e.affectsSome(this._menuInfo.preconditionContextKeys);
+				const isToggleChange = e.affectsSome(this._menuInfo.toggledContextKeys);
+				if (isStructuralChange || isEnablementChange || isToggleChange) {
+					this._onDidChange.fire({ menu: this, isStructuralChange, isEnablementChange, isToggleChange });
+				}
+			}));
+			lazyListener.add(hiddenStates.onDidChange(e => {
+				this._onDidChange.fire({ menu: this, isStructuralChange: true, isEnablementChange: false, isToggleChange: false });
+			}));
+		};
+
+		this._onDidChange = new DebounceEmitter({
+			// start/stop context key listener
+			onFirstListenerAdd: startLazyListener,
+			onLastListenerRemove: lazyListener.clear.bind(lazyListener),
+			delay: options.eventDebounceDelay,
+			merge
+		});
+		this.onDidChange = this._onDidChange.event;
+	}
+
+	getActions(options?: IMenuActionOptions | undefined): [string, (MenuItemAction | SubmenuItemAction)[]][] {
+		return this._menuInfo.createActionGroups(options);
+	}
+
+	dispose(): void {
+		this._disposables.dispose();
+		this._onDidChange.dispose();
 	}
 }
 
