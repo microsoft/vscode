@@ -603,6 +603,10 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private updateProfilesActivityAction() {
+		if (!!this.profilesActivityAction !== this.profilesVisibilityPreference) {
+			this.toggleProfilesActivityAction();
+			return;
+		}
 		if (this.profilesActivityAction) {
 			const activity = this.createProfilesActivity();
 			if ((<IProfileActivity>this.profilesActivityAction.activity).icon === activity.icon) {
