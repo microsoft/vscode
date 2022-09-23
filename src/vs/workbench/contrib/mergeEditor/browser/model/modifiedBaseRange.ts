@@ -244,6 +244,11 @@ export class ModifiedBaseRangeState {
 		}
 	}
 
+	public isInputIncluded(inputNumber: 1 | 2): boolean {
+		const value = this.getInput(inputNumber);
+		return value === InputState.first || value === InputState.second;
+	}
+
 	public withInputValue(inputNumber: 1 | 2, value: boolean): ModifiedBaseRangeState {
 		return inputNumber === 1 ? this.withInput1(value) : this.withInput2(value);
 	}
