@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { Command, CommandManager } from '../commands/commandManager';
 import type * as Proto from '../protocol';
+import { OrganizeImportsMode } from '../protocol.const';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
@@ -29,7 +30,7 @@ class OrganizeImportsCommand implements Command {
 		private readonly telemetryReporter: TelemetryReporter,
 	) { }
 
-	public async execute(file: string, sortOnly = false): Promise<any> {
+	public async execute(file: string, mode?: OrganizeImportsMode): Promise<any> {
 		/* __GDPR__
 			"organizeImports.execute" : {
 				"owner": "mjbvz",
@@ -47,7 +48,8 @@ class OrganizeImportsCommand implements Command {
 					file
 				}
 			},
-			skipDestructiveCodeActions: sortOnly,
+			// @ts-expect-error until 4.9
+			mode: typeConverters.OrganizeImportsMode.toProtocolOrganizeImportsMode(mode),
 		};
 		const response = await this.client.interruptGetErr(() => this.client.execute('organizeImports', args, nulToken));
 		if (response.type !== 'response' || !response.body) {
@@ -68,7 +70,7 @@ class ImportsCodeActionProvider implements vscode.CodeActionProvider {
 		minVersion: API,
 		kind: vscode.CodeActionKind,
 		title: string,
-		sortOnly: boolean,
+		mode: OrganizeImportsMode,
 		commandManager: CommandManager,
 		fileConfigurationManager: FileConfigurationManager,
 		telemetryReporter: TelemetryReporter,
@@ -78,7 +80,7 @@ class ImportsCodeActionProvider implements vscode.CodeActionProvider {
 			requireMinVersion(client, minVersion),
 			requireSomeCapability(client, ClientCapability.Semantic),
 		], () => {
-			const provider = new ImportsCodeActionProvider(client, kind, title, sortOnly, commandManager, fileConfigurationManager, telemetryReporter);
+			const provider = new ImportsCodeActionProvider(client, kind, title, mode, commandManager, fileConfigurationManager, telemetryReporter);
 			return vscode.languages.registerCodeActionsProvider(selector.semantic, provider, {
 				providedCodeActionKinds: [kind]
 			});
@@ -89,7 +91,7 @@ class ImportsCodeActionProvider implements vscode.CodeActionProvider {
 		private readonly client: ITypeScriptServiceClient,
 		private readonly kind: vscode.CodeActionKind,
 		private readonly title: string,
-		private readonly sortOnly: boolean,
+		private readonly mode: OrganizeImportsMode,
 		commandManager: CommandManager,
 		private readonly fileConfigManager: FileConfigurationManager,
 		telemetryReporter: TelemetryReporter,
@@ -115,7 +117,7 @@ class ImportsCodeActionProvider implements vscode.CodeActionProvider {
 		this.fileConfigManager.ensureConfigurationForDocument(document, token);
 
 		const action = new vscode.CodeAction(this.title, this.kind);
-		action.command = { title: '', command: OrganizeImportsCommand.Id, arguments: [file, this.sortOnly] };
+		action.command = { title: '', command: OrganizeImportsCommand.Id, arguments: [file, this.mode] };
 		return [action];
 	}
 }
@@ -133,7 +135,7 @@ export function register(
 			API.v280,
 			vscode.CodeActionKind.SourceOrganizeImports,
 			localize('organizeImportsAction.title', "Organize Imports"),
-			false,
+			OrganizeImportsMode.All,
 			commandManager,
 			fileConfigurationManager,
 			telemetryReporter,
@@ -144,7 +146,18 @@ export function register(
 			API.v430,
 			vscode.CodeActionKind.Source.append('sortImports'),
 			localize('sortImportsAction.title', "Sort Imports"),
-			true,
+			OrganizeImportsMode.SortAndCombine,
+			commandManager,
+			fileConfigurationManager,
+			telemetryReporter,
+			selector
+		),
+		ImportsCodeActionProvider.register(
+			client,
+			API.v490,
+			vscode.CodeActionKind.Source.append('removeUnusedImports'),
+			localize('removeUnusedImportsAction.title', "Remove Unused Imports"),
+			OrganizeImportsMode.RemoveUnused,
 			commandManager,
 			fileConfigurationManager,
 			telemetryReporter,

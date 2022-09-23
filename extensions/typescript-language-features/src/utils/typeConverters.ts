@@ -136,3 +136,14 @@ export namespace CompletionTriggerKind {
 		}
 	}
 }
+
+export namespace OrganizeImportsMode {
+	// @ts-expect-error until 4.9
+	export function toProtocolOrganizeImportsMode(mode: PConst.OrganizeImportsMode): Proto.OrganizeImportsMode {
+		switch (mode) {
+			case PConst.OrganizeImportsMode.All: return 'All';
+			case PConst.OrganizeImportsMode.SortAndCombine: return 'SortAndCombine';
+			case PConst.OrganizeImportsMode.RemoveUnused: return 'RemoveUnused';
+		}
+	}
+}
