@@ -1780,7 +1780,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 	}
 
-	getExtensionIgnoresUpdate(extension: IExtension): boolean {
+	isExtensionIgnoresUpdates(extension: IExtension): boolean {
 		return this.isAutoUpdateIgnored(new ExtensionKey(extension.identifier, extension.version));
 	}
 

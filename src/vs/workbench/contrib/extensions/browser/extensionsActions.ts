@@ -824,7 +824,6 @@ abstract class AbstractUpdateAction extends ExtensionAction {
 	private async computeAndUpdateEnablement(): Promise<void> {
 		this.enabled = false;
 		this.class = UpdateAction.DisabledClass;
-		this.label = this.getLabel();
 
 		if (!this.extension) {
 			return;
@@ -839,10 +838,7 @@ abstract class AbstractUpdateAction extends ExtensionAction {
 
 		this.enabled = canInstall && isInstalled && this.extension.outdated;
 		this.class = this.enabled ? AbstractUpdateAction.EnabledClass : AbstractUpdateAction.DisabledClass;
-		this.label = this.getLabel();
 	}
-
-	protected abstract getLabel(): string;
 }
 
 export class UpdateAction extends AbstractUpdateAction {
@@ -851,7 +847,7 @@ export class UpdateAction extends AbstractUpdateAction {
 		@IExtensionsWorkbenchService override readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
-		super(`extensions.update`, '', extensionsWorkbenchService);
+		super(`extensions.update`, localize('update', "Update"), extensionsWorkbenchService);
 	}
 
 	override async run(): Promise<any> {
@@ -870,10 +866,6 @@ export class UpdateAction extends AbstractUpdateAction {
 			this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Update, undefined, err).run();
 		}
 	}
-
-	protected getLabel(): string {
-		return localize('update', "Update");
-	}
 }
 
 export class SkipUpdateAction extends AbstractUpdateAction {
@@ -881,13 +873,13 @@ export class SkipUpdateAction extends AbstractUpdateAction {
 	constructor(
 		@IExtensionsWorkbenchService override readonly extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super(`extensions.ignoreUpdates`, '', extensionsWorkbenchService);
+		super(`extensions.ignoreUpdates`, localize('ignoreUpdates', "Ignore Updates"), extensionsWorkbenchService);
 	}
 
 	override update() {
 		super.update();
 		if (this.extension) {
-			this._checked = this.extensionsWorkbenchService.getExtensionIgnoresUpdate(this.extension);
+			this._checked = this.extensionsWorkbenchService.isExtensionIgnoresUpdates(this.extension);
 		}
 	}
 
@@ -896,14 +888,10 @@ export class SkipUpdateAction extends AbstractUpdateAction {
 			return;
 		}
 		alert(localize('ignoreExtensionUpdate', "Ignoring {0} updates", this.extension.displayName));
-		const newIgnoresAutoUpdates = !this.extensionsWorkbenchService.getExtensionIgnoresUpdate(this.extension);
+		const newIgnoresAutoUpdates = !this.extensionsWorkbenchService.isExtensionIgnoresUpdates(this.extension);
 		this.extensionsWorkbenchService.setExtensionIgnoresUpdate(this.extension, newIgnoresAutoUpdates);
 		this.update();
 		this._onDidChange.fire({ checked: newIgnoresAutoUpdates });
-	}
-
-	protected override getLabel(): string {
-		return localize('ignoreUpdates', "Ignore Updates");
 	}
 }
 
