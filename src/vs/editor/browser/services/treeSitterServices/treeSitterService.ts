@@ -19,7 +19,7 @@ export const ITreeSitterService = createDecorator<ITreeSitterService>('ITreeSitt
 
 export interface ITreeSitterService {
 	readonly _serviceBrand: undefined;
-	getTreeSitterCaptures(model: ITextModel, queryString: string, asychronous?: boolean): Promise<Parser.QueryCapture[]>;
+	getTreeSitterCaptures(model: ITextModel, queryString: string, asychronous?: boolean, startLine?: number): Promise<Parser.QueryCapture[]>;
 	registerLanguage(language: string, uri: string): void;
 	getTreeSitterTree(model: ITextModel): Promise<TreeSitterTree>;
 }
@@ -53,18 +53,18 @@ export class TreeSitterService implements ITreeSitterService {
 		this.supportedLanguages.set(language, uri);
 	}
 
-	public async getTreeSitterCaptures(model: ITextModel, queryString: string, asychronous: boolean = true): Promise<Parser.QueryCapture[]> {
+	public async getTreeSitterCaptures(model: ITextModel, queryString: string, asychronous: boolean = true, startLine?: number): Promise<Parser.QueryCapture[]> {
 		if (!this._language) {
 			return this.fetchLanguage(model.getLanguageId()).then((language) => {
 				this._language = language;
-				return this._getTreeSitterCaptures(model, queryString, asychronous);
+				return this._getTreeSitterCaptures(model, queryString, asychronous, startLine);
 			});
 		} else {
-			return this._getTreeSitterCaptures(model, queryString, asychronous);
+			return this._getTreeSitterCaptures(model, queryString, asychronous, startLine);
 		}
 	}
 
-	private async _getTreeSitterCaptures(model: ITextModel, queryString: string, asychronous: boolean = true): Promise<Parser.QueryCapture[]> {
+	private async _getTreeSitterCaptures(model: ITextModel, queryString: string, asychronous: boolean = true, startLine?: number): Promise<Parser.QueryCapture[]> {
 		if (!this._language) {
 			throw new Error('Parser language should be defined');
 		}
@@ -77,7 +77,7 @@ export class TreeSitterService implements ITreeSitterService {
 		const timeTreeParse = sw.elapsed();
 		console.log('Time to parse tree : ', timeTreeParse);
 		const query = this._language.query(queryString);
-		const captures = query.captures(parsedTree.rootNode);
+		const captures = query.captures(parsedTree.rootNode, { row: startLine ? startLine : 1, column: 1 } as Parser.Point);
 		const timeCaptureQueries = sw.elapsed();
 		console.log('Time to get the query captures : ', timeCaptureQueries - timeTreeParse);
 		query.delete();
@@ -112,7 +112,7 @@ export class TreeSitterService implements ITreeSitterService {
 			throw new Error('Unsupported language in tree-sitter');
 		}
 		const languageFile = await (this._fileService.readFile(FileAccess.asFileUri(this.supportedLanguages.get(language)!, require)));
-		return Parser.Language.load(languageFile.value.buffer).then((language: Uint8Array) => {
+		return Parser.Language.load(languageFile.value.buffer).then((language: Parser.Language) => {
 			return new Promise(function (resolve, _reject) {
 				resolve(language);
 			});

@@ -64,7 +64,7 @@ export class TreeSitterColorizationTree {
 					console.log('Number of calls to runSetTokensWithThemeData : ', this._nCallsToRunSetTokensWithThemeData);
 					this._disposableStore.add(this._model.onDidChangeContent((contentChangeEvent: IModelContentChangedEvent) => {
 						this.updateRowIndices(contentChangeEvent);
-						_treeSitterService.getTreeSitterCaptures(this._model, query, this._asynchronous).then((queryCaptures) => {
+						_treeSitterService.getTreeSitterCaptures(this._model, query, this._asynchronous, this._startPositionRow).then((queryCaptures) => {
 							if (!queryCaptures) {
 								return;
 							}
@@ -83,7 +83,7 @@ export class TreeSitterColorizationTree {
 
 	public setTokensUsingQueryCaptures(queryCaptures: Parser.QueryCapture[], asynchronous: boolean = true): Promise<void> {
 		const that = this;
-		this._contiguousMultilineToken.splice(this._startPositionRow, this._endPositionRow - this._startPositionRow + 1);
+		this._contiguousMultilineToken.splice(this._startPositionRow, this._model.getLineCount() - this._startPositionRow + 1);
 
 		// Case 1: code was removed
 		if (this._newEndPositionRow < this._endPositionRow) {
@@ -144,22 +144,24 @@ export class TreeSitterColorizationTree {
 		const numberCaptures = queryCaptures.length;
 		let beginningCaptureIndex = this._beginningCaptureIndex;
 
-		// ? instead of this._newEndPositionRow, should be the last possible line
-		for (let i = this._startPositionRow; i <= this._newEndPositionRow; i++) {
+		for (let i = this._startPositionRow; i <= this._model.getLineCount() - 1; i++) {
 			const contiguousMultilineTokensArray: number[] = [];
 			let j = beginningCaptureIndex;
 
 			while (j < numberCaptures && queryCaptures[j].node.startPosition.row <= i) {
-				if (i === queryCaptures[j].node.startPosition.row && i === queryCaptures[j].node.endPosition.row) {
+				if (i === queryCaptures[j].node.startPosition.row && i === queryCaptures[j].node.endPosition.row ||
+					queryCaptures[j].name === 'comment.block.ts' && i >= queryCaptures[j].node.startPosition.row && i <= queryCaptures[j].node.endPosition.row
+				) {
 					if (!newBeginningIndexFound) {
 						newBeginningIndexFound = true;
-						beginningCaptureIndex = queryCaptures[j].node.startPosition.row;
+						beginningCaptureIndex = j;
 					}
 					contiguousMultilineTokensArray.push(queryCaptures[j].node.endPosition.column, this.findMetadata(j, queryCaptures));
 				}
 				if (asynchronous) {
 					const time2 = performance.now();
 					if (time2 - time1 >= this._timeoutForRender) {
+						this._model.tokenization.setTokens(this._contiguousMultilineToken);
 						return false;
 					}
 				}
@@ -167,7 +169,7 @@ export class TreeSitterColorizationTree {
 			}
 			newBeginningIndexFound = false;
 			this._contiguousMultilineToken.splice(i, 0, new ContiguousMultilineTokens(i + 1, [new Uint32Array(contiguousMultilineTokensArray)]));
-			this._model.tokenization.setTokens(this._contiguousMultilineToken);
+			// this._model.tokenization.setTokens(this._contiguousMultilineToken);
 			this._beginningCaptureIndex = beginningCaptureIndex;
 			this._startPositionRow = i + 1;
 		}
