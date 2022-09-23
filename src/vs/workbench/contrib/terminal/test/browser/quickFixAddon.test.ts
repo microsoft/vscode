@@ -14,7 +14,7 @@ import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/commo
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { ITerminalQuickFixAction, ITerminalInstance, ITerminalOutputMatcher } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { terminalFreePort, FreePortOutputRegex, terminalGitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, terminalGitPushSetUpstream, terminalGitSimilarCommand, GitSimilarOutputRegex } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
+import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, gitSimilarCommand, GitSimilarOutputRegex } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { TerminalQuickFixAddon, getQuickFixes } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { Terminal } from 'xterm';
 
@@ -62,7 +62,7 @@ suite('QuickFixAddon', () => {
 				}
 			];
 			setup(() => {
-				const command = terminalGitSimilarCommand();
+				const command = gitSimilarCommand();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
 				quickFixAddon.registerCommandFinishedListener(command);
 			});
@@ -108,7 +108,7 @@ suite('QuickFixAddon', () => {
 				enabled: true
 			}];
 			setup(() => {
-				const command = terminalFreePort(terminalInstance);
+				const command = freePort(terminalInstance);
 				expected.set(command.commandLineMatcher.toString(), [command]);
 				quickFixAddon.registerCommandFinishedListener(command);
 			});
@@ -139,7 +139,7 @@ suite('QuickFixAddon', () => {
 				}
 			];
 			setup(() => {
-				const command = terminalGitPushSetUpstream();
+				const command = gitPushSetUpstream();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
 				quickFixAddon.registerCommandFinishedListener(command);
 			});
@@ -182,7 +182,7 @@ suite('QuickFixAddon', () => {
 				}
 			];
 			setup(() => {
-				const command = terminalGitCreatePr(openerService);
+				const command = gitCreatePr(openerService);
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
 				quickFixAddon.registerCommandFinishedListener(command);
 			});

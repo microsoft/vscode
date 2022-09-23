@@ -17,11 +17,7 @@ import { Terminal } from 'xterm';
 import { IAction } from 'vs/base/common/actions';
 
 export interface ITerminalQuickFix {
-	/**
-	 * Shows the quick fix menu
-	 */
-	showQuickFixMenu(): void;
-
+	showMenu(): void;
 	/**
 	 * Registers a listener on onCommandFinished scoped to a particular command or regular
 	 * expression and provides a callback to be executed for commands that match.
@@ -66,7 +62,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		this._terminal = terminal;
 	}
 
-	showQuickFixMenu(): void {
+	showMenu(): void {
 		this._currentQuickFixElement?.click();
 	}
 

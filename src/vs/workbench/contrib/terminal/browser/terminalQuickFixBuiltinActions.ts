@@ -18,7 +18,7 @@ export const FreePortOutputRegex = /address already in use \d\.\d\.\d\.\d:(\d\d\
 export const GitPushOutputRegex = /git push --set-upstream origin ([^\s]+)\s+/;
 export const GitCreatePrOutputRegex = /Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s+remote:\s+(https:.+pull.+)\s+/;
 
-export function terminalGitSimilarCommand(): ITerminalQuickFixOptions {
+export function gitSimilarCommand(): ITerminalQuickFixOptions {
 	return {
 		commandLineMatcher: GitCommandLineRegex,
 		outputMatcher: { lineMatcher: GitSimilarOutputRegex, anchor: 'bottom' },
@@ -41,7 +41,7 @@ export function terminalGitSimilarCommand(): ITerminalQuickFixOptions {
 		}
 	};
 }
-export function terminalFreePort(terminalInstance?: Partial<ITerminalInstance>): ITerminalQuickFixOptions {
+export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITerminalQuickFixOptions {
 	return {
 		quickFixLabel: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Free port ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: AnyCommandLineRegex,
@@ -65,7 +65,7 @@ export function terminalFreePort(terminalInstance?: Partial<ITerminalInstance>):
 		}
 	};
 }
-export function terminalGitPushSetUpstream(): ITerminalQuickFixOptions {
+export function gitPushSetUpstream(): ITerminalQuickFixOptions {
 	return {
 		quickFixLabel: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Git push ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: GitPushCommandLineRegex,
@@ -90,7 +90,7 @@ export function terminalGitPushSetUpstream(): ITerminalQuickFixOptions {
 	};
 }
 
-export function terminalGitCreatePr(openerService: IOpenerService): ITerminalQuickFixOptions {
+export function gitCreatePr(openerService: IOpenerService): ITerminalQuickFixOptions {
 	return {
 		quickFixLabel: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Create PR for ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: GitPushCommandLineRegex,
