@@ -612,19 +612,6 @@ export function inspectSetting(key: string, target: SettingsTarget, languageFilt
 				target === ConfigurationTarget.WORKSPACE ? 'workspace' :
 					'workspaceFolder';
 	let isConfigured = typeof inspected[targetSelector] !== 'undefined';
-	if (!isConfigured) {
-		if (target === ConfigurationTarget.APPLICATION) {
-			isConfigured = !!configurationService.restrictedSettings.application?.includes(key);
-		} else if (target === ConfigurationTarget.USER_LOCAL) {
-			isConfigured = !!configurationService.restrictedSettings.userLocal?.includes(key);
-		} else if (target === ConfigurationTarget.USER_REMOTE) {
-			isConfigured = !!configurationService.restrictedSettings.userRemote?.includes(key);
-		} else if (target === ConfigurationTarget.WORKSPACE) {
-			isConfigured = !!configurationService.restrictedSettings.workspace?.includes(key);
-		} else if (target instanceof URI) {
-			isConfigured = !!configurationService.restrictedSettings.workspaceFolder?.get(target)?.includes(key);
-		}
-	}
 
 	const overrideIdentifiers = inspected.overrideIdentifiers;
 	const inspectedLanguageOverrides = new Map<string, IConfigurationValue<unknown>>();
