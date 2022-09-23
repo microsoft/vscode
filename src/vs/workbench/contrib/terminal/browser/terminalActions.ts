@@ -143,6 +143,26 @@ export function registerTerminalActions() {
 		}
 	});
 
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.QuickFix,
+				title: { value: localize('workbench.action.terminal.quickFix', "Quick Fix"), original: 'Quick Fix' },
+				f1: true,
+				category,
+				precondition: TerminalContextKeys.processSupported,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyCode.Period,
+					when: TerminalContextKeys.focus,
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).activeInstance?.contextualActions?.showQuickFixMenu();
+		}
+	});
+
 	// Register new with profile command
 	refreshTerminalActions([]);
 
@@ -350,7 +370,7 @@ export function registerTerminalActions() {
 				return;
 			}
 			const output = command.getOutput();
-			if (output) {
+			if (output && typeof output === 'string') {
 				await accessor.get(IClipboardService).writeText(output);
 			}
 		}

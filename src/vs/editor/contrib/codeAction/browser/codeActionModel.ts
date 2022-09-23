@@ -69,21 +69,6 @@ class CodeActionOracle extends Disposable {
 		}, this._delay);
 	}
 
-	private _getRangeOfMarker(selection: Selection): Range | undefined {
-		const model = this._editor.getModel();
-		if (!model) {
-			return undefined;
-		}
-		for (const marker of this._markerService.read({ resource: model.uri })) {
-			const markerRange = model.validateRange(marker);
-			if (Range.intersectRanges(markerRange, selection)) {
-				return Range.lift(markerRange);
-			}
-		}
-
-		return undefined;
-	}
-
 	private _getRangeOfSelectionUnlessWhitespaceEnclosed(trigger: CodeActionTrigger): Selection | undefined {
 		if (!this._editor.hasModel()) {
 			return undefined;
@@ -124,13 +109,10 @@ class CodeActionOracle extends Disposable {
 			return undefined;
 		}
 
-		const markerRange = this._getRangeOfMarker(selection);
-		const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
-
 		const e: TriggeredCodeAction = {
 			trigger,
 			selection,
-			position
+			position: selection.getStartPosition(),
 		};
 		this._signalChange(e);
 		return e;

@@ -19,7 +19,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { RenameProfileAction } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfileActions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { charCount } from 'vs/base/common/strings';
@@ -28,6 +28,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 export class UserDataProfilesWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
 	private readonly currentProfileContext: IContextKey<string>;
+	private readonly isCurrentProfileTransientContext: IContextKey<boolean>;
 	private readonly hasProfilesContext: IContextKey<boolean>;
 
 	constructor(
@@ -43,8 +44,14 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.registerConfiguration();
 
 		this.currentProfileContext = CURRENT_PROFILE_CONTEXT.bindTo(contextKeyService);
+		this.isCurrentProfileTransientContext = IS_CURRENT_PROFILE_TRANSIENT_CONTEXT.bindTo(contextKeyService);
+
 		this.currentProfileContext.set(this.userDataProfileService.currentProfile.id);
-		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => this.currentProfileContext.set(this.userDataProfileService.currentProfile.id)));
+		this.isCurrentProfileTransientContext.set(!!this.userDataProfileService.currentProfile.isTransient);
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => {
+			this.currentProfileContext.set(this.userDataProfileService.currentProfile.id);
+			this.isCurrentProfileTransientContext.set(!!this.userDataProfileService.currentProfile.isTransient);
+		}));
 
 		this.hasProfilesContext = HAS_PROFILES_CONTEXT.bindTo(contextKeyService);
 		this.hasProfilesContext.set(this.userDataProfilesService.profiles.length > 1);
@@ -162,7 +169,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						{
 							id: ManageProfilesSubMenu,
 							group: '2_manage_current',
-							when: ContextKeyExpr.notEquals(CURRENT_PROFILE_CONTEXT.key, that.userDataProfilesService.defaultProfile.id),
+							when: ContextKeyExpr.and(ContextKeyExpr.notEquals(CURRENT_PROFILE_CONTEXT.key, that.userDataProfilesService.defaultProfile.id), IS_CURRENT_PROFILE_TRANSIENT_CONTEXT.toNegated()),
 							order: 1
 						}
 					]
@@ -208,7 +215,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						{
 							id: ManageProfilesSubMenu,
 							group: '2_manage_current',
-							when: ContextKeyExpr.notEquals(CURRENT_PROFILE_CONTEXT.key, that.userDataProfilesService.defaultProfile.id),
+							when: ContextKeyExpr.and(ContextKeyExpr.notEquals(CURRENT_PROFILE_CONTEXT.key, that.userDataProfilesService.defaultProfile.id), IS_CURRENT_PROFILE_TRANSIENT_CONTEXT.toNegated()),
 							order: 2
 						}
 					]
