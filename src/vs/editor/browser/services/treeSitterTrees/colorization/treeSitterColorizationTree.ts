@@ -17,6 +17,7 @@ import { FontStyle, MetadataConsts } from 'vs/editor/common/encodedTokenAttribut
 import { TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { ITreeSitterService } from 'vs/editor/browser/services/treeSitterServices/treeSitterService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 export class TreeSitterColorizationTree {
 
@@ -30,6 +31,7 @@ export class TreeSitterColorizationTree {
 	private _newEndPositionRow: number;
 	private _colorThemeData: ColorThemeData;
 	private _fileService: IFileService;
+	private _nCallsToRunSetTokensWithThemeData: number;
 
 	constructor(
 		private readonly _model: ITextModel,
@@ -48,6 +50,7 @@ export class TreeSitterColorizationTree {
 		this._startPositionRow = 0;
 		this._endPositionRow = this._model.getLineCount() - 1;
 		this._newEndPositionRow = this._model.getLineCount() - 1;
+		this._nCallsToRunSetTokensWithThemeData = 0;
 
 		this.setTimeoutForRenderingInMs(10);
 		this._fetchQueries().then((query) => {
@@ -55,7 +58,10 @@ export class TreeSitterColorizationTree {
 				if (!queryCaptures) {
 					return;
 				}
+				const sw = StopWatch.create(true);
 				this.setTokensUsingQueryCaptures(queryCaptures, this._asynchronous).then(() => {
+					console.log('Time to set tokens : ', sw.elapsed());
+					console.log('Number of calls to runSetTokensWithThemeData : ', this._nCallsToRunSetTokensWithThemeData);
 					this._disposableStore.add(this._model.onDidChangeContent((contentChangeEvent: IModelContentChangedEvent) => {
 						this.updateRowIndices(contentChangeEvent);
 						_treeSitterService.getTreeSitterCaptures(this._model, query, this._asynchronous).then((queryCaptures) => {
@@ -77,7 +83,7 @@ export class TreeSitterColorizationTree {
 
 	public setTokensUsingQueryCaptures(queryCaptures: Parser.QueryCapture[], asynchronous: boolean = true): Promise<void> {
 		const that = this;
-		this._contiguousMultilineToken.splice(this._startPositionRow, this._endPositionRow - this._startPositionRow + 1); //? Do I need +1 there?
+		this._contiguousMultilineToken.splice(this._startPositionRow, this._endPositionRow - this._startPositionRow + 1);
 
 		// Case 1: code was removed
 		if (this._newEndPositionRow < this._endPositionRow) {
@@ -95,12 +101,14 @@ export class TreeSitterColorizationTree {
 				}
 			});
 		}
+		this._nCallsToRunSetTokensWithThemeData = 0;
 		return new Promise(function (resolve, _reject) {
-			that.runSetTokensWithThemeData(queryCaptures, resolve, asynchronous);
+			return that.runSetTokensWithThemeData(queryCaptures, resolve, asynchronous);
 		});
 	}
 
 	private runSetTokensWithThemeData(queryCaptures: Parser.QueryCapture[], resolve: () => void, asynchronous: boolean = true): void {
+		this._nCallsToRunSetTokensWithThemeData += 1;
 		if (asynchronous) {
 			runWhenIdle(
 				(arg) => {

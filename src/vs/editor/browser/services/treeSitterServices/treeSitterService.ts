@@ -13,6 +13,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IModelService } from 'vs/editor/common/services/model';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IFileService } from 'vs/platform/files/common/files';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 export const ITreeSitterService = createDecorator<ITreeSitterService>('ITreeSitterService');
 
@@ -71,9 +72,14 @@ export class TreeSitterService implements ITreeSitterService {
 			this._trees.set(model.uri, new TreeSitterTree(model, this._language));
 		}
 		const tree = this._trees.get(model.uri);
+		const sw = StopWatch.create(true);
 		const parsedTree = await tree!.parseTree(asychronous);
+		const timeTreeParse = sw.elapsed();
+		console.log('Time to parse tree : ', timeTreeParse);
 		const query = this._language.query(queryString);
 		const captures = query.captures(parsedTree.rootNode);
+		const timeCaptureQueries = sw.elapsed();
+		console.log('Time to get the query captures : ', timeCaptureQueries - timeTreeParse);
 		query.delete();
 		return captures;
 	}
@@ -105,8 +111,7 @@ export class TreeSitterService implements ITreeSitterService {
 		if (!this.supportedLanguages.has(language)) {
 			throw new Error('Unsupported language in tree-sitter');
 		}
-		const languageFile = await this._fileService.readFile(FileAccess.asFileUri(this.supportedLanguages.get(language)!, require));
-		console.log('languageFile : ', languageFile);
+		const languageFile = await (this._fileService.readFile(FileAccess.asFileUri(this.supportedLanguages.get(language)!, require)));
 		return Parser.Language.load(languageFile.value.buffer).then((language: Uint8Array) => {
 			return new Promise(function (resolve, _reject) {
 				resolve(language);

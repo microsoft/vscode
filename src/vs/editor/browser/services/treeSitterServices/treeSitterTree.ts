@@ -18,6 +18,7 @@ export class TreeSitterTree {
 	private _tree: Parser.Tree | undefined;
 	private _edits: Parser.Edit[];
 	private _nCallsParseTree: number;
+	private _nCallsParseAsync: number;
 	private readonly _store: DisposableStore = new DisposableStore();
 
 	constructor(
@@ -28,6 +29,7 @@ export class TreeSitterTree {
 		this._parser.setLanguage(_language);
 		this._edits = [];
 		this._nCallsParseTree = 0;
+		this._nCallsParseAsync = 0;
 		this.parseTree().then((tree) => {
 			if (tree) {
 				this._tree = tree;
@@ -95,6 +97,8 @@ export class TreeSitterTree {
 	private async _tryParseSync(asynchronous: boolean = true): Promise<Parser.Tree> {
 		if (asynchronous) {
 			this._parser.setTimeoutMicros(10000);
+		} else {
+			this._parser.setTimeoutMicros(Infinity);
 		}
 		const tree = this.updateAndGetTree();
 		// Initially synchronous
@@ -111,6 +115,7 @@ export class TreeSitterTree {
 		catch (error) {
 			const textModel = createTextModel('');
 			textModel.setValue(this._model.createSnapshot());
+			this._nCallsParseAsync = 0;
 			return new Promise((resolve, _reject) => {
 				this._parseAsync(textModel, tree).then((tree) => {
 					this._tree = tree;
@@ -132,6 +137,7 @@ export class TreeSitterTree {
 	}
 
 	private _parseAsync(textModel: ITextModel, tree: Parser.Tree | undefined): Promise<Parser.Tree> {
+		this._nCallsParseAsync += 1;
 		return new Promise((resolve, _reject) => {
 			runWhenIdle(
 				async (arg) => {
@@ -145,10 +151,11 @@ export class TreeSitterTree {
 						);
 						// Case 1: Either we obtain the result this iteration in which case we resolve
 						this._tree = result;
+						console.log('Number of calls to _parseAsync : ', this._nCallsParseAsync);
 						resolve(result);
 
 					}
-					// Case 3: Here in the catch block treat the case when the parse has failed, then rerun the method
+					// Case 2: Here in the catch block treat the case when the parse has failed, then rerun the method
 					catch (error) {
 						return this._parseAsync(textModel, tree).then((tree) => {
 							resolve(tree);
