@@ -93,8 +93,13 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 		if (info.all.length === 0) {
 			// no kernel at all
 			const sourceActions = this._notebookKernelService.getSourceActions();
-			if (sourceActions.length === 1) {
-				await sourceActions[0].runAction();
+			const primaryActions = sourceActions.filter(action => action.isPrimary);
+			const action = sourceActions.length === 1
+				? sourceActions[0]
+				: (primaryActions.length === 1 ? primaryActions[0] : undefined);
+
+			if (action) {
+				await action.runAction();
 				kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
 			}
 		}

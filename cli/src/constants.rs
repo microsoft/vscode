@@ -12,6 +12,8 @@ pub const VSCODE_CLI_VERSION: Option<&'static str> = option_env!("VSCODE_CLI_VER
 pub const VSCODE_CLI_ASSET_NAME: Option<&'static str> = option_env!("VSCODE_CLI_ASSET_NAME");
 pub const VSCODE_CLI_AI_KEY: Option<&'static str> = option_env!("VSCODE_CLI_AI_KEY");
 pub const VSCODE_CLI_AI_ENDPOINT: Option<&'static str> = option_env!("VSCODE_CLI_AI_ENDPOINT");
+pub const VSCODE_CLI_UPDATE_ENDPOINT: Option<&'static str> =
+    option_env!("VSCODE_CLI_UPDATE_ENDPOINT");
 
 pub const TUNNEL_SERVICE_USER_AGENT_ENV_VAR: &str = "TUNNEL_SERVICE_USER_AGENT";
 

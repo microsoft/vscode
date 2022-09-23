@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-j+I5FRqQBE2aQY6H/U/pjZI3buJy36yZ/upZTKZov3c=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-wwaDxsm1+SKIUb5YJXiZlYMyV7QPB8+zd6HPcTjigZs=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -333,7 +333,7 @@
 
 				if (!crypto.subtle) {
 					// cannot validate, not running in a secure context
-					throw new Error(`Cannot validate in current context!`);
+					throw new Error(`'crypto.subtle' is not available so webviews will not work. This is likely because the editor is not running in a secure context (https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts).`);
 				}
 
 				// Here the `parentOriginHash()` function from `src/vs/workbench/common/webview.ts` is inlined
@@ -433,7 +433,10 @@
 			activeTheme: undefined,
 
 			/** @type {string | undefined} */
-			themeName: undefined,
+			themeId: undefined,
+
+			/** @type {string | undefined} */
+			themeLabel: undefined,
 
 			/** @type {boolean} */
 			screenReader: false,
@@ -491,7 +494,9 @@
 				}
 
 				body.dataset.vscodeThemeKind = initData.activeTheme;
-				body.dataset.vscodeThemeName = initData.themeName || '';
+				/** @deprecated data-vscode-theme-name will be removed, use data-vscode-theme-id instead */
+				body.dataset.vscodeThemeName = initData.themeLabel || '';
+				body.dataset.vscodeThemeId = initData.themeId || '';
 			}
 
 			if (initData.styles) {
@@ -830,7 +835,8 @@
 
 				initData.styles = data.styles;
 				initData.activeTheme = data.activeTheme;
-				initData.themeName = data.themeName;
+				initData.themeLabel = data.themeLabel;
+				initData.themeId = data.themeId;
 				initData.reduceMotion = data.reduceMotion;
 				initData.screenReader = data.screenReader;
 

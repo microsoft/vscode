@@ -299,7 +299,6 @@ class ExtensionsScanner extends Disposable {
 		}
 
 		await this.extractAtLocation(extensionKey, zipPath, tempPath, token);
-		metadata.installedTimestamp = Date.now();
 		await this.extensionsScannerService.updateMetadata(URI.file(tempPath), metadata);
 
 		try {
@@ -617,6 +616,7 @@ class InstallGalleryExtensionTask extends InstallExtensionTask {
 			isSystem: existingExtension?.type === ExtensionType.System ? true : undefined,
 			updated: !!existingExtension,
 			isPreReleaseVersion: this.gallery.properties.isPreReleaseVersion,
+			installedTimestamp: Date.now(),
 			preRelease: this.gallery.properties.isPreReleaseVersion ||
 				(isBoolean(this.options.installPreReleaseVersion)
 					? this.options.installPreReleaseVersion /* Respect the passed flag */
@@ -691,6 +691,7 @@ class InstallVSIXTask extends InstallExtensionTask {
 		metadata.isApplicationScoped = isApplicationScopedExtension(this.manifest);
 		metadata.isMachineScoped = this.options.isMachineScoped || existing?.isMachineScoped;
 		metadata.isBuiltin = this.options.isBuiltin || existing?.isBuiltin;
+		metadata.installedTimestamp = Date.now();
 
 		if (existing) {
 			this._operation = InstallOperation.Update;

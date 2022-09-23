@@ -734,8 +734,26 @@ export async function provideInlineCompletions(
 
 				snippetInfo = undefined;
 			} else if ('snippet' in item.insertText) {
+				const preBracketCompletionLength = item.insertText.snippet.length;
+
+				if (languageConfigurationService && item.completeBracketPairs) {
+					item.insertText.snippet = closeBrackets(
+						item.insertText.snippet,
+						range.getStartPosition(),
+						model,
+						languageConfigurationService
+					);
+
+					// Modify range depending on if brackets are added or removed
+					const diff = item.insertText.snippet.length - preBracketCompletionLength;
+					if (diff !== 0) {
+						range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn + diff);
+					}
+				}
+
 				const snippet = new SnippetParser().parse(item.insertText.snippet);
 				insertText = snippet.toString();
+
 				snippetInfo = {
 					snippet: item.insertText.snippet,
 					range: range

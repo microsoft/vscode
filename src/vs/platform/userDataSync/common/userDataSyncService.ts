@@ -14,6 +14,7 @@ import { isBoolean, isUndefined, isUndefinedOrNull } from 'vs/base/common/types'
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -91,6 +92,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IProductService private readonly productService: IProductService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 	) {
 		super();
 		this._status = userDataSyncStoreManagementService.userDataSyncStore ? SyncStatus.Idle : SyncStatus.Uninitialized;
@@ -393,7 +396,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				return isUndefined(result) ? null : result;
 			}
 
-			if (!this.productService.enableSyncingProfiles) {
+			if (this.environmentService.isBuilt && !(this.productService.enableSyncingProfiles && this.configurationService.getValue('settingsSync.enableSyncingProfiles'))) {
 				return null;
 			}
 
@@ -520,6 +523,7 @@ class ProfileSynchronizer extends Disposable {
 		@IProductService private readonly productService: IProductService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 	) {
 		super();
 		if (this._profile.isDefault) {
@@ -564,7 +568,7 @@ class ProfileSynchronizer extends Disposable {
 			if (!this._profile.isDefault) {
 				return;
 			}
-			if (!this.productService.enableSyncingProfiles) {
+			if (this.environmentService.isBuilt && !(this.productService.enableSyncingProfiles && this.configurationService.getValue('settingsSync.enableSyncingProfiles'))) {
 				this.logService.debug('Skipping profiles sync');
 				return;
 			}

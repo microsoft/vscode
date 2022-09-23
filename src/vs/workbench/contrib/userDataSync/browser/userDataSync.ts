@@ -56,6 +56,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ctxIsMergeResultEditor, ctxMergeBaseUri } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 type ConfigureSyncQuickPickItem = { id: SyncResource; label: string; description?: string };
 
@@ -121,6 +122,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
 		@IHostService private readonly hostService: IHostService
 	) {
@@ -587,7 +589,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private getConfigureSyncQuickPickItems(): ConfigureSyncQuickPickItem[] {
-		return [{
+		const result = [{
 			id: SyncResource.Settings,
 			label: getSyncAreaLabel(SyncResource.Settings)
 		}, {
@@ -607,6 +609,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			id: SyncResource.GlobalState,
 			label: getSyncAreaLabel(SyncResource.GlobalState),
 		}];
+		if (!this.environmentService.isBuilt || (this.productService.enableSyncingProfiles && this.configurationService.getValue('settingsSync.enableSyncingProfiles'))) {
+			result.push({
+				id: SyncResource.Profiles,
+				label: getSyncAreaLabel(SyncResource.Profiles),
+			});
+		}
+		return result;
 	}
 
 	private updateConfiguration(items: ConfigureSyncQuickPickItem[], selectedItems: ReadonlyArray<ConfigureSyncQuickPickItem>): void {
@@ -744,33 +753,35 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		const turnOnSyncWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.notEqualsTo(AccountStatus.Uninitialized), CONTEXT_TURNING_ON_STATE.negate());
 		CommandsRegistry.registerCommand(turnOnSyncCommand.id, () => this.turnOn());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_sync',
+			group: '5_settings',
 			command: {
 				id: turnOnSyncCommand.id,
 				title: localize('global activity turn on sync', "Turn on Settings Sync...")
 			},
 			when: ContextKeyExpr.and(turnOnSyncWhenContext, CONTEXT_SYNC_AFTER_INITIALIZATION.negate()),
-			order: 1
+			order: 3
 		});
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: turnOnSyncCommand,
 			when: turnOnSyncWhenContext,
 		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-			group: '5_sync',
+			group: '5_settings',
 			command: {
 				id: turnOnSyncCommand.id,
 				title: localize('global activity turn on sync', "Turn on Settings Sync...")
 			},
 			when: turnOnSyncWhenContext,
+			order: 3
 		});
 		MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
-			group: '1_sync',
+			group: '1_settings',
 			command: {
 				id: turnOnSyncCommand.id,
 				title: localize('global activity turn on sync', "Turn on Settings Sync...")
 			},
-			when: turnOnSyncWhenContext
+			when: turnOnSyncWhenContext,
+			order: 2
 		});
 	}
 
@@ -784,10 +795,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					id,
 					title: localize('ask to turn on in global', "Settings Sync is Off (1)"),
 					menu: {
-						group: '5_sync',
+						group: '5_settings',
 						id: MenuId.GlobalActivity,
 						when,
-						order: 2
+						order: 3
 					}
 				});
 			}
@@ -810,12 +821,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					title: localize('turnin on sync', "Turning on Settings Sync..."),
 					precondition: ContextKeyExpr.false(),
 					menu: [{
-						group: '5_sync',
+						group: '5_settings',
 						id: MenuId.GlobalActivity,
 						when,
-						order: 2
+						order: 3
 					}, {
-						group: '1_sync',
+						group: '1_settings',
 						id: MenuId.AccountsContext,
 						when,
 					}]
@@ -835,7 +846,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					icon: Codicon.stopCircle,
 					menu: {
 						id: MenuId.ViewContainerTitle,
-						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.notEqualsTo(AccountStatus.Uninitialized), CONTEXT_TURNING_ON_STATE, ContextKeyExpr.equals('viewContainer', SYNC_VIEW_CONTAINER_ID)),
+						when: ContextKeyExpr.and(CONTEXT_TURNING_ON_STATE, ContextKeyExpr.equals('viewContainer', SYNC_VIEW_CONTAINER_ID)),
 						group: 'navigation',
 						order: 1
 					}
@@ -857,10 +868,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					id: 'workbench.userData.actions.signin',
 					title: localize('sign in global', "Sign in to Sync Settings"),
 					menu: {
-						group: '5_sync',
+						group: '5_settings',
 						id: MenuId.GlobalActivity,
 						when,
-						order: 2
+						order: 3
 					}
 				});
 			}
@@ -873,7 +884,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 		}));
 		this._register(MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
-			group: '1_sync',
+			group: '1_settings',
 			command: {
 				id,
 				title: localize('sign in accounts', "Sign in to Sync Settings (1)"),
@@ -886,7 +897,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		CommandsRegistry.registerCommand(showConflictsCommand.id, () => this.userDataSyncWorkbenchService.showConflicts());
 		const getTitle = () => localize('resolveConflicts_global', "{0}: Show Conflicts ({1})", SYNC_TITLE, this.getConflictsCount());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_sync',
+			group: '5_settings',
 			command: {
 				id: showConflictsCommand.id,
 				get title() { return getTitle(); }
@@ -895,7 +906,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			order: 2
 		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-			group: '5_sync',
+			group: '5_settings',
 			command: {
 				id: showConflictsCommand.id,
 				get title() { return getTitle(); }
@@ -920,19 +931,19 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					menu: [
 						{
 							id: MenuId.GlobalActivity,
-							group: '5_sync',
+							group: '5_settings',
 							when,
 							order: 3
 						},
 						{
 							id: MenuId.MenubarPreferencesMenu,
-							group: '5_sync',
+							group: '5_settings',
 							when,
 							order: 3,
 						},
 						{
 							id: MenuId.AccountsContext,
-							group: '1_sync',
+							group: '1_settings',
 							when,
 						}
 					],
@@ -1057,7 +1068,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						when
 					}, {
 						id: MenuId.ViewContainerTitle,
-						when: ContextKeyExpr.and(when, ContextKeyExpr.equals('viewContainer', SYNC_VIEW_CONTAINER_ID)),
+						when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, ContextKeyExpr.equals('viewContainer', SYNC_VIEW_CONTAINER_ID)),
 						group: 'navigation',
 						order: 2
 					}]

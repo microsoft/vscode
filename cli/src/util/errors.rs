@@ -317,6 +317,14 @@ impl std::fmt::Display for ServerHasClosed {
 }
 
 #[derive(Debug)]
+pub struct UpdatesNotConfigured();
+
+impl std::fmt::Display for UpdatesNotConfigured {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Update service is not configured")
+    }
+}
+#[derive(Debug)]
 pub struct ServiceAlreadyRegistered();
 
 impl std::fmt::Display for ServiceAlreadyRegistered {
@@ -408,7 +416,8 @@ makeAnyError!(
     CannotForwardControlPort,
     ServerHasClosed,
     ServiceAlreadyRegistered,
-    WindowsNeedsElevation
+    WindowsNeedsElevation,
+    UpdatesNotConfigured
 );
 
 impl From<reqwest::Error> for AnyError {

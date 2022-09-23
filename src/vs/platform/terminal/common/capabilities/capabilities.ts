@@ -220,6 +220,7 @@ export interface ITerminalCommand {
 	commandStartLineContent?: string;
 	markProperties?: IMarkProperties;
 	getOutput(): string | undefined;
+	getOutputMatch(outputMatcher: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }): RegExpMatchArray | undefined;
 	hasOutput(): boolean;
 }
 

@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IUserDataProfile, PROFILES_ENABLEMENT_CONFIG, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfileUpdateOptions, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ContextKeyDefinedExpr, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ProductQualityContext } from 'vs/platform/contextkey/common/contextkeys';
 
@@ -32,10 +32,10 @@ export const IUserDataProfileManagementService = createDecorator<IUserDataProfil
 export interface IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
 
-	createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean): Promise<IUserDataProfile>;
+	createAndEnterProfile(name: string, options?: IUserDataProfileOptions, fromExisting?: boolean): Promise<IUserDataProfile>;
 	createAndEnterTransientProfile(): Promise<IUserDataProfile>;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
-	renameProfile(profile: IUserDataProfile, name: string): Promise<void>;
+	updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<void>;
 	switchProfile(profile: IUserDataProfile): Promise<void>;
 
 }
@@ -72,10 +72,12 @@ export interface IResourceProfile {
 }
 
 export const ManageProfilesSubMenu = new MenuId('SettingsProfiles');
+export const MANAGE_PROFILES_ACTION_ID = 'workbench.profiles.actions.manage';
 export const PROFILES_TTILE = { value: localize('settings profiles', "Settings Profiles"), original: 'Settings Profiles' };
 export const PROFILES_CATEGORY = PROFILES_TTILE.value;
 export const PROFILE_EXTENSION = 'code-profile';
 export const PROFILE_FILTER = [{ name: localize('profile', "Settings Profile"), extensions: [PROFILE_EXTENSION] }];
 export const PROFILES_ENABLEMENT_CONTEXT = ContextKeyExpr.or(ProductQualityContext.notEqualsTo('stable'), ContextKeyDefinedExpr.create(`config.${PROFILES_ENABLEMENT_CONFIG}`));
 export const CURRENT_PROFILE_CONTEXT = new RawContextKey<string>('currentSettingsProfile', '');
+export const IS_CURRENT_PROFILE_TRANSIENT_CONTEXT = new RawContextKey<boolean>('isCurrentSettingsProfileTransient', false);
 export const HAS_PROFILES_CONTEXT = new RawContextKey<boolean>('hasSettingsProfiles', false);

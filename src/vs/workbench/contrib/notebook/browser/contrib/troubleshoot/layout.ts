@@ -70,7 +70,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 		}
 
 		this._localStore.add(this._notebookEditor.onDidChangeViewCells(e => {
-			e.splices.reverse().forEach(splice => {
+			[...e.splices].reverse().forEach(splice => {
 				const [start, deleted, newCells] = splice;
 				const deletedCells = this._cellStateListeners.splice(start, deleted, ...newCells.map(cell => {
 					return cell.onDidChangeLayout((e: ICommonCellViewModelLayoutChangeInfo) => {

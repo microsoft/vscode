@@ -6,6 +6,7 @@
 		".build": true,
 		".profile-oss": true,
 		"**/.DS_Store": true,
+		"cli/target": true,
 		"build/**/*.js": {
 			"when": "$(basename).ts"
 		}
@@ -85,6 +86,11 @@
 	"[javascript]": {
 		"editor.defaultFormatter": "vscode.typescript-language-features",
 		"editor.formatOnSave": true
+	},
+	"[rust]": {
+		"editor.defaultFormatter": "rust-lang.rust-analyzer",
+		"editor.formatOnSave": true,
+		"editor.insertSpaces": true
 	},
 	"typescript.tsc.autoDetect": "off",
 	"testing.autoRun.mode": "rerun",
