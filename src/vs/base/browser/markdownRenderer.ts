@@ -380,7 +380,7 @@ function getSanitizerOptions(options: { readonly isTrusted?: boolean }): { confi
 			// Since we have our own sanitize function for marked, it's possible we missed some tag so let dompurify make sure.
 			// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
 			// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
-			ALLOWED_TAGS: ['ul', 'li', 'p', 'b', 'i', 'code', 'blockquote', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'em', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'div', 'del', 'a', 'strong', 'br', 'img', 'span'],
+			ALLOWED_TAGS: [...DOM.basicMarkupHtmlTags],
 			ALLOWED_ATTR: ['href', 'data-href', 'target', 'title', 'src', 'alt', 'class', 'style', 'data-code', 'width', 'height', 'align'],
 			ALLOW_UNKNOWN_PROTOCOLS: true,
 		},
