@@ -15,7 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { getSelectionKeyboardEvent, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { getSelectionKeyboardEvent, WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewsService } from 'vs/workbench/common/views';
 import { searchRemoveIcon, searchReplaceAllIcon, searchReplaceIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
@@ -392,12 +392,12 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	/**
 	 * Returns element to focus after removing the given element
 	 */
-	getElementToFocusAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, elementToRemove: RenderableMatch, isTreeViewVisible: boolean): RenderableMatch {
+	getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleObjectTree<RenderableMatch>, elementToRemove: RenderableMatch, isTreeViewVisible: boolean): RenderableMatch {
 		const elementToFocus = this.getNextElementAfterRemoved(viewer, elementToRemove);
 		return elementToFocus || this.getPreviousElementAfterRemoved(viewer, elementToRemove, isTreeViewVisible);
 	}
 
-	getNextElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
+	getNextElementAfterRemoved(viewer: WorkbenchCompressibleObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
 		const navigator: ITreeNavigator<any> = viewer.navigate(element);
 		if (element instanceof FolderMatch) {
 			while (!!navigator.next() && !(navigator.current() instanceof FolderMatch)) { }
@@ -411,7 +411,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 		return navigator.current();
 	}
 
-	getPreviousElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch, isTreeViewVisible: boolean): RenderableMatch {
+	getPreviousElementAfterRemoved(viewer: WorkbenchCompressibleObjectTree<RenderableMatch>, element: RenderableMatch, isTreeViewVisible: boolean): RenderableMatch {
 		const navigator: ITreeNavigator<any> = viewer.navigate(element);
 		let previousElement = navigator.previous();
 		// Hence take the previous element.
@@ -444,10 +444,10 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 
 class ReplaceActionRunner {
 	constructor(
-		private viewer: WorkbenchObjectTree<RenderableMatch>,
+		private viewer: WorkbenchCompressibleObjectTree<RenderableMatch>,
 		private viewlet: SearchView | undefined,
-		private getElementToFocusAfterRemoved: (viewer: WorkbenchObjectTree<RenderableMatch>, lastElementToBeRemoved: RenderableMatch, isTreeViewVisible: boolean) => RenderableMatch,
-		private getPreviousElementAfterRemoved: (viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch, isTreeViewVisible: boolean) => RenderableMatch,
+		private getElementToFocusAfterRemoved: (viewer: WorkbenchCompressibleObjectTree<RenderableMatch>, lastElementToBeRemoved: RenderableMatch, isTreeViewVisible: boolean) => RenderableMatch,
+		private getPreviousElementAfterRemoved: (viewer: WorkbenchCompressibleObjectTree<RenderableMatch>, element: RenderableMatch, isTreeViewVisible: boolean) => RenderableMatch,
 		// Services
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -569,7 +569,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 	static readonly LABEL = nls.localize('RemoveAction.label', "Dismiss");
 
 	constructor(
-		private viewer: WorkbenchObjectTree<RenderableMatch>,
+		private viewer: WorkbenchCompressibleObjectTree<RenderableMatch>,
 		private element: RenderableMatch,
 		@IKeybindingService keyBindingService: IKeybindingService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -636,7 +636,7 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 	static readonly LABEL = nls.localize('file.replaceAll.label', "Replace All");
 	private replaceRunner: ReplaceActionRunner;
 
-	constructor(viewer: WorkbenchObjectTree<RenderableMatch>, private folderMatch: FolderMatch,
+	constructor(viewer: WorkbenchCompressibleObjectTree<RenderableMatch>, private folderMatch: FolderMatch,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService keyBindingService: IKeybindingService
 	) {
@@ -656,7 +656,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	static runQ = Promise.resolve();
 	private replaceRunner: ReplaceActionRunner;
 
-	constructor(viewer: WorkbenchObjectTree<RenderableMatch>, private element: Match, viewlet: SearchView,
+	constructor(viewer: WorkbenchCompressibleObjectTree<RenderableMatch>, private element: Match, viewlet: SearchView,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService keyBindingService: IKeybindingService,
 	) {
@@ -821,7 +821,7 @@ export const focusSearchListCommand: ICommandHandler = accessor => {
 	});
 };
 
-function getElementsToOperateOnInfo(viewer: WorkbenchObjectTree<RenderableMatch, void>, currElement: RenderableMatch, sortConfig: ISearchConfigurationProperties): { elements: RenderableMatch[]; mustReselect: boolean } {
+function getElementsToOperateOnInfo(viewer: WorkbenchCompressibleObjectTree<RenderableMatch, void>, currElement: RenderableMatch, sortConfig: ISearchConfigurationProperties): { elements: RenderableMatch[]; mustReselect: boolean } {
 	let elements: RenderableMatch[] = viewer.getSelection().filter((x): x is RenderableMatch => x !== null).sort((a, b) => searchComparer(a, b, sortConfig.sortOrder));
 
 	const mustReselect = elements.includes(currElement); // this indicates whether we need to re-focus/re-select on a remove.
