@@ -342,9 +342,9 @@ export function registerTerminalActions() {
 			if (instance) {
 				await instance.runRecent('command');
 				if (instance?.target === TerminalLocation.Editor) {
-					terminalEditorService.revealActiveEditor();
+					await terminalEditorService.revealActiveEditor();
 				} else {
-					terminalGroupService.showPanel(false);
+					await terminalGroupService.showPanel(false);
 				}
 			}
 		}
@@ -392,9 +392,9 @@ export function registerTerminalActions() {
 			if (instance) {
 				await instance.runRecent('cwd');
 				if (instance?.target === TerminalLocation.Editor) {
-					terminalEditorService.revealActiveEditor();
+					await terminalEditorService.revealActiveEditor();
 				} else {
-					terminalGroupService.showPanel(false);
+					await terminalGroupService.showPanel(false);
 				}
 			}
 		}
@@ -596,9 +596,9 @@ export function registerTerminalActions() {
 			}
 			instance.sendText(text, true);
 			if (instance.target === TerminalLocation.Editor) {
-				terminalEditorService.revealActiveEditor();
+				await terminalEditorService.revealActiveEditor();
 			} else {
-				terminalGroupService.showPanel();
+				await terminalGroupService.showPanel();
 			}
 		}
 	});

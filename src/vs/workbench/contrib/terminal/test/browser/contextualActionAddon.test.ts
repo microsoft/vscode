@@ -73,12 +73,14 @@ suite('ContextualActionAddon', () => {
 				test('command does not match', () => {
 					strictEqual(getMatchActions(createCommand(`gt sttatus`, output, GitSimilarOutputRegex, exitCode), expectedMap), undefined);
 				});
-				test('exit code does not match', () => {
-					strictEqual(getMatchActions(createCommand(command, output, GitSimilarOutputRegex, 2), expectedMap), undefined);
-				});
 			});
-			test('returns actions', () => {
-				assertMatchOptions(getMatchActions(createCommand(command, output, GitSimilarOutputRegex, exitCode), expectedMap), actions);
+			suite('returns undefined when', () => {
+				test('expected unix exit code', () => {
+					assertMatchOptions(getMatchActions(createCommand(command, output, GitSimilarOutputRegex, exitCode), expectedMap), actions);
+				});
+				test('matching exit status', () => {
+					assertMatchOptions(getMatchActions(createCommand(command, output, GitSimilarOutputRegex, 2), expectedMap), actions);
+				});
 			});
 		});
 		suite('freePort', () => {
@@ -148,12 +150,14 @@ suite('ContextualActionAddon', () => {
 				test('command does not match', () => {
 					strictEqual(getMatchActions(createCommand(`git status`, output, GitPushOutputRegex, exitCode), expectedMap), undefined);
 				});
-				test('exit code does not match', () => {
-					strictEqual(getMatchActions(createCommand(command, output, GitPushOutputRegex, 2), expectedMap), undefined);
-				});
 			});
-			test('returns actions', () => {
-				assertMatchOptions(getMatchActions(createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap), actions);
+			suite('returns undefined when', () => {
+				test('expected unix exit code', () => {
+					assertMatchOptions(getMatchActions(createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap), actions);
+				});
+				test('matching exit status', () => {
+					assertMatchOptions(getMatchActions(createCommand(command, output, GitPushOutputRegex, 2), expectedMap), actions);
+				});
 			});
 		});
 		suite('gitCreatePr', () => {
@@ -189,12 +193,14 @@ suite('ContextualActionAddon', () => {
 				test('command does not match', () => {
 					strictEqual(getMatchActions(createCommand(`git status`, output, GitCreatePrOutputRegex, exitCode), expectedMap), undefined);
 				});
-				test('exit code does not match', () => {
+				test('failure exit status', () => {
 					strictEqual(getMatchActions(createCommand(command, output, GitCreatePrOutputRegex, 2), expectedMap), undefined);
 				});
 			});
-			test('returns actions', () => {
-				assertMatchOptions(getMatchActions(createCommand(command, output, GitCreatePrOutputRegex, exitCode), expectedMap), actions);
+			suite('returns actions when', () => {
+				test('expected unix exit code', () => {
+					assertMatchOptions(getMatchActions(createCommand(command, output, GitCreatePrOutputRegex, exitCode), expectedMap), actions);
+				});
 			});
 		});
 	});
