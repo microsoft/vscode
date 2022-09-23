@@ -924,7 +924,7 @@ export interface ITerminalQuickFixActionOptions {
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
 	getActions: QuickFixCallback;
-	exitCode?: number;
+	exitStatus?: boolean;
 }
 export type QuickFixMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
 export type DynamicActionName = (matchResult: QuickFixMatchResult) => string;

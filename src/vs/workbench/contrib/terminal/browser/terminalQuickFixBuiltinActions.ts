@@ -23,7 +23,7 @@ export function terminalGitSimilarCommand(): ITerminalQuickFixActionOptions {
 		commandLineMatcher: GitCommandLineRegex,
 		outputMatcher: { lineMatcher: GitSimilarOutputRegex, anchor: 'bottom' },
 		actionName: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Run git ${matchResult.outputMatch[1]}` : ``,
-		exitCode: 1,
+		exitStatus: false,
 		getActions: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
 			const actions: ICommandAction[] = [];
 			const fixedCommand = matchResult?.outputMatch?.[1];
@@ -70,7 +70,7 @@ export function terminalGitPushSetUpstream(): ITerminalQuickFixActionOptions {
 		actionName: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Git push ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: GitPushCommandLineRegex,
 		outputMatcher: { lineMatcher: GitPushOutputRegex, anchor: 'bottom' },
-		exitCode: 128,
+		exitStatus: false,
 		getActions: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
 			const branch = matchResult?.outputMatch?.[1];
 			if (!branch) {
@@ -95,7 +95,7 @@ export function terminalGitCreatePr(openerService: IOpenerService): ITerminalQui
 		actionName: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Create PR for ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: GitPushCommandLineRegex,
 		outputMatcher: { lineMatcher: GitCreatePrOutputRegex, anchor: 'bottom' },
-		exitCode: 0,
+		exitStatus: true,
 		getActions: (matchResult: QuickFixMatchResult, command?: ITerminalCommand) => {
 			if (!command) {
 				return;
