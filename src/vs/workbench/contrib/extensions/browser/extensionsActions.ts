@@ -802,18 +802,18 @@ export class UninstallAction extends ExtensionAction {
 	}
 }
 
-export class UpdateAction extends ExtensionAction {
+abstract class AbstractUpdateAction extends ExtensionAction {
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} prominent update`;
-	private static readonly DisabledClass = `${UpdateAction.EnabledClass} disabled`;
+	private static readonly DisabledClass = `${AbstractUpdateAction.EnabledClass} disabled`;
 
 	private readonly updateThrottler = new Throttler();
 
 	constructor(
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		id: string, label: string | undefined,
+		protected readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
-		super(`extensions.update`, '', UpdateAction.DisabledClass, false);
+		super(id, label, AbstractUpdateAction.DisabledClass, false);
 		this.update();
 	}
 
@@ -838,8 +838,20 @@ export class UpdateAction extends ExtensionAction {
 		const isInstalled = this.extension.state === ExtensionState.Installed;
 
 		this.enabled = canInstall && isInstalled && this.extension.outdated;
-		this.class = this.enabled ? UpdateAction.EnabledClass : UpdateAction.DisabledClass;
-		this.label = this.getLabel(this.extension);
+		this.class = this.enabled ? AbstractUpdateAction.EnabledClass : AbstractUpdateAction.DisabledClass;
+		this.label = this.getLabel();
+	}
+
+	protected abstract getLabel(): string;
+}
+
+export class UpdateAction extends AbstractUpdateAction {
+
+	constructor(
+		@IExtensionsWorkbenchService override readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+	) {
+		super(`extensions.update`, '', extensionsWorkbenchService);
 	}
 
 	override async run(): Promise<any> {
@@ -859,14 +871,39 @@ export class UpdateAction extends ExtensionAction {
 		}
 	}
 
-	private getLabel(extension?: IExtension): string {
-		if (!extension?.outdated) {
-			return localize('updateAction', "Update");
+	protected getLabel(): string {
+		return localize('update', "Update");
+	}
+}
+
+export class SkipUpdateAction extends AbstractUpdateAction {
+
+	constructor(
+		@IExtensionsWorkbenchService override readonly extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(`extensions.ignoreUpdates`, '', extensionsWorkbenchService);
+	}
+
+	override update() {
+		super.update();
+		if (this.extension) {
+			this._checked = this.extensionsWorkbenchService.getExtensionIgnoresUpdate(this.extension);
 		}
-		if (extension.outdatedTargetPlatform) {
-			return localize('updateToTargetPlatformVersion', "Update to {0} version", TargetPlatformToString(extension.gallery!.properties.targetPlatform));
+	}
+
+	override async run(): Promise<any> {
+		if (!this.extension) {
+			return;
 		}
-		return localize('updateToLatestVersion', "Update to {0}", extension.latestVersion);
+		alert(localize('ignoreExtensionUpdate', "Ignoring {0} updates", this.extension.displayName));
+		const newIgnoresAutoUpdates = !this.extensionsWorkbenchService.getExtensionIgnoresUpdate(this.extension);
+		this.extensionsWorkbenchService.setExtensionIgnoresUpdate(this.extension, newIgnoresAutoUpdates);
+		this.update();
+		this._onDidChange.fire({ checked: newIgnoresAutoUpdates });
+	}
+
+	protected override getLabel(): string {
+		return localize('ignoreUpdates', "Ignore Updates");
 	}
 }
 
