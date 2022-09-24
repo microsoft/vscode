@@ -13,7 +13,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ICommandAction, ITerminalContextualActionOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Terminal } from 'xterm';
+import { Terminal, IDecoration } from 'xterm';
 import { IAction } from 'vs/base/common/actions';
 
 export interface IContextualAction {
@@ -46,6 +46,8 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 	private _commandListeners: Map<string, ITerminalContextualActionOptions[]> = new Map();
 
 	private _matchActions: ICommandAction[] | undefined;
+
+	private _decoration: IDecoration | undefined;
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -83,7 +85,13 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 		if (!terminal || !commandDetection) {
 			return;
 		}
+		this._register(commandDetection.onCommandExecuted(() => {
+			this._decoration?.dispose();
+			this._decoration = undefined;
+		}));
 		this._register(commandDetection.onCommandFinished(async command => {
+			this._decoration?.dispose();
+			this._decoration = undefined;
 			this._matchActions = getMatchActions(command, this._commandListeners, this._onDidRequestRerunCommand);
 		}));
 		// The buffer is not ready by the time command finish
@@ -107,6 +115,7 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 		}
 		const actions = this._matchActions;
 		const decoration = this._terminal.registerDecoration({ marker, layer: 'top' });
+		this._decoration = decoration;
 		decoration?.onRender((e: HTMLElement) => {
 			if (!this._decorationMarkerIds.has(decoration.marker.id)) {
 				this._currentQuickFixElement = e;
@@ -130,7 +139,7 @@ export function getMatchActions(command: ITerminalCommand, actionOptions: Map<st
 	const newCommand = command.command;
 	for (const options of actionOptions.values()) {
 		for (const actionOption of options) {
-			if (actionOption.exitCode !== undefined && command.exitCode !== actionOption.exitCode) {
+			if (actionOption.exitStatus !== undefined && actionOption.exitStatus !== (command.exitCode === 0)) {
 				continue;
 			}
 			const commandLineMatch = newCommand.match(actionOption.commandLineMatcher);

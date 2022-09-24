@@ -5,6 +5,7 @@
 
 import { hookDomPurifyHrefAndSrcSanitizer, basicMarkupHtmlTags } from 'vs/base/browser/dom';
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
+import { allowedMarkdownAttr } from 'vs/base/browser/markdownRenderer';
 import { marked } from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -164,8 +165,9 @@ function sanitize(documentContent: string, allowUnknownProtocols: boolean): stri
 					'checklist',
 				],
 				ALLOWED_ATTR: [
-					'href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code',
-					'width', 'height', 'align', 'x-dispatch',
+					...allowedMarkdownAttr,
+					'data-command', 'name', 'id', 'role', 'tabindex',
+					'x-dispatch',
 					'required', 'checked', 'placeholder', 'when-checked', 'checked-on',
 				],
 			},
