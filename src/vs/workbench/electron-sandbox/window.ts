@@ -670,7 +670,7 @@ export class NativeWindow extends Disposable {
 		// Installation Dir Warning
 		if (this.environmentService.isBuilt) {
 			let installLocationUri: URI;
-			if (process.platform === 'darwin') {
+			if (isMacintosh) {
 				// appRoot = /Applications/Visual Studio Code - Insiders.app/Contents/Resources/app
 				installLocationUri = dirname(dirname(dirname(URI.file(this.environmentService.appRoot))));
 			} else {
