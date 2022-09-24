@@ -123,27 +123,6 @@ export function addDisposableGenericMouseUpListener(node: EventTarget, handler: 
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
 }
 
-interface IRequestAnimationFrame {
-	(callback: (time: number) => void): number;
-}
-let _animationFrame: IRequestAnimationFrame | null = null;
-function doRequestAnimationFrame(callback: (time: number) => void): number {
-	if (!_animationFrame) {
-		const emulatedRequestAnimationFrame = (callback: (time: number) => void): any => {
-			return setTimeout(() => callback(new Date().getTime()), 0);
-		};
-		_animationFrame = (
-			self.requestAnimationFrame
-			|| (<any>self).msRequestAnimationFrame
-			|| (<any>self).webkitRequestAnimationFrame
-			|| (<any>self).mozRequestAnimationFrame
-			|| (<any>self).oRequestAnimationFrame
-			|| emulatedRequestAnimationFrame
-		);
-	}
-	return _animationFrame.call(self, callback);
-}
-
 /**
  * Schedule a callback to be run at the next animation frame.
  * This allows multiple parties to register callbacks that should run at the next animation frame.
@@ -232,7 +211,7 @@ class AnimationFrameQueueItem implements IDisposable {
 
 		if (!animFrameRequested) {
 			animFrameRequested = true;
-			doRequestAnimationFrame(animationFrameRunner);
+			requestAnimationFrame(animationFrameRunner);
 		}
 
 		return item;
@@ -1383,6 +1362,77 @@ const defaultSafeProtocols = [
 	Schemas.https,
 	Schemas.command,
 ];
+
+/**
+ * List of safe, non-input html tags.
+ */
+export const basicMarkupHtmlTags = Object.freeze([
+	'a',
+	'abbr',
+	'b',
+	'bdo',
+	'blockquote',
+	'br',
+	'caption',
+	'cite',
+	'code',
+	'col',
+	'colgroup',
+	'dd',
+	'del',
+	'details',
+	'dfn',
+	'div',
+	'dl',
+	'dt',
+	'em',
+	'figcaption',
+	'figure',
+	'h1',
+	'h2',
+	'h3',
+	'h4',
+	'h5',
+	'h6',
+	'hr',
+	'i',
+	'img',
+	'ins',
+	'kbd',
+	'label',
+	'li',
+	'mark',
+	'ol',
+	'p',
+	'pre',
+	'q',
+	'rp',
+	'rt',
+	'ruby',
+	'samp',
+	'small',
+	'small',
+	'span',
+	'strike',
+	'strong',
+	'sub',
+	'summary',
+	'sup',
+	'table',
+	'tbody',
+	'td',
+	'tfoot',
+	'th',
+	'thead',
+	'time',
+	'tr',
+	'tt',
+	'u',
+	'ul',
+	'var',
+	'video',
+	'wbr',
+]);
 
 /**
  * Sanitizes the given `value` and reset the given `node` with it.

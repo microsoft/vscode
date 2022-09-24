@@ -228,7 +228,7 @@ export class IssueMainService implements IIssueMainService {
 				});
 
 				this.issueReporterWindow.loadURL(
-					FileAccess.asBrowserUri('vs/code/electron-sandbox/issue/issueReporter.html', require).toString(true)
+					FileAccess.asBrowserUri(`vs/code/electron-sandbox/issue/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.html`, require).toString(true)
 				);
 
 				this.issueReporterWindow.on('close', () => {
@@ -279,7 +279,7 @@ export class IssueMainService implements IIssueMainService {
 				});
 
 				this.processExplorerWindow.loadURL(
-					FileAccess.asBrowserUri('vs/code/electron-sandbox/processExplorer/processExplorer.html', require).toString(true)
+					FileAccess.asBrowserUri(`vs/code/electron-sandbox/processExplorer/processExplorer${this.environmentMainService.isBuilt ? '' : '-dev'}.html`, require).toString(true)
 				);
 
 				this.processExplorerWindow.on('close', () => {

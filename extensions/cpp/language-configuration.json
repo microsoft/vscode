@@ -6,8 +6,7 @@
 	"brackets": [
 		["{", "}"],
 		["[", "]"],
-		["(", ")"],
-		["#if","#endif"],
+		["(", ")"]
 	],
 	"autoClosingPairs": [
 		{ "open": "[", "close": "]" },

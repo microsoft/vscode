@@ -6,18 +6,16 @@
 import * as DOM from 'vs/base/browser/dom';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import * as nls from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -75,11 +73,10 @@ export class CellOutputElement extends Disposable {
 		readonly output: ICellOutputViewModel,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService parentContextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -268,8 +265,7 @@ export class CellOutputElement extends Disposable {
 
 		outputItemDiv.appendChild(mimeTypePicker);
 
-		const toolbar = this._renderDisposableStore.add(new ToolBar(mimeTypePicker, this.contextMenuService, {
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+		const toolbar = this._renderDisposableStore.add(this.instantiationService.createInstance(WorkbenchToolBar, mimeTypePicker, {
 			renderDropdownAsChildElement: false
 		}));
 		toolbar.context = <INotebookCellActionContext>{

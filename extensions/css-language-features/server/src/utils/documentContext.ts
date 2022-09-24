@@ -30,8 +30,9 @@ export function getDocumentContext(documentUri: string, workspaceFolders: Worksp
 					return folderUri + ref.substring(1);
 				}
 			}
-			base = base.substring(0, base.lastIndexOf('/') + 1);
-			return Utils.resolvePath(URI.parse(base), ref).toString(true);
+			const baseUri = URI.parse(base);
+			const baseUriDir = baseUri.path.endsWith('/') ? baseUri : Utils.dirname(baseUri);
+			return Utils.resolvePath(baseUriDir, ref).toString(true);
 		},
 	};
 }

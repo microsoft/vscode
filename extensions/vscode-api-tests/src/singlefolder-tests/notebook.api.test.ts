@@ -115,18 +115,6 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		};
 		return dto;
 	},
-	saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-		return;
-	},
-	saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-		return;
-	},
-	backupNotebook: async (_document: vscode.NotebookDocument, _context: vscode.NotebookDocumentBackupContext, _cancellation: vscode.CancellationToken) => {
-		return {
-			id: '1',
-			delete: () => { }
-		};
-	}
 };
 
 (vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('Notebook API tests', function () {
@@ -244,7 +232,8 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		await closeAllEditors();
 	});
 
-	test('#115855 onDidSaveNotebookDocument', async function () {
+	// TODO: Skipped due to notebook content provider removal
+	test.skip('#115855 onDidSaveNotebookDocument', async function () {
 		const resource = await createRandomNotebookFile();
 		const notebook = await vscode.workspace.openNotebookDocument(resource);
 
@@ -259,44 +248,6 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		await saveEvent;
 
 		assert.strictEqual(notebook.isDirty, false);
-	});
-});
-
-(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('statusbar', () => {
-	const emitter = new vscode.EventEmitter<vscode.NotebookCell>();
-	const onDidCallProvide = emitter.event;
-	const suiteDisposables: vscode.Disposable[] = [];
-	suiteTeardown(async function () {
-		assertNoRpc();
-
-		await revertAllDirty();
-		await closeAllEditors();
-
-		disposeAll(suiteDisposables);
-		suiteDisposables.length = 0;
-	});
-
-	suiteSetup(() => {
-		suiteDisposables.push(vscode.notebooks.registerNotebookCellStatusBarItemProvider('notebookCoreTest', {
-			async provideCellStatusBarItems(cell: vscode.NotebookCell, _token: vscode.CancellationToken): Promise<vscode.NotebookCellStatusBarItem[]> {
-				emitter.fire(cell);
-				return [];
-			}
-		}));
-
-		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', apiTestContentProvider));
-	});
-
-	test('provideCellStatusBarItems called on metadata change', async function () {
-		const provideCalled = asPromise(onDidCallProvide);
-		const notebook = await openRandomNotebookDocument();
-		await vscode.window.showNotebookDocument(notebook);
-		await provideCalled;
-
-		const edit = new vscode.WorkspaceEdit();
-		edit.set(notebook.uri, [vscode.NotebookEdit.updateCellMetadata(0, { inputCollapsed: true })]);
-		await vscode.workspace.applyEdit(edit);
-		await provideCalled;
 	});
 });
 

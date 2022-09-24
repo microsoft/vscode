@@ -1608,7 +1608,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	setPreferredDescription(description: string): void { }
 	setPreferredEncoding(encoding: string) { }
 	setPreferredContents(contents: string): void { }
-	setLanguageId(languageId: string) { }
+	setLanguageId(languageId: string, source?: string) { }
 	setPreferredLanguageId(languageId: string) { }
 	setForceOpenAsBinary(): void { }
 	setFailToOpen(): void {
@@ -1783,7 +1783,7 @@ export class TestTerminalEditorService implements ITerminalEditorService {
 	detachActiveEditorInstance(): ITerminalInstance { throw new Error('Method not implemented.'); }
 	detachInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance { throw new Error('Method not implemented.'); }
-	revealActiveEditor(preserveFocus?: boolean): void { throw new Error('Method not implemented.'); }
+	revealActiveEditor(preserveFocus?: boolean): Promise<void> { throw new Error('Method not implemented.'); }
 	resolveResource(instance: ITerminalInstance | URI): URI { throw new Error('Method not implemented.'); }
 	reviveInput(deserializedInput: IDeserializedTerminalEditorInput): TerminalEditorInput { throw new Error('Method not implemented.'); }
 	getInputFromResource(resource: URI): TerminalEditorInput { throw new Error('Method not implemented.'); }
@@ -2010,7 +2010,7 @@ export class TestUserDataProfileService implements IUserDataProfileService {
 	readonly _serviceBrand: undefined;
 	readonly onDidUpdateCurrentProfile = Event.None;
 	readonly onDidChangeCurrentProfile = Event.None;
-	readonly currentProfile = toUserDataProfile('test', URI.file('tests').with({ scheme: 'vscode-tests' }));
+	readonly currentProfile = toUserDataProfile('test', 'test', URI.file('tests').with({ scheme: 'vscode-tests' }));
 	async updateCurrentProfile(): Promise<void> { }
 }
 

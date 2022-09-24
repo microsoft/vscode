@@ -34,15 +34,17 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { ALL_SYNC_RESOURCES, getDefaultIgnoredSettings, IUserData, IUserDataManifest, IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration, ServerResource, SyncResource, IUserDataSynchroniser } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_SYNC_RESOURCES, getDefaultIgnoredSettings, IUserData, IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration, ServerResource, SyncResource, IUserDataSynchroniser, IUserDataResourceManifest, IUserDataCollectionManifest } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSyncEnablementService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { InMemoryUserDataProfilesService, IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
+import { IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
+import { TestUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/test/common/userDataSyncProfilesStorageService.test';
 
 export class UserDataSyncClient extends Disposable {
 
@@ -86,9 +88,13 @@ export class UserDataSyncClient extends Disposable {
 		const uriIdentityService = this.instantiationService.createInstance(UriIdentityService);
 		this.instantiationService.stub(IUriIdentityService, uriIdentityService);
 
-		const userDataProfilesService = this.instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		const userDataProfilesService = new InMemoryUserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
+		this.instantiationService.stub(IUserDataProfilesService, userDataProfilesService);
+		userDataProfilesService.setEnablement(true);
 
-		this.instantiationService.stub(IStorageService, this._register(new InMemoryStorageService()));
+		const storageService = new TestStorageService(userDataProfilesService.defaultProfile);
+		this.instantiationService.stub(IStorageService, this._register(storageService));
+		this.instantiationService.stub(IUserDataSyncProfilesStorageService, this._register(new TestUserDataSyncProfilesStorageService(storageService)));
 
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, new NullPolicyService(), logService));
 		await configurationService.initialize();
@@ -139,16 +145,17 @@ export class UserDataSyncClient extends Disposable {
 		await (await this.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
 	}
 
-	read(resource: SyncResource): Promise<IUserData> {
-		return this.instantiationService.get(IUserDataSyncStoreService).read(resource, null);
+	read(resource: SyncResource, collection?: string): Promise<IUserData> {
+		return this.instantiationService.get(IUserDataSyncStoreService).readResource(resource, null, collection);
 	}
 
-	manifest(): Promise<IUserDataManifest | null> {
-		return this.instantiationService.get(IUserDataSyncStoreService).manifest(null);
+	async getResourceManifest(): Promise<IUserDataResourceManifest | null> {
+		const manifest = await this.instantiationService.get(IUserDataSyncStoreService).manifest(null);
+		return manifest?.latest ?? null;
 	}
 
 	getSynchronizer(source: SyncResource): IUserDataSynchroniser {
-		return (this.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getProfileSynchronizers()[0].enabled.find(s => s.resource === source)!;
+		return (this.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getOrCreateActiveProfileSynchronizer(this.instantiationService.get(IUserDataProfilesService).defaultProfile, undefined).enabled.find(s => s.resource === source)!;
 	}
 
 }
@@ -161,7 +168,8 @@ export class UserDataSyncTestServer implements IRequestService {
 
 	readonly url: string = 'http://host:3000';
 	private session: string | null = null;
-	private readonly data: Map<ServerResource, IUserData> = new Map<SyncResource, IUserData>();
+	private readonly collections = new Map<string, Map<ServerResource, IUserData>>();
+	private readonly data = new Map<ServerResource, IUserData>();
 
 	private _requests: { url: string; type: string; headers?: IHeaders }[] = [];
 	get requests(): { url: string; type: string; headers?: IHeaders }[] { return this._requests; }
@@ -174,6 +182,7 @@ export class UserDataSyncTestServer implements IRequestService {
 	reset(): void { this._requests = []; this._responses = []; this._requestsWithAllHeaders = []; }
 
 	private manifestRef = 0;
+	private collectionCounter = 0;
 
 	constructor(private readonly rateLimit = Number.MAX_SAFE_INTEGER, private readonly retryAfter?: number) { }
 
@@ -207,13 +216,26 @@ export class UserDataSyncTestServer implements IRequestService {
 			return this.getManifest(options.headers);
 		}
 		if (options.type === 'GET' && segments.length === 3 && segments[0] === 'resource' && segments[2] === 'latest') {
-			return this.getLatestData(segments[1], options.headers);
+			return this.getLatestData(undefined, segments[1], options.headers);
 		}
 		if (options.type === 'POST' && segments.length === 2 && segments[0] === 'resource') {
-			return this.writeData(segments[1], options.data, options.headers);
+			return this.writeData(undefined, segments[1], options.data, options.headers);
+		}
+		// resources in collection
+		if (options.type === 'GET' && segments.length === 5 && segments[0] === 'collection' && segments[2] === 'resource' && segments[4] === 'latest') {
+			return this.getLatestData(segments[1], segments[3], options.headers);
+		}
+		if (options.type === 'POST' && segments.length === 4 && segments[0] === 'collection' && segments[2] === 'resource') {
+			return this.writeData(segments[1], segments[3], options.data, options.headers);
 		}
 		if (options.type === 'DELETE' && segments.length === 1 && segments[0] === 'resource') {
 			return this.clear(options.headers);
+		}
+		if (options.type === 'DELETE' && segments[0] === 'collection') {
+			return this.toResponse(204);
+		}
+		if (options.type === 'POST' && segments.length === 1 && segments[0] === 'collection') {
+			return this.createCollection();
 		}
 		return this.toResponse(501);
 	}
@@ -222,16 +244,33 @@ export class UserDataSyncTestServer implements IRequestService {
 		if (this.session) {
 			const latest: Record<ServerResource, string> = Object.create({});
 			this.data.forEach((value, key) => latest[key] = value.ref);
-			const manifest = { session: this.session, latest };
+			let collection: IUserDataCollectionManifest | undefined = undefined;
+			if (this.collectionCounter) {
+				collection = {};
+				for (let collectionId = 1; collectionId <= this.collectionCounter; collectionId++) {
+					const collectionData = this.collections.get(`${collectionId}`);
+					if (collectionData) {
+						const latest: Record<ServerResource, string> = Object.create({});
+						collectionData.forEach((value, key) => latest[key] = value.ref);
+						collection[`${collectionId}`] = { latest };
+					}
+				}
+			}
+			const manifest = { session: this.session, latest, collection };
 			return this.toResponse(200, { 'Content-Type': 'application/json', etag: `${this.manifestRef++}` }, JSON.stringify(manifest));
 		}
 		return this.toResponse(204, { etag: `${this.manifestRef++}` });
 	}
 
-	private async getLatestData(resource: string, headers: IHeaders = {}): Promise<IRequestContext> {
+	private async getLatestData(collection: string | undefined, resource: string, headers: IHeaders = {}): Promise<IRequestContext> {
+		const collectionData = collection ? this.collections.get(collection) : this.data;
+		if (!collectionData) {
+			return this.toResponse(501);
+		}
+
 		const resourceKey = ALL_SERVER_RESOURCES.find(key => key === resource);
 		if (resourceKey) {
-			const data = this.data.get(resourceKey);
+			const data = collectionData.get(resourceKey);
 			if (!data) {
 				return this.toResponse(204, { etag: '0' });
 			}
@@ -243,26 +282,38 @@ export class UserDataSyncTestServer implements IRequestService {
 		return this.toResponse(204);
 	}
 
-	private async writeData(resource: string, content: string = '', headers: IHeaders = {}): Promise<IRequestContext> {
+	private async writeData(collection: string | undefined, resource: string, content: string = '', headers: IHeaders = {}): Promise<IRequestContext> {
 		if (!this.session) {
 			this.session = generateUuid();
 		}
+		const collectionData = collection ? this.collections.get(collection) : this.data;
+		if (!collectionData) {
+			return this.toResponse(501);
+		}
 		const resourceKey = ALL_SERVER_RESOURCES.find(key => key === resource);
 		if (resourceKey) {
-			const data = this.data.get(resourceKey);
+			const data = collectionData.get(resourceKey);
 			if (headers['If-Match'] !== undefined && headers['If-Match'] !== (data ? data.ref : '0')) {
 				return this.toResponse(412);
 			}
 			const ref = `${parseInt(data?.ref || '0') + 1}`;
-			this.data.set(resourceKey, { ref, content });
+			collectionData.set(resourceKey, { ref, content });
 			return this.toResponse(200, { etag: ref });
 		}
 		return this.toResponse(204);
 	}
 
+	private async createCollection(): Promise<IRequestContext> {
+		const collectionId = `${++this.collectionCounter}`;
+		this.collections.set(collectionId, new Map());
+		return this.toResponse(200, {}, collectionId);
+	}
+
 	async clear(headers?: IHeaders): Promise<IRequestContext> {
+		this.collections.clear();
 		this.data.clear();
 		this.session = null;
+		this.collectionCounter = 0;
 		return this.toResponse(204);
 	}
 
@@ -299,3 +350,11 @@ export class TestUserDataSyncUtilService implements IUserDataSyncUtilService {
 
 }
 
+class TestStorageService extends InMemoryStorageService {
+	constructor(private readonly profileStorageProfile: IUserDataProfile) {
+		super();
+	}
+	override hasScope(profile: IUserDataProfile): boolean {
+		return this.profileStorageProfile.id === profile.id;
+	}
+}

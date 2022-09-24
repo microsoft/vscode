@@ -107,6 +107,13 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		});
 	}
 
+	freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
+		if (!this._remoteTerminalChannel.freePortKillProcess) {
+			throw new Error('freePortKillProcess does not exist on the local pty service');
+		}
+		return this._remoteTerminalChannel.freePortKillProcess(this.id, port);
+	}
+
 	acknowledgeDataEvent(charCount: number): void {
 		// Support flow control for server spawned processes
 		if (this._inReplay) {

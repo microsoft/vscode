@@ -17,7 +17,8 @@ export interface IBackupMainService {
 
 	getEmptyWindowBackups(): IEmptyWindowBackupInfo[];
 
-	registerWorkspaceBackup(workspaceInfo: IWorkspaceBackupInfo, migrateFrom?: string): string;
+	registerWorkspaceBackup(workspaceInfo: IWorkspaceBackupInfo): string;
+	registerWorkspaceBackup(workspaceInfo: IWorkspaceBackupInfo, migrateFrom: string): Promise<string>;
 	registerFolderBackup(folderInfo: IFolderBackupInfo): string;
 	registerEmptyWindowBackup(emptyWindowInfo: IEmptyWindowBackupInfo): string;
 

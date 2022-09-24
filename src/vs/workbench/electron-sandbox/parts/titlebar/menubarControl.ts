@@ -120,8 +120,8 @@ export class NativeMenubarControl extends MenubarControl {
 					const submenu = { items: [] };
 
 					if (!this.menus[menuItem.item.submenu.id]) {
-						const menu = this.menus[menuItem.item.submenu.id] = this._register(this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService));
-						this._register(menu.onDidChange(() => this.updateMenubar()));
+						const menu = this.menus[menuItem.item.submenu.id] = this.mainMenuDisposables.add(this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService));
+						this.mainMenuDisposables.add(menu.onDidChange(() => this.updateMenubar()));
 					}
 
 					const menuToDispose = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);

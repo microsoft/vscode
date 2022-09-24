@@ -14,7 +14,7 @@ import { isUserDataProfile, IUserDataProfile } from 'vs/platform/userDataProfile
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const IS_NEW_KEY = '__$__isNewStorageMarker';
-const TARGET_KEY = '__$__targetStorageMarker';
+export const TARGET_KEY = '__$__targetStorageMarker';
 
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
@@ -141,6 +141,11 @@ export interface IStorageService {
 	log(): void;
 
 	/**
+	 * Returns true if the storage service handles the provided scope.
+	 */
+	hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean;
+
+	/**
 	 * Switch storage to another workspace or profile. Optionally preserve the
 	 * current data to the new storage.
 	 */
@@ -230,7 +235,20 @@ interface IKeyTargets {
 }
 
 export interface IStorageServiceOptions {
-	flushInterval: number;
+	readonly flushInterval: number;
+}
+
+export function loadKeyTargets(storage: IStorage): IKeyTargets {
+	const keysRaw = storage.get(TARGET_KEY);
+	if (keysRaw) {
+		try {
+			return JSON.parse(keysRaw);
+		} catch (error) {
+			// Fail gracefully
+		}
+	}
+
+	return Object.create(null);
 }
 
 export abstract class AbstractStorageService extends Disposable implements IStorageService {
@@ -283,8 +301,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 				// Init all storage locations
 				mark('code/willInitStorage');
 				try {
-					// Ask subclasses to initialize storage
-					await this.doInitialize();
+					await this.doInitialize(); // Ask subclasses to initialize storage
 				} finally {
 					mark('code/didInitStorage');
 				}
@@ -475,16 +492,9 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	}
 
 	private loadKeyTargets(scope: StorageScope): { [key: string]: StorageTarget } {
-		const keysRaw = this.get(TARGET_KEY, scope);
-		if (keysRaw) {
-			try {
-				return JSON.parse(keysRaw);
-			} catch (error) {
-				// Fail gracefully
-			}
-		}
+		const storage = this.getStorage(scope);
 
-		return Object.create(null);
+		return storage ? loadKeyTargets(storage) : Object.create(null);
 	}
 
 	isNew(scope: StorageScope): boolean {
@@ -595,6 +605,8 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	// --- abstract
 
+	abstract hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean;
+
 	protected abstract doInitialize(): Promise<void>;
 
 	protected abstract getStorage(scope: StorageScope): IStorage | undefined;
@@ -653,6 +665,10 @@ export class InMemoryStorageService extends AbstractStorageService {
 
 	protected async switchToWorkspace(): Promise<void> {
 		// no-op when in-memory
+	}
+
+	hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean {
+		return false;
 	}
 }
 

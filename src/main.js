@@ -34,7 +34,7 @@ bootstrap.enableASARSupport();
 
 // Set userData path before app 'ready' event
 const args = parseCLIArgs();
-const userDataPath = getUserDataPath(args);
+const userDataPath = getUserDataPath(args, product.nameShort ?? 'code-oss-dev');
 app.setPath('userData', userDataPath);
 
 // Resolve code cache path
@@ -56,8 +56,7 @@ perf.mark('code/willStartCrashReporter');
 // * --disable-crash-reporter command line parameter is not set
 //
 // Disable crash reporting in all other cases.
-if (args['crash-reporter-directory'] ||
-	(argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter'])) {
+if (args['crash-reporter-directory'] || (argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter'])) {
 	configureCrashReporter();
 }
 perf.mark('code/didStartCrashReporter');

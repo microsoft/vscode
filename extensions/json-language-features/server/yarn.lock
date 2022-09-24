@@ -82,3 +82,8 @@ vscode-uri@^3.0.3:
   version "3.0.3"
   resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-3.0.3.tgz#a95c1ce2e6f41b7549f86279d19f47951e4f4d84"
   integrity sha512-EcswR2S8bpR7fD0YPeS7r2xXExrScVMxg4MedACaWHEtx9ftCF/qHG1xGkolzTPcEmjTavCQgbVzHUIdTMzFGA==
+
+vscode-uri@^3.0.5:
+  version "3.0.5"
+  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-3.0.5.tgz#3dd5a9e154e7c9a40de5eaa450a0ce59b435e584"
+  integrity sha512-bBp2pi1o6ynwlnGL8Tt6UBL1w3VsVZtHCU/Sl73bRfqjno3jMcVSCybdY+hj+31A8FQOELZJWwY+shLVLtcNew==

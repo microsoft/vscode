@@ -7,12 +7,21 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/112109
 
+	/**
+	 * Additional data about a workspace edit.
+	 */
+	export interface WorkspaceEditMetadata {
+		/**
+		 * Signal to the editor that this edit is a refactoring.
+		 */
+		isRefactoring?: boolean;
+	}
+
 	export namespace workspace {
 
 		/**
-		 *
-		 * @param isRefactoring Signal to the editor that this edit is a refactoring.
+		 * @param metadata Optional {@link WorkspaceEditMetadata metadata} for the edit.
 		 */
-		export function applyEdit(edit: WorkspaceEdit, isRefactoring?: boolean): Thenable<boolean>;
+		export function applyEdit(edit: WorkspaceEdit, metadata?: WorkspaceEditMetadata): Thenable<boolean>;
 	}
 }
