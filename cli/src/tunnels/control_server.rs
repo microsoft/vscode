@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 use crate::constants::{CONTROL_PORT, PROTOCOL_VERSION, VSCODE_CLI_VERSION};
 use crate::log;
+use crate::self_update::SelfUpdate;
 use crate::state::LauncherPaths;
-use crate::update::Update;
-use crate::update_service::Platform;
+use crate::update_service::{Platform, UpdateService};
 use crate::util::errors::{
 	wrap, AnyError, MismatchedLaunchModeError, NoAttachedServerError, ServerWriteError,
 };
+use crate::util::io::SilentCopyProgress;
 use crate::util::sync::{new_barrier, Barrier};
 use opentelemetry::trace::SpanKind;
 use opentelemetry::KeyValue;
@@ -617,13 +618,10 @@ async fn handle_update(
 	ctx: &HandlerContext,
 	params: &UpdateParams,
 ) -> Result<UpdateResult, AnyError> {
-	let updater = Update::new();
-	let latest_release = updater.get_latest_release().await?;
-
-	let up_to_date = match VSCODE_CLI_VERSION {
-		Some(v) => v == latest_release.version,
-		None => true,
-	};
+	let update_service = UpdateService::new(ctx.log.clone(), reqwest::Client::new());
+	let updater = SelfUpdate::new(&update_service)?;
+	let latest_release = updater.get_current_release().await?;
+	let up_to_date = updater.is_up_to_date_with(&latest_release);
 
 	if !params.do_update || up_to_date {
 		return Ok(UpdateResult {
@@ -632,12 +630,10 @@ async fn handle_update(
 		});
 	}
 
-	info!(ctx.log, "Updating CLI from {}", latest_release.version);
-
-	let current_exe = std::env::current_exe().map_err(|e| wrap(e, "could not get current exe"))?;
+	info!(ctx.log, "Updating CLI to {}", latest_release);
 
 	updater
-		.switch_to_release(&latest_release, &current_exe)
+		.do_update(&latest_release, SilentCopyProgress())
 		.await?;
 
 	Ok(UpdateResult {

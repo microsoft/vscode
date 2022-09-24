@@ -187,6 +187,7 @@ impl ServerParamsRaw {
 				commit: c.clone(),
 				quality: self.quality,
 				target,
+				name: String::new(),
 				platform: self.platform,
 			});
 		}

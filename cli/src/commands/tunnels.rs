@@ -10,7 +10,7 @@ use tokio::sync::oneshot;
 
 use super::{
 	args::{
-		AuthProvider, Cli, ExistingTunnelArgs, TunnelRenameArgs, TunnelServeArgs,
+		AuthProvider, CliCore, ExistingTunnelArgs, TunnelRenameArgs, TunnelServeArgs,
 		TunnelServiceSubCommands, TunnelUserSubCommands,
 	},
 	CommandContext,
@@ -57,11 +57,11 @@ impl From<ExistingTunnelArgs> for Option<dev_tunnels::ExistingTunnel> {
 }
 
 struct TunnelServiceContainer {
-	args: Cli,
+	args: CliCore,
 }
 
 impl TunnelServiceContainer {
-	fn new(args: Cli) -> Self {
+	fn new(args: CliCore) -> Self {
 		Self { args }
 	}
 }

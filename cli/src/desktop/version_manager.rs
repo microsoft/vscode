@@ -265,6 +265,7 @@ async fn get_release_for_request(
 			platform,
 			commit: commit.clone(),
 			quality: *quality,
+			name: "".to_string(),
 			target: TargetKind::Archive,
 		}),
 		RequestedVersion::Quality(quality) => update_service

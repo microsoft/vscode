@@ -26,15 +26,23 @@ pub struct UpdateService {
 
 /// Describes a specific release, can be created manually or returned from the update service.
 pub struct Release {
+	pub name: String,
 	pub platform: Platform,
 	pub target: TargetKind,
 	pub quality: options::Quality,
 	pub commit: String,
 }
 
+impl std::fmt::Display for Release {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{} (commit {})", self.name, self.commit)
+	}
+}
+
 #[derive(Deserialize)]
 struct UpdateServerVersion {
 	pub version: String,
+	pub name: String,
 }
 
 fn quality_download_segment(quality: options::Quality) -> &'static str {
@@ -57,7 +65,8 @@ impl UpdateService {
 		quality: options::Quality,
 		version: &str,
 	) -> Result<Release, AnyError> {
-		let update_endpoint = VSCODE_CLI_UPDATE_ENDPOINT.ok_or(UpdatesNotConfigured())?;
+		let update_endpoint =
+			VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(UpdatesNotConfigured::no_url)?;
 		let download_segment = target
 			.download_segment(platform)
 			.ok_or(UnsupportedPlatformError())?;
@@ -86,6 +95,7 @@ impl UpdateService {
 			target,
 			platform,
 			quality,
+			name: res.name,
 			commit: res.version,
 		})
 	}
@@ -97,7 +107,8 @@ impl UpdateService {
 		target: TargetKind,
 		quality: options::Quality,
 	) -> Result<Release, AnyError> {
-		let update_endpoint = VSCODE_CLI_UPDATE_ENDPOINT.ok_or(UpdatesNotConfigured())?;
+		let update_endpoint =
+			VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(UpdatesNotConfigured::no_url)?;
 		let download_segment = target
 			.download_segment(platform)
 			.ok_or(UnsupportedPlatformError())?;
@@ -125,6 +136,7 @@ impl UpdateService {
 			target,
 			platform,
 			quality,
+			name: res.name,
 			commit: res.version,
 		})
 	}
@@ -134,7 +146,8 @@ impl UpdateService {
 		&self,
 		release: &Release,
 	) -> Result<reqwest::Response, AnyError> {
-		let update_endpoint = VSCODE_CLI_UPDATE_ENDPOINT.ok_or(UpdatesNotConfigured())?;
+		let update_endpoint =
+			VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(UpdatesNotConfigured::no_url)?;
 		let download_segment = release
 			.target
 			.download_segment(release.platform)
@@ -182,6 +195,7 @@ pub enum TargetKind {
 	Server,
 	Archive,
 	Web,
+	Cli,
 }
 
 impl TargetKind {
@@ -190,6 +204,7 @@ impl TargetKind {
 			TargetKind::Server => Some(platform.headless()),
 			TargetKind::Archive => platform.archive(),
 			TargetKind::Web => Some(platform.web()),
+			TargetKind::Cli => Some(platform.cli()),
 		}
 	}
 }
@@ -231,6 +246,21 @@ impl Platform {
 			Platform::DarwinARM64 => "server-darwin-arm64",
 			Platform::WindowsX64 => "server-win32-x64",
 			Platform::WindowsX86 => "server-win32",
+		}
+		.to_owned()
+	}
+
+	pub fn cli(&self) -> String {
+		match self {
+			Platform::LinuxAlpineARM64 => "cli-alpine-arm64",
+			Platform::LinuxAlpineX64 => "cli-linux-alpine",
+			Platform::LinuxX64 => "cli-linux-x64",
+			Platform::LinuxARM64 => "cli-linux-arm64",
+			Platform::LinuxARM32 => "cli-linux-armhf",
+			Platform::DarwinX64 => "cli-darwin-x64",
+			Platform::DarwinARM64 => "cli-darwin-arm64",
+			Platform::WindowsX64 => "cli-win32-x64",
+			Platform::WindowsX86 => "cli-win32-x84",
 		}
 		.to_owned()
 	}

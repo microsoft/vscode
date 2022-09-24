@@ -317,11 +317,17 @@ impl std::fmt::Display for ServerHasClosed {
 }
 
 #[derive(Debug)]
-pub struct UpdatesNotConfigured();
+pub struct UpdatesNotConfigured(pub String);
+
+impl UpdatesNotConfigured {
+	pub fn no_url() -> Self {
+		UpdatesNotConfigured("no service url".to_owned())
+	}
+}
 
 impl std::fmt::Display for UpdatesNotConfigured {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Update service is not configured")
+		write!(f, "Update service is not configured: {}", self.0)
 	}
 }
 #[derive(Debug)]

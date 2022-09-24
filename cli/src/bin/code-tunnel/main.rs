@@ -45,7 +45,7 @@ async fn main() -> Result<(), std::convert::Infallible> {
 				parsed.global_options.log.unwrap_or(own_log::Level::Info)
 			},
 		),
-		args: args::Cli {
+		args: args::CliCore {
 			global_options: parsed.global_options,
 			subcommand: Some(args::Commands::Tunnel(parsed.tunnel_options.clone())),
 			..Default::default()

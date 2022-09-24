@@ -7,6 +7,8 @@ parameters:
     default: './'
   - name: VSCODE_CLI_BINARY_NAME
     type: string
+  - name: VSCODE_QUALITY
+    type: string
   - name: channel
     type: string
     default: stable
@@ -16,6 +18,11 @@ steps:
     parameters:
       targets: ${{ parameters.VSCODE_CLI_TARGETS }}
       channel: ${{ parameters.channel }}
+
+  - template: ./cli/prepare.yml
+    parameters:
+      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+      VSCODE_IS_POSIX: true
 
   - ${{ each target in parameters.VSCODE_CLI_TARGETS }}:
     - script: cargo build --release --target ${{ target.target }} --bin=${{ parameters.VSCODE_CLI_BINARY_NAME }}
@@ -28,6 +35,8 @@ steps:
         VSCODE_CLI_ASSET_NAME: ${{ target.artifact }}
         VSCODE_CLI_AI_KEY: $(VSCODE_CLI_AI_KEY)
         VSCODE_CLI_AI_ENDPOINT: $(VSCODE_CLI_AI_ENDPOINT)
+        VSCODE_CLI_COMMIT: $(VSCODE_CLI_COMMIT)
+        VSCODE_QUALITY: $(VSCODE_QUALITY)
 
     - publish: ${{ parameters.VSCODE_CLI_DIR }}/target/${{ target.target }}/release/${{ parameters.VSCODE_CLI_BINARY_NAME }}
       artifact: ${{ target.artifact }}

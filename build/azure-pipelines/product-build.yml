@@ -189,14 +189,11 @@ stages:
           - job: LinuxX86
             pool: vscode-1es-linux
             steps:
-              - template: ./cli/prepare.yml
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_IS_POSIX: true
               - template: ./cli/compile-linux.yml
                 parameters:
                   VSCODE_CLI_DIR: $(Build.SourcesDirectory)/cli
                   VSCODE_CLI_BINARY_NAME: ${{ variables.VSCODE_CLI_BINARY_NAME }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CLI_TARGETS:
                     - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true) }}:
                       - { target: x86_64-unknown-linux-musl, artifact: vscode_cli_alpine_x64_cli-unsigned }
@@ -217,14 +214,11 @@ stages:
                   sudo apt update -y
                   sudo apt install -y build-essential pkg-config
                 displayName: Install build dependencies
-              - template: ./cli/prepare.yml
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_IS_POSIX: true
               - template: ./cli/compile-linux.yml
                 parameters:
                   VSCODE_CLI_DIR: $(Build.SourcesDirectory)/cli
                   VSCODE_CLI_BINARY_NAME: ${{ variables.VSCODE_CLI_BINARY_NAME }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CLI_TARGETS:
                     - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64, true) }}:
                       - { target: aarch64-unknown-linux-musl, artifact: vscode_cli_alpine_arm64_cli-unsigned }
@@ -236,14 +230,11 @@ stages:
             pool:
               vmImage: macOS-latest
             steps:
-              - template: ./cli/prepare.yml
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_IS_POSIX: true
               - template: ./cli/compile-macos.yml
                 parameters:
                   VSCODE_CLI_DIR: $(Build.SourcesDirectory)/cli
                   VSCODE_CLI_BINARY_NAME: ${{ variables.VSCODE_CLI_BINARY_NAME }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CLI_TARGETS:
                     - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
                       - { target: x86_64-apple-darwin, artifact: vscode_cli_darwin_x64_cli-unsigned }
@@ -254,10 +245,6 @@ stages:
           - job: Windows
             pool: vscode-1es-windows
             steps:
-              - template: ./cli/prepare.yml
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_IS_POSIX: false
               - template: ./cli/vcpkg-deps.yml
                 parameters:
                   targets:
@@ -271,6 +258,7 @@ stages:
                 parameters:
                   VSCODE_CLI_DIR: $(Build.SourcesDirectory)/cli
                   VSCODE_CLI_BINARY_NAME: ${{ variables.VSCODE_CLI_BINARY_NAME }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CLI_TARGETS:
                     - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
                       - { target: x86_64-pc-windows-msvc, artifact: vscode_cli_win32_x64_cli-unsigned }
