@@ -173,6 +173,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					await this.editSessionsStorageService.initialize(true);
 					if (this.editSessionsStorageService.isSignedIn) {
 						await this.resumeEditSession(undefined, true);
+					} else {
+						this.updateAccountsMenuBadge();
 					}
 					// store the fact that we prompted the user
 				} else if (!this.editSessionsStorageService.isSignedIn &&
