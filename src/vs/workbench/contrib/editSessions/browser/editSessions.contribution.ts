@@ -150,12 +150,14 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			this.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.continue.resume');
 
 			if (this.environmentService.editSessionId !== undefined) {
+				this.logService.info(`Resuming edit session, reason: found editSessionId ${this.environmentService.editSessionId} in environment service...`);
 				await this.resumeEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
 			} else if (
 				this.configurationService.getValue('workbench.experimental.editSessions.enabled') === true &&
 				this.configurationService.getValue('workbench.experimental.editSessions.autoResume') === 'onReload' &&
 				this.editSessionsStorageService.isSignedIn
 			) {
+				this.logService.info('Resuming edit session, reason: edit sessions enabled...');
 				// Attempt to resume edit session based on edit workspace identifier
 				// Note: at this point if the user is not signed into edit sessions,
 				// we don't want them to be prompted to sign in and should just return early
@@ -163,6 +165,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			} else {
 				// The application has previously launched via a protocol URL Continue On flow
 				const hasApplicationLaunchedFromContinueOnFlow = this.storageService.getBoolean(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, StorageScope.APPLICATION, false);
+				this.logService.info(`environmentService.continueOn: ${this.environmentService.continueOn}`);
+				this.logService.info(`Edit sessions signed in state: ${this.editSessionsStorageService.isSignedIn}`);
+				this.logService.info(`Edit session has previously launched from continue on flow: ${hasApplicationLaunchedFromContinueOnFlow}`);
 
 				if ((this.environmentService.continueOn !== undefined) &&
 					!this.editSessionsStorageService.isSignedIn &&
