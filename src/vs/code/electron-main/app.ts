@@ -890,7 +890,7 @@ export class CodeApplication extends Disposable {
 		const logService = this.logService;
 		urlService.registerHandler({
 			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-				logService.info('app#handleURL: ', uri.toString(true), options);
+				logService.trace('app#handleURL: ', uri.toString(true), options);
 
 				if (uri.scheme === productService.urlProtocol && uri.path === 'workspace') {
 					uri = uri.with({
