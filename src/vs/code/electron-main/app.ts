@@ -919,9 +919,7 @@ export class CodeApplication extends Disposable {
 				shouldOpenInNewWindow ||= isMacintosh && windowsMainService.getWindowCount() === 0;
 
 				// Pass along whether the application is being opened via a Continue On flow
-				logService.info('app#handleURL params: ', [...params.entries()]);
 				const continueOn = params.get('continueOn');
-				logService.info('app#handleURL continueOn: ', continueOn);
 				if (continueOn !== null) {
 					environmentService.continueOn = continueOn ?? undefined;
 					params.delete('continueOn');
@@ -930,7 +928,7 @@ export class CodeApplication extends Disposable {
 
 				// Check for URIs to open in window
 				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
-				logService.info('app#handleURL: windowOpenableFromProtocolLink = ', windowOpenableFromProtocolLink);
+				logService.trace('app#handleURL: windowOpenableFromProtocolLink = ', windowOpenableFromProtocolLink);
 				if (windowOpenableFromProtocolLink) {
 					const [window] = await windowsMainService.open({
 						context: OpenContext.API,

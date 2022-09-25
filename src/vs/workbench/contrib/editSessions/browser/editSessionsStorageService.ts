@@ -75,7 +75,6 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 
 		this.registerSignInAction();
 		this.registerResetAuthenticationAction();
-		this.registerResetContinueOnState();
 
 		this.signedInContext = EDIT_SESSIONS_SIGNED_IN.bindTo(this.contextKeyService);
 		this.signedInContext.set(this.existingSessionId !== undefined);
@@ -492,25 +491,6 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 					}
 					that.clearAuthenticationPreference();
 				}
-			}
-		}));
-	}
-
-	private registerResetContinueOnState() {
-		const that = this;
-		this._register(registerAction2(class ResetContinueOnStateAction extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.editSessions.actions.resetContinueOn',
-					title: 'Reset Continue On State',
-					category: 'Developer',
-					f1: true
-				});
-			}
-
-			async run() {
-				that.storageService.remove('applicationLaunchedViaContinueOn', StorageScope.APPLICATION);
-				that.clearAuthenticationPreference();
 			}
 		}));
 	}

@@ -165,9 +165,6 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			} else {
 				// The application has previously launched via a protocol URL Continue On flow
 				const hasApplicationLaunchedFromContinueOnFlow = this.storageService.getBoolean(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, StorageScope.APPLICATION, false);
-				this.logService.info(`environmentService.continueOn: ${this.environmentService.continueOn}`);
-				this.logService.info(`Edit sessions signed in state: ${this.editSessionsStorageService.isSignedIn}`);
-				this.logService.info(`Edit session has previously launched from continue on flow: ${hasApplicationLaunchedFromContinueOnFlow}`);
 
 				if ((this.environmentService.continueOn !== undefined) &&
 					!this.editSessionsStorageService.isSignedIn &&
