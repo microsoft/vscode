@@ -8,6 +8,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -17,7 +18,7 @@ import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mer
 import { IMergeEditorInputModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel';
 import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowNonConflictingChanges } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop, ctxMergeEditorShowNonConflictingChanges } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 abstract class MergeEditorAction extends Action2 {
@@ -272,6 +273,35 @@ export class ShowHideBase extends Action2 {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
 			activeEditorPane.toggleBase();
+		}
+	}
+}
+
+export class ShowHideAtTopBase extends Action2 {
+	constructor() {
+		super({
+			id: 'merge.showBaseAtTop',
+			title: {
+				value: localize('layout.showBaseAtTop', 'Show Base At Top'),
+				original: 'Show Base At Top',
+			},
+			toggled: ctxMergeEditorShowBaseAtTop.isEqualTo(true),
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ctxIsMergeEditor,
+					group: '2_merge',
+					order: 10,
+				},
+			],
+			precondition: ContextKeyExpr.and(ctxIsMergeEditor, ctxMergeEditorShowBase),
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const { activeEditorPane } = accessor.get(IEditorService);
+		if (activeEditorPane instanceof MergeEditor) {
+			activeEditorPane.toggleShowBaseAtTop();
 		}
 	}
 }
