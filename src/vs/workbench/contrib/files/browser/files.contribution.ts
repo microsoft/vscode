@@ -251,6 +251,24 @@ configurationRegistry.registerConfiguration({
 			'markdownDescription': nls.localize('watcherExclude', "Configure paths or glob patterns to exclude from file watching. Paths or basic glob patterns that are relative (for example `build/output` or `*.js`) will be resolved to an absolute path using the currently opened workspace. Complex glob patterns must match on absolute paths (i.e. prefix with `**/` or the full path and suffix with `/**` to match files within a path) to match properly (for example `**/build/output/**` or `/Users/name/workspaces/project/build/output/**`). When you experience the file watcher process consuming a lot of CPU, make sure to exclude large folders that are of less interest (such as build output folders)."),
 			'scope': ConfigurationScope.RESOURCE
 		},
+		'files.readonlyInclude': {
+			'type': 'array',
+			'items': {
+				'type': 'string'
+			},
+			'default': [],
+			'description': nls.localize('readonlyInclude', "Configure paths or glob patterns to open as read-only."),
+			'scope': ConfigurationScope.RESOURCE
+		},
+		'files.readonlyExclude': {
+			'type': 'array',
+			'items': {
+				'type': 'string'
+			},
+			'default': [],
+			'description': nls.localize('readonlyExclude', "Overrides files.readonlyInclude: paths or glob patterns to NOT open as read-only."),
+			'scope': ConfigurationScope.RESOURCE
+		},
 		'files.watcherInclude': {
 			'type': 'array',
 			'items': {

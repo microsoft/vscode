@@ -31,6 +31,8 @@ import { extUri } from 'vs/base/common/resources';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { match as matchGlobPattern } from 'vs/base/common/glob';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -115,6 +117,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
@@ -1130,8 +1133,28 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return !!this.textEditorModel;
 	}
 
+	private isReadonlyFromConfig(): boolean {
+		const readonlyInclude = this.configurationService.getValue<string[]>('files.readonlyInclude');
+		const readonlyExclude = this.configurationService.getValue<string[]>('files.readonlyExclude');
+		return !!readonlyInclude?.find(glob => matchGlobPattern(glob, this.resource.fsPath))
+			&& !readonlyExclude?.find(glob => matchGlobPattern(glob, this.resource.fsPath));
+	}
+
+	private oldReadonly: boolean | undefined;
+
+	checkDidChangeReadonly(newReadonly: boolean): boolean {
+		if (this.oldReadonly !== newReadonly) {
+			this.oldReadonly = newReadonly;    // must set before fire(); reentrant.
+			this._onDidChangeReadonly.fire();
+		}
+		return newReadonly;
+	}
+
 	override isReadonly(): boolean {
-		return this.lastResolvedFileStat?.readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this.checkDidChangeReadonly(
+			this.isReadonlyFromConfig() ||
+			this.lastResolvedFileStat?.readonly ||
+			this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly));
 	}
 
 	override dispose(): void {
