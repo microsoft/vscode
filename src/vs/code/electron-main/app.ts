@@ -919,8 +919,11 @@ export class CodeApplication extends Disposable {
 				shouldOpenInNewWindow ||= isMacintosh && windowsMainService.getWindowCount() === 0;
 
 				// Pass along whether the application is being opened via a Continue On flow
-				if (params.get('continueOn') !== null) {
-					environmentService.continueOn = params.get('continueOn') ?? undefined;
+				logService.info('app#handleURL params: ', [...params.entries()]);
+				const continueOn = params.get('continueOn');
+				logService.info('app#handleURL continueOn: ', continueOn);
+				if (continueOn !== null) {
+					environmentService.continueOn = continueOn ?? undefined;
 					params.delete('continueOn');
 					uri = uri.with({ query: params.toString() });
 				}
