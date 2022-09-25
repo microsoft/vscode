@@ -137,6 +137,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		this._register(this.fileService.registerProvider(EditSessionsFileSystemProvider.SCHEMA, new EditSessionsFileSystemProvider(this.editSessionsStorageService)));
 		this.lifecycleService.onWillShutdown((e) => e.join(this.autoStoreEditSession(), { id: 'autoStoreEditSession', label: localize('autoStoreEditSession', 'Storing current edit session...') }));
+		this._register(this.editSessionsStorageService.onDidSignIn(() => this.updateAccountsMenuBadge()));
 	}
 
 	private autoResumeEditSession() {
@@ -185,6 +186,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				) {
 					// display a badge in the accounts menu but do not prompt the user to sign in again
 					this.updateAccountsMenuBadge();
+					// attempt a resume if we are in a pending state and the user just signed in
+					this._register(this.editSessionsStorageService.onDidSignIn(async () => this.resumeEditSession(undefined, true)));
 				}
 			}
 
