@@ -50,15 +50,6 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	echo Storing log files into '%VSCODELOGSDIR%'
  	echo Using %INTEGRATION_TEST_ELECTRON_PATH% as Electron path
 
-	:: Run from a built: need to compile all test extensions
-	:: because we run extension tests from their source folders
-	:: and the build bundles extensions into .build webpacked
-	:: call yarn gulp 	compile-extension:vscode-api-tests^
-	::				compile-extension:microsoft-authentication^
-	::				compile-extension:github-authentication^
-	::				compile-extension:vscode-test-resolver
-
-	:: Configuration for more verbose output
 	set VSCODE_CLI=1
 	set ELECTRON_ENABLE_LOGGING=1
 	set ELECTRON_ENABLE_STACK_DUMPING=1

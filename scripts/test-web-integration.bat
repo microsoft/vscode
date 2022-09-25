@@ -21,23 +21,15 @@ if "%VSCODE_REMOTE_SERVER_PATH%"=="" (
 	echo Using remote server out of sources for integration web tests
 ) else (
 	echo Using '%VSCODE_REMOTE_SERVER_PATH%' as server path for web integration tests
-
-	:: Run from a built: need to compile all test extensions
-	:: because we run extension tests from their source folders
-	:: and the build bundles extensions into .build webpacked
-	:: call yarn gulp	compile-extension:vscode-api-tests^
-	::				compile-extension:markdown-language-features^
-	::				compile-extension:typescript-language-features^
-	::				compile-extension:emmet^
-	::				compile-extension:configuration-editing^
-	::				compile-extension:git^
-	::				compile-extension-media
 )
 
 if not exist ".\test\integration\browser\out\index.js" (
 	call yarn --cwd test/integration/browser compile
 	call yarn playwright-install
 )
+
+
+:: Tests in the extension host
 
 echo.
 echo ### API tests (folder)
