@@ -820,7 +820,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 				this.layout();
 				setTimeout(() => {
 					this.elements.root.style.transition = transition;
-				}, 100);
+				}, 0);
 			}
 		}));
 
