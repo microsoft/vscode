@@ -104,7 +104,7 @@ export interface IShellIntegrationConfigInjection {
  */
 export function getShellIntegrationInjection(
 	shellLaunchConfig: IShellLaunchConfig,
-	options: ITerminalProcessOptions['shellIntegration'],
+	options: Pick<ITerminalProcessOptions, 'shellIntegration' | 'windowsEnableConpty'>,
 	env: ITerminalEnvironment | undefined,
 	logService: ILogService,
 	productService: IProductService
@@ -113,7 +113,7 @@ export function getShellIntegrationInjection(
 	// - The global setting is disabled
 	// - There is no executable (not sure what script to run)
 	// - The terminal is used by a feature like tasks or debugging
-	if (!options.enabled || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal || shellLaunchConfig.hideFromUser || shellLaunchConfig.ignoreShellIntegration) {
+	if (!options.shellIntegration.enabled || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal || shellLaunchConfig.hideFromUser || shellLaunchConfig.ignoreShellIntegration || (isWindows && !options.windowsEnableConpty)) {
 		return undefined;
 	}
 
