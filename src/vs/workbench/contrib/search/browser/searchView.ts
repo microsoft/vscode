@@ -577,7 +577,7 @@ export class SearchView extends ViewPane {
 		});
 	}
 
-	private createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults'], incompressible: boolean): Iterable<ICompressedTreeElement<RenderableMatch>> {
+	private createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults'], childFolderIncompressible: boolean): Iterable<ICompressedTreeElement<RenderableMatch>> {
 		const sortOrder = this.searchConfig.sortOrder;
 
 		const matchArray = this.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.downstreamFileMatches();
@@ -596,7 +596,7 @@ export class SearchView extends ViewPane {
 			const collapsed = nodeExists ? undefined :
 				(collapseResults === 'alwaysCollapse' || (match.count() > 10 && collapseResults !== 'alwaysExpand'));
 
-			return <ICompressedTreeElement<RenderableMatch>>{ element: match, children, collapsed, incompressible: (match instanceof FileMatch) ? true : incompressible };
+			return <ICompressedTreeElement<RenderableMatch>>{ element: match, children, collapsed, incompressible: (match instanceof FileMatch) ? true : childFolderIncompressible };
 		});
 	}
 
