@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// eslint-disable-next-line local/code-import-patterns
+import Parser = require('web-tree-sitter');
 import { runWhenIdle } from 'vs/base/common/async';
 import { ITextModel } from 'vs/editor/common/model';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import Parser = require('web-tree-sitter');
+import { IModelService } from 'vs/editor/common/services/model';
 
 export class TreeSitterTree {
 
@@ -19,13 +20,16 @@ export class TreeSitterTree {
 	private _edits: Parser.Edit[];
 	private _nCallsParseTree: number;
 	private _nCallsParseAsync: number;
+	private readonly _modelService: IModelService;
 	private readonly _store: DisposableStore = new DisposableStore();
 
 	constructor(
 		private readonly _model: ITextModel,
 		_language: Parser.Language,
+		_modelService: IModelService,
 		private readonly _asynchronous: boolean = true
 	) {
+		this._modelService = _modelService;
 		this._parser = new Parser();
 		this._parser.setLanguage(_language);
 		this._edits = [];
@@ -112,11 +116,11 @@ export class TreeSitterTree {
 		}
 		// Else if parsing failed, asynchronous
 		catch (error) {
-			const textModel = createTextModel('');
-			textModel.setValue(this._model.createSnapshot());
+			const model = this._modelService.createModel('', null);
+			model.setValue(this._model.createSnapshot());
 			this._nCallsParseAsync = 0;
 			return new Promise((resolve, _reject) => {
-				this._parseAsync(textModel, tree).then((tree) => {
+				this._parseAsync(model, tree).then((tree) => {
 					this._tree = tree;
 					resolve(tree);
 				});

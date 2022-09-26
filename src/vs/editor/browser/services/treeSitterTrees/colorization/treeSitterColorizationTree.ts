@@ -2,8 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+// eslint-disable-next-line local/code-import-patterns
 import Parser = require('web-tree-sitter');
+// eslint-disable-next-line local/code-import-patterns
+import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
@@ -11,7 +13,6 @@ import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMul
 import { runWhenIdle } from 'vs/base/common/async';
 import { FileAccess } from 'vs/base/common/network';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
 import { SemanticTokensProviderStylingConstants } from 'vs/editor/common/services/semanticTokensProviderStyling';
 import { FontStyle, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';

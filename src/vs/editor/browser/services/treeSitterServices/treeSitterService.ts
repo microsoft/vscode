@@ -31,6 +31,7 @@ export class TreeSitterService implements ITreeSitterService {
 	private _trees: Map<URI, TreeSitterTree> = new Map();
 	private readonly _store: DisposableStore = new DisposableStore();
 	private readonly _fileService: IFileService;
+	private readonly _modelService: IModelService;
 	private supportedLanguages = new Map<string, string>([
 		['typescript', './tree-sitter-typescript.wasm']
 	]);
@@ -40,6 +41,7 @@ export class TreeSitterService implements ITreeSitterService {
 		@IFileService _fileservice: IFileService
 	) {
 		this._fileService = _fileservice;
+		this._modelService = _modelService;
 		this._store.add(_modelService.onModelRemoved((model) => {
 			if (this._trees.has(model.uri)) {
 				const treeSitterTree = this._trees.get(model.uri);
@@ -69,7 +71,7 @@ export class TreeSitterService implements ITreeSitterService {
 			throw new Error('Parser language should be defined');
 		}
 		if (!this._trees.has(model.uri)) {
-			this._trees.set(model.uri, new TreeSitterTree(model, this._language, asynchronous));
+			this._trees.set(model.uri, new TreeSitterTree(model, this._language, this._modelService, asynchronous));
 		}
 
 		const tree = this._trees.get(model.uri);
@@ -81,7 +83,7 @@ export class TreeSitterService implements ITreeSitterService {
 		sw.reset();
 		const captures = query.captures(parsedTree.rootNode, { row: startLine ? startLine : 1, column: 1 } as Parser.Point);
 		const timeCaptureQueries = sw.elapsed();
-		console.log('Time to get the query captures : ', timeCaptureQueries - timeTreeParse);
+		console.log('Time to get the query captures : ', timeCaptureQueries);
 		query.delete();
 		return captures;
 	}
@@ -104,7 +106,7 @@ export class TreeSitterService implements ITreeSitterService {
 		if (this._trees.has(model.uri)) {
 			return this._trees.get(model.uri)!;
 		} else {
-			this._trees.set(model.uri, new TreeSitterTree(model, this._language));
+			this._trees.set(model.uri, new TreeSitterTree(model, this._language, this._modelService));
 			return this._trees.get(model.uri)!;
 		}
 	}
