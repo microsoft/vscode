@@ -12,6 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/model';
+import { setTimeout0 } from 'vs/base/common/platform';
 
 export class TreeSitterTree {
 
@@ -142,6 +143,30 @@ export class TreeSitterTree {
 	private _parseAsync(textModel: ITextModel, tree: Parser.Tree | undefined): Promise<Parser.Tree> {
 		this._nCallsParseAsync += 1;
 		return new Promise((resolve, _reject) => {
+			setTimeout0(async () => {
+				this._parser.setTimeoutMicros(15 * 1000);
+				let result: Parser.Tree;
+				try {
+					result = this._parser.parse(
+						(startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) =>
+							this._retrieveTextAtPosition(textModel, startIndex, startPoint, endIndex),
+						tree
+					);
+					// Case 1: Either we obtain the result this iteration in which case we resolve
+					this._tree = result;
+					console.log('Number of calls to _parseAsync : ', this._nCallsParseAsync);
+					resolve(result);
+				}
+				// Case 2: Here in the catch block treat the case when the parse has failed, then rerun the method
+				catch (error) {
+					return this._parseAsync(textModel, tree).then((tree) => {
+						resolve(tree);
+					});
+				}
+			});
+		});
+		/*
+		return new Promise((resolve, _reject) => {
 			runWhenIdle(
 				async (arg) => {
 					this._parser.setTimeoutMicros(arg.timeRemaining() * 1000);
@@ -168,6 +193,7 @@ export class TreeSitterTree {
 				1000
 			);
 		});
+		*/
 	}
 
 	private _retrieveTextAtPosition(model: ITextModel, startIndex: number, _startPoint: Parser.Point | undefined, endIndex: number | undefined) {
