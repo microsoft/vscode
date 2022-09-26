@@ -665,7 +665,7 @@
         },
         {
           "command": "git.init",
-          "when": "config.git.enabled && !git.missing"
+          "when": "config.git.enabled && !git.missing && remoteName != 'codespaces'"
         },
         {
           "command": "git.openRepository",
@@ -2340,6 +2340,12 @@
           "default": false,
           "description": "%config.rebaseWhenSync%"
         },
+        "git.fetchBeforeCheckout": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.fetchBeforeCheckout%"
+        },
         "git.fetchOnPull": {
           "type": "boolean",
           "scope": "resource",
@@ -2576,7 +2582,7 @@
         },
         "git.mergeEditor": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "%config.mergeEditor%",
           "scope": "window"
         }
@@ -2731,14 +2737,14 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.folder%",
-        "when": "config.git.enabled && !git.missing && workbenchState == folder",
+        "when": "config.git.enabled && !git.missing && workbenchState == folder && remoteName != 'codespaces'",
         "enablement": "git.state == initialized",
         "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
-        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0",
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0 && remoteName != 'codespaces'",
         "enablement": "git.state == initialized",
         "group": "5_scm@1"
       },

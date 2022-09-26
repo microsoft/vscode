@@ -276,23 +276,27 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (!slc.executable) {
 			throw new Error('IShellLaunchConfig.executable not set');
 		}
+
+		const cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd;
+		const envPaths: string[] | undefined = (slc.env && slc.env.PATH) ? slc.env.PATH.split(path.delimiter) : undefined;
+		const executable = await findExecutable(slc.executable!, cwd, envPaths, this._executableEnv);
+		if (!executable) {
+			return { message: localize('launchFail.executableDoesNotExist', "Path to shell executable \"{0}\" does not exist", slc.executable) };
+		}
+
 		try {
-			const result = await Promises.stat(slc.executable);
+			const result = await Promises.stat(executable);
 			if (!result.isFile() && !result.isSymbolicLink()) {
 				return { message: localize('launchFail.executableIsNotFileOrSymlink', "Path to shell executable \"{0}\" is not a file or a symlink", slc.executable) };
 			}
+			// Set the executable explicitly here so that node-pty doesn't need to search the
+			// $PATH too.
+			slc.executable = executable;
 		} catch (err) {
-			if (err?.code === 'ENOENT') {
-				// The executable isn't an absolute path, try find it on the PATH or CWD
-				const cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd!;
-				const envPaths: string[] | undefined = (slc.env && slc.env.PATH) ? slc.env.PATH.split(path.delimiter) : undefined;
-				const executable = await findExecutable(slc.executable!, cwd, envPaths, this._executableEnv);
-				if (!executable) {
-					return { message: localize('launchFail.executableDoesNotExist', "Path to shell executable \"{0}\" does not exist", slc.executable) };
-				}
-				// Set the executable explicitly here so that node-pty doesn't need to search the
-				// $PATH too.
-				slc.executable = executable;
+			if (err?.code === 'EACCES') {
+				// Swallow
+			} else {
+				throw err;
 			}
 		}
 		return undefined;

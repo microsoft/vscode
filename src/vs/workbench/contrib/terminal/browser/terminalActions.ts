@@ -143,6 +143,26 @@ export function registerTerminalActions() {
 		}
 	});
 
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.QuickFix,
+				title: { value: localize('workbench.action.terminal.quickFix', "Quick Fix"), original: 'Quick Fix' },
+				f1: true,
+				category,
+				precondition: TerminalContextKeys.processSupported,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyCode.Period,
+					when: TerminalContextKeys.focus,
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).activeInstance?.contextualActions?.showQuickFixMenu();
+		}
+	});
+
 	// Register new with profile command
 	refreshTerminalActions([]);
 
@@ -322,9 +342,9 @@ export function registerTerminalActions() {
 			if (instance) {
 				await instance.runRecent('command');
 				if (instance?.target === TerminalLocation.Editor) {
-					terminalEditorService.revealActiveEditor();
+					await terminalEditorService.revealActiveEditor();
 				} else {
-					terminalGroupService.showPanel(false);
+					await terminalGroupService.showPanel(false);
 				}
 			}
 		}
@@ -350,7 +370,7 @@ export function registerTerminalActions() {
 				return;
 			}
 			const output = command.getOutput();
-			if (output) {
+			if (output && typeof output === 'string') {
 				await accessor.get(IClipboardService).writeText(output);
 			}
 		}
@@ -372,9 +392,9 @@ export function registerTerminalActions() {
 			if (instance) {
 				await instance.runRecent('cwd');
 				if (instance?.target === TerminalLocation.Editor) {
-					terminalEditorService.revealActiveEditor();
+					await terminalEditorService.revealActiveEditor();
 				} else {
-					terminalGroupService.showPanel(false);
+					await terminalGroupService.showPanel(false);
 				}
 			}
 		}
@@ -576,9 +596,9 @@ export function registerTerminalActions() {
 			}
 			instance.sendText(text, true);
 			if (instance.target === TerminalLocation.Editor) {
-				terminalEditorService.revealActiveEditor();
+				await terminalEditorService.revealActiveEditor();
 			} else {
-				terminalGroupService.showPanel();
+				await terminalGroupService.showPanel();
 			}
 		}
 	});
@@ -1071,7 +1091,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.findWidget.reveal();
+			accessor.get(ITerminalService).activeInstance?.findWidget.getValue().reveal();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1091,7 +1111,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.findWidget.hide();
+			accessor.get(ITerminalService).activeInstance?.findWidget.getValue().hide();
 		}
 	});
 
@@ -1309,7 +1329,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.toggleEscapeSequenceLogging', "Toggle Escape Sequence Logging"), original: 'Toggle Escape Sequence Logging' },
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -1444,7 +1464,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const state = terminalService.activeInstance?.findWidget.findState;
+			const state = terminalService.activeInstance?.findWidget.getValue().findState;
 			state?.change({ isRegex: !state.isRegex }, false);
 		}
 	});
@@ -1466,7 +1486,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const state = terminalService.activeInstance?.findWidget.findState;
+			const state = terminalService.activeInstance?.findWidget.getValue().findState;
 			state?.change({ wholeWord: !state.wholeWord }, false);
 		}
 	});
@@ -1488,7 +1508,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const state = terminalService.activeInstance?.findWidget.findState;
+			const state = terminalService.activeInstance?.findWidget.getValue().findState;
 			state?.change({ matchCase: !state.matchCase }, false);
 		}
 	});
@@ -1517,8 +1537,11 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			terminalService.activeInstance?.findWidget.show();
-			terminalService.activeInstance?.findWidget.find(false);
+			const findWidget = terminalService.activeInstance?.findWidget.getValue();
+			if (findWidget) {
+				findWidget.show();
+				findWidget.find(false);
+			}
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1546,8 +1569,11 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			terminalService.activeInstance?.findWidget.show();
-			terminalService.activeInstance?.findWidget.find(true);
+			const findWidget = terminalService.activeInstance?.findWidget.getValue();
+			if (findWidget) {
+				findWidget.show();
+				findWidget.find(true);
+			}
 		}
 	});
 	registerAction2(class extends Action2 {

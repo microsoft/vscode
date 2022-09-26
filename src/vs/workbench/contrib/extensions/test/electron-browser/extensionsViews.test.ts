@@ -11,7 +11,7 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/com
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	DidUninstallExtensionEvent, InstallExtensionEvent, SortBy, InstallExtensionResult, getTargetPlatform, IExtensionInfo, UninstallExtensionEvent
+	DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, getTargetPlatform, IExtensionInfo, UninstallExtensionEvent, SortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
@@ -36,7 +36,7 @@ import { SinonStub } from 'sinon';
 import { IExperimentService, ExperimentState, ExperimentActionType, ExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentService';
-import { ExtensionType, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -57,13 +57,13 @@ suite('ExtensionsListView Tests', () => {
 		uninstallEvent: Emitter<UninstallExtensionEvent>,
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 
-	const localEnabledTheme = aLocalExtension('first-enabled-extension', { categories: ['Themes', 'random'] });
-	const localEnabledLanguage = aLocalExtension('second-enabled-extension', { categories: ['Programming languages'] });
-	const localDisabledTheme = aLocalExtension('first-disabled-extension', { categories: ['themes'] });
-	const localDisabledLanguage = aLocalExtension('second-disabled-extension', { categories: ['programming languages'] });
-	const localRandom = aLocalExtension('random-enabled-extension', { categories: ['random'] });
-	const builtInTheme = aLocalExtension('my-theme', { contributes: { themes: ['my-theme'] } }, { type: ExtensionType.System });
-	const builtInBasic = aLocalExtension('my-lang', { contributes: { grammars: [{ language: 'my-language' }] } }, { type: ExtensionType.System });
+	const localEnabledTheme = aLocalExtension('first-enabled-extension', { categories: ['Themes', 'random'] }, { installedTimestamp: 123456 });
+	const localEnabledLanguage = aLocalExtension('second-enabled-extension', { categories: ['Programming languages'] }, { installedTimestamp: Date.now() });
+	const localDisabledTheme = aLocalExtension('first-disabled-extension', { categories: ['themes'] }, { installedTimestamp: 234567 });
+	const localDisabledLanguage = aLocalExtension('second-disabled-extension', { categories: ['programming languages'] }, { installedTimestamp: Date.now() - 50000 });
+	const localRandom = aLocalExtension('random-enabled-extension', { categories: ['random'] }, { installedTimestamp: 345678 });
+	const builtInTheme = aLocalExtension('my-theme', { contributes: { themes: ['my-theme'] } }, { type: ExtensionType.System, installedTimestamp: 222 });
+	const builtInBasic = aLocalExtension('my-lang', { contributes: { grammars: [{ language: 'my-language' }] } }, { type: ExtensionType.System, installedTimestamp: 666666 });
 
 	const workspaceRecommendationA = aGalleryExtension('workspace-recommendation-A');
 	const workspaceRecommendationB = aGalleryExtension('workspace-recommendation-B');
@@ -178,15 +178,13 @@ suite('ExtensionsListView Tests', () => {
 
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
 			onDidChangeExtensions: Event.None,
-			getExtensions: (): Promise<IExtensionDescription[]> => {
-				return Promise.resolve([
-					toExtensionDescription(localEnabledTheme),
-					toExtensionDescription(localEnabledLanguage),
-					toExtensionDescription(localRandom),
-					toExtensionDescription(builtInTheme),
-					toExtensionDescription(builtInBasic)
-				]);
-			}
+			extensions: [
+				toExtensionDescription(localEnabledTheme),
+				toExtensionDescription(localEnabledLanguage),
+				toExtensionDescription(localRandom),
+				toExtensionDescription(builtInTheme),
+				toExtensionDescription(builtInBasic)
+			]
 		});
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledTheme], EnablementState.DisabledGlobally);
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledLanguage], EnablementState.DisabledGlobally);
@@ -206,10 +204,14 @@ suite('ExtensionsListView Tests', () => {
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@enabled'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@disabled'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@outdated'), true);
+		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@updates'), true);
+		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@sort:name'), true);
+		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@sort:updateDate'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@installed searchText'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@enabled searchText'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@disabled searchText'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@outdated searchText'), true);
+		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@updates searchText'), true);
 	});
 
 	test('Test empty query equates to sort by install count', () => {
@@ -347,6 +349,26 @@ suite('ExtensionsListView Tests', () => {
 		});
 	});
 
+	test('Test local query with sorting order', async () => {
+		await testableView.show('@recentlyUpdated').then(result => {
+			assert.strictEqual(result.length, 2, 'Unexpected number of results for @recentlyUpdated');
+			const actual = [result.get(0).name, result.get(1).name];
+			const expected = [localEnabledLanguage.manifest.name, localDisabledLanguage.manifest.name];
+			for (let i = 0; i < actual.length; i++) {
+				assert.strictEqual(actual[i], expected[i], 'Unexpected default sort order of extensions for @recentlyUpdate query');
+			}
+		});
+
+		await testableView.show('@installed @sort:updateDate').then(result => {
+			assert.strictEqual(result.length, 5, 'Unexpected number of results for @sort:updateDate. Expected all localy installed Extension which are not builtin');
+			const actual = [result.get(0).local?.installedTimestamp, result.get(1).local?.installedTimestamp, result.get(2).local?.installedTimestamp, result.get(3).local?.installedTimestamp, result.get(4).local?.installedTimestamp];
+			const expected = [localEnabledLanguage.installedTimestamp, localDisabledLanguage.installedTimestamp, localRandom.installedTimestamp, localDisabledTheme.installedTimestamp, localEnabledTheme.installedTimestamp];
+			for (let i = 0; i < result.length; i++) {
+				assert.strictEqual(actual[i], expected[i], 'Unexpected extension sorting for @sort:updateDate query.');
+			}
+		});
+	});
+
 	test('Test @recommended:workspace query', () => {
 		const workspaceRecommendedExtensions = [
 			workspaceRecommendationA,
@@ -356,7 +378,6 @@ suite('ExtensionsListView Tests', () => {
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', workspaceRecommendedExtensions);
 
 		return testableView.show('@recommended:workspace').then(result => {
-			assert.ok(target.calledOnce);
 			const extensionInfos: IExtensionInfo[] = target.args[0][0];
 			assert.strictEqual(extensionInfos.length, workspaceRecommendedExtensions.length);
 			assert.strictEqual(result.length, workspaceRecommendedExtensions.length);
@@ -379,7 +400,6 @@ suite('ExtensionsListView Tests', () => {
 		return testableView.show('@recommended').then(result => {
 			const extensionInfos: IExtensionInfo[] = target.args[0][0];
 
-			assert.ok(target.calledOnce);
 			assert.strictEqual(extensionInfos.length, allRecommendedExtensions.length);
 			assert.strictEqual(result.length, allRecommendedExtensions.length);
 			for (let i = 0; i < allRecommendedExtensions.length; i++) {
@@ -405,7 +425,6 @@ suite('ExtensionsListView Tests', () => {
 		return testableView.show('@recommended:all').then(result => {
 			const extensionInfos: IExtensionInfo[] = target.args[0][0];
 
-			assert.ok(target.calledOnce);
 			assert.strictEqual(extensionInfos.length, allRecommendedExtensions.length);
 			assert.strictEqual(result.length, allRecommendedExtensions.length);
 			for (let i = 0; i < allRecommendedExtensions.length; i++) {
@@ -428,7 +447,6 @@ suite('ExtensionsListView Tests', () => {
 			const extensionInfos: IExtensionInfo[] = queryTarget.args[0][0];
 
 			assert.ok(experimentTarget.calledOnce);
-			assert.ok(queryTarget.calledOnce);
 			assert.strictEqual(extensionInfos.length, curatedList.length);
 			assert.strictEqual(result.length, curatedList.length);
 			for (let i = 0; i < curatedList.length; i++) {

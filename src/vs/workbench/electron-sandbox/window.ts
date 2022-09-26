@@ -65,6 +65,9 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
+import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
+import { Codicon } from 'vs/base/common/codicons';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class NativeWindow extends Disposable {
 
@@ -115,7 +118,9 @@ export class NativeWindow extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
 		@IProgressService private readonly progressService: IProgressService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IBannerService private readonly bannerService: IBannerService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -620,48 +625,19 @@ export class NativeWindow extends Disposable {
 		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.nativeHostService.notifyReady());
 		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.sharedProcessService.notifyRestored());
 
-		// Integrity warning
-		this.integrityService.isPure().then(({ isPure }) => this.titleService.updateProperties({ isPure }));
-
-		// Root warning
-		this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {
-			const isAdmin = await this.nativeHostService.isAdmin();
-
-			// Update title
-			this.titleService.updateProperties({ isAdmin });
-
-			// Show warning message (unix only)
-			if (isAdmin && !isWindows) {
-				this.notificationService.warn(localize('runningAsRoot', "It is not recommended to run {0} as root user.", this.productService.nameShort));
-			}
-		});
-
-		// Windows 7 warning
-		if (isWindows) {
-			this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {
-				const version = this.environmentService.os.release.split('.');
-
-				// Refs https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoa
-				if (parseInt(version[0]) === 6 && parseInt(version[1]) === 1) {
-					const message = localize('windows 7 eol', "{0} on Windows 7 will no longer receive any further updates.", this.productService.nameLong);
-
-					this.notificationService.prompt(
-						Severity.Warning,
-						message,
-						[{
-							label: localize('learnMore', "Learn More"),
-							run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-win7'))
-						}],
-						{
-							neverShowAgain: { id: 'windows7eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
-						}
-					);
-				}
-			});
-		}
+		// Check for situations that are worth warning the user about
+		this.handleWarnings();
 
 		// Touchbar menu (if enabled)
 		this.updateTouchbarMenu();
+
+		// Smoke Test Driver
+		if (this.environmentService.enableSmokeTestDriver) {
+			this.setupDriver();
+		}
+	}
+
+	private async handleWarnings(): Promise<void> {
 
 		// Check for cyclic dependencies
 		if (require.hasDependencyCycle()) {
@@ -674,9 +650,59 @@ export class NativeWindow extends Disposable {
 			}
 		}
 
-		// Smoke Test Driver
-		if (this.environmentService.enableSmokeTestDriver) {
-			this.setupDriver();
+		// After restored phase is fine for the following ones
+		await this.lifecycleService.when(LifecyclePhase.Restored);
+
+		// Integrity / Root warning
+		(async () => {
+			const isAdmin = await this.nativeHostService.isAdmin();
+			const { isPure } = await this.integrityService.isPure();
+
+			// Update to title
+			this.titleService.updateProperties({ isPure, isAdmin });
+
+			// Show warning message (unix only)
+			if (isAdmin && !isWindows) {
+				this.notificationService.warn(localize('runningAsRoot', "It is not recommended to run {0} as root user.", this.productService.nameShort));
+			}
+		})();
+
+		// Installation Dir Warning
+		if (this.environmentService.isBuilt) {
+			const installLocationUri = URI.file(this.environmentService.appRoot);
+			for (const folder of this.contextService.getWorkspace().folders) {
+				if (this.uriIdentityService.extUri.isEqualOrParent(folder.uri, installLocationUri)) {
+					this.bannerService.show({
+						id: 'appRootWarning.banner',
+						message: localize('appRootWarning.banner', "Files you store within the installation folder ('{0}') may be OVERWRITTEN or DELETED IRREVERSIBLY without warning at update time.", this.environmentService.appRoot),
+						icon: Codicon.warning
+					});
+
+					break;
+				}
+			}
+		}
+
+		// Windows 7 warning
+		if (isWindows) {
+			const version = this.environmentService.os.release.split('.');
+
+			// Refs https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoa
+			if (parseInt(version[0]) === 6 && parseInt(version[1]) === 1) {
+				const message = localize('windows 7 eol', "{0} on Windows 7 will no longer receive any further updates.", this.productService.nameLong);
+
+				this.notificationService.prompt(
+					Severity.Warning,
+					message,
+					[{
+						label: localize('learnMore', "Learn More"),
+						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-win7'))
+					}],
+					{
+						neverShowAgain: { id: 'windows7eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
+					}
+				);
+			}
 		}
 	}
 
@@ -860,7 +886,7 @@ export class NativeWindow extends Disposable {
 		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
 		const mergeMode = !!(request.filesToMerge && (request.filesToMerge.length === 4));
 
-		const inputs = await pathsToEditors(mergeMode ? request.filesToMerge : diffMode ? request.filesToDiff : request.filesToOpenOrCreate, this.fileService);
+		const inputs = coalesce(await pathsToEditors(mergeMode ? request.filesToMerge : diffMode ? request.filesToDiff : request.filesToOpenOrCreate, this.fileService));
 		if (inputs.length) {
 			const openedEditorPanes = await this.openResources(inputs, diffMode, mergeMode);
 

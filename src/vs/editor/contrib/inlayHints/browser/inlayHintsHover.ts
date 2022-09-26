@@ -26,8 +26,13 @@ import { asCommandLink } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 
 class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
-	constructor(readonly part: RenderedInlayHintLabelPart, owner: InlayHintsHover) {
-		super(10, owner, part.item.anchor.range);
+	constructor(
+		readonly part: RenderedInlayHintLabelPart,
+		owner: InlayHintsHover,
+		initialMousePosX: number | undefined,
+		initialMousePosY: number | undefined
+	) {
+		super(10, owner, part.item.anchor.range, initialMousePosX, initialMousePosY);
 	}
 }
 
@@ -58,7 +63,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		if (!(options instanceof ModelDecorationInjectedTextOptions && options.attachedData instanceof RenderedInlayHintLabelPart)) {
 			return null;
 		}
-		return new InlayHintsHoverAnchor(options.attachedData, this);
+		return new InlayHintsHoverAnchor(options.attachedData, this, mouseEvent.event.posx, mouseEvent.event.posy);
 	}
 
 	override computeSync(): MarkdownHover[] {

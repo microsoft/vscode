@@ -65,6 +65,7 @@ export interface IExtension {
 	readonly ratingCount?: number;
 	readonly outdated: boolean;
 	readonly outdatedTargetPlatform: boolean;
+	readonly reloadRequiredStatus?: string;
 	readonly enablementState: EnablementState;
 	readonly tags: readonly string[];
 	readonly categories: readonly string[];
@@ -187,8 +188,6 @@ export const INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID = 'workbench.extensions.comm
 export const LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID = 'workbench.extensions.action.listWorkspaceUnsupportedExtensions';
 
 // Context Keys
-export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
-export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
 export const HasOutdatedExtensionsContext = new RawContextKey<boolean>('hasOutdatedExtensions', false);
 
 // Context Menu Groups
