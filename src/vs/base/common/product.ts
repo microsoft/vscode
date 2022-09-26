@@ -130,6 +130,8 @@ export interface IProductConfiguration {
 	readonly serverApplicationName: string;
 	readonly serverDataFolderName?: string;
 
+	readonly tunnelApplicationName?: string;
+
 	readonly npsSurveyUrl?: string;
 	readonly cesSurveyUrl?: string;
 	readonly surveys?: readonly ISurveyData[];
