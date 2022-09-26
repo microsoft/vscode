@@ -90,7 +90,7 @@ export class EditSessionsDataViews extends Disposable {
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const editSessionId = URI.parse(handle.$treeItemHandle).path.substring(1);
 				const commandService = accessor.get(ICommandService);
-				await commandService.executeCommand('workbench.experimental.editSessions.actions.resumeLatest', editSessionId);
+				await commandService.executeCommand('workbench.editSessions.actions.resumeLatest', editSessionId);
 				await treeView.refresh();
 			}
 		});
@@ -106,7 +106,7 @@ export class EditSessionsDataViews extends Disposable {
 
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const commandService = accessor.get(ICommandService);
-				await commandService.executeCommand('workbench.experimental.editSessions.actions.storeCurrent');
+				await commandService.executeCommand('workbench.editSessions.actions.storeCurrent');
 				await treeView.refresh();
 			}
 		});

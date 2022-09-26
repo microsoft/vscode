@@ -293,7 +293,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 
 			quickpick.onDidTriggerItemButton(async (e) => {
 				if (e.button.tooltip === configureContinueOnPreference.tooltip) {
-					await this.commandService.executeCommand('workbench.action.openSettings', 'workbench.experimental.editSessions.continueOn');
+					await this.commandService.executeCommand('workbench.action.openSettings', 'workbench.editSessions.continueOn');
 				}
 			});
 
