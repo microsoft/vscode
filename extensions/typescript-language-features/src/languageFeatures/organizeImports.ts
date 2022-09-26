@@ -48,6 +48,8 @@ class OrganizeImportsCommand implements Command {
 					file
 				}
 			},
+			// Deprecated in 4.9; `mode` takes priority
+			skipDestructiveCodeActions: mode === OrganizeImportsMode.SortAndCombine,
 			// @ts-expect-error until 4.9
 			mode: typeConverters.OrganizeImportsMode.toProtocolOrganizeImportsMode(mode),
 		};
