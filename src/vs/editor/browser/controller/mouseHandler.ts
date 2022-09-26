@@ -404,7 +404,7 @@ class MouseDownOperation extends Disposable {
 
 		const options = this._context.configuration.options;
 
-		if (true //!options.get(EditorOption.readOnly)
+		if (!options.get(EditorOption.readOnly)
 			&& options.get(EditorOption.dragAndDrop)
 			&& !options.get(EditorOption.columnSelection)
 			&& !this._mouseState.altKey // we don't support multiple mouse

@@ -1142,7 +1142,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private oldReadonly: boolean | undefined;
 
-	checkDidChangeReadonly(newReadonly: boolean): boolean {
+	private checkDidChangeReadonly(newReadonly: boolean): boolean {
 		if (this.oldReadonly !== newReadonly) {
 			this.oldReadonly = newReadonly;    // must set before fire(); reentrant.
 			this._onDidChangeReadonly.fire();
