@@ -35,7 +35,7 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 	getMessage(extensionId: string, details: IStringDetails): string {
 		const { message, args, comment } = details;
 		if (this.isDefaultLanguage) {
-			return format(message, args);
+			return format(message, ...(args ?? []));
 		}
 
 		let key = message;
@@ -46,7 +46,7 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 		if (!str) {
 			this.logService.warn(`Using default string since no string found in i18n bundle that has the key: ${key}`);
 		}
-		return format(str ?? key, args);
+		return format(str ?? key, ...(args ?? []));
 	}
 
 	getBundle(extensionId: string): { [key: string]: string } {
