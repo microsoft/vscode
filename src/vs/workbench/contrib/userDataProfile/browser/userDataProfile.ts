@@ -162,7 +162,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id: `workbench.profiles.actions.updateCurrentProfileShortName`,
 					title: {
-						value: localize('change short name profile', "Change Short Name ({0})...", that.userDataProfileService.currentProfile.shortName),
+						value: localize('change short name profile', "Change Short Name ({0})...", that.userDataProfileService.getShortName(that.userDataProfileService.currentProfile)),
 						original: `Change Short Name (${that.userDataProfileService.currentProfile.shortName})...`
 					},
 					menu: [

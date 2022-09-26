@@ -48,7 +48,7 @@ import { platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
 import { IProductService } from 'vs/platform/product/common/productService';
 
-suite('ExtensionsListView Tests', () => {
+suite('ExtensionsViews Tests', () => {
 
 	let instantiationService: TestInstantiationService;
 	let testableView: ExtensionsListView;
@@ -184,7 +184,8 @@ suite('ExtensionsListView Tests', () => {
 				toExtensionDescription(localRandom),
 				toExtensionDescription(builtInTheme),
 				toExtensionDescription(builtInBasic)
-			]
+			],
+			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledTheme], EnablementState.DisabledGlobally);
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledLanguage], EnablementState.DisabledGlobally);
@@ -398,7 +399,7 @@ suite('ExtensionsListView Tests', () => {
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', allRecommendedExtensions);
 
 		return testableView.show('@recommended').then(result => {
-			const extensionInfos: IExtensionInfo[] = target.args[0][0];
+			const extensionInfos: IExtensionInfo[] = target.args[1][0];
 
 			assert.strictEqual(extensionInfos.length, allRecommendedExtensions.length);
 			assert.strictEqual(result.length, allRecommendedExtensions.length);
@@ -423,7 +424,7 @@ suite('ExtensionsListView Tests', () => {
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', allRecommendedExtensions);
 
 		return testableView.show('@recommended:all').then(result => {
-			const extensionInfos: IExtensionInfo[] = target.args[0][0];
+			const extensionInfos: IExtensionInfo[] = target.args[1][0];
 
 			assert.strictEqual(extensionInfos.length, allRecommendedExtensions.length);
 			assert.strictEqual(result.length, allRecommendedExtensions.length);
