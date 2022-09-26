@@ -124,6 +124,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 	private _layoutNow() {
 		const layoutInfo = this.notebookEditor.getLayoutInfo();
 		const height = layoutInfo.height;
+		const scrollHeight = layoutInfo.scrollHeight;
 		const ratio = browser.PixelRatio.value;
 		this._domNode.setWidth(this.width);
 		this._domNode.setHeight(height);
@@ -131,7 +132,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 		this._domNode.domNode.height = height * ratio;
 		const ctx = this._domNode.domNode.getContext('2d')!;
 		ctx.clearRect(0, 0, this.width * ratio, height * ratio);
-		this._renderCanvas(ctx, this.width * ratio, ratio);
+		this._renderCanvas(ctx, this.width * ratio, height * ratio, scrollHeight * ratio, ratio);
 		this._renderOverviewViewport();
 	}
 
@@ -168,7 +169,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 		};
 	}
 
-	private _renderCanvas(ctx: CanvasRenderingContext2D, width: number, ratio: number) {
+	private _renderCanvas(ctx: CanvasRenderingContext2D, width: number, height: number, scrollHeight: number, ratio: number) {
 		if (!this._insertColorHex || !this._removeColorHex) {
 			// no op when colors are not yet known
 			return;
@@ -179,7 +180,8 @@ export class NotebookDiffOverviewRuler extends Themable {
 		for (let i = 0; i < this._diffElementViewModels.length; i++) {
 			const element = this._diffElementViewModels[i];
 
-			const cellHeight = element.layoutInfo.totalHeight * ratio;
+			const cellHeight = (element.layoutInfo.totalHeight / scrollHeight) * ratio * height;
+
 			switch (element.type) {
 				case 'insert':
 					ctx.fillStyle = this._insertColorHex;
