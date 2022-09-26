@@ -159,7 +159,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.contextualActions?.showQuickFixMenu();
+			accessor.get(ITerminalService).activeInstance?.quickFix?.showMenu();
 		}
 	});
 

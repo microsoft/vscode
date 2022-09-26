@@ -181,7 +181,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 				const profile = that.userDataProfileService.currentProfile;
 				const shortName = await quickInputService.input({
-					value: profile.shortName,
+					value: that.userDataProfileService.getShortName(profile),
 					title: localize('change short name', "Change Short Name..."),
 					validateInput: async (value: string) => {
 						if (profile.shortName !== value && !ThemeIcon.fromString(value) && charCount(value) > 2) {

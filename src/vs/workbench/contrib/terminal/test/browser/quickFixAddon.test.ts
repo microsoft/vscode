@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
+import { isWindows } from 'vs/base/common/platform';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -13,13 +14,13 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { ICommandAction, ITerminalInstance, ITerminalOutputMatcher } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, gitSimilarCommand, GitSimilarOutputRegex } from 'vs/workbench/contrib/terminal/browser/terminalBaseContextualActions';
-import { ContextualActionAddon, getMatchActions } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
+import { ITerminalQuickFixAction, ITerminalInstance, ITerminalOutputMatcher } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, gitSimilarCommand, GitSimilarOutputRegex } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
+import { TerminalQuickFixAddon, getQuickFixes } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { Terminal } from 'xterm';
 
-suite('ContextualActionAddon', () => {
-	let contextualActionAddon: ContextualActionAddon;
+suite('QuickFixAddon', () => {
+	let quickFixAddon: TerminalQuickFixAddon;
 	let terminalInstance: Pick<ITerminalInstance, 'freePortKillProcess'>;
 	let commandDetection: CommandDetectionCapability;
 	let openerService: OpenerService;
@@ -40,8 +41,8 @@ suite('ContextualActionAddon', () => {
 		terminalInstance = {
 			async freePortKillProcess(port: string): Promise<void> { }
 		} as Pick<ITerminalInstance, 'freePortKillProcess'>;
-		contextualActionAddon = instantiationService.createInstance(ContextualActionAddon, capabilities);
-		xterm.loadAddon(contextualActionAddon);
+		quickFixAddon = instantiationService.createInstance(TerminalQuickFixAddon, capabilities);
+		xterm.loadAddon(quickFixAddon);
 	});
 	suite('registerCommandFinishedListener & getMatchActions', () => {
 		suite('gitSimilarCommand', async () => {
@@ -64,29 +65,30 @@ suite('ContextualActionAddon', () => {
 			setup(() => {
 				const command = gitSimilarCommand();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
-				contextualActionAddon.registerCommandFinishedListener(command);
+				quickFixAddon.registerCommandFinishedListener(command);
 			});
 			suite('returns undefined when', () => {
 				test('output does not match', () => {
-					strictEqual(getMatchActions(createCommand(command, `invalid output`, GitSimilarOutputRegex, exitCode), expectedMap), undefined);
+					strictEqual(getQuickFixes(createCommand(command, `invalid output`, GitSimilarOutputRegex, exitCode), expectedMap), undefined);
 				});
 				test('command does not match', () => {
-					strictEqual(getMatchActions(createCommand(`gt sttatus`, output, GitSimilarOutputRegex, exitCode), expectedMap), undefined);
+					strictEqual(getQuickFixes(createCommand(`gt sttatus`, output, GitSimilarOutputRegex, exitCode), expectedMap), undefined);
 				});
 			});
 			suite('returns undefined when', () => {
 				test('expected unix exit code', () => {
-					assertMatchOptions(getMatchActions(createCommand(command, output, GitSimilarOutputRegex, exitCode), expectedMap), actions);
+					assertMatchOptions(getQuickFixes(createCommand(command, output, GitSimilarOutputRegex, exitCode), expectedMap), actions);
 				});
 				test('matching exit status', () => {
-					assertMatchOptions(getMatchActions(createCommand(command, output, GitSimilarOutputRegex, 2), expectedMap), actions);
+					assertMatchOptions(getQuickFixes(createCommand(command, output, GitSimilarOutputRegex, 2), expectedMap), actions);
 				});
 			});
 		});
-		suite('freePort', () => {
-			const expected = new Map();
-			const portCommand = `yarn start dev`;
-			const output = `yarn run v1.22.17
+		if (!isWindows) {
+			suite('freePort', () => {
+				const expected = new Map();
+				const portCommand = `yarn start dev`;
+				const output = `yarn run v1.22.17
 			warning ../../package.json: No license field
 			Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
 				at Server.setupListenHandle [as _listen2] (node:net:1315:16)
@@ -100,27 +102,29 @@ suite('ContextualActionAddon', () => {
 			}
 			error Command failed with exit code 1.
 			info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`;
-			const actionOptions = [{
-				id: 'terminal.freePort',
-				label: 'Free port 3000',
-				run: true,
-				tooltip: 'Free port 3000',
-				enabled: true
-			}];
-			setup(() => {
-				const command = freePort(terminalInstance);
-				expected.set(command.commandLineMatcher.toString(), [command]);
-				contextualActionAddon.registerCommandFinishedListener(command);
-			});
-			suite('returns undefined when', () => {
-				test('output does not match', () => {
-					strictEqual(getMatchActions(createCommand(portCommand, `invalid output`, FreePortOutputRegex), expected), undefined);
+				const actionOptions = [{
+					id: 'terminal.freePort',
+					label: 'Free port 3000',
+					run: true,
+					tooltip: 'Free port 3000',
+					enabled: true
+				}];
+				setup(() => {
+					const command = freePort(terminalInstance);
+					expected.set(command.commandLineMatcher.toString(), [command]);
+					quickFixAddon.registerCommandFinishedListener(command);
+				});
+				suite('returns undefined when', () => {
+					test('output does not match', () => {
+						strictEqual(getQuickFixes(createCommand(portCommand, `invalid output`, FreePortOutputRegex), expected), undefined);
+					});
+				});
+				test('returns actions', () => {
+					assertMatchOptions(getQuickFixes(createCommand(portCommand, output, FreePortOutputRegex), expected), actionOptions);
 				});
 			});
-			test('returns actions', () => {
-				assertMatchOptions(getMatchActions(createCommand(portCommand, output, FreePortOutputRegex), expected), actionOptions);
-			});
-		});
+		}
+
 		suite('gitPushSetUpstream', () => {
 			const expectedMap = new Map();
 			const command = `git push`;
@@ -141,22 +145,22 @@ suite('ContextualActionAddon', () => {
 			setup(() => {
 				const command = gitPushSetUpstream();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
-				contextualActionAddon.registerCommandFinishedListener(command);
+				quickFixAddon.registerCommandFinishedListener(command);
 			});
 			suite('returns undefined when', () => {
 				test('output does not match', () => {
-					strictEqual(getMatchActions(createCommand(command, `invalid output`, GitPushOutputRegex, exitCode), expectedMap), undefined);
+					strictEqual(getQuickFixes(createCommand(command, `invalid output`, GitPushOutputRegex, exitCode), expectedMap), undefined);
 				});
 				test('command does not match', () => {
-					strictEqual(getMatchActions(createCommand(`git status`, output, GitPushOutputRegex, exitCode), expectedMap), undefined);
+					strictEqual(getQuickFixes(createCommand(`git status`, output, GitPushOutputRegex, exitCode), expectedMap), undefined);
 				});
 			});
 			suite('returns actions when', () => {
 				test('expected unix exit code', () => {
-					assertMatchOptions(getMatchActions(createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap), actions);
+					assertMatchOptions(getQuickFixes(createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap), actions);
 				});
 				test('matching exit status', () => {
-					assertMatchOptions(getMatchActions(createCommand(command, output, GitPushOutputRegex, 2), expectedMap), actions);
+					assertMatchOptions(getQuickFixes(createCommand(command, output, GitPushOutputRegex, 2), expectedMap), actions);
 				});
 			});
 		});
@@ -184,22 +188,22 @@ suite('ContextualActionAddon', () => {
 			setup(() => {
 				const command = gitCreatePr(openerService);
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
-				contextualActionAddon.registerCommandFinishedListener(command);
+				quickFixAddon.registerCommandFinishedListener(command);
 			});
 			suite('returns undefined when', () => {
 				test('output does not match', () => {
-					strictEqual(getMatchActions(createCommand(command, `invalid output`, GitCreatePrOutputRegex, exitCode), expectedMap), undefined);
+					strictEqual(getQuickFixes(createCommand(command, `invalid output`, GitCreatePrOutputRegex, exitCode), expectedMap), undefined);
 				});
 				test('command does not match', () => {
-					strictEqual(getMatchActions(createCommand(`git status`, output, GitCreatePrOutputRegex, exitCode), expectedMap), undefined);
+					strictEqual(getQuickFixes(createCommand(`git status`, output, GitCreatePrOutputRegex, exitCode), expectedMap), undefined);
 				});
 				test('failure exit status', () => {
-					strictEqual(getMatchActions(createCommand(command, output, GitCreatePrOutputRegex, 2), expectedMap), undefined);
+					strictEqual(getQuickFixes(createCommand(command, output, GitCreatePrOutputRegex, 2), expectedMap), undefined);
 				});
 			});
 			suite('returns actions when', () => {
 				test('expected unix exit code', () => {
-					assertMatchOptions(getMatchActions(createCommand(command, output, GitCreatePrOutputRegex, exitCode), expectedMap), actions);
+					assertMatchOptions(getQuickFixes(createCommand(command, output, GitCreatePrOutputRegex, exitCode), expectedMap), actions);
 				});
 			});
 		});
@@ -224,24 +228,24 @@ suite('ContextualActionAddon', () => {
 		setup(() => {
 			const pushCommand = gitPushSetUpstream();
 			const prCommand = gitCreatePr(openerService);
-			contextualActionAddon.registerCommandFinishedListener(pushCommand);
-			contextualActionAddon.registerCommandFinishedListener(prCommand);
+			quickFixAddon.registerCommandFinishedListener(pushCommand);
+			quickFixAddon.registerCommandFinishedListener(prCommand);
 			expectedMap.set(pushCommand.commandLineMatcher.toString(), [pushCommand, prCommand]);
 		});
 		suite('returns undefined when', () => {
 			test('output does not match', () => {
-				strictEqual(getMatchActions(createCommand(command, `invalid output`, GitPushOutputRegex, exitCode), expectedMap), undefined);
+				strictEqual(getQuickFixes(createCommand(command, `invalid output`, GitPushOutputRegex, exitCode), expectedMap), undefined);
 			});
 			test('command does not match', () => {
-				strictEqual(getMatchActions(createCommand(`git status`, output, GitPushOutputRegex, exitCode), expectedMap), undefined);
+				strictEqual(getQuickFixes(createCommand(`git status`, output, GitPushOutputRegex, exitCode), expectedMap), undefined);
 			});
 		});
 		suite('returns actions when', () => {
 			test('expected unix exit code', () => {
-				assertMatchOptions(getMatchActions(createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap), actions);
+				assertMatchOptions(getQuickFixes(createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap), actions);
 			});
 			test('matching exit status', () => {
-				assertMatchOptions(getMatchActions(createCommand(command, output, GitPushOutputRegex, 2), expectedMap), actions);
+				assertMatchOptions(getQuickFixes(createCommand(command, output, GitPushOutputRegex, 2), expectedMap), actions);
 			});
 		});
 	});
@@ -263,7 +267,7 @@ function createCommand(command: string, output: string, outputMatcher?: RegExp |
 	};
 }
 
-function assertMatchOptions(actual: ICommandAction[] | undefined, expected: { id: string; label: string; run: boolean; tooltip: string; enabled: boolean }[]): void {
+function assertMatchOptions(actual: ITerminalQuickFixAction[] | undefined, expected: { id: string; label: string; run: boolean; tooltip: string; enabled: boolean }[]): void {
 	strictEqual(actual?.length, expected.length);
 	let index = 0;
 	for (const i of actual) {
