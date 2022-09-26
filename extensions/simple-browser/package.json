@@ -68,7 +68,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "0.6.2",
-    "vscode-nls": "^5.1.0"
+    "vscode-nls": "^5.2.0"
   },
   "devDependencies": {
     "@types/vscode-webview": "^1.57.0",

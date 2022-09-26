@@ -586,7 +586,7 @@
     "morphdom": "^2.6.1",
     "picomatch": "^2.3.1",
     "vscode-languageclient": "^8.0.2",
-    "vscode-nls": "^5.1.0",
+    "vscode-nls": "^5.2.0",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
