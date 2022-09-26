@@ -954,7 +954,7 @@ export interface NotebookExtensionDescription {
  * Whether the provided mime type is a text streamn like `stdout`, `stderr`.
  */
 export function isTextStreamMime(mimeType: string) {
-	return ['application/vnd.code.notebook.stdout', 'application/x.notebook.stdout', 'application/x.notebook.stream', 'application/vnd.code.notebook.stderr', 'application/x.notebook.stderr'].includes(mimeType);
+	return ['application/vnd.code.notebook.stdout', 'application/vnd.code.notebook.stderr'].includes(mimeType);
 }
 
 
