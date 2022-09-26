@@ -36,11 +36,6 @@ export class TreeSitterTree {
 		this._edits = [];
 		this._nCallsParseTree = 0;
 		this._nCallsParseAsync = 0;
-		this.parseTree().then((tree) => {
-			if (tree) {
-				this._tree = tree;
-			}
-		});
 		this._store.add(this._model.onDidChangeContent((contentChangeEvent: IModelContentChangedEvent) => {
 			this.registerTreeEdits(contentChangeEvent);
 		}));
@@ -165,35 +160,6 @@ export class TreeSitterTree {
 				}
 			});
 		});
-		/*
-		return new Promise((resolve, _reject) => {
-			runWhenIdle(
-				async (arg) => {
-					this._parser.setTimeoutMicros(arg.timeRemaining() * 1000);
-					let result: Parser.Tree;
-					try {
-						result = this._parser.parse(
-							(startIndex: number, startPoint: Parser.Point | undefined, endIndex: number | undefined) =>
-								this._retrieveTextAtPosition(textModel, startIndex, startPoint, endIndex),
-							tree
-						);
-						// Case 1: Either we obtain the result this iteration in which case we resolve
-						this._tree = result;
-						console.log('Number of calls to _parseAsync : ', this._nCallsParseAsync);
-						resolve(result);
-
-					}
-					// Case 2: Here in the catch block treat the case when the parse has failed, then rerun the method
-					catch (error) {
-						return this._parseAsync(textModel, tree).then((tree) => {
-							resolve(tree);
-						});
-					}
-				},
-				1000
-			);
-		});
-		*/
 	}
 
 	private _retrieveTextAtPosition(model: ITextModel, startIndex: number, _startPoint: Parser.Point | undefined, endIndex: number | undefined) {
