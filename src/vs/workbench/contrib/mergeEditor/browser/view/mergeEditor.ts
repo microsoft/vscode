@@ -103,7 +103,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 	protected readonly codeLensesVisible = observableFromEvent<boolean>(
 		this.configurationService.onDidChangeConfiguration,
-		() => /** @description codeLensesVisible */ this.configurationService.getValue('mergeEditor.showCodeLenses') ?? false
+		() => /** @description codeLensesVisible */ this.configurationService.getValue('mergeEditor.showCodeLenses') ?? true
 	);
 
 	private readonly scrollSynchronizer = this._register(new ScrollSynchronizer(this._viewModel, this.input1View, this.input2View, this.baseView, this.inputResultView, this._layoutModeObs));
