@@ -343,7 +343,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}));
 		}
-
 		this._upgrade();
 	}
 
@@ -486,18 +485,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		CommandsRegistry.registerCommand('workbench.action.tasks.configureTaskRunner', async () => {
 			if (await this._trust()) {
 				this._runConfigureTasks();
-			}
-		});
-
-		CommandsRegistry.registerCommand('workbench.action.tasks.configureDefaultBuildTask', async () => {
-			if (await this._trust()) {
-				this._runConfigureDefaultBuildTask();
-			}
-		});
-
-		CommandsRegistry.registerCommand('workbench.action.tasks.configureDefaultTestTask', async () => {
-			if (await this._trust()) {
-				this._runConfigureDefaultTestTask();
 			}
 		});
 
@@ -2935,7 +2922,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		fetching: string;
 		select: string;
 		notFoundConfigure: string;
-	}, configure: () => void, legacyCommand: () => void): void {
+	}, configure: (taskService: AbstractTaskService) => void, legacyCommand: () => void): void {
 		if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
 			legacyCommand();
 			return;
@@ -2968,7 +2955,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								return;
 							}
 							if (task === null) {
-								configure();
+								configure(this);
 								return;
 							}
 							runSingleTask(task, { attachProblemMatcher: true }, this);
@@ -3384,27 +3371,27 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			});
 	}
 
-	private _runConfigureDefaultBuildTask(): void {
-		if (this.schemaVersion === JsonSchemaVersion.V2_0_0) {
-			this.tasks().then((tasks => {
+	private _runConfigureDefaultBuildTask(that: AbstractTaskService): void {
+		if (that.schemaVersion === JsonSchemaVersion.V2_0_0) {
+			that.tasks().then((tasks => {
 				if (tasks.length === 0) {
-					this._runConfigureTasks();
+					that._runConfigureTasks();
 					return;
 				}
 				const entries: QuickPickInput<TaskQuickPickEntryType>[] = [];
 				let selectedTask: Task | undefined;
 				let selectedEntry: TaskQuickPickEntryType | undefined;
-				this._showIgnoredFoldersMessage().then(() => {
+				that._showIgnoredFoldersMessage().then(() => {
 					for (const task of tasks) {
 						const taskGroup: TaskGroup | undefined = TaskGroup.from(task.configurationProperties.group);
 						if (taskGroup && taskGroup.isDefault && taskGroup._id === TaskGroup.Build._id) {
 							const label = nls.localize('TaskService.defaultBuildTaskExists', '{0} is already marked as the default build task', TaskQuickPick.getTaskLabelWithIcon(task, task.getQualifiedLabel()));
 							selectedTask = task;
-							selectedEntry = { label, task, description: this.getTaskDescription(task), detail: this._showDetail() ? task.configurationProperties.detail : undefined };
-							TaskQuickPick.applyColorStyles(task, selectedEntry, this._themeService);
+							selectedEntry = { label, task, description: that.getTaskDescription(task), detail: that._showDetail() ? task.configurationProperties.detail : undefined };
+							TaskQuickPick.applyColorStyles(task, selectedEntry, that._themeService);
 						} else {
-							const entry = { label: TaskQuickPick.getTaskLabelWithIcon(task), task, description: this.getTaskDescription(task), detail: this._showDetail() ? task.configurationProperties.detail : undefined };
-							TaskQuickPick.applyColorStyles(task, entry, this._themeService);
+							const entry = { label: TaskQuickPick.getTaskLabelWithIcon(task), task, description: that.getTaskDescription(task), detail: that._showDetail() ? task.configurationProperties.detail : undefined };
+							TaskQuickPick.applyColorStyles(task, entry, that._themeService);
 							entries.push(entry);
 						}
 					}
@@ -3413,7 +3400,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					}
 					const tokenSource = new CancellationTokenSource();
 					const cancellationToken: CancellationToken = tokenSource.token;
-					this._quickInputService.pick(entries,
+					that._quickInputService.pick(entries,
 						{ placeHolder: nls.localize('TaskService.pickTask', 'Select a task to configure') }, cancellationToken).
 						then(async (entry) => {
 							if (cancellationToken.isCancellationRequested) {
@@ -3428,17 +3415,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								return;
 							}
 							if (task === selectedTask && CustomTask.is(task)) {
-								this.openConfig(task);
+								that.openConfig(task);
 							}
 							if (!InMemoryTask.is(task)) {
-								this.customize(task, { group: { kind: 'build', isDefault: true } }, true).then(() => {
+								that.customize(task, { group: { kind: 'build', isDefault: true } }, true).then(() => {
 									if (selectedTask && (task !== selectedTask) && !InMemoryTask.is(selectedTask)) {
-										this.customize(selectedTask, { group: 'build' }, false);
+										that.customize(selectedTask, { group: 'build' }, false);
 									}
 								});
 							}
 						});
-					this._quickInputService.pick(entries, {
+					that._quickInputService.pick(entries, {
 						placeHolder: nls.localize('TaskService.pickDefaultBuildTask', 'Select the task to be used as the default build task')
 					}).
 						then((entry) => {
@@ -3447,12 +3434,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								return;
 							}
 							if (task === selectedTask && CustomTask.is(task)) {
-								this.openConfig(task);
+								that.openConfig(task);
 							}
 							if (!InMemoryTask.is(task)) {
-								this.customize(task, { group: { kind: 'build', isDefault: true } }, true).then(() => {
+								that.customize(task, { group: { kind: 'build', isDefault: true } }, true).then(() => {
 									if (selectedTask && (task !== selectedTask) && !InMemoryTask.is(selectedTask)) {
-										this.customize(selectedTask, { group: 'build' }, false);
+										that.customize(selectedTask, { group: 'build' }, false);
 									}
 								});
 							}
@@ -3460,15 +3447,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				});
 			}));
 		} else {
-			this._runConfigureTasks();
+			that._runConfigureTasks();
 		}
 	}
 
-	private _runConfigureDefaultTestTask(): void {
-		if (this.schemaVersion === JsonSchemaVersion.V2_0_0) {
-			this.tasks().then((tasks => {
+	private _runConfigureDefaultTestTask(that: AbstractTaskService): void {
+		if (that.schemaVersion === JsonSchemaVersion.V2_0_0) {
+			that.tasks().then((tasks => {
 				if (tasks.length === 0) {
-					this._runConfigureTasks();
+					that._runConfigureTasks();
 					return;
 				}
 				let selectedTask: Task | undefined;
@@ -3485,24 +3472,24 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					selectedEntry = {
 						label: nls.localize('TaskService.defaultTestTaskExists', '{0} is already marked as the default test task.', selectedTask.getQualifiedLabel()),
 						task: selectedTask,
-						detail: this._showDetail() ? selectedTask.configurationProperties.detail : undefined
+						detail: that._showDetail() ? selectedTask.configurationProperties.detail : undefined
 					};
 				}
 
-				this._showIgnoredFoldersMessage().then(() => {
-					this._showQuickPick(tasks,
+				that._showIgnoredFoldersMessage().then(() => {
+					that._showQuickPick(tasks,
 						nls.localize('TaskService.pickDefaultTestTask', 'Select the task to be used as the default test task'), undefined, true, false, selectedEntry).then((entry) => {
 							const task: Task | undefined | null = entry ? entry.task : undefined;
 							if (!task) {
 								return;
 							}
 							if (task === selectedTask && CustomTask.is(task)) {
-								this.openConfig(task);
+								that.openConfig(task);
 							}
 							if (!InMemoryTask.is(task)) {
-								this.customize(task, { group: { kind: 'test', isDefault: true } }, true).then(() => {
+								that.customize(task, { group: { kind: 'test', isDefault: true } }, true).then(() => {
 									if (selectedTask && (task !== selectedTask) && !InMemoryTask.is(selectedTask)) {
-										this.customize(selectedTask, { group: 'test' }, false);
+										that.customize(selectedTask, { group: 'test' }, false);
 									}
 								});
 							}
@@ -3510,7 +3497,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				});
 			}));
 		} else {
-			this._runConfigureTasks();
+			that._runConfigureTasks();
 		}
 	}
 
