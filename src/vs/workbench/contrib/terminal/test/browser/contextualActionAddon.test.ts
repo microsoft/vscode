@@ -119,18 +119,19 @@ suite('ContextualActionAddon', () => {
 						strictEqual(getMatchActions(createCommand(portCommand, `invalid output`, FreePortOutputRegex), expected), undefined);
 					});
 				});
-				test.skip('returns actions', () => {
+				test('returns actions', () => {
 					assertMatchOptions(getMatchActions(createCommand(portCommand, output, FreePortOutputRegex), expected), actionOptions);
 				});
 			});
 		}
+
 		suite('gitPushSetUpstream', () => {
 			const expectedMap = new Map();
 			const command = `git push`;
 			const output = `fatal: The current branch test22 has no upstream branch.
 			To push the current branch and set the remote as upstream, use
 
-				git push --set-upstream origin test22 `;
+				git push --set-upstream origin test22`;
 			const exitCode = 128;
 			const actions = [
 				{
@@ -154,7 +155,7 @@ suite('ContextualActionAddon', () => {
 					strictEqual(getMatchActions(createCommand(`git status`, output, GitPushOutputRegex, exitCode), expectedMap), undefined);
 				});
 			});
-			suite('returns undefined when', () => {
+			suite('returns actions when', () => {
 				test('expected unix exit code', () => {
 					assertMatchOptions(getMatchActions(createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap), actions);
 				});
@@ -204,6 +205,47 @@ suite('ContextualActionAddon', () => {
 				test('expected unix exit code', () => {
 					assertMatchOptions(getMatchActions(createCommand(command, output, GitCreatePrOutputRegex, exitCode), expectedMap), actions);
 				});
+			});
+		});
+	});
+	suite('gitPush - multiple providers', () => {
+		const expectedMap = new Map();
+		const command = `git push`;
+		const output = `fatal: The current branch test22 has no upstream branch.
+		To push the current branch and set the remote as upstream, use
+
+			git push --set-upstream origin test22`;
+		const exitCode = 128;
+		const actions = [
+			{
+				id: 'terminal.gitPush',
+				label: 'Git push test22',
+				run: true,
+				tooltip: 'Git push test22',
+				enabled: true
+			}
+		];
+		setup(() => {
+			const pushCommand = gitPushSetUpstream();
+			const prCommand = gitCreatePr(openerService);
+			contextualActionAddon.registerCommandFinishedListener(pushCommand);
+			contextualActionAddon.registerCommandFinishedListener(prCommand);
+			expectedMap.set(pushCommand.commandLineMatcher.toString(), [pushCommand, prCommand]);
+		});
+		suite('returns undefined when', () => {
+			test('output does not match', () => {
+				strictEqual(getMatchActions(createCommand(command, `invalid output`, GitPushOutputRegex, exitCode), expectedMap), undefined);
+			});
+			test('command does not match', () => {
+				strictEqual(getMatchActions(createCommand(`git status`, output, GitPushOutputRegex, exitCode), expectedMap), undefined);
+			});
+		});
+		suite('returns actions when', () => {
+			test('expected unix exit code', () => {
+				assertMatchOptions(getMatchActions(createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap), actions);
+			});
+			test('matching exit status', () => {
+				assertMatchOptions(getMatchActions(createCommand(command, output, GitPushOutputRegex, 2), expectedMap), actions);
 			});
 		});
 	});

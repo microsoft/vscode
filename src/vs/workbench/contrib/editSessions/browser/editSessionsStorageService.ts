@@ -27,6 +27,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Codicon } from 'vs/base/common/codicons';
 import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { Emitter } from 'vs/base/common/event';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
@@ -48,6 +49,11 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 
 	get isSignedIn() {
 		return this.existingSessionId !== undefined;
+	}
+
+	private _didSignIn = new Emitter<void>();
+	get onDidSignIn() {
+		return this._didSignIn.event;
 	}
 
 	constructor(
@@ -162,6 +168,9 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}
 		this.initialized = await this.doInitialize(fromContinueOn);
 		this.signedInContext.set(this.initialized);
+		if (this.initialized) {
+			this._didSignIn.fire();
+		}
 		return this.initialized;
 
 	}
@@ -293,7 +302,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 
 			quickpick.onDidTriggerItemButton(async (e) => {
 				if (e.button.tooltip === configureContinueOnPreference.tooltip) {
-					await this.commandService.executeCommand('workbench.action.openSettings', 'workbench.experimental.editSessions.continueOn');
+					await this.commandService.executeCommand('workbench.action.openSettings', 'workbench.editSessions.continueOn');
 				}
 			});
 

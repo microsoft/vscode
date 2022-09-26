@@ -345,7 +345,7 @@ abstract class UserDataSyncActivityViewDataProvider implements ITreeViewDataProv
 				description: fromNow(syncResourceHandle.created, true),
 				themeIcon: FolderThemeIcon,
 				syncResourceHandle,
-				contextValue: `sync-resource-${syncResourceHandle.syncResource}`
+				contextValue: `sync-resource-${syncResourceHandle.syncResource.syncResource}`
 			};
 		});
 	}

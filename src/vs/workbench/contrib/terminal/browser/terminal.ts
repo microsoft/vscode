@@ -935,11 +935,27 @@ export interface ICommandAction extends IAction {
 	addNewLine?: boolean;
 }
 
+/**
+ * A matcher that runs on a sub-section of a terminal command's output
+ */
 export interface ITerminalOutputMatcher {
+	/**
+	 * A string or regex to match against the unwrapped line.
+	 */
 	lineMatcher: string | RegExp;
-	anchor?: 'top' | 'bottom';
-	offset?: number;
-	length?: number;
+	/**
+	 * Which side of the output to anchor the {@link offset} and {@link length} against.
+	 */
+	anchor: 'top' | 'bottom';
+	/**
+	 * How far from either the top or the bottom of the butter to start matching against.
+	 */
+	offset: number;
+	/**
+	 * The number of rows to match against, this should be as small as possible for performance
+	 * reasons.
+	 */
+	length: number;
 }
 
 export interface IXtermTerminal {

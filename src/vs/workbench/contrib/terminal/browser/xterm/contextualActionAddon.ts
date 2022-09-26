@@ -152,23 +152,22 @@ export function getMatchActions(command: ITerminalCommand, actionOptions: Map<st
 				outputMatch = command.getOutputMatch(outputMatcher);
 			}
 			const actions = actionOption.getActions({ commandLineMatch, outputMatch }, command);
-			if (!actions) {
-				return matchActions.length === 0 ? undefined : matchActions;
-			}
-			for (const a of actions) {
-				matchActions.push({
-					id: a.id,
-					label: a.label,
-					class: a.class,
-					enabled: a.enabled,
-					run: async () => {
-						await a.run();
-						if (a.commandToRunInTerminal) {
-							onDidRequestRerunCommand?.fire({ command: a.commandToRunInTerminal, addNewLine: a.addNewLine });
-						}
-					},
-					tooltip: a.tooltip
-				});
+			if (actions) {
+				for (const a of actions) {
+					matchActions.push({
+						id: a.id,
+						label: a.label,
+						class: a.class,
+						enabled: a.enabled,
+						run: async () => {
+							await a.run();
+							if (a.commandToRunInTerminal) {
+								onDidRequestRerunCommand?.fire({ command: a.commandToRunInTerminal, addNewLine: a.addNewLine });
+							}
+						},
+						tooltip: a.tooltip
+					});
+				}
 			}
 		}
 	}

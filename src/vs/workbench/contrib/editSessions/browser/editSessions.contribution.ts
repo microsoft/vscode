@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -54,24 +54,26 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { sha1Hex } from 'vs/base/browser/hash';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService, false);
 registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, false);
 
 const continueWorkingOnCommand: IAction2Options = {
-	id: '_workbench.experimental.editSessions.actions.continueEditSession',
+	id: '_workbench.editSessions.actions.continueEditSession',
 	title: { value: localize('continue working on', "Continue Working On..."), original: 'Continue Working On...' },
 	precondition: WorkspaceFolderCountContext.notEqualsTo('0'),
 	f1: true
 };
 const openLocalFolderCommand: IAction2Options = {
-	id: '_workbench.experimental.editSessions.actions.continueEditSession.openLocalFolder',
+	id: '_workbench.editSessions.actions.continueEditSession.openLocalFolder',
 	title: { value: localize('continue edit session in local folder', "Open In Local Folder"), original: 'Open In Local Folder' },
 	category: EDIT_SESSION_SYNC_CATEGORY,
 	precondition: IsWebContext
 };
 const showOutputChannelCommand: IAction2Options = {
-	id: 'workbench.experimental.editSessions.actions.showOutputChannel',
+	id: 'workbench.editSessions.actions.showOutputChannel',
 	title: { value: localize('show log', 'Show Log'), original: 'Show Log' },
 	category: EDIT_SESSION_SYNC_CATEGORY
 };
@@ -81,15 +83,16 @@ const resumingProgressOptions = {
 	title: `[${localize('resuming edit session window', 'Resuming edit session...')}](command:${showOutputChannelCommand.id})`
 };
 const queryParamName = 'editSessionId';
-const experimentalSettingName = 'workbench.experimental.editSessions.enabled';
 
-const useEditSessionsWithContinueOn = 'workbench.experimental.editSessions.continueOn';
+const useEditSessionsWithContinueOn = 'workbench.editSessions.continueOn';
 export class EditSessionsContribution extends Disposable implements IWorkbenchContribution {
 
-	private registered = false;
 	private continueEditSessionOptions: ContinueEditSessionItem[] = [];
 
 	private readonly shouldShowViewsContext: IContextKey<boolean>;
+
+	private static APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY = 'applicationLaunchedViaContinueOn';
+	private accountsMenuBadgeDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		@IEditSessionsStorageService private readonly editSessionsStorageService: IEditSessionsStorageService,
@@ -111,17 +114,13 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		@ICommandService private commandService: ICommandService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IActivityService private readonly activityService: IActivityService,
 	) {
 		super();
 
 		this.autoResumeEditSession();
-
-		this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(experimentalSettingName)) {
-				this.registerActions();
-			}
-		});
 
 		this.registerActions();
 		this.registerViews();
@@ -131,6 +130,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		this._register(this.fileService.registerProvider(EditSessionsFileSystemProvider.SCHEMA, new EditSessionsFileSystemProvider(this.editSessionsStorageService)));
 		this.lifecycleService.onWillShutdown((e) => e.join(this.autoStoreEditSession(), { id: 'autoStoreEditSession', label: localize('autoStoreEditSession', 'Storing current edit session...') }));
+		this._register(this.editSessionsStorageService.onDidSignIn(() => this.updateAccountsMenuBadge()));
 	}
 
 	private autoResumeEditSession() {
@@ -144,20 +144,56 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			this.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.continue.resume');
 
 			if (this.environmentService.editSessionId !== undefined) {
+				this.logService.info(`Resuming edit session, reason: found editSessionId ${this.environmentService.editSessionId} in environment service...`);
 				await this.resumeEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
 			} else if (
-				this.configurationService.getValue('workbench.experimental.editSessions.enabled') === true &&
-				this.configurationService.getValue('workbench.experimental.editSessions.autoResume') === 'onReload' &&
+				this.configurationService.getValue('workbench.editSessions.autoResume') === 'onReload' &&
 				this.editSessionsStorageService.isSignedIn
 			) {
+				this.logService.info('Resuming edit session, reason: edit sessions enabled...');
 				// Attempt to resume edit session based on edit workspace identifier
 				// Note: at this point if the user is not signed into edit sessions,
 				// we don't want them to be prompted to sign in and should just return early
 				await this.resumeEditSession(undefined, true);
+			} else {
+				// The application has previously launched via a protocol URL Continue On flow
+				const hasApplicationLaunchedFromContinueOnFlow = this.storageService.getBoolean(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, StorageScope.APPLICATION, false);
+
+				if ((this.environmentService.continueOn !== undefined) &&
+					!this.editSessionsStorageService.isSignedIn &&
+					// and user has not yet been prompted to sign in on this machine
+					hasApplicationLaunchedFromContinueOnFlow === false
+				) {
+					this.storageService.store(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+					await this.editSessionsStorageService.initialize(true);
+					if (this.editSessionsStorageService.isSignedIn) {
+						await this.resumeEditSession(undefined, true);
+					} else {
+						this.updateAccountsMenuBadge();
+					}
+					// store the fact that we prompted the user
+				} else if (!this.editSessionsStorageService.isSignedIn &&
+					// and user has been prompted to sign in on this machine
+					hasApplicationLaunchedFromContinueOnFlow === true
+				) {
+					// display a badge in the accounts menu but do not prompt the user to sign in again
+					this.updateAccountsMenuBadge();
+					// attempt a resume if we are in a pending state and the user just signed in
+					this._register(this.editSessionsStorageService.onDidSignIn(async () => this.resumeEditSession(undefined, true)));
+				}
 			}
 
 			performance.mark('code/didResumeEditSessionFromIdentifier');
 		});
+	}
+
+	private updateAccountsMenuBadge() {
+		if (this.editSessionsStorageService.isSignedIn) {
+			return this.accountsMenuBadgeDisposable.clear();
+		}
+
+		const badge = new NumberBadge(1, () => localize('check for pending edit sessions', 'Check for pending edit sessions'));
+		this.accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, priority: 1 });
 	}
 
 	private async autoStoreEditSession() {
@@ -187,11 +223,6 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private registerActions() {
-		if (this.registered || this.configurationService.getValue(experimentalSettingName) !== true) {
-			this.logService.info(`Skipping registering edit sessions actions as edit sessions are currently disabled. Set ${experimentalSettingName} to enable edit sessions.`);
-			return;
-		}
-
 		this.registerContinueEditSessionAction();
 
 		this.registerResumeLatestEditSessionAction();
@@ -201,8 +232,6 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		this.registerShowEditSessionViewAction();
 		this.registerShowEditSessionOutputChannelAction();
-
-		this.registered = true;
 	}
 
 	private registerShowEditSessionOutputChannelAction() {
@@ -268,7 +297,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				if (ref !== undefined && uri !== 'noDestinationUri') {
 					const encodedRef = encodeURIComponent(ref);
 					uri = uri.with({
-						query: uri.query.length > 0 ? (uri.query + `&${queryParamName}=${encodedRef}`) : `${queryParamName}=${encodedRef}`
+						query: uri.query.length > 0 ? (uri.query + `&${queryParamName}=${encodedRef}&continueOn=1`) : `${queryParamName}=${encodedRef}&continueOn=1`
 					});
 
 					// Open the URI
@@ -290,7 +319,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		this._register(registerAction2(class ResumeLatestEditSessionAction extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.experimental.editSessions.actions.resumeLatest',
+					id: 'workbench.editSessions.actions.resumeLatest',
 					title: { value: localize('resume latest.v2', "Resume Latest Edit Session"), original: 'Resume Latest Edit Session' },
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					f1: true,
@@ -316,7 +345,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		this._register(registerAction2(class StoreLatestEditSessionAction extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.experimental.editSessions.actions.storeCurrent',
+					id: 'workbench.editSessions.actions.storeCurrent',
 					title: { value: localize('store current.v2', "Store Current Edit Session"), original: 'Store Current Edit Session' },
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					f1: true,
@@ -781,22 +810,27 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'default': 'off',
 			'markdownDescription': localize('autoStore', "Controls whether to automatically store an available edit session for the current workspace."),
 		},
-		'workbench.experimental.editSessions.enabled': {
-			'type': 'boolean',
-			'tags': ['experimental', 'usesOnlineServices'],
-			'default': true,
-			'markdownDescription': localize('editSessionsEnabled', "Controls whether to display cloud-enabled actions to store and resume uncommitted changes when switching between web, desktop, or devices."),
-		},
-		'workbench.experimental.editSessions.autoResume': {
+		'workbench.editSessions.autoResume': {
 			enum: ['onReload', 'off'],
 			enumDescriptions: [
 				localize('autoResume.onReload', "Automatically resume available edit session on window reload."),
 				localize('autoResume.off', "Never attempt to resume an edit session.")
 			],
 			'type': 'string',
-			'tags': ['experimental', 'usesOnlineServices'],
+			'tags': ['usesOnlineServices'],
 			'default': 'onReload',
 			'markdownDescription': localize('autoResume', "Controls whether to automatically resume an available edit session for the current workspace."),
+		},
+		'workbench.editSessions.continueOn': {
+			enum: ['prompt', 'off'],
+			enumDescriptions: [
+				localize('continueOn.promptForAuth', 'Prompt the user to sign in to store edit sessions with Continue Working On.'),
+				localize('continueOn.off', 'Do not use edit sessions with Continue Working On unless the user has already turned on edit sessions.')
+			],
+			type: 'string',
+			tags: ['usesOnlineServices'],
+			default: 'prompt',
+			markdownDescription: localize('continueOn', 'Controls whether to prompt the user to store edit sessions when using Continue Working On.')
 		},
 		'workbench.experimental.editSessions.continueOn': {
 			enum: ['prompt', 'off'],
@@ -807,7 +841,25 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			tags: ['experimental', 'usesOnlineServices'],
 			default: 'prompt',
+			markdownDeprecationMessage: localize('continueOnDeprecated', 'This setting is deprecated in favor of {0}.', '`#workbench.experimental.continueOn#`'),
 			markdownDescription: localize('continueOn', 'Controls whether to prompt the user to store edit sessions when using Continue Working On.')
-		}
+		},
+		'workbench.experimental.editSessions.enabled': {
+			'type': 'boolean',
+			'tags': ['experimental', 'usesOnlineServices'],
+			'default': true,
+			'markdownDeprecationMessage': localize('editSessionsEnabledDeprecated', "This setting is deprecated as Edit Sessions are no longer experimental. Please see {0} and {1} for configuring behavior related to Edit Sessions.", '`#workbench.editSessions.autoResume#`', '`#workbench.editSessions.continueOn#`')
+		},
+		'workbench.experimental.editSessions.autoResume': {
+			enum: ['onReload', 'off'],
+			enumDescriptions: [
+				localize('autoResume.onReload', "Automatically resume available edit session on window reload."),
+				localize('autoResume.off', "Never attempt to resume an edit session.")
+			],
+			'type': 'string',
+			'tags': ['experimental', 'usesOnlineServices'],
+			'default': 'onReload',
+			'markdownDeprecationMessage': localize('autoResumeDeprecated', "This setting is deprecated in favor of {0}.", '`#workbench.editSessions.autoResume#`')
+		},
 	}
 });
