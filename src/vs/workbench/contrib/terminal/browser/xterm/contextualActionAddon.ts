@@ -92,7 +92,7 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 		this._register(commandDetection.onCommandFinished(async command => {
 			this._decoration?.dispose();
 			this._decoration = undefined;
-			this._matchActions = getMatchActions(command, this._commandListeners, this._onDidRequestRerunCommand, this._decoration);
+			this._matchActions = getMatchActions(command, this._commandListeners, this._onDidRequestRerunCommand);
 		}));
 		// The buffer is not ready by the time command finish
 		// is called. Add the decoration on command start using the actions, if any,
@@ -133,7 +133,7 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 	}
 }
 
-export function getMatchActions(command: ITerminalCommand, actionOptions: Map<string, ITerminalContextualActionOptions[]>, onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>, decoration?: IDecoration): IAction[] | undefined {
+export function getMatchActions(command: ITerminalCommand, actionOptions: Map<string, ITerminalContextualActionOptions[]>, onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>): IAction[] | undefined {
 	const matchActions: IAction[] = [];
 	const newCommand = command.command;
 	for (const options of actionOptions.values()) {
@@ -163,8 +163,6 @@ export function getMatchActions(command: ITerminalCommand, actionOptions: Map<st
 							if (a.commandToRunInTerminal) {
 								onDidRequestRerunCommand?.fire({ command: a.commandToRunInTerminal, addNewLine: a.addNewLine });
 							}
-							decoration?.dispose();
-							decoration = undefined;
 						},
 						tooltip: a.tooltip
 					});
