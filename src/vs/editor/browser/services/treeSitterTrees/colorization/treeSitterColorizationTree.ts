@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// TODO: fix the imports
 // eslint-disable-next-line local/code-import-patterns
 import Parser = require('web-tree-sitter');
 // eslint-disable-next-line local/code-import-patterns
@@ -80,16 +81,16 @@ export class TreeSitterColorizationTree {
 		// Case 1: code was removed
 		if (this._newEndPositionRow < this._endPositionRow) {
 			this._contiguousMultilineToken.map(token => {
-				if (token._startLineNumber >= this._endPositionRow + 2) {
-					token._startLineNumber = token._startLineNumber - (this._endPositionRow - this._startPositionRow);
+				if (token.startLineNumber >= this._endPositionRow + 2) {
+					token.startLineNumber = token.startLineNumber - (this._endPositionRow - this._startPositionRow);
 				}
 			});
 		}
 		// Case 2: code was added
 		else if (this._newEndPositionRow > this._endPositionRow) {
 			this._contiguousMultilineToken.map(token => {
-				if (token._startLineNumber >= this._endPositionRow + 2) {
-					token._startLineNumber = token._startLineNumber + (this._newEndPositionRow - this._startPositionRow);
+				if (token.startLineNumber >= this._endPositionRow + 2) {
+					token.startLineNumber = token.startLineNumber + (this._newEndPositionRow - this._startPositionRow);
 				}
 			});
 		}
