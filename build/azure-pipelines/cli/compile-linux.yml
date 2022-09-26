@@ -43,7 +43,7 @@ steps:
         VSCODE_CLI_AI_KEY: $(VSCODE_CLI_AI_KEY)
         VSCODE_CLI_AI_ENDPOINT: $(VSCODE_CLI_AI_ENDPOINT)
         VSCODE_CLI_COMMIT: $(VSCODE_CLI_COMMIT)
-        VSCODE_QUALITY: $(VSCODE_QUALITY)
+        VSCODE_CLI_QUALITY: $(VSCODE_QUALITY)
         CXX_aarch64-unknown-linux-musl: musl-g++
         CC_aarch64-unknown-linux-musl: musl-gcc
 

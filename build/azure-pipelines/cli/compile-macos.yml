@@ -36,7 +36,7 @@ steps:
         VSCODE_CLI_AI_KEY: $(VSCODE_CLI_AI_KEY)
         VSCODE_CLI_AI_ENDPOINT: $(VSCODE_CLI_AI_ENDPOINT)
         VSCODE_CLI_COMMIT: $(VSCODE_CLI_COMMIT)
-        VSCODE_QUALITY: $(VSCODE_QUALITY)
+        VSCODE_CLI_QUALITY: $(VSCODE_QUALITY)
 
     - publish: ${{ parameters.VSCODE_CLI_DIR }}/target/${{ target.target }}/release/${{ parameters.VSCODE_CLI_BINARY_NAME }}
       artifact: ${{ target.artifact }}

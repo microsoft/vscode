@@ -36,7 +36,7 @@ steps:
         VSCODE_CLI_AI_KEY: $(VSCODE_CLI_AI_KEY)
         VSCODE_CLI_AI_ENDPOINT: $(VSCODE_CLI_AI_ENDPOINT)
         VSCODE_CLI_COMMIT: $(VSCODE_CLI_COMMIT)
-        VSCODE_QUALITY: $(VSCODE_QUALITY)
+        VSCODE_CLI_QUALITY: $(VSCODE_QUALITY)
         ${{ if eq(target, 'x86_64-pc-windows-msvc') }}:
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/deps/x64-windows-static-md/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/deps/x64-windows-static-md/include

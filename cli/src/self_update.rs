@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::{fs::rename, path::Path};
+use std::{
+	fs::{rename, set_permissions},
+	path::Path,
+};
 use tempfile::tempdir;
 
 use crate::{
@@ -91,8 +94,6 @@ impl<'a> SelfUpdate<'a> {
 
 #[cfg(target_os = "windows")]
 fn copy_file_metadata(from: &Path, to: &Path) -> Result<(), std::io::Error> {
-	use std::fs::set_permissions;
-
 	let permissions = from.metadata()?.permissions();
 	set_permissions(&to, permissions)?;
 	Ok(())

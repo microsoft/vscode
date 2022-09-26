@@ -74,7 +74,7 @@ impl TryFrom<&str> for Quality {
 	fn try_from(s: &str) -> Result<Self, Self::Error> {
 		match s {
 			"stable" => Ok(Quality::Stable),
-			"insiders" => Ok(Quality::Insiders),
+			"insiders" | "insider" => Ok(Quality::Insiders),
 			"exploration" => Ok(Quality::Exploration),
 			_ => Err(format!(
 				"Unknown quality: {}. Must be one of stable, insiders, or exploration.",

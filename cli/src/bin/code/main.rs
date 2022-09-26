@@ -14,6 +14,7 @@ use cli::{
 	update_service::UpdateService,
 	util::{
 		errors::{wrap, AnyError},
+		is_integrated_cli,
 		prereqs::PreReqChecker,
 	},
 };
@@ -26,10 +27,15 @@ use log::{Level, Metadata, Record};
 #[tokio::main]
 async fn main() -> Result<(), std::convert::Infallible> {
 	let raw_args = std::env::args_os().collect::<Vec<_>>();
-	// todo: only parse to the standalone CLI if not integrated
 	let parsed = try_parse_legacy(&raw_args)
 		.map(|core| args::AnyCli::Integrated(args::IntegratedCli { core }))
-		.unwrap_or_else(|| args::AnyCli::Standalone(args::StandaloneCli::parse_from(&raw_args)));
+		.unwrap_or_else(|| {
+			if let Ok(true) = is_integrated_cli() {
+				args::AnyCli::Integrated(args::IntegratedCli::parse_from(&raw_args))
+			} else {
+				args::AnyCli::Standalone(args::StandaloneCli::parse_from(&raw_args))
+			}
+		});
 
 	let core = parsed.core();
 	let context = CommandContext {
