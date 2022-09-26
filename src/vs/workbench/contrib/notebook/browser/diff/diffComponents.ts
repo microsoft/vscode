@@ -40,6 +40,8 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const fixedEditorPadding = {
 	top: 12,
@@ -104,7 +106,7 @@ class PropertyHeader extends Disposable {
 	protected _foldingIndicator!: HTMLElement;
 	protected _statusSpan!: HTMLElement;
 	protected _description!: HTMLElement;
-	protected _toolbar!: ToolBar;
+	protected _toolbar!: WorkbenchToolBar;
 	protected _menu!: IMenu;
 	protected _propertyExpanded?: IContextKey<boolean>;
 
@@ -128,6 +130,7 @@ class PropertyHeader extends Disposable {
 		@IMenuService readonly menuService: IMenuService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IThemeService readonly themeService: IThemeService,
+		@ITelemetryService readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -156,7 +159,7 @@ class PropertyHeader extends Disposable {
 		}
 
 		const cellToolbarContainer = DOM.append(this.propertyHeaderContainer, DOM.$('div.property-toolbar'));
-		this._toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
+		this._toolbar = new WorkbenchToolBar(cellToolbarContainer, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
 					const item = new CodiconActionViewItem(action, undefined, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService);
@@ -165,7 +168,7 @@ class PropertyHeader extends Disposable {
 
 				return undefined;
 			}
-		});
+		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.telemetryService);
 		this._register(this._toolbar);
 		this._toolbar.context = {
 			cell: this.cell
@@ -1250,6 +1253,7 @@ export class InsertElement extends SingleSideDiffElement {
 
 export class ModifiedElement extends AbstractElementRenderer {
 	private _editor?: DiffEditorWidget;
+	private _editorViewStateChanged: boolean;
 	private _editorContainer!: HTMLElement;
 	private _inputToolbarContainer!: HTMLElement;
 	protected _toolbar!: ToolBar;
@@ -1276,6 +1280,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 		super(notebookEditor, cell, templateData, 'full', instantiationService, languageService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
 		this.cell = cell;
 		this.templateData = templateData;
+		this._editorViewStateChanged = false;
 	}
 
 	init() { }
@@ -1567,11 +1572,11 @@ export class ModifiedElement extends AbstractElementRenderer {
 			}
 		}));
 
-		this._menu = this.menuService.createMenu(MenuId.NotebookDiffCellInputTitle, scopedContextKeyService);
-		this._register(this._menu);
+		const menu = this.menuService.createMenu(MenuId.NotebookDiffCellInputTitle, scopedContextKeyService);
 		const actions: IAction[] = [];
-		createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
+		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, actions);
 		this._toolbar.setActions(actions);
+		menu.dispose();
 	}
 
 	private async _initializeSourceDiffEditor() {
@@ -1595,7 +1600,26 @@ export class ModifiedElement extends AbstractElementRenderer {
 			modified: modifiedTextModel
 		});
 
-		this._editor!.restoreViewState(this.cell.getSourceEditorViewState() as editorCommon.IDiffEditorViewState);
+		const handleViewStateChange = () => {
+			this._editorViewStateChanged = true;
+		};
+
+		const handleScrollChange = (e: editorCommon.IScrollEvent) => {
+			if (e.scrollTopChanged || e.scrollLeftChanged) {
+				this._editorViewStateChanged = true;
+			}
+		};
+
+		this._register(this._editor!.getOriginalEditor().onDidChangeCursorSelection(handleViewStateChange));
+		this._register(this._editor!.getOriginalEditor().onDidScrollChange(handleScrollChange));
+		this._register(this._editor!.getModifiedEditor().onDidChangeCursorSelection(handleViewStateChange));
+		this._register(this._editor!.getModifiedEditor().onDidScrollChange(handleScrollChange));
+
+		const editorViewState = this.cell.getSourceEditorViewState() as editorCommon.IDiffEditorViewState | null;
+		if (editorViewState) {
+			console.log('restore view state', this.cell.modified.handle, editorViewState);
+			this._editor!.restoreViewState(editorViewState);
+		}
 
 		const contentHeight = this._editor!.getContentHeight();
 		this.cell.editorHeight = contentHeight;
@@ -1642,7 +1666,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 	}
 
 	override dispose() {
-		if (this._editor) {
+		if (this._editor && this._editorViewStateChanged) {
 			this.cell.saveSpirceEditorViewState(this._editor.saveViewState());
 		}
 

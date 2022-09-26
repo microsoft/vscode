@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
+import { Lazy } from 'vs/base/common/lazy';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -17,6 +19,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { ITerminalQuickFix } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IMarker } from 'xterm';
@@ -239,7 +242,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
-	revealActiveEditor(preserveFocus?: boolean): void;
+	revealActiveEditor(preserveFocus?: boolean): Promise<void>;
 	resolveResource(instance: ITerminalInstance | URI): URI;
 	reviveInput(deserializedInput: IDeserializedTerminalEditorInput): EditorInput;
 	getInputFromResource(resource: URI): EditorInput;
@@ -456,7 +459,9 @@ export interface ITerminalInstance {
 
 	readonly statusList: ITerminalStatusList;
 
-	readonly findWidget: TerminalFindWidget;
+	quickFix: ITerminalQuickFix | undefined;
+
+	readonly findWidget: Lazy<TerminalFindWidget>;
 
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated
@@ -578,6 +583,8 @@ export interface ITerminalInstance {
 	onExit: Event<number | ITerminalLaunchError | undefined>;
 
 	onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number } | undefined>;
+
+	onDidFocusFindWidget: Event<void>;
 
 	readonly exitCode: number | undefined;
 
@@ -903,6 +910,52 @@ export interface ITerminalInstance {
 	 * Activates the most recent link of the given type.
 	 */
 	openRecentLink(type: 'localFile' | 'url'): Promise<void>;
+
+	/**
+	 * Registers quick fix providers
+	 */
+	registerQuickFixProvider(...options: ITerminalQuickFixOptions[]): void;
+
+	freePortKillProcess(port: string): Promise<void>;
+}
+
+export interface ITerminalQuickFixOptions {
+	quickFixLabel: string | DynamicQuickFixLabel;
+	commandLineMatcher: string | RegExp;
+	outputMatcher?: ITerminalOutputMatcher;
+	getQuickFixes: QuickFixCallback;
+	exitStatus?: boolean;
+}
+export type QuickFixMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
+export type DynamicQuickFixLabel = (matchResult: QuickFixMatchResult) => string;
+export type QuickFixCallback = (matchResult: QuickFixMatchResult, command: ITerminalCommand) => ITerminalQuickFixAction[] | undefined;
+
+export interface ITerminalQuickFixAction extends IAction {
+	commandToRunInTerminal?: string;
+	addNewLine?: boolean;
+}
+
+/**
+ * A matcher that runs on a sub-section of a terminal command's output
+ */
+export interface ITerminalOutputMatcher {
+	/**
+	 * A string or regex to match against the unwrapped line.
+	 */
+	lineMatcher: string | RegExp;
+	/**
+	 * Which side of the output to anchor the {@link offset} and {@link length} against.
+	 */
+	anchor: 'top' | 'bottom';
+	/**
+	 * How far from either the top or the bottom of the butter to start matching against.
+	 */
+	offset: number;
+	/**
+	 * The number of rows to match against, this should be as small as possible for performance
+	 * reasons.
+	 */
+	length: number;
 }
 
 export interface IXtermTerminal {

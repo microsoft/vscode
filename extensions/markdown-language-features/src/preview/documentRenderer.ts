@@ -62,7 +62,8 @@ export class MdDocumentRenderer {
 		markdownDocument: vscode.TextDocument,
 		resourceProvider: WebviewResourceProvider,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
-		initialLine: number | undefined = undefined,
+		initialLine: number | undefined,
+		selectedLine: number | undefined,
 		state: any | undefined,
 		token: vscode.CancellationToken
 	): Promise<MarkdownContentProviderOutput> {
@@ -72,7 +73,7 @@ export class MdDocumentRenderer {
 			source: sourceUri.toString(),
 			fragment: state?.fragment || markdownDocument.uri.fragment || undefined,
 			line: initialLine,
-			lineCount: markdownDocument.lineCount,
+			selectedLine,
 			scrollPreviewWithEditor: config.scrollPreviewWithEditor,
 			scrollEditorWithPreview: config.scrollEditorWithPreview,
 			doubleClickToSwitchToEditor: config.doubleClickToSwitchToEditor,

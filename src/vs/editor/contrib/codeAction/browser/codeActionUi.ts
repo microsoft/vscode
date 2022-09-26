@@ -14,18 +14,16 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { CodeActionItem, CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CodeActionMenu, CodeActionShowOptions } from './codeActionMenu';
 import { CodeActionsState } from './codeActionModel';
+import { CodeActionShowOptions, CodeActionWidget } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { CodeActionAutoApply, CodeActionTrigger } from './types';
 
 export class CodeActionUi extends Disposable {
-
-	private readonly _codeActionWidget: Lazy<CodeActionMenu>;
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
 	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());
-	private previewOn: boolean = false;
 
 	#disposed = false;
 
@@ -36,54 +34,24 @@ export class CodeActionUi extends Disposable {
 		private readonly delegate: {
 			applyCodeAction: (action: CodeActionItem, regtriggerAfterApply: boolean, preview: boolean) => Promise<void>;
 		},
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
-		this._codeActionWidget = new Lazy(() => {
-			return this._register(instantiationService.createInstance(CodeActionMenu, this._editor, {
-				onSelectCodeAction: async (action, trigger) => {
-					if (this.previewOn) {
-						this.delegate.applyCodeAction(action, /* retrigger */ true, Boolean(this.previewOn));
-					} else {
-						this.delegate.applyCodeAction(action, /* retrigger */ true, Boolean(trigger.preview));
-					}
-					this.previewOn = false;
-				}
-			}));
-		});
 
 		this._lightBulbWidget = new Lazy(() => {
-			const widget = this._register(instantiationService.createInstance(LightBulbWidget, this._editor, quickFixActionId, preferredFixActionId));
-			this._register(widget.onClick(e => this.showCodeActionList(e.trigger, e.actions, e, { includeDisabledActions: false, fromLightbulb: true })));
+			const widget = this._register(_instantiationService.createInstance(LightBulbWidget, this._editor, quickFixActionId, preferredFixActionId));
+			this._register(widget.onClick(e => this.showCodeActionList(e.trigger, e.actions, e, { includeDisabledActions: false, fromLightbulb: true, showHeaders: this.shouldShowHeaders() })));
 			return widget;
 		});
+
+		this._register(this._editor.onDidLayoutChange(() => CodeActionWidget.INSTANCE?.hide()));
 	}
 
 	override dispose() {
 		this.#disposed = true;
 		super.dispose();
-	}
-
-	public hideCodeActionWidget() {
-		this._codeActionWidget.rawValue?.hide();
-	}
-
-	public onEnter() {
-		this._codeActionWidget.rawValue?.acceptSelected();
-	}
-
-	public onPreviewEnter() {
-		this.previewOn = true;
-		this.onEnter();
-	}
-
-	public navigateList(navUp: Boolean) {
-		if (navUp) {
-			this._codeActionWidget.rawValue?.focusPrevious();
-		} else {
-			this._codeActionWidget.rawValue?.focusNext();
-		}
 	}
 
 	public async update(newState: CodeActionsState.State): Promise<void> {
@@ -143,10 +111,10 @@ export class CodeActionUi extends Disposable {
 			}
 
 			this._activeCodeActions.value = actions;
-			this._codeActionWidget.getValue().show(newState.trigger, actions, this.toCoords(newState.position), { includeDisabledActions, fromLightbulb: false });
+			this.showCodeActionList(newState.trigger, actions, this.toCoords(newState.position), { includeDisabledActions, fromLightbulb: false, showHeaders: this.shouldShowHeaders() });
 		} else {
 			// auto magically triggered
-			if (this._codeActionWidget.getValue().isVisible) {
+			if (CodeActionWidget.INSTANCE?.isVisible) {
 				// TODO: Figure out if we should update the showing menu?
 				actions.dispose();
 			} else {
@@ -184,8 +152,21 @@ export class CodeActionUi extends Disposable {
 	}
 
 	public async showCodeActionList(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
+		const editorDom = this._editor.getDomNode();
+		if (!editorDom) {
+			return;
+		}
+
 		const anchor = Position.isIPosition(at) ? this.toCoords(at) : at;
-		this._codeActionWidget.getValue().show(trigger, actions, anchor, options);
+
+		CodeActionWidget.getOrCreateInstance(this._instantiationService).show(trigger, actions, anchor, editorDom, { ...options, showHeaders: this.shouldShowHeaders() }, {
+			onSelectCodeAction: async (action, trigger, options) => {
+				this.delegate.applyCodeAction(action, /* retrigger */ true, Boolean(options.preview || trigger.preview));
+			},
+			onHide: () => {
+				this._editor?.focus();
+			},
+		});
 	}
 
 	private toCoords(position: IPosition): IAnchor {
@@ -203,5 +184,10 @@ export class CodeActionUi extends Disposable {
 		const y = editorCoords.top + cursorCoords.top + cursorCoords.height;
 
 		return { x, y };
+	}
+
+	private shouldShowHeaders(): boolean {
+		const model = this._editor?.getModel();
+		return this._configurationService.getValue('editor.codeActionWidget.showHeaders', { resource: model?.uri });
 	}
 }

@@ -34,7 +34,7 @@ bootstrap.enableASARSupport();
 
 // Set userData path before app 'ready' event
 const args = parseCLIArgs();
-const userDataPath = getUserDataPath(args);
+const userDataPath = getUserDataPath(args, product.nameShort ?? 'code-oss-dev');
 app.setPath('userData', userDataPath);
 
 // Resolve code cache path

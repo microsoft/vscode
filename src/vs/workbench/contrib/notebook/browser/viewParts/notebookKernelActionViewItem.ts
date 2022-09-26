@@ -86,6 +86,9 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		if (sourceActions.length === 1) {
 			// exact one action
 			this._updateActionFromSourceAction(sourceActions[0], false);
+		} else if (sourceActions.filter(sourceAction => sourceAction.isPrimary).length === 1) {
+			// exact one primary action
+			this._updateActionFromSourceAction(sourceActions.filter(sourceAction => sourceAction.isPrimary)[0], false);
 		} else {
 			this._action.class = ThemeIcon.asClassName(selectKernelIcon);
 			this._action.label = localize('select', "Select Kernel");
@@ -96,7 +99,9 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 	private _updateActionFromKernelInfo(info: INotebookKernelMatchResult): void {
 		this._action.enabled = true;
 		this._action.class = ThemeIcon.asClassName(selectKernelIcon);
-		const selectedOrSuggested = info.selected ?? (info.suggestions.length === 1 ? info.suggestions[0] : undefined);
+		const selectedOrSuggested = info.selected
+			?? (info.suggestions.length === 1 ? info.suggestions[0] : undefined)
+			?? (info.all.length === 1 ? info.all[0] : undefined);
 		if (selectedOrSuggested) {
 			// selected or suggested kernel
 			this._action.label = this._generateKenrelLabel(selectedOrSuggested);

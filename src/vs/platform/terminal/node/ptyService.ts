@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { execFile } from 'child_process';
+import { execFile, exec } from 'child_process';
 import { AutoOpenBarrier, ProcessTimeRunOnceScheduler, Promises, Queue } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -28,6 +28,7 @@ import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 type WorkspaceId = string;
 
@@ -64,6 +65,7 @@ export class PtyService extends Disposable implements IPtyService {
 	constructor(
 		private _lastPtyId: number,
 		private readonly _logService: ILogService,
+		private readonly _productService: IProductService,
 		private readonly _reconnectConstants: IReconnectConstants
 	) {
 		super();
@@ -101,6 +103,66 @@ export class PtyService extends Disposable implements IPtyService {
 			processDetails = await this._buildProcessDetails(persistentProcessId, pty);
 		}
 		this._detachInstanceRequestStore.acceptReply(requestId, processDetails);
+	}
+
+	async freePortKillProcess(id: number, port: string): Promise<{ port: string; processId: string }> {
+		let result: { port: string; processId: string } | undefined;
+		if (!isWindows) {
+			const stdout = await new Promise<string>((resolve, reject) => {
+				exec(`lsof -nP -iTCP -sTCP:LISTEN | grep ${port}`, {}, (err, stdout) => {
+					if (err) {
+						return reject('Problem occurred when listing active processes');
+					}
+					resolve(stdout);
+				});
+			});
+			const processesForPort = stdout.split('\n');
+			if (processesForPort.length >= 1) {
+				const capturePid = /\s+(\d+)\s+/;
+				const processId = processesForPort[0].match(capturePid)?.[1];
+				if (processId) {
+					await new Promise<string>((resolve, reject) => {
+						exec(`kill ${processId}`, {}, (err, stdout) => {
+							if (err) {
+								return reject(`Problem occurred when killing the process w ID: ${processId}`);
+							}
+							resolve(stdout);
+						});
+						result = { port, processId };
+					});
+				}
+			}
+		} else {
+			const stdout = await new Promise<string>((resolve, reject) => {
+				exec(`netstat -ano | findstr "${port}"`, {}, (err, stdout) => {
+					if (err) {
+						return reject('Problem occurred when listing active processes');
+					}
+					resolve(stdout);
+				});
+			});
+			const processesForPort = stdout.split('\n');
+			if (processesForPort.length >= 1) {
+				const capturePid = /LISTENING\s+(\d{3})/;
+				const processId = processesForPort[0].match(capturePid)?.[1];
+				if (processId) {
+					await new Promise<string>((resolve, reject) => {
+						exec(`Taskkill /F /PID ${processId}`, {}, (err, stdout) => {
+							if (err) {
+								return reject(`Problem occurred when killing the process w ID: ${processId}`);
+							}
+							resolve(stdout);
+						});
+						result = { port, processId };
+					});
+				}
+			}
+		}
+
+		if (result) {
+			return result;
+		}
+		throw new Error(`Processes for port ${port} were not found`);
 	}
 
 	async serializeTerminalState(ids: number[]): Promise<string> {
@@ -184,7 +246,7 @@ export class PtyService extends Disposable implements IPtyService {
 			throw new Error('Attempt to create a process when attach object was provided');
 		}
 		const id = ++this._lastPtyId;
-		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, options, this._logService);
+		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, options, this._logService, this._productService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
 		const processLaunchOptions: IPersistentTerminalProcessLaunchConfig = {
 			env,

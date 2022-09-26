@@ -90,6 +90,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	// Always on addons
 	private _markNavigationAddon: MarkNavigationAddon;
 	private _shellIntegrationAddon: ShellIntegrationAddon;
+
 	private _decorationAddon: DecorationAddon;
 
 	// Optional addons
@@ -102,8 +103,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
 
-	private readonly _onDidRequestRunCommand = new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean }>();
+	private readonly _onDidRequestRunCommand = new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>();
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
+	private readonly _onDidRequestFreePort = new Emitter<string>();
+	readonly onDidRequestFreePort = this._onDidRequestFreePort.event;
 	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number } | undefined>();
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
 	private readonly _onDidChangeSelection = new Emitter<void>();

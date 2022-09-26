@@ -6,6 +6,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import { IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { DiagnosticKind, DiagnosticsManager } from './languageFeatures/diagnostics';
 import * as Proto from './protocol';
 import { EventName } from './protocol.const';
@@ -137,6 +138,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			versionProvider: ITypeScriptVersionProvider;
 			processFactory: TsServerProcessFactory;
 			serviceConfigurationProvider: ServiceConfigurationProvider;
+			experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 		},
 		allModeIds: readonly string[]
 	) {
@@ -205,14 +207,14 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			}
 		}, this, this._disposables);
 
-		this.telemetryReporter = this._register(new VSCodeTelemetryReporter(() => {
+		this.telemetryReporter = new VSCodeTelemetryReporter(services.experimentTelemetryReporter, () => {
 			if (this.serverState.type === ServerState.Type.Running) {
 				if (this.serverState.tsserverVersion) {
 					return this.serverState.tsserverVersion;
 				}
 			}
 			return this.apiVersion.fullVersionString;
-		}));
+		});
 
 		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this._versionManager, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer, this.processFactory);
 

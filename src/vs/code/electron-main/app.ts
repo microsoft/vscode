@@ -108,6 +108,7 @@ import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } fro
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
 import { UserDataTransientProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataTransientProfilesHandler';
+import { ProfileStorageChangesListenerChannel } from 'vs/platform/userDataSync/electron-main/userDataSyncProfilesStorageIpc';
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 
 /**
@@ -806,6 +807,10 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('storage', storageChannel);
 		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
 
+		// Profile Storage Changes Listener (shared process)
+		const profileStorageListener = this._register(new ProfileStorageChangesListenerChannel(accessor.get(IStorageMainService), accessor.get(IUserDataProfilesMainService), this.logService));
+		sharedProcessClient.then(client => client.registerChannel('profileStorageListener', profileStorageListener));
+
 		// External Terminal
 		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService));
 		mainProcessElectronServer.registerChannel('externalTerminal', externalTerminalChannel);
@@ -912,6 +917,14 @@ export class CodeApplication extends Disposable {
 
 				// or if no window is open (macOS only)
 				shouldOpenInNewWindow ||= isMacintosh && windowsMainService.getWindowCount() === 0;
+
+				// Pass along whether the application is being opened via a Continue On flow
+				const continueOn = params.get('continueOn');
+				if (continueOn !== null) {
+					environmentService.continueOn = continueOn ?? undefined;
+					params.delete('continueOn');
+					uri = uri.with({ query: params.toString() });
+				}
 
 				// Check for URIs to open in window
 				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
