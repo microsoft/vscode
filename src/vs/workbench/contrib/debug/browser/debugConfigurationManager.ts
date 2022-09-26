@@ -164,9 +164,9 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	async getDynamicProviders(): Promise<{ label: string; type: string; getProvider: () => Promise<IDebugConfigurationProvider | undefined>; pick: () => Promise<{ launch: ILaunch; config: IConfig } | undefined> }[]> {
-		const extensions = await this.extensionService.getExtensions();
+		await this.extensionService.whenInstalledExtensionsRegistered();
 		const onDebugDynamicConfigurationsName = 'onDebugDynamicConfigurations';
-		const debugDynamicExtensionsTypes = extensions.reduce((acc, e) => {
+		const debugDynamicExtensionsTypes = this.extensionService.extensions.reduce((acc, e) => {
 			if (!e.activationEvents) {
 				return acc;
 			}
@@ -219,6 +219,7 @@ export class ConfigurationManager implements IConfigurationManager {
 							// Only Launch have a pin trigger button
 							await (launch as Launch).writeConfiguration(config);
 							await this.selectConfiguration(launch, config.name);
+							this.removeRecentDynamicConfigurations(config.name, config.type);
 						}));
 					});
 

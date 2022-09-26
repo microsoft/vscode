@@ -64,4 +64,14 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 		await Promises.settled(joiners);
 	}
 
+	getShortName(profile: IUserDataProfile): string {
+		if (profile.shortName) {
+			return profile.shortName;
+		}
+		if (profile.isTransient) {
+			return `T${profile.name.charAt(profile.name.length - 1)}`;
+		}
+		return profile.name.substring(0, 2).toUpperCase();
+	}
+
 }

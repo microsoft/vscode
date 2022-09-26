@@ -12,7 +12,6 @@ import { Mimes } from 'vs/base/common/mime';
 import { isWeb } from 'vs/base/common/platform';
 import { ConfigurationSyncStore } from 'vs/base/common/product';
 import { joinPath, relativePath } from 'vs/base/common/resources';
-import { join } from 'vs/base/common/path';
 import { isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -231,12 +230,60 @@ export class UserDataSyncStoreClient extends Disposable {
 		}
 	}
 
-	async getAllResourceRefs(path: string): Promise<IResourceRefHandle[]> {
+	// #region Collection
+
+	async getAllCollections(headers: IHeaders = {}): Promise<string[]> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const uri = joinPath(this.userDataSyncStoreUrl, 'resource', path);
+		const url = joinPath(this.userDataSyncStoreUrl, 'collection').toString();
+		headers = { ...headers };
+		headers['Content-Type'] = 'application/json';
+
+		const context = await this.request(url, { type: 'GET', headers }, [], CancellationToken.None);
+
+		return (await asJson<string[]>(context)) || [];
+	}
+
+	async createCollection(headers: IHeaders = {}): Promise<string> {
+		if (!this.userDataSyncStoreUrl) {
+			throw new Error('No settings sync store url configured.');
+		}
+
+		const url = joinPath(this.userDataSyncStoreUrl, 'collection').toString();
+		headers = { ...headers };
+		headers['Content-Type'] = Mimes.text;
+
+		const context = await this.request(url, { type: 'POST', headers }, [], CancellationToken.None);
+		const collectionId = await asTextOrError(context);
+		if (!collectionId) {
+			throw new UserDataSyncStoreError('Server did not return the collection id', url, UserDataSyncErrorCode.NoCollection, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+		}
+		return collectionId;
+	}
+
+	async deleteCollection(collection?: string, headers: IHeaders = {}): Promise<void> {
+		if (!this.userDataSyncStoreUrl) {
+			throw new Error('No settings sync store url configured.');
+		}
+
+		const url = collection ? joinPath(this.userDataSyncStoreUrl, 'collection', collection).toString() : joinPath(this.userDataSyncStoreUrl, 'collection').toString();
+		headers = { ...headers };
+
+		await this.request(url, { type: 'DELETE', headers }, [], CancellationToken.None);
+	}
+
+	// #endregion
+
+	// #region Resource
+
+	async getAllResourceRefs(resource: ServerResource, collection?: string): Promise<IResourceRefHandle[]> {
+		if (!this.userDataSyncStoreUrl) {
+			throw new Error('No settings sync store url configured.');
+		}
+
+		const uri = this.getResourceUrl(this.userDataSyncStoreUrl, collection, resource);
 		const headers: IHeaders = {};
 
 		const context = await this.request(uri.toString(), { type: 'GET', headers }, [], CancellationToken.None);
@@ -245,12 +292,12 @@ export class UserDataSyncStoreClient extends Disposable {
 		return result.map(({ url, created }) => ({ ref: relativePath(uri, uri.with({ path: url }))!, created: created * 1000 /* Server returns in seconds */ }));
 	}
 
-	async resolveResourceContent(path: string, ref: string, headers: IHeaders = {}): Promise<string | null> {
+	async resolveResourceContent(resource: ServerResource, ref: string, collection?: string, headers: IHeaders = {}): Promise<string | null> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStoreUrl, 'resource', path, ref).toString();
+		const url = joinPath(this.getResourceUrl(this.userDataSyncStoreUrl, collection, resource), ref).toString();
 		headers = { ...headers };
 		headers['Cache-Control'] = 'no-cache';
 
@@ -259,23 +306,34 @@ export class UserDataSyncStoreClient extends Disposable {
 		return content;
 	}
 
-	async deleteResource(path: string, ref: string | null): Promise<void> {
+	async deleteResource(resource: ServerResource, ref: string | null, collection?: string): Promise<void> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = ref !== null ? joinPath(this.userDataSyncStoreUrl, 'resource', path, ref).toString() : joinPath(this.userDataSyncStoreUrl, 'resource', path).toString();
+		const url = ref !== null ? joinPath(this.getResourceUrl(this.userDataSyncStoreUrl, collection, resource), ref).toString() : this.getResourceUrl(this.userDataSyncStoreUrl, collection, resource).toString();
 		const headers: IHeaders = {};
 
 		await this.request(url, { type: 'DELETE', headers }, [], CancellationToken.None);
 	}
 
-	async readResource(path: string, oldValue: IUserData | null, headers: IHeaders = {}): Promise<IUserData> {
+	async deleteResources(): Promise<void> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStoreUrl, 'resource', path, 'latest').toString();
+		const url = joinPath(this.userDataSyncStoreUrl, 'resource').toString();
+		const headers: IHeaders = { 'Content-Type': Mimes.text };
+
+		await this.request(url, { type: 'DELETE', headers }, [], CancellationToken.None);
+	}
+
+	async readResource(resource: ServerResource, oldValue: IUserData | null, collection?: string, headers: IHeaders = {}): Promise<IUserData> {
+		if (!this.userDataSyncStoreUrl) {
+			throw new Error('No settings sync store url configured.');
+		}
+
+		const url = joinPath(this.getResourceUrl(this.userDataSyncStoreUrl, collection, resource), 'latest').toString();
 		headers = { ...headers };
 		// Disable caching as they are cached by synchronisers
 		headers['Cache-Control'] = 'no-cache';
@@ -307,12 +365,12 @@ export class UserDataSyncStoreClient extends Disposable {
 		return userData;
 	}
 
-	async writeResource(path: string, data: string, ref: string | null, headers: IHeaders = {}): Promise<string> {
+	async writeResource(resource: ServerResource, data: string, ref: string | null, collection?: string, headers: IHeaders = {}): Promise<string> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStoreUrl, 'resource', path).toString();
+		const url = this.getResourceUrl(this.userDataSyncStoreUrl, collection, resource).toString();
 		headers = { ...headers };
 		headers['Content-Type'] = Mimes.text;
 		if (ref) {
@@ -327,6 +385,8 @@ export class UserDataSyncStoreClient extends Disposable {
 		}
 		return newRef;
 	}
+
+	// #endregion
 
 	async manifest(oldValue: IUserDataManifest | null, headers: IHeaders = {}): Promise<IUserDataManifest | null> {
 		if (!this.userDataSyncStoreUrl) {
@@ -388,13 +448,15 @@ export class UserDataSyncStoreClient extends Disposable {
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(this.userDataSyncStoreUrl, 'resource').toString();
-		const headers: IHeaders = { 'Content-Type': Mimes.text };
-
-		await this.request(url, { type: 'DELETE', headers }, [], CancellationToken.None);
+		await this.deleteResources();
+		await this.deleteCollection();
 
 		// clear cached session.
 		this.clearSession();
+	}
+
+	private getResourceUrl(userDataSyncStoreUrl: URI, collection: string | undefined, resource: ServerResource): URI {
+		return collection ? joinPath(userDataSyncStoreUrl, 'collection', collection, 'resource', resource) : joinPath(userDataSyncStoreUrl, 'resource', resource);
 	}
 
 	private clearSession(): void {
@@ -551,32 +613,6 @@ export class UserDataSyncStoreService extends UserDataSyncStoreClient implements
 		this._register(userDataSyncStoreManagementService.onDidChangeUserDataSyncStore(() => this.updateUserDataSyncStoreUrl(userDataSyncStoreManagementService.userDataSyncStore?.url)));
 	}
 
-	getAllRefs(resource: ServerResource, profile?: string): Promise<IResourceRefHandle[]> {
-		return this.getAllResourceRefs(profile ? this.getProfileResource(resource, profile) : resource);
-	}
-
-	read(resource: ServerResource, oldValue: IUserData | null, profile?: string, headers?: IHeaders): Promise<IUserData> {
-		return this.readResource(profile ? this.getProfileResource(resource, profile) : resource, oldValue, headers);
-	}
-
-	write(resource: ServerResource, content: string, ref: string | null, profile?: string, headers?: IHeaders): Promise<string> {
-		return this.writeResource(profile ? this.getProfileResource(resource, profile) : resource, content, ref, headers);
-	}
-
-	delete(resource: ServerResource, ref: string | null, profile?: string): Promise<void> {
-		return this.deleteResource(profile ? this.getProfileResource(resource, profile) : resource, ref);
-	}
-
-	resolveContent(resource: ServerResource, ref: string, profile?: string, headers?: IHeaders): Promise<string | null> {
-		return this.resolveResourceContent(profile ? this.getProfileResource(resource, profile) : resource, ref, headers);
-	}
-
-	private getProfileResource(resource: ServerResource, profile: string): string {
-		if (resource === 'profiles') {
-			throw new Error(`Invalid Resource Argument: ${resource}`);
-		}
-		return join('profiles', profile, resource);
-	}
 }
 
 export class RequestsSession {

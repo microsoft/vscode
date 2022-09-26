@@ -14,7 +14,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { QuickPickItem, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
-import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileImportExportService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileImportExportService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT, MANAGE_PROFILES_ACTION_ID } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { CATEGORIES } from 'vs/workbench/common/actions';
@@ -123,7 +123,7 @@ registerAction2(class CreateProfileAction extends Action2 {
 			menu: [
 				{
 					id: ManageProfilesSubMenu,
-					group: '2_manage_profiles',
+					group: '3_manage_profiles',
 					when: PROFILES_ENABLEMENT_CONTEXT,
 					order: 1
 				}
@@ -167,10 +167,11 @@ registerAction2(class CreateTransientProfileAction extends Action2 {
 	}
 });
 
-registerAction2(class RenameProfileAction extends Action2 {
+export class RenameProfileAction extends Action2 {
+	static readonly ID = 'workbench.profiles.actions.renameProfile';
 	constructor() {
 		super({
-			id: 'workbench.profiles.actions.renameProfile',
+			id: RenameProfileAction.ID,
 			title: {
 				value: localize('rename profile', "Rename..."),
 				original: 'Rename...'
@@ -181,7 +182,7 @@ registerAction2(class RenameProfileAction extends Action2 {
 			menu: [
 				{
 					id: ManageProfilesSubMenu,
-					group: '2_manage_profiles',
+					group: '3_manage_profiles',
 					when: PROFILES_ENABLEMENT_CONTEXT,
 					order: 1
 				}
@@ -189,46 +190,59 @@ registerAction2(class RenameProfileAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor) {
+	async run(accessor: ServicesAccessor, profile?: IUserDataProfile) {
 		const quickInputService = accessor.get(IQuickInputService);
 		const userDataProfileService = accessor.get(IUserDataProfileService);
 		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 		const notificationService = accessor.get(INotificationService);
 
-		const profiles = userDataProfilesService.profiles.filter(p => !p.isDefault);
-		if (profiles.length) {
-			const pick = await quickInputService.pick(
-				profiles.map(profile => ({
-					label: profile.name,
-					description: profile.id === userDataProfileService.currentProfile.id ? localize('current', "Current") : undefined,
-					profile
-				})),
-				{
-					placeHolder: localize('pick profile to rename', "Select Settings Profile to Rename"),
-				});
-			if (pick) {
-				const name = await quickInputService.input({
-					value: pick.profile.name,
-					title: localize('edit settings profile', "Rename Settings Profile..."),
-					validateInput: async (value: string) => {
-						if (pick.profile.name !== value && profiles.some(p => p.name === value)) {
-							return localize('profileExists', "Settings Profile with name {0} already exists.", value);
-						}
-						return undefined;
-					}
-				});
-				if (name && name !== pick.profile.name) {
-					try {
-						await userDataProfileManagementService.renameProfile(pick.profile, name);
-					} catch (error) {
-						notificationService.error(error);
-					}
+		if (!profile) {
+			profile = await this.pickProfile(quickInputService, userDataProfileService, userDataProfilesService);
+		}
+
+		if (!profile || profile.isDefault) {
+			return;
+		}
+
+		const name = await quickInputService.input({
+			value: profile.name,
+			title: localize('edit settings profile', "Rename Settings Profile..."),
+			validateInput: async (value: string) => {
+				if (profile!.name !== value && userDataProfilesService.profiles.some(p => p.name === value)) {
+					return localize('profileExists', "Settings Profile with name {0} already exists.", value);
 				}
+				return undefined;
+			}
+		});
+		if (name && name !== profile.name) {
+			try {
+				await userDataProfileManagementService.updateProfile(profile, { name });
+			} catch (error) {
+				notificationService.error(error);
 			}
 		}
 	}
-});
+
+	private async pickProfile(quickInputService: IQuickInputService, userDataProfileService: IUserDataProfileService, userDataProfilesService: IUserDataProfilesService): Promise<IUserDataProfile | undefined> {
+		const profiles = userDataProfilesService.profiles.filter(p => !p.isDefault && !p.isTransient);
+		if (!profiles.length) {
+			return undefined;
+		}
+		const pick = await quickInputService.pick(
+			profiles.map(profile => ({
+				label: profile.name,
+				description: profile.id === userDataProfileService.currentProfile.id ? localize('current', "Current") : undefined,
+				profile
+			})),
+			{
+				placeHolder: localize('pick profile to rename', "Select Settings Profile to Rename"),
+			});
+		return pick?.profile;
+	}
+}
+
+registerAction2(RenameProfileAction);
 
 registerAction2(class DeleteProfileAction extends Action2 {
 	constructor() {
@@ -244,7 +258,7 @@ registerAction2(class DeleteProfileAction extends Action2 {
 			menu: [
 				{
 					id: ManageProfilesSubMenu,
-					group: '2_manage_profiles',
+					group: '3_manage_profiles',
 					when: PROFILES_ENABLEMENT_CONTEXT,
 					order: 2
 				}
@@ -259,7 +273,7 @@ registerAction2(class DeleteProfileAction extends Action2 {
 		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 		const notificationService = accessor.get(INotificationService);
 
-		const profiles = userDataProfilesService.profiles.filter(p => !p.isDefault);
+		const profiles = userDataProfilesService.profiles.filter(p => !p.isDefault && !p.isTransient);
 		if (profiles.length) {
 			const picks = await quickInputService.pick(
 				profiles.map(profile => ({
@@ -282,11 +296,10 @@ registerAction2(class DeleteProfileAction extends Action2 {
 	}
 });
 
-export class MangeSettingsProfileAction extends Action2 {
-	static readonly ID = 'workbench.profiles.actions.manage';
+registerAction2(class ManageSettingsProfileAction extends Action2 {
 	constructor() {
 		super({
-			id: MangeSettingsProfileAction.ID,
+			id: MANAGE_PROFILES_ACTION_ID,
 			title: {
 				value: localize('mange', "Manage..."),
 				original: 'Manage...'
@@ -317,14 +330,13 @@ export class MangeSettingsProfileAction extends Action2 {
 					label: `${action.label}${action.checked ? ` $(${Codicon.check.id})` : ''}`,
 				};
 			});
-			const pick = await quickInputService.pick(picks, { canPickMany: false });
+			const pick = await quickInputService.pick(picks, { canPickMany: false, title: PROFILES_CATEGORY });
 			if (pick?.id) {
 				await commandService.executeCommand(pick.id);
 			}
 		}
 	}
-}
-registerAction2(MangeSettingsProfileAction);
+});
 
 registerAction2(class SwitchProfileAction extends Action2 {
 	constructor() {
@@ -372,7 +384,7 @@ registerAction2(class ExportProfileAction extends Action2 {
 			menu: [
 				{
 					id: ManageProfilesSubMenu,
-					group: '3_import_export_profiles',
+					group: '4_import_export_profiles',
 					when: PROFILES_ENABLEMENT_CONTEXT,
 					order: 1
 				}, {
@@ -417,7 +429,7 @@ registerAction2(class ImportProfileAction extends Action2 {
 			menu: [
 				{
 					id: ManageProfilesSubMenu,
-					group: '3_import_export_profiles',
+					group: '4_import_export_profiles',
 					when: PROFILES_ENABLEMENT_CONTEXT,
 					order: 2
 				}, {

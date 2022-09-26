@@ -24,10 +24,12 @@ export interface IEditSessionsStorageService {
 
 	readonly isSignedIn: boolean;
 
+	initialize(fromContinueOn: boolean): Promise<boolean>;
 	read(ref: string | undefined): Promise<{ ref: string; editSession: EditSession } | undefined>;
 	write(editSession: EditSession): Promise<string>;
 	delete(ref: string | null): Promise<void>;
 	list(): Promise<IResourceRefHandle[]>;
+	getMachineById(machineId: string): Promise<string | undefined>;
 }
 
 export const IEditSessionsLogService = createDecorator<IEditSessionsLogService>('IEditSessionsLogService');
@@ -68,6 +70,7 @@ export const EditSessionSchemaVersion = 2;
 
 export interface EditSession {
 	version: number;
+	machine?: string;
 	folders: Folder[];
 }
 

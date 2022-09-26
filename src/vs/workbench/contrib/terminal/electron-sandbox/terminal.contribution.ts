@@ -16,10 +16,10 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { LocalTerminalBackendContribution } from 'vs/workbench/contrib/terminal/electron-sandbox/localTerminalBackend';
 
 // Register services
-registerSharedProcessRemoteService(ILocalPtyService, TerminalIpcChannels.LocalPty, { supportsDelayedInstantiation: true });
+registerSharedProcessRemoteService(ILocalPtyService, TerminalIpcChannels.LocalPty);
 registerSingleton(ITerminalProfileResolverService, ElectronTerminalProfileResolverService, true);
 
 // Register workbench contributions
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(LocalTerminalBackendContribution, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(TerminalNativeContribution, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(LocalTerminalBackendContribution, 'LocalTerminalBackendContribution', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(TerminalNativeContribution, 'TerminalNativeContribution', LifecyclePhase.Restored);

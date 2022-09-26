@@ -15,7 +15,7 @@ import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } fro
 import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryLevel, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { ITelemetryServiceConfig, TelemetryService as BaseTelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { isInternalTelemetry, ITelemetryAppender, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getTelemetryLevel, isInternalTelemetry, ITelemetryAppender, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/browser/workbenchCommonProperties';
@@ -24,7 +24,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private impl: ITelemetryService;
+	private impl: ITelemetryService = NullTelemetryService;
 	public readonly sendErrorTelemetry = true;
 
 	constructor(
@@ -37,11 +37,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	) {
 		super();
 
-		if (supportsTelemetry(productService, environmentService) && productService.aiConfig?.ariaKey) {
-			this.impl = this.initializeService(environmentService, loggerService, configurationService, storageService, productService, remoteAgentService);
-		} else {
-			this.impl = NullTelemetryService;
-		}
+		this.impl = this.initializeService(environmentService, loggerService, configurationService, storageService, productService, remoteAgentService);
 
 		// When the level changes it could change from off to on and we want to make sure telemetry is properly intialized
 		this._register(configurationService.onDidChangeConfiguration(e => {
@@ -65,7 +61,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		remoteAgentService: IRemoteAgentService
 	) {
 		const telemetrySupported = supportsTelemetry(productService, environmentService) && productService.aiConfig?.ariaKey;
-		if (telemetrySupported && this.impl === NullTelemetryService && this.telemetryLevel.value !== TelemetryLevel.NONE) {
+		if (telemetrySupported && getTelemetryLevel(configurationService) !== TelemetryLevel.NONE && this.impl === NullTelemetryService) {
 			// If remote server is present send telemetry through that, else use the client side appender
 			const appenders = [];
 			const isInternal = isInternalTelemetry(productService, configurationService);
@@ -80,7 +76,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 
 			return this._register(new BaseTelemetryService(config, configurationService, productService));
 		}
-		return NullTelemetryService;
+		return this.impl;
 	}
 
 	setExperimentProperty(name: string, value: string): void {
