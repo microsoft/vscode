@@ -415,11 +415,22 @@ suite('ExtensionsActions', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		instantiationService.stubPromise(IExtensionGalleryService, 'getCompatibleExtension', gallery);
 		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [gallery]);
-		await instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None);
-		const promise = Event.toPromise(testObject.onDidChange);
-		installEvent.fire({ identifier: local.identifier, source: gallery });
-		await promise;
-		assert.ok(!testObject.enabled);
+		await new Promise<void>(c => {
+			testObject.onDidChange(() => {
+				if (testObject.enabled) {
+					c();
+				}
+			});
+			instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None);
+		});
+		await new Promise<void>(c => {
+			testObject.onDidChange(() => {
+				if (!testObject.enabled) {
+					c();
+				}
+			});
+			installEvent.fire({ identifier: local.identifier, source: gallery });
+		});
 	});
 
 	test('Test ManageExtensionAction when there is no extension', () => {
