@@ -949,8 +949,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata): void {
-		const oldReadonly = this.isReadonly();
-
 		// First resolve - just take
 		if (!this.lastResolvedFileStat) {
 			this.lastResolvedFileStat = newFileStat;
@@ -963,10 +961,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.lastResolvedFileStat = newFileStat;
 		}
 
-		// Signal that the readonly state changed
-		if (this.isReadonly() !== oldReadonly) {
-			this._onDidChangeReadonly.fire();
-		}
+		// Signal if the readonly state changed
+		this.isReadonly();
 	}
 
 	//#endregion
@@ -1140,7 +1136,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			&& !readonlyExclude?.find(glob => matchGlobPattern(glob, this.resource.fsPath));
 	}
 
-	private oldReadonly: boolean | undefined;
+	private oldReadonly = false; // fileEditorInput.test.ts counts changes from 'false' not 'undefined'
 
 	private checkDidChangeReadonly(newReadonly: boolean): boolean {
 		if (this.oldReadonly !== newReadonly) {
