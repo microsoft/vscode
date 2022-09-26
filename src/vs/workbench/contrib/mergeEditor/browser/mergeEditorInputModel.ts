@@ -23,7 +23,6 @@ import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { InputData, MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
-import { ProjectedDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/projectedDocumentDiffProvider';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileEditorModel, ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
@@ -109,7 +108,7 @@ export class TempFileMergeEditorModeFactory implements IMergeEditorInputModelFac
 			input2Data,
 			temporaryResultModel,
 			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
-			this._instantiationService.createInstance(MergeDiffComputer, this._instantiationService.createInstance(ProjectedDiffComputer, diffProvider)),
+			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
 			{
 				resetResult: true,
 			}
@@ -312,7 +311,7 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 			input2Data,
 			result.object.textEditorModel,
 			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
-			this._instantiationService.createInstance(MergeDiffComputer, this._instantiationService.createInstance(ProjectedDiffComputer, diffProvider)),
+			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
 			{
 				resetResult: true
 			}
