@@ -904,10 +904,14 @@ export class ExtensionEditor extends EditorPane {
 			resources.push([localize('Marketplace', "Marketplace"), URI.parse(extension.url)]);
 		}
 		if (extension.repository) {
-			resources.push([localize('repository', "Repository"), URI.parse(extension.repository)]);
+			try {
+				resources.push([localize('repository', "Repository"), URI.parse(extension.repository)]);
+			} catch (error) {/* Ignore */ }
 		}
 		if (extension.url && extension.licenseUrl) {
-			resources.push([localize('license', "License"), URI.parse(extension.licenseUrl)]);
+			try {
+				resources.push([localize('license', "License"), URI.parse(extension.licenseUrl)]);
+			} catch (error) {/* Ignore */ }
 		}
 		if (extension.publisherUrl) {
 			resources.push([extension.publisherDisplayName, extension.publisherUrl]);
