@@ -483,7 +483,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 				.appendMarkdown(reason)
 				.appendText(' ')
 				.appendLink(uri, adjustSettings);
-			result.push(new MarkdownHover(this, d.range, [markdown], index++));
+			result.push(new MarkdownHover(this, d.range, [markdown], false, index++));
 		}
 		return result;
 	}

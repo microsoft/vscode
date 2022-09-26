@@ -26,6 +26,11 @@ export interface IHoverPart {
 	 * even in the case of multiple hover parts.
 	 */
 	readonly forceShowAtRange?: boolean;
+
+	/**
+	 * If true, the hover item should appear before content
+	 */
+	readonly isBeforeContent?: boolean;
 	/**
 	 * Is this hover part still valid for this new anchor?
 	 */
