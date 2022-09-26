@@ -5,9 +5,9 @@
 
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+// import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+// import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -101,27 +101,27 @@ export class RendererProfiling {
 }
 
 
-registerAction2(class SLOW extends Action2 {
+// registerAction2(class SLOW extends Action2 {
 
-	constructor() {
-		super({
-			id: 'slow.fib',
-			title: 'Fib(N)',
-			f1: true,
-		});
-	}
+// 	constructor() {
+// 		super({
+// 			id: 'slow.fib',
+// 			title: 'Fib(N)',
+// 			f1: true,
+// 		});
+// 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]): void {
-		function fib(n: number): number {
-			if (n <= 2) {
-				return n;
-			}
-			return fib(n - 1) + fib(n - 2);
-		}
+// 	run(accessor: ServicesAccessor, ...args: any[]): void {
+// 		function fib(n: number): number {
+// 			if (n <= 2) {
+// 				return n;
+// 			}
+// 			return fib(n - 1) + fib(n - 2);
+// 		}
 
-		console.log('fib(44): ', fib(44));
-	}
-});
+// 		console.log('fib(44): ', fib(44));
+// 	}
+// });
 
 
 type TelemetryEventData = {
