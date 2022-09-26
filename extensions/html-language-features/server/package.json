@@ -14,7 +14,7 @@
     "vscode-languageserver": "^8.1.0-next.1",
     "vscode-languageserver-textdocument": "^1.0.7",
     "vscode-nls": "^5.2.0",
-    "vscode-uri": "^3.0.5"
+    "vscode-uri": "^3.0.6"
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
