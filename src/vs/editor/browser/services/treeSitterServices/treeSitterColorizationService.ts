@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+// eslint-disable-next-line local/code-import-patterns
 import { init } from 'web-tree-sitter';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -22,6 +22,7 @@ export interface ITreeSitterColorizationService {
 	readonly _serviceBrand: undefined;
 	registerTreeSittersForColorization(asynchronous: boolean): void;
 	dispose(): void;
+	clearCache(): void;
 }
 
 export class TreeSitterColorizationService implements ITreeSitterColorizationService {
@@ -84,6 +85,15 @@ export class TreeSitterColorizationService implements ITreeSitterColorizationSer
 			tree.dispose();
 		}
 	}
+
+	clearCache(): void {
+		for (const tree of this._treeSittersColorizationTrees) {
+			tree.dispose();
+		}
+		this._treeSittersColorizationTrees.length = 0;
+		this._disposableStore.clear();
+		this._treeSitterService.clearCache();
+	}
 }
 
 registerSingleton(ITreeSitterColorizationService, TreeSitterColorizationService, true);
@@ -95,6 +105,7 @@ registerAction2(class extends Action2 {
 	}
 	run(accessor: ServicesAccessor) {
 		const treeSitterTokenizationService = accessor.get(ITreeSitterColorizationService);
+		treeSitterTokenizationService.clearCache();
 		treeSitterTokenizationService.registerTreeSittersForColorization(true);
 	}
 });
@@ -106,6 +117,7 @@ registerAction2(class extends Action2 {
 	}
 	run(accessor: ServicesAccessor) {
 		const treeSitterTokenizationService = accessor.get(ITreeSitterColorizationService);
+		treeSitterTokenizationService.clearCache();
 		treeSitterTokenizationService.registerTreeSittersForColorization(false);
 	}
 });

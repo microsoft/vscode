@@ -2,30 +2,31 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 import { ITreeSitterService, TreeSitterService } from 'vs/editor/browser/services/treeSitterServices/treeSitterService';
 import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ModelService } from 'vs/editor/common/services/modelService';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { FileService } from 'vs/platform/files/common/fileService';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IFileService } from 'vs/platform/files/common/files';
+/* eslint-disable */
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
+/* eslint-enable*/
 
 suite('Testing the Tree-Sitter Service', () => {
 
@@ -96,11 +97,11 @@ suite('Testing the Tree-Sitter Service', () => {
 		const tree = await treeSitterServiceInstance.getTreeSitterTree(model);
 		await tree.parseTreeAndCountCalls().then((value: number) => {
 			console.log('value 1 : ', value);
-		})
+		});
 		model.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
 		await tree.parseTreeAndCountCalls().then((value: number) => {
 			console.log('value 2 : ', value);
-		})
+		});
 		model.dispose();
 	});
 });

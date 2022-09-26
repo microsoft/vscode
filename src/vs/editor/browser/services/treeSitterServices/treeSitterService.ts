@@ -22,6 +22,7 @@ export interface ITreeSitterService {
 	getTreeSitterCaptures(model: ITextModel, queryString: string, asychronous?: boolean, startLine?: number): Promise<Parser.QueryCapture[]>;
 	registerLanguage(language: string, uri: string): void;
 	getTreeSitterTree(model: ITextModel): Promise<TreeSitterTree>;
+	clearCache(): void;
 }
 
 export class TreeSitterService implements ITreeSitterService {
@@ -128,6 +129,14 @@ export class TreeSitterService implements ITreeSitterService {
 			tree.dispose();
 		}
 		this._store.dispose();
+	}
+
+	clearCache(): void {
+		for (const tree of this._trees.values()) {
+			tree.dispose();
+		}
+		this._store.clear();
+		this._trees.clear();
 	}
 }
 
