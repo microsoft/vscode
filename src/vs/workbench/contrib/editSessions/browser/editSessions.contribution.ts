@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -54,6 +54,8 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { sha1Hex } from 'vs/base/browser/hash';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService, false);
 registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, false);
@@ -89,6 +91,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 	private readonly shouldShowViewsContext: IContextKey<boolean>;
 
+	private static APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY = 'applicationLaunchedViaContinueOn';
+	private accountsMenuBadgeDisposable = this._register(new MutableDisposable());
+
 	constructor(
 		@IEditSessionsStorageService private readonly editSessionsStorageService: IEditSessionsStorageService,
 		@IFileService private readonly fileService: IFileService,
@@ -109,7 +114,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		@ICommandService private commandService: ICommandService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IActivityService private readonly activityService: IActivityService,
 	) {
 		super();
 
@@ -123,6 +130,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		this._register(this.fileService.registerProvider(EditSessionsFileSystemProvider.SCHEMA, new EditSessionsFileSystemProvider(this.editSessionsStorageService)));
 		this.lifecycleService.onWillShutdown((e) => e.join(this.autoStoreEditSession(), { id: 'autoStoreEditSession', label: localize('autoStoreEditSession', 'Storing current edit session...') }));
+		this._register(this.editSessionsStorageService.onDidSignIn(() => this.updateAccountsMenuBadge()));
 	}
 
 	private autoResumeEditSession() {
@@ -136,19 +144,56 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			this.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.continue.resume');
 
 			if (this.environmentService.editSessionId !== undefined) {
+				this.logService.info(`Resuming edit session, reason: found editSessionId ${this.environmentService.editSessionId} in environment service...`);
 				await this.resumeEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
 			} else if (
 				this.configurationService.getValue('workbench.editSessions.autoResume') === 'onReload' &&
 				this.editSessionsStorageService.isSignedIn
 			) {
+				this.logService.info('Resuming edit session, reason: edit sessions enabled...');
 				// Attempt to resume edit session based on edit workspace identifier
 				// Note: at this point if the user is not signed into edit sessions,
 				// we don't want them to be prompted to sign in and should just return early
 				await this.resumeEditSession(undefined, true);
+			} else {
+				// The application has previously launched via a protocol URL Continue On flow
+				const hasApplicationLaunchedFromContinueOnFlow = this.storageService.getBoolean(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, StorageScope.APPLICATION, false);
+
+				if ((this.environmentService.continueOn !== undefined) &&
+					!this.editSessionsStorageService.isSignedIn &&
+					// and user has not yet been prompted to sign in on this machine
+					hasApplicationLaunchedFromContinueOnFlow === false
+				) {
+					this.storageService.store(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+					await this.editSessionsStorageService.initialize(true);
+					if (this.editSessionsStorageService.isSignedIn) {
+						await this.resumeEditSession(undefined, true);
+					} else {
+						this.updateAccountsMenuBadge();
+					}
+					// store the fact that we prompted the user
+				} else if (!this.editSessionsStorageService.isSignedIn &&
+					// and user has been prompted to sign in on this machine
+					hasApplicationLaunchedFromContinueOnFlow === true
+				) {
+					// display a badge in the accounts menu but do not prompt the user to sign in again
+					this.updateAccountsMenuBadge();
+					// attempt a resume if we are in a pending state and the user just signed in
+					this._register(this.editSessionsStorageService.onDidSignIn(async () => this.resumeEditSession(undefined, true)));
+				}
 			}
 
 			performance.mark('code/didResumeEditSessionFromIdentifier');
 		});
+	}
+
+	private updateAccountsMenuBadge() {
+		if (this.editSessionsStorageService.isSignedIn) {
+			return this.accountsMenuBadgeDisposable.clear();
+		}
+
+		const badge = new NumberBadge(1, () => localize('check for pending edit sessions', 'Check for pending edit sessions'));
+		this.accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, priority: 1 });
 	}
 
 	private async autoStoreEditSession() {
@@ -252,7 +297,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				if (ref !== undefined && uri !== 'noDestinationUri') {
 					const encodedRef = encodeURIComponent(ref);
 					uri = uri.with({
-						query: uri.query.length > 0 ? (uri.query + `&${queryParamName}=${encodedRef}`) : `${queryParamName}=${encodedRef}`
+						query: uri.query.length > 0 ? (uri.query + `&${queryParamName}=${encodedRef}&continueOn=1`) : `${queryParamName}=${encodedRef}&continueOn=1`
 					});
 
 					// Open the URI
