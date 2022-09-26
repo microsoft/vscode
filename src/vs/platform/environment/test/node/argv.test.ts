@@ -25,7 +25,7 @@ suite('formatOptions', () => {
 			formatOptions({
 				'add': o('bar')
 			}, 80),
-			['  --add bar']
+			['  --add        bar']
 		);
 		assert.deepStrictEqual(
 			formatOptions({
@@ -34,9 +34,9 @@ suite('formatOptions', () => {
 				'trace': o('b')
 			}, 80),
 			[
-				'  --add   bar',
-				'  --wait  ba',
-				'  --trace b'
+				'  --add        bar',
+				'  --wait       ba',
+				'  --trace      b'
 			]);
 	});
 
@@ -46,8 +46,8 @@ suite('formatOptions', () => {
 				'add': o((<any>'bar ').repeat(9))
 			}, 40),
 			[
-				'  --add bar bar bar bar bar bar bar bar',
-				'        bar'
+				'  --add        bar bar bar bar bar bar',
+				'               bar bar bar'
 			]);
 	});
 
