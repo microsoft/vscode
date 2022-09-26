@@ -933,7 +933,6 @@ class FindController<T, TFilterData> implements IDisposable {
 			return;
 		}
 
-		this.mode = this.tree.options.defaultFindMode ?? TreeFindMode.Highlight;
 		this.widget = new FindWidget(this.view.getHTMLElement(), this.tree, this.contextViewProvider, this.mode, { ...this.styles, history: this._history });
 		this.enabledDisposables.add(this.widget);
 
