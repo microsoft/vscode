@@ -800,15 +800,27 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
 		super();
-		this._register(extensionsWorkbenchService.onChange(this.onServiceChange, this));
+		this._register(Event.debounce(extensionsWorkbenchService.onChange, () => undefined, 100, undefined, undefined, this._store)(this.onServiceChange, this));
 	}
 
 	private onServiceChange(): void {
 		this.badgeHandle.clear();
 
-		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) ? 1 : 0), 0);
-		if (outdated > 0) {
-			const badge = new NumberBadge(outdated, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
+		const extensionsReloadRequired = this.extensionsWorkbenchService.installed.filter(e => e.reloadRequiredStatus !== undefined);
+		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !this.extensionsWorkbenchService.isExtensionIgnoresUpdates(e) && !extensionsReloadRequired.includes(e) ? 1 : 0), 0);
+		const newBadgeNumber = outdated + extensionsReloadRequired.length;
+		if (newBadgeNumber > 0) {
+			let msg = '';
+			if (outdated) {
+				msg += outdated === 1 ? localize('extensionToUpdate', '{0} Extension requires update', outdated) : localize('extensionsToUpdate', '{0} Extensions require update', outdated);
+			}
+			if (outdated > 0 && extensionsReloadRequired.length > 0) {
+				msg += ', ';
+			}
+			if (extensionsReloadRequired.length) {
+				msg += extensionsReloadRequired.length === 1 ? localize('extensionToReload', '{0} Extension requires reload', extensionsReloadRequired.length) : localize('extensionsToReload', '{0} Extensions require reload', extensionsReloadRequired.length);
+			}
+			const badge = new NumberBadge(newBadgeNumber, () => msg);
 			this.badgeHandle.value = this.activityService.showViewContainerActivity(VIEWLET_ID, { badge, clazz: 'extensions-badge count-badge' });
 		}
 	}

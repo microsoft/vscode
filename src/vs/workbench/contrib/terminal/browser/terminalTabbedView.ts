@@ -13,7 +13,7 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Action, Separator } from 'vs/base/common/actions';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -426,7 +426,7 @@ export class TerminalTabbedView extends Disposable {
 		}));
 	}
 
-	private _getTabActions(): Action[] {
+	private _getTabActions(): IAction[] {
 		return [
 			new Separator(),
 			this._configurationService.inspect(TerminalSettingId.TabsLocation).userValue === 'left' ?

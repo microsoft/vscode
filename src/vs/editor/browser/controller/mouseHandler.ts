@@ -376,7 +376,7 @@ class MouseDownOperation extends Disposable {
 				target: position
 			});
 		} else {
-			if (position.type === MouseTargetType.OUTSIDE_EDITOR) {
+			if (position.type === MouseTargetType.OUTSIDE_EDITOR && (position.outsidePosition === 'above' || position.outsidePosition === 'below')) {
 				this._topBottomDragScrolling.start(position, e);
 			} else {
 				this._topBottomDragScrolling.stop();

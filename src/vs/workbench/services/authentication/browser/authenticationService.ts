@@ -16,7 +16,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -163,9 +163,16 @@ const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<Authent
 	}
 });
 
+let placeholderMenuItem: IDisposable | undefined = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
+	command: {
+		id: 'noAuthenticationProviders',
+		title: nls.localize('authentication.Placeholder', "No accounts requested yet..."),
+		precondition: ContextKeyExpr.false()
+	},
+});
+
 export class AuthenticationService extends Disposable implements IAuthenticationService {
 	declare readonly _serviceBrand: undefined;
-	private _placeholderMenuItem: IDisposable | undefined;
 	private _signInRequestItems = new Map<string, SessionRequestInfo>();
 	private _sessionAccessRequestItems = new Map<string, { [extensionId: string]: { disposables: IDisposable[]; possibleSessions: AuthenticationSession[] } }>();
 	private _accountBadgeDisposable = this._register(new MutableDisposable());
@@ -198,13 +205,6 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super();
-		this._placeholderMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
-			command: {
-				id: 'noAuthenticationProviders',
-				title: nls.localize('authentication.Placeholder', "No accounts requested yet..."),
-				precondition: ContextKeyExpr.false()
-			},
-		});
 
 		authenticationExtPoint.setHandler((extensions, { added, removed }) => {
 			added.forEach(point => {
@@ -255,9 +255,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		this._authenticationProviders.set(id, authenticationProvider);
 		this._onDidRegisterAuthenticationProvider.fire({ id, label: authenticationProvider.label });
 
-		if (this._placeholderMenuItem) {
-			this._placeholderMenuItem.dispose();
-			this._placeholderMenuItem = undefined;
+		if (placeholderMenuItem) {
+			placeholderMenuItem.dispose();
+			placeholderMenuItem = undefined;
 		}
 	}
 
@@ -275,7 +275,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 
 		if (!this._authenticationProviders.size) {
-			this._placeholderMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
+			placeholderMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
 				command: {
 					id: 'noAuthenticationProviders',
 					title: nls.localize('loading', "Loading..."),
@@ -735,4 +735,4 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 }
 
-registerSingleton(IAuthenticationService, AuthenticationService, false);
+registerSingleton(IAuthenticationService, AuthenticationService, InstantiationType.Delayed);
