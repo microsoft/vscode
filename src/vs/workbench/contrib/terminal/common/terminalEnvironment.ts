@@ -229,6 +229,10 @@ async function _resolveCwd(cwd: string, variableResolver: VariableResolver | und
 }
 
 function _sanitizeCwd(cwd: string): string {
+	// Sanity check that the cwd is not wrapped in quotes (see #160109)
+	if (cwd.match(/$['"].*['"]^/)) {
+		cwd = cwd.substring(1, cwd.length - 1);
+	}
 	// Make the drive letter uppercase on Windows (see #9448)
 	if (OS === OperatingSystem.Windows && cwd && cwd[1] === ':') {
 		return cwd[0].toUpperCase() + cwd.substr(1);
