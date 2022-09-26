@@ -14,14 +14,19 @@ export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
 export const AnyCommandLineRegex = /.{4,}/;
 export const GitSimilarOutputRegex = /most similar command is\s+([^\s]{3,})/;
-export const FreePortOutputRegex = /address already in use \d\.\d\.\d\.\d:(\d\d\d\d)\s+|Unable to bind [^ ]*:(\d+)|can't listen on port (\d+)|listen EADDRINUSE [^ ]*:(\d+)/;
-export const GitPushOutputRegex = /git push --set-upstream origin ([^\s]+)\s+/;
-export const GitCreatePrOutputRegex = /Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s+remote:\s+(https:.+pull.+)\s+/;
+export const FreePortOutputRegex = /address already in use \d\.\d\.\d\.\d:(\d\d\d\d)|Unable to bind [^ ]*:(\d+)|can't listen on port (\d+)|listen EADDRINUSE [^ ]*:(\d+)/;
+export const GitPushOutputRegex = /git push --set-upstream origin ([^\s]+)/;
+export const GitCreatePrOutputRegex = /Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s+remote:\s+(https:.+pull.+)/;
 
 export function gitSimilarCommand(): ITerminalContextualActionOptions {
 	return {
 		commandLineMatcher: GitCommandLineRegex,
-		outputMatcher: { lineMatcher: GitSimilarOutputRegex, anchor: 'bottom' },
+		outputMatcher: {
+			lineMatcher: GitSimilarOutputRegex,
+			anchor: 'bottom',
+			offset: 0,
+			length: 3
+		},
 		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Run git ${matchResult.outputMatch[1]}` : ``,
 		exitStatus: false,
 		getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
@@ -45,7 +50,14 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 	return {
 		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Free port ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: AnyCommandLineRegex,
-		outputMatcher: !isWindows ? { lineMatcher: FreePortOutputRegex, anchor: 'bottom' } : undefined,
+		// TODO: Support free port on Windows https://github.com/microsoft/vscode/issues/161775
+		outputMatcher: isWindows ? undefined : {
+			lineMatcher: FreePortOutputRegex,
+			anchor: 'bottom',
+			offset: 0,
+			length: 20
+		},
+		exitStatus: false,
 		getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
 			const port = matchResult?.outputMatch?.[1];
 			if (!port) {
@@ -69,7 +81,12 @@ export function gitPushSetUpstream(): ITerminalContextualActionOptions {
 	return {
 		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Git push ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: GitPushCommandLineRegex,
-		outputMatcher: { lineMatcher: GitPushOutputRegex, anchor: 'bottom' },
+		outputMatcher: {
+			lineMatcher: GitPushOutputRegex,
+			anchor: 'bottom',
+			offset: 0,
+			length: 5
+		},
 		exitStatus: false,
 		getActions: (matchResult: ContextualMatchResult, command: ITerminalCommand) => {
 			const branch = matchResult?.outputMatch?.[1];
@@ -94,7 +111,12 @@ export function gitCreatePr(openerService: IOpenerService): ITerminalContextualA
 	return {
 		actionName: (matchResult: ContextualMatchResult) => matchResult.outputMatch ? `Create PR for ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: GitPushCommandLineRegex,
-		outputMatcher: { lineMatcher: GitCreatePrOutputRegex, anchor: 'bottom' },
+		outputMatcher: {
+			lineMatcher: GitCreatePrOutputRegex,
+			anchor: 'bottom',
+			offset: 0,
+			length: 5
+		},
 		exitStatus: true,
 		getActions: (matchResult: ContextualMatchResult, command?: ITerminalCommand) => {
 			if (!command) {

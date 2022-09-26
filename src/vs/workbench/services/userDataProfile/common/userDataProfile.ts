@@ -26,6 +26,7 @@ export interface IUserDataProfileService {
 	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
 	readonly currentProfile: IUserDataProfile;
 	updateCurrentProfile(currentProfile: IUserDataProfile, preserveData: boolean): Promise<void>;
+	getShortName(profile: IUserDataProfile): string;
 }
 
 export const IUserDataProfileManagementService = createDecorator<IUserDataProfileManagementService>('IUserDataProfileManagementService');

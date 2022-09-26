@@ -6,7 +6,7 @@
 import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionIdentifier, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { ILocalExtension, IGalleryExtension, IGalleryMetadata, InstallOperation, IExtensionGalleryService, Metadata, InstallOptions, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IProfileAwareExtensionManagementService, IScannedExtension, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -20,15 +20,31 @@ import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workb
 import { delta } from 'vs/base/common/arrays';
 import { compare } from 'vs/base/common/strings';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export class WebExtensionManagementService extends AbstractExtensionManagementService implements IProfileAwareExtensionManagementService {
 
 	declare readonly _serviceBrand: undefined;
 
+	private readonly disposables = this._register(new DisposableStore());
+
 	get onProfileAwareInstallExtension() { return super.onInstallExtension; }
+	override get onInstallExtension() { return Event.filter(this.onProfileAwareInstallExtension, e => this.filterEvent(e), this.disposables); }
+
 	get onProfileAwareDidInstallExtensions() { return super.onDidInstallExtensions; }
+	override get onDidInstallExtensions() {
+		return Event.filter(
+			Event.map(this.onProfileAwareDidInstallExtensions, results => results.filter(e => this.filterEvent(e)), this.disposables),
+			results => results.length > 0, this.disposables);
+	}
+
 	get onProfileAwareUninstallExtension() { return super.onUninstallExtension; }
+	override get onUninstallExtension() { return Event.filter(this.onProfileAwareUninstallExtension, e => this.filterEvent(e), this.disposables); }
+
 	get onProfileAwareDidUninstallExtension() { return super.onDidUninstallExtension; }
+	override get onDidUninstallExtension() { return Event.filter(this.onProfileAwareDidUninstallExtension, e => this.filterEvent(e), this.disposables); }
+
 
 	private readonly _onDidChangeProfile = this._register(new Emitter<{ readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] }>());
 	readonly onDidChangeProfile = this._onDidChangeProfile.event;
@@ -42,9 +58,14 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IProductService productService: IProductService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super(extensionGalleryService, telemetryService, logService, productService, userDataProfilesService);
 		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.whenProfileChanged(e))));
+	}
+
+	private filterEvent({ profileLocation, applicationScoped }: { profileLocation?: URI; applicationScoped?: boolean }): boolean {
+		return applicationScoped || this.uriIdentityService.extUri.isEqual(this.userDataProfileService.currentProfile.extensionsResource, profileLocation);
 	}
 
 	async getTargetPlatform(): Promise<TargetPlatform> {
@@ -61,14 +82,14 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return false;
 	}
 
-	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
+	async getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]> {
 		const extensions = [];
 		if (type === undefined || type === ExtensionType.System) {
 			const systemExtensions = await this.webExtensionsScannerService.scanSystemExtensions();
 			extensions.push(...systemExtensions);
 		}
 		if (type === undefined || type === ExtensionType.User) {
-			const userExtensions = await this.webExtensionsScannerService.scanUserExtensions(this.userDataProfileService.currentProfile.extensionsResource);
+			const userExtensions = await this.webExtensionsScannerService.scanUserExtensions(profileLocation ?? this.userDataProfileService.currentProfile.extensionsResource);
 			extensions.push(...userExtensions);
 		}
 		return Promise.all(extensions.map(e => toLocalExtension(e)));

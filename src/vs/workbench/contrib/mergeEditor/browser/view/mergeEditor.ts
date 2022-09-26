@@ -547,6 +547,13 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		});
 	}
 
+	public toggleShowBaseAtTop(): void {
+		this.setLayout({
+			...this._layoutMode.value,
+			showBaseAtTop: !this._layoutMode.value.showBaseAtTop,
+		});
+	}
+
 	public setLayoutKind(kind: MergeEditorLayoutKind): void {
 		this.setLayout({
 			...this._layoutMode.value,
@@ -590,13 +597,17 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 			if (layout.kind === 'mixed') {
 				this.setGrid([
-					layout.showBase ? {
+					layout.showBaseAtTop && layout.showBase ? {
 						size: 38,
 						data: this.baseView.get()!.view
 					} : undefined,
 					{
 						size: 38,
-						groups: [{ data: this.input1View.view }, { data: this.input2View.view }]
+						groups: [
+							{ data: this.input1View.view },
+							!layout.showBaseAtTop && layout.showBase ? { data: this.baseView.get()!.view } : undefined,
+							{ data: this.input2View.view }
+						].filter(isDefined)
 					},
 					{
 						size: 62,
@@ -696,18 +707,19 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 interface IMergeEditorLayout {
 	readonly kind: MergeEditorLayoutKind;
 	readonly showBase: boolean;
+	readonly showBaseAtTop: boolean;
 }
 
 // TODO use PersistentStore
 class MergeEditorLayoutStore {
 	private static readonly _key = 'mergeEditor/layout';
-	private _value: IMergeEditorLayout = { kind: 'mixed', showBase: false };
+	private _value: IMergeEditorLayout = { kind: 'mixed', showBase: false, showBaseAtTop: true };
 
 	constructor(@IStorageService private _storageService: IStorageService) {
 		const value = _storageService.get(MergeEditorLayoutStore._key, StorageScope.PROFILE, 'mixed');
 
 		if (value === 'mixed' || value === 'columns') {
-			this._value = { kind: value, showBase: false };
+			this._value = { kind: value, showBase: false, showBaseAtTop: true };
 		} else if (value) {
 			try {
 				this._value = JSON.parse(value);
