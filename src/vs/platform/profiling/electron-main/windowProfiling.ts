@@ -15,22 +15,22 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Utils } from 'vs/platform/profiling/common/profiling';
 
 
-type TelemetryHeavyCall = {
-	session: number;
+type TelemetrySampleData = {
+	sessionId: string;
 	selfTime: number;
 	totalTime: number;
 	functionName: string;
 	callstack: string;
 };
 
-type TelemetryHeavyCallClassification = {
+type TelemetrySampleDataClassification = {
 	owner: 'jrieken';
 	comment: 'A callstack that took a long time to execute';
-	session: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Session identifier that allows to correlate call from one profile' };
-	selfTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Self time of the function' };
-	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Total time of the function' };
-	functionName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the function' };
-	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The stacktrace leading into the function' };
+	sessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Session identifier that allows to correlate samples from one profile' };
+	selfTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Self time of the sample' };
+	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Total time of the sample' };
+	functionName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the sample' };
+	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The stacktrace leading into the sample' };
 };
 
 class Node {
@@ -67,10 +67,6 @@ class Node {
 
 export class WindowProfiler {
 
-	private static _idPool = 1;
-
-	readonly id: number = WindowProfiler._idPool++;
-
 	private _profileAtOrAfter: number = 0;
 	private _session = new DisposableStore();
 	private _isProfiling?: Promise<any>;
@@ -79,6 +75,7 @@ export class WindowProfiler {
 
 	constructor(
 		private readonly _window: BrowserWindow,
+		private readonly _sessionId: string,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
@@ -89,7 +86,7 @@ export class WindowProfiler {
 
 		await this._isProfiling;
 
-		this._logService.warn('[perf] STOPPING to monitor renderer', this.id);
+		this._logService.warn('[perf] STOPPING to monitor renderer', this._sessionId);
 		this._session.clear();
 
 		try {
@@ -97,7 +94,7 @@ export class WindowProfiler {
 			await inspector.sendCommand('Profiler.disable');
 			inspector.detach();
 		} catch (error) {
-			this._logService.error('[perf] FAILED to disable profiler', this.id);
+			this._logService.error('[perf] FAILED to disable profiler', this._sessionId);
 		}
 	}
 
@@ -108,7 +105,7 @@ export class WindowProfiler {
 
 	async start() {
 		if (this._isStarted) {
-			this._logService.warn('[perf] already STARTED, ignoring request', this.id);
+			this._logService.warn('[perf] already STARTED, ignoring request', this._sessionId);
 			return;
 		}
 
@@ -117,11 +114,11 @@ export class WindowProfiler {
 			inspector.attach();
 			await inspector.sendCommand('Profiler.enable');
 		} catch (error) {
-			this._logService.error('[perf] FAILED to enable profiler', this.id);
+			this._logService.error('[perf] FAILED to enable profiler', this._sessionId);
 			return;
 		}
 
-		this._logService.warn('[perf] started to EXPECT frequent heartbeat', this.id);
+		this._logService.warn('[perf] started to EXPECT frequent heartbeat', this._sessionId);
 
 		this._session.clear();
 		this._profileAtOrAfter = Date.now();
@@ -141,22 +138,22 @@ export class WindowProfiler {
 
 
 	private async _captureRendererProfile(): Promise<void> {
-		this._logService.warn('[perf] MISSED heartbeat, trying to profile renderer', this.id);
+		this._logService.warn('[perf] MISSED heartbeat, trying to profile renderer', this._sessionId);
 
 		const profiling = (async () => {
 			const inspector = this._window.webContents.debugger;
 			await inspector.sendCommand('Profiler.start');
-			this._logService.warn('[perf] profiling STARTED', this.id);
+			this._logService.warn('[perf] profiling STARTED', this._sessionId);
 			await timeout(5000);
 			const res: ProfileResult = await inspector.sendCommand('Profiler.stop');
-			this._logService.warn('[perf] profiling DONE', this.id);
+			this._logService.warn('[perf] profiling DONE', this._sessionId);
 			await this._store(res.profile);
 			this._digest(res.profile);
 		})();
 
 		this._isProfiling = profiling
 			.catch(err => {
-				this._logService.error('[perf] profiling the renderer FAILED', this.id);
+				this._logService.error('[perf] profiling the renderer FAILED', this._sessionId);
 				this._logService.error(err);
 			}).finally(() => {
 				this._isProfiling = undefined;
@@ -167,9 +164,9 @@ export class WindowProfiler {
 		try {
 			const path = join(tmpdir(), `renderer-profile-${Date.now()}.cpuprofile`);
 			await Promises.writeFile(path, JSON.stringify(profile));
-			this._logService.info('[perf] stored profile to DISK', this.id, path);
+			this._logService.info('[perf] stored profile to DISK', this._sessionId, path);
 		} catch (error) {
-			this._logService.error('[perf] FAILED to write profile to disk', this.id, error);
+			this._logService.error('[perf] FAILED to write profile to disk', this._sessionId, error);
 		}
 	}
 
@@ -177,7 +174,7 @@ export class WindowProfiler {
 		// https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#type-Profile
 
 		if (!profile.samples || !profile.timeDeltas) {
-			this._logService.warn('[perf] INVALID profile: no samples or timeDeltas', this.id);
+			this._logService.warn('[perf] INVALID profile: no samples or timeDeltas', this._sessionId);
 			return;
 		}
 
@@ -222,11 +219,17 @@ export class WindowProfiler {
 		// TOTAL times
 		all.forEach(Node.makeTotals);
 
-		const session = Date.now();
 		const sorted = Array.from(all.values()).sort((a, b) => b.selfTime - a.selfTime);
 
 		if (sorted[0].callFrame.functionName === '(idle)') {
-			this._logService.warn('[perf] top stack is IDLE, ignoring this profile...', this.id);
+			this._logService.warn('[perf] top stack is IDLE, ignoring this profile...', this._sessionId);
+			this._telemetryService.publicLog2<TelemetrySampleData, TelemetrySampleDataClassification>('prof.sample', {
+				sessionId: this._sessionId,
+				selfTime: 0,
+				totalTime: 0,
+				functionName: '(idle)',
+				callstack: ''
+			});
 			return;
 		}
 
@@ -243,14 +246,14 @@ export class WindowProfiler {
 				candidate = candidate.parent;
 			}
 
-			const data: TelemetryHeavyCall = {
-				session,
+			const data: TelemetrySampleData = {
+				sessionId: this._sessionId,
 				selfTime: node.selfTime / 1000,
 				totalTime: node.totalTime / 1000,
 				functionName: node.callFrame.functionName,
 				callstack: callstack.join('\n')
 			};
-			this._telemetryService.publicLog2<TelemetryHeavyCall, TelemetryHeavyCallClassification>('prof.slowcall', data);
+			this._telemetryService.publicLog2<TelemetrySampleData, TelemetrySampleDataClassification>('prof.freeze.sample', data);
 
 			console.log(data);
 		}
