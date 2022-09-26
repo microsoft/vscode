@@ -203,6 +203,18 @@
 				"reveal": "never"
 			}
 		},
+			  {
+				"label": "Task 1",
+				"type": "shell",
+				"command": "echo Hello 1",
+				"problemMatcher": []
+			  },
+			  {
+				"label": "Task 2",
+				"type": "shell",
+				"command": "echo Hello 2",
+				"problemMatcher": []
+			  },
 		{
 			"type": "npm",
 			"script": "eslint",
