@@ -188,10 +188,7 @@ export function getShellIntegrationInjection(
 			const zdotdir = path.join(os.tmpdir(), `${os.userInfo().username}-vscode-zsh`);
 			envMixin['ZDOTDIR'] = zdotdir;
 			const userZdotdir = env?.ZDOTDIR ?? os.homedir() ?? `~`;
-			// NOTE: When vscode is started from the integrated terminal, the environment variables are taken over.
-			// The ZDOTDIR variable is oriented to os.tmpdir(), so we cannot reuse.
-			// Therefore, we use USER_ZDOTDIR variable that is inherited.
-			envMixin['USER_ZDOTDIR'] = env?.USER_ZDOTDIR ?? userZdotdir;
+			envMixin['USER_ZDOTDIR'] = userZdotdir;
 			const filesToCopy: IShellIntegrationConfigInjection['filesToCopy'] = [];
 			filesToCopy.push({
 				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh'),
