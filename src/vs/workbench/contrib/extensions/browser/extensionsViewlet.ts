@@ -800,14 +800,14 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
 		super();
-		this._register(extensionsWorkbenchService.onChange(this.onServiceChange, this));
+		this._register(Event.debounce(extensionsWorkbenchService.onChange, () => undefined, 100, undefined, undefined, this._store)(this.onServiceChange, this));
 	}
 
 	private onServiceChange(): void {
 		this.badgeHandle.clear();
 
 		const extensionsReloadRequired = this.extensionsWorkbenchService.installed.filter(e => e.reloadRequiredStatus !== undefined);
-		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !extensionsReloadRequired.includes(e) ? 1 : 0), 0);
+		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !this.extensionsWorkbenchService.isExtensionIgnoresUpdates(e) && !extensionsReloadRequired.includes(e) ? 1 : 0), 0);
 		const newBadgeNumber = outdated + extensionsReloadRequired.length;
 		if (newBadgeNumber > 0) {
 			let msg = '';
