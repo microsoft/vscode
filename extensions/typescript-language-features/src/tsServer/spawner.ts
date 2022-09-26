@@ -19,6 +19,7 @@ import { ILogDirectoryProvider } from './logDirectoryProvider';
 import { GetErrRoutingTsServer, ITypeScriptServer, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerDelegate, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
+// import * as x from 'vscode-wasm-typescript';
 
 const enum CompositeServerType {
 	/** Run a single server that handles all commands  */
@@ -55,7 +56,7 @@ export class TypeScriptServerSpawner {
 		delegate: TsServerDelegate,
 	): ITypeScriptServer {
 		let primaryServer: ITypeScriptServer;
-            this._logger.info("closer to actually forking")
+		this._logger.info('closer to actually forking');
 		const serverType = this.getCompositeServerType(version, capabilities, configuration);
 		const shouldUseSeparateDiagnosticsServer = this.shouldUseSeparateDiagnosticsServer(configuration);
 
@@ -131,7 +132,7 @@ export class TypeScriptServerSpawner {
 		pluginManager: PluginManager,
 		cancellerFactory: OngoingRequestCancellerFactory,
 	): ITypeScriptServer {
-            console.log('ooband logging')
+		console.log('ooband logging');
 		const apiVersion = version.apiVersion || API.defaultVersion;
 
 		const canceller = cancellerFactory.create(kind, this._tracer);
@@ -154,13 +155,15 @@ export class TypeScriptServerSpawner {
 		}
 
 		this._logger.info(`<${kind}> Forking...`);
-            // this is pretty close, but (1) lol it should happen way earlier
-            // (2) no node module resolution means that the import code in index.js isn't going to refer correctly to tsserver.js
-            // (and won't refer to tsserver.web.js at all)
-            // I might have to try a cheat-bundle of tsserver.web.js plus the code in vscode-wasm-typescript, since that's the final way it'll have to ship anyway.
-            // oh wait, no idea how @vscode/wasm packages are going to get looked up either =(
-            this._logger.info('modifying path to http://localhost:8080/static/sources/extensions/typescript-language-features/node_modules/vscode-wasm-typescript/dist/index.js')
-            this._logger.info(JSON.stringify(globalThis.require))
+		// this is pretty close, but (1) lol it should happen way earlier
+		// (2) no node module resolution means that the import code in index.js isn't going to refer correctly to tsserver.js
+		// (and won't refer to tsserver.web.js at all)
+		// I might have to try a cheat-bundle of tsserver.web.js plus the code in vscode-wasm-typescript, since that's the final way it'll have to ship anyway.
+		// oh wait, no idea how @vscode/wasm packages are going to get looked up either =(
+		// LATER: No this is all wrong, just change webpack to modify tsserver.web.js to include my code at build
+		// TODO: The code will ALSO need to turn off the existing listener that tsserver/webServer.ts adds *unconditionally* (well, the condition would be in tsserver/server.ts)
+		this._logger.info('modifying path to http://localhost:8080/static/sources/extensions/typescript-language-features/node_modules/vscode-wasm-typescript/dist/index.js');
+		// this._logger.info(JSON.stringify(x))
 		const process = this._factory.fork(version, args, kind, configuration, this._versionManager);
 		this._logger.info(`<${kind}> Starting...`);
 
