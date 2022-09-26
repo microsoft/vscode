@@ -5,12 +5,12 @@
 
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
-// import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-// import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
 
@@ -24,6 +24,8 @@ export class RendererProfiling {
 		@ILogService logService: ILogService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IViewDescriptorService viewsDescriptorService: IViewDescriptorService,
+		@IEditorService editorService: IEditorService,
 	) {
 
 		timerService.whenReady().then(() => {
@@ -32,8 +34,8 @@ export class RendererProfiling {
 			const slowThreshold = (timerService.startupMetrics.timers.ellapsedRequire / 2) | 0;
 
 			// Keep a record of the last events
-			const eventHistory = new RingBuffer<string>(5);
-			this._disposables.add(commandService.onWillExecuteCommand(e => eventHistory.push(e.commandId)));
+			const eventHistory = new RingBuffer<{ command: string; timestamp: number }>(5);
+			this._disposables.add(commandService.onWillExecuteCommand(e => eventHistory.push({ command: e.commandId, timestamp: Date.now() })));
 
 			const sessionDisposables = this._disposables.add(new DisposableStore());
 
@@ -55,11 +57,21 @@ export class RendererProfiling {
 				const sessionId = generateUuid();
 				logService.warn(`[perf] Renderer reported VERY LONG TASK (${maxDuration}ms), starting auto profiling session '${sessionId}'`);
 
+				// all visible views
+				const views = viewsDescriptorService.viewContainers.map(container => {
+					const model = viewsDescriptorService.getViewContainerModel(container);
+					return model.visibleViewDescriptors.map(view => view.id);
+				});
+
+				const editors = editorService.visibleEditors.map(editor => editor.typeId);
 
 				// send telemetry event
 				telemetryService.publicLog2<TelemetryEventData, TelemetryEventClassification>('perf.freeze.events', {
 					sessionId: sessionId,
-					events: JSON.stringify(eventHistory.values()),
+					timestamp: Date.now() - maxDuration,
+					recentCommands: JSON.stringify(eventHistory.values()),
+					views: JSON.stringify(views.flat()),
+					editors: JSON.stringify(editors),
 				});
 
 				// start heartbeat monitoring
@@ -86,7 +98,6 @@ export class RendererProfiling {
 
 						obs.observe({ entryTypes: ['longtask'] });
 					}));
-
 				});
 			});
 
@@ -100,40 +111,22 @@ export class RendererProfiling {
 	}
 }
 
-
-// registerAction2(class SLOW extends Action2 {
-
-// 	constructor() {
-// 		super({
-// 			id: 'slow.fib',
-// 			title: 'Fib(N)',
-// 			f1: true,
-// 		});
-// 	}
-
-// 	run(accessor: ServicesAccessor, ...args: any[]): void {
-// 		function fib(n: number): number {
-// 			if (n <= 2) {
-// 				return n;
-// 			}
-// 			return fib(n - 1) + fib(n - 2);
-// 		}
-
-// 		console.log('fib(44): ', fib(44));
-// 	}
-// });
-
-
 type TelemetryEventData = {
 	sessionId: string;
-	events: string;
+	timestamp: number;
+	recentCommands: string;
+	views: string;
+	editors: string;
 };
 
 type TelemetryEventClassification = {
 	owner: 'jrieken';
-	comment: 'A list of events that happened before a long task was reported';
-	sessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Session identifier that allows to correlate samples and events' };
-	events: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'List of events' };
+	comment: 'Insight about what happened before/while a long task was reported';
+	sessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Session identifier that allows to correlate CPU samples and events' };
+	timestamp: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Unix time at which the long task approximately happened' };
+	recentCommands: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Events prior to the long task' };
+	views: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Visible views' };
+	editors: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Visible editor' };
 };
 
 class RingBuffer<T> {
@@ -157,6 +150,6 @@ class RingBuffer<T> {
 	}
 
 	values(): T[] {
-		return [...this._data.slice(this._index), this._data.slice(0, this._index)].filter(a => a !== RingBuffer._value);
+		return [...this._data.slice(this._index), ...this._data.slice(0, this._index)].filter(a => a !== RingBuffer._value);
 	}
 }
