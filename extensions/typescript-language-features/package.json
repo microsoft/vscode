@@ -139,6 +139,10 @@
       {
         "fileMatch": "jsconfig.*.json",
         "url": "./schemas/jsconfig.schema.json"
+      },
+      {
+        "fileMatch": "typedoc.json",
+        "url": "https://typedoc.org/schema.json"
       }
     ],
     "configuration": {

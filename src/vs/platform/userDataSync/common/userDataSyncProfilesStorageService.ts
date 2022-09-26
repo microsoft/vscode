@@ -47,6 +47,11 @@ export interface IUserDataSyncProfilesStorageService {
 	 * @param target Storage target of the data
 	 */
 	updateStorageData(profile: IUserDataProfile, data: Map<string, string | undefined | null>, target: StorageTarget): Promise<void>;
+
+	/**
+	 * Calls a function with a storage service scoped to given profile.
+	 */
+	withProfileScopedStorageService<T>(profile: IUserDataProfile, fn: (storageService: IStorageService) => Promise<T>): Promise<T>;
 }
 
 export abstract class AbstractUserDataSyncProfilesStorageService extends Disposable implements IUserDataSyncProfilesStorageService {
@@ -62,34 +67,25 @@ export abstract class AbstractUserDataSyncProfilesStorageService extends Disposa
 	}
 
 	async readStorageData(profile: IUserDataProfile): Promise<Map<string, IStorageValue>> {
-		// Use current storage service if the profile is same
-		if (this.storageService.hasScope(profile)) {
-			return this.getItems(this.storageService);
-		}
-
-		const storageDatabase = await this.createStorageDatabase(profile);
-		const storageService = new StorageService(storageDatabase);
-		try {
-			await storageService.initialize();
-			return this.getItems(storageService);
-		} finally {
-			storageService.dispose();
-			await this.closeAndDispose(storageDatabase);
-		}
+		return this.withProfileScopedStorageService(profile, async storageService => this.getItems(storageService));
 	}
 
 	async updateStorageData(profile: IUserDataProfile, data: Map<string, string | undefined | null>, target: StorageTarget): Promise<void> {
-		// Use current storage service if the profile is same
+		return this.withProfileScopedStorageService(profile, async storageService => this.writeItems(storageService, data, target));
+	}
+
+	async withProfileScopedStorageService<T>(profile: IUserDataProfile, fn: (storageService: IStorageService) => Promise<T>): Promise<T> {
 		if (this.storageService.hasScope(profile)) {
-			return this.writeItems(this.storageService, data, target);
+			return fn(this.storageService);
 		}
 
 		const storageDatabase = await this.createStorageDatabase(profile);
 		const storageService = new StorageService(storageDatabase);
 		try {
 			await storageService.initialize();
-			this.writeItems(storageService, data, target);
+			const result = await fn(storageService);
 			await storageService.flush();
+			return result;
 		} finally {
 			storageService.dispose();
 			await this.closeAndDispose(storageDatabase);

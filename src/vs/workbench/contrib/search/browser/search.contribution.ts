@@ -511,7 +511,7 @@ registerAction2(class ViewAsTreeAction extends Action2 {
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				order: 3,
+				order: 2,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.InTreeViewKey.toNegated()),
 			}]
 		});
@@ -540,7 +540,7 @@ registerAction2(class ViewAsListAction extends Action2 {
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				order: 3,
+				order: 2,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.InTreeViewKey),
 			}]
 		});

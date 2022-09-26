@@ -72,6 +72,7 @@ export class CommandCenterControl {
 							// label: just workspace name and optional decorations
 							const label = this._getLabel();
 							const labelElement = document.createElement('span');
+							labelElement.classList.add('search-label');
 							labelElement.innerText = label;
 							reset(left, searchIcon, labelElement);
 
