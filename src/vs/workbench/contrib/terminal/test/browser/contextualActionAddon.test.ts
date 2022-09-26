@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
+import { isWindows } from 'vs/base/common/platform';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -83,10 +84,11 @@ suite('ContextualActionAddon', () => {
 				});
 			});
 		});
-		suite('freePort', () => {
-			const expected = new Map();
-			const portCommand = `yarn start dev`;
-			const output = `yarn run v1.22.17
+		if (!isWindows) {
+			suite('freePort', () => {
+				const expected = new Map();
+				const portCommand = `yarn start dev`;
+				const output = `yarn run v1.22.17
 			warning ../../package.json: No license field
 			Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
 				at Server.setupListenHandle [as _listen2] (node:net:1315:16)
@@ -100,27 +102,29 @@ suite('ContextualActionAddon', () => {
 			}
 			error Command failed with exit code 1.
 			info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.`;
-			const actionOptions = [{
-				id: 'terminal.freePort',
-				label: 'Free port 3000',
-				run: true,
-				tooltip: 'Free port 3000',
-				enabled: true
-			}];
-			setup(() => {
-				const command = freePort(terminalInstance);
-				expected.set(command.commandLineMatcher.toString(), [command]);
-				contextualActionAddon.registerCommandFinishedListener(command);
-			});
-			suite('returns undefined when', () => {
-				test('output does not match', () => {
-					strictEqual(getMatchActions(createCommand(portCommand, `invalid output`, FreePortOutputRegex), expected), undefined);
+				const actionOptions = [{
+					id: 'terminal.freePort',
+					label: 'Free port 3000',
+					run: true,
+					tooltip: 'Free port 3000',
+					enabled: true
+				}];
+				setup(() => {
+					const command = freePort(terminalInstance);
+					expected.set(command.commandLineMatcher.toString(), [command]);
+					contextualActionAddon.registerCommandFinishedListener(command);
+				});
+				suite('returns undefined when', () => {
+					test('output does not match', () => {
+						strictEqual(getMatchActions(createCommand(portCommand, `invalid output`, FreePortOutputRegex), expected), undefined);
+					});
+				});
+				test('returns actions', () => {
+					assertMatchOptions(getMatchActions(createCommand(portCommand, output, FreePortOutputRegex), expected), actionOptions);
 				});
 			});
-			test('returns actions', () => {
-				assertMatchOptions(getMatchActions(createCommand(portCommand, output, FreePortOutputRegex), expected), actionOptions);
-			});
-		});
+		}
+
 		suite('gitPushSetUpstream', () => {
 			const expectedMap = new Map();
 			const command = `git push`;
