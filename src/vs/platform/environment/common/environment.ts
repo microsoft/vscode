@@ -65,6 +65,7 @@ export interface IEnvironmentService {
 	sync: 'on' | 'off' | undefined;
 
 	// --- continue edit session
+	continueOn?: string;
 	editSessionId?: string;
 	editSessionsLogResource: URI;
 
