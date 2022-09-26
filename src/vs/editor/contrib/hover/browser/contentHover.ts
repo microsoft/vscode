@@ -129,8 +129,8 @@ export class ContentHoverController extends Disposable {
 		}
 
 		// The hover is currently visible
-
-		const isGettingCloser = (mouseEvent && this._widget.isMouseGettingCloser(mouseEvent.event.posx, mouseEvent.event.posy));
+		const hoverIsSticky = this._editor.getOption(EditorOption.hover).sticky;
+		const isGettingCloser = (hoverIsSticky && mouseEvent && this._widget.isMouseGettingCloser(mouseEvent.event.posx, mouseEvent.event.posy));
 		if (isGettingCloser) {
 			// The mouse is getting closer to the hover, so we will keep the hover untouched
 			// But we will kick off a hover update at the new anchor, insisting on keeping the hover visible.
