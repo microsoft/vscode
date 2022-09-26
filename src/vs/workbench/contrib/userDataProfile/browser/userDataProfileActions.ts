@@ -141,6 +141,9 @@ registerAction2(class CreateProfileAction extends Action2 {
 			}, {
 				id: CreateEmptyProfileAction.ID,
 				label: CreateEmptyProfileAction.TITLE.value,
+			}, {
+				id: CreateTransientProfileAction.ID,
+				label: CreateTransientProfileAction.TITLE.value,
 			}], { hideInput: true, canPickMany: false, title: localize('create settings profile', "{0}: Create...", PROFILES_CATEGORY) });
 		if (pick) {
 			return commandService.executeCommand(pick.id);
@@ -148,24 +151,28 @@ registerAction2(class CreateProfileAction extends Action2 {
 	}
 });
 
-registerAction2(class CreateTransientProfileAction extends Action2 {
+class CreateTransientProfileAction extends Action2 {
+	static readonly ID = 'workbench.profiles.actions.createTemporaryProfile';
+	static readonly TITLE = {
+		value: localize('create temporary profile', "Create a Temporary Settings Profile"),
+		original: 'Create a Temporary Settings Profile'
+	};
 	constructor() {
 		super({
-			id: 'workbench.profiles.actions.createTemporaryProfile',
-			title: {
-				value: localize('create temporary profile', "Create a Temporary Settings Profile"),
-				original: 'Create a Temporary Settings Profile'
-			},
+			id: CreateTransientProfileAction.ID,
+			title: CreateTransientProfileAction.TITLE,
 			category: PROFILES_CATEGORY,
 			f1: true,
-			precondition: PROFILES_ENABLEMENT_CONTEXT
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
 		});
 	}
 
 	async run(accessor: ServicesAccessor) {
 		return accessor.get(IUserDataProfileManagementService).createAndEnterTransientProfile();
 	}
-});
+}
+
+registerAction2(CreateTransientProfileAction);
 
 export class RenameProfileAction extends Action2 {
 	static readonly ID = 'workbench.profiles.actions.renameProfile';
