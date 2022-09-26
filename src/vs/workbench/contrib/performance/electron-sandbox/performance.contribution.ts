@@ -8,6 +8,14 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { StartupProfiler } from './startupProfiler';
 import { StartupTimings } from './startupTimings';
+import { RendererProfiling } from 'vs/workbench/contrib/performance/electron-sandbox/rendererAutoProfiler';
+
+
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
+	RendererProfiling,
+	'RendererProfiling',
+	LifecyclePhase.Eventually
+);
 
 // -- startup profiler
 

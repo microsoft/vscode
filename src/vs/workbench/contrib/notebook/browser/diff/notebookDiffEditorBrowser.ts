@@ -30,9 +30,12 @@ export interface INotebookTextDiffEditor {
 	notebookOptions: NotebookOptions;
 	readonly textModel?: NotebookTextModel;
 	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: DiffElementViewModelBase }>;
+	onDidScroll: Event<void>;
 	onDidDynamicOutputRendered: Event<{ cell: IGenericCellViewModel; output: ICellOutputViewModel }>;
 	getOverflowContainerDomNode(): HTMLElement;
 	getLayoutInfo(): NotebookLayoutInfo;
+	getScrollTop(): number;
+	getScrollHeight(): number;
 	layoutNotebookCell(cell: DiffElementViewModelBase, height: number): void;
 	createOutput(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: IInsetRenderOutput, getOffset: () => number, diffSide: DiffSide): void;
 	showInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: IDiffNestedCellViewModel, displayOutput: ICellOutputViewModel, diffSide: DiffSide): void;
@@ -42,6 +45,7 @@ export interface INotebookTextDiffEditor {
 	 * Trigger the editor to scroll from scroll event programmatically
 	 */
 	triggerScroll(event: IMouseWheelEvent): void;
+	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent): void;
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
 	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): Promise<void>;
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): Promise<void>;

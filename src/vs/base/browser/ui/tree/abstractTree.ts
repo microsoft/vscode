@@ -700,6 +700,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 	private readonly actionbar: ActionBar;
 	private width = 0;
 	private right = 0;
+	private top = 0;
 
 	readonly _onDidDisable = new Emitter<void>();
 	readonly onDidDisable = this._onDidDisable.event;
@@ -757,11 +758,18 @@ class FindWidget<T, TFilterData> extends Disposable {
 
 			const startRight = this.right;
 			const startX = e.pageX;
+			const startTop = this.top;
+			const startY = e.pageY;
 			this.elements.grab.classList.add('grabbing');
+
+			const transition = this.elements.root.style.transition;
+			this.elements.root.style.transition = 'unset';
 
 			const update = (e: MouseEvent) => {
 				const deltaX = e.pageX - startX;
 				this.right = startRight - deltaX;
+				const deltaY = e.pageY - startY;
+				this.top = startTop + deltaY;
 				this.layout();
 			};
 
@@ -769,6 +777,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 			disposables.add(onWindowMouseUp.event(e => {
 				update(e);
 				this.elements.grab.classList.remove('grabbing');
+				this.elements.root.style.transition = transition;
 				disposables.dispose();
 			}));
 		}));
@@ -779,6 +788,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 
 		this._register(onGrabKeyDown((e): any => {
 			let right: number | undefined;
+			let top: number | undefined;
 
 			if (e.keyCode === KeyCode.LeftArrow) {
 				right = Number.POSITIVE_INFINITY;
@@ -788,11 +798,29 @@ class FindWidget<T, TFilterData> extends Disposable {
 				right = this.right === 0 ? Number.POSITIVE_INFINITY : 0;
 			}
 
+			if (e.keyCode === KeyCode.UpArrow) {
+				top = 0;
+			} else if (e.keyCode === KeyCode.DownArrow) {
+				top = Number.POSITIVE_INFINITY;
+			}
+
 			if (right !== undefined) {
 				e.preventDefault();
 				e.stopPropagation();
 				this.right = right;
 				this.layout();
+			}
+
+			if (top !== undefined) {
+				e.preventDefault();
+				e.stopPropagation();
+				this.top = top;
+				const transition = this.elements.root.style.transition;
+				this.elements.root.style.transition = 'unset';
+				this.layout();
+				setTimeout(() => {
+					this.elements.root.style.transition = transition;
+				}, 0);
 			}
 		}));
 
@@ -824,6 +852,8 @@ class FindWidget<T, TFilterData> extends Disposable {
 		this.width = width;
 		this.right = clamp(this.right, 0, Math.max(0, width - 212));
 		this.elements.root.style.right = `${this.right}px`;
+		this.top = clamp(this.top, 0, 24);
+		this.elements.root.style.top = `${this.top}px`;
 	}
 
 	showMessage(message: IMessage): void {

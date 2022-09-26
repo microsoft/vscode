@@ -14,9 +14,9 @@ export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
 export const AnyCommandLineRegex = /.{4,}/;
 export const GitSimilarOutputRegex = /most similar command is\s+([^\s]{3,})/;
-export const FreePortOutputRegex = /address already in use \d\.\d\.\d\.\d:(\d\d\d\d)\s+|Unable to bind [^ ]*:(\d+)|can't listen on port (\d+)|listen EADDRINUSE [^ ]*:(\d+)/;
-export const GitPushOutputRegex = /git push --set-upstream origin ([^\s]+)\s+/;
-export const GitCreatePrOutputRegex = /Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s+remote:\s+(https:.+pull.+)\s+/;
+export const FreePortOutputRegex = /address already in use \d\.\d\.\d\.\d:(\d\d\d\d)|Unable to bind [^ ]*:(\d+)|can't listen on port (\d+)|listen EADDRINUSE [^ ]*:(\d+)/;
+export const GitPushOutputRegex = /git push --set-upstream origin ([^\s]+)/;
+export const GitCreatePrOutputRegex = /Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s+remote:\s+(https:.+pull.+)/;
 
 export function gitSimilarCommand(): ITerminalContextualActionOptions {
 	return {

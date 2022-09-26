@@ -162,9 +162,9 @@ const viewDescriptor: IJSONSchema = {
 				localize('vscode.extension.contributes.view.initialState.collapsed', "The view will show in the view container, but will be collapsed.")
 			]
 		},
-		size: {
+		initialSize: {
 			type: 'number',
-			description: localize('vscode.extension.contributs.view.size', "The size of the view. Using a number will behave like the css 'flex' property, and the size will set the initial size when the view is first shown. In the side bar, this is the height of the view."),
+			description: localize('vscode.extension.contributs.view.size', "The initial size of the view. The size will behave like the css 'flex' property, and will set the initial size when the view is first shown. In the side bar, this is the height of the view. This value is only respected when the same extension owns both the view and the view container."),
 		}
 	}
 };
