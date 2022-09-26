@@ -18,6 +18,8 @@ IF "%~1" == "" (
 set REMOTE_VSCODE=%AUTHORITY%%EXT_PATH%
 
 if "%VSCODE_REMOTE_SERVER_PATH%"=="" (
+	chcp 65001
+
 	echo Using remote server out of sources for integration web tests
 ) else (
 	echo Using '%VSCODE_REMOTE_SERVER_PATH%' as server path for web integration tests
@@ -77,3 +79,7 @@ set CFWORKSPACE=%TEMPDIR%\git-%RANDOM%
 mkdir %CFWORKSPACE%
 call node .\test\integration\browser\out\index.js --workspacePath=%CFWORKSPACE% --extensionDevelopmentPath=.\extensions\configuration-editing --extensionTestsPath=.\extensions\configuration-editing\out\test %*
 if %errorlevel% neq 0 exit /b %errorlevel%
+
+popd
+
+endlocal

@@ -106,7 +106,10 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 :: Cleanup
 
-rmdir /s /q %VSCODEUSERDATADIR%
+IF "%3" == "" (
+	rmdir /s /q %VSCODEUSERDATADIR%
+)
+
 rmdir /s /q %TESTRESOLVER_DATA_FOLDER%
 
 popd
