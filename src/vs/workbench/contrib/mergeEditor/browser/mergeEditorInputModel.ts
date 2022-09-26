@@ -21,6 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IRevertOptions } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
+import { conflictMarkers } from 'vs/workbench/contrib/mergeEditor/browser/mergeMarkers/mergeMarkersController';
 import { MergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { InputData, MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -303,6 +304,10 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 		// So that "Don't save" does revert the file
 		await resultTextFileModel.save();
 
+		const lines = resultTextFileModel.textEditorModel!.getLinesContent();
+		const hasConflictMarkers = lines.some(l => l.startsWith(conflictMarkers.start));
+		const resetResult = hasConflictMarkers;
+
 		const diffProvider = this._instantiationService.createInstance(WorkerBasedDocumentDiffProvider);
 		const model = this._instantiationService.createInstance(
 			MergeEditorModel,
@@ -313,7 +318,7 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
 			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
 			{
-				resetResult: true
+				resetResult
 			}
 		);
 		store.add(model);
