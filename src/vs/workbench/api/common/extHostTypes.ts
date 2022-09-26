@@ -3546,7 +3546,7 @@ export class NotebookCellOutput {
 			const item = items[i];
 			const normalMime = normalizeMimeType(item.mime);
 			// We can have multiple text stream mime types in the same output.
-			if (!seen.has(normalMime) || isTextStreamMime(item.mime)) {
+			if (!seen.has(normalMime) || isTextStreamMime(normalMime)) {
 				seen.add(normalMime);
 				continue;
 			}
