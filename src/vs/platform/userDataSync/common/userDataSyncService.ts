@@ -92,7 +92,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IProductService private readonly productService: IProductService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 	) {
 		super();
@@ -421,7 +420,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				return isUndefined(result) ? null : result;
 			}
 
-			if (this.environmentService.isBuilt && !(this.productService.enableSyncingProfiles && this.configurationService.getValue('settingsSync.enableSyncingProfiles'))) {
+			if (this.environmentService.isBuilt && !this.productService.enableSyncingProfiles) {
 				return null;
 			}
 
@@ -593,7 +592,7 @@ class ProfileSynchronizer extends Disposable {
 			if (!this._profile.isDefault) {
 				return;
 			}
-			if (this.environmentService.isBuilt && !(this.productService.enableSyncingProfiles && this.configurationService.getValue('settingsSync.enableSyncingProfiles'))) {
+			if (this.environmentService.isBuilt && !this.productService.enableSyncingProfiles) {
 				this.logService.debug('Skipping profiles sync');
 				return;
 			}
