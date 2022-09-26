@@ -23,6 +23,7 @@ import { IApplicationStorageMainService } from 'vs/platform/storage/electron-mai
 import { IRecent, IRecentFile, IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFile, isRecentFolder, isRecentWorkspace, restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+import { ResourceMap } from 'vs/base/common/map';
 
 export const IWorkspacesHistoryMainService = createDecorator<IWorkspacesHistoryMainService>('workspacesHistoryMainService');
 
@@ -173,29 +174,17 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		// Build maps for more efficient lookup of existing entries that
 		// are passed in by storing based on workspace/file identifier
 
-		function toId(entry: IRecentFile | IRecentFolder | IRecentWorkspace): string {
-			if (isRecentFile(entry)) {
-				return extUriBiasedIgnorePathCase.getComparisonKey(entry.fileUri);
-			}
-
-			if (isRecentFolder(entry)) {
-				return extUriBiasedIgnorePathCase.getComparisonKey(entry.folderUri);
-			}
-
-			return entry.workspace.id;
-		}
-
-		const mapWorkspaceIdToWorkspace = new Map<string /* ID */, IRecentFolder | IRecentWorkspace>();
+		const mapWorkspaceIdToWorkspace = new ResourceMap<IRecentFolder | IRecentWorkspace>(uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
 		if (existingEntries?.workspaces) {
 			for (const workspace of existingEntries.workspaces) {
-				mapWorkspaceIdToWorkspace.set(toId(workspace), workspace);
+				mapWorkspaceIdToWorkspace.set(this.location(workspace), workspace);
 			}
 		}
 
-		const mapFileIdToFile = new Map<string /* ID */, IRecentFile>();
+		const mapFileIdToFile = new ResourceMap<IRecentFile>(uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
 		if (existingEntries?.files) {
 			for (const file of existingEntries.files) {
-				mapFileIdToFile.set(toId(file), file);
+				mapFileIdToFile.set(this.location(file), file);
 			}
 		}
 
@@ -203,20 +192,20 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 		const recentFromStorage = await this.getRecentlyOpenedFromStorage();
 		for (const recentWorkspaceFromStorage of recentFromStorage.workspaces) {
-			const existingRecentWorkspace = mapWorkspaceIdToWorkspace.get(toId(recentWorkspaceFromStorage));
+			const existingRecentWorkspace = mapWorkspaceIdToWorkspace.get(this.location(recentWorkspaceFromStorage));
 			if (existingRecentWorkspace) {
 				existingRecentWorkspace.label = existingRecentWorkspace.label ?? recentWorkspaceFromStorage.label;
 			} else {
-				mapWorkspaceIdToWorkspace.set(toId(recentWorkspaceFromStorage), recentWorkspaceFromStorage);
+				mapWorkspaceIdToWorkspace.set(this.location(recentWorkspaceFromStorage), recentWorkspaceFromStorage);
 			}
 		}
 
 		for (const recentFileFromStorage of recentFromStorage.files) {
-			const existingRecentFile = mapFileIdToFile.get(toId(recentFileFromStorage));
+			const existingRecentFile = mapFileIdToFile.get(this.location(recentFileFromStorage));
 			if (existingRecentFile) {
 				existingRecentFile.label = existingRecentFile.label ?? recentFileFromStorage.label;
 			} else {
-				mapFileIdToFile.set(toId(recentFileFromStorage), recentFileFromStorage);
+				mapFileIdToFile.set(this.location(recentFileFromStorage), recentFileFromStorage);
 			}
 		}
 
