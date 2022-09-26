@@ -391,6 +391,8 @@ export interface IMouseTargetOverviewRuler extends IBaseMouseTarget {
 }
 export interface IMouseTargetOutsideEditor extends IBaseMouseTarget {
 	readonly type: MouseTargetType.OUTSIDE_EDITOR;
+	readonly outsidePosition: 'above' | 'below' | 'left' | 'right';
+	readonly outsideDistance: number;
 }
 /**
  * Target hit with the mouse in the editor.
@@ -1225,6 +1227,10 @@ export function getCodeEditor(thing: unknown): ICodeEditor | null {
 
 	if (isDiffEditor(thing)) {
 		return thing.getModifiedEditor();
+	}
+
+	if (isCompositeEditor(thing) && isCodeEditor(thing.activeCodeEditor)) {
+		return thing.activeCodeEditor;
 	}
 
 	return null;

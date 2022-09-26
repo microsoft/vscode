@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
@@ -17,7 +18,6 @@ export const IEditSessionIdentityService = createDecorator<IEditSessionIdentityS
 export interface IEditSessionIdentityService {
 	readonly _serviceBrand: undefined;
 
-	registerEditSessionIdentityProvider(provider: IEditSessionIdentityProvider): void;
-	unregisterEditSessionIdentityProvider(scheme: string): void;
+	registerEditSessionIdentityProvider(provider: IEditSessionIdentityProvider): IDisposable;
 	getEditSessionIdentifier(workspaceFolder: IWorkspaceFolder, cancellationTokenSource: CancellationTokenSource): Promise<string | undefined>;
 }

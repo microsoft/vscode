@@ -583,6 +583,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	// --- edit sessions ---
 
+	private _providerHandlePool = 0;
+
 	// called by ext host
 	registerEditSessionIdentityProvider(scheme: string, provider: vscode.EditSessionIdentityProvider) {
 		if (this._editSessionIdentityProviders.has(scheme)) {
@@ -591,11 +593,12 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 		this._editSessionIdentityProviders.set(scheme, provider);
 		const outgoingScheme = this._uriTransformerService.transformOutgoingScheme(scheme);
-		this._proxy.$registerEditSessionIdentityProvider(outgoingScheme);
+		const handle = this._providerHandlePool++;
+		this._proxy.$registerEditSessionIdentityProvider(handle, outgoingScheme);
 
 		return toDisposable(() => {
 			this._editSessionIdentityProviders.delete(scheme);
-			this._proxy.$unregisterEditSessionIdentityProvider(outgoingScheme);
+			this._proxy.$unregisterEditSessionIdentityProvider(handle);
 		});
 	}
 

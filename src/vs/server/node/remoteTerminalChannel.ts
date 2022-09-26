@@ -147,6 +147,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$refreshProperty': return this._ptyService.refreshProperty.apply(this._ptyService, args);
 			case '$requestDetachInstance': return this._ptyService.requestDetachInstance(args[0], args[1]);
 			case '$acceptDetachedInstance': return this._ptyService.acceptDetachInstanceReply(args[0], args[1]);
+			case '$freePortKillProcess': return this._ptyService.freePortKillProcess?.apply(args[0], args[1]);
 		}
 
 		throw new Error(`IPC Command ${command} not found`);
@@ -185,7 +186,10 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 					: URI.revive(uriTransformer.transformIncoming(args.shellLaunchConfig.cwd))
 			),
 			env: args.shellLaunchConfig.env,
-			useShellEnvironment: args.shellLaunchConfig.useShellEnvironment
+			useShellEnvironment: args.shellLaunchConfig.useShellEnvironment,
+			reconnectionProperties: args.shellLaunchConfig.reconnectionProperties,
+			type: args.shellLaunchConfig.type,
+			isFeatureTerminal: args.shellLaunchConfig.isFeatureTerminal
 		};
 
 

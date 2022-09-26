@@ -36,7 +36,7 @@ registerAction2(ApplyFileSnippetAction);
 
 // workbench contribs
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(SnippetCodeActions, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(SnippetCodeActions, 'SnippetCodeActions', LifecyclePhase.Restored);
 
 // config
 Registry

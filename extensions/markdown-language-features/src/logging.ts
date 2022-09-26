@@ -5,7 +5,6 @@
 
 import * as vscode from 'vscode';
 import { Disposable } from './util/dispose';
-import { lazy } from './util/lazy';
 
 enum Trace {
 	Off,
@@ -33,7 +32,14 @@ export interface ILogger {
 export class VsCodeOutputLogger extends Disposable implements ILogger {
 	private trace?: Trace;
 
-	private readonly outputChannel = lazy(() => this._register(vscode.window.createOutputChannel('Markdown')));
+	private _outputChannel?: vscode.OutputChannel;
+
+	private get outputChannel() {
+		if (!this._outputChannel) {
+			this._outputChannel = this._register(vscode.window.createOutputChannel('Markdown'));
+		}
+		return this._outputChannel;
+	}
 
 	constructor() {
 		super();
@@ -66,7 +72,7 @@ export class VsCodeOutputLogger extends Disposable implements ILogger {
 	}
 
 	private appendLine(value: string): void {
-		this.outputChannel.value.appendLine(value);
+		this.outputChannel.appendLine(value);
 	}
 
 	private readTrace(): Trace {

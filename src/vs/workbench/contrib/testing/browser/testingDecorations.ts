@@ -75,8 +75,8 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 	private generation = 0;
 	private readonly changeEmitter = new Emitter<void>();
 	private readonly decorationCache = new ResourceMap<{
-		/** Whether tests in the resource have been updated, requiring rerendering */
-		testRangesUpdated: boolean;
+		/** The document version at which ranges have been updated, requiring rerendering */
+		rangeUpdateVersionId?: number;
 		/** Counter for the results rendered in the document */
 		generation: number;
 		value: TestDecorations<ITestDecoration>;
@@ -115,16 +115,13 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		// is up to date. This prevents issues, as in #138632, #138835, #138922.
 		this._register(this.testService.onWillProcessDiff(diff => {
 			for (const entry of diff) {
-				let uri: URI | undefined | null;
-				if (entry.op === TestDiffOpType.Add || entry.op === TestDiffOpType.Update) {
-					uri = entry.item.item?.uri;
-				} else if (entry.op === TestDiffOpType.Remove) {
-					uri = this.testService.collection.getNodeById(entry.itemId)?.item.uri;
+				if (entry.op !== TestDiffOpType.DocumentSynced) {
+					continue;
 				}
 
-				const rec = uri && this.decorationCache.get(uri);
+				const rec = this.decorationCache.get(entry.uri);
 				if (rec) {
-					rec.testRangesUpdated = true;
+					rec.rangeUpdateVersionId = entry.docv;
 				}
 			}
 
@@ -160,7 +157,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		}
 
 		const cached = this.decorationCache.get(resource);
-		if (cached && cached.generation === this.generation && !cached.testRangesUpdated) {
+		if (cached && cached.generation === this.generation && (cached.rangeUpdateVersionId === undefined || cached.rangeUpdateVersionId !== model.getVersionId())) {
 			return cached.value;
 		}
 
@@ -194,8 +191,8 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		const gutterEnabled = getTestingConfiguration(this.configurationService, TestingConfigKeys.GutterEnabled);
 		const uriStr = model.uri.toString();
 		const cached = this.decorationCache.get(model.uri);
-		const testRangesUpdated = cached?.testRangesUpdated;
-		const lastDecorations = cached?.value ?? new TestDecorations();
+		const testRangesUpdated = cached?.rangeUpdateVersionId === model.getVersionId();
+		const lastDecorations = cached?.value ?? new TestDecorations<ITestDecoration>();
 		const newDecorations = new TestDecorations<ITestDecoration>();
 
 		model.changeDecorations(accessor => {
@@ -212,7 +209,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 
 			for (const [line, tests] of runDecorations.lines()) {
 				const multi = tests.length > 1;
-				let existing = lastDecorations.findOnLine(line, d => multi ? d instanceof MultiRunTestDecoration : d instanceof RunSingleTestDecoration) as RunTestDecoration | undefined;
+				let existing = lastDecorations.value.find(d => d instanceof RunTestDecoration && d.exactlyContainsTests(tests)) as RunTestDecoration | undefined;
 
 				// see comment in the constructor for what's going on here
 				if (existing && testRangesUpdated && model.getDecorationRange(existing.id)?.startLineNumber !== line) {
@@ -298,7 +295,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 
 			this.decorationCache.set(model.uri, {
 				generation: this.generation,
-				testRangesUpdated: false,
+				rangeUpdateVersionId: cached?.rangeUpdateVersionId,
 				value: newDecorations,
 			});
 		});
@@ -649,6 +646,27 @@ abstract class RunTestDecoration {
 			default:
 				this.defaultRun();
 				break;
+		}
+
+		return true;
+	}
+
+	public exactlyContainsTests(tests: readonly { test: IncrementalTestCollectionItem }[]): boolean {
+		if (tests.length !== this.tests.length) {
+			return false;
+		}
+		if (tests.length === 1) {
+			return tests[0].test.item.extId === this.tests[0].test.item.extId;
+		}
+
+		const ownTests = new Set();
+		for (const t of this.tests) {
+			ownTests.add(t.test.item.extId);
+		}
+		for (const t of tests) {
+			if (!ownTests.delete(t.test.item.extId)) {
+				return false;
+			}
 		}
 
 		return true;

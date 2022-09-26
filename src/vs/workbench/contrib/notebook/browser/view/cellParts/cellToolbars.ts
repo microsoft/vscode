@@ -21,6 +21,7 @@ import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/no
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { registerStickyScroll } from 'vs/workbench/contrib/notebook/browser/view/cellParts/stickyScroll';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 export class BetweenCellToolbar extends CellPart {
 	private _betweenCellToolbar!: ToolBar;
@@ -113,10 +114,15 @@ export class CellTitleToolbarPart extends CellPart {
 	) {
 		super();
 
-		this._toolbar = instantiationService.invokeFunction(accessor => createToolbar(accessor, toolbarContainer));
+		this._toolbar = instantiationService.createInstance(WorkbenchToolBar, toolbarContainer, {
+			actionViewItemProvider: action => {
+				return createActionViewItem(instantiationService, action);
+			},
+			renderDropdownAsChildElement: true
+		});
 		this._titleMenu = this._register(menuService.createMenu(toolbarId, contextKeyService));
 
-		this._deleteToolbar = this._register(instantiationService.invokeFunction(accessor => createToolbar(accessor, toolbarContainer, 'cell-delete-toolbar')));
+		this._deleteToolbar = this._register(instantiationService.invokeFunction(accessor => createDeleteToolbar(accessor, toolbarContainer, 'cell-delete-toolbar')));
 		this._deleteMenu = this._register(menuService.createMenu(deleteToolbarId, contextKeyService));
 		if (!this._notebookEditor.creationOptions.isReadOnly) {
 			const deleteActions = getCellToolbarActions(this._deleteMenu);
@@ -202,7 +208,7 @@ function getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IA
 	return result;
 }
 
-function createToolbar(accessor: ServicesAccessor, container: HTMLElement, elementClass?: string): ToolBar {
+function createDeleteToolbar(accessor: ServicesAccessor, container: HTMLElement, elementClass?: string): ToolBar {
 	const contextMenuService = accessor.get(IContextMenuService);
 	const keybindingService = accessor.get(IKeybindingService);
 	const instantiationService = accessor.get(IInstantiationService);

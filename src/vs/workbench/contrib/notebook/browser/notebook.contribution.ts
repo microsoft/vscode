@@ -380,7 +380,7 @@ class CellInfoContentProvider {
 			return existing;
 		}
 
-		const data = CellUri.parseCellUri(resource, Schemas.vscodeNotebookCellMetadata);
+		const data = CellUri.parseCellPropertyUri(resource, Schemas.vscodeNotebookCellMetadata);
 		if (!data) {
 			return null;
 		}
@@ -688,17 +688,17 @@ class NotebookLanguageSelectorScoreRefine {
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(CellInfoContentProvider, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(RegisterSchemasContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookEditorManager, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookLanguageSelectorScoreRefine, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(SimpleNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(ComplexNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, 'NotebookContribution', LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, 'CellContentProvider', LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(CellInfoContentProvider, 'CellInfoContentProvider', LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(RegisterSchemasContribution, 'RegisterSchemasContribution', LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookEditorManager, 'NotebookEditorManager', LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookLanguageSelectorScoreRefine, 'NotebookLanguageSelectorScoreRefine', LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(SimpleNotebookWorkingCopyEditorHandler, 'SimpleNotebookWorkingCopyEditorHandler', LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(ComplexNotebookWorkingCopyEditorHandler, 'ComplexNotebookWorkingCopyEditorHandler', LifecyclePhase.Ready);
 
-registerSingleton(INotebookService, NotebookService);
-registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl);
+registerSingleton(INotebookService, NotebookService, false);
+registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl, false);
 registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverServiceImpl, true);
 registerSingleton(INotebookCellStatusBarService, NotebookCellStatusBarService, true);
 registerSingleton(INotebookEditorService, NotebookEditorWidgetService, true);

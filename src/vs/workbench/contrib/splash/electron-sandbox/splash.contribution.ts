@@ -25,5 +25,6 @@ registerSingleton(ISplashStorageService, SplashStorageService, true);
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	PartsSplash,
+	'PartsSplash',
 	LifecyclePhase.Starting
 );
