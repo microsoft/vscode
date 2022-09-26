@@ -77,10 +77,11 @@ export class ConflictActionsFactory extends Disposable {
 
 	createContentWidget(lineNumber: number, viewModel: MergeEditorViewModel, modifiedBaseRange: ModifiedBaseRange, inputNumber: 1 | 2): IContentWidget {
 
-		function command(title: string, action: () => Promise<void>): IContentWidgetAction {
+		function command(title: string, action: () => Promise<void>, tooltip?: string): IContentWidgetAction {
 			return {
 				text: title,
-				action
+				action,
+				tooltip,
 			};
 		}
 
@@ -113,7 +114,7 @@ export class ConflictActionsFactory extends Disposable {
 								);
 							});
 						})
-						: command(localize('remove', "$(error) Remove ${0}", inputData.title), async () => {
+						: command(localize('remove', "$(error) Remove {0}", inputData.title), async () => {
 							transaction((tx) => {
 								model.setState(
 									modifiedBaseRange,
@@ -149,7 +150,7 @@ export class ConflictActionsFactory extends Disposable {
 										tx
 									);
 								});
-							}),
+							}, localize('acceptBothTooltip', "Both changes can be combined automatically")),
 					);
 				}
 			}
@@ -173,35 +174,37 @@ export class ConflictActionsFactory extends Disposable {
 
 			const result: IContentWidgetAction[] = [];
 
-			const stateLabel = ((state: ModifiedBaseRangeState): string => {
-				if (state.conflicting) {
-					return localize('manualResolution', "Manual Resolution");
-				} else if (state.isEmpty) {
-					return localize('noChangesAccepted', 'No Changes Accepted');
-				} else {
-					const labels = [];
-					if (state.input1) {
-						labels.push(model.input1.title);
-					}
-					if (state.input2) {
-						labels.push(model.input2.title);
-					}
-					if (state.input2First) {
-						labels.reverse();
-					}
-					return `${labels.join(' + ')}`;
+
+			if (state.conflicting) {
+				result.push({
+					text: localize('manualResolution', "Manual Resolution"),
+					tooltip: localize('manualResolutionTooltip', "This conflict has been resolved manually"),
+				});
+			} else if (state.isEmpty) {
+				result.push({
+					text: localize('noChangesAccepted', 'No Changes Accepted'),
+					tooltip: localize('noChangesAcceptedTooltip', "The current resolution of this conflict equals the common ancestor of both the right and left changes."),
+				});
+
+			} else {
+				const labels = [];
+				if (state.input1) {
+					labels.push(model.input1.title);
 				}
-			})(state);
-
-			result.push({
-				text: stateLabel,
-				action: async () => { },
-			});
-
+				if (state.input2) {
+					labels.push(model.input2.title);
+				}
+				if (state.input2First) {
+					labels.reverse();
+				}
+				result.push({
+					text: `${labels.join(' + ')}`
+				});
+			}
 
 			const stateToggles: IContentWidgetAction[] = [];
 			if (state.input1) {
-				result.push(command(localize('remove', "$(error) Remove ${0}", model.input1.title), async () => {
+				result.push(command(localize('remove', "$(error) Remove {0}", model.input1.title), async () => {
 					transaction((tx) => {
 						model.setState(
 							modifiedBaseRange,
@@ -214,7 +217,7 @@ export class ConflictActionsFactory extends Disposable {
 				);
 			}
 			if (state.input2) {
-				result.push(command(localize('remove', "$(error) Remove ${0}", model.input2.title), async () => {
+				result.push(command(localize('remove', "$(error) Remove {0}", model.input2.title), async () => {
 					transaction((tx) => {
 						model.setState(
 							modifiedBaseRange,
@@ -256,8 +259,8 @@ export class ConflictActionsFactory extends Disposable {
 
 interface IContentWidgetAction {
 	text: string;
-	hover?: string;
-	action: () => Promise<void>;
+	tooltip?: string;
+	action?: () => Promise<void>;
 }
 
 class ActionsContentWidget extends Disposable implements IContentWidget {
@@ -289,7 +292,12 @@ class ActionsContentWidget extends Disposable implements IContentWidget {
 				children.push($('span', undefined, '\u00a0|\u00a0'));
 			}
 			const title = renderLabelWithIcons(item.text);
-			children.push($('a', { title: item.hover, role: 'button', onclick: () => item.action() }, ...title));
+
+			if (item.action) {
+				children.push($('a', { title: item.tooltip, role: 'button', onclick: () => item.action!() }, ...title));
+			} else {
+				children.push($('span', { title: item.tooltip }, ...title));
+			}
 		}
 
 		reset(this._domNode, ...children);
