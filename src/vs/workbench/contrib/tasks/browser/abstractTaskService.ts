@@ -488,6 +488,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 
+		CommandsRegistry.registerCommand('workbench.action.tasks.configureDefaultBuildTask', async () => {
+			if (await this._trust()) {
+				this._runConfigureDefaultBuildTask(this);
+			}
+		});
+
+		CommandsRegistry.registerCommand('workbench.action.tasks.configureDefaultTestTask', async () => {
+			if (await this._trust()) {
+				this._runConfigureDefaultTestTask(this);
+			}
+		});
+
 		CommandsRegistry.registerCommand('workbench.action.tasks.showTasks', async () => {
 			if (await this._trust()) {
 				return this.runShowTasks();
