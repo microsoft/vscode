@@ -675,7 +675,9 @@ export class ModeToggle extends Toggle {
 
 export interface IFindWidgetStyles extends IFindInputStyles, IListStyles { }
 
-export interface IFindWidgetOpts extends IFindWidgetStyles { }
+export interface IFindWidgetOpts extends IFindWidgetStyles {
+	history?: string[];
+}
 
 export enum TreeFindMode {
 	Highlight,
@@ -724,7 +726,8 @@ class FindWidget<T, TFilterData> extends Disposable {
 		this.findInput = this._register(new FindInput(this.elements.findInput, contextViewProvider, {
 			label: localize('type to search', "Type to search"),
 			additionalToggles: [this.modeToggle],
-			showCommonFindToggles: false
+			showCommonFindToggles: false,
+			history: options?.history
 		}));
 
 		this.actionbar = this._register(new ActionBar(this.elements.actionbar));
@@ -822,6 +825,10 @@ class FindWidget<T, TFilterData> extends Disposable {
 		this.style(options ?? {});
 	}
 
+	getHistory(): string[] {
+		return this.findInput.getHistory();
+	}
+
 	style(styles: IFindWidgetStyles): void {
 		this.findInput.style(styles);
 
@@ -868,6 +875,8 @@ class FindWidget<T, TFilterData> extends Disposable {
 }
 
 class FindController<T, TFilterData> implements IDisposable {
+
+	private _history: string[] = [];
 
 	private _pattern = '';
 	get pattern(): string { return this._pattern; }
@@ -925,7 +934,7 @@ class FindController<T, TFilterData> implements IDisposable {
 		}
 
 		this.mode = this.tree.options.defaultFindMode ?? TreeFindMode.Highlight;
-		this.widget = new FindWidget(this.view.getHTMLElement(), this.tree, this.contextViewProvider, this.mode, this.styles);
+		this.widget = new FindWidget(this.view.getHTMLElement(), this.tree, this.contextViewProvider, this.mode, { ...this.styles, history: this._history });
 		this.enabledDisposables.add(this.widget);
 
 		this.widget.onDidChangeValue(this.onDidChangeValue, this, this.enabledDisposables);
@@ -943,6 +952,7 @@ class FindController<T, TFilterData> implements IDisposable {
 			return;
 		}
 
+		this._history = this.widget.getHistory();
 		this.widget = undefined;
 
 		this.enabledDisposables.dispose();
