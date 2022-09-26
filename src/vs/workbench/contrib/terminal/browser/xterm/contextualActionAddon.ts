@@ -92,7 +92,7 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 		this._register(commandDetection.onCommandFinished(async command => {
 			this._decoration?.dispose();
 			this._decoration = undefined;
-			this._matchActions = getMatchActions(command, this._commandListeners, this._onDidRequestRerunCommand);
+			this._matchActions = getMatchActions(command, this._commandListeners, this._onDidRequestRerunCommand, this._decoration);
 		}));
 		// The buffer is not ready by the time command finish
 		// is called. Add the decoration on command start using the actions, if any,
@@ -126,7 +126,6 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 					this._decorationMarkerIds.add(decoration.marker.id);
 					dom.addDisposableListener(e, dom.EventType.CLICK, () => {
 						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions });
-						this._contextMenuService.onDidHideContextMenu(() => decoration.dispose());
 					});
 				}
 			}
@@ -134,7 +133,7 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 	}
 }
 
-export function getMatchActions(command: ITerminalCommand, actionOptions: Map<string, ITerminalContextualActionOptions[]>, onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>): IAction[] | undefined {
+export function getMatchActions(command: ITerminalCommand, actionOptions: Map<string, ITerminalContextualActionOptions[]>, onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>, decoration?: IDecoration): IAction[] | undefined {
 	const matchActions: IAction[] = [];
 	const newCommand = command.command;
 	for (const options of actionOptions.values()) {
@@ -164,6 +163,8 @@ export function getMatchActions(command: ITerminalCommand, actionOptions: Map<st
 							if (a.commandToRunInTerminal) {
 								onDidRequestRerunCommand?.fire({ command: a.commandToRunInTerminal, addNewLine: a.addNewLine });
 							}
+							decoration?.dispose();
+							decoration = undefined;
 						},
 						tooltip: a.tooltip
 					});
