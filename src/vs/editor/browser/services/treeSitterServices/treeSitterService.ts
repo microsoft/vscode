@@ -78,6 +78,7 @@ export class TreeSitterService implements ITreeSitterService {
 		const timeTreeParse = sw.elapsed();
 		console.log('Time to parse tree : ', timeTreeParse);
 		const query = this._language.query(queryString);
+		sw.reset();
 		const captures = query.captures(parsedTree.rootNode, { row: startLine ? startLine : 1, column: 1 } as Parser.Point);
 		const timeCaptureQueries = sw.elapsed();
 		console.log('Time to get the query captures : ', timeCaptureQueries - timeTreeParse);
