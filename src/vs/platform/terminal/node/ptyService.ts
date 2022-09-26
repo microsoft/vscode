@@ -28,6 +28,7 @@ import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 type WorkspaceId = string;
 
@@ -64,6 +65,7 @@ export class PtyService extends Disposable implements IPtyService {
 	constructor(
 		private _lastPtyId: number,
 		private readonly _logService: ILogService,
+		private readonly _productService: IProductService,
 		private readonly _reconnectConstants: IReconnectConstants
 	) {
 		super();
@@ -244,7 +246,7 @@ export class PtyService extends Disposable implements IPtyService {
 			throw new Error('Attempt to create a process when attach object was provided');
 		}
 		const id = ++this._lastPtyId;
-		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, options, this._logService);
+		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, options, this._logService, this._productService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
 		const processLaunchOptions: IPersistentTerminalProcessLaunchConfig = {
 			env,
