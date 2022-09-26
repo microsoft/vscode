@@ -114,7 +114,7 @@ export class ConflictActionsFactory extends Disposable {
 								);
 							});
 						})
-						: command(localize('remove', "$(error) Remove ${0}", inputData.title), async () => {
+						: command(localize('remove', "$(error) Remove {0}", inputData.title), async () => {
 							transaction((tx) => {
 								model.setState(
 									modifiedBaseRange,
@@ -204,7 +204,7 @@ export class ConflictActionsFactory extends Disposable {
 
 			const stateToggles: IContentWidgetAction[] = [];
 			if (state.input1) {
-				result.push(command(localize('remove', "$(error) Remove ${0}", model.input1.title), async () => {
+				result.push(command(localize('remove', "$(error) Remove {0}", model.input1.title), async () => {
 					transaction((tx) => {
 						model.setState(
 							modifiedBaseRange,
@@ -217,7 +217,7 @@ export class ConflictActionsFactory extends Disposable {
 				);
 			}
 			if (state.input2) {
-				result.push(command(localize('remove', "$(error) Remove ${0}", model.input2.title), async () => {
+				result.push(command(localize('remove', "$(error) Remove {0}", model.input2.title), async () => {
 					transaction((tx) => {
 						model.setState(
 							modifiedBaseRange,
