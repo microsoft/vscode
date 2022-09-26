@@ -406,8 +406,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 	}
 
-	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
-		this.scrollableElement.triggerScrollFromMouseWheelEvent(browserEvent);
+	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		this.scrollableElement.delegateScrollFromMouseWheelEvent(browserEvent);
+	}
+
+	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent) {
+		this.scrollableElement.delegateVerticalScrollbarPointerDown(browserEvent);
 	}
 
 	updateElementHeight(index: number, size: number | undefined, anchorIndex: number | null): void {

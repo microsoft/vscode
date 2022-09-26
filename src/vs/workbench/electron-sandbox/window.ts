@@ -669,7 +669,16 @@ export class NativeWindow extends Disposable {
 
 		// Installation Dir Warning
 		if (this.environmentService.isBuilt) {
-			const installLocationUri = URI.file(this.environmentService.appRoot);
+			let installLocationUri: URI;
+			if (isMacintosh) {
+				// appRoot = /Applications/Visual Studio Code - Insiders.app/Contents/Resources/app
+				installLocationUri = dirname(dirname(dirname(URI.file(this.environmentService.appRoot))));
+			} else {
+				// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\resources\app
+				// appRoot = /usr/share/code-insiders/resources/app
+				installLocationUri = dirname(dirname(URI.file(this.environmentService.appRoot)));
+			}
+
 			for (const folder of this.contextService.getWorkspace().folders) {
 				if (this.uriIdentityService.extUri.isEqualOrParent(folder.uri, installLocationUri)) {
 					this.bannerService.show({

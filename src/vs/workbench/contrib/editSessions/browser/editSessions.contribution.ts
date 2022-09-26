@@ -15,7 +15,7 @@ import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
-import { joinPath, relativePath } from 'vs/base/common/resources';
+import { basename, joinPath, relativePath } from 'vs/base/common/resources';
 import { encodeBase64 } from 'vs/base/common/buffer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -23,8 +23,8 @@ import { EditSessionsWorkbenchService } from 'vs/workbench/contrib/editSessions/
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { getFileNamesMessage, IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -53,6 +53,7 @@ import { IEditSessionIdentityService } from 'vs/platform/workspace/common/editSe
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
+import { sha1Hex } from 'vs/base/browser/hash';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService, false);
 registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, false);
@@ -367,57 +368,27 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}
 
 		try {
-			const changes: ({ uri: URI; type: ChangeType; contents: string | undefined })[] = [];
-			let hasLocalUncommittedChanges = false;
-			const workspaceFolders = this.contextService.getWorkspace().folders;
+			const { changes, conflictingChanges } = await this.generateChanges(editSession, ref);
 
-			for (const folder of editSession.folders) {
-				const cancellationTokenSource = new CancellationTokenSource();
-				let folderRoot: IWorkspaceFolder | undefined;
+			// TODO@joyceerhl Provide the option to diff files which would be overwritten by edit session contents
+			if (conflictingChanges.length > 0) {
+				const yes = localize('resume edit session yes', 'Yes');
+				const cancel = localize('resume edit session cancel', 'Cancel');
+				// Allow to show edit sessions
 
-				if (folder.canonicalIdentity) {
-					// Look for an edit session identifier that we can use
-					for (const f of workspaceFolders) {
-						const identity = await this.editSessionIdentityService.getEditSessionIdentifier(f, cancellationTokenSource);
-						this.logService.info(`Matching identity ${identity} against edit session folder identity ${folder.canonicalIdentity}...`);
-						if (equals(identity, folder.canonicalIdentity)) {
-							folderRoot = f;
-							break;
-						}
-					}
-				} else {
-					folderRoot = workspaceFolders.find((f) => f.name === folder.name);
-				}
+				const result = await this.dialogService.show(
+					Severity.Warning,
+					changes.length > 1 ?
+						localize('resume edit session warning many', 'Resuming your edit session will overwrite the following {0} files. Do you want to proceed?', changes.length) :
+						localize('resume edit session warning 1', 'Resuming your edit session will overwrite {0}. Do you want to proceed?', basename(changes[0].uri)),
+					[cancel, yes],
+					{
+						custom: true,
+						detail: changes.length > 1 ? getFileNamesMessage(conflictingChanges.map((c) => c.uri)) : undefined,
+						cancelId: 0
+					});
 
-				if (!folderRoot) {
-					this.logService.info(`Skipping applying ${folder.workingChanges.length} changes from edit session with ref ${ref} as no matching workspace folder was found.`);
-					return;
-				}
-
-				for (const repository of this.scmService.repositories) {
-					if (repository.provider.rootUri !== undefined &&
-						this.contextService.getWorkspaceFolder(repository.provider.rootUri)?.name === folder.name &&
-						this.getChangedResources(repository).length > 0
-					) {
-						hasLocalUncommittedChanges = true;
-						break;
-					}
-				}
-
-				for (const { relativeFilePath, contents, type } of folder.workingChanges) {
-					const uri = joinPath(folderRoot.uri, relativeFilePath);
-					changes.push({ uri: uri, type: type, contents: contents });
-				}
-			}
-
-			if (hasLocalUncommittedChanges) {
-				// TODO@joyceerhl Provide the option to diff files which would be overwritten by edit session contents
-				const result = await this.dialogService.confirm({
-					message: localize('resume edit session warning', 'Resuming your edit session may overwrite your existing uncommitted changes. Do you want to proceed?'),
-					type: 'warning',
-					title: EDIT_SESSION_SYNC_CATEGORY.value
-				});
-				if (!result.confirmed) {
+				if (result.choice === 0) {
 					return;
 				}
 			}
@@ -436,6 +407,77 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		} catch (ex) {
 			this.logService.error('Failed to resume edit session, reason: ', (ex as Error).toString());
 			this.notificationService.error(localize('resume failed', "Failed to resume your edit session."));
+		}
+	}
+
+	private async generateChanges(editSession: EditSession, ref: string) {
+		const changes: ({ uri: URI; type: ChangeType; contents: string | undefined })[] = [];
+		const conflictingChanges = [];
+		const workspaceFolders = this.contextService.getWorkspace().folders;
+
+		for (const folder of editSession.folders) {
+			const cancellationTokenSource = new CancellationTokenSource();
+			let folderRoot: IWorkspaceFolder | undefined;
+
+			if (folder.canonicalIdentity) {
+				// Look for an edit session identifier that we can use
+				for (const f of workspaceFolders) {
+					const identity = await this.editSessionIdentityService.getEditSessionIdentifier(f, cancellationTokenSource);
+					this.logService.info(`Matching identity ${identity} against edit session folder identity ${folder.canonicalIdentity}...`);
+					if (equals(identity, folder.canonicalIdentity)) {
+						folderRoot = f;
+						break;
+					}
+				}
+			} else {
+				folderRoot = workspaceFolders.find((f) => f.name === folder.name);
+			}
+
+			if (!folderRoot) {
+				this.logService.info(`Skipping applying ${folder.workingChanges.length} changes from edit session with ref ${ref} as no matching workspace folder was found.`);
+				return { changes: [], conflictingChanges: [] };
+			}
+
+			const localChanges = new Set<string>();
+			for (const repository of this.scmService.repositories) {
+				if (repository.provider.rootUri !== undefined &&
+					this.contextService.getWorkspaceFolder(repository.provider.rootUri)?.name === folder.name
+				) {
+					const repositoryChanges = this.getChangedResources(repository);
+					repositoryChanges.forEach((change) => localChanges.add(change.toString()));
+				}
+			}
+
+			for (const change of folder.workingChanges) {
+				const uri = joinPath(folderRoot.uri, change.relativeFilePath);
+
+				changes.push({ uri, type: change.type, contents: change.contents });
+				if (await this.willChangeLocalContents(localChanges, uri, change)) {
+					conflictingChanges.push({ uri, type: change.type, contents: change.contents });
+				}
+			}
+		}
+
+		return { changes, conflictingChanges };
+	}
+
+	private async willChangeLocalContents(localChanges: Set<string>, uriWithIncomingChanges: URI, incomingChange: Change) {
+		if (!localChanges.has(uriWithIncomingChanges.toString())) {
+			return false;
+		}
+
+		const { contents, type } = incomingChange;
+
+		switch (type) {
+			case (ChangeType.Addition): {
+				const [originalContents, incomingContents] = await Promise.all([sha1Hex(contents), sha1Hex(encodeBase64((await this.fileService.readFile(uriWithIncomingChanges)).value))]);
+				return originalContents !== incomingContents;
+			}
+			case (ChangeType.Deletion): {
+				return await this.fileService.exists(uriWithIncomingChanges);
+			}
+			default:
+				throw new Error('Unhandled change type.');
 		}
 	}
 
@@ -530,17 +572,15 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private getChangedResources(repository: ISCMRepository) {
-		const trackedUris = repository.provider.groups.elements.reduce((resources, resourceGroups) => {
+		return repository.provider.groups.elements.reduce((resources, resourceGroups) => {
 			resourceGroups.elements.forEach((resource) => resources.add(resource.sourceUri));
 			return resources;
 		}, new Set<URI>()); // A URI might appear in more than one resource group
-
-		return [...trackedUris];
 	}
 
 	private hasEditSession() {
 		for (const repository of this.scmService.repositories) {
-			if (this.getChangedResources(repository).length > 0) {
+			if (this.getChangedResources(repository).size > 0) {
 				return true;
 			}
 		}

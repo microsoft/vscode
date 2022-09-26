@@ -6,6 +6,7 @@
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
+import { Lazy } from 'vs/base/common/lazy';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -241,7 +242,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
-	revealActiveEditor(preserveFocus?: boolean): void;
+	revealActiveEditor(preserveFocus?: boolean): Promise<void>;
 	resolveResource(instance: ITerminalInstance | URI): URI;
 	reviveInput(deserializedInput: IDeserializedTerminalEditorInput): EditorInput;
 	getInputFromResource(resource: URI): EditorInput;
@@ -460,7 +461,7 @@ export interface ITerminalInstance {
 
 	contextualActions: IContextualAction | undefined;
 
-	readonly findWidget: TerminalFindWidget;
+	readonly findWidget: Lazy<TerminalFindWidget>;
 
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated
@@ -582,6 +583,8 @@ export interface ITerminalInstance {
 	onExit: Event<number | ITerminalLaunchError | undefined>;
 
 	onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number } | undefined>;
+
+	onDidFocusFindWidget: Event<void>;
 
 	readonly exitCode: number | undefined;
 
@@ -921,7 +924,7 @@ export interface ITerminalContextualActionOptions {
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
 	getActions: ContextualActionCallback;
-	exitCode?: number;
+	exitStatus?: boolean;
 }
 export type ContextualMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
 export type DynamicActionName = (matchResult: ContextualMatchResult) => string;
