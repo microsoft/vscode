@@ -16,8 +16,8 @@ import { CodeActionItem, CodeActionSet } from 'vs/editor/contrib/codeAction/brow
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CodeActionMenu, CodeActionShowOptions } from './codeActionMenu';
 import { CodeActionsState } from './codeActionModel';
+import { CodeActionShowOptions, CodeActionWidget } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { CodeActionAutoApply, CodeActionTrigger } from './types';
 
@@ -46,7 +46,7 @@ export class CodeActionUi extends Disposable {
 			return widget;
 		});
 
-		this._register(this._editor.onDidLayoutChange(() => CodeActionMenu.INSTANCE?.hide()));
+		this._register(this._editor.onDidLayoutChange(() => CodeActionWidget.INSTANCE?.hide()));
 	}
 
 	override dispose() {
@@ -114,7 +114,7 @@ export class CodeActionUi extends Disposable {
 			this.showCodeActionList(newState.trigger, actions, this.toCoords(newState.position), { includeDisabledActions, fromLightbulb: false, showHeaders: this.shouldShowHeaders() });
 		} else {
 			// auto magically triggered
-			if (CodeActionMenu.INSTANCE?.isVisible) {
+			if (CodeActionWidget.INSTANCE?.isVisible) {
 				// TODO: Figure out if we should update the showing menu?
 				actions.dispose();
 			} else {
@@ -159,7 +159,7 @@ export class CodeActionUi extends Disposable {
 
 		const anchor = Position.isIPosition(at) ? this.toCoords(at) : at;
 
-		CodeActionMenu.getOrCreateInstance(this._instantiationService).show(trigger, actions, anchor, editorDom, { ...options, showHeaders: this.shouldShowHeaders() }, {
+		CodeActionWidget.getOrCreateInstance(this._instantiationService).show(trigger, actions, anchor, editorDom, { ...options, showHeaders: this.shouldShowHeaders() }, {
 			onSelectCodeAction: async (action, trigger, options) => {
 				this.delegate.applyCodeAction(action, /* retrigger */ true, Boolean(options.preview || trigger.preview));
 			},

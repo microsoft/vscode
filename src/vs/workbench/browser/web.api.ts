@@ -100,6 +100,7 @@ export interface IWorkbench {
 	};
 
 	workspace: {
+
 		/**
 		 * Forwards a port. If the current embedder implements a tunnelFactory then that will be used to make the tunnel.
 		 * By default, openTunnel only support localhost; however, a tunnelFactory can be used to support other ips.

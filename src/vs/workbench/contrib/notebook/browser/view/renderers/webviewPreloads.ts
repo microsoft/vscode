@@ -1043,12 +1043,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 		const event = rawEvent as ({ data: webviewMessages.ToWebviewMessage });
 
 		switch (event.data.type) {
-			case 'initializeMarkup':
-				await Promise.all(event.data.cells.map(info => viewModel.ensureMarkupCell(info)));
-				dimensionUpdater.updateImmediately();
-				postNotebookMessage('initializedMarkup', {});
+			case 'initializeMarkup': {
+				try {
+					await Promise.all(event.data.cells.map(info => viewModel.ensureMarkupCell(info)));
+				} finally {
+					dimensionUpdater.updateImmediately();
+					postNotebookMessage('initializedMarkup', {});
+				}
 				break;
-
+			}
 			case 'createMarkupCell':
 				viewModel.ensureMarkupCell(event.data.cell);
 				break;
@@ -1548,7 +1551,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 
 			const cell = new MarkupCell(init.cellId, init.mime, init.content, top, init.metadata);
-			cell.element.style.visibility = visible ? 'visible' : 'hidden';
+			cell.element.style.visibility = visible ? '' : 'hidden';
 			this._markupCells.set(init.cellId, cell);
 
 			await cell.ready;
@@ -1558,7 +1561,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public async ensureMarkupCell(info: webviewMessages.IMarkupCellInitialization): Promise<void> {
 			let cell = this._markupCells.get(info.cellId);
 			if (cell) {
-				cell.element.style.visibility = info.visible ? 'visible' : 'hidden';
+				cell.element.style.visibility = info.visible ? '' : 'hidden';
 				await cell.updateContentAndRender(info.content, info.metadata);
 			} else {
 				cell = await this.createMarkupCell(info, info.offset, info.visible);
@@ -1741,6 +1744,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		/// Internal field that holds text content
 		private _content: { readonly value: string; readonly version: number; readonly metadata: NotebookCellMetadata };
 
+		private _isDisposed = false;
 		private renderTaskAbort?: AbortController;
 
 		constructor(id: string, mime: string, content: string, top: number, metadata: NotebookCellMetadata) {
@@ -1748,8 +1752,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.id = id;
 			this._content = { value: content, version: 0, metadata: metadata };
 
-			let resolveReady: () => void;
-			this.ready = new Promise<void>(r => resolveReady = r);
+			let resolve: () => void;
+			let reject: () => void;
+			this.ready = new Promise<void>((res, rej) => {
+				resolve = res;
+				reject = rej;
+			});
 
 			let cachedData: { readonly version: number; readonly value: Uint8Array } | undefined;
 			this.outputItem = Object.freeze<rendererApi.OutputItem>({
@@ -1801,12 +1809,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.addEventListeners();
 
 			this.updateContentAndRender(this._content.value, this._content.metadata).then(() => {
-				resizeObserver.observe(this.element, this.id, false, this.id);
-				resolveReady();
-			});
+				if (!this._isDisposed) {
+					resizeObserver.observe(this.element, this.id, false, this.id);
+				}
+				resolve();
+			}, () => reject());
 		}
 
 		public dispose() {
+			this._isDisposed = true;
 			this.renderTaskAbort?.abort();
 			this.renderTaskAbort = undefined;
 		}
@@ -1900,7 +1911,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		public show(top: number, newContent: string | undefined, metadata: NotebookCellMetadata | undefined): void {
-			this.element.style.visibility = 'visible';
+			this.element.style.visibility = '';
 			this.element.style.top = `${top}px`;
 			if (typeof newContent === 'string' || metadata) {
 				this.updateContentAndRender(newContent ?? this._content.value, metadata ?? this._content.metadata);
@@ -1914,7 +1925,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		public unhide() {
-			this.element.style.visibility = 'visible';
+			this.element.style.visibility = '';
 			this.updateMarkupDimensions();
 		}
 
@@ -1993,7 +2004,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			await outputElement.render(data.content, preloadErrors, signal);
 
 			// don't hide until after this step so that the height is right
-			outputElement.element.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
+			outputElement.element.style.visibility = data.initiallyHidden ? 'hidden' : '';
 		}
 
 		public clearOutput(outputId: string, rendererId: string | undefined) {
@@ -2009,7 +2020,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				return;
 			}
 
-			this.element.style.visibility = 'visible';
+			this.element.style.visibility = '';
 			this.element.style.top = `${top}px`;
 
 			dimensionUpdater.updateHeight(outputId, outputContainer.element.offsetHeight, {
@@ -2041,7 +2052,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.outputElements.get(request.outputId)?.updateScroll(request.outputOffset);
 
 			if (request.forceDisplay) {
-				this.element.style.visibility = 'visible';
+				this.element.style.visibility = '';
 			}
 		}
 	}

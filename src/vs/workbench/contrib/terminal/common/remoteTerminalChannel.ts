@@ -58,7 +58,6 @@ export interface ICreateTerminalProcessResult {
 }
 
 export class RemoteTerminalChannelClient implements IPtyHostController {
-
 	get onPtyHostExit(): Event<number> {
 		return this._channel.listen<number>('$onPtyHostExitEvent');
 	}
@@ -238,7 +237,9 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	sendCommandResult(reqId: number, isError: boolean, payload: any): Promise<void> {
 		return this._channel.call('$sendCommandResult', [reqId, isError, payload]);
 	}
-
+	freePortKillProcess(id: number, port: string): Promise<{ port: string; processId: string }> {
+		return this._channel.call('$freePortKillProcess', [id, port]);
+	}
 	installAutoReply(match: string, reply: string): Promise<void> {
 		return this._channel.call('$installAutoReply', [match, reply]);
 	}
