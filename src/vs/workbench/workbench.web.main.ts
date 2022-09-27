@@ -178,116 +178,32 @@ import 'vs/workbench/contrib/offline/browser/offline.contribution';
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 import { create, commands, env, window, workspace, logger } from 'vs/workbench/browser/web.factory';
-import { IWorkbench, ICommand, ICommonTelemetryPropertiesResolver, IDefaultEditor, IDefaultLayout, IDefaultView, IDevelopmentOptions, IExternalUriResolver, IExternalURLOpener, IHomeIndicator, IInitialColorTheme, IPosition, IProductQualityChangeHandler, IRange, IResourceUriProvider, ISettingsSyncOptions, IShowPortCandidate, ITunnel, ITunnelFactory, ITunnelOptions, ITunnelProvider, IWelcomeBanner, IWelcomeBannerAction, IWindowIndicator, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
+import { Menu } from 'vs/workbench/browser/web.api';
+import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IProductConfiguration } from 'vs/base/common/product';
-import { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
-// eslint-disable-next-line no-duplicate-imports
-import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
-// eslint-disable-next-line no-duplicate-imports
-import type { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
-// eslint-disable-next-line no-duplicate-imports
-import type { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export {
 
 	// Factory
 	create,
-	IWorkbenchConstructionOptions,
-	IWorkbench,
 
 	// Basic Types
 	URI,
-	UriComponents,
 	Event,
 	Emitter,
-	IDisposable,
 	Disposable,
-
-	// Workspace
-	IWorkspace,
-	IWorkspaceProvider,
-
-	// WebSockets
-	IWebSocketFactory,
-	IWebSocket,
-
-	// Resources
-	IResourceUriProvider,
-
-	// Credentials
-	ICredentialsProvider,
-
-	// Callbacks
-	IURLCallbackProvider,
-
-	// LogLevel
+	GroupOrientation,
 	LogLevel,
 
-	// SettingsSync
-	ISettingsSyncOptions,
-
-	// Updates/Quality
-	IUpdateProvider,
-	IUpdate,
-	IProductQualityChangeHandler,
-
-	// Telemetry
-	ICommonTelemetryPropertiesResolver,
-
-	// External Uris
-	IExternalUriResolver,
-
-	// External URL Opener
-	IExternalURLOpener,
-
-	// Tunnel
-	ITunnelProvider,
-	ITunnelFactory,
-	ITunnel,
-	ITunnelOptions,
-
-	// Ports
-	IShowPortCandidate,
-
-	// Commands
-	ICommand,
-	commands,
-	Menu,
-
-	// Logger
-	logger,
-
-	// Window
-	window,
-
-	// Branding
-	IHomeIndicator,
-	IWelcomeBanner,
-	IWelcomeBannerAction,
-	IProductConfiguration,
-	IWindowIndicator,
-	IInitialColorTheme,
-
-	// Default layout
-	IDefaultView,
-	IDefaultEditor,
-	IDefaultLayout,
-	IPosition,
-	IRange as ISelection,
-
-	// Env
+	// Facade API
 	env,
-
-	// Workspace
+	window,
 	workspace,
-
-	// Development
-	IDevelopmentOptions
+	commands,
+	logger,
+	Menu
 };
-
 
 //#endregion

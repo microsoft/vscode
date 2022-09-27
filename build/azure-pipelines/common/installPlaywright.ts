@@ -5,11 +5,10 @@
 
 process.env.DEBUG='pw:install'; // enable logging for this (https://github.com/microsoft/playwright/issues/17394)
 
-import { retry } from './retry';
 const { installDefaultBrowsersForNpmInstall } = require('playwright-core/lib/server');
 
 async function install() {
-	await retry(() => installDefaultBrowsersForNpmInstall());
+	await installDefaultBrowsersForNpmInstall();
 }
 
 install();

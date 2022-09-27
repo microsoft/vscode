@@ -34,7 +34,7 @@ import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, TargetPlatform, ExtensionIdentifier, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, TargetPlatform, ExtensionIdentifier, IExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { FileAccess } from 'vs/base/common/network';
@@ -43,7 +43,7 @@ import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDa
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isBoolean, isUndefined } from 'vs/base/common/types';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IExtensionService, IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IExtensionsStatus, toExtension, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
 import { isWeb, language } from 'vs/base/common/platform';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
@@ -70,6 +70,7 @@ export class Extension implements IExtension {
 
 	constructor(
 		private stateProvider: IExtensionStateProvider<ExtensionState>,
+		private runtimeStateProvider: IExtensionStateProvider<string | undefined>,
 		public readonly server: IExtensionManagementServer | undefined,
 		public local: ILocalExtension | undefined,
 		public gallery: IGalleryExtension | undefined,
@@ -259,6 +260,10 @@ export class Extension implements IExtension {
 			&& semver.eq(this.latestVersion, this.version);
 	}
 
+	get reloadRequiredStatus(): string | undefined {
+		return this.runtimeStateProvider(this);
+	}
+
 	get telemetryData(): any {
 		const { local, gallery } = this;
 
@@ -431,6 +436,7 @@ class Extensions extends Disposable {
 	constructor(
 		readonly server: IExtensionManagementServer,
 		private readonly stateProvider: IExtensionStateProvider<ExtensionState>,
+		private readonly runtimeStateProvider: IExtensionStateProvider<string | undefined>,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
@@ -466,7 +472,7 @@ class Extensions extends Disposable {
 
 		const byId = index(this.installed, e => e.local ? e.local.identifier.id : e.identifier.id);
 		this.installed = installed.map(local => {
-			const extension = byId[local.identifier.id] || this.instantiationService.createInstance(Extension, this.stateProvider, this.server, local, undefined);
+			const extension = byId[local.identifier.id] || this.instantiationService.createInstance(Extension, this.stateProvider, this.runtimeStateProvider, this.server, local, undefined);
 			extension.local = local;
 			extension.enablementState = this.extensionEnablementService.getEnablementState(local);
 			Extensions.updateExtensionFromControlManifest(extension, extensionsControlManifest);
@@ -554,7 +560,7 @@ class Extensions extends Disposable {
 		const { source } = event;
 		if (source && !URI.isUri(source)) {
 			const extension = this.installed.filter(e => areSameExtensions(e.identifier, source.identifier))[0]
-				|| this.instantiationService.createInstance(Extension, this.stateProvider, this.server, undefined, source);
+				|| this.instantiationService.createInstance(Extension, this.stateProvider, this.runtimeStateProvider, this.server, undefined, source);
 			this.installing.push(extension);
 			this._onChange.fire({ extension });
 		}
@@ -564,7 +570,7 @@ class Extensions extends Disposable {
 		const extensionsControlManifest = await this.server.extensionManagementService.getExtensionsControlManifest();
 		for (const addedExtension of added) {
 			if (this.installed.find(e => areSameExtensions(e.identifier, addedExtension.identifier))) {
-				const extension = this.instantiationService.createInstance(Extension, this.stateProvider, this.server, addedExtension, undefined);
+				const extension = this.instantiationService.createInstance(Extension, this.stateProvider, this.runtimeStateProvider, this.server, addedExtension, undefined);
 				this.installed.push(extension);
 				Extensions.updateExtensionFromControlManifest(extension, extensionsControlManifest);
 			}
@@ -586,7 +592,7 @@ class Extensions extends Disposable {
 			this.installing = installingExtension ? this.installing.filter(e => e !== installingExtension) : this.installing;
 
 			let extension: Extension | undefined = installingExtension ? installingExtension
-				: (location || local) ? this.instantiationService.createInstance(Extension, this.stateProvider, this.server, local, undefined)
+				: (location || local) ? this.instantiationService.createInstance(Extension, this.stateProvider, this.runtimeStateProvider, this.server, local, undefined)
 					: undefined;
 			if (extension) {
 				if (local) {
@@ -722,17 +728,17 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
 		if (extensionManagementServerService.localExtensionManagementServer) {
-			this.localExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.localExtensionManagementServer, ext => this.getExtensionState(ext)));
+			this.localExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.localExtensionManagementServer, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext)));
 			this._register(this.localExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
 			this._register(this.localExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
 		}
 		if (extensionManagementServerService.remoteExtensionManagementServer) {
-			this.remoteExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.remoteExtensionManagementServer, ext => this.getExtensionState(ext)));
+			this.remoteExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.remoteExtensionManagementServer, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext)));
 			this._register(this.remoteExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
 			this._register(this.remoteExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
 		}
 		if (extensionManagementServerService.webExtensionManagementServer) {
-			this.webExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.webExtensionManagementServer, ext => this.getExtensionState(ext)));
+			this.webExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.webExtensionManagementServer, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext)));
 			this._register(this.webExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
 			this._register(this.webExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
 		}
@@ -767,6 +773,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}, this));
 
 		this.queryLocal().then(() => {
+			this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+				this.onDidChangeRunningExtensions(this.extensionService.extensions, []);
+				this._register(this.extensionService.onDidChangeExtensions(({ added, removed }) => this.onDidChangeRunningExtensions(added, removed)));
+			});
 			this.resetIgnoreAutoUpdateExtensions();
 			this.eventuallyCheckForUpdates(true);
 			this._reportTelemetry();
@@ -790,6 +800,22 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				extension.enablementState === EnablementState.EnabledGlobally))
 			.map(extension => ExtensionIdentifier.toKey(extension.identifier.id));
 		this.telemetryService.publicLog2<InstalledExtensionsEvent, ExtensionsLoadClassification>('installedExtensions', { extensionIds: extensionIds.join(';'), count: extensionIds.length });
+	}
+
+	private async onDidChangeRunningExtensions(added: ReadonlyArray<IExtensionDescription>, removed: ReadonlyArray<IExtensionDescription>): Promise<void> {
+		const local = this.local;
+		const changedExtensions: IExtension[] = [];
+		const extsNotInstalled: IExtensionInfo[] = [];
+		for (const desc of added) {
+			const extension = local.find(e => areSameExtensions({ id: desc.identifier.value, uuid: desc.uuid }, e.identifier));
+			if (extension) {
+				changedExtensions.push(extension);
+			} else {
+				extsNotInstalled.push({ id: desc.identifier.value, uuid: desc.uuid });
+			}
+		}
+		changedExtensions.push(...await this.getExtensions(extsNotInstalled, CancellationToken.None));
+		changedExtensions.forEach(e => this._onChange.fire(e));
 	}
 
 	get local(): IExtension[] {
@@ -932,7 +958,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private fromGallery(gallery: IGalleryExtension, extensionsControlManifest: IExtensionsControlManifest): IExtension {
 		let extension = this.getInstalledExtensionMatchingGallery(gallery);
 		if (!extension) {
-			extension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), undefined, undefined, gallery);
+			extension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext), undefined, undefined, gallery);
 			Extensions.updateExtensionFromControlManifest(<Extension>extension, extensionsControlManifest);
 		}
 		return extension;
@@ -965,6 +991,93 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		for (const id of Object.keys(extensionsStatus)) {
 			if (areSameExtensions({ id }, extension.identifier)) {
 				return extensionsStatus[id];
+			}
+		}
+		return undefined;
+	}
+
+	private getReloadStatus(extension: IExtension): string | undefined {
+		const isUninstalled = extension.state === ExtensionState.Uninstalled;
+		const runningExtension = this.extensionService.extensions.find(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, extension!.identifier));
+
+		if (isUninstalled) {
+			const canRemoveRunningExtension = runningExtension && this.extensionService.canRemoveExtension(runningExtension);
+			const isSameExtensionRunning = runningExtension && (!extension.server || extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)));
+			if (!canRemoveRunningExtension && isSameExtensionRunning) {
+				return nls.localize('postUninstallTooltip', "Please reload Visual Studio Code to complete the uninstallation of this extension.");
+			}
+			return undefined;
+		}
+		if (extension.local) {
+			const isSameExtensionRunning = runningExtension && extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension));
+			const isEnabled = this.extensionEnablementService.isEnabled(extension.local);
+
+			// Extension is running
+			if (runningExtension) {
+				if (isEnabled) {
+					// No Reload is required if extension can run without reload
+					if (this.extensionService.canAddExtension(toExtensionDescription(extension.local))) {
+						return undefined;
+					}
+					const runningExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension));
+
+					if (isSameExtensionRunning) {
+						// Different version or target platform of same extension is running. Requires reload to run the current version
+						if (extension.version !== runningExtension.version || extension.local.targetPlatform !== runningExtension.targetPlatform) {
+							return nls.localize('postUpdateTooltip', "Please reload Visual Studio Code to enable the updated extension.");
+						}
+
+						const extensionInOtherServer = this.installed.filter(e => areSameExtensions(e.identifier, extension!.identifier) && e.server !== extension!.server)[0];
+						if (extensionInOtherServer) {
+							// This extension prefers to run on UI/Local side but is running in remote
+							if (runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer && this.extensionManifestPropertiesService.prefersExecuteOnUI(extension.local!.manifest)) {
+								return nls.localize('enable locally', "Please reload Visual Studio Code to enable this extension locally.");
+							}
+
+							// This extension prefers to run on Workspace/Remote side but is running in local
+							if (runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer && this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(extension.local!.manifest)) {
+								return nls.localize('enable remote', "Please reload Visual Studio Code to enable this extension in {0}.", this.extensionManagementServerService.remoteExtensionManagementServer?.label);
+							}
+						}
+
+					} else {
+
+						if (extension.server === this.extensionManagementServerService.localExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer) {
+							// This extension prefers to run on UI/Local side but is running in remote
+							if (this.extensionManifestPropertiesService.prefersExecuteOnUI(extension.local!.manifest)) {
+								return nls.localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
+							}
+						}
+						if (extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer) {
+							// This extension prefers to run on Workspace/Remote side but is running in local
+							if (this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(extension.local!.manifest)) {
+								return nls.localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
+							}
+						}
+					}
+					return undefined;
+				} else {
+					if (isSameExtensionRunning) {
+						return nls.localize('postDisableTooltip', "Please reload Visual Studio Code to disable this extension.");
+					}
+				}
+				return undefined;
+			}
+
+			// Extension is not running
+			else {
+				if (isEnabled && !this.extensionService.canAddExtension(toExtensionDescription(extension.local))) {
+					return nls.localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
+				}
+
+				const otherServer = extension.server ? extension.server === this.extensionManagementServerService.localExtensionManagementServer ? this.extensionManagementServerService.remoteExtensionManagementServer : this.extensionManagementServerService.localExtensionManagementServer : null;
+				if (otherServer && extension.enablementState === EnablementState.DisabledByExtensionKind) {
+					const extensionInOtherServer = this.local.filter(e => areSameExtensions(e.identifier, extension!.identifier) && e.server === otherServer)[0];
+					// Same extension in other server exists and
+					if (extensionInOtherServer && extensionInOtherServer.local && this.extensionEnablementService.isEnabled(extensionInOtherServer.local)) {
+						return nls.localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
+					}
+				}
 			}
 		}
 		return undefined;
@@ -1655,6 +1768,24 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!this.isAutoUpdateIgnored(extensionKey)) {
 			this.ignoredAutoUpdateExtensions = [...this.ignoredAutoUpdateExtensions, extensionKey.toString()];
 		}
+	}
+
+	setExtensionIgnoresUpdate(extension: IExtension, ignoreAutoUpate: boolean): void {
+		const extensionKey = new ExtensionKey(extension.identifier, extension.version);
+		if (ignoreAutoUpate) {
+			this.ignoreAutoUpdate(extensionKey);
+		}
+		else if (this.isAutoUpdateIgnored(extensionKey)) {
+			this.ignoredAutoUpdateExtensions = this.ignoredAutoUpdateExtensions.filter(extensionId => extensionId !== extensionKey.toString());
+		}
+		else {
+			return;
+		}
+		this._onChange.fire(extension);
+	}
+
+	isExtensionIgnoresUpdates(extension: IExtension): boolean {
+		return this.isAutoUpdateIgnored(new ExtensionKey(extension.identifier, extension.version));
 	}
 
 	private isAutoUpdateIgnored(extensionKey: ExtensionKey): boolean {

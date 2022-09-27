@@ -6,12 +6,13 @@
 import { $, Dimension, reset } from 'vs/base/browser/dom';
 import { Grid, GridNodeDescriptor, IView, SerializableGrid } from 'vs/base/browser/ui/grid/grid';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { CompareResult, lastOrDefault } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color } from 'vs/base/common/color';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, autorunWithStore, IObservable, IReader, observableValue } from 'vs/base/common/observable';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { autorun, autorunWithStore, IObservable, IReader, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -36,17 +37,22 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { readTransientState, writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
+import { IMergeEditorInputModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel';
+import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
+import { DetailedLineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
-import { deepMerge, thenIfNotDisposed } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { ModifiedBaseRange } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
+import { deepMerge, join, PersistentStore, thenIfNotDisposed } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { BaseCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/baseCodeEditorView';
 import { ScrollSynchronizer } from 'vs/workbench/contrib/mergeEditor/browser/view/scrollSynchronizer';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import { ctxIsMergeEditor, ctxMergeBaseUri, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeResultUri, MergeEditorLayoutKind } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { ctxIsMergeEditor, ctxMergeBaseUri, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop, ctxMergeEditorShowNonConflictingChanges, ctxMergeResultUri, MergeEditorLayoutKind } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorResolverService, MergeEditorInputFactoryFunction, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import './colors';
+import { ConflictActionsFactory } from './conflictActions';
 import { InputCodeEditorView } from './editors/inputCodeEditorView';
 import { ResultCodeEditorView } from './editors/resultCodeEditorView';
 import { getAlignments } from './lineAlignment';
@@ -70,21 +76,41 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	private readonly input2View = this._register(this.instantiationService.createInstance(InputCodeEditorView, 2, this._viewModel));
 
 	private readonly inputResultView = this._register(this.instantiationService.createInstance(ResultCodeEditorView, this._viewModel));
-	private readonly _layoutMode: MergeEditorLayoutStore;
-	private readonly _ctxIsMergeEditor: IContextKey<boolean>;
-	private readonly _ctxUsesColumnLayout: IContextKey<string>;
-	private readonly _ctxShowBase: IContextKey<boolean>;
-	private readonly _ctxResultUri: IContextKey<string>;
-	private readonly _ctxBaseUri: IContextKey<string>;
-	public get model(): MergeEditorModel | undefined { return this._viewModel.get()?.model; }
+	private readonly _layoutMode = this.instantiationService.createInstance(MergeEditorLayoutStore);
+	private readonly _layoutModeObs = observableValue('layoutMode', this._layoutMode.value);
+	private readonly _ctxIsMergeEditor: IContextKey<boolean> = ctxIsMergeEditor.bindTo(this.contextKeyService);
+	private readonly _ctxUsesColumnLayout: IContextKey<string> = ctxMergeEditorLayout.bindTo(this.contextKeyService);
+	private readonly _ctxShowBase: IContextKey<boolean> = ctxMergeEditorShowBase.bindTo(this.contextKeyService);
+	private readonly _ctxShowBaseAtTop = ctxMergeEditorShowBaseAtTop.bindTo(this.contextKeyService);
+	private readonly _ctxResultUri: IContextKey<string> = ctxMergeResultUri.bindTo(this.contextKeyService);
+	private readonly _ctxBaseUri: IContextKey<string> = ctxMergeBaseUri.bindTo(this.contextKeyService);
+	private readonly _ctxShowNonConflictingChanges: IContextKey<boolean> = ctxMergeEditorShowNonConflictingChanges.bindTo(this.contextKeyService);
+	private readonly _inputModel = observableValue<IMergeEditorInputModel | undefined>('inputModel', undefined);
+	public get inputModel(): IObservable<IMergeEditorInputModel | undefined> {
+		return this._inputModel;
+	}
+	public get model(): MergeEditorModel | undefined {
+		return this.inputModel.get()?.model;
+	}
 
 	private get inputsWritable(): boolean {
 		return !!this._configurationService.getValue<boolean>('mergeEditor.writableInputs');
 	}
 
+	private readonly conflictActionsFactoryInput1 = new ConflictActionsFactory(this.input1View.editor);
+	private readonly conflictActionsFactoryInput2 = new ConflictActionsFactory(this.input2View.editor);
+	private readonly conflictActionsFactoryResult = new ConflictActionsFactory(this.inputResultView.editor);
+
+	protected readonly codeLensesVisible = observableFromEvent<boolean>(
+		this.configurationService.onDidChangeConfiguration,
+		() => /** @description codeLensesVisible */ this.configurationService.getValue('mergeEditor.showCodeLenses') ?? true
+	);
+
+	private readonly scrollSynchronizer = this._register(new ScrollSynchronizer(this._viewModel, this.input1View, this.input2View, this.baseView, this.inputResultView, this._layoutModeObs));
+
 	constructor(
 		@IInstantiationService instantiation: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
@@ -94,24 +120,16 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IFileService fileService: IFileService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(MergeEditor.ID, telemetryService, instantiation, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
-
-		this._ctxIsMergeEditor = ctxIsMergeEditor.bindTo(contextKeyService);
-		this._ctxUsesColumnLayout = ctxMergeEditorLayout.bindTo(contextKeyService);
-		this._ctxBaseUri = ctxMergeBaseUri.bindTo(contextKeyService);
-		this._ctxResultUri = ctxMergeResultUri.bindTo(contextKeyService);
-		this._ctxShowBase = ctxMergeEditorShowBase.bindTo(contextKeyService);
-
-		this._layoutMode = instantiation.createInstance(MergeEditorLayoutStore);
-
-		this._register(new ScrollSynchronizer(this._viewModel, this.input1View, this.input2View, this.baseView, this.inputResultView));
 	}
 
 	override dispose(): void {
 		this._sessionDisposables.dispose();
 		this._ctxIsMergeEditor.reset();
 		this._ctxUsesColumnLayout.reset();
+		this._ctxShowNonConflictingChanges.reset();
 		super.dispose();
 	}
 
@@ -176,62 +194,78 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		await super.setInput(input, options, context, token);
 
 		this._sessionDisposables.clear();
-		this._viewModel.set(undefined, undefined);
+		transaction(tx => {
+			this._viewModel.set(undefined, tx);
+			this._inputModel.set(undefined, tx);
+		});
 
-		const model = await input.resolve();
+		const inputModel = await input.resolve();
+		const model = inputModel.model;
 
-		const viewModel = new MergeEditorViewModel(model, this.input1View, this.input2View, this.inputResultView, this.baseView);
-		this._viewModel.set(viewModel, undefined);
+		const viewModel = new MergeEditorViewModel(model, this.input1View, this.input2View, this.inputResultView, this.baseView, this.showNonConflictingChanges);
+		transaction(tx => {
+			this._viewModel.set(viewModel, tx);
+			this._inputModel.set(inputModel, tx);
+		});
 		this._sessionDisposables.add(viewModel);
 
 		// Set/unset context keys based on input
-		this._ctxResultUri.set(model.resultTextModel.uri.toString());
+		this._ctxResultUri.set(inputModel.resultUri.toString());
 		this._ctxBaseUri.set(model.base.uri.toString());
 		this._sessionDisposables.add(toDisposable(() => {
 			this._ctxBaseUri.reset();
 			this._ctxResultUri.reset();
 		}));
 
+
 		// Set the view zones before restoring view state!
 		// Otherwise scrolling will be off
 		this._sessionDisposables.add(autorunWithStore((reader, store) => {
-			const input1ViewZoneIds: string[] = [];
-			const input2ViewZoneIds: string[] = [];
-			const baseViewZoneIds: string[] = [];
 			const baseView = this.baseView.read(reader);
 
-			this.input1View.editor.changeViewZones(input1ViewZoneAccessor => {
-				this.input2View.editor.changeViewZones(input2ViewZoneAccessor => {
-					if (baseView) {
-						baseView.editor.changeViewZones(baseViewZoneAccessor => {
-							setViewZones(reader, input1ViewZoneIds, input1ViewZoneAccessor, input2ViewZoneIds, input2ViewZoneAccessor, baseViewZoneIds, baseViewZoneAccessor);
-						});
-					} else {
-						setViewZones(reader, input1ViewZoneIds, input1ViewZoneAccessor, input2ViewZoneIds, input2ViewZoneAccessor, baseViewZoneIds, undefined);
-					}
+			this.inputResultView.editor.changeViewZones(resultViewZoneAccessor => {
+				const layout = this._layoutModeObs.read(reader);
+				const shouldAlignResult = layout.kind === 'columns';
+				const shouldAlignBase = layout.kind === 'mixed' && !layout.showBaseAtTop;
+
+				this.input1View.editor.changeViewZones(input1ViewZoneAccessor => {
+					this.input2View.editor.changeViewZones(input2ViewZoneAccessor => {
+						if (baseView) {
+							baseView.editor.changeViewZones(baseViewZoneAccessor => {
+								store.add(this.setViewZones(reader,
+									viewModel,
+									this.input1View.editor,
+									input1ViewZoneAccessor,
+									this.input2View.editor,
+									input2ViewZoneAccessor,
+									baseView.editor,
+									baseViewZoneAccessor,
+									shouldAlignBase,
+									this.inputResultView.editor,
+									resultViewZoneAccessor,
+									shouldAlignResult
+								));
+							});
+						} else {
+							store.add(this.setViewZones(reader,
+								viewModel,
+								this.input1View.editor,
+								input1ViewZoneAccessor,
+								this.input2View.editor,
+								input2ViewZoneAccessor,
+								undefined,
+								undefined,
+								false,
+								this.inputResultView.editor,
+								resultViewZoneAccessor,
+								shouldAlignResult
+							));
+						}
+					});
 				});
 			});
 
-			store.add({
-				dispose: () => {
-					this.input1View.editor.changeViewZones(a => {
-						for (const zone of input1ViewZoneIds) {
-							a.removeZone(zone);
-						}
-					});
-					this.input2View.editor.changeViewZones(a => {
-						for (const zone of input2ViewZoneIds) {
-							a.removeZone(zone);
-						}
-					});
-					this.baseView.get()?.editor.changeViewZones(a => {
-						for (const zone of baseViewZoneIds) {
-							a.removeZone(zone);
-						}
-					});
-				}
-			});
-
+			this.scrollSynchronizer.updateScrolling();
 		}, 'update alignment view zones'));
 
 		const viewState = this.loadEditorViewState(input, context);
@@ -297,81 +331,233 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 				);
 			}
 		});
+	}
 
-		function setViewZones(
-			reader: IReader,
-			input1ViewZoneIds: string[],
-			input1ViewZoneAccessor: IViewZoneChangeAccessor,
-			input2ViewZoneIds: string[],
-			input2ViewZoneAccessor: IViewZoneChangeAccessor,
-			baseViewZoneIds: string[],
-			baseViewZoneAccessor: IViewZoneChangeAccessor | undefined
-		) {
-			let input1LinesAdded = 0;
-			let input2LinesAdded = 0;
-			let baseLinesAdded = 0;
+	private setViewZones(
+		reader: IReader,
+		viewModel: MergeEditorViewModel,
+		input1Editor: ICodeEditor,
+		input1ViewZoneAccessor: IViewZoneChangeAccessor,
+		input2Editor: ICodeEditor,
+		input2ViewZoneAccessor: IViewZoneChangeAccessor,
+		baseEditor: ICodeEditor | undefined,
+		baseViewZoneAccessor: IViewZoneChangeAccessor | undefined,
+		shouldAlignBase: boolean,
+		resultEditor: ICodeEditor,
+		resultViewZoneAccessor: IViewZoneChangeAccessor,
+		shouldAlignResult: boolean,
+	): IDisposable {
+		let input1LinesAdded = 0;
+		let input2LinesAdded = 0;
+		let baseLinesAdded = 0;
+		let resultLinesAdded = 0;
 
-			for (const m of model.modifiedBaseRanges.read(reader)) {
-				const alignedLines: [number | undefined, number, number | undefined][] =
-					getAlignments(m);
+		const model = viewModel.model;
 
-				for (const [input1Line, baseLine, input2Line] of alignedLines) {
-					if (!baseViewZoneAccessor && (input1Line === undefined || input2Line === undefined)) {
-						continue;
+		const input1ViewZoneIds: string[] = [];
+		const input2ViewZoneIds: string[] = [];
+		const baseViewZoneIds: string[] = [];
+		const resultViewZoneIds: string[] = [];
+
+		const resultDiffs = model.baseResultDiffs.read(reader);
+		const baseRangeWithStoreAndTouchingDiffs = join(
+			model.modifiedBaseRanges.read(reader),
+			resultDiffs,
+			(baseRange, diff) =>
+				baseRange.baseRange.touches(diff.inputRange)
+					? CompareResult.neitherLessOrGreaterThan
+					: LineRange.compareByStart(
+						baseRange.baseRange,
+						diff.inputRange
+					)
+		);
+
+		const disposableStore = new DisposableStore();
+		disposableStore.add({
+			dispose: () => {
+				input1Editor.changeViewZones(a => {
+					for (const zone of input1ViewZoneIds) {
+						a.removeZone(zone);
 					}
-
-					const input1Line_ =
-						input1Line !== undefined ? input1Line + input1LinesAdded : -1;
-					const input2Line_ =
-						input2Line !== undefined ? input2Line + input2LinesAdded : -1;
-					const baseLine_ = baseLine + baseLinesAdded;
-
-					const max = Math.max(baseViewZoneAccessor ? baseLine_ : 0, input1Line_, input2Line_);
-
-					if (input1Line !== undefined) {
-						const diffInput1 = max - input1Line_;
-						if (diffInput1 > 0) {
-							input1ViewZoneIds.push(
-								input1ViewZoneAccessor.addZone({
-									afterLineNumber: input1Line - 1,
-									heightInLines: diffInput1,
-									domNode: $('div.diagonal-fill'),
-								})
-							);
-							input1LinesAdded += diffInput1;
-						}
+				});
+				input2Editor.changeViewZones(a => {
+					for (const zone of input2ViewZoneIds) {
+						a.removeZone(zone);
 					}
-
-					if (input2Line !== undefined) {
-						const diffInput2 = max - input2Line_;
-						if (diffInput2 > 0) {
-							input2ViewZoneIds.push(
-								input2ViewZoneAccessor.addZone({
-									afterLineNumber: input2Line - 1,
-									heightInLines: diffInput2,
-									domNode: $('div.diagonal-fill'),
-								})
-							);
-							input2LinesAdded += diffInput2;
-						}
+				});
+				baseEditor?.changeViewZones(a => {
+					for (const zone of baseViewZoneIds) {
+						a.removeZone(zone);
 					}
+				});
+				resultEditor.changeViewZones(a => {
+					for (const zone of resultViewZoneIds) {
+						a.removeZone(zone);
+					}
+				});
+			}
+		});
 
-					if (baseViewZoneAccessor) {
-						const diffBase = max - baseLine_;
-						if (diffBase > 0) {
-							baseViewZoneIds.push(
-								baseViewZoneAccessor.addZone({
-									afterLineNumber: baseLine - 1,
-									heightInLines: diffBase,
-									domNode: $('div.diagonal-fill'),
-								})
-							);
-							baseLinesAdded += diffBase;
-						}
+		const shouldShowCodeLenses = this.codeLensesVisible.read(reader);
+		const showNonConflictingChanges = this.showNonConflictingChanges.read(reader);
+
+		let lastModifiedBaseRange: ModifiedBaseRange | undefined = undefined;
+		let lastBaseResultDiff: DetailedLineRangeMapping | undefined = undefined;
+		for (const m of baseRangeWithStoreAndTouchingDiffs) {
+
+			if (shouldShowCodeLenses && m.left && (m.left.isConflicting || showNonConflictingChanges || !model.isHandled(m.left).read(reader))) {
+
+				input1ViewZoneIds.push(input1ViewZoneAccessor.addZone({
+					afterLineNumber: m.left.input1Range.startLineNumber - 1,
+					heightInPx: 16,
+					domNode: $('div.conflict-actions-placeholder'),
+				}));
+				const w1 = this.conflictActionsFactoryInput1.createContentWidget(m.left.input1Range.startLineNumber - 1, viewModel, m.left, this.input1View.inputNumber);
+				input1Editor.addContentWidget(w1);
+				disposableStore.add(toDisposable(() => {
+					input1Editor.removeContentWidget(w1);
+				}));
+
+
+				input2ViewZoneIds.push(input2ViewZoneAccessor.addZone({
+					afterLineNumber: m.left.input2Range.startLineNumber - 1,
+					heightInPx: 16,
+					domNode: $('div.conflict-actions-placeholder'),
+				}));
+				const w2 = this.conflictActionsFactoryInput2.createContentWidget(m.left.input2Range.startLineNumber - 1, viewModel, m.left, this.input2View.inputNumber);
+				input2Editor.addContentWidget(w2);
+				disposableStore.add(toDisposable(() => {
+					input2Editor.removeContentWidget(w2);
+				}));
+
+				const afterLineNumber = m.left.baseRange.startLineNumber + (lastBaseResultDiff?.resultingDeltaFromOriginalToModified ?? 0) - 1;
+				resultViewZoneIds.push(resultViewZoneAccessor.addZone({
+					afterLineNumber,
+					heightInPx: 16,
+					domNode: $('div.conflict-actions-placeholder'),
+				}));
+				const w3 = this.conflictActionsFactoryResult.createResultWidget(afterLineNumber, viewModel, m.left);
+				resultEditor.addContentWidget(w3);
+				disposableStore.add(toDisposable(() => {
+					resultEditor.removeContentWidget(w3);
+				}));
+
+				if (shouldAlignBase && baseViewZoneAccessor) {
+					baseViewZoneIds.push(baseViewZoneAccessor.addZone({
+						afterLineNumber,
+						heightInPx: 16,
+						domNode: $('div.conflict-actions-placeholder'),
+					}));
+				}
+			}
+
+			interface LineAlignment {
+				baseLine: number;
+				input1Line?: number;
+				input2Line?: number;
+				resultLine?: number;
+			}
+
+			const lastResultDiff = lastOrDefault(m.rights)!;
+			if (lastResultDiff) {
+				lastBaseResultDiff = lastResultDiff;
+			}
+			let alignedLines: LineAlignment[];
+			if (m.left) {
+				alignedLines = getAlignments(m.left).map(a => ({
+					input1Line: a[0],
+					baseLine: a[1],
+					input2Line: a[2],
+					resultLine: undefined,
+				}));
+
+				lastModifiedBaseRange = m.left;
+				// This is a total hack.
+				alignedLines[alignedLines.length - 1].resultLine =
+					m.left.baseRange.endLineNumberExclusive
+					+ (lastBaseResultDiff ? lastBaseResultDiff.resultingDeltaFromOriginalToModified : 0);
+
+			} else {
+				alignedLines = [{
+					baseLine: lastResultDiff.inputRange.endLineNumberExclusive,
+					input1Line: lastResultDiff.inputRange.endLineNumberExclusive + (lastModifiedBaseRange ? (lastModifiedBaseRange.input1Range.endLineNumberExclusive - lastModifiedBaseRange.baseRange.endLineNumberExclusive) : 0),
+					input2Line: lastResultDiff.inputRange.endLineNumberExclusive + (lastModifiedBaseRange ? (lastModifiedBaseRange.input2Range.endLineNumberExclusive - lastModifiedBaseRange.baseRange.endLineNumberExclusive) : 0),
+					resultLine: lastResultDiff.outputRange.endLineNumberExclusive,
+				}];
+			}
+
+			for (const { input1Line, baseLine, input2Line, resultLine } of alignedLines) {
+				if (!shouldAlignBase && (input1Line === undefined || input2Line === undefined)) {
+					continue;
+				}
+
+				const input1Line_ =
+					input1Line !== undefined ? input1Line + input1LinesAdded : -1;
+				const input2Line_ =
+					input2Line !== undefined ? input2Line + input2LinesAdded : -1;
+				const baseLine_ = baseLine + baseLinesAdded;
+				const resultLine_ = resultLine !== undefined ? resultLine + resultLinesAdded : -1;
+
+				const max = Math.max(shouldAlignBase ? baseLine_ : 0, input1Line_, input2Line_, shouldAlignResult ? resultLine_ : 0);
+
+				if (input1Line !== undefined) {
+					const diffInput1 = max - input1Line_;
+					if (diffInput1 > 0) {
+						input1ViewZoneIds.push(
+							input1ViewZoneAccessor.addZone({
+								afterLineNumber: input1Line - 1,
+								heightInLines: diffInput1,
+								domNode: $('div.diagonal-fill'),
+							})
+						);
+						input1LinesAdded += diffInput1;
+					}
+				}
+
+				if (input2Line !== undefined) {
+					const diffInput2 = max - input2Line_;
+					if (diffInput2 > 0) {
+						input2ViewZoneIds.push(
+							input2ViewZoneAccessor.addZone({
+								afterLineNumber: input2Line - 1,
+								heightInLines: diffInput2,
+								domNode: $('div.diagonal-fill'),
+							})
+						);
+						input2LinesAdded += diffInput2;
+					}
+				}
+
+				if (shouldAlignBase && baseViewZoneAccessor) {
+					const diffBase = max - baseLine_;
+					if (diffBase > 0) {
+						baseViewZoneIds.push(
+							baseViewZoneAccessor.addZone({
+								afterLineNumber: baseLine - 1,
+								heightInLines: diffBase,
+								domNode: $('div.diagonal-fill'),
+							})
+						);
+						baseLinesAdded += diffBase;
+					}
+				}
+
+				if (shouldAlignResult && resultViewZoneAccessor && resultLine !== undefined) {
+					const diffResult = max - resultLine_;
+					if (diffResult > 0) {
+						resultViewZoneIds.push(
+							resultViewZoneAccessor.addZone({
+								afterLineNumber: resultLine - 1,
+								heightInLines: diffResult,
+								domNode: $('div.diagonal-fill'),
+							})
+						);
+						resultLinesAdded += diffResult;
 					}
 				}
 			}
 		}
+		return disposableStore;
 	}
 
 	override setOptions(options: ITextEditorOptions | undefined): void {
@@ -439,6 +625,13 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		});
 	}
 
+	public toggleShowBaseAtTop(): void {
+		this.setLayout({
+			...this._layoutMode.value,
+			showBaseAtTop: !this._layoutMode.value.showBaseAtTop,
+		});
+	}
+
 	public setLayoutKind(kind: MergeEditorLayoutKind): void {
 		this.setLayout({
 			...this._layoutMode.value,
@@ -457,58 +650,68 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	private readonly baseViewDisposables = this._register(new DisposableStore());
 
 	private applyLayout(layout: IMergeEditorLayout): void {
-		if (layout.showBase && !this.baseView.get()) {
-			this.baseViewDisposables.clear();
-			const baseView = this.baseViewDisposables.add(
-				this.instantiationService.createInstance(
-					BaseCodeEditorView,
-					this.viewModel
-				)
-			);
-			this.baseViewDisposables.add(autorun('Update base view options', reader => {
-				const options = this.baseViewOptions.read(reader);
-				if (options) {
-					baseView.updateOptions(options);
-				}
-			}));
-			this.baseView.set(baseView, undefined);
-		} else if (!layout.showBase && this.baseView.get()) {
-			this.baseView.set(undefined, undefined);
-			this.baseViewDisposables.clear();
-		}
+		transaction(tx => {
+			/** @description applyLayout */
 
-		if (layout.kind === 'mixed') {
-			this.setGrid([
-				layout.showBase ? {
-					size: 38,
-					data: this.baseView.get()!.view
-				} : undefined,
-				{
-					size: 38,
-					groups: [{ data: this.input1View.view }, { data: this.input2View.view }]
-				},
-				{
-					size: 62,
-					data: this.inputResultView.view
-				},
-			].filter(isDefined));
-		} else if (layout.kind === 'columns') {
-			this.setGrid([
-				layout.showBase ? {
-					size: 40,
-					data: this.baseView.get()!.view
-				} : undefined,
-				{
-					size: 60,
-					groups: [{ data: this.input1View.view }, { data: this.inputResultView.view }, { data: this.input2View.view }]
-				},
-			].filter(isDefined));
-		}
+			if (layout.showBase && !this.baseView.get()) {
+				this.baseViewDisposables.clear();
+				const baseView = this.baseViewDisposables.add(
+					this.instantiationService.createInstance(
+						BaseCodeEditorView,
+						this.viewModel
+					)
+				);
+				this.baseViewDisposables.add(autorun('Update base view options', reader => {
+					const options = this.baseViewOptions.read(reader);
+					if (options) {
+						baseView.updateOptions(options);
+					}
+				}));
+				this.baseView.set(baseView, tx);
+			} else if (!layout.showBase && this.baseView.get()) {
+				this.baseView.set(undefined, tx);
+				this.baseViewDisposables.clear();
+			}
 
-		this._layoutMode.value = layout;
-		this._ctxUsesColumnLayout.set(layout.kind);
-		this._ctxShowBase.set(layout.showBase);
-		this._onDidChangeSizeConstraints.fire();
+			if (layout.kind === 'mixed') {
+				this.setGrid([
+					layout.showBaseAtTop && layout.showBase ? {
+						size: 38,
+						data: this.baseView.get()!.view
+					} : undefined,
+					{
+						size: 38,
+						groups: [
+							{ data: this.input1View.view },
+							!layout.showBaseAtTop && layout.showBase ? { data: this.baseView.get()!.view } : undefined,
+							{ data: this.input2View.view }
+						].filter(isDefined)
+					},
+					{
+						size: 62,
+						data: this.inputResultView.view
+					},
+				].filter(isDefined));
+			} else if (layout.kind === 'columns') {
+				this.setGrid([
+					layout.showBase ? {
+						size: 40,
+						data: this.baseView.get()!.view
+					} : undefined,
+					{
+						size: 60,
+						groups: [{ data: this.input1View.view }, { data: this.inputResultView.view }, { data: this.input2View.view }]
+					},
+				].filter(isDefined));
+			}
+
+			this._layoutMode.value = layout;
+			this._ctxUsesColumnLayout.set(layout.kind);
+			this._ctxShowBase.set(layout.showBase);
+			this._ctxShowBaseAtTop.set(layout.showBaseAtTop);
+			this._onDidChangeSizeConstraints.fire();
+			this._layoutModeObs.set(layout, tx);
+		});
 	}
 
 	private setGrid(descriptor: GridNodeDescriptor<any>[]) {
@@ -552,7 +755,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	}
 
 	protected computeEditorViewState(resource: URI): IMergeEditorViewState | undefined {
-		if (!isEqual(this.model?.resultTextModel.uri, resource)) {
+		if (!isEqual(this.inputModel.get()?.resultUri, resource)) {
 			return undefined;
 		}
 		const result = this.inputResultView.editor.saveViewState();
@@ -569,22 +772,33 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	protected tracksEditorViewState(input: EditorInput): boolean {
 		return input instanceof MergeEditorInput;
 	}
+
+	private readonly showNonConflictingChangesStore = this.instantiationService.createInstance(PersistentStore<boolean>, 'mergeEditor/showNonConflictingChanges');
+	private readonly showNonConflictingChanges = observableValue('showNonConflictingChanges', this.showNonConflictingChangesStore.get() ?? false);
+
+	public toggleShowNonConflictingChanges(): void {
+		this.showNonConflictingChanges.set(!this.showNonConflictingChanges.get(), undefined);
+		this.showNonConflictingChangesStore.set(this.showNonConflictingChanges.get());
+		this._ctxShowNonConflictingChanges.set(this.showNonConflictingChanges.get());
+	}
 }
 
-interface IMergeEditorLayout {
+export interface IMergeEditorLayout {
 	readonly kind: MergeEditorLayoutKind;
 	readonly showBase: boolean;
+	readonly showBaseAtTop: boolean;
 }
 
+// TODO use PersistentStore
 class MergeEditorLayoutStore {
 	private static readonly _key = 'mergeEditor/layout';
-	private _value: IMergeEditorLayout = { kind: 'mixed', showBase: false };
+	private _value: IMergeEditorLayout = { kind: 'mixed', showBase: false, showBaseAtTop: true };
 
 	constructor(@IStorageService private _storageService: IStorageService) {
 		const value = _storageService.get(MergeEditorLayoutStore._key, StorageScope.PROFILE, 'mixed');
 
 		if (value === 'mixed' || value === 'columns') {
-			this._value = { kind: value, showBase: false };
+			this._value = { kind: value, showBase: false, showBaseAtTop: true };
 		} else if (value) {
 			try {
 				this._value = JSON.parse(value);

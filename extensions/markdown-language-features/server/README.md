@@ -36,7 +36,7 @@ This server uses the [Markdown Language Service](https://github.com/microsoft/vs
 
 - (experimental) Updating links when a file is moved / renamed. Uses a custom `markdown/getEditForFileRenames` message.
 
-- (experimental) [Pull diagnostics (validation)](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_pullDiagnostics) for links.
+- [Pull diagnostics (validation)](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_pullDiagnostics) for links.
 
 
 ## Client requirements
@@ -56,17 +56,16 @@ The server supports the following settings:
 	- `suggest`
 		- `paths`
 			- `enabled` — Enable/disable path suggestions.
-	- `experimental`
-		- `validate`
-			- `enabled` — Enable/disable all validation.
-			- `referenceLinks`
-				- `enabled` — Enable/disable validation of reference links: `[text][ref]`
-			- `fragmentLinks`
-				- `enabled` — Enable/disable validation of links to fragments in the current files: `[text](#head)`
-			- `fileLinks`
-				- `enabled` — Enable/disable validation of links to file in the workspace.
-				- `markdownFragmentLinks` — Enable/disable validation of links to headers in other Markdown files.
-			- `ignoreLinks` — Array of glob patterns for files that should not be validated.
+	- `validate`
+		- `enabled` — Enable/disable all validation.
+		- `referenceLinks`
+			- `enabled` — Enable/disable validation of reference links: `[text][ref]`
+		- `fragmentLinks`
+			- `enabled` — Enable/disable validation of links to fragments in the current files: `[text](#head)`
+		- `fileLinks`
+			- `enabled` — Enable/disable validation of links to file in the workspace.
+			- `markdownFragmentLinks` — Enable/disable validation of links to headers in other Markdown files.
+		- `ignoredLinks` — Array of glob patterns for files that should not be validated.
 
 ### Custom requests
 

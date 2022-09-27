@@ -35,6 +35,7 @@ class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOu
 		readonly extension: IExtensionDescription,
 	) {
 		super();
+		this._register(logger.onDidChangeLogLevel(level => this.setLevel(level)));
 	}
 
 	appendLine(value: string): void {
@@ -235,7 +236,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 			...this.createExtHostOutputChannel(name, channelPromise),
 			trace(value: string, ...args: any[]): void {
 				validate();
-				channelPromise.then(channel => channel.info(value, ...args));
+				channelPromise.then(channel => channel.trace(value, ...args));
 			},
 			debug(value: string, ...args: any[]): void {
 				validate();

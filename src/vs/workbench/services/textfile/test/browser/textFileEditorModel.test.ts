@@ -21,6 +21,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { isEqual } from 'vs/base/common/resources';
 import { UTF16be } from 'vs/workbench/services/textfile/common/encoding';
+import { isWeb } from 'vs/base/common/platform';
 
 suite('Files - TextFileEditorModel', () => {
 
@@ -655,8 +656,18 @@ suite('Files - TextFileEditorModel', () => {
 		await accessor.textFileService.save(toResource.call(this, '/path/index_async2.txt'));
 		assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async.txt')));
 		assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async2.txt')));
-		assert.ok(assertIsDefined(getLastResolvedFileStat(model1)).mtime > m1Mtime);
-		assert.ok(assertIsDefined(getLastResolvedFileStat(model2)).mtime > m2Mtime);
+
+		if (isWeb) {
+			// web tests does not ensure timeouts are respected at all, so we cannot
+			// really assert the mtime to be different, only that it is equal or greater.
+			// https://github.com/microsoft/vscode/issues/161886
+			assert.ok(assertIsDefined(getLastResolvedFileStat(model1)).mtime >= m1Mtime);
+			assert.ok(assertIsDefined(getLastResolvedFileStat(model2)).mtime >= m2Mtime);
+		} else {
+			// on desktop we want to assert this condition more strictly though
+			assert.ok(assertIsDefined(getLastResolvedFileStat(model1)).mtime > m1Mtime);
+			assert.ok(assertIsDefined(getLastResolvedFileStat(model2)).mtime > m2Mtime);
+		}
 
 		model1.dispose();
 		model2.dispose();

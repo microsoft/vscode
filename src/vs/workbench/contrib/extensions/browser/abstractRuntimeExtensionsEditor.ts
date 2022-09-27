@@ -100,7 +100,8 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 	private async _resolveExtensions(): Promise<IRuntimeExtension[]> {
 		// We only deal with extensions with source code!
-		const extensionsDescriptions = (await this._extensionService.getExtensions()).filter((extension) => {
+		await this._extensionService.whenInstalledExtensionsRegistered();
+		const extensionsDescriptions = this._extensionService.extensions.filter((extension) => {
 			return Boolean(extension.main) || Boolean(extension.browser);
 		});
 		const marketplaceMap: { [id: string]: IExtension } = Object.create(null);

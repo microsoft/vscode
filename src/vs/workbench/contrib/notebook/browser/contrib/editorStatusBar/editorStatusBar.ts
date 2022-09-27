@@ -463,7 +463,8 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		this._kernelInfoElement.clear();
 
 		const { selected, suggestions, all } = this._notebookKernelService.getMatchingKernel(notebook);
-		const suggested = (suggestions.length === 1 && all.length === 1) ? suggestions[0] : undefined;
+		const suggested = (suggestions.length === 1 ? suggestions[0] : undefined)
+			?? (all.length === 1) ? all[0] : undefined;
 		let isSuggested = false;
 
 		if (all.length === 0) {

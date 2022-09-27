@@ -170,9 +170,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		if (terminalInstance) {
 			this._terminalService.setActiveInstance(terminalInstance);
 			if (terminalInstance.target === TerminalLocation.Editor) {
-				this._terminalEditorService.revealActiveEditor(preserveFocus);
+				await this._terminalEditorService.revealActiveEditor(preserveFocus);
 			} else {
-				this._terminalGroupService.showPanel(!preserveFocus);
+				await this._terminalGroupService.showPanel(!preserveFocus);
 			}
 		}
 	}
