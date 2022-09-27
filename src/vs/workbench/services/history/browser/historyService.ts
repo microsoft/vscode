@@ -779,13 +779,23 @@ export class HistoryService extends Disposable implements IHistoryService {
 			this.editorHelper.clearOnEditorDispose(this.history.pop()!, this.editorHistoryListeners);
 		}
 
-		// React to editor input disposing if this is a typed editor
-		if (isEditorInput(historyInput)) {
-			this.editorHelper.onEditorDispose(historyInput, () => this.updateHistoryOnEditorDispose(historyInput), this.editorHistoryListeners);
+		// Track editor lifecycle for removing the history entry again
+		if (isEditorInput(editor)) {
+			this.editorHelper.onEditorDispose(editor, () => {
+
+				// Decide based on the editor used in the history whether to
+				// remove the enry or not:
+				// - typed editor:   always remove because there is likely no associated resource
+				// - untyped editor: only remove if the resource is excluded by settings
+
+				if (isEditorInput(historyInput) || !this.includeInHistory(historyInput)) {
+					this.removeFromHistoryOnEditorDispose(editor);
+				}
+			}, this.editorHistoryListeners);
 		}
 	}
 
-	private updateHistoryOnEditorDispose(editor: EditorInput): void {
+	private removeFromHistoryOnEditorDispose(editor: EditorInput): void {
 
 		// Any non side-by-side editor input gets removed directly on dispose
 		if (!isSideBySideEditorInput(editor)) {
@@ -812,10 +822,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private includeInHistory(editor: EditorInput | IResourceEditorInput): boolean {
-		if (!editor.resource) {
-			return true; // include any non files
+		if (isEditorInput(editor)) {
+
+			// Always allow typed editors in the history because this is a signal
+			// that there was explicit intent by the user to open the editor
+
+			return true;
 		}
 
+		// For untyped editor inputs, filter on the resource
 		return !this.resourceExcludeMatcher.value.matches(editor.resource);
 	}
 
