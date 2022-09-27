@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction } from 'vs/base/common/actions';
-import { isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { QuickFixMatchResult, ITerminalQuickFixAction, ITerminalQuickFixOptions, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -14,7 +13,7 @@ export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
 export const AnyCommandLineRegex = /.+/;
 export const GitSimilarOutputRegex = /most similar command is\s*([^\s]{3,})/;
-export const FreePortOutputRegex = /address already in use \d\.\d\.\d\.\d:(\d\d\d\d)|Unable to bind [^ ]*:(\d+)|can't listen on port (\d+)|listen EADDRINUSE [^ ]*:(\d+)/;
+export const FreePortOutputRegex = /address already in use \d+\.\d+\.\d+\.\d+:(\d{4,5})|Unable to bind [^ ]*:(\d{4,5})|can't listen on port (\d{4,5})|listen EADDRINUSE [^ ]*:(\d{4,5})/;
 export const GitPushOutputRegex = /git push --set-upstream origin ([^\s]+)/;
 export const GitCreatePrOutputRegex = /Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s*remote:\s*(https:.+pull.+)/;
 
@@ -50,8 +49,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 	return {
 		quickFixLabel: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Free port ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: AnyCommandLineRegex,
-		// TODO: Support free port on Windows https://github.com/microsoft/vscode/issues/161775
-		outputMatcher: isWindows ? undefined : {
+		outputMatcher: {
 			lineMatcher: FreePortOutputRegex,
 			anchor: 'bottom',
 			offset: 0,
