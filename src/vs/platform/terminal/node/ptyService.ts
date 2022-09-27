@@ -124,7 +124,7 @@ export class PtyService extends Disposable implements IPtyService {
 					await new Promise<string>((resolve, reject) => {
 						exec(`kill ${processId}`, {}, (err, stdout) => {
 							if (err) {
-								return reject(`Problem occurred when killing the process w ID: ${processId}`);
+								return reject(`Problem occurred when killing the process with PID: ${processId}`);
 							}
 							resolve(stdout);
 						});
@@ -143,13 +143,13 @@ export class PtyService extends Disposable implements IPtyService {
 			});
 			const processesForPort = stdout.split('\n');
 			if (processesForPort.length >= 1) {
-				const capturePid = /LISTENING\s+(\d{3})/;
+				const capturePid = /LISTENING\s+(\d+)/;
 				const processId = processesForPort[0].match(capturePid)?.[1];
 				if (processId) {
 					await new Promise<string>((resolve, reject) => {
 						exec(`Taskkill /F /PID ${processId}`, {}, (err, stdout) => {
 							if (err) {
-								return reject(`Problem occurred when killing the process w ID: ${processId}`);
+								return reject(`Problem occurred when killing the process with PID: ${processId}`);
 							}
 							resolve(stdout);
 						});
