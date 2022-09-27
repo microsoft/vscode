@@ -66,7 +66,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 			this._renderOverviewViewport();
 		}));
 
-		this._register(DOM.addStandardDisposableListener(this._overviewViewportDomElement.domNode, DOM.EventType.POINTER_DOWN, (e) => {
+		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.POINTER_DOWN, (e) => {
 			this.notebookEditor.delegateVerticalScrollbarPointerDown(e);
 		}));
 	}
