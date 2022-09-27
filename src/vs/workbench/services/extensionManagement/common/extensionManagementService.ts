@@ -84,8 +84,8 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		this.onDidChangeProfile = this._register(this.servers.reduce((emitter: EventMultiplexer<DidChangeProfileForServerEvent>, server) => { emitter.add(Event.map(server.extensionManagementService.onDidChangeProfile, e => ({ ...e, server }))); return emitter; }, new EventMultiplexer<DidChangeProfileForServerEvent>())).event;
 	}
 
-	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
-		const result = await Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.getInstalled(type)));
+	async getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]> {
+		const result = await Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.getInstalled(type, profileLocation)));
 		return flatten(result);
 	}
 

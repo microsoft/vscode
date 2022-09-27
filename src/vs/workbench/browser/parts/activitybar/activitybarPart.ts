@@ -603,6 +603,10 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private updateProfilesActivityAction() {
+		if (!!this.profilesActivityAction !== this.profilesVisibilityPreference) {
+			this.toggleProfilesActivityAction();
+			return;
+		}
 		if (this.profilesActivityAction) {
 			const activity = this.createProfilesActivity();
 			if ((<IProfileActivity>this.profilesActivityAction.activity).icon === activity.icon) {
@@ -617,10 +621,11 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private createProfilesActivity(): IProfileActivity {
-		const icon = this.userDataProfileService.currentProfile.shortName ? ThemeIcon.fromString(this.userDataProfileService.currentProfile.shortName) : undefined;
+		const shortName = this.userDataProfileService.getShortName(this.userDataProfileService.currentProfile);
+		const icon = ThemeIcon.fromString(shortName);
 		return {
 			id: 'workbench.actions.profiles',
-			name: icon ? this.userDataProfileService.currentProfile.name : this.userDataProfileService.currentProfile.shortName ? this.userDataProfileService.currentProfile.shortName.toUpperCase() : this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase(),
+			name: icon ? this.userDataProfileService.currentProfile.name : shortName,
 			cssClass: icon ? `${ThemeIcon.asClassName(icon)} profile-activity-item` : 'profile-activity-item',
 			icon: !!icon
 		};
@@ -1059,7 +1064,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private get profilesVisibilityPreference(): boolean {
-		return this.userDataProfilesService.profiles.length > 1 && !this.userDataProfileService.currentProfile.isDefault && this.storageService.getBoolean(ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, true);
+		return this.storageService.getBoolean(ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, this.userDataProfilesService.profiles.length > 1);
 	}
 
 	private set profilesVisibilityPreference(value: boolean) {

@@ -411,7 +411,6 @@ class AutoSync extends Disposable {
 			this.syncTask?.stop();
 			this.logService.info('Auto Sync: Stopped');
 		}));
-		this.logService.info('Auto Sync: Started');
 		this.sync(AutoSync.INTERVAL_SYNCING, false);
 	}
 

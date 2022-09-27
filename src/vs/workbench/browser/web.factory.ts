@@ -134,8 +134,10 @@ export namespace env {
 		return workbench.env.openUri(target);
 	}
 
-	export const telemetryLevel: Promise<IObservableValue<TelemetryLevel>> =
-		workbenchPromise.p.then(workbench => workbench.env.telemetryLevel);
+	/**
+	 * {@linkcode IWorkbench.env IWorkbench.env.telemetryLevel}
+	 */
+	export const telemetryLevel: Promise<IObservableValue<TelemetryLevel>> = workbenchPromise.p.then(workbench => workbench.env.telemetryLevel);
 }
 
 export namespace window {

@@ -108,4 +108,4 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	}
 }
 
-registerSingleton(ITelemetryService, TelemetryService, false);
+registerSingleton(ITelemetryService, TelemetryService, true);

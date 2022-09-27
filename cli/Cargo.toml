@@ -1,0 +1,65 @@
+[package]
+name = "code-cli"
+version = "0.1.0"
+edition = "2021"
+default-run = "code"
+
+[lib]
+name = "cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "code-tunnel"
+
+[[bin]]
+name = "code"
+
+[dependencies]
+futures = "0.3"
+clap = { version = "3.0", features = ["derive", "env"] }
+open = { version = "2.1.0" }
+reqwest = { version = "0.11.9", default-features = false, features = ["json", "stream", "native-tls-vendored"] }
+tokio = { version = "1.20", features = ["full"] }
+tokio-util = { version = "0.7", features = ["compat"] }
+flate2 = { version = "1.0.22" }
+zip = { version = "0.5.13", default-features = false, features = ["time", "deflate"] }
+regex = { version = "1.5.5" }
+lazy_static = { version = "1.4.0" }
+sysinfo = { version = "0.23.5" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0" }
+rmp-serde = "1.0"
+uuid = { version = "0.8.2", features = ["serde", "v4"] }
+dirs = "4.0.0"
+rand = "0.8.5"
+atty = "0.2.14"
+opentelemetry = { version = "0.18.0", features = ["rt-tokio"] }
+opentelemetry-application-insights = { version = "0.22.0", features = ["reqwest-client-vendored-tls"] }
+serde_bytes = "0.11.5"
+chrono = { version = "0.4", features = ["serde"] }
+gethostname = "0.2.3"
+libc = "0.2"
+tunnels = { git = "https://github.com/connor4312/dev-tunnels", branch = "host-relay", features = ["connections", "vendored-openssl"] }
+keyring = "1.1"
+dialoguer = "0.10"
+hyper = "0.14"
+indicatif = "0.16"
+tempfile = "3.3"
+clap_lex = "0.2"
+url = "2.3"
+async-trait = "0.1"
+log = "0.4"
+
+[target.'cfg(windows)'.dependencies]
+windows-service = "0.5"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+tar = { version = "0.4" }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+
+[features]
+vscode-encrypt = []

@@ -75,7 +75,13 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return super.capabilities | EditorInputCapabilities.MultipleEditors | EditorInputCapabilities.Untitled;
+		let capabilities = super.capabilities | EditorInputCapabilities.MultipleEditors;
+
+		if (this.useWorkingCopy) {
+			capabilities |= EditorInputCapabilities.Untitled;
+		}
+
+		return capabilities;
 	}
 
 	override getName(): string {
@@ -114,7 +120,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 	}
 
 	override async save(group: number, options?: ITextFileSaveOptions | undefined): Promise<IUntypedEditorInput | undefined> {
-		await (await this.resolve()).save();
+		await this._inputModel?.save(options);
 		return undefined;
 	}
 
@@ -151,9 +157,8 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		return false;
 	}
 
-	override async revert(group: number, options?: IRevertOptions | undefined): Promise<void> {
-		await (await this.resolve()).revert();
-		return undefined;
+	override async revert(group: number, options?: IRevertOptions): Promise<void> {
+		return this._inputModel?.revert(options);
 	}
 
 	// ---- FileEditorInput

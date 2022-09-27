@@ -179,13 +179,13 @@
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label.profile-activity-item {
 	height: 20px;
 	width: 28px;
-	margin: 9px;
+	margin: 14px 10px;
 	padding: 0px;
 	justify-content: center;
 	align-items: center;
 	font-size: 12px;
 	line-height: 16px;
-	border: 1.5px solid;
+	border: 2px solid;
 }
 
 /* Right aligned */
