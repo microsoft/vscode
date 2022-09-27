@@ -50,7 +50,7 @@
         "priority": "builtin",
         "selector": [
           {
-            "filenamePattern": "*.{mp3,wav,opus,aac}"
+            "filenamePattern": "*.{mp3,wav,ogg,aac}"
           }
         ]
       },
