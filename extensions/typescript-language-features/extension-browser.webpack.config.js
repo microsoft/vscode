@@ -141,8 +141,9 @@ function requiem(name) {
 	for (const name in modules) {
 		prog += `
 //////////////////////////// ${name} //////////////////////////////////
-(function (exports, require, module) {
+experts["${name}"] = (function (exports, require, module) {
 ${modules[name]}
+return module.exports;
 })(experts["${name}"], requiem, { exports: experts["${name}"] });
 
 
