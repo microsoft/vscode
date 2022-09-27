@@ -263,6 +263,12 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('readonlyExclude', "Overrides files.readonlyInclude: paths or glob patterns to NOT open as read-only."),
 			'scope': ConfigurationScope.RESOURCE
 		},
+		'files.readonlyPath': {
+			'type': 'object',
+			'default': undefined,
+			'description': nls.localize('readonlyPath', "Value is object with { path: true|false }"),
+			'scope': ConfigurationScope.RESOURCE
+		},
 		'files.watcherExclude': {
 			'type': 'object',
 			'default': { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true, '**/.hg/store/**': true },
