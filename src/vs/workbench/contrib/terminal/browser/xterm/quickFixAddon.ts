@@ -120,11 +120,9 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			if (!this._decorationMarkerIds.has(decoration.marker.id)) {
 				this._currentQuickFixElement = e;
 				e.classList.add(DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration);
-				e.style.color = '#ffcc00';
-				// must be inlined to override the styles
-				// applied inline in xterm.js
+				// must be inlined to override the zIndex set inline in xterm.js
 				e.style.zIndex = '7';
-				e.style.borderRadius = '5px';
+				e.style.color = '#ddb100';
 				updateLayout(this._configurationService, e);
 				if (actions) {
 					this._decorationMarkerIds.add(decoration.marker.id);

@@ -248,6 +248,9 @@
 	border-style: solid;
 }
 
+.terminal-command-decoration.quick-fix {
+	border-radius: '5px';
+}
 .monaco-workbench .part.sidebar > .title > .title-actions .switch-terminal {
 	display: flex;
 	align-items: center;
