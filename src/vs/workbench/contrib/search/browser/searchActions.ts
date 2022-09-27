@@ -300,7 +300,7 @@ export function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 				}
 				if (searchView.isTreeLayoutViewVisible && !canCollapseFirstLevel) {
 					const immediateParent = node.parent();
-					if (immediateParent instanceof FolderMatchWorkspaceRoot || immediateParent instanceof FolderMatchNoRoot) {
+					if (!(immediateParent instanceof FolderMatchWorkspaceRoot || immediateParent instanceof FolderMatchNoRoot || immediateParent instanceof SearchResult)) {
 						canCollapseFirstLevel = true;
 					}
 				}
@@ -320,8 +320,8 @@ export function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 				do {
 					const immediateParent = node.parent();
 					if (immediateParent instanceof FolderMatchWorkspaceRoot || immediateParent instanceof FolderMatchNoRoot) {
-						if (viewer.hasElement(immediateParent) && viewer.isCollapsed(immediateParent)) {
-							viewer.collapse(immediateParent, true);
+						if (viewer.hasElement(node)) {
+							viewer.collapse(node, true);
 						} else {
 							viewer.collapseAll();
 						}
