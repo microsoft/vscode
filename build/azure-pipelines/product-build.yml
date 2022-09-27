@@ -595,6 +595,7 @@ stages:
 
       - ${{ if and(parameters.VSCODE_RELEASE, eq(parameters.VSCODE_DISTRO_REF, ' ')) }}:
           - stage: ApproveRelease
+            dependsOn: [] # run in parallel to compile stage
             pool: vscode-1es-linux
             jobs:
               - deployment: ApproveRelease
