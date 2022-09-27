@@ -59,7 +59,7 @@ export async function main(argv: string[]): Promise<any> {
 			if (process.env['VSCODE_DEV']) {
 				tunnelProcess = spawn('cargo', ['run', ...argv.slice(4)], { cwd: join(getAppRoot(), 'cli') });
 			} else {
-				const tunnelCommand = join(dirname(process.execPath), 'bin', `${product.tunnelApplicationName}` + isWindows ? '.exe' : '');
+				const tunnelCommand = join(dirname(process.execPath), 'bin', `${product.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
 				const tunnelArgs = argv.slice(3);
 				tunnelProcess = spawn(tunnelCommand, tunnelArgs);
 			}

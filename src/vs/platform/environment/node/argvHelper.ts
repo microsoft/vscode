@@ -21,6 +21,17 @@ function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): Nativ
 	const onDeprecatedOption = (deprecatedOption: string, message: string) => {
 		console.warn(localize('deprecatedArgument', "Option '{0}' is deprecated: {1}", deprecatedOption, message));
 	};
+	const getSubcommandReporter = (command: string) => ({
+		onUnknownOption: (id: string) => {
+			if (command !== 'tunnel') {
+				console.warn(localize('unknownSubCommandOption', "Warning: '{0}' is not in the list of known options for subcommand '{1}'", id, command));
+			}
+		},
+		onMultipleValues,
+		onEmptyValue,
+		onDeprecatedOption,
+		getSubcommandReporter: command !== 'tunnel' ? getSubcommandReporter : undefined
+	});
 	const errorReporter: ErrorReporter = {
 		onUnknownOption: (id) => {
 			console.warn(localize('unknownOption', "Warning: '{0}' is not in the list of known options, but still passed to Electron/Chromium.", id));
@@ -28,14 +39,7 @@ function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): Nativ
 		onMultipleValues,
 		onEmptyValue,
 		onDeprecatedOption,
-		getSubcommandReporter: (command) => ({
-			onUnknownOption: (id) => {
-				console.warn(localize('unknownSubCommandOption', "Warning: '{0}' is not in the list of known options for subcommand '{1}'", id, command));
-			},
-			onMultipleValues,
-			onEmptyValue,
-			onDeprecatedOption
-		})
+		getSubcommandReporter
 	};
 
 	const args = parseArgs(cmdLineArgs, OPTIONS, reportWarnings ? errorReporter : undefined);
