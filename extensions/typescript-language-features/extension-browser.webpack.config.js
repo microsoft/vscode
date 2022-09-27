@@ -143,7 +143,7 @@ function requiem(name) {
 //////////////////////////// ${name} //////////////////////////////////
 (function (exports, require, module) {
 ${modules[name]}
-})(experts["${name}"], requiem, { exports: exports["${name}"] });
+})(experts["${name}"], requiem, { exports: experts["${name}"] });
 
 
 `;
