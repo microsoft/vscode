@@ -63,7 +63,7 @@ module.exports = withBrowserDefaults({
 		// @ts-ignore
 		new CopyPlugin({
 			patterns: [
-				{
+				{ // TODO: Also want to copy ../node_modules/typescript/lib/typingsInstaller.js to typescript/
 					from: '../node_modules/typescript/lib/tsserver.js',
 					to: 'typescript/tsserver.web.js',
 					transform: async (content) => {
@@ -73,16 +73,16 @@ module.exports = withBrowserDefaults({
 						// TODO: All this extra work can *probably* be done with webpack tools in some way.
 						const filenames = {
 							'vscode-uri': path.join(__dirname, 'node_modules', 'vscode-uri', 'lib', 'umd', 'index.js'),
-							'@vscode/sync-api-common': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'browser', 'main.js'), // Maybe node/main.js?
 							'./apiClient': path.join(__dirname, 'node_modules', '@vscode/sync-api-client', 'lib', 'apiClient.js'),
 							'./vscode': path.join(__dirname, 'node_modules', '@vscode/sync-api-client', 'lib', 'vscode.js'),
 							'@vscode/sync-api-client': path.join(__dirname, 'node_modules', '@vscode/sync-api-client', 'lib', 'main.js'),
 							'./ral': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'common', 'ral.js'),
-							'./ril': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'browser', 'ril.js'),
 							'common--./connection': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'common', 'connection.js'), // TODO This is the same reference as below, but referenced from inside common (api.js and protocol.js) (and from browser/connection.js as '../common/connection'
 							'./protocol': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'common', 'protocol.js'),
 							'browser--./connection': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'browser', 'connection.js'), // referenced from connection.js, main.js, ril.js
+							'./ril': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'browser', 'ril.js'),
 							'../common/api': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'common', 'api.js'),
+							'@vscode/sync-api-common': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'browser', 'main.js'), // Maybe node/main.js?
 							'@vscode/sync-api-common/browser': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'browser.js'),
 							'vscode-wasm-typescript': path.join(__dirname, 'node_modules', 'vscode-wasm-typescript', 'dist', 'index.js'),
 						};
@@ -108,7 +108,7 @@ module.exports = withBrowserDefaults({
 							}
 						}
 						const p2 = wrapper(modules, redirect);
-						return prefix + '\n' + p2 + '\n' + output.code;
+						return prefix + '\n' + output.code + '\n' + p2;
 					},
 					transformPath: (targetPath) => {
 						return targetPath.replace('tsserver.js', 'tsserver.web.js');
@@ -127,14 +127,15 @@ function wrapper(modules, redirect) {
 	let prog = `
 const experts = {
 	${Object.keys(modules).map(n => `"${n}": {}`).join(',\n    ')}
-}
-${Object.keys(redirect).map(n => `exports["${n}"] = exports["${redirect[n]}"]`).join('\n')}
+};
+${Object.keys(redirect).map(n => `experts["${n}"] = experts["${redirect[n]}"];`).join('\n')}
+experts["tsserver/lib/tsserverlibrary"] = ts;
 function requiem(name) {
 	if (!(name in experts)) {
-		console.log('require missing', name)
-		throw new Error('require missing ' + name)
+		console.log('require missing', name);
+		throw new Error('require missing ' + name);
 	}
-	return experts[name]
+	return experts[name];
 }
 `;
 	for (const name in modules) {
@@ -142,7 +143,7 @@ function requiem(name) {
 //////////////////////////// ${name} //////////////////////////////////
 (function (exports, require, module) {
 ${modules[name]}
-})(experts["${name}"], requiem, { exports: exports["${name}"] })
+})(experts["${name}"], requiem, { exports: exports["${name}"] });
 
 
 `;
@@ -152,5 +153,3 @@ ${modules[name]}
 	// might need a `.then` postfix, although the one I know is for node
 	return prog;
 }
-
-
