@@ -59,9 +59,9 @@ suite('ExtensionsViews Tests', () => {
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 
 	const localEnabledTheme = aLocalExtension('first-enabled-extension', { categories: ['Themes', 'random'] }, { installedTimestamp: 123456 });
-	const localEnabledLanguage = aLocalExtension('second-enabled-extension', { categories: ['Programming languages'], version: '1.0.0' }, { installedTimestamp: Date.now() });
+	const localEnabledLanguage = aLocalExtension('second-enabled-extension', { categories: ['Programming languages'], version: '1.0.0' }, { installedTimestamp: Date.now(), updated: false });
 	const localDisabledTheme = aLocalExtension('first-disabled-extension', { categories: ['themes'] }, { installedTimestamp: 234567 });
-	const localDisabledLanguage = aLocalExtension('second-disabled-extension', { categories: ['programming languages'] }, { installedTimestamp: Date.now() - 50000 });
+	const localDisabledLanguage = aLocalExtension('second-disabled-extension', { categories: ['programming languages'] }, { installedTimestamp: Date.now() - 50000, updated: true });
 	const localRandom = aLocalExtension('random-enabled-extension', { categories: ['random'] }, { installedTimestamp: 345678 });
 	const builtInTheme = aLocalExtension('my-theme', { contributes: { themes: ['my-theme'] } }, { type: ExtensionType.System, installedTimestamp: 222 });
 	const builtInBasic = aLocalExtension('my-lang', { contributes: { grammars: [{ language: 'my-language' }] } }, { type: ExtensionType.System, installedTimestamp: 666666 });
@@ -381,12 +381,8 @@ suite('ExtensionsViews Tests', () => {
 
 	test('Test local query with sorting order', async () => {
 		await testableView.show('@recentlyUpdated').then(result => {
-			assert.strictEqual(result.length, 2, 'Unexpected number of results for @recentlyUpdated');
-			const actual = [result.get(0).name, result.get(1).name];
-			const expected = [localEnabledLanguage.manifest.name, localDisabledLanguage.manifest.name];
-			for (let i = 0; i < actual.length; i++) {
-				assert.strictEqual(actual[i], expected[i], 'Unexpected default sort order of extensions for @recentlyUpdate query');
-			}
+			assert.strictEqual(result.length, 1, 'Unexpected number of results for @recentlyUpdated');
+			assert.strictEqual(result.get(0).name, localDisabledLanguage.manifest.name, 'Unexpected default sort order of extensions for @recentlyUpdate query');
 		});
 
 		await testableView.show('@installed @sort:updateDate').then(result => {
