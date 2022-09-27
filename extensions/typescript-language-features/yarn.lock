@@ -128,10 +128,10 @@ vscode-uri@3.0.3, vscode-uri@^3.0.3:
   resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-3.0.3.tgz#a95c1ce2e6f41b7549f86279d19f47951e4f4d84"
   integrity sha512-EcswR2S8bpR7fD0YPeS7r2xXExrScVMxg4MedACaWHEtx9ftCF/qHG1xGkolzTPcEmjTavCQgbVzHUIdTMzFGA==
 
-vscode-wasm-typescript@0.1.1:
-  version "0.1.1"
-  resolved "https://registry.yarnpkg.com/vscode-wasm-typescript/-/vscode-wasm-typescript-0.1.1.tgz#ad3193b8a27a81849607063e61406672754636e2"
-  integrity sha512-pZxVVPt/CSJuxUptn5Yu6bcoV+HjERcNna36f6Pk4SUO49nPS9elC9MSF3jXtFbkgajyHZsKwf6nltzXm6vcUw==
+vscode-wasm-typescript@0.1.2:
+  version "0.1.2"
+  resolved "https://registry.yarnpkg.com/vscode-wasm-typescript/-/vscode-wasm-typescript-0.1.2.tgz#ac42c65ec9060d65d8130eb6f8ab0789342b3465"
+  integrity sha512-3TgJcjx79eMXQeYc2+dsLfKZsDM25y0FejaC//HGO6/ZSa+TiyuwKIQKLWfqCxQelZKtDzPpTaA/reHuIdSQoQ==
   dependencies:
     "@vscode/sync-api-client" "^0.2.0"
     "@vscode/sync-api-common" "^0.2.0"
