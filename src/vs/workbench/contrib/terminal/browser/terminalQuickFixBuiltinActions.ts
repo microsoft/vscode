@@ -16,7 +16,7 @@ export const AnyCommandLineRegex = /.+/;
 export const GitSimilarOutputRegex = /most similar command is\s+([^\s]{3,})/;
 export const FreePortOutputRegex = /address already in use \d\.\d\.\d\.\d:(\d\d\d\d)|Unable to bind [^ ]*:(\d+)|can't listen on port (\d+)|listen EADDRINUSE [^ ]*:(\d+)/;
 export const GitPushOutputRegex = /git push --set-upstream origin ([^\s]+)/;
-export const GitCreatePrOutputRegex = /Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s+remote:\s+(https:.+pull.+)/;
+export const GitCreatePrOutputRegex = /Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s*remote:\s*(https:.+pull.+)/;
 
 export function gitSimilarCommand(): ITerminalQuickFixOptions {
 	return {
