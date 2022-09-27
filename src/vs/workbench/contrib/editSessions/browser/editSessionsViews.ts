@@ -10,7 +10,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { Registry } from 'vs/platform/registry/common/platform';
 import { TreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { Extensions, ITreeItem, ITreeViewDataProvider, ITreeViewDescriptor, IViewsRegistry, TreeItemCollapsibleState, TreeViewItemHandleArg, ViewContainer } from 'vs/workbench/common/views';
-import { EDIT_SESSIONS_DATA_VIEW_ID, EDIT_SESSIONS_SCHEME, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_SIGNED_IN, EDIT_SESSIONS_SIGNED_IN_KEY, EDIT_SESSIONS_TITLE, IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { EDIT_SESSIONS_DATA_VIEW_ID, EDIT_SESSIONS_SCHEME, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_TITLE, IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { URI } from 'vs/base/common/uri';
 import { fromNow } from 'vs/base/common/date';
 import { Codicon } from 'vs/base/common/codicons';
@@ -54,7 +54,7 @@ export class EditSessionsDataViews extends Disposable {
 			canMoveView: false,
 			treeView,
 			collapsed: false,
-			when: ContextKeyExpr.and(EDIT_SESSIONS_SIGNED_IN, EDIT_SESSIONS_SHOW_VIEW),
+			when: ContextKeyExpr.and(EDIT_SESSIONS_SHOW_VIEW),
 			order: 100,
 			hideByDefault: true,
 		}], container);
@@ -69,7 +69,7 @@ export class EditSessionsDataViews extends Disposable {
 					localize('storeEditSessionTitle', 'Store Edit Session')
 				)
 			),
-			when: ContextKeyExpr.and(ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, true), ContextKeyExpr.equals(EDIT_SESSIONS_COUNT_KEY, 0)),
+			when: ContextKeyExpr.equals(EDIT_SESSIONS_COUNT_KEY, 0),
 			order: 1
 		});
 
