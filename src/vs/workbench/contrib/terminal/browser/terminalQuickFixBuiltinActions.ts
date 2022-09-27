@@ -23,7 +23,6 @@ export const GitCreatePrOutputRegex = /remote:\s*(https:\/\/github\.com\/.+\/.+\
 export function gitSimilarCommand(): ITerminalQuickFixOptions {
 	return {
 		commandLineMatcher: GitCommandLineRegex,
-		quickFixLabel: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Run git ${matchResult.outputMatch[1]}` : ``,
 		outputMatcher: {
 			lineMatcher: GitSimilarOutputRegex,
 			anchor: 'bottom',
@@ -37,10 +36,11 @@ export function gitSimilarCommand(): ITerminalQuickFixOptions {
 			if (!fixedCommand) {
 				return;
 			}
-			const label = localize("terminal.gitSimilarCommand", "Run git {0}", fixedCommand);
+			const commandToRunInTerminal = `git ${fixedCommand}`;
+			const label = localize("terminal.runCommand", "Run: {0}", commandToRunInTerminal);
 			actions.push({
 				class: undefined, tooltip: label, id: 'terminal.gitSimilarCommand', label, enabled: true,
-				commandToRunInTerminal: `git ${fixedCommand}`,
+				commandToRunInTerminal,
 				addNewLine: true,
 				run: () => { }
 			});
@@ -50,7 +50,6 @@ export function gitSimilarCommand(): ITerminalQuickFixOptions {
 }
 export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITerminalQuickFixOptions {
 	return {
-		quickFixLabel: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Free port ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: AnyCommandLineRegex,
 		// TODO: Support free port on Windows https://github.com/microsoft/vscode/issues/161775
 		outputMatcher: isWindows ? undefined : {
@@ -81,7 +80,6 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 }
 export function gitPushSetUpstream(): ITerminalQuickFixOptions {
 	return {
-		quickFixLabel: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Git push ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: GitPushCommandLineRegex,
 		outputMatcher: {
 			lineMatcher: GitPushOutputRegex,
@@ -96,11 +94,11 @@ export function gitPushSetUpstream(): ITerminalQuickFixOptions {
 				return;
 			}
 			const actions: ITerminalQuickFixAction[] = [];
-			const label = localize("terminal.gitPush", "Git push {0}", branch);
-			command.command = `git push --set-upstream origin ${branch}`;
+			const commandToRunInTerminal = `git push --set-upstream origin ${branch}`;
+			const label = localize("terminal.runCommand", "Run: {0}", commandToRunInTerminal);
 			actions.push({
 				class: undefined, tooltip: label, id: 'terminal.gitPush', label, enabled: true,
-				commandToRunInTerminal: command.command,
+				commandToRunInTerminal,
 				addNewLine: true,
 				run: () => { }
 			});
@@ -111,7 +109,6 @@ export function gitPushSetUpstream(): ITerminalQuickFixOptions {
 
 export function gitCreatePr(openerService: IOpenerService): ITerminalQuickFixOptions {
 	return {
-		quickFixLabel: (matchResult: QuickFixMatchResult) => matchResult.outputMatch ? `Create PR for ${matchResult.outputMatch[1]}` : '',
 		commandLineMatcher: GitPushCommandLineRegex,
 		outputMatcher: {
 			lineMatcher: GitCreatePrOutputRegex,
@@ -124,13 +121,12 @@ export function gitCreatePr(openerService: IOpenerService): ITerminalQuickFixOpt
 			if (!command) {
 				return;
 			}
-			const branch = matchResult?.outputMatch?.[1];
-			const link = matchResult?.outputMatch?.[2];
-			if (!branch || !link) {
+			const link = matchResult?.outputMatch?.[1];
+			if (!link) {
 				return;
 			}
 			const actions: IAction[] = [];
-			const label = localize("terminal.gitCreatePr", "Create PR");
+			const label = localize("terminal.openLink", "Open link: {0}", link);
 			actions.push({
 				class: undefined, tooltip: label, id: 'terminal.gitCreatePr', label, enabled: true,
 				run: () => openerService.open(link)
