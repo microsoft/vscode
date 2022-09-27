@@ -121,7 +121,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				if (actions) {
 					this._decorationMarkerIds.add(decoration.marker.id);
 					dom.addDisposableListener(e, dom.EventType.CLICK, () => {
-						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions });
+						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions, autoSelectFirstItem: true });
 					});
 				}
 			}
