@@ -120,8 +120,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			if (!this._decorationMarkerIds.has(decoration.marker.id)) {
 				this._currentQuickFixElement = e;
 				e.classList.add(DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration);
-				// must be inlined
-				e.style.color = '#ddb100';
 				updateLayout(this._configurationService, e);
 				if (actions) {
 					this._decorationMarkerIds.add(decoration.marker.id);
@@ -174,10 +172,14 @@ export function getQuickFixes(command: ITerminalCommand, actionOptions: Map<stri
 	return actions.length === 0 ? undefined : actions;
 }
 
+let foregroundColor: string | Color | undefined;
 let backgroundColor: string | Color | undefined;
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+	foregroundColor = theme.getColor('editorLightBulb.foreground');
 	backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
-
+	if (foregroundColor) {
+		collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.QuickFix} { color: ${foregroundColor.toString()} !important; } `);
+	}
 	if (backgroundColor) {
 		collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.QuickFix} { background-color: ${backgroundColor.toString()}; } `);
 	}

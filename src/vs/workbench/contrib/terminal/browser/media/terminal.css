@@ -249,7 +249,6 @@
 }
 
 .xterm-screen .xterm-decoration-container .xterm-decoration.quick-fix {
-	border-radius: '5px';
 	z-index: 7;
 }
 
