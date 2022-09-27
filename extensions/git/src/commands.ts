@@ -1148,20 +1148,37 @@ export class CommandCenter {
 	}
 
 	@command('git.acceptMerge')
-	async acceptMerge(uri: Uri | unknown): Promise<void> {
-		if (!(uri instanceof Uri)) {
+	async acceptMerge(_uri: Uri | unknown): Promise<void> {
+		const { activeTab } = window.tabGroups.activeTabGroup;
+		if (!activeTab) {
 			return;
 		}
+
+		if (!(activeTab.input instanceof TabInputTextMerge)) {
+			return;
+		}
+
+		const uri = activeTab.input.result;
+
 		const repository = this.model.getRepository(uri);
 		if (!repository) {
 			console.log(`FAILED to accept merge because uri ${uri.toString()} doesn't belong to any repository`);
 			return;
 		}
 
-		const { activeTab } = window.tabGroups.activeTabGroup;
-		if (!activeTab) {
+		const result = await commands.executeCommand('mergeEditor.acceptMerge') as { successful: boolean };
+		if (result.successful) {
+			await repository.add([uri]);
+			await commands.executeCommand('workbench.view.scm');
+		}
+
+		/*
+		if (!(uri instanceof Uri)) {
 			return;
 		}
+
+
+
 
 		// make sure to save the merged document
 		const doc = workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
@@ -1185,7 +1202,7 @@ export class CommandCenter {
 		if (didCloseTab) {
 			await repository.add([uri]);
 			await commands.executeCommand('workbench.view.scm');
-		}
+		}*/
 	}
 
 	@command('git.runGitMerge')

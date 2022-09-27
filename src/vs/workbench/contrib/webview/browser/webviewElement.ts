@@ -737,7 +737,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	}
 
 	protected style(): void {
-		let { styles, activeTheme, themeLabel } = this.webviewThemeDataProvider.getWebviewThemeData();
+		let { styles, activeTheme, themeLabel, themeId } = this.webviewThemeDataProvider.getWebviewThemeData();
 		if (this.options.transformCssVariables) {
 			styles = this.options.transformCssVariables(styles);
 		}
@@ -745,7 +745,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		const reduceMotion = this._accessibilityService.isMotionReduced();
 		const screenReader = this._accessibilityService.isScreenReaderOptimized();
 
-		this._send('styles', { styles, activeTheme, themeName: themeLabel, reduceMotion, screenReader });
+		this._send('styles', { styles, activeTheme, themeId, themeLabel, reduceMotion, screenReader });
 
 		this.styledFindWidget();
 	}

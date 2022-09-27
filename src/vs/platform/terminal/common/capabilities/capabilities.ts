@@ -153,6 +153,7 @@ export interface ICommandDetectionCapability {
 	readonly hasInput: boolean | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
+	readonly onCommandExecuted: Event<void>;
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
 	setCwd(value: string): void;
@@ -220,6 +221,7 @@ export interface ITerminalCommand {
 	commandStartLineContent?: string;
 	markProperties?: IMarkProperties;
 	getOutput(): string | undefined;
+	getOutputMatch(outputMatcher: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }): RegExpMatchArray | undefined;
 	hasOutput(): boolean;
 }
 

@@ -1171,12 +1171,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: l10n
 		const l10n: typeof vscode.l10n = {
-			t(...params: [message: string, ...args: string[]] | [{ message: string; args: string[]; comment: string[] }]): string {
+			t(...params: [message: string, ...args: any[]] | [{ message: string; args?: any[]; comment: string[] }]): string {
 				checkProposedApiEnabled(extension, 'localization');
 
 				if (typeof params[0] === 'string') {
 					const key = params.shift() as string;
-					return extHostLocalization.getMessage(extension.identifier.value, { message: key, args: params as string[] });
+					return extHostLocalization.getMessage(extension.identifier.value, { message: key, args: params as any[] | undefined });
 				}
 
 				return extHostLocalization.getMessage(extension.identifier.value, params[0]);
@@ -1356,6 +1356,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookCellOutputItem: extHostTypes.NotebookCellOutputItem,
 			NotebookCellStatusBarItem: extHostTypes.NotebookCellStatusBarItem,
 			NotebookControllerAffinity: extHostTypes.NotebookControllerAffinity,
+			NotebookControllerAffinity2: extHostTypes.NotebookControllerAffinity2,
 			NotebookEdit: extHostTypes.NotebookEdit,
 			PortAttributes: extHostTypes.PortAttributes,
 			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,

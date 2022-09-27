@@ -83,7 +83,7 @@
 }
 
 .monaco-tree-type-filter.disabled {
-	top: -40px;
+	top: -40px !important;
 }
 
 .monaco-tree-type-filter-grab {

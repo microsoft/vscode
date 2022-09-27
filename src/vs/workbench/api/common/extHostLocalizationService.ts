@@ -3,33 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Language } from 'vs/base/common/platform';
+import { LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostLocalizationShape, IStringDetails, MainContext, MainThreadLocalizationShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 	readonly _serviceBrand: undefined;
 
 	private readonly _proxy: MainThreadLocalizationShape;
+	private readonly currentLanguage: string;
+	private readonly isDefaultLanguage: boolean;
 
 	private readonly bundleCache: Map<string, { contents: { [key: string]: string }; uri: URI }> = new Map();
 
 	constructor(
+		@IExtHostInitDataService initData: IExtHostInitDataService,
 		@IExtHostRpcService rpc: IExtHostRpcService,
 		@ILogService private readonly logService: ILogService
 	) {
 		this._proxy = rpc.getProxy(MainContext.MainThreadLocalization);
+		this.currentLanguage = initData.environment.appLanguage;
+		this.isDefaultLanguage = this.currentLanguage === LANGUAGE_DEFAULT;
 	}
 
 	getMessage(extensionId: string, details: IStringDetails): string {
 		const { message, args, comment } = details;
-		if (Language.isDefault()) {
-			return format(message, args);
+		if (this.isDefaultLanguage) {
+			return format(message, ...(args ?? []));
 		}
 
 		let key = message;
@@ -40,7 +46,7 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 		if (!str) {
 			this.logService.warn(`Using default string since no string found in i18n bundle that has the key: ${key}`);
 		}
-		return format(str ?? key, args);
+		return format(str ?? key, ...(args ?? []));
 	}
 
 	getBundle(extensionId: string): { [key: string]: string } {
@@ -52,9 +58,9 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 	}
 
 	async initializeLocalizedMessages(extension: IExtensionDescription): Promise<void> {
-		if (Language.isDefault()
+		if (this.isDefaultLanguage
 			// TODO: support builtin extensions
-			|| !extension.l10nBundleLocation
+			|| !extension.l10n
 		) {
 			return;
 		}
@@ -69,7 +75,7 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 			this.logService.error(`No bundle location found for extension ${extension.identifier.value}`);
 			return;
 		}
-		const bundleUri = URI.joinPath(bundleLocation, `bundle.l10n.${Language.value()}.json`);
+		const bundleUri = URI.joinPath(bundleLocation, `bundle.l10n.${this.currentLanguage}.json`);
 
 		try {
 			const response = await this._proxy.$fetchBundleContents(bundleUri);
@@ -93,10 +99,9 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 		// 	return URI.joinPath(this.initData.nlsBaseUrl, extension.identifier.value, 'main');
 		// }
 
-		if (extension.l10nBundleLocation) {
-			return URI.joinPath(extension.extensionLocation, extension.l10nBundleLocation);
-		}
-		return undefined;
+		return extension.l10n
+			? URI.joinPath(extension.extensionLocation, extension.l10n)
+			: undefined;
 	}
 }
 

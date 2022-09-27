@@ -65,6 +65,7 @@ export interface IExtension {
 	readonly ratingCount?: number;
 	readonly outdated: boolean;
 	readonly outdatedTargetPlatform: boolean;
+	readonly reloadRequiredStatus?: string;
 	readonly enablementState: EnablementState;
 	readonly tags: readonly string[];
 	readonly categories: readonly string[];
@@ -110,6 +111,8 @@ export interface IExtensionsWorkbenchService {
 	canSetLanguage(extension: IExtension): boolean;
 	setLanguage(extension: IExtension): Promise<void>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
+	setExtensionIgnoresUpdate(extension: IExtension, ignoreAutoUpate: boolean): void;
+	isExtensionIgnoresUpdates(extension: IExtension): boolean;
 	open(extension: IExtension, options?: IExtensionEditorOptions): Promise<void>;
 	checkForUpdates(): Promise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;

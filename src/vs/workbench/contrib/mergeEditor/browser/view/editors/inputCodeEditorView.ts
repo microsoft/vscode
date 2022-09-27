@@ -10,7 +10,7 @@ import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
-import { autorun, derived, IObservable, ISettableObservable, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
+import { autorun, autorunWithStore, derived, IObservable, ISettableObservable, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
@@ -18,6 +18,7 @@ import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/ed
 import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachToggleStyler } from 'vs/platform/theme/common/styler';
@@ -30,24 +31,33 @@ import { EditorGutter, IGutterItemInfo, IGutterItemView } from '../editorGutter'
 import { CodeEditorView, createSelectionsAutorun, TitleMenu } from './codeEditorView';
 
 export class InputCodeEditorView extends CodeEditorView {
+	public readonly otherInputNumber = this.inputNumber === 1 ? 2 : 1;
+
 	constructor(
 		public readonly inputNumber: 1 | 2,
 		viewModel: IObservable<MergeEditorViewModel | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(instantiationService, viewModel);
+		super(instantiationService, viewModel, configurationService);
 
 		this.htmlElements.root.classList.add(`input`);
 
 		this._register(
-			new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
-				getIntersectingGutterItems: (range, reader) => {
-					return this.modifiedBaseRangeGutterItemInfos.read(reader);
-				},
-				createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService, themeService),
-			})
+			autorunWithStore((reader, store) => {
+				if (this.checkboxesVisible.read(reader)) {
+					store.add(
+						new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
+							getIntersectingGutterItems: (range, reader) => {
+								return this.modifiedBaseRangeGutterItemInfos.read(reader);
+							},
+							createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService, themeService),
+						})
+					);
+				}
+			}, 'update checkboxes')
 		);
 
 		this._register(
@@ -99,8 +109,10 @@ export class InputCodeEditorView extends CodeEditorView {
 		const model = viewModel.model;
 		const inputNumber = this.inputNumber;
 
+		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
+
 		return model.modifiedBaseRanges.read(reader)
-			.filter((r) => r.getInputDiffs(this.inputNumber).length > 0)
+			.filter((r) => r.getInputDiffs(this.inputNumber).length > 0 && (showNonConflictingChanges || r.isConflicting || !model.isHandled(r).read(reader)))
 			.map((baseRange, idx) => new ModifiedBaseRangeGutterItemModel(idx.toString(), baseRange, inputNumber, viewModel));
 	});
 
@@ -114,6 +126,8 @@ export class InputCodeEditorView extends CodeEditorView {
 		const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
 
 		const result = new Array<IModelDeltaDecoration>();
+
+		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
 
 		for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
 			const range = modifiedBaseRange.getInputRange(this.inputNumber);
@@ -134,6 +148,10 @@ export class InputCodeEditorView extends CodeEditorView {
 			}
 			const inputClassName = this.inputNumber === 1 ? 'input1' : 'input2';
 			blockClassNames.push(inputClassName);
+
+			if (!modifiedBaseRange.isConflicting && !showNonConflictingChanges && isHandled) {
+				continue;
+			}
 
 			result.push({
 				range: range.toInclusiveRangeOrEmpty(),

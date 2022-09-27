@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hookDomPurifyHrefAndSrcSanitizer } from 'vs/base/browser/dom';
+import { hookDomPurifyHrefAndSrcSanitizer, basicMarkupHtmlTags } from 'vs/base/browser/dom';
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
+import { allowedMarkdownAttr } from 'vs/base/browser/markdownRenderer';
 import { marked } from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -159,14 +160,14 @@ function sanitize(documentContent: string, allowUnknownProtocols: boolean): stri
 		return dompurify.sanitize(documentContent, {
 			...{
 				ALLOWED_TAGS: [
-					'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'br', 'b', 'i', 'strong', 'em', 'a', 'pre', 'code', 'img', 'tt',
-					'div', 'ins', 'del', 'sup', 'sub', 'p', 'ol', 'ul', 'table', 'thead', 'tbody', 'tfoot', 'blockquote', 'dl', 'dt',
-					'dd', 'kbd', 'q', 'samp', 'var', 'hr', 'ruby', 'rt', 'rp', 'li', 'tr', 'td', 'th', 's', 'strike', 'summary', 'details',
-					'caption', 'figure', 'figcaption', 'abbr', 'bdo', 'cite', 'dfn', 'mark', 'small', 'span', 'time', 'wbr', 'checkbox', 'checklist', 'vertically-centered'
+					...basicMarkupHtmlTags,
+					'checkbox',
+					'checklist',
 				],
 				ALLOWED_ATTR: [
-					'href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code',
-					'width', 'height', 'align', 'x-dispatch',
+					...allowedMarkdownAttr,
+					'data-command', 'name', 'id', 'role', 'tabindex',
+					'x-dispatch',
 					'required', 'checked', 'placeholder', 'when-checked', 'checked-on',
 				],
 			},

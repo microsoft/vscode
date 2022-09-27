@@ -8,11 +8,11 @@ declare module 'vscode' {
 		/**
 		 * A string that can be pulled out of a localization bundle if it exists.
 		 */
-		export function t(message: string, ...args: string[]): string;
+		export function t(message: string, ...args: any[]): string;
 		/**
 		 * A string that can be pulled out of a localization bundle if it exists.
 		 */
-		export function t(options: { message: string; args: string[]; comment: string[] }): string;
+		export function t(options: { message: string; args?: any[]; comment: string[] }): string;
 		/**
 		 * The bundle of localized strings that have been loaded for the extension.
 		 */
