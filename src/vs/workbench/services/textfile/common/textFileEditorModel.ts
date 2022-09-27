@@ -1136,23 +1136,19 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			&& !readonlyExclude?.find(glob => matchGlobPattern(glob, this.resource.fsPath));
 	}
 
-	private isReadonlyPath(): boolean {
+	private isReadonlyPath(): boolean | undefined {
 		const settingName = 'files.readonlyPath';
-		const readonlyPath = this.configurationService.getValue<{ [path: string]: boolean } | undefined>(settingName);
+		const readonlyPath = this.configurationService.getValue<[path: string, value: boolean | null] | undefined>(settingName);
 		if (readonlyPath !== undefined) {
-			for (const key in readonlyPath) {
-				if (key === this.resource.fsPath) {
-					if (this.tmpReadonly !== readonlyPath[key]) {
-						console.log(`isReadonyPath: ${key} -> ${this.tmpReadonly}`);
-					}
-					this.tmpReadonly = readonlyPath[key];
-				}
+			if (readonlyPath?.length > 0 && readonlyPath[0] === this.resource.fsPath) {
+				this.tmpReadonly = readonlyPath[1];
 			}
 		}
-		return this.tmpReadonly;
+		return this.tmpReadonly === null ? this.isReadonlyFromConfig() : this.tmpReadonly;
 	}
 
-	private tmpReadonly = false; // support one-shot set/clear isReadonly overide
+	// tri-state: true | false overrides isReadonlyFromConfig; undefined does not.
+	private tmpReadonly: boolean | null = null; // support one-shot set/clear isReadonly overide
 
 	private oldReadonly = false; // fileEditorInput.test.ts counts changes from 'false' not 'undefined'
 
@@ -1167,7 +1163,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	override isReadonly(): boolean {
 		return this.checkDidChangeReadonly(
 			this.isReadonlyPath() ||
-			this.isReadonlyFromConfig() ||
 			this.lastResolvedFileStat?.readonly ||
 			this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly));
 	}
