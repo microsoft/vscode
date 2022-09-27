@@ -129,7 +129,7 @@ const experts = {
 	${Object.keys(modules).map(n => `"${n}": {}`).join(',\n    ')}
 };
 ${Object.keys(redirect).map(n => `experts["${n}"] = experts["${redirect[n]}"];`).join('\n')}
-experts["tsserver/lib/tsserverlibrary"] = ts;
+experts["typescript/lib/tsserverlibrary"] = ts;
 function requiem(name) {
 	if (!(name in experts)) {
 		console.log('require missing', name);
