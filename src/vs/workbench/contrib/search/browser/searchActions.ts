@@ -292,14 +292,21 @@ export function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 		let canCollapseFileMatchLevel = false;
 		let canCollapseFirstLevel = false;
 
-		if (node instanceof FolderMatch) {
+		if (node instanceof FolderMatchWorkspaceRoot) {
 			while (node = navigator.next()) {
 				if (node instanceof Match) {
 					canCollapseFileMatchLevel = true;
 					break;
 				}
 				if (searchView.isTreeLayoutViewVisible && !canCollapseFirstLevel) {
-					const immediateParent = node.parent();
+					let nodeToTest = node;
+
+					if (node instanceof FolderMatch) {
+						nodeToTest = node.compressionStartParent ?? node;
+					}
+
+					const immediateParent = nodeToTest.parent();
+
 					if (!(immediateParent instanceof FolderMatchWorkspaceRoot || immediateParent instanceof FolderMatchNoRoot || immediateParent instanceof SearchResult)) {
 						canCollapseFirstLevel = true;
 					}
@@ -318,7 +325,14 @@ export function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 			node = navigator.first();
 			if (node) {
 				do {
-					const immediateParent = node.parent();
+
+					let nodeToTest = node;
+
+					if (node instanceof FolderMatch) {
+						nodeToTest = node.compressionStartParent ?? node;
+					}
+					const immediateParent = nodeToTest.parent();
+
 					if (immediateParent instanceof FolderMatchWorkspaceRoot || immediateParent instanceof FolderMatchNoRoot) {
 						if (viewer.hasElement(node)) {
 							viewer.collapse(node, true);
