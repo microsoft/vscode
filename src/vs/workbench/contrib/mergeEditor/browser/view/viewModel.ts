@@ -124,6 +124,10 @@ export class MergeEditorViewModel extends Disposable {
 		}
 	);
 
+	public setActiveModifiedBaseRange(range: ModifiedBaseRange | undefined, tx: ITransaction): void {
+		this.manuallySetActiveModifiedBaseRange.set({ range, counter: this.counter++ }, tx);
+	}
+
 	public setState(
 		baseRange: ModifiedBaseRange,
 		state: ModifiedBaseRangeState,
