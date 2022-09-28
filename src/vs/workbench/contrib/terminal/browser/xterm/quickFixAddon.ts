@@ -19,6 +19,7 @@ import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
+import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 
 export interface ITerminalQuickFix {
 	showMenu(): void;
@@ -51,7 +52,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService) {
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAudioCueService private readonly _audioCueService: IAudioCueService) {
 		super();
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (commandDetectionCapability) {
@@ -121,6 +123,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				this._currentQuickFixElement = e;
 				e.classList.add(DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration);
 				updateLayout(this._configurationService, e);
+				this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 				if (actions) {
 					this._decorationMarkerIds.add(decoration.marker.id);
 					dom.addDisposableListener(e, dom.EventType.CLICK, () => {
