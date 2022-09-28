@@ -53,7 +53,7 @@
 			"fileMatch": [
 				"cgmanifest.json"
 			],
-			"url": "./.vscode/cgmanifest.schema.json"
+			"url": "https://json.schemastore.org/component-detection-manifest.json",
 		},
 		{
 			"fileMatch": [
