@@ -131,6 +131,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		this._register(this.fileService.registerProvider(EditSessionsFileSystemProvider.SCHEMA, new EditSessionsFileSystemProvider(this.editSessionsStorageService)));
 		this.lifecycleService.onWillShutdown((e) => e.join(this.autoStoreEditSession(), { id: 'autoStoreEditSession', label: localize('autoStoreEditSession', 'Storing current edit session...') }));
 		this._register(this.editSessionsStorageService.onDidSignIn(() => this.updateAccountsMenuBadge()));
+		this._register(this.editSessionsStorageService.onDidSignOut(() => this.updateAccountsMenuBadge()));
 	}
 
 	private autoResumeEditSession() {
@@ -377,6 +378,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		this.logService.info(ref !== undefined ? `Resuming edit session with ref ${ref}...` : 'Resuming edit session...');
 
+		if (silent && !(await this.editSessionsStorageService.initialize(false, true))) {
+			return;
+		}
+
 		const data = await this.editSessionsStorageService.read(ref);
 		if (!data) {
 			if (ref === undefined && !silent) {
@@ -397,6 +402,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		try {
 			const { changes, conflictingChanges } = await this.generateChanges(editSession, ref);
+			if (changes.length === 0) {
+				return;
+			}
 
 			// TODO@joyceerhl Provide the option to diff files which would be overwritten by edit session contents
 			if (conflictingChanges.length > 0) {
