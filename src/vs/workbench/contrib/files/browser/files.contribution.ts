@@ -247,8 +247,8 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.readonlyInclude': {
 			'type': 'object',
-			'items': {
-				'type': 'string'
+			'patternProperties': {
+				'.*': { 'type': 'boolean' }
 			},
 			'default': {},
 			'markdownDescription': nls.localize('readonlyInclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to open as read-only."),
@@ -256,8 +256,8 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.readonlyExclude': {
 			'type': 'object',
-			'items': {
-				'type': 'string'
+			'patternProperties': {
+				'.*': { 'type': 'boolean' }
 			},
 			'default': {},
 			'markdownDescription': nls.localize('readonlyExclude', "Override: paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to NOT open as read-only."),
