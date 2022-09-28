@@ -363,6 +363,11 @@ export class ProfilesActivityActionViewItem extends MenuActivityActionViewItem {
 		super(ManageProfilesSubMenu, action, contextMenuActionsProvider, (<IProfileActivity>action.activity).icon, colors, hoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
 	}
 
+	override render(container: HTMLElement): void {
+		super.render(container);
+		this.container.classList.add('profile-activity-item');
+	}
+
 	protected override async resolveContextMenuActions(disposables: DisposableStore): Promise<IAction[]> {
 		const actions = await super.resolveContextMenuActions(disposables);
 
@@ -571,6 +576,10 @@ registerThemingParticipant((theme, collector) => {
 				height: 32px;
 				width: 32px;
 				z-index: 1;
+			}
+
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.profile-activity-item:before {
+				top: -6px;
 			}
 
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active:before,
