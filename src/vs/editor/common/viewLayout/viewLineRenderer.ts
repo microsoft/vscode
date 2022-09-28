@@ -998,7 +998,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 						sb.write1(0xFFEB); // HALFWIDTH RIGHTWARDS ARROW
 					}
 					for (let space = 2; space <= charWidth; space++) {
-						sb.write1(0xA0); // &nbsp;
+						sb.write1(0x2003); // &nbsp;
 					}
 
 				} else { // must be CharCode.Space
@@ -1033,12 +1033,12 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 						producedCharacters = (tabSize - (visibleColumn % tabSize));
 						charWidth = producedCharacters;
 						for (let space = 1; space <= producedCharacters; space++) {
-							sb.write1(0xA0); // &nbsp;
+							sb.write1(0x2003); // &nbsp;
 						}
 						break;
 
 					case CharCode.Space:
-						sb.write1(0xA0); // &nbsp;
+						sb.write1(0x2003); // &nbsp;
 						break;
 
 					case CharCode.LessThan:
