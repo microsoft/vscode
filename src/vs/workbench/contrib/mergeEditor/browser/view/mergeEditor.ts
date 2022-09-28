@@ -444,7 +444,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 				if (shouldAlignBase && baseViewZoneAccessor) {
 					baseViewZoneIds.push(baseViewZoneAccessor.addZone({
-						afterLineNumber,
+						afterLineNumber: m.left.baseRange.startLineNumber - 1,
 						heightInPx: 16,
 						domNode: $('div.conflict-actions-placeholder'),
 					}));
