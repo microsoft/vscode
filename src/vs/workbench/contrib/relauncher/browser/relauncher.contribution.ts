@@ -125,7 +125,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		}
 
 		// Experiments
-		//workbench.enableExperiments
 		if (typeof config.workbench?.enableExperiments === 'boolean' && config.workbench.enableExperiments !== this.experimentsEnabled) {
 			this.experimentsEnabled = config.workbench.enableExperiments;
 			changed = true;
