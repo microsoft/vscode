@@ -1,6 +1,6 @@
 {
-	"displayName": "Image Preview",
-	"description": "Provides VS Code's built-in image preview",
+	"displayName": "Media Preview",
+	"description": "Provides VS Code's built-in previews for images, audio, and video",
 	"customEditor.audioPreview.displayName": "Audio Preview",
 	"customEditor.imagePreview.displayName": "Image Preview",
 	"customEditor.videoPreview.displayName": "Video Preview",
