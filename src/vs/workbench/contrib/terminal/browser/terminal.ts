@@ -20,7 +20,7 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { ITerminalQuickFix } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
-import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
+import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalOutputMatcher, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IMarker } from 'xterm';
 
@@ -931,29 +931,6 @@ export type QuickFixCallback = (matchResult: QuickFixMatchResult, command: ITerm
 export interface ITerminalQuickFixAction extends IAction {
 	commandToRunInTerminal?: string;
 	addNewLine?: boolean;
-}
-
-/**
- * A matcher that runs on a sub-section of a terminal command's output
- */
-export interface ITerminalOutputMatcher {
-	/**
-	 * A string or regex to match against the unwrapped line.
-	 */
-	lineMatcher: string | RegExp;
-	/**
-	 * Which side of the output to anchor the {@link offset} and {@link length} against.
-	 */
-	anchor: 'top' | 'bottom';
-	/**
-	 * How far from either the top or the bottom of the butter to start matching against.
-	 */
-	offset: number;
-	/**
-	 * The number of rows to match against, this should be as small as possible for performance
-	 * reasons.
-	 */
-	length: number;
 }
 
 export interface IXtermTerminal {
