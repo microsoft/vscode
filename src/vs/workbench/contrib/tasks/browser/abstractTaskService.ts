@@ -2953,6 +2953,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					// eat the error, it has already been surfaced to the user and we don't care about it here
 				});
 			}
+
 			const chooseAndRunTask = (tasks: Task[]) => {
 				this._showIgnoredFoldersMessage().then(() => {
 					this._showQuickPick(tasks,
@@ -2967,7 +2968,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								return;
 							}
 							if (task === null) {
-								configure.bind(this).apply(this);
+								configure();
 								return;
 							}
 							runSingleTask(task, { attachProblemMatcher: true }, this);
