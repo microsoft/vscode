@@ -13,7 +13,7 @@ import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IConte
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model';
+import { IModelDecoration, PositionAffinity } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
@@ -129,8 +129,8 @@ export class ContentHoverController extends Disposable {
 		}
 
 		// The hover is currently visible
-
-		const isGettingCloser = (mouseEvent && this._widget.isMouseGettingCloser(mouseEvent.event.posx, mouseEvent.event.posy));
+		const hoverIsSticky = this._editor.getOption(EditorOption.hover).sticky;
+		const isGettingCloser = (hoverIsSticky && mouseEvent && this._widget.isMouseGettingCloser(mouseEvent.event.posx, mouseEvent.event.posy));
 		if (isGettingCloser) {
 			// The mouse is getting closer to the hover, so we will keep the hover untouched
 			// But we will kick off a hover update at the new anchor, insisting on keeping the hover visible.
@@ -261,6 +261,9 @@ export class ContentHoverController extends Disposable {
 				disposables.add(participant.renderHoverParts(context, hoverParts));
 			}
 		}
+
+		const isBeforeContent = messages.some(m => m.isBeforeContent);
+
 		if (statusBar.hasContent) {
 			fragment.appendChild(statusBar.hoverElement);
 		}
@@ -283,6 +286,7 @@ export class ContentHoverController extends Disposable {
 				showAtRange,
 				this._editor.getOption(EditorOption.hover).above,
 				this._computer.shouldFocus,
+				isBeforeContent,
 				anchor.initialMousePosX,
 				anchor.initialMousePosY,
 				disposables
@@ -368,6 +372,7 @@ class ContentHoverVisibleData {
 		public readonly showAtRange: Range,
 		public readonly preferAbove: boolean,
 		public readonly stoleFocus: boolean,
+		public readonly isBeforeContent: boolean,
 		public initialMousePosX: number | undefined,
 		public initialMousePosY: number | undefined,
 		public readonly disposables: DisposableStore
@@ -439,6 +444,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			// Prefer rendering above if the suggest widget is visible
 			preferAbove = true;
 		}
+
+		// :before content can align left of the text content
+		const affinity = this._visibleData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined;
+
 		return {
 			position: this._visibleData.showAtPosition,
 			range: this._visibleData.showAtRange,
@@ -447,6 +456,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 					? [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]
 					: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
 			),
+			positionAffinity: affinity
 		};
 	}
 

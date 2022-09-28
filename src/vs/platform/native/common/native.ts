@@ -163,6 +163,11 @@ export interface ICommonNativeHostService {
 	toggleSharedProcessWindow(): Promise<void>;
 	sendInputEvent(event: MouseInputEvent): Promise<void>;
 
+	// Perf Introspection
+	startHeartbeat(session: string): Promise<boolean>;
+	sendHeartbeat(session: string): Promise<boolean>;
+	stopHeartbeat(session: string): Promise<boolean>;
+
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
 	findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride?: number): Promise<number>;

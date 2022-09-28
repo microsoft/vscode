@@ -37,8 +37,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IUserDataProfileService, MANAGE_PROFILES_ACTION_ID, PROFILES_CATEGORY } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -186,6 +185,7 @@ class MenuActivityActionViewItem extends AbstractGlobalActivityActionViewItem {
 		private readonly menuId: MenuId,
 		action: ActivityAction,
 		contextMenuActionsProvider: () => IAction[],
+		icon: boolean,
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		hoverOptions: IActivityHoverOptions,
 		@IThemeService themeService: IThemeService,
@@ -197,7 +197,7 @@ class MenuActivityActionViewItem extends AbstractGlobalActivityActionViewItem {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(action, contextMenuActionsProvider, { draggable: false, colors, icon: true, hasPopup: true, hoverOptions }, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
+		super(action, contextMenuActionsProvider, { draggable: false, colors, icon, hasPopup: true, hoverOptions }, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
 	}
 
 	protected async run(): Promise<void> {
@@ -245,7 +245,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
 	) {
-		super(MenuId.AccountsContext, action, contextMenuActionsProvider, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
+		super(MenuId.AccountsContext, action, contextMenuActionsProvider, true, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
 	}
 
 	protected override async resolveMainMenuActions(accountsMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
@@ -340,7 +340,7 @@ export interface IProfileActivity extends IActivity {
 	readonly icon: boolean;
 }
 
-export class ProfilesActivityActionViewItem extends AbstractGlobalActivityActionViewItem {
+export class ProfilesActivityActionViewItem extends MenuActivityActionViewItem {
 
 	static readonly PROFILES_VISIBILITY_PREFERENCE_KEY = 'workbench.activity.showProfiles';
 
@@ -350,7 +350,6 @@ export class ProfilesActivityActionViewItem extends AbstractGlobalActivityAction
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		hoverOptions: IActivityHoverOptions,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
@@ -361,11 +360,7 @@ export class ProfilesActivityActionViewItem extends AbstractGlobalActivityAction
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(action, contextMenuActionsProvider, { draggable: false, colors, icon: (<IProfileActivity>action.activity).icon, hasPopup: true, hoverOptions }, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
-	}
-
-	protected run(): Promise<void> {
-		return this.commandService.executeCommand(MANAGE_PROFILES_ACTION_ID);
+		super(ManageProfilesSubMenu, action, contextMenuActionsProvider, (<IProfileActivity>action.activity).icon, colors, hoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
 	}
 
 	protected override async resolveContextMenuActions(disposables: DisposableStore): Promise<IAction[]> {
@@ -401,7 +396,7 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
+		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, true, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
 	}
 }
 

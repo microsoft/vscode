@@ -92,7 +92,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IProductService private readonly productService: IProductService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 	) {
 		super();
@@ -104,6 +103,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	async createSyncTask(manifest: IUserDataManifest | null, disableCache?: boolean): Promise<IUserDataSyncTask> {
 		this.checkEnablement();
 
+		this.logService.info('Sync started.');
+		const startTime = new Date().getTime();
 		const executionId = generateUuid();
 		try {
 			const syncHeaders = createSyncHeaders(executionId);
@@ -127,7 +128,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 					throw new Error('Can run a task only once');
 				}
 				cancellablePromise = createCancelablePromise(token => that.sync(manifest, false, executionId, token));
-				return cancellablePromise.finally(() => cancellablePromise = undefined);
+				await cancellablePromise.finally(() => cancellablePromise = undefined);
+				that.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
+				that.updateLastSyncTime();
 			},
 			stop(): Promise<void> {
 				cancellablePromise?.cancel();
@@ -143,9 +146,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			throw new UserDataSyncError('Cannot start manual sync when sync is enabled', UserDataSyncErrorCode.LocalError);
 		}
 
+		this.logService.info('Sync started.');
+		const startTime = new Date().getTime();
 		const executionId = generateUuid();
 		const syncHeaders = createSyncHeaders(executionId);
-
 		let manifest: IUserDataManifest | null;
 		try {
 			manifest = await this.userDataSyncStoreService.manifest(null, syncHeaders);
@@ -166,12 +170,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				return that.sync(manifest, true, executionId, cancellableToken.token);
 			},
 			async apply(): Promise<void> {
-				for (const profileSynchronizer of that.getActiveProfileSynchronizers()) {
-					if (cancellableToken.token.isCancellationRequested) {
-						return;
-					}
-					await profileSynchronizer.apply(executionId, cancellableToken.token);
-				}
+				await that.applyManualSync(manifest, executionId, cancellableToken.token);
+				that.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
+				that.updateLastSyncTime();
 			},
 			stop(): Promise<void> {
 				cancellableToken.cancel();
@@ -185,14 +186,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private async sync(manifest: IUserDataManifest | null, merge: boolean, executionId: string, token: CancellationToken): Promise<void> {
-		// Return if cancellation is requested
-		if (token.isCancellationRequested) {
-			return;
-		}
-		const startTime = new Date().getTime();
 		this._syncErrors = [];
 		try {
-			this.logService.info('Sync started.');
 			if (this.status !== SyncStatus.HasConflicts) {
 				this.setStatus(SyncStatus.Syncing);
 			}
@@ -208,24 +203,53 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				if (token.isCancellationRequested) {
 					return;
 				}
-				for (const syncProfile of syncProfiles) {
-					if (token.isCancellationRequested) {
-						return;
-					}
-					const profile = this.userDataProfilesService.profiles.find(p => p.id === syncProfile.id);
-					if (!profile) {
-						this.logService.error(`Settings Profile with id:${syncProfile.id} and name: ${syncProfile.name} does not exist locally to sync.`);
-						continue;
-					}
-					this.logService.info('Syncing profile.', syncProfile.name);
-					const profileSynchronizer = this.getOrCreateActiveProfileSynchronizer(profile, syncProfile);
-					this._syncErrors.push(...await this.syncProfile(profileSynchronizer, manifest, merge, executionId, token));
-				}
+				await this.syncRemoteProfiles(syncProfiles, manifest, merge, executionId, token);
 			}
-			this.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
-			this.updateLastSyncTime();
 		} finally {
 			this._onSyncErrors.fire(this._syncErrors);
+		}
+	}
+
+	private async syncRemoteProfiles(remoteProfiles: ISyncUserDataProfile[], manifest: IUserDataManifest | null, merge: boolean, executionId: string, token: CancellationToken): Promise<void> {
+		for (const syncProfile of remoteProfiles) {
+			if (token.isCancellationRequested) {
+				return;
+			}
+			const profile = this.userDataProfilesService.profiles.find(p => p.id === syncProfile.id);
+			if (!profile) {
+				this.logService.error(`Settings Profile with id:${syncProfile.id} and name: ${syncProfile.name} does not exist locally to sync.`);
+				continue;
+			}
+			this.logService.info('Syncing profile.', syncProfile.name);
+			const profileSynchronizer = this.getOrCreateActiveProfileSynchronizer(profile, syncProfile);
+			this._syncErrors.push(...await this.syncProfile(profileSynchronizer, manifest, merge, executionId, token));
+		}
+	}
+
+	private async applyManualSync(manifest: IUserDataManifest | null, executionId: string, token: CancellationToken): Promise<void> {
+		const profileSynchronizers = this.getActiveProfileSynchronizers();
+		for (const profileSynchronizer of profileSynchronizers) {
+			if (token.isCancellationRequested) {
+				return;
+			}
+			await profileSynchronizer.apply(executionId, token);
+		}
+
+		const defaultProfileSynchronizer = profileSynchronizers.find(s => s.profile.isDefault);
+		if (!defaultProfileSynchronizer) {
+			return;
+		}
+
+		const userDataProfileManifestSynchronizer = defaultProfileSynchronizer.enabled.find(s => s.resource === SyncResource.Profiles);
+		if (!userDataProfileManifestSynchronizer) {
+			return;
+		}
+
+		// Sync remote profiles which are not synced locally
+		const remoteProfiles = (await (userDataProfileManifestSynchronizer as UserDataProfilesManifestSynchroniser).getRemoteSyncedProfiles(manifest?.latest ?? null)) || [];
+		const remoteProfilesToSync = remoteProfiles.filter(remoteProfile => profileSynchronizers.every(s => s.profile.id !== remoteProfile.id));
+		if (remoteProfilesToSync.length) {
+			await this.syncRemoteProfiles(remoteProfilesToSync, manifest, false, executionId, token);
 		}
 	}
 
@@ -396,7 +420,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				return isUndefined(result) ? null : result;
 			}
 
-			if (this.environmentService.isBuilt && !(this.productService.enableSyncingProfiles && this.configurationService.getValue('settingsSync.enableSyncingProfiles'))) {
+			if (this.environmentService.isBuilt && !this.productService.enableSyncingProfiles) {
 				return null;
 			}
 
@@ -568,7 +592,7 @@ class ProfileSynchronizer extends Disposable {
 			if (!this._profile.isDefault) {
 				return;
 			}
-			if (this.environmentService.isBuilt && !(this.productService.enableSyncingProfiles && this.configurationService.getValue('settingsSync.enableSyncingProfiles'))) {
+			if (this.environmentService.isBuilt && !this.productService.enableSyncingProfiles) {
 				this.logService.debug('Skipping profiles sync');
 				return;
 			}

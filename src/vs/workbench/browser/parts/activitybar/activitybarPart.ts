@@ -1064,7 +1064,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private get profilesVisibilityPreference(): boolean {
-		return this.userDataProfilesService.profiles.length > 1 && !this.userDataProfileService.currentProfile.isDefault && this.storageService.getBoolean(ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, true);
+		return this.storageService.getBoolean(ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, this.userDataProfilesService.profiles.length > 1);
 	}
 
 	private set profilesVisibilityPreference(value: boolean) {

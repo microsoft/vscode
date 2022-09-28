@@ -131,4 +131,4 @@ export class WorkbenchAssignmentService extends BaseAssignmentService {
 	}
 }
 
-registerSingleton(IWorkbenchAssignmentService, WorkbenchAssignmentService, false);
+registerSingleton(IWorkbenchAssignmentService, WorkbenchAssignmentService, true);

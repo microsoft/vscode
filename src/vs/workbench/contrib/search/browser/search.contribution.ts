@@ -23,7 +23,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IListService, WorkbenchListFocusContextKey, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { IListService, WorkbenchListFocusContextKey, WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { Extensions as QuickAccessExtensions, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -104,7 +104,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor) => {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
+			const tree: WorkbenchCompressibleObjectTree<RenderableMatch> = searchView.getControl();
 			const viewer = searchView.getControl();
 			const focus = tree.getFocus()[0];
 
@@ -128,7 +128,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
+			const tree: WorkbenchCompressibleObjectTree<RenderableMatch> = searchView.getControl();
 			searchView.open(<FileMatchOrMatch>tree.getFocus()[0], false, true, true);
 		}
 	}
@@ -145,7 +145,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
+			const tree: WorkbenchCompressibleObjectTree<RenderableMatch> = searchView.getControl();
 			accessor.get(IInstantiationService).createInstance(RemoveAction, tree, tree.getFocus()[0]!).run();
 		}
 	}
@@ -159,7 +159,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
+			const tree: WorkbenchCompressibleObjectTree<RenderableMatch> = searchView.getControl();
 			accessor.get(IInstantiationService).createInstance(ReplaceAction, tree, tree.getFocus()[0] as Match, searchView).run();
 		}
 	}
@@ -174,7 +174,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
+			const tree: WorkbenchCompressibleObjectTree<RenderableMatch> = searchView.getControl();
 			accessor.get(IInstantiationService).createInstance(ReplaceAllAction, searchView, tree.getFocus()[0] as FileMatch).run();
 		}
 	}
@@ -189,7 +189,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
+			const tree: WorkbenchCompressibleObjectTree<RenderableMatch> = searchView.getControl();
 			accessor.get(IInstantiationService).createInstance(ReplaceAllInFolderAction, tree, tree.getFocus()[0] as FolderMatch).run();
 		}
 	}
@@ -852,7 +852,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			const tree: WorkbenchObjectTree<RenderableMatch> = searchView.getControl();
+			const tree: WorkbenchCompressibleObjectTree<RenderableMatch> = searchView.getControl();
 			searchView.openEditorWithMultiCursor(<FileMatchOrMatch>tree.getFocus()[0]);
 		}
 	}
