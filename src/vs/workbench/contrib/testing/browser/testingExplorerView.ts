@@ -783,6 +783,8 @@ export class TestingExplorerViewModel extends Disposable {
 		this.reevaluateWelcomeState();
 		this.projection.value?.applyTo(this.tree);
 
+		this.tree.refilter();
+
 		if (this.hasPendingReveal) {
 			this.revealById(this.filterState.reveal.value);
 		}
