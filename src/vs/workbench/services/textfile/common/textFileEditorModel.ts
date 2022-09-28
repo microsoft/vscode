@@ -1133,28 +1133,29 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return !!(globs && Object.keys(globs).find(glob => globs[glob] && matchGlobPattern(glob, path)));
 	}
 
-	private isReadonlyByBlob(): boolean {
+	// stable/semantic 'readonly'; typically based on filetype or directory.
+	private isReadonlyByGlob(): boolean {
 		const readonlyInclude = this.configurationService.getValue<{ [glob: string]: boolean }>('files.readonlyInclude');
 		const readonlyExclude = this.configurationService.getValue<{ [glob: string]: boolean }>('files.readonlyExclude');
 		return this.anyGlobMatches(readonlyInclude, this.resource.path)
 			&& !this.anyGlobMatches(readonlyExclude, this.resource.path);
 	}
 
-	private isReadonlyByPath(): boolean | undefined {
-		const settingName = 'files.readonlyPath';
+	private isReadonlyByPath(): boolean {
+		const settingName = 'files.readonlyPath';  // temporary override readonly for this file.
 		const readonlyPath = this.configurationService.getValue<{ [path: string]: boolean | null } | undefined>(settingName);
 		for (const key in readonlyPath) {
 			if (key === this.resource.fsPath) {
-				this.tmpReadonly = readonlyPath[key];
+				this.tmpReadonly = readonlyPath[key];  // can be set to null to disable
 			}
 		}
-		return this.tmpReadonly === null ? this.isReadonlyByBlob() : this.tmpReadonly;
+		return this.tmpReadonly === null ? this.isReadonlyByGlob() : this.tmpReadonly;
 	}
 
-	// tri-state: true | false overrides isReadonlyByBlob; null does not.
-	private tmpReadonly: boolean | null = null; // support one-shot set/clear isReadonly overide
+	// tri-state: true | false overrides isReadonlyByGlob; null does not.
+	private tmpReadonly: boolean | null = null;
 
-	private oldReadonly = false; // fileEditorInput.test.ts counts changes from 'false' not 'undefined'
+	private oldReadonly = false;
 
 	private checkDidChangeReadonly(newReadonly: boolean): boolean {
 		if (this.oldReadonly !== newReadonly) {

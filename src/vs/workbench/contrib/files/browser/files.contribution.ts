@@ -265,8 +265,11 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.readonlyPath': {
 			'type': 'object',
+			'patternProperties': {
+				'.*': { 'type': ['boolean', 'null'] }
+			},
 			'default': undefined,
-			'description': nls.localize('readonlyPath', "Object with { [path: string]: true|false|null }"),
+			'description': nls.localize('readonlyPath', "Override read-only for a specific path.\nThe value is persisted as an attribute of the EditorModel when settings.json is updated; Set to 'null' to remove the setting."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.watcherExclude': {
