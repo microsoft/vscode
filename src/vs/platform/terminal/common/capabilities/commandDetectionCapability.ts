@@ -657,9 +657,7 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 	if (startLine === endLine) {
 		return undefined;
 	}
-	if (outputMatcher?.length && (endLine - startLine) < outputMatcher.length) {
-		return undefined;
-	}
+
 	let line: string | undefined;
 	if (outputMatcher?.anchor === 'bottom') {
 		for (let i = endLine - (outputMatcher.offset || 0); i >= startLine; i--) {
