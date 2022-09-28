@@ -164,11 +164,13 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const that = this;
 		return registerAction2(class UpdateCurrentProfileShortName extends Action2 {
 			constructor() {
+				const shortName = that.userDataProfileService.getShortName(that.userDataProfileService.currentProfile);
+				const themeIcon = ThemeIcon.fromString(shortName);
 				super({
 					id: `workbench.profiles.actions.updateCurrentProfileShortName`,
 					title: {
-						value: localize('change short name profile', "Change Short Name ({0})...", that.userDataProfileService.getShortName(that.userDataProfileService.currentProfile)),
-						original: `Change Short Name (${that.userDataProfileService.currentProfile.shortName})...`
+						value: localize('change short name profile', "Change Short Name ({0})...", themeIcon?.id ?? shortName),
+						original: `Change Short Name (${themeIcon?.id ?? shortName})...`
 					},
 					menu: [
 						{
