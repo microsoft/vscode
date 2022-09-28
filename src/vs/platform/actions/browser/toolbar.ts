@@ -151,8 +151,14 @@ export class WorkbenchToolBar extends ToolBar {
 
 				// add "hide foo" actions
 				let hideAction: IAction;
-				if ((action instanceof MenuItemAction || action instanceof SubmenuItemAction) && action.hideActions) {
+				if (action instanceof MenuItemAction || action instanceof SubmenuItemAction) {
+					if (!action.hideActions) {
+						// no context menu for MenuItemAction instances that support no hiding
+						// those are fake actions and need to be cleaned up
+						return;
+					}
 					hideAction = action.hideActions.hide;
+
 				} else {
 					hideAction = toAction({
 						id: 'label',
