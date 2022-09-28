@@ -14,9 +14,10 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { ITerminalQuickFixAction, ITerminalInstance, ITerminalOutputMatcher } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalQuickFixAction, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, gitSimilarCommand, GitSimilarOutputRegex } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { TerminalQuickFixAddon, getQuickFixes } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
+import { ITerminalOutputMatcher } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Terminal } from 'xterm';
 
 suite('QuickFixAddon', () => {
