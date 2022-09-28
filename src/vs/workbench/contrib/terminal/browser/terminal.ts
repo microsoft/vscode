@@ -920,14 +920,12 @@ export interface ITerminalInstance {
 }
 
 export interface ITerminalQuickFixOptions {
-	quickFixLabel: string | DynamicQuickFixLabel;
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
 	getQuickFixes: QuickFixCallback;
 	exitStatus?: boolean;
 }
 export type QuickFixMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
-export type DynamicQuickFixLabel = (matchResult: QuickFixMatchResult) => string;
 export type QuickFixCallback = (matchResult: QuickFixMatchResult, command: ITerminalCommand) => ITerminalQuickFixAction[] | undefined;
 
 export interface ITerminalQuickFixAction extends IAction {
