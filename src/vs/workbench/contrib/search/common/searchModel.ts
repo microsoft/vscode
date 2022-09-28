@@ -607,23 +607,9 @@ export class FolderMatch extends Disposable {
 		return [...this.fileMatchesIterator(), ...this.folderMatchesIterator()];
 	}
 
-	// /**
-	//  * for testing only; try to use fileMatchesIterator for performance reasons
-	//  */
-	// fileMatchesArray(): FileMatch[] {
-	// 	return [...this.fileMatchesIterator()];
-	// }
-
 	fileMatchesIterator(): IterableIterator<FileMatch> {
 		return this._fileMatches.values();
 	}
-
-	// /**
-	//  * for testing only; try to use folderMatchesIterator for performance reasons
-	//  */
-	// folderMatchesArray(): FolderMatchWithResource[] {
-	// 	return [...this.folderMatchesIterator()];
-	// }
 
 	folderMatchesIterator(): IterableIterator<FolderMatchWithResource> {
 		return this._folderMatches.values();

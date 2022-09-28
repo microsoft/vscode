@@ -438,14 +438,6 @@ suite('SearchResult', () => {
 		});
 	});
 
-	function getFolderMatchAtIndex(parent: FolderMatch, index: number) {
-		return Array.from(parent.folderMatchesIterator())[index];
-	}
-
-	function getFileMatchAtIndex(parent: FolderMatch, index: number) {
-		return Array.from(parent.fileMatchesIterator())[index];
-	}
-
 	test('Removing an intermediate folder should call OnChange() on all downstream file matches', function () {
 		const target = sinon.spy();
 		const testObject = getPopulatedSearchResultForTreeTesting();
@@ -607,5 +599,13 @@ suite('SearchResult', () => {
 				new TextSearchMatch('preview 6', lineOneRange), new TextSearchMatch('preview 7', lineOneRange))
 		]);
 		return testObject;
+	}
+
+	function getFolderMatchAtIndex(parent: FolderMatch, index: number) {
+		return Array.from(parent.folderMatchesIterator())[index];
+	}
+
+	function getFileMatchAtIndex(parent: FolderMatch, index: number) {
+		return Array.from(parent.fileMatchesIterator())[index];
 	}
 });
