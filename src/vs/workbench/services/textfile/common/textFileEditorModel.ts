@@ -1129,11 +1129,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return !!this.textEditorModel;
 	}
 
+	private anyGlobMatches(globs: { [glob: string]: boolean }, path: string): boolean {
+		return !!(globs && Object.keys(globs).find(glob => globs[glob] && matchGlobPattern(glob, path)));
+	}
+
 	private isReadonlyFromConfig(): boolean {
 		const readonlyInclude = this.configurationService.getValue<{ [glob: string]: boolean }>('files.readonlyInclude');
 		const readonlyExclude = this.configurationService.getValue<{ [glob: string]: boolean }>('files.readonlyExclude');
-		return !!(readonlyInclude && Object.keys(readonlyInclude).find(glob => readonlyInclude[glob] && matchGlobPattern(glob, this.resource.fsPath))
-			&& !(readonlyExclude && Object.keys(readonlyExclude).find(glob => readonlyExclude[glob] && matchGlobPattern(glob, this.resource.fsPath))));
+		return !!this.anyGlobMatches(readonlyInclude, this.resource.path)
+			&& !this.anyGlobMatches(readonlyExclude, this.resource.path);
 	}
 
 	private oldReadonly = false; // fileEditorInput.test.ts counts changes from 'false' not 'undefined'
