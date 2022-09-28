@@ -1,13 +1,9 @@
 # cleanup rules for node modules, .gitignore style
 
+# native node modules
+
 nan/**
-**/node_modules/nan/**
-node-gyp/**
-**/node_modules/node-gyp/**
-node-gyp-build/**
-**/node_modules/node-gyp-build/**
-node-addon-api/**
-**/node_modules/node-addon-api/**
+*/node_modules/nan/**
 
 fsevents/binding.gyp
 fsevents/fsevents.cc
