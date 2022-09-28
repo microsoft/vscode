@@ -356,7 +356,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		});
 
 		try {
-			await Promises.settled(joiners);
+			await Promise.allSettled(joiners);
 		} catch (error) {
 			this.logService.error(error);
 		}
