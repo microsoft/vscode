@@ -409,6 +409,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			_isFakeAction: true,
 			id: `workbench.actions.treeView.${Markers.MARKERS_VIEW_ID}.filter`,
 			title: localize('filter', "Filter"),
 			menu: {

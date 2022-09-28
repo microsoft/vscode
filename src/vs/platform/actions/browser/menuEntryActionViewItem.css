@@ -11,27 +11,29 @@
 	background-size: 16px;
 }
 
-
 @keyframes shift {
 	0% {
-		transform: scale(1);
+		transform: translateX(0px);
 	}
 
-	15%{
-		transform: scale(1.1);
+	33%{
+		transform: translateX(0.5px);
 	}
 
-	100% {
-		transform: scale(1);
+	66% {
+		transform: translateX(-0.5px);
 	}
 }
 
 .monaco-toolbar.config .monaco-action-bar .action-item {
 	animation-duration: 1.2s;
-	animation-iteration-count: 1;
+	animation-iteration-count: infinite;
 	animation-name: shift;
 }
 
+.monaco-toolbar.config .monaco-action-bar .action-item:nth-child(odd) {
+	animation-delay: 0.6s;
+}
 
 .monaco-dropdown-with-default {
 	display: flex !important;
