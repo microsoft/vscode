@@ -54,7 +54,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 			lineMatcher: FreePortOutputRegex,
 			anchor: 'bottom',
 			offset: 0,
-			length: 20
+			length: 30
 		},
 		exitStatus: false,
 		getQuickFixes: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
