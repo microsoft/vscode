@@ -33,11 +33,12 @@ function getDiagnosticsOptions(config: ConfigurationManager): md.DiagnosticOptio
 		return defaultDiagnosticOptions;
 	}
 
+	const validateFragmentLinks = convertDiagnosticLevel(settings.markdown.validate.fragmentLinks.enabled);
 	return {
 		validateFileLinks: convertDiagnosticLevel(settings.markdown.validate.fileLinks.enabled),
 		validateReferences: convertDiagnosticLevel(settings.markdown.validate.referenceLinks.enabled),
-		validateFragmentLinks: convertDiagnosticLevel(settings.markdown.validate.fragmentLinks.enabled),
-		validateMarkdownFileLinkFragments: convertDiagnosticLevel(settings.markdown.validate.fileLinks.markdownFragmentLinks),
+		validateFragmentLinks,
+		validateMarkdownFileLinkFragments: settings.markdown.validate.fileLinks.markdownFragmentLinks === 'inherit' ? validateFragmentLinks : convertDiagnosticLevel(settings.markdown.validate.fileLinks.markdownFragmentLinks),
 		ignoreLinks: settings.markdown.validate.ignoredLinks,
 	};
 }
