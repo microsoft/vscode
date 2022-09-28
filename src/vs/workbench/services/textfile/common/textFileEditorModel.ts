@@ -1133,7 +1133,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return !!(globs && Object.keys(globs).find(glob => globs[glob] && matchGlobPattern(glob, path)));
 	}
 
-	private isReadonlyByPath(): boolean {
+	private isReadonlyByBlob(): boolean {
 		const readonlyInclude = this.configurationService.getValue<{ [glob: string]: boolean }>('files.readonlyInclude');
 		const readonlyExclude = this.configurationService.getValue<{ [glob: string]: boolean }>('files.readonlyExclude');
 		return !!this.anyGlobMatches(readonlyInclude, this.resource.path)
@@ -1148,10 +1148,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this.tmpReadonly = readonlyPath[key];
 			}
 		}
-		return this.tmpReadonly === null ? this.isReadonlyFromConfig() : this.tmpReadonly;
+		return this.tmpReadonly === null ? this.isReadonlyByBlob() : this.tmpReadonly;
 	}
 
-	// tri-state: true | false overrides isReadonlyFromConfig; null does not.
+	// tri-state: true | false overrides isReadonlyByBlob; null does not.
 	private tmpReadonly: boolean | null = null; // support one-shot set/clear isReadonly overide
 
 	private oldReadonly = false; // fileEditorInput.test.ts counts changes from 'false' not 'undefined'
