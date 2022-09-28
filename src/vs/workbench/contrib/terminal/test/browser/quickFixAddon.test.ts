@@ -90,7 +90,8 @@ suite('QuickFixAddon', () => {
 				const portCommand = `yarn start dev`;
 				const output = `yarn run v1.22.17
 			warning ../../package.json: No license field
-			Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+			Error: listen EADDRINUSE: address already
+			in use 0.0.0.0:3000
 				at Server.setupListenHandle [as _listen2] (node:net:1315:16)
 				at listenInCluster (node:net:1363:12)
 				at doListen (node:net:1501:7)
@@ -131,7 +132,8 @@ suite('QuickFixAddon', () => {
 			const output = `fatal: The current branch test22 has no upstream branch.
 			To push the current branch and set the remote as upstream, use
 
-				git push --set-upstream origin test22`;
+				git push --set-upstream
+				origin test22`;
 			const exitCode = 128;
 			const actions = [
 				{
@@ -170,7 +172,8 @@ suite('QuickFixAddon', () => {
 			const output = `Total 0 (delta 0), reused 0 (delta 0), pack-reused 0
 			remote:
 			remote: Create a pull request for 'test22' on GitHub by visiting:
-			remote:      https://github.com/meganrogge/xterm.js/pull/new/test22
+			remote:      https://github.com/meganrogg
+			e/xterm.js/pull/new/test22
 			remote:
 			To https://github.com/meganrogge/xterm.js
 			 * [new branch]        test22 -> test22
