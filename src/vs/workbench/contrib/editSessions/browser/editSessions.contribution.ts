@@ -419,7 +419,6 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 						localize('resume edit session warning 1', 'Resuming your edit session will overwrite {0}. Do you want to proceed?', basename(conflictingChanges[0].uri)),
 					[cancel, yes],
 					{
-						custom: true,
 						detail: conflictingChanges.length > 1 ? getFileNamesMessage(conflictingChanges.map((c) => c.uri)) : undefined,
 						cancelId: 0
 					});
