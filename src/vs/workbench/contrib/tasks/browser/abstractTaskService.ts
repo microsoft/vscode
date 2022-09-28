@@ -2967,7 +2967,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								return;
 							}
 							if (task === null) {
-								configure.bind(this).apply(this);
+								configure.apply(this);
 								return;
 							}
 							runSingleTask(task, { attachProblemMatcher: true }, this);
