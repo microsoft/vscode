@@ -2,9 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+import * as dom from 'vs/base/browser/dom';
+import { Delayer } from 'vs/base/common/async';
+import { fromNow } from 'vs/base/common/date';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 const enum DecorationStyles {
 	DefaultDimension = 16,
@@ -41,3 +48,34 @@ export function updateLayout(configurationService: IConfigurationService, elemen
 	}
 }
 
+export function createHover(hoverService: IHoverService, element: HTMLElement, command: ITerminalCommand, hoverDelayer: Delayer<void>, hideHover: (hoverDelayer?: Delayer<void>, hoverService?: IHoverService) => void, contextMenuVisible: boolean, markHoverMessage?: string): IDisposable[] {
+	return [
+		dom.addDisposableListener(element, dom.EventType.MOUSE_ENTER, () => {
+			if (contextMenuVisible) {
+				return;
+			}
+			hoverDelayer.trigger(() => {
+				let hoverContent = `${localize('terminalPromptContextMenu', "Show Command Actions")}`;
+				hoverContent += '\n\n---\n\n';
+				if (command.markProperties || markHoverMessage) {
+					if (command.markProperties?.hoverMessage || markHoverMessage) {
+						hoverContent = command.markProperties?.hoverMessage || markHoverMessage || '';
+					} else {
+						return;
+					}
+				} else if (command.exitCode) {
+					if (command.exitCode === -1) {
+						hoverContent += localize('terminalPromptCommandFailed', 'Command executed {0} and failed', fromNow(command.timestamp, true));
+					} else {
+						hoverContent += localize('terminalPromptCommandFailedWithExitCode', 'Command executed {0} and failed (Exit Code {1})', fromNow(command.timestamp, true), command.exitCode);
+					}
+				} else {
+					hoverContent += localize('terminalPromptCommandSuccess', 'Command executed {0}', fromNow(command.timestamp, true));
+				}
+				hoverService.showHover({ content: new MarkdownString(hoverContent), target: element });
+			});
+		}),
+		dom.addDisposableListener(element, dom.EventType.MOUSE_LEAVE, () => hideHover(hoverDelayer, hoverService)),
+		dom.addDisposableListener(element, dom.EventType.MOUSE_OUT, () => hideHover(hoverDelayer, hoverService))
+	];
+}

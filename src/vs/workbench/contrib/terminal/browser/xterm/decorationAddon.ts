@@ -14,11 +14,9 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IAction, Separator } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 import { localize } from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { fromNow } from 'vs/base/common/date';
 import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -28,7 +26,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationMark, terminalDecorationSuccess } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
-import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
+import { createHover, DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; markProperties?: IMarkProperties }
 
@@ -49,7 +47,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		private readonly _capabilities: ITerminalCapabilityStore,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IHoverService private readonly _hoverService: IHoverService,
+		@IHoverService private _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -309,9 +307,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (command?.exitCode === undefined && !command?.markProperties) {
 			return [];
 		} else if (command?.markProperties || markProperties) {
-			return [...this._createHover(element, command || markProperties?.hoverMessage)];
+			return [...createHover(this._hoverService, element, command, this._hoverDelayer, this._hideHover, this._contextMenuVisible, markProperties?.hoverMessage)];
 		}
-		return [this._createContextMenu(element, command), ...this._createHover(element, command)];
+		return [this._createContextMenu(element, command), ...createHover(this._hoverService, element, command, this._hoverDelayer, this._hideHover, this._contextMenuVisible)];
 	}
 
 	private _updateClasses(element?: HTMLElement, exitCode?: number, markProperties?: IMarkProperties): void {
@@ -354,39 +352,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		});
 	}
 
-	private _createHover(element: HTMLElement, command: ITerminalCommand, markProperties?: IMarkProperties): IDisposable[] {
-		return [
-			dom.addDisposableListener(element, dom.EventType.MOUSE_ENTER, () => {
-				if (this._contextMenuVisible) {
-					return;
-				}
-				this._hoverDelayer.trigger(() => {
-					let hoverContent = `${localize('terminalPromptContextMenu', "Show Command Actions")}`;
-					hoverContent += '\n\n---\n\n';
-					if (command.markProperties || markProperties) {
-						if (command.markProperties?.hoverMessage || markProperties?.hoverMessage) {
-							hoverContent = command.markProperties?.hoverMessage || markProperties?.hoverMessage || '';
-						} else {
-							return;
-						}
-					} else if (command.exitCode) {
-						if (command.exitCode === -1) {
-							hoverContent += localize('terminalPromptCommandFailed', 'Command executed {0} and failed', fromNow(command.timestamp, true));
-						} else {
-							hoverContent += localize('terminalPromptCommandFailedWithExitCode', 'Command executed {0} and failed (Exit Code {1})', fromNow(command.timestamp, true), command.exitCode);
-						}
-					} else {
-						hoverContent += localize('terminalPromptCommandSuccess', 'Command executed {0}', fromNow(command.timestamp, true));
-					}
-					this._hoverService.showHover({ content: new MarkdownString(hoverContent), target: element });
-				});
-			}),
-			dom.addDisposableListener(element, dom.EventType.MOUSE_LEAVE, () => this._hideHover()),
-			dom.addDisposableListener(element, dom.EventType.MOUSE_OUT, () => this._hideHover())
-		];
-	}
-
-	private _hideHover() {
+	private _hideHover(hoverDelayer?: Delayer<void>, hoverService?: IHoverService) {
+		if (hoverDelayer && hoverService) {
+			hoverDelayer.cancel();
+			hoverService.hideHover();
+			return;
+		}
 		this._hoverDelayer.cancel();
 		this._hoverService.hideHover();
 	}
