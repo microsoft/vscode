@@ -26,7 +26,7 @@ interface Settings {
 			};
 			readonly fileLinks: {
 				readonly enabled: ValidateEnabled;
-				readonly markdownFragmentLinks: ValidateEnabled;
+				readonly markdownFragmentLinks: ValidateEnabled | 'inherit';
 			};
 			readonly ignoredLinks: readonly string[];
 		};
