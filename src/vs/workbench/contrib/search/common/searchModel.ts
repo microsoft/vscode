@@ -607,19 +607,23 @@ export class FolderMatch extends Disposable {
 		return [...this.fileMatchesIterator(), ...this.folderMatchesIterator()];
 	}
 
-	fileMatchesArray(): FileMatch[] {
-		// for testing only; try to use fileMatchesIterator for performance reasons
-		return [...this.fileMatchesIterator()];
-	}
+	// /**
+	//  * for testing only; try to use fileMatchesIterator for performance reasons
+	//  */
+	// fileMatchesArray(): FileMatch[] {
+	// 	return [...this.fileMatchesIterator()];
+	// }
 
 	fileMatchesIterator(): IterableIterator<FileMatch> {
 		return this._fileMatches.values();
 	}
 
-	folderMatchesArray(): FolderMatchWithResource[] {
-		// for testing only; try to use folderMatchesIterator for performance reasons
-		return [...this.folderMatchesIterator()];
-	}
+	// /**
+	//  * for testing only; try to use folderMatchesIterator for performance reasons
+	//  */
+	// folderMatchesArray(): FolderMatchWithResource[] {
+	// 	return [...this.folderMatchesIterator()];
+	// }
 
 	folderMatchesIterator(): IterableIterator<FolderMatchWithResource> {
 		return this._folderMatches.values();
@@ -735,10 +739,6 @@ export class FolderMatch extends Disposable {
 		return folderMatch;
 	}
 
-	public getFileMatch(resource: URI): FileMatch | undefined {
-		return this._fileMatches.get(resource);
-	}
-
 	doAddFolder(folderMatch: FolderMatchWithResource) {
 		if (this instanceof FolderMatchWithResource && !this.uriHasParent(this.resource, folderMatch.resource)) {
 			throw Error(`${folderMatch.resource} does not belong as a child of ${this.resource}`);
@@ -792,7 +792,7 @@ export class FolderMatch extends Disposable {
 
 		const removed = [];
 		for (const match of fileMatches as FileMatch[]) {
-			if (this.getFileMatch(match.resource)) {
+			if (this._fileMatches.get(match.resource)) {
 				this._fileMatches.delete(match.resource);
 				if (dispose) {
 					match.dispose();
