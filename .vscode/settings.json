@@ -65,6 +65,7 @@
 	"git.ignoreLimitWarning": true,
 	"git.branchProtection": [
 		"main",
+		"distro",
 		"release/*"
 	],
 	"git.branchProtectionPrompt": "alwaysCommitToNewBranch",

@@ -66,7 +66,10 @@ suite('Edit session sync', () => {
 			override onWillShutdown = Event.None;
 		});
 		instantiationService.stub(INotificationService, new TestNotificationService());
-		instantiationService.stub(IEditSessionsStorageService, new class extends mock<IEditSessionsStorageService>() { });
+		instantiationService.stub(IEditSessionsStorageService, new class extends mock<IEditSessionsStorageService>() {
+			override onDidSignIn = Event.None;
+			override onDidSignOut = Event.None;
+		});
 		instantiationService.stub(IProgressService, ProgressService);
 		instantiationService.stub(ISCMService, SCMService);
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);

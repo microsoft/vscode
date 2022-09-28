@@ -90,6 +90,7 @@ export interface NativeParsedArgs {
 	'logsPath'?: string;
 	'__enable-file-policy'?: boolean;
 	editSessionId?: string;
+	continueOn?: string;
 	'locate-shell-integration-path'?: string;
 	'profile'?: string;
 	'profile-temp'?: boolean;

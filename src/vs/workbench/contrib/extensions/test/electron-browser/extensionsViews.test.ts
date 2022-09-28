@@ -47,6 +47,7 @@ import { Schemas } from 'vs/base/common/network';
 import { platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 suite('ExtensionsViews Tests', () => {
 
@@ -58,12 +59,14 @@ suite('ExtensionsViews Tests', () => {
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 
 	const localEnabledTheme = aLocalExtension('first-enabled-extension', { categories: ['Themes', 'random'] }, { installedTimestamp: 123456 });
-	const localEnabledLanguage = aLocalExtension('second-enabled-extension', { categories: ['Programming languages'] }, { installedTimestamp: Date.now() });
+	const localEnabledLanguage = aLocalExtension('second-enabled-extension', { categories: ['Programming languages'], version: '1.0.0' }, { installedTimestamp: Date.now(), updated: false });
 	const localDisabledTheme = aLocalExtension('first-disabled-extension', { categories: ['themes'] }, { installedTimestamp: 234567 });
-	const localDisabledLanguage = aLocalExtension('second-disabled-extension', { categories: ['programming languages'] }, { installedTimestamp: Date.now() - 50000 });
+	const localDisabledLanguage = aLocalExtension('second-disabled-extension', { categories: ['programming languages'] }, { installedTimestamp: Date.now() - 50000, updated: true });
 	const localRandom = aLocalExtension('random-enabled-extension', { categories: ['random'] }, { installedTimestamp: 345678 });
 	const builtInTheme = aLocalExtension('my-theme', { contributes: { themes: ['my-theme'] } }, { type: ExtensionType.System, installedTimestamp: 222 });
 	const builtInBasic = aLocalExtension('my-lang', { contributes: { grammars: [{ language: 'my-language' }] } }, { type: ExtensionType.System, installedTimestamp: 666666 });
+
+	const galleryEnabledLanguage = aGalleryExtension(localEnabledLanguage.manifest.name, { ...localEnabledLanguage.manifest, version: '1.0.1', identifier: localDisabledLanguage.identifier });
 
 	const workspaceRecommendationA = aGalleryExtension('workspace-recommendation-A');
 	const workspaceRecommendationB = aGalleryExtension('workspace-recommendation-B');
@@ -100,7 +103,8 @@ suite('ExtensionsViews Tests', () => {
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {} }; },
-			async getTargetPlatform() { return getTargetPlatform(platform, arch); }
+			async getTargetPlatform() { return getTargetPlatform(platform, arch); },
+			async updateMetadata(local) { return local; }
 		});
 		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
@@ -165,8 +169,9 @@ suite('ExtensionsViews Tests', () => {
 	setup(async () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localEnabledTheme, localEnabledLanguage, localRandom, localDisabledTheme, localDisabledLanguage, builtInTheme, builtInBasic]);
 		instantiationService.stubPromise(IExtensionManagementService, 'getExtensgetExtensionsControlManifestionsReport', {});
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
-		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', []);
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(galleryEnabledLanguage));
+		instantiationService.stubPromise(IExtensionGalleryService, 'getCompatibleExtension', galleryEnabledLanguage);
+		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [galleryEnabledLanguage]);
 		instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', []);
 
 		instantiationService.stub(IViewDescriptorService, {
@@ -185,6 +190,7 @@ suite('ExtensionsViews Tests', () => {
 				toExtensionDescription(builtInTheme),
 				toExtensionDescription(builtInBasic)
 			],
+			canAddExtension: (extension) => true,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledTheme], EnablementState.DisabledGlobally);
@@ -240,6 +246,29 @@ suite('ExtensionsViews Tests', () => {
 			const options: IQueryOptions = target.args[0][0];
 			assert.strictEqual(options.sortBy, SortBy.WeightedRating);
 		});
+	});
+
+	test('Test default view actions required sorting', async () => {
+		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
+		const extension = (await workbenchService.queryLocal()).find(ex => ex.identifier === localEnabledLanguage.identifier);
+
+		await new Promise<void>(c => {
+			const disposable = workbenchService.onChange(() => {
+				if (extension?.outdated) {
+					disposable.dispose();
+					c();
+				}
+			});
+			instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None);
+		});
+
+		const result = await testableView.show('@installed');
+		assert.strictEqual(result.length, 5, 'Unexpected number of results for @installed query');
+		const actual = [result.get(0).name, result.get(1).name, result.get(2).name, result.get(3).name, result.get(4).name];
+		const expected = [localEnabledLanguage.manifest.name, localEnabledTheme.manifest.name, localRandom.manifest.name, localDisabledTheme.manifest.name, localDisabledLanguage.manifest.name];
+		for (let i = 0; i < result.length; i++) {
+			assert.strictEqual(actual[i], expected[i], 'Unexpected extension for @installed query with outadted extension.');
+		}
 	});
 
 	test('Test installed query results', async () => {
@@ -352,12 +381,8 @@ suite('ExtensionsViews Tests', () => {
 
 	test('Test local query with sorting order', async () => {
 		await testableView.show('@recentlyUpdated').then(result => {
-			assert.strictEqual(result.length, 2, 'Unexpected number of results for @recentlyUpdated');
-			const actual = [result.get(0).name, result.get(1).name];
-			const expected = [localEnabledLanguage.manifest.name, localDisabledLanguage.manifest.name];
-			for (let i = 0; i < actual.length; i++) {
-				assert.strictEqual(actual[i], expected[i], 'Unexpected default sort order of extensions for @recentlyUpdate query');
-			}
+			assert.strictEqual(result.length, 1, 'Unexpected number of results for @recentlyUpdated');
+			assert.strictEqual(result.get(0).name, localDisabledLanguage.manifest.name, 'Unexpected default sort order of extensions for @recentlyUpdate query');
 		});
 
 		await testableView.show('@installed @sort:updateDate').then(result => {

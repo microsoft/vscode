@@ -471,7 +471,7 @@ suite('SearchResult', () => {
 			resource: URI.file('/' + path),
 			results: lineMatches
 		};
-		return instantiationService.createInstance(FileMatch, null, null, null, searchResult, rawMatch);
+		return instantiationService.createInstance(FileMatch, null, null, null, searchResult, rawMatch, searchResult);
 	}
 
 	function aSearchResult(): SearchResult {

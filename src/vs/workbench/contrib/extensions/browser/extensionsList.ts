@@ -13,7 +13,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { UpdateAction, ManageExtensionAction, ReloadAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction, WebInstallAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { ManageExtensionAction, ReloadAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction, WebInstallAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction, SkipUpdateAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionActivationStatusWidget, PreReleaseBookmarkWidget, extensionVerifiedPublisherIconColor } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
@@ -120,7 +120,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
 			this.instantiationService.createInstance(MigrateDeprecatedExtensionAction, true),
 			reloadAction,
-			this.instantiationService.createInstance(UpdateAction),
+			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.updateActions', '',
+				[[this.instantiationService.createInstance(UpdateAction)], [this.instantiationService.createInstance(SkipUpdateAction)]]),
 			this.instantiationService.createInstance(InstallDropdownAction),
 			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(SetLanguageAction),

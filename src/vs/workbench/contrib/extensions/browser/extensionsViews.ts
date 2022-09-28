@@ -512,16 +512,18 @@ export class ExtensionsListView extends ViewPane {
 
 		value = value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
-		let result = local
-			.filter(e => !e.isBuiltin
-				&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
-				&& (!categories.length || categories.some(category => (e.local && e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
+		const matchingText = (e: IExtension) => (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
+			&& (!categories.length || categories.some(category => (e.local && e.local.manifest.categories || []).some(c => c.toLowerCase() === category)));
+		let result;
 
 		if (options.sortBy !== undefined) {
+			result = local.filter(e => !e.isBuiltin && matchingText(e));
 			result = this.sortExtensions(result, options);
 		} else {
+			result = local.filter(e => (!e.isBuiltin || e.outdated || e.reloadRequiredStatus !== undefined) && matchingText(e));
 			const runningExtensionsById = runningExtensions.reduce((result, e) => { result.set(ExtensionIdentifier.toKey(e.identifier.value), e); return result; }, new Map<string, IExtensionDescription>());
-			result = result.sort((e1, e2) => {
+
+			const defaultSort = (e1: IExtension, e2: IExtension) => {
 				const running1 = runningExtensionsById.get(ExtensionIdentifier.toKey(e1.identifier.id));
 				const isE1Running = !!running1 && this.extensionManagementServerService.getExtensionManagementServer(toExtension(running1)) === e1.server;
 				const running2 = runningExtensionsById.get(ExtensionIdentifier.toKey(e2.identifier.id));
@@ -544,7 +546,24 @@ export class ExtensionsListView extends ViewPane {
 					return e1.displayName.localeCompare(e2.displayName);
 				}
 				return isE1Running ? -1 : 1;
+			};
+
+			const outdated: IExtension[] = [];
+			const reloadRequired: IExtension[] = [];
+			const noActionRequired: IExtension[] = [];
+			result.forEach(e => {
+				if (e.outdated && !this.extensionsWorkbenchService.isExtensionIgnoresUpdates(e)) {
+					outdated.push(e);
+				}
+				else if (e.reloadRequiredStatus) {
+					reloadRequired.push(e);
+				}
+				else {
+					noActionRequired.push(e);
+				}
 			});
+
+			result = [...outdated.sort(defaultSort), ...reloadRequired.sort(defaultSort), ...noActionRequired.sort(defaultSort)];
 		}
 		return result;
 	}
@@ -663,7 +682,7 @@ export class ExtensionsListView extends ViewPane {
 	private filterRecentlyUpdatedExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
 		let { value, categories } = this.parseCategories(query.value);
 		const currentTime = Date.now();
-		local = local.filter(e => !e.isBuiltin && e.local?.installedTimestamp !== undefined && currentTime - e.local.installedTimestamp < ExtensionsListView.RECENT_UPDATE_DURATION);
+		local = local.filter(e => !e.isBuiltin && !e.outdated && e.local?.updated && e.local?.installedTimestamp !== undefined && currentTime - e.local.installedTimestamp < ExtensionsListView.RECENT_UPDATE_DURATION);
 
 		value = value.replace(/@recentlyUpdated/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
