@@ -1129,11 +1129,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return !!this.textEditorModel;
 	}
 
+	private anyGlobMatches(globs: { [glob: string]: boolean }, path: string): boolean {
+		return !!(globs && Object.keys(globs).find(glob => globs[glob] && matchGlobPattern(glob, path)));
+	}
+
 	private isReadonlyFromConfig(): boolean {
-		const readonlyInclude = this.configurationService.getValue<string[]>('files.readonlyInclude');
-		const readonlyExclude = this.configurationService.getValue<string[]>('files.readonlyExclude');
-		return !!readonlyInclude?.find(glob => matchGlobPattern(glob, this.resource.fsPath))
-			&& !readonlyExclude?.find(glob => matchGlobPattern(glob, this.resource.fsPath));
+		const readonlyInclude = this.configurationService.getValue<{ [glob: string]: boolean }>('files.readonlyInclude');
+		const readonlyExclude = this.configurationService.getValue<{ [glob: string]: boolean }>('files.readonlyExclude');
+		return !!this.anyGlobMatches(readonlyInclude, this.resource.path)
+			&& !this.anyGlobMatches(readonlyExclude, this.resource.path);
 	}
 
 	private isReadonlyByPath(): boolean | undefined {

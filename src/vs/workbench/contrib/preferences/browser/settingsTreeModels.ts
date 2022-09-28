@@ -752,6 +752,8 @@ export function isExcludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.exclude' ||
 		setting.key === 'search.exclude' ||
 		setting.key === 'workbench.localHistory.exclude' ||
+		setting.key === 'files.readonlyExclude' ||
+		setting.key === 'files.readonlyInclude' || // isExcludeSetting() wrt: use Add Pattern
 		setting.key === 'files.watcherExclude';
 }
 

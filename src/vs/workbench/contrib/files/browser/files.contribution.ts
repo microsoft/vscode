@@ -246,21 +246,21 @@ configurationRegistry.registerConfiguration({
 			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveDelay' }, "Controls the delay in milliseconds after which an editor with unsaved changes is saved automatically. Only applies when `#files.autoSave#` is set to `{0}`.", AutoSaveConfiguration.AFTER_DELAY)
 		},
 		'files.readonlyInclude': {
-			'type': 'array',
+			'type': 'object',
 			'items': {
 				'type': 'string'
 			},
-			'default': [],
-			'description': nls.localize('readonlyInclude', "Configure paths or glob patterns to open as read-only."),
+			'default': {},
+			'markdownDescription': nls.localize('readonlyInclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to open as read-only."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.readonlyExclude': {
-			'type': 'array',
+			'type': 'object',
 			'items': {
 				'type': 'string'
 			},
-			'default': [],
-			'description': nls.localize('readonlyExclude', "Overrides files.readonlyInclude: paths or glob patterns to NOT open as read-only."),
+			'default': {},
+			'markdownDescription': nls.localize('readonlyExclude', "Override: paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to NOT open as read-only."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.readonlyPath': {
