@@ -490,7 +490,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				getOutputMatch: (outputMatcher?: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }) => getOutputMatchForCommand(executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
+				getOutputMatch: (outputMatcher: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }) => getOutputMatchForCommand(executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
 				markProperties: options?.markProperties
 			};
 			this._commands.push(newCommand);
@@ -647,7 +647,7 @@ function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMa
 	return output === '' ? undefined : output;
 }
 
-export function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number } | undefined): RegExpMatchArray | undefined {
+export function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }): RegExpMatchArray | undefined {
 	if (!executedMarker || !endMarker) {
 		return undefined;
 	}
@@ -657,23 +657,31 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 	if (startLine === endLine) {
 		return undefined;
 	}
-	if (outputMatcher?.length && (endLine - startLine) < outputMatcher.length) {
+	if (outputMatcher.length && (endLine - startLine) < outputMatcher.length) {
 		return undefined;
 	}
-	let line: string | undefined;
-	if (outputMatcher?.anchor === 'bottom') {
+	const matcher = outputMatcher.lineMatcher;
+	const linesToCheck = typeof matcher === 'string' ? 1 : countNewLines(matcher);
+	const lines: string[] = [];
+	if (outputMatcher.anchor === 'bottom') {
 		for (let i = endLine - (outputMatcher.offset || 0); i >= startLine; i--) {
-			line = getXtermLineContent(buffer, i, i, cols);
-			const match = line.match(outputMatcher.lineMatcher);
+			lines.unshift(getXtermLineContent(buffer, i, i, cols));
+			if (lines.length > linesToCheck) {
+				lines.pop();
+			}
+			const match = lines.join('\n').match(matcher);
 			if (match) {
 				return match;
 			}
 		}
 	} else {
-		for (let i = startLine + (outputMatcher?.offset || 0); i < endLine; i++) {
-			line = getXtermLineContent(buffer, i, i, cols);
+		for (let i = startLine + (outputMatcher.offset || 0); i < endLine; i++) {
+			lines.push(getXtermLineContent(buffer, i, i, cols));
+			if (lines.length === linesToCheck) {
+				lines.shift();
+			}
 			if (outputMatcher) {
-				const match = line.match(outputMatcher.lineMatcher);
+				const match = lines.join('\n').match(matcher);
 				if (match) {
 					return match;
 				}
@@ -698,4 +706,18 @@ function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number
 		}
 	}
 	return content;
+}
+
+function countNewLines(regex: RegExp): number {
+	if (!regex.multiline) {
+		return 1;
+	}
+	const source = regex.source;
+	let count = 1;
+	let i = source.indexOf('\\n');
+	while (i !== -1) {
+		count++;
+		i = source.indexOf('\\n', i + 1);
+	}
+	return count;
 }
