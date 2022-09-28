@@ -76,6 +76,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'description': localize('audioCues.taskEnded', "Plays a sound when a task ends."),
 			...audioCueFeatureBase,
 		},
+		'audioCues.terminalQuickFix': {
+			'description': localize('audioCues.terminalQuickFix', "Plays a sound when a terminal quick fixes are available"),
+			...audioCueFeatureBase,
+		},
 	}
 });
 

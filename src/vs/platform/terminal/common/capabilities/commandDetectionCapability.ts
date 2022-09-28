@@ -654,12 +654,6 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 	const startLine = executedMarker.line;
 	const endLine = endMarker.line;
 
-	if (startLine === endLine) {
-		return undefined;
-	}
-	if (outputMatcher.length && (endLine - startLine) < outputMatcher.length) {
-		return undefined;
-	}
 	const matcher = outputMatcher.lineMatcher;
 	const linesToCheck = typeof matcher === 'string' ? 1 : countNewLines(matcher);
 	const lines: string[] = [];

@@ -229,7 +229,8 @@ class MenuInfo {
 					const menuHide = createMenuHide(this._id, isMenuItem ? item.command : item, this._hiddenStates);
 					if (isMenuItem) {
 						// MenuItemAction
-						activeActions.push(new MenuItemAction(item.command, item.alt, options, menuHide, this._contextKeyService, this._commandService));
+						const actualMenuHide = item.command._isFakeAction ? undefined : menuHide;
+						activeActions.push(new MenuItemAction(item.command, item.alt, options, actualMenuHide, this._contextKeyService, this._commandService));
 
 					} else {
 						// SubmenuItemAction
