@@ -221,10 +221,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "url": "https://github.com/requirestudio/vscode.git"
   },
   "bugs": {
-    "url": "https://github.com/microsoft/vscode/issues"
+    "url": "https://github.com/requirestudio/vscode/issues"
   },
   "optionalDependencies": {
     "@vscode/windows-registry": "1.0.6",
