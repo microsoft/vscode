@@ -157,6 +157,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._revealFirst = true;
 	}
 
+	private isOverviewRulerEnabled(): boolean {
+		return this.configurationService.getValue('notebook.experimental.diffOverviewRuler.enabled') ?? false;
+	}
+
 	getSelection(): IEditorPaneSelection | undefined {
 		const selections = this._list.getFocus();
 		return new NotebookDiffEditorSelection(selections);
@@ -559,7 +563,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _setViewModel(viewModels: DiffElementViewModelBase[]) {
 		this._diffElementViewModels = viewModels;
 		this._list.splice(0, this._list.length, this._diffElementViewModels);
-		this._overviewRuler.updateViewModels(this._diffElementViewModels, this._eventDispatcher);
+		if (this.isOverviewRulerEnabled()) {
+			this._overviewRuler.updateViewModels(this._diffElementViewModels, this._eventDispatcher);
+		}
 	}
 
 	/**
@@ -976,7 +982,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	layout(dimension: DOM.Dimension): void {
 		this._rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
 		this._rootElement.classList.toggle('narrow-width', dimension.width < 600);
-		this._dimension = dimension.with(dimension.width - NotebookTextDiffEditor.ENTIRE_DIFF_OVERVIEW_WIDTH);
+		const overviewRulerEnabled = this.isOverviewRulerEnabled();
+		this._dimension = dimension.with(dimension.width - (overviewRulerEnabled ? NotebookTextDiffEditor.ENTIRE_DIFF_OVERVIEW_WIDTH : 0));
 
 		this._listViewContainer.style.height = `${dimension.height}px`;
 		this._listViewContainer.style.width = `${this._dimension.width}px`;
@@ -998,7 +1005,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._webviewTransparentCover.style.width = `${this._dimension.width}px`;
 		}
 
-		this._overviewRuler.layout();
+		if (overviewRulerEnabled) {
+			this._overviewRuler.layout();
+		}
 
 		this._eventDispatcher?.emit([new NotebookDiffLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
