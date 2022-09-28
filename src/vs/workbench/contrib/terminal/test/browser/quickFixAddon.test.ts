@@ -56,9 +56,9 @@ suite('QuickFixAddon', () => {
 			const actions = [
 				{
 					id: 'terminal.gitSimilarCommand',
-					label: 'Run git status',
+					label: 'Run: git status',
 					run: true,
-					tooltip: 'Run git status',
+					tooltip: 'Run: git status',
 					enabled: true
 				}
 			];
@@ -136,9 +136,9 @@ suite('QuickFixAddon', () => {
 			const actions = [
 				{
 					id: 'terminal.gitPush',
-					label: 'Git push test22',
+					label: 'Run: git push --set-upstream origin test22',
 					run: true,
-					tooltip: 'Git push test22',
+					tooltip: 'Run: git push --set-upstream origin test22',
 					enabled: true
 				}
 			];
@@ -179,9 +179,9 @@ suite('QuickFixAddon', () => {
 			const actions = [
 				{
 					id: 'terminal.gitCreatePr',
-					label: 'Create PR',
+					label: 'Open link: https://github.com/meganrogge/xterm.js/pull/new/test22',
 					run: true,
-					tooltip: 'Create PR',
+					tooltip: 'Open link: https://github.com/meganrogge/xterm.js/pull/new/test22',
 					enabled: true
 				}
 			];
@@ -219,9 +219,9 @@ suite('QuickFixAddon', () => {
 		const actions = [
 			{
 				id: 'terminal.gitPush',
-				label: 'Git push test22',
+				label: 'Run: git push --set-upstream origin test22',
 				run: true,
-				tooltip: 'Git push test22',
+				tooltip: 'Run: git push --set-upstream origin test22',
 				enabled: true
 			}
 		];

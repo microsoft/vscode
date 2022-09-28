@@ -660,13 +660,11 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 	if (outputMatcher?.length && (endLine - startLine) < outputMatcher.length) {
 		return undefined;
 	}
-	let output = '';
 	let line: string | undefined;
 	if (outputMatcher?.anchor === 'bottom') {
 		for (let i = endLine - (outputMatcher.offset || 0); i >= startLine; i--) {
 			line = getXtermLineContent(buffer, i, i, cols);
-			output = line + output;
-			const match = output.match(outputMatcher.lineMatcher);
+			const match = line.match(outputMatcher.lineMatcher);
 			if (match) {
 				return match;
 			}
@@ -674,9 +672,8 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 	} else {
 		for (let i = startLine + (outputMatcher?.offset || 0); i < endLine; i++) {
 			line = getXtermLineContent(buffer, i, i, cols);
-			output += line;
 			if (outputMatcher) {
-				const match = output.match(outputMatcher.lineMatcher);
+				const match = line.match(outputMatcher.lineMatcher);
 				if (match) {
 					return match;
 				}
