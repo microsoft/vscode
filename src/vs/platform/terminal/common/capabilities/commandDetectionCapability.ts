@@ -657,13 +657,17 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 	if (startLine === endLine) {
 		return undefined;
 	}
-	if (outputMatcher?.length && (endLine - startLine) < outputMatcher.length) {
-		return undefined;
-	}
+
 	let line: string | undefined;
 	if (outputMatcher?.anchor === 'bottom') {
 		for (let i = endLine - (outputMatcher.offset || 0); i >= startLine; i--) {
-			line = getXtermLineContent(buffer, i, i, cols);
+			let wrappedLineStart = i;
+			const wrappedLineEnd = i;
+			while (wrappedLineStart >= startLine && buffer.getLine(wrappedLineStart)?.isWrapped) {
+				wrappedLineStart--;
+			}
+			i = wrappedLineStart;
+			line = getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols);
 			const match = line.match(outputMatcher.lineMatcher);
 			if (match) {
 				return match;
@@ -671,7 +675,13 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 		}
 	} else {
 		for (let i = startLine + (outputMatcher?.offset || 0); i < endLine; i++) {
-			line = getXtermLineContent(buffer, i, i, cols);
+			const wrappedLineStart = i;
+			let wrappedLineEnd = i;
+			while (wrappedLineEnd + 1 < endLine && buffer.getLine(wrappedLineEnd + 1)?.isWrapped) {
+				wrappedLineEnd++;
+			}
+			i = wrappedLineEnd;
+			line = getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols);
 			if (outputMatcher) {
 				const match = line.match(outputMatcher.lineMatcher);
 				if (match) {

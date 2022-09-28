@@ -492,6 +492,10 @@ export class FolderMatch extends Disposable {
 	protected _unDisposedFileMatches: ResourceMap<FileMatch>;
 	protected _unDisposedFolderMatches: ResourceMap<FolderMatchWithResource>;
 	private _replacingAll: boolean = false;
+
+	// if this is compressed in a node with other FolderMatches, then this is set to the parent where compression starts
+	public compressionStartParent: FolderMatch | undefined;
+
 	constructor(
 		protected _resource: URI | null,
 		private _id: string,

@@ -246,6 +246,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			_isFakeAction: true,
 			id: TestCommandId.FilterAction,
 			title: { value: localize('filter', "Filter"), original: 'Filter' },
 		});
