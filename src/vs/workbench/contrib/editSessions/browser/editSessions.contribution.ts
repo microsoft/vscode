@@ -398,6 +398,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		try {
 			const { changes, conflictingChanges } = await this.generateChanges(editSession, ref);
+			if (changes.length === 0) {
+				return;
+			}
 
 			// TODO@joyceerhl Provide the option to diff files which would be overwritten by edit session contents
 			if (conflictingChanges.length > 0) {
