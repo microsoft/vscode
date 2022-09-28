@@ -17,7 +17,7 @@ declare class AsarFilesystem {
 	insertFile(path: string, shouldUnpack: boolean, file: { stat: { size: number; mode: number } }, options: {}): Promise<void>;
 }
 
-export function createAsar(folderPath: string, unpackGlobs: string[], destFilename: string): NodeJS.ReadWriteStream {
+export function createAsar(cwd: string, base: string, unpackGlobs: string[], destFilename: string): NodeJS.ReadWriteStream {
 
 	const shouldUnpackFile = (file: VinylFile): boolean => {
 		for (let i = 0; i < unpackGlobs.length; i++) {
@@ -28,7 +28,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], destFilena
 		return false;
 	};
 
-	const filesystem = new Filesystem(folderPath);
+	const filesystem = new Filesystem(path.join(cwd, base));
 	const out: Buffer[] = [];
 
 	// Keep track of pending inserts
@@ -83,7 +83,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], destFilena
 
 		if (shouldUnpack) {
 			// The file goes outside of xx.asar, in a folder xx.asar.unpacked
-			const relative = path.relative(folderPath, file.path);
+			const relative = path.relative(base, file.relative);
 			this.queue(new VinylFile({
 				base: '.',
 				path: path.join(destFilename + '.unpacked', relative),

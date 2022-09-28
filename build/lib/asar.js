@@ -11,7 +11,7 @@ const pickle = require('chromium-pickle-js');
 const Filesystem = require('asar/lib/filesystem');
 const VinylFile = require("vinyl");
 const minimatch = require("minimatch");
-function createAsar(folderPath, unpackGlobs, destFilename) {
+function createAsar(cwd, base, unpackGlobs, destFilename) {
     const shouldUnpackFile = (file) => {
         for (let i = 0; i < unpackGlobs.length; i++) {
             if (minimatch(file.relative, unpackGlobs[i])) {
@@ -20,7 +20,7 @@ function createAsar(folderPath, unpackGlobs, destFilename) {
         }
         return false;
     };
-    const filesystem = new Filesystem(folderPath);
+    const filesystem = new Filesystem(path.join(cwd, base));
     const out = [];
     // Keep track of pending inserts
     let pendingInserts = 0;
@@ -68,7 +68,7 @@ function createAsar(folderPath, unpackGlobs, destFilename) {
         insertFile(file.relative, { size: file.contents.length, mode: file.stat.mode }, shouldUnpack);
         if (shouldUnpack) {
             // The file goes outside of xx.asar, in a folder xx.asar.unpacked
-            const relative = path.relative(folderPath, file.path);
+            const relative = path.relative(base, file.relative);
             this.queue(new VinylFile({
                 base: '.',
                 path: path.join(destFilename + '.unpacked', relative),
