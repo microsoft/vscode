@@ -19,7 +19,7 @@ import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platf
 import { ActivityAction, ActivityActionViewItem, IActivityActionViewItemOptions, IActivityHoverOptions, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IActivity } from 'vs/workbench/common/activity';
-import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_SETTINGS_PROFILE_HOVER_FOREGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND, ACTIVITY_BAR_SETTINGS_PROFILE_HOVER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -504,13 +504,24 @@ registerThemingParticipant((theme, collector) => {
 		`);
 	}
 
-	const activityBarSettingsProfileHoveFgColor = theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_HOVER_FOREGROUND);
-	if (activityBarSettingsProfileHoveFgColor) {
+	const activityBarSettingsProfileBgColor = theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND);
+	if (activityBarSettingsProfileBgColor) {
+		collector.addRule(`
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item .action-label.profile-activity-item,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item .action-label.profile-activity-item,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item .action-label.profile-activity-item {
+				background-color: ${activityBarSettingsProfileBgColor} !important;
+			}
+		`);
+	}
+
+	const activityBarSettingsProfileHoverFgColor = theme.getColor(ACTIVITY_BAR_SETTINGS_PROFILE_HOVER_FOREGROUND);
+	if (activityBarSettingsProfileHoverFgColor) {
 		collector.addRule(`
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label.profile-activity-item,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label.profile-activity-item,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label.profile-activity-item {
-				color: ${activityBarSettingsProfileHoveFgColor} !important;
+				color: ${activityBarSettingsProfileHoverFgColor} !important;
 			}
 		`);
 	}
