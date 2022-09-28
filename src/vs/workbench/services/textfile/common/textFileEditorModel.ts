@@ -1136,7 +1136,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private isReadonlyByBlob(): boolean {
 		const readonlyInclude = this.configurationService.getValue<{ [glob: string]: boolean }>('files.readonlyInclude');
 		const readonlyExclude = this.configurationService.getValue<{ [glob: string]: boolean }>('files.readonlyExclude');
-		return !!this.anyGlobMatches(readonlyInclude, this.resource.path)
+		return this.anyGlobMatches(readonlyInclude, this.resource.path)
 			&& !this.anyGlobMatches(readonlyExclude, this.resource.path);
 	}
 
