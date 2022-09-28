@@ -6,9 +6,10 @@ import * as dom from 'vs/base/browser/dom';
 import { Delayer } from 'vs/base/common/async';
 import { fromNow } from 'vs/base/common/date';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
@@ -31,6 +32,69 @@ export const enum DecorationSelector {
 	LightBulb = 'codicon-light-bulb'
 }
 
+export class TerminalDecorationHoverService extends Disposable {
+	private _hoverDelayer: Delayer<void>;
+	private _contextMenuVisible: boolean = false;
+
+	constructor(@IHoverService private readonly _hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextMenuService contextMenuService: IContextMenuService) {
+		super();
+		this._register(contextMenuService.onDidShowContextMenu(() => this._contextMenuVisible = true));
+		this._register(contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
+		this._hoverDelayer = this._register(new Delayer(configurationService.getValue('workbench.hover.delay')));
+	}
+
+	public hideHover(hoverDelayer?: Delayer<void>, hoverService?: IHoverService) {
+		if (hoverDelayer && hoverService) {
+			hoverDelayer.cancel();
+			hoverService.hideHover();
+			return;
+		}
+		this._hoverDelayer.cancel();
+		this._hoverService.hideHover();
+	}
+
+	createHover(element: HTMLElement, command: ITerminalCommand | undefined, hoverMessage?: string): IDisposable[] {
+		return [
+			dom.addDisposableListener(element, dom.EventType.MOUSE_ENTER, () => {
+				if (this._contextMenuVisible) {
+					return;
+				}
+				this._hoverDelayer.trigger(() => {
+					let hoverContent = `${localize('terminalPromptContextMenu', "Show Command Actions")}`;
+					hoverContent += '\n\n---\n\n';
+					if (!command) {
+						if (hoverMessage) {
+							hoverContent = hoverMessage;
+						} else {
+							return;
+						}
+					} else if (command.markProperties || hoverMessage) {
+						if (command.markProperties?.hoverMessage || hoverMessage) {
+							hoverContent = command.markProperties?.hoverMessage || hoverMessage || '';
+						} else {
+							return;
+						}
+					} else if (command.exitCode) {
+						if (command.exitCode === -1) {
+							hoverContent += localize('terminalPromptCommandFailed', 'Command executed {0} and failed', fromNow(command.timestamp, true));
+						} else {
+							hoverContent += localize('terminalPromptCommandFailedWithExitCode', 'Command executed {0} and failed (Exit Code {1})', fromNow(command.timestamp, true), command.exitCode);
+						}
+					} else {
+						hoverContent += localize('terminalPromptCommandSuccess', 'Command executed {0}', fromNow(command.timestamp, true));
+					}
+					this._hoverService.showHover({ content: new MarkdownString(hoverContent), target: element });
+				});
+			}),
+			dom.addDisposableListener(element, dom.EventType.MOUSE_LEAVE, () => this.hideHover()),
+			dom.addDisposableListener(element, dom.EventType.MOUSE_OUT, () => this.hideHover())
+		];
+	}
+
+}
+
 export function updateLayout(configurationService: IConfigurationService, element?: HTMLElement): void {
 	if (!element) {
 		return;
@@ -46,42 +110,4 @@ export function updateLayout(configurationService: IConfigurationService, elemen
 		element.style.fontSize = `${scalar * DecorationStyles.DefaultDimension}px`;
 		element.style.marginLeft = `${scalar * DecorationStyles.MarginLeft}px`;
 	}
-}
-
-export function createHover(hoverService: IHoverService, element: HTMLElement, command: ITerminalCommand | undefined, hoverDelayer: Delayer<void>, hideHover: (hoverDelayer?: Delayer<void>, hoverService?: IHoverService) => void, contextMenuVisible: boolean, hoverMessage?: string): IDisposable[] {
-	return [
-		dom.addDisposableListener(element, dom.EventType.MOUSE_ENTER, () => {
-			if (contextMenuVisible) {
-				return;
-			}
-			hoverDelayer.trigger(() => {
-				let hoverContent = `${localize('terminalPromptContextMenu', "Show Command Actions")}`;
-				hoverContent += '\n\n---\n\n';
-				if (!command) {
-					if (hoverMessage) {
-						hoverContent = hoverMessage;
-					} else {
-						return;
-					}
-				} else if (command.markProperties || hoverMessage) {
-					if (command.markProperties?.hoverMessage || hoverMessage) {
-						hoverContent = command.markProperties?.hoverMessage || hoverMessage || '';
-					} else {
-						return;
-					}
-				} else if (command.exitCode) {
-					if (command.exitCode === -1) {
-						hoverContent += localize('terminalPromptCommandFailed', 'Command executed {0} and failed', fromNow(command.timestamp, true));
-					} else {
-						hoverContent += localize('terminalPromptCommandFailedWithExitCode', 'Command executed {0} and failed (Exit Code {1})', fromNow(command.timestamp, true), command.exitCode);
-					}
-				} else {
-					hoverContent += localize('terminalPromptCommandSuccess', 'Command executed {0}', fromNow(command.timestamp, true));
-				}
-				hoverService.showHover({ content: new MarkdownString(hoverContent), target: element });
-			});
-		}),
-		dom.addDisposableListener(element, dom.EventType.MOUSE_LEAVE, () => hideHover(hoverDelayer, hoverService)),
-		dom.addDisposableListener(element, dom.EventType.MOUSE_OUT, () => hideHover(hoverDelayer, hoverService))
-	];
 }

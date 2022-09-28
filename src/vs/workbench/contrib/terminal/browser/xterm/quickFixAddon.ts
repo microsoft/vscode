@@ -11,7 +11,7 @@ import type { ITerminalAddon } from 'xterm-headless';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITerminalQuickFixAction, ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { createHover, DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
+import { DecorationSelector, TerminalDecorationHoverService, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Terminal, IDecoration } from 'xterm';
 import { IAction } from 'vs/base/common/actions';
@@ -19,8 +19,7 @@ import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { Delayer } from 'vs/base/common/async';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export interface ITerminalQuickFix {
 	showMenu(): void;
@@ -51,14 +50,12 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _decoration: IDecoration | undefined;
 
-	private _hoverDelayer: Delayer<void>;
-
-	private _contextMenuVisible: boolean = false;
+	private _terminalDecorationHoverService: TerminalDecorationHoverService;
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IHoverService private readonly _hoverService: IHoverService) {
+		@IInstantiationService instantiationService: IInstantiationService) {
 		super();
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (commandDetectionCapability) {
@@ -70,9 +67,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				}
 			});
 		}
-		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
-		this._register(this._contextMenuService.onDidShowContextMenu(() => this._contextMenuVisible = true));
-		this._register(this._contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
+		this._terminalDecorationHoverService = instantiationService.createInstance(TerminalDecorationHoverService);
 	}
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
@@ -133,23 +128,16 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				updateLayout(this._configurationService, e);
 				if (actions) {
 					this._decorationMarkerIds.add(decoration.marker.id);
-					dom.addDisposableListener(e, dom.EventType.CLICK, () => {
+					this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
 						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions, autoSelectFirstItem: true });
-					});
-					this._register(createHover(this._hoverService, e, undefined, this._hoverDelayer, this._hideHover, this._contextMenuVisible, actions[0].label)[0]);
+					}));
+					const hoverDisposables = this._terminalDecorationHoverService.createHover(e, undefined, actions[0].label);
+					for (const disposable of hoverDisposables) {
+						this._register(disposable);
+					}
 				}
 			}
 		});
-	}
-
-	private _hideHover(hoverDelayer?: Delayer<void>, hoverService?: IHoverService) {
-		if (hoverDelayer && hoverService) {
-			hoverDelayer.cancel();
-			hoverService.hideHover();
-			return;
-		}
-		this._hoverDelayer.cancel();
-		this._hoverService.hideHover();
 	}
 }
 
