@@ -8,7 +8,7 @@ import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { COI, FileAccess, Schemas } from 'vs/base/common/network';
-import { extname, normalize } from 'vs/base/common/path';
+import { basename, extname, normalize } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -96,7 +96,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 		let headers: Record<string, string> | undefined;
 		if (this.environmentService.crossOriginIsolated) {
-			if (path.endsWith('/workbench.html') || path.endsWith('/workbench-dev.html')) {
+			if (basename(path) === 'workbench.html' || basename(path) === 'workbench-dev.html') {
 				headers = COI.CoopAndCoep;
 			} else {
 				headers = COI.getHeadersFromQuery(request.url);
