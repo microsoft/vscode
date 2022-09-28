@@ -48,7 +48,7 @@ export function updateLayout(configurationService: IConfigurationService, elemen
 	}
 }
 
-export function createHover(hoverService: IHoverService, element: HTMLElement, command: ITerminalCommand, hoverDelayer: Delayer<void>, hideHover: (hoverDelayer?: Delayer<void>, hoverService?: IHoverService) => void, contextMenuVisible: boolean, markHoverMessage?: string): IDisposable[] {
+export function createHover(hoverService: IHoverService, element: HTMLElement, command: ITerminalCommand | undefined, hoverDelayer: Delayer<void>, hideHover: (hoverDelayer?: Delayer<void>, hoverService?: IHoverService) => void, contextMenuVisible: boolean, hoverMessage?: string): IDisposable[] {
 	return [
 		dom.addDisposableListener(element, dom.EventType.MOUSE_ENTER, () => {
 			if (contextMenuVisible) {
@@ -57,9 +57,15 @@ export function createHover(hoverService: IHoverService, element: HTMLElement, c
 			hoverDelayer.trigger(() => {
 				let hoverContent = `${localize('terminalPromptContextMenu', "Show Command Actions")}`;
 				hoverContent += '\n\n---\n\n';
-				if (command.markProperties || markHoverMessage) {
-					if (command.markProperties?.hoverMessage || markHoverMessage) {
-						hoverContent = command.markProperties?.hoverMessage || markHoverMessage || '';
+				if (!command) {
+					if (hoverMessage) {
+						hoverContent = hoverMessage;
+					} else {
+						return;
+					}
+				} else if (command.markProperties || hoverMessage) {
+					if (command.markProperties?.hoverMessage || hoverMessage) {
+						hoverContent = command.markProperties?.hoverMessage || hoverMessage || '';
 					} else {
 						return;
 					}
