@@ -123,7 +123,10 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			},
 			set badge(badge: vscode.ViewBadge | undefined) {
 				if (ExtHostViewBadge.isViewBadge(badge)) {
-					treeView.badge = badge;
+					treeView.badge = {
+						value: Math.floor(badge.value),
+						tooltip: badge.tooltip
+					};
 				}
 			},
 			reveal: (element: T, options?: IRevealOptions): Promise<void> => {

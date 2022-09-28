@@ -20,7 +20,8 @@ export const enum DecorationSelector {
 	Codicon = 'codicon',
 	XtermDecoration = 'xterm-decoration',
 	OverviewRuler = '.xterm-decoration-overview-ruler',
-	QuickFix = 'codicon-light-bulb'
+	QuickFix = 'quick-fix',
+	LightBulb = 'codicon-light-bulb'
 }
 
 export function updateLayout(configurationService: IConfigurationService, element?: HTMLElement): void {

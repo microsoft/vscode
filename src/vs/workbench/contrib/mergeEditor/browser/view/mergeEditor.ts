@@ -278,6 +278,10 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 					return;
 				}
 				this.input1View.editor.revealLineInCenter(firstConflict.input1Range.startLineNumber);
+				transaction(tx => {
+					/** @description setActiveModifiedBaseRange */
+					viewModel.setActiveModifiedBaseRange(firstConflict, tx);
+				});
 			}));
 		}
 
@@ -444,7 +448,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 				if (shouldAlignBase && baseViewZoneAccessor) {
 					baseViewZoneIds.push(baseViewZoneAccessor.addZone({
-						afterLineNumber,
+						afterLineNumber: m.left.baseRange.startLineNumber - 1,
 						heightInPx: 16,
 						domNode: $('div.conflict-actions-placeholder'),
 					}));
