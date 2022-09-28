@@ -266,7 +266,7 @@ configurationRegistry.registerConfiguration({
 		'files.readonlyPath': {
 			'type': 'array',
 			'default': undefined,
-			'description': nls.localize('readonlyPath', "Value array with [ path: string, value: true|false|undefined ]"),
+			'description': nls.localize('readonlyPath', "Value array with [ path: string, value: true|false|null ]"),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.watcherExclude': {

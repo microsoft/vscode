@@ -1147,7 +1147,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.tmpReadonly === null ? this.isReadonlyFromConfig() : this.tmpReadonly;
 	}
 
-	// tri-state: true | false overrides isReadonlyFromConfig; undefined does not.
+	// tri-state: true | false overrides isReadonlyFromConfig; null does not.
 	private tmpReadonly: boolean | null = null; // support one-shot set/clear isReadonly overide
 
 	private oldReadonly = false; // fileEditorInput.test.ts counts changes from 'false' not 'undefined'
