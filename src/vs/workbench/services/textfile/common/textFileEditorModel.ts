@@ -1136,12 +1136,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			&& !readonlyExclude?.find(glob => matchGlobPattern(glob, this.resource.fsPath));
 	}
 
-	private isReadonlyPath(): boolean | undefined {
+	private isReadonlyByPath(): boolean | undefined {
 		const settingName = 'files.readonlyPath';
-		const readonlyPath = this.configurationService.getValue<[path: string, value: boolean | null] | undefined>(settingName);
-		if (readonlyPath !== undefined) {
-			if (readonlyPath?.length > 0 && readonlyPath[0] === this.resource.fsPath) {
-				this.tmpReadonly = readonlyPath[1];
+		const readonlyPath = this.configurationService.getValue<{ [path: string]: boolean | null } | undefined>(settingName);
+		for (const key in readonlyPath) {
+			if (key === this.resource.fsPath) {
+				this.tmpReadonly = readonlyPath[key];
 			}
 		}
 		return this.tmpReadonly === null ? this.isReadonlyFromConfig() : this.tmpReadonly;
@@ -1162,7 +1162,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	override isReadonly(): boolean {
 		return this.checkDidChangeReadonly(
-			this.isReadonlyPath() ||
+			this.isReadonlyByPath() ||
 			this.lastResolvedFileStat?.readonly ||
 			this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly));
 	}
