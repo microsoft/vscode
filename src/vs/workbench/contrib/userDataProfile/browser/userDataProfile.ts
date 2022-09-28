@@ -27,6 +27,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { joinPath } from 'vs/base/common/resources';
+import { Codicon } from 'vs/base/common/codicons';
 
 export class UserDataProfilesWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
@@ -188,7 +189,17 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					value: that.userDataProfileService.getShortName(profile),
 					title: localize('change short name', "Change Short Name..."),
 					validateInput: async (value: string) => {
-						if (profile.shortName !== value && !ThemeIcon.fromString(value) && charCount(value) > 2) {
+						if (profile.shortName === value) {
+							return undefined;
+						}
+						const themeIcon = ThemeIcon.fromString(value);
+						if (themeIcon) {
+							if (Codicon.getAll().some(c => c.id === themeIcon.id)) {
+								return undefined;
+							}
+							return localize('invalid codicon', "Invalid codicon. Please use a valid codicon id.");
+						}
+						if (charCount(value) > 2) {
 							return localize('invalid short name', "Short name should be at most 2 characters long.");
 						}
 						return undefined;
