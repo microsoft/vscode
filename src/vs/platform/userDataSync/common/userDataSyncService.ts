@@ -420,7 +420,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				return isUndefined(result) ? null : result;
 			}
 
-			if (this.environmentService.isBuilt && !this.productService.enableSyncingProfiles) {
+			if (this.environmentService.isBuilt && (!this.productService.enableSyncingProfiles || isEqual(this.userDataSyncStoreManagementService.userDataSyncStore?.url, this.userDataSyncStoreManagementService.userDataSyncStore?.stableUrl))) {
 				return null;
 			}
 
@@ -592,7 +592,7 @@ class ProfileSynchronizer extends Disposable {
 			if (!this._profile.isDefault) {
 				return;
 			}
-			if (this.environmentService.isBuilt && !this.productService.enableSyncingProfiles) {
+			if (this.environmentService.isBuilt && (!this.productService.enableSyncingProfiles || isEqual(this.userDataSyncStoreManagementService.userDataSyncStore?.url, this.userDataSyncStoreManagementService.userDataSyncStore?.stableUrl))) {
 				this.logService.debug('Skipping profiles sync');
 				return;
 			}

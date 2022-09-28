@@ -294,7 +294,7 @@ export class ShowHideAtTopBase extends Action2 {
 					order: 10,
 				},
 			],
-			precondition: ContextKeyExpr.and(ctxIsMergeEditor, ctxMergeEditorShowBase),
+			precondition: ContextKeyExpr.and(ctxIsMergeEditor, ctxMergeEditorShowBase, ctxMergeEditorLayout.isEqualTo('mixed')),
 		});
 	}
 

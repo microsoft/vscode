@@ -32,7 +32,7 @@ suite('vscode API - env', () => {
 	test('env.remoteName', function () {
 		const remoteName = env.remoteName;
 		const knownWorkspaceExtension = extensions.getExtension('vscode.git');
-		const knownUiAndWorkspaceExtension = extensions.getExtension('vscode.image-preview');
+		const knownUiAndWorkspaceExtension = extensions.getExtension('vscode.media-preview');
 		if (typeof remoteName === 'undefined') {
 			// not running in remote, so we expect both extensions
 			assert.ok(knownWorkspaceExtension);
