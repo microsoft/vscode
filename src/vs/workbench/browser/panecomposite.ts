@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { Dimension } from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Separator } from 'vs/base/common/actions';
-import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuId, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -71,6 +71,17 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 
 	override getContextMenuActions(): readonly IAction[] {
 		return this.viewPaneContainer?.menuActions?.getContextMenuActions() ?? [];
+	}
+
+	override getMenuIds(): MenuId[] {
+		const result: MenuId[] = [];
+		if (this.viewPaneContainer?.menuActions) {
+			result.push(this.viewPaneContainer.menuActions.menuId);
+			if (this.viewPaneContainer.isViewMergedWithContainer()) {
+				result.push(this.viewPaneContainer.panes[0].menuActions.menuId);
+			}
+		}
+		return result;
 	}
 
 	override getActions(): readonly IAction[] {

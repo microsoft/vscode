@@ -96,7 +96,7 @@ export class WorkbenchToolBar extends ToolBar {
 		}
 	}
 
-	override setActions(_primary: readonly IAction[], _secondary: readonly IAction[] = []): void {
+	override setActions(_primary: readonly IAction[], _secondary: readonly IAction[] = [], menuIds?: readonly MenuId[]): void {
 
 		this._sessionDisposables.clear();
 		const primary = _primary.slice();
@@ -170,12 +170,15 @@ export class WorkbenchToolBar extends ToolBar {
 				actions = [hideAction, new Separator(), ...toggleActions];
 
 				// add "Reset Menu" action
-				if (someAreHidden && this._options?.resetMenu) {
+				if (this._options?.resetMenu && !menuIds) {
+					menuIds = [this._options.resetMenu];
+				}
+				if (someAreHidden && menuIds) {
 					actions.push(new Separator());
 					actions.push(toAction({
 						id: 'resetThisMenu',
 						label: localize('resetThisMenu', "Reset Menu"),
-						run: () => this._menuService.resetHiddenStates(this._options!.resetMenu)
+						run: () => this._menuService.resetHiddenStates(menuIds)
 					}));
 				}
 
@@ -191,7 +194,7 @@ export class WorkbenchToolBar extends ToolBar {
 					}
 				}
 
-				this.getElement().classList.toggle('config', true);
+				// this.getElement().classList.toggle('config', true);
 
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => e,

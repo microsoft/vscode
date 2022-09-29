@@ -13,7 +13,6 @@ import { RendererProfiling } from 'vs/workbench/contrib/performance/electron-san
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	RendererProfiling,
-	'RendererProfiling',
 	LifecyclePhase.Eventually
 );
 
@@ -21,7 +20,6 @@ Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkb
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	StartupProfiler,
-	'StartupProfiler',
 	LifecyclePhase.Restored
 );
 
@@ -29,6 +27,5 @@ Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkb
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	StartupTimings,
-	'StartupTimings',
 	LifecyclePhase.Eventually
 );

@@ -20,7 +20,6 @@ import { EventProfiling } from 'vs/base/common/event';
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	PerfviewContrib,
-	'PerfviewContrib',
 	LifecyclePhase.Ready
 );
 
