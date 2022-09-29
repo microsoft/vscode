@@ -130,19 +130,10 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 	}
 
 	private safeCreateInstance(instantiationService: IInstantiationService, logService: ILogService, ctor: IConstructorSignature<IWorkbenchContribution>, phase: LifecyclePhase): void {
-		const now: number | undefined = phase < LifecyclePhase.Restored ? Date.now() : undefined;
-
 		try {
 			instantiationService.createInstance(ctor);
 		} catch (error) {
 			logService.error(`Unable to instantiate workbench contribution ${ctor.name}.`, error);
-		}
-
-		if (typeof now === 'number') {
-			const time = Date.now() - now;
-			if (time > 20) {
-				logService.warn(`Workbench contribution ${ctor.name} blocked restore phase by ${time}ms.`);
-			}
 		}
 	}
 }
