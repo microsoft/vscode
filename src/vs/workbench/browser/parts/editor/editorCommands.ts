@@ -386,49 +386,48 @@ function registerDiffEditorCommands(): void {
 		const activeTextDiffEditor = getActiveTextDiffEditor(accessor);
 		const control = activeTextDiffEditor?.getControl();
 
-		if (control) {
-			const original = control.getOriginalEditor();
-			const modified = control.getModifiedEditor();
+		if (!control) { return; }
+		const original = control.getOriginalEditor();
+		const modified = control.getModifiedEditor();
 
-			let source: ICodeEditor | undefined;
-			let destination: ICodeEditor | undefined;
-			switch (mode) {
-				case FocusTextDiffEditorMode.Original:
-					source = modified;
-					destination = original;
-					break;
-				case FocusTextDiffEditorMode.Modified:
-					source = original;
-					destination = modified;
-					break;
-				case FocusTextDiffEditorMode.Toggle:
-					if (modified?.hasWidgetFocus()) {
-						return focusInDiffEditor(accessor, FocusTextDiffEditorMode.Original);
-					} else {
-						return focusInDiffEditor(accessor, FocusTextDiffEditorMode.Modified);
-					}
-			}
-
-			if (destination) {
-				destination.focus();
-
-				const configurationService = accessor.get(IConfigurationService);
-				const keepLine = configurationService.getValue<boolean>('diffEditor.keepLine');
-
-				if (keepLine && source) {
-					const position = source.getPosition();
-
-					if (position) {
-						const equivalentLineNumber = mode === FocusTextDiffEditorMode.Original ?
-							control.getDiffLineInformationForModified(position.lineNumber)?.equivalentLineNumber :
-							control.getDiffLineInformationForOriginal(position.lineNumber)?.equivalentLineNumber;
-
-						if (equivalentLineNumber !== undefined) {
-							destination.setPosition(new Position(equivalentLineNumber, position.column));
-						}
-					}
+		let source: ICodeEditor | undefined;
+		let destination: ICodeEditor | undefined;
+		switch (mode) {
+			case FocusTextDiffEditorMode.Original:
+				source = modified;
+				destination = original;
+				break;
+			case FocusTextDiffEditorMode.Modified:
+				source = original;
+				destination = modified;
+				break;
+			case FocusTextDiffEditorMode.Toggle:
+				if (modified?.hasWidgetFocus()) {
+					return focusInDiffEditor(accessor, FocusTextDiffEditorMode.Original);
+				} else {
+					return focusInDiffEditor(accessor, FocusTextDiffEditorMode.Modified);
 				}
-			}
+		}
+
+		if (!destination) { return; }
+
+		destination.focus();
+
+		const configurationService = accessor.get(IConfigurationService);
+		const keepLine = configurationService.getValue<boolean>('diffEditor.keepLine');
+
+		if (!keepLine || !source) { return; }
+
+		const position = source.getPosition();
+
+		if (!position) { return; }
+
+		const equivalentLineNumber = mode === FocusTextDiffEditorMode.Original ?
+			control.getDiffLineInformationForModified(position.lineNumber)?.equivalentLineNumber :
+			control.getDiffLineInformationForOriginal(position.lineNumber)?.equivalentLineNumber;
+
+		if (equivalentLineNumber !== undefined) {
+			destination.setPosition(new Position(equivalentLineNumber, position.column));
 		}
 	}
 
