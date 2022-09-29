@@ -81,11 +81,11 @@ registerAction2(MergeEditorLoadContentsFromFolder);
 
 Registry
 	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MergeEditorOpenHandlerContribution, 'MergeEditorOpenHandlerContribution', LifecyclePhase.Restored);
+	.registerWorkbenchContribution(MergeEditorOpenHandlerContribution, LifecyclePhase.Restored);
 
 Registry
 	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MergeEditorResolverContribution, 'MergeEditorResolverContribution', LifecyclePhase.Starting);
+	.registerWorkbenchContribution(MergeEditorResolverContribution, LifecyclePhase.Starting);
 /*
 class MergeEditorWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 	constructor(@IWorkingCopyEditorService private readonly _workingCopyEditorService: IWorkingCopyEditorService) {
