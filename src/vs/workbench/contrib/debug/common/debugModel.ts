@@ -1056,6 +1056,8 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 
 export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBreakpoint {
 
+	private supportedSessions: Set<string> = new Set();
+
 	constructor(
 		public readonly filter: string,
 		public readonly label: string,
@@ -1079,8 +1081,25 @@ export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBre
 		return result;
 	}
 
+	setSupportedSession(sessionId: string, supported: boolean): void {
+		if (supported) {
+			this.supportedSessions.add(sessionId);
+		}
+		else {
+			this.supportedSessions.delete(sessionId);
+		}
+	}
+
 	get supported(): boolean {
 		return true;
+	}
+
+	isSupportedSession(sessionId: string): boolean {
+		return this.supportedSessions.has(sessionId);
+	}
+
+	matches(filter: DebugProtocol.ExceptionBreakpointsFilter) {
+		return this.filter === filter.filter && this.label === filter.label && this.supportsCondition === !!filter.supportsCondition && this.conditionDescription === filter.conditionDescription && this.description === filter.description;
 	}
 
 	override toString(): string {
@@ -1340,23 +1359,29 @@ export class DebugModel implements IDebugModel {
 		return this.exceptionBreakpoints;
 	}
 
+	getExceptionBreakpointsForSession(sessionId?: string): IExceptionBreakpoint[] {
+		return this.exceptionBreakpoints.filter(ebp => sessionId ? ebp.isSupportedSession(sessionId) : false);
+	}
+
 	getInstructionBreakpoints(): IInstructionBreakpoint[] {
 		return this.instructionBreakpoints;
 	}
 
-	setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
+	addExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
 		if (data) {
-			if (this.exceptionBreakpoints.length === data.length && this.exceptionBreakpoints.every((exbp, i) =>
-				exbp.filter === data[i].filter && exbp.label === data[i].label && exbp.supportsCondition === data[i].supportsCondition && exbp.conditionDescription === data[i].conditionDescription && exbp.description === data[i].description)) {
-				// No change
-				return;
-			}
-
-			this.exceptionBreakpoints = data.map(d => {
-				const ebp = this.exceptionBreakpoints.filter(ebp => ebp.filter === d.filter).pop();
-				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : !!d.default, !!d.supportsCondition, ebp?.condition, d.description, d.conditionDescription);
+			let didChangeBreakpoints = false;
+			data.forEach(d => {
+				if (!this.exceptionBreakpoints.some((exbp) =>
+					exbp.matches(d)
+				)) {
+					didChangeBreakpoints = true;
+					this.exceptionBreakpoints.push(new ExceptionBreakpoint(d.filter, d.label, !!d.default, !!d.supportsCondition, undefined /* condition */, d.description, d.conditionDescription));
+				}
 			});
-			this._onDidChangeBreakpoints.fire(undefined);
+
+			if (didChangeBreakpoints) {
+				this._onDidChangeBreakpoints.fire(undefined);
+			}
 		}
 	}
 
@@ -1439,11 +1464,14 @@ export class DebugModel implements IDebugModel {
 		this.exceptionBreakpoints.forEach(ebp => {
 			if (!data) {
 				ebp.setSessionData(sessionId, undefined);
+				ebp.setSupportedSession(sessionId, false);
 			} else {
 				const ebpData = data.get(ebp.getId());
 				if (ebpData) {
 					ebp.setSessionData(sessionId, toBreakpointSessionData(ebpData, capabilites));
 				}
+
+				ebp.setSupportedSession(sessionId, capabilites.exceptionBreakpointFilters?.some((f) => ebp.matches(f)) || false);
 			}
 		});
 		this.instructionBreakpoints.forEach(ibp => {

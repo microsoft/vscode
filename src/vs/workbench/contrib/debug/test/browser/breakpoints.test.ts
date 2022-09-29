@@ -99,10 +99,10 @@ suite('Debug - Breakpoints', () => {
 		const modelUri1 = uri.file('/myfolder/my file first.js');
 		const modelUri2 = uri.file('/secondfolder/second/second file.js');
 		addBreakpointsAndCheckEvents(model, modelUri1, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
-		assert.strictEqual(getExpandedBodySize(model, 9), 44);
+		assert.strictEqual(getExpandedBodySize(model, undefined, 9), 44);
 
 		addBreakpointsAndCheckEvents(model, modelUri2, [{ lineNumber: 1, enabled: true }, { lineNumber: 2, enabled: true }, { lineNumber: 3, enabled: false }]);
-		assert.strictEqual(getExpandedBodySize(model, 9), 110);
+		assert.strictEqual(getExpandedBodySize(model, undefined, 9), 110);
 
 		assert.strictEqual(model.getBreakpoints().length, 5);
 		assert.strictEqual(model.getBreakpoints({ uri: modelUri1 }).length, 2);
@@ -136,7 +136,7 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(bp.enabled, true);
 
 		model.removeBreakpoints(model.getBreakpoints({ uri: modelUri1 }));
-		assert.strictEqual(getExpandedBodySize(model, 9), 66);
+		assert.strictEqual(getExpandedBodySize(model, undefined, 9), 66);
 
 		assert.strictEqual(model.getBreakpoints().length, 3);
 	});
@@ -212,14 +212,14 @@ suite('Debug - Breakpoints', () => {
 	test('exception breakpoints', () => {
 		let eventCount = 0;
 		model.onDidChangeBreakpoints(() => eventCount++);
-		model.setExceptionBreakpoints([{ filter: 'uncaught', label: 'UNCAUGHT', default: true }]);
+		model.addExceptionBreakpoints([{ filter: 'uncaught', label: 'UNCAUGHT', default: true }]);
 		assert.strictEqual(eventCount, 1);
 		let exceptionBreakpoints = model.getExceptionBreakpoints();
 		assert.strictEqual(exceptionBreakpoints.length, 1);
 		assert.strictEqual(exceptionBreakpoints[0].filter, 'uncaught');
 		assert.strictEqual(exceptionBreakpoints[0].enabled, true);
 
-		model.setExceptionBreakpoints([{ filter: 'uncaught', label: 'UNCAUGHT' }, { filter: 'caught', label: 'CAUGHT' }]);
+		model.addExceptionBreakpoints([{ filter: 'uncaught', label: 'UNCAUGHT' }, { filter: 'caught', label: 'CAUGHT' }]);
 		assert.strictEqual(eventCount, 2);
 		exceptionBreakpoints = model.getExceptionBreakpoints();
 		assert.strictEqual(exceptionBreakpoints.length, 2);
