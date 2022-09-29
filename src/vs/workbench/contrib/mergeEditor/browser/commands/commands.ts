@@ -603,31 +603,7 @@ export class ResetToBaseAndAutoMergeCommand extends MergeEditorAction {
 	}
 
 	override runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void {
-		viewModel.model.resetResultToBaseAndAutoMerge();
-	}
-}
-
-export class ResetDirtyConflictsToBaseCommand extends MergeEditorAction {
-	constructor() {
-		super({
-			id: 'mergeEditor.resetDirtyConflictsToBase',
-			category: mergeEditorCategory,
-			title: {
-				value: localize(
-					'mergeEditor.resetDirtyConflictsToBase',
-					'Reset Dirty Conflicts In Result To Base'
-				),
-				original: 'Reset Dirty Conflicts In Result To Base',
-			},
-			shortTitle: localize('mergeEditor.resetDirtyConflictsToBase.short', 'Reset Dirty Conflicts To Base'),
-			f1: true,
-			precondition: ctxIsMergeEditor,
-			menu: { id: MenuId.MergeInputResultToolbar }
-		});
-	}
-
-	override runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void {
-		viewModel.model.resetDirtyConflictsToBase();
+		viewModel.model.reset();
 	}
 }
 
