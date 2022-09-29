@@ -499,7 +499,7 @@ export class FolderMatch extends Disposable {
 	constructor(
 		protected _resource: URI | null,
 		private _id: string,
-		protected _index: number | null,
+		protected _index: number,
 		protected _query: ITextQuery,
 		private _parent: SearchResult | FolderMatch,
 		private _searchModel: SearchModel,
@@ -541,7 +541,7 @@ export class FolderMatch extends Disposable {
 		return this._resource;
 	}
 
-	index(): number | null {
+	index(): number {
 		return this._index;
 	}
 
@@ -566,7 +566,7 @@ export class FolderMatch extends Disposable {
 		}
 	}
 
-	public createIntermediateFolderMatch(resource: URI, id: string, index: number | null, query: ITextQuery, baseWorkspaceFolder: FolderMatchWorkspaceRoot): FolderMatchWithResource {
+	public createIntermediateFolderMatch(resource: URI, id: string, index: number, query: ITextQuery, baseWorkspaceFolder: FolderMatchWorkspaceRoot): FolderMatchWithResource {
 		const folderMatch = this.instantiationService.createInstance(FolderMatchWithResource, resource, id, index, query, this, this._searchModel, baseWorkspaceFolder);
 		this.configureIntermediateMatch(folderMatch);
 		this.doAddFolder(folderMatch);
@@ -821,7 +821,7 @@ export class FolderMatch extends Disposable {
 
 export class FolderMatchWithResource extends FolderMatch {
 
-	constructor(_resource: URI, _id: string, _index: number | null, _query: ITextQuery, _parent: SearchResult | FolderMatch, _searchModel: SearchModel, _closestRoot: FolderMatchWorkspaceRoot | null,
+	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: SearchResult | FolderMatch, _searchModel: SearchModel, _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
@@ -887,16 +887,12 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		for (let i = 0; i < fileMatchParentParts.length; i++) {
 			let folderMatch: FolderMatchWithResource | undefined = parent.getFolderMatch(fileMatchParentParts[i]);
 			if (!folderMatch) {
-				folderMatch = parent.createIntermediateFolderMatch(fileMatchParentParts[i], fileMatchParentParts[i].toString(), null, this._query, root);
+				folderMatch = parent.createIntermediateFolderMatch(fileMatchParentParts[i], fileMatchParentParts[i].toString(), -1, this._query, root);
 			}
 			parent = folderMatch;
 		}
 
 		return this.createFileMatch(this._query.contentPattern, this._query.previewOptions, this._query.maxResults, parent, rawFileMatch, root);
-	}
-
-	override index(): number {
-		return this._index!;
 	}
 }
 
@@ -923,6 +919,8 @@ export class FolderMatchNoRoot extends FolderMatch {
 	}
 }
 
+let elemAIndex: number | null = null;
+let elemBIndex: number | null = null;
 /**
  * Compares instances of the same match type. Different match types should not be siblings
  * and their sort order is undefined.
@@ -938,9 +936,9 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 	}
 
 	if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
-		const elemAIndex = elementA.index();
-		const elemBIndex = elementB.index();
-		if (elemAIndex !== null && elemBIndex !== null) {
+		elemAIndex = elementA.index();
+		elemBIndex = elementB.index();
+		if (elemAIndex !== -1 && elemBIndex !== -1) {
 			return elemAIndex - elemBIndex;
 		}
 
@@ -1365,7 +1363,7 @@ export class SearchModel extends Disposable {
 	private _replacePattern: ReplacePattern | null = null;
 	private _preserveCase: boolean = false;
 	private _startStreamDelay: Promise<void> = Promise.resolve();
-	private _resultQueue: IFileMatch[] = [];
+	private readonly _resultQueue: IFileMatch[] = [];
 
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
 	readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
@@ -1481,7 +1479,7 @@ export class SearchModel extends Disposable {
 		}
 
 		this._searchResult.add(this._resultQueue);
-		this._resultQueue = [];
+		this._resultQueue.length = 0;
 
 		const options: IPatternInfo = Object.assign({}, this._searchQuery.contentPattern);
 		delete (options as any).pattern;
@@ -1535,7 +1533,7 @@ export class SearchModel extends Disposable {
 			await this._startStreamDelay;
 			if (this._resultQueue.length) {
 				this._searchResult.add(this._resultQueue, true);
-				this._resultQueue = [];
+				this._resultQueue.length = 0;
 			}
 		}
 	}
