@@ -33,13 +33,18 @@ class CheckoutItem implements QuickPickItem {
 	constructor(protected repository: Repository, protected ref: Ref) { }
 
 	async run(opts?: { detached?: boolean }): Promise<void> {
-		const ref = this.ref.name;
-
-		if (!ref) {
+		if (!this.ref.name) {
 			return;
 		}
 
-		await this.repository.checkout(ref, opts);
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const fetchBeforeCheckout = config.get<boolean>('fetchBeforeCheckout', false) === true;
+
+		if (fetchBeforeCheckout) {
+			await this.repository.fastForwardBranch(this.ref.name!);
+		}
+
+		await this.repository.checkout(this.ref.name, opts);
 	}
 }
 
@@ -48,6 +53,14 @@ class CheckoutTagItem extends CheckoutItem {
 	override get label(): string { return `$(tag) ${this.ref.name || this.shortCommit}`; }
 	override get description(): string {
 		return localize('tag at', "Tag at {0}", this.shortCommit);
+	}
+
+	override async run(opts?: { detached?: boolean }): Promise<void> {
+		if (!this.ref.name) {
+			return;
+		}
+
+		await this.repository.checkout(this.ref.name, opts);
 	}
 }
 
@@ -432,6 +445,12 @@ export class CommandCenter {
 
 	@command('git.openMergeEditor')
 	async openMergeEditor(uri: unknown) {
+		if (uri === undefined) {
+			// fallback to active editor...
+			if (window.tabGroups.activeTabGroup.activeTab?.input instanceof TabInputText) {
+				uri = window.tabGroups.activeTabGroup.activeTab.input.uri;
+			}
+		}
 		if (!(uri instanceof Uri)) {
 			return;
 		}
@@ -541,9 +560,17 @@ export class CommandCenter {
 				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive }, token)
 			);
 
-			if (options.ref !== undefined) {
-				const repository = this.model.getRepository(Uri.file(repositoryPath));
-				await repository?.checkout(options.ref);
+			const refToCheckoutAfterClone = options.ref;
+			if (refToCheckoutAfterClone !== undefined) {
+				await window.withProgress(
+					{
+						location: ProgressLocation.Notification,
+						title: localize('checking out ref', "Checking out ref '{0}'...", options.ref)
+					}, async () => {
+						await this.model.openRepository(repositoryPath);
+						const repository = this.model.getRepository(repositoryPath);
+						await repository?.checkout(refToCheckoutAfterClone);
+					});
 			}
 
 			const config = workspace.getConfiguration('git');
@@ -572,7 +599,7 @@ export class CommandCenter {
 					choices.push(addToWorkspace);
 				}
 
-				const result = await window.showInformationMessage(message, ...choices);
+				const result = await window.showInformationMessage(message, { modal: true }, ...choices);
 
 				action = result === open ? PostCloneAction.Open
 					: result === openNewWindow ? PostCloneAction.OpenNewWindow
@@ -1121,20 +1148,37 @@ export class CommandCenter {
 	}
 
 	@command('git.acceptMerge')
-	async acceptMerge(uri: Uri | unknown): Promise<void> {
-		if (!(uri instanceof Uri)) {
+	async acceptMerge(_uri: Uri | unknown): Promise<void> {
+		const { activeTab } = window.tabGroups.activeTabGroup;
+		if (!activeTab) {
 			return;
 		}
+
+		if (!(activeTab.input instanceof TabInputTextMerge)) {
+			return;
+		}
+
+		const uri = activeTab.input.result;
+
 		const repository = this.model.getRepository(uri);
 		if (!repository) {
 			console.log(`FAILED to accept merge because uri ${uri.toString()} doesn't belong to any repository`);
 			return;
 		}
 
-		const { activeTab } = window.tabGroups.activeTabGroup;
-		if (!activeTab) {
+		const result = await commands.executeCommand('mergeEditor.acceptMerge') as { successful: boolean };
+		if (result.successful) {
+			await repository.add([uri]);
+			await commands.executeCommand('workbench.view.scm');
+		}
+
+		/*
+		if (!(uri instanceof Uri)) {
 			return;
 		}
+
+
+
 
 		// make sure to save the merged document
 		const doc = workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
@@ -1158,7 +1202,7 @@ export class CommandCenter {
 		if (didCloseTab) {
 			await repository.add([uri]);
 			await commands.executeCommand('workbench.view.scm');
-		}
+		}*/
 	}
 
 	@command('git.runGitMerge')

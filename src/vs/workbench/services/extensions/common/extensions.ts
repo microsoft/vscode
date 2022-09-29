@@ -443,7 +443,15 @@ export interface IExtensionService {
 	/**
 	 * Fired when the available extensions change (i.e. when extensions are added or removed).
 	 */
-	onDidChangeExtensions: Event<void>;
+	onDidChangeExtensions: Event<{ readonly added: readonly IExtensionDescription[]; readonly removed: readonly IExtensionDescription[] }>;
+
+	/**
+	 * All registered extensions.
+	 * - List will be empty initially during workbench startup and will be filled with extensions as they are registered
+	 * - Listen to `onDidChangeExtensions` event for any changes to the extensions list. It will change as extensions get registered or de-reigstered.
+	 * - Listen to `onDidRegisterExtensions` event or wait for `whenInstalledExtensionsRegistered` promise to get the initial list of registered extensions.
+	 */
+	readonly extensions: readonly IExtensionDescription[];
 
 	/**
 	 * An event that is fired when activation happens.
@@ -480,11 +488,6 @@ export interface IExtensionService {
 	 * their extension points got handled.
 	 */
 	whenInstalledExtensionsRegistered(): Promise<boolean>;
-
-	/**
-	 * Return all registered extensions
-	 */
-	getExtensions(): Promise<IExtensionDescription[]>;
 
 	/**
 	 * Return a specific extension
@@ -597,13 +600,13 @@ export class NullExtensionService implements IExtensionService {
 	declare readonly _serviceBrand: undefined;
 	onDidRegisterExtensions: Event<void> = Event.None;
 	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = Event.None;
-	onDidChangeExtensions: Event<void> = Event.None;
+	onDidChangeExtensions = Event.None;
 	onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
 	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = Event.None;
+	readonly extensions = [];
 	activateByEvent(_activationEvent: string): Promise<void> { return Promise.resolve(undefined); }
 	activationEventIsDone(_activationEvent: string): boolean { return false; }
 	whenInstalledExtensionsRegistered(): Promise<boolean> { return Promise.resolve(true); }
-	getExtensions(): Promise<IExtensionDescription[]> { return Promise.resolve([]); }
 	getExtension() { return Promise.resolve(undefined); }
 	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus } { return Object.create(null); }

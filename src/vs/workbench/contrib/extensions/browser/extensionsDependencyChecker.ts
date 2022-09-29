@@ -43,10 +43,10 @@ export class ExtensionDependencyChecker extends Disposable implements IWorkbench
 	}
 
 	private async getAllMissingDependencies(): Promise<string[]> {
-		const runningExtensions = await this.extensionService.getExtensions();
-		const runningExtensionsIds: Set<string> = runningExtensions.reduce((result, r) => { result.add(r.identifier.value.toLowerCase()); return result; }, new Set<string>());
+		await this.extensionService.whenInstalledExtensionsRegistered();
+		const runningExtensionsIds: Set<string> = this.extensionService.extensions.reduce((result, r) => { result.add(r.identifier.value.toLowerCase()); return result; }, new Set<string>());
 		const missingDependencies: Set<string> = new Set<string>();
-		for (const extension of runningExtensions) {
+		for (const extension of this.extensionService.extensions) {
 			if (extension.extensionDependencies) {
 				extension.extensionDependencies.forEach(dep => {
 					if (!runningExtensionsIds.has(dep.toLowerCase())) {

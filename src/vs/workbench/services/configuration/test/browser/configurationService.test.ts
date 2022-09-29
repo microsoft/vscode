@@ -1072,6 +1072,116 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.strictEqual(actual.workspaceValue, 'workspaceValue');
 		assert.strictEqual(actual.workspaceFolderValue, undefined);
 		assert.strictEqual(actual.value, 'workspaceValue');
+
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'tasks.json'), VSBuffer.fromString('{ "configurationService.tasks.testSetting": "tasksValue" }'));
+		await testObject.reloadConfiguration();
+		actual = testObject.inspect('tasks');
+		assert.strictEqual(actual.defaultValue, undefined);
+		assert.strictEqual(actual.application, undefined);
+		assert.deepStrictEqual(actual.userValue, {});
+		assert.deepStrictEqual(actual.workspaceValue, {
+			"configurationService": {
+				"tasks": {
+					"testSetting": "tasksValue"
+				}
+			}
+		});
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.deepStrictEqual(actual.value, {
+			"configurationService": {
+				"tasks": {
+					"testSetting": "tasksValue"
+				}
+			}
+		});
+	});
+
+	test('inspect restricted settings', async () => {
+		testObject.updateWorkspaceTrust(false);
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userRestrictedValue" }'));
+		await testObject.reloadConfiguration();
+		let actual = testObject.inspect('configurationService.folder.restrictedSetting');
+		assert.strictEqual(actual.defaultValue, 'isSet');
+		assert.strictEqual(actual.application, undefined);
+		assert.strictEqual(actual.userValue, 'userRestrictedValue');
+		assert.strictEqual(actual.workspaceValue, undefined);
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.strictEqual(actual.value, 'userRestrictedValue');
+
+		testObject.updateWorkspaceTrust(true);
+		await testObject.reloadConfiguration();
+		actual = testObject.inspect('configurationService.folder.restrictedSetting');
+		assert.strictEqual(actual.defaultValue, 'isSet');
+		assert.strictEqual(actual.application, undefined);
+		assert.strictEqual(actual.userValue, 'userRestrictedValue');
+		assert.strictEqual(actual.workspaceValue, undefined);
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.strictEqual(actual.value, 'userRestrictedValue');
+
+		testObject.updateWorkspaceTrust(false);
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceRestrictedValue" }'));
+		await testObject.reloadConfiguration();
+		actual = testObject.inspect('configurationService.folder.restrictedSetting');
+		assert.strictEqual(actual.defaultValue, 'isSet');
+		assert.strictEqual(actual.application, undefined);
+		assert.strictEqual(actual.userValue, 'userRestrictedValue');
+		assert.strictEqual(actual.workspaceValue, 'workspaceRestrictedValue');
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.strictEqual(actual.value, 'userRestrictedValue');
+
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'tasks.json'), VSBuffer.fromString('{ "configurationService.tasks.testSetting": "tasksValue" }'));
+		await testObject.reloadConfiguration();
+		actual = testObject.inspect('tasks');
+		assert.strictEqual(actual.defaultValue, undefined);
+		assert.strictEqual(actual.application, undefined);
+		assert.deepStrictEqual(actual.userValue, {});
+		assert.deepStrictEqual(actual.workspaceValue, {
+			"configurationService": {
+				"tasks": {
+					"testSetting": "tasksValue"
+				}
+			}
+		});
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.deepStrictEqual(actual.value, {
+			"configurationService": {
+				"tasks": {
+					"testSetting": "tasksValue"
+				}
+			}
+		});
+
+		testObject.updateWorkspaceTrust(true);
+		await testObject.reloadConfiguration();
+		actual = testObject.inspect('configurationService.folder.restrictedSetting');
+		assert.strictEqual(actual.defaultValue, 'isSet');
+		assert.strictEqual(actual.application, undefined);
+		assert.strictEqual(actual.userValue, 'userRestrictedValue');
+		assert.strictEqual(actual.workspaceValue, 'workspaceRestrictedValue');
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.strictEqual(actual.value, 'workspaceRestrictedValue');
+
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'tasks.json'), VSBuffer.fromString('{ "configurationService.tasks.testSetting": "tasksValue" }'));
+		await testObject.reloadConfiguration();
+		actual = testObject.inspect('tasks');
+		assert.strictEqual(actual.defaultValue, undefined);
+		assert.strictEqual(actual.application, undefined);
+		assert.deepStrictEqual(actual.userValue, {});
+		assert.deepStrictEqual(actual.workspaceValue, {
+			"configurationService": {
+				"tasks": {
+					"testSetting": "tasksValue"
+				}
+			}
+		});
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.deepStrictEqual(actual.value, {
+			"configurationService": {
+				"tasks": {
+					"testSetting": "tasksValue"
+				}
+			}
+		});
 	});
 
 	test('keys', async () => {
@@ -1481,7 +1591,7 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 		actual = testObject.inspect('configurationService.profiles.applicationSetting');
 		assert.strictEqual(actual.defaultValue, 'isSet');
 		assert.strictEqual(actual.applicationValue, 'applicationValue');
-		assert.strictEqual(actual.userValue, undefined);
+		assert.strictEqual(actual.userValue, 'profileValue');
 		assert.strictEqual(actual.workspaceValue, undefined);
 		assert.strictEqual(actual.workspaceFolderValue, undefined);
 		assert.strictEqual(actual.value, 'applicationValue');
@@ -1940,6 +2050,50 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		assert.strictEqual(actual.workspaceValue, 'workspaceValue');
 		assert.strictEqual(actual.workspaceFolderValue, 'workspaceFolderValue');
 		assert.strictEqual(actual.value, 'workspaceFolderValue');
+	});
+
+	test('inspect restricted settings', async () => {
+		testObject.updateWorkspaceTrust(false);
+		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testRestrictedSetting1': 'workspaceRestrictedValue' } }], true);
+		await testObject.reloadConfiguration();
+		let actual = testObject.inspect('configurationService.workspace.testRestrictedSetting1', { resource: workspaceContextService.getWorkspace().folders[0].uri });
+		assert.strictEqual(actual.defaultValue, 'isSet');
+		assert.strictEqual(actual.application, undefined);
+		assert.strictEqual(actual.userValue, undefined);
+		assert.strictEqual(actual.workspaceValue, 'workspaceRestrictedValue');
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.strictEqual(actual.value, 'isSet');
+
+		testObject.updateWorkspaceTrust(true);
+		await testObject.reloadConfiguration();
+		actual = testObject.inspect('configurationService.workspace.testRestrictedSetting1', { resource: workspaceContextService.getWorkspace().folders[0].uri });
+		assert.strictEqual(actual.defaultValue, 'isSet');
+		assert.strictEqual(actual.application, undefined);
+		assert.strictEqual(actual.userValue, undefined);
+		assert.strictEqual(actual.workspaceValue, 'workspaceRestrictedValue');
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.strictEqual(actual.value, 'workspaceRestrictedValue');
+
+		testObject.updateWorkspaceTrust(false);
+		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testRestrictedSetting1": "workspaceFolderRestrictedValue" }'));
+		await testObject.reloadConfiguration();
+		actual = testObject.inspect('configurationService.workspace.testRestrictedSetting1', { resource: workspaceContextService.getWorkspace().folders[0].uri });
+		assert.strictEqual(actual.defaultValue, 'isSet');
+		assert.strictEqual(actual.application, undefined);
+		assert.strictEqual(actual.userValue, undefined);
+		assert.strictEqual(actual.workspaceValue, 'workspaceRestrictedValue');
+		assert.strictEqual(actual.workspaceFolderValue, 'workspaceFolderRestrictedValue');
+		assert.strictEqual(actual.value, 'isSet');
+
+		testObject.updateWorkspaceTrust(true);
+		await testObject.reloadConfiguration();
+		actual = testObject.inspect('configurationService.workspace.testRestrictedSetting1', { resource: workspaceContextService.getWorkspace().folders[0].uri });
+		assert.strictEqual(actual.defaultValue, 'isSet');
+		assert.strictEqual(actual.application, undefined);
+		assert.strictEqual(actual.userValue, undefined);
+		assert.strictEqual(actual.workspaceValue, 'workspaceRestrictedValue');
+		assert.strictEqual(actual.workspaceFolderValue, 'workspaceFolderRestrictedValue');
+		assert.strictEqual(actual.value, 'workspaceFolderRestrictedValue');
 	});
 
 	test('get launch configuration', async () => {

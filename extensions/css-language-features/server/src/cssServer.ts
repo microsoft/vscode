@@ -223,7 +223,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			if (document) {
 				await dataProvidersReady;
 				const stylesheet = stylesheets.get(document);
-				return getLanguageService(document).findDocumentSymbols(document, stylesheet);
+				return getLanguageService(document).findDocumentSymbols2(document, stylesheet);
 			}
 			return [];
 		}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`, token);

@@ -14,7 +14,6 @@ import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecyc
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -42,6 +41,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
 import { IDropdownMenuActionViewItemOptions } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
@@ -198,7 +198,7 @@ export abstract class ViewPane extends Pane implements IView {
 	private progressBar!: ProgressBar;
 	private progressIndicator!: IProgressIndicator;
 
-	private toolbar?: ToolBar;
+	private toolbar?: WorkbenchToolBar;
 	private readonly showActionsAlways: boolean = false;
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;
@@ -293,13 +293,14 @@ export abstract class ViewPane extends Pane implements IView {
 
 		const actions = append(container, $('.actions'));
 		actions.classList.toggle('show', this.showActionsAlways);
-		this.toolbar = new ToolBar(actions, this.contextMenuService, {
+		this.toolbar = this.instantiationService.createInstance(WorkbenchToolBar, actions, {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionViewItemProvider: action => this.getActionViewItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			renderDropdownAsChildElement: true,
-			actionRunner: this.getActionRunner()
+			actionRunner: this.getActionRunner(),
+			resetMenu: this.menuActions.menuId
 		});
 
 		this._register(this.toolbar);

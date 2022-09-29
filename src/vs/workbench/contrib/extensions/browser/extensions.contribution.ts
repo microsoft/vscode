@@ -14,7 +14,7 @@ import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsServi
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP } from 'vs/workbench/contrib/extensions/common/extensions';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
@@ -544,7 +544,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER))
 			},
 			run: async (accessor: ServicesAccessor) => {
-				accessor.get(IViewsService).openViewContainer(VIEWLET_ID);
+				accessor.get(IViewsService).openViewContainer(VIEWLET_ID, true);
 			}
 		});
 
@@ -653,15 +653,23 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			title: { value: localize('updateAll', "Update All Extensions"), original: 'Update All Extensions' },
 			category: ExtensionsLocalizedLabel,
 			precondition: HasOutdatedExtensionsContext,
-			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER))
-			}, {
-				id: MenuId.ViewContainerTitle,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), ContextKeyExpr.or(ContextKeyExpr.has(`config.${AutoUpdateConfigurationKey}`).negate(), ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions'))),
-				group: '1_updates',
-				order: 2
-			}],
+			menu: [
+				{
+					id: MenuId.CommandPalette,
+					when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER))
+				}, {
+					id: MenuId.ViewContainerTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), ContextKeyExpr.or(ContextKeyExpr.has(`config.${AutoUpdateConfigurationKey}`).negate(), ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions'))),
+					group: '1_updates',
+					order: 2
+				}, {
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.equals('view', OUTDATED_EXTENSIONS_VIEW_ID),
+					group: 'navigation',
+					order: 1
+				}
+			],
+			icon: installWorkspaceRecommendedIcon,
 			run: () => {
 				return Promise.all(this.extensionsWorkbenchService.outdated.map(async extension => {
 					try {
@@ -976,7 +984,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}, {
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
-				order: 1,
+				order: 2,
 			}],
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('builtin filter', "Built-in")
@@ -985,20 +993,20 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
-			id: 'workbench.extensions.action.recentlyUpdatedExtensions',
-			title: { value: localize('recentlyUpdatedExtensions', "Show Recently Updated Extensions"), original: 'Show Recently Updated Extensions' },
+			id: 'workbench.extensions.action.extensionUpdates',
+			title: { value: localize('extensionUpdates', "Show Extension Updates"), original: 'Show Extension Updates' },
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
 			}, {
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
-				order: 7,
+				order: 1,
 			}],
 			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('recently updated filter', "Recently Updated")
+				[extensionsFilterSubMenu.id]: localize('extension updates filter', "Updates")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@recentlyUpdated'))
+			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@updates'))
 		});
 
 		this.registerExtensionAction({
@@ -1011,31 +1019,13 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}, {
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
-				order: 6,
+				order: 5,
 				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER),
 			}],
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('workspace unsupported filter', "Workspace Unsupported")
 			},
 			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@workspaceUnsupported'))
-		});
-
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.showInstalledExtensions',
-			title: { value: localize('showInstalledExtensions', "Show Installed Extensions"), original: 'Show Installed Extensions' },
-			category: ExtensionsLocalizedLabel,
-			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER)
-			}, {
-				id: extensionsFilterSubMenu,
-				group: '3_installed',
-				order: 2,
-			}],
-			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('installed filter', "Installed")
-			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@installed '))
 		});
 
 		this.registerExtensionAction({
@@ -1073,24 +1063,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				[extensionsFilterSubMenu.id]: localize('disabled filter', "Disabled")
 			},
 			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@disabled '))
-		});
-
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.listOutdatedExtensions',
-			title: { value: localize('showOutdatedExtensions', "Show Outdated Extensions"), original: 'Show Outdated Extensions' },
-			category: ExtensionsLocalizedLabel,
-			menu: [{
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER))
-			}, {
-				id: extensionsFilterSubMenu,
-				group: '3_installed',
-				order: 5,
-			}],
-			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('outdated filter', "Outdated")
-			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@outdated '))
 		});
 
 		const extensionsSortSubMenu = new MenuId('extensionsSortSubMenu');
@@ -1616,18 +1588,18 @@ class ExtensionStorageCleaner implements IWorkbenchContribution {
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, 'ExtensionsContributions', LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(StatusUpdater, 'StatusUpdater', LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(MaliciousExtensionChecker, 'MaliciousExtensionChecker', LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, 'KeymapExtensions', LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, 'ExtensionsViewletViewsContribution', LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, 'ExtensionActivationProgress', LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, 'ExtensionDependencyChecker', LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrustTransitionParticipant, 'ExtensionEnablementWorkspaceTrustTransitionParticipant', LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, 'ExtensionsCompletionItemsProvider', LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(UnsupportedExtensionsMigrationContrib, 'UnsupportedExtensionsMigrationContrib', LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(MaliciousExtensionChecker, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrustTransitionParticipant, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(UnsupportedExtensionsMigrationContrib, LifecyclePhase.Eventually);
 if (isWeb) {
-	workbenchRegistry.registerWorkbenchContribution(ExtensionStorageCleaner, 'ExtensionStorageCleaner', LifecyclePhase.Eventually);
+	workbenchRegistry.registerWorkbenchContribution(ExtensionStorageCleaner, LifecyclePhase.Eventually);
 }
 
 

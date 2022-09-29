@@ -26,7 +26,7 @@ import { getServiceMachineId } from 'vs/platform/externalServices/common/service
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Change, getLastSyncResourceUri, IRemoteUserData, IResourcePreview as IBaseResourcePreview, ISyncData, ISyncResourceHandle, ISyncResourcePreview as IBaseSyncResourcePreview, IUserData, IUserDataInitializer, IUserDataManifest, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, MergeState, PREVIEW_DIR_NAME, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, getLastSyncResourceUri, IRemoteUserData, IResourcePreview as IBaseResourcePreview, ISyncData, ISyncResourceHandle, IUserDataSyncResourcePreview as IBaseSyncResourcePreview, IUserData, IUserDataInitializer, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, MergeState, PREVIEW_DIR_NAME, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME, IUserDataResourceManifest, getPathSegments, IUserDataSyncResourceConflicts, IUserDataSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 type IncompatibleSyncSourceClassification = {
@@ -109,9 +109,9 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangStatus.event;
 
 	private _conflicts: IBaseResourcePreview[] = [];
-	get conflicts(): IBaseResourcePreview[] { return this._conflicts; }
-	private _onDidChangeConflicts: Emitter<IBaseResourcePreview[]> = this._register(new Emitter<IBaseResourcePreview[]>());
-	readonly onDidChangeConflicts: Event<IBaseResourcePreview[]> = this._onDidChangeConflicts.event;
+	get conflicts(): IUserDataSyncResourceConflicts { return { ...this.syncResource, conflicts: this._conflicts }; }
+	private _onDidChangeConflicts = this._register(new Emitter<IUserDataSyncResourceConflicts>());
+	readonly onDidChangeConflicts = this._onDidChangeConflicts.event;
 
 	private readonly localChangeTriggerThrottler = new ThrottledDelayer<void>(50);
 	private readonly _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
@@ -123,8 +123,11 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 
 	protected syncHeaders: IHeaders = {};
 
+	readonly resource = this.syncResource.syncResource;
+
 	constructor(
-		readonly resource: SyncResource,
+		readonly syncResource: IUserDataSyncResource,
+		readonly collection: string | undefined,
 		@IFileService protected readonly fileService: IFileService,
 		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
 		@IStorageService storageService: IStorageService,
@@ -137,11 +140,11 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super();
-		this.syncResourceLogLabel = uppercaseFirstLetter(this.resource);
+		this.syncResourceLogLabel = `${uppercaseFirstLetter(this.resource)}${syncResource.profile.isDefault ? '' : ` (${syncResource.profile.name})`}`;
 		this.extUri = uriIdentityService.extUri;
-		this.syncFolder = this.extUri.joinPath(environmentService.userDataSyncHome, resource);
+		this.syncFolder = this.extUri.joinPath(environmentService.userDataSyncHome, ...getPathSegments(syncResource.profile.isDefault ? undefined : syncResource.profile.id, syncResource.syncResource));
 		this.syncPreviewFolder = this.extUri.joinPath(this.syncFolder, PREVIEW_DIR_NAME);
-		this.lastSyncResource = getLastSyncResourceUri(resource, environmentService, this.extUri);
+		this.lastSyncResource = getLastSyncResourceUri(syncResource.profile.isDefault ? undefined : syncResource.profile.id, syncResource.syncResource, environmentService, this.extUri);
 		this.currentMachineIdPromise = getServiceMachineId(environmentService, fileService, storageService);
 	}
 
@@ -178,11 +181,11 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		}
 	}
 
-	async sync(manifest: IUserDataManifest | null, headers: IHeaders = {}): Promise<void> {
+	async sync(manifest: IUserDataResourceManifest | null, headers: IHeaders = {}): Promise<void> {
 		await this._sync(manifest, true, this.getUserDataSyncConfiguration(), headers);
 	}
 
-	async preview(manifest: IUserDataManifest | null, userDataSyncConfiguration: IUserDataSyncConfiguration, headers: IHeaders = {}): Promise<ISyncResourcePreview | null> {
+	async preview(manifest: IUserDataResourceManifest | null, userDataSyncConfiguration: IUserDataSyncConfiguration, headers: IHeaders = {}): Promise<ISyncResourcePreview | null> {
 		return this._sync(manifest, false, userDataSyncConfiguration, headers);
 	}
 
@@ -199,7 +202,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		}
 	}
 
-	private async _sync(manifest: IUserDataManifest | null, apply: boolean, userDataSyncConfiguration: IUserDataSyncConfiguration, headers: IHeaders): Promise<ISyncResourcePreview | null> {
+	private async _sync(manifest: IUserDataResourceManifest | null, apply: boolean, userDataSyncConfiguration: IUserDataSyncConfiguration, headers: IHeaders): Promise<ISyncResourcePreview | null> {
 		try {
 			this.syncHeaders = { ...headers };
 
@@ -281,10 +284,10 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		return !!remoteUserData.syncData?.machineId && remoteUserData.syncData.machineId === machineId;
 	}
 
-	protected async getLatestRemoteUserData(manifest: IUserDataManifest | null, lastSyncUserData: IRemoteUserData | null): Promise<IRemoteUserData> {
+	protected async getLatestRemoteUserData(manifest: IUserDataResourceManifest | null, lastSyncUserData: IRemoteUserData | null): Promise<IRemoteUserData> {
 		if (lastSyncUserData) {
 
-			const latestRef = manifest && manifest.latest ? manifest.latest[this.resource] : undefined;
+			const latestRef = manifest ? manifest[this.resource] : undefined;
 
 			// Last time synced resource and latest resource on server are same
 			if (lastSyncUserData.ref === latestRef) {
@@ -474,7 +477,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		const conflicts = resourcePreviews.filter(({ mergeState }) => mergeState === MergeState.Conflict);
 		if (!equals(this._conflicts, conflicts, (a, b) => this.extUri.isEqual(a.previewResource, b.previewResource))) {
 			this._conflicts = conflicts;
-			this._onDidChangeConflicts.fire(conflicts);
+			this._onDidChangeConflicts.fire(this.conflicts);
 		}
 	}
 
@@ -484,21 +487,21 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 	}
 
 	async getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]> {
-		const handles = await this.userDataSyncStoreService.getAllResourceRefs(this.resource);
+		const handles = await this.userDataSyncStoreService.getAllResourceRefs(this.resource, this.collection);
 		return handles.map(({ created, ref }) => ({ created, uri: this.toRemoteBackupResource(ref) }));
 	}
 
 	async getLocalSyncResourceHandles(): Promise<ISyncResourceHandle[]> {
-		const handles = await this.userDataSyncBackupStoreService.getAllRefs(this.resource);
+		const handles = await this.userDataSyncBackupStoreService.getAllRefs(this.syncResource.profile, this.resource);
 		return handles.map(({ created, ref }) => ({ created, uri: this.toLocalBackupResource(ref) }));
 	}
 
 	private toRemoteBackupResource(ref: string): URI {
-		return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote-backup', path: `/${this.resource}/${ref}` });
+		return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote-backup', path: `/${this.syncResource.profile.isDefault ? '' : `${this.syncResource.profile.id}/`}${this.resource}/${ref}` });
 	}
 
 	private toLocalBackupResource(ref: string): URI {
-		return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local-backup', path: `/${this.resource}/${ref}` });
+		return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local-backup', path: `/${this.syncResource.profile.id}/${this.resource}/${ref}` });
 	}
 
 	async getMachineId({ uri }: ISyncResourceHandle): Promise<string | undefined> {
@@ -520,7 +523,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 			return content;
 		}
 		if (this.extUri.isEqual(uri, this.toLocalBackupResource(ref))) {
-			return this.userDataSyncBackupStoreService.resolveContent(this.resource, ref);
+			return this.userDataSyncBackupStoreService.resolveContent(this.syncResource.profile, this.resource, ref);
 		}
 		return null;
 	}
@@ -595,7 +598,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 			}
 		}
 
-		return { remoteUserData, lastSyncUserData, resourcePreviews, isLastSyncFromCurrentMachine: isRemoteDataFromCurrentMachine };
+		return { syncResource: this.resource, profile: this.syncResource.profile, remoteUserData, lastSyncUserData, resourcePreviews, isLastSyncFromCurrentMachine: isRemoteDataFromCurrentMachine };
 	}
 
 	async getLastSyncUserData<T extends IRemoteUserData>(): Promise<T | null> {
@@ -665,11 +668,11 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 
 	private async getUserData(refOrLastSyncData: string | IRemoteUserData | null): Promise<IUserData> {
 		if (isString(refOrLastSyncData)) {
-			const content = await this.userDataSyncStoreService.resolveResourceContent(this.resource, refOrLastSyncData);
+			const content = await this.userDataSyncStoreService.resolveResourceContent(this.resource, refOrLastSyncData, this.collection);
 			return { ref: refOrLastSyncData, content };
 		} else {
 			const lastSyncUserData: IUserData | null = refOrLastSyncData ? { ref: refOrLastSyncData.ref, content: refOrLastSyncData.syncData ? JSON.stringify(refOrLastSyncData.syncData) : null } : null;
-			return this.userDataSyncStoreService.readResource(this.resource, lastSyncUserData, undefined, this.syncHeaders);
+			return this.userDataSyncStoreService.readResource(this.resource, lastSyncUserData, this.collection, this.syncHeaders);
 		}
 	}
 
@@ -677,7 +680,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		const machineId = await this.currentMachineIdPromise;
 		const syncData: ISyncData = { version: this.version, machineId, content };
 		try {
-			ref = await this.userDataSyncStoreService.writeResource(this.resource, JSON.stringify(syncData), ref, undefined, this.syncHeaders);
+			ref = await this.userDataSyncStoreService.writeResource(this.resource, JSON.stringify(syncData), ref, this.collection, this.syncHeaders);
 			return { ref, syncData };
 		} catch (error) {
 			if (error instanceof UserDataSyncError && error.code === UserDataSyncErrorCode.TooLarge) {
@@ -689,7 +692,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 
 	protected async backupLocal(content: string): Promise<void> {
 		const syncData: ISyncData = { version: this.version, content };
-		return this.userDataSyncBackupStoreService.backup(this.resource, JSON.stringify(syncData));
+		return this.userDataSyncBackupStoreService.backup(this.syncResource.profile, this.resource, JSON.stringify(syncData));
 	}
 
 	async stop(): Promise<void> {
@@ -733,7 +736,8 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 
 	constructor(
 		protected readonly file: URI,
-		resource: SyncResource,
+		syncResource: IUserDataSyncResource,
+		collection: string | undefined,
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStorageService storageService: IStorageService,
@@ -745,7 +749,7 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
+		super(syncResource, collection, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
 		this._register(this.fileService.watch(this.extUri.dirname(file)));
 		this._register(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
 	}
@@ -790,7 +794,8 @@ export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroni
 
 	constructor(
 		file: URI,
-		resource: SyncResource,
+		syncResource: IUserDataSyncResource,
+		collection: string | undefined,
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStorageService storageService: IStorageService,
@@ -803,7 +808,7 @@ export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroni
 		@IConfigurationService configurationService: IConfigurationService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(file, resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
+		super(file, syncResource, collection, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
 	}
 
 	protected hasErrors(content: string, isArray: boolean): boolean {
@@ -836,7 +841,7 @@ export abstract class AbstractInitializer implements IUserDataInitializer {
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		this.extUri = uriIdentityService.extUri;
-		this.lastSyncResource = getLastSyncResourceUri(this.resource, environmentService, this.extUri);
+		this.lastSyncResource = getLastSyncResourceUri(undefined, this.resource, environmentService, this.extUri);
 	}
 
 	async initialize({ ref, content }: IUserData): Promise<void> {

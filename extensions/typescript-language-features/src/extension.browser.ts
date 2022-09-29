@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import VsCodeTelemetryReporter from '@vscode/extension-telemetry';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
 import { registerBaseCommands } from './commands/index';
-import { JsWalkthroughState } from './commands/jsWalkthrough';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { noopRequestCancellerFactory } from './tsServer/cancellation';
 import { noopLogDirectoryProvider } from './tsServer/logDirectoryProvider';
@@ -18,6 +18,8 @@ import API from './utils/api';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import { BrowserServiceConfigurationProvider } from './utils/configuration.browser';
 import { PluginManager } from './utils/plugins';
+import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
+import { getPackageInfo } from './utils/packageInfo';
 
 class StaticVersionProvider implements ITypeScriptVersionProvider {
 
@@ -52,14 +54,20 @@ export function activate(
 	const activeJsTsEditorTracker = new ActiveJsTsEditorTracker();
 	context.subscriptions.push(activeJsTsEditorTracker);
 
-	const jsWalkthroughState = new JsWalkthroughState();
-	context.subscriptions.push(jsWalkthroughState);
-
 	const versionProvider = new StaticVersionProvider(
 		new TypeScriptVersion(
 			TypeScriptVersionSource.Bundled,
 			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript/tsserver.web.js').toString(),
 			API.fromSimpleString('4.8.2')));
+
+	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
+	const packageInfo = getPackageInfo(context);
+	if (packageInfo) {
+		const { name: id, version, aiKey } = packageInfo;
+		const vscTelemetryReporter = new VsCodeTelemetryReporter(id, version, aiKey);
+		experimentTelemetryReporter = new ExperimentationTelemetryReporter(vscTelemetryReporter);
+		context.subscriptions.push(experimentTelemetryReporter);
+	}
 
 	const lazyClientHost = createLazyClientHost(context, false, {
 		pluginManager,
@@ -70,11 +78,12 @@ export function activate(
 		processFactory: WorkerServerProcess,
 		activeJsTsEditorTracker,
 		serviceConfigurationProvider: new BrowserServiceConfigurationProvider(),
+		experimentTelemetryReporter,
 	}, item => {
 		onCompletionAccepted.fire(item);
 	});
 
-	registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker, jsWalkthroughState);
+	registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker);
 
 	// context.subscriptions.push(task.register(lazyClientHost.map(x => x.serviceClient)));
 

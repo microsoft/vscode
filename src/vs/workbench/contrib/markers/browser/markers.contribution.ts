@@ -409,6 +409,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			_isFakeAction: true,
 			id: `workbench.actions.treeView.${Markers.MARKERS_VIEW_ID}.filter`,
 			title: localize('filter', "Filter"),
 			menu: {
@@ -513,7 +514,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	}
 }
 
-workbenchRegistry.registerWorkbenchContribution(MarkersStatusBarContributions, 'MarkersStatusBarContributions', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(MarkersStatusBarContributions, LifecyclePhase.Restored);
 
 class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 
@@ -536,4 +537,4 @@ class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 	}
 }
 
-workbenchRegistry.registerWorkbenchContribution(ActivityUpdater, 'ActivityUpdater', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(ActivityUpdater, LifecyclePhase.Restored);

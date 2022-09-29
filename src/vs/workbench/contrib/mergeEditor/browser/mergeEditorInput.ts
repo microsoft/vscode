@@ -3,26 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { basename, isEqual } from 'vs/base/common/resources';
-import Severity from 'vs/base/common/severity';
+import { assertFn } from 'vs/base/common/assert';
+import { autorun } from 'vs/base/common/observable';
+import { isEqual } from 'vs/base/common/resources';
+import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
-import { ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IEditorIdentifier, IResourceMergeEditorInput, isResourceMergeEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IResourceMergeEditorInput, IRevertOptions, isResourceMergeEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { MergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
-import { InputData, MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
+import { IMergeEditorInputModel, TempFileMergeEditorModeFactory, WorkspaceMergeEditorModeFactory } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { autorun } from 'vs/base/common/observable';
-import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
-import { ProjectedDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/projectedDocumentDiffProvider';
+import { ILanguageSupport, ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class MergeEditorInputData {
 	constructor(
@@ -34,13 +30,22 @@ export class MergeEditorInputData {
 }
 
 export class MergeEditorInput extends AbstractTextResourceEditorInput implements ILanguageSupport {
-
 	static readonly ID = 'mergeEditor.Input';
 
-	private _model?: MergeEditorModel;
-	private _outTextModel?: ITextFileEditorModel;
+	private _inputModel?: IMergeEditorInputModel;
 
-	override closeHandler: MergeEditorCloseHandler | undefined;
+	override closeHandler: IEditorCloseHandler = {
+		showConfirm: () => this._inputModel?.shouldConfirmClose() ?? false,
+		confirm: async (editors) => {
+			assertFn(() => editors.every(e => e.editor instanceof MergeEditorInput));
+			const inputModels = editors.map(e => (e.editor as MergeEditorInput)._inputModel).filter(isDefined);
+			return await this._inputModel!.confirmClose(inputModels);
+		},
+	};
+
+	private get useWorkingCopy() {
+		return this.configurationService.getValue('mergeEditor.useWorkingCopy') ?? false;
+	}
 
 	constructor(
 		public readonly base: URI,
@@ -48,34 +53,13 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		public readonly input2: MergeEditorInputData,
 		public readonly result: URI,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IEditorService editorService: IEditorService,
 		@ITextFileService textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(result, undefined, editorService, textFileService, labelService, fileService);
-
-		const modelListener = new DisposableStore();
-		const handleDidCreate = (model: ITextFileEditorModel) => {
-			// TODO@jrieken copied from fileEditorInput.ts
-			if (isEqual(result, model.resource)) {
-				modelListener.clear();
-				this._outTextModel = model;
-				modelListener.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-				modelListener.add(model.onDidSaveError(() => this._onDidChangeDirty.fire()));
-
-				modelListener.add(model.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
-
-				modelListener.add(model.onWillDispose(() => {
-					this._outTextModel = undefined;
-					modelListener.clear();
-				}));
-			}
-		};
-		textFileService.files.onDidCreate(handleDidCreate, this, modelListener);
-		textFileService.files.models.forEach(handleDidCreate);
-		this._store.add(modelListener);
 	}
 
 	override dispose(): void {
@@ -91,68 +75,53 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return super.capabilities | EditorInputCapabilities.MultipleEditors;
+		let capabilities = super.capabilities | EditorInputCapabilities.MultipleEditors;
+
+		if (this.useWorkingCopy) {
+			capabilities |= EditorInputCapabilities.Untitled;
+		}
+
+		return capabilities;
 	}
 
 	override getName(): string {
 		return localize('name', "Merging: {0}", super.getName());
 	}
 
-	override async resolve(): Promise<MergeEditorModel> {
-		if (!this._model) {
-			const toInputData = async (data: MergeEditorInputData): Promise<InputData> => {
-				const ref = await this._textModelService.createModelReference(data.uri);
-				this._store.add(ref);
-				return {
-					textModel: ref.object.textEditorModel,
-					title: data.title,
-					description: data.description,
-					detail: data.detail,
-				};
-			};
+	private readonly mergeEditorModeFactory = this._instaService.createInstance(
+		this.useWorkingCopy
+			? TempFileMergeEditorModeFactory
+			: WorkspaceMergeEditorModeFactory
+	);
 
-			const [
-				base,
-				result,
-				input1Data,
-				input2Data,
-			] = await Promise.all([
-				this._textModelService.createModelReference(this.base),
-				this._textModelService.createModelReference(this.result),
-				toInputData(this.input1),
-				toInputData(this.input2),
-			]);
+	override async resolve(): Promise<IMergeEditorInputModel> {
+		if (!this._inputModel) {
+			const inputModel = this._register(await this.mergeEditorModeFactory.createInputModel({
+				base: this.base,
+				input1: this.input1,
+				input2: this.input2,
+				result: this.result,
+			}));
+			this._inputModel = inputModel;
 
-			this._store.add(base);
-			this._store.add(result);
-
-			const diffProvider = this._instaService.createInstance(WorkerBasedDocumentDiffProvider);
-			this._model = this._instaService.createInstance(
-				MergeEditorModel,
-				base.object.textEditorModel,
-				input1Data,
-				input2Data,
-				result.object.textEditorModel,
-				this._instaService.createInstance(MergeDiffComputer, diffProvider),
-				this._instaService.createInstance(MergeDiffComputer, this._instaService.createInstance(ProjectedDiffComputer, diffProvider)),
-				{
-					resetUnknownOnInitialization: false
-				},
-			);
-			this._store.add(this._model);
-
-			// set/unset the closeHandler whenever unhandled conflicts are detected
-			const closeHandler = this._instaService.createInstance(MergeEditorCloseHandler, this._model);
-			this._store.add(autorun('closeHandler', reader => {
-				const value = this._model!.hasUnhandledConflicts.read(reader);
-				this.closeHandler = value ? closeHandler : undefined;
+			this._register(autorun('fire dirty event', (reader) => {
+				inputModel.isDirty.read(reader);
+				this._onDidChangeDirty.fire();
 			}));
 
-			await this._model.onInitialized;
-
+			await this._inputModel.model.onInitialized;
 		}
 
-		return this._model;
+		return this._inputModel;
+	}
+
+	public async accept(): Promise<void> {
+		await this._inputModel?.accept();
+	}
+
+	override async save(group: number, options?: ITextFileSaveOptions | undefined): Promise<IUntypedEditorInput | undefined> {
+		await this._inputModel?.save(options);
+		return undefined;
 	}
 
 	override toUntyped(): IResourceMergeEditorInput {
@@ -188,125 +157,20 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		return false;
 	}
 
+	override async revert(group: number, options?: IRevertOptions): Promise<void> {
+		return this._inputModel?.revert(options);
+	}
+
 	// ---- FileEditorInput
 
 	override isDirty(): boolean {
-		return Boolean(this._outTextModel?.isDirty());
+		return this._inputModel?.isDirty.get() ?? false;
 	}
 
 	setLanguageId(languageId: string, source?: string): void {
-		this._model?.setLanguageId(languageId, source);
+		this._inputModel?.model.setLanguageId(languageId, source);
 	}
 
 	// implement get/set languageId
 	// implement get/set encoding
-}
-
-class MergeEditorCloseHandler implements IEditorCloseHandler {
-
-	private _ignoreUnhandledConflicts: boolean = false;
-
-	constructor(
-		private readonly _model: MergeEditorModel,
-		@IDialogService private readonly _dialogService: IDialogService,
-	) { }
-
-	showConfirm(): boolean {
-		// unhandled conflicts -> 3wm asks to confirm UNLESS we explicitly set this input
-		// to ignore unhandled conflicts. This happens only after confirming to ignore unhandled changes
-		return !this._ignoreUnhandledConflicts && this._model.hasUnhandledConflicts.get();
-	}
-
-	async confirm(editors: readonly IEditorIdentifier[]): Promise<ConfirmResult> {
-
-		const handler: MergeEditorCloseHandler[] = [];
-		let someAreDirty = false;
-
-		for (const { editor } of editors) {
-			if (editor.closeHandler instanceof MergeEditorCloseHandler && editor.closeHandler._model.hasUnhandledConflicts.get()) {
-				handler.push(editor.closeHandler);
-				someAreDirty = someAreDirty || editor.isDirty();
-			}
-		}
-
-		if (handler.length === 0) {
-			// shouldn't happen
-			return ConfirmResult.SAVE;
-		}
-
-		const result = someAreDirty
-			? await this._confirmDirty(handler)
-			: await this._confirmNoneDirty(handler);
-
-		if (result !== ConfirmResult.CANCEL) {
-			// save or ignore: in both cases we tell the inputs to ignore unhandled conflicts
-			// for the dirty state computation.
-			for (const input of handler) {
-				input._ignoreUnhandledConflicts = true;
-			}
-		}
-
-		return result;
-	}
-
-	private async _confirmDirty(handler: MergeEditorCloseHandler[]): Promise<ConfirmResult> {
-		const isMany = handler.length > 1;
-
-		const message = isMany
-			? localize('messageN', 'Do you want to save the changes you made to {0} files?', handler.length)
-			: localize('message1', 'Do you want to save the changes you made to {0}?', basename(handler[0]._model.resultTextModel.uri));
-
-		const options = {
-			cancelId: 2,
-			detail: isMany
-				? localize('detailN', "The files contain unhandled conflicts. Your changes will be lost if you don't save them.")
-				: localize('detail1', "The file contains unhandled conflicts. Your changes will be lost if you don't save them.")
-		};
-
-		const actions: string[] = [
-			localize('saveWithConflict', "Save with Conflicts"),
-			localize('discard', "Don't Save"),
-			localize('cancel', "Cancel"),
-		];
-
-		const { choice } = await this._dialogService.show(Severity.Info, message, actions, options);
-
-		if (choice === options.cancelId) {
-			// cancel: stay in editor
-			return ConfirmResult.CANCEL;
-		} else if (choice === 0) {
-			// save with conflicts
-			return ConfirmResult.SAVE;
-		} else {
-			// discard changes
-			return ConfirmResult.DONT_SAVE;
-		}
-	}
-
-	private async _confirmNoneDirty(handler: MergeEditorCloseHandler[]): Promise<ConfirmResult> {
-		const isMany = handler.length > 1;
-
-		const message = isMany
-			? localize('conflictN', 'Do you want to close with conflicts in {0} files?', handler.length)
-			: localize('conflict1', 'Do you want to close with conflicts in {0}?', basename(handler[0]._model.resultTextModel.uri));
-
-		const options = {
-			cancelId: 1,
-			detail: isMany
-				? localize('detailNotDirtyN', "The files contain unhandled conflicts.")
-				: localize('detailNotDirty1', "The file contains unhandled conflicts.")
-		};
-
-		const actions = [
-			localize('closeWithConflicts', "Close with Conflicts"),
-			localize('cancel', "Cancel"),
-		];
-
-		const { choice } = await this._dialogService.show(Severity.Info, message, actions, options);
-		if (choice === options.cancelId) {
-			return ConfirmResult.CANCEL;
-		} else {
-			return ConfirmResult.SAVE;
-		}
-	}
 }
