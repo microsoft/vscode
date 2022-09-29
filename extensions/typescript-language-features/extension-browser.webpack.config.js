@@ -66,10 +66,10 @@ module.exports = withBrowserDefaults({
 				{ // TODO: Also want to copy ../node_modules/typescript/lib/typingsInstaller.js to typescript/
 					from: '../node_modules/typescript/lib/tsserver.js',
 					to: 'typescript/tsserver.web.js',
-					transform: async (content) => {
+					transform: async (_content) => {
 						const dynamicImportCompatPath = path.join(__dirname, '..', 'node_modules', 'typescript', 'lib', 'dynamicImportCompat.js');
+						const cheat = fs.readFileSync('/home/nathansa/ts/built/local/tsserver.js', 'utf8');
 						const prefix = fs.existsSync(dynamicImportCompatPath) ? fs.readFileSync(dynamicImportCompatPath) : undefined;
-						const output = await Terser.minify(content.toString());
 						// TODO: All this extra work can *probably* be done with webpack tools in some way.
 						const filenames = {
 							'vscode-uri': path.join(__dirname, 'node_modules', 'vscode-uri', 'lib', 'umd', 'index.js'),
@@ -77,14 +77,14 @@ module.exports = withBrowserDefaults({
 							'./vscode': path.join(__dirname, 'node_modules', '@vscode/sync-api-client', 'lib', 'vscode.js'),
 							'@vscode/sync-api-client': path.join(__dirname, 'node_modules', '@vscode/sync-api-client', 'lib', 'main.js'),
 							'./ral': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'common', 'ral.js'),
-							'common--./connection': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'common', 'connection.js'), // TODO This is the same reference as below, but referenced from inside common (api.js and protocol.js) (and from browser/connection.js as '../common/connection'
+							'common--./connection': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'common', 'connection.js'), // referenced from common/api.js and /protocol.js
 							'./protocol': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'common', 'protocol.js'),
 							'browser--./connection': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'browser', 'connection.js'), // referenced from connection.js, main.js, ril.js
 							'./ril': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'browser', 'ril.js'),
 							'../common/api': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'common', 'api.js'),
-							'@vscode/sync-api-common': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'browser', 'main.js'), // Maybe node/main.js?
+							'@vscode/sync-api-common': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'browser', 'main.js'),
 							'@vscode/sync-api-common/browser': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'browser.js'),
-							'vscode-wasm-typescript': path.join(__dirname, 'node_modules', 'vscode-wasm-typescript', 'dist', 'index.js'),
+							'vscode-wasm-typescript': '/home/nathansa/src/vscode-wasm-typescript/dist/index.js',
 						};
 						const redirect = {
 							'./lib/browser/main': '@vscode/sync-api-common',
@@ -107,8 +107,7 @@ module.exports = withBrowserDefaults({
 								modules[name] = modules[name].replace('require("./connection")', connectionReplacements[name]);
 							}
 						}
-						const p2 = wrapper(modules, redirect);
-						return prefix + '\n' + output.code + '\n' + p2;
+						return prefix + '\n' + cheat + '\n' + wrapper(modules, redirect);
 					},
 					transformPath: (targetPath) => {
 						return targetPath.replace('tsserver.js', 'tsserver.web.js');
