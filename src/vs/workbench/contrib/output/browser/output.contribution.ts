@@ -24,7 +24,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -34,7 +34,7 @@ import { CATEGORIES } from 'vs/workbench/common/actions';
 import { EditorExtensions } from 'vs/workbench/common/editor';
 
 // Register Service
-registerSingleton(IOutputService, OutputService);
+registerSingleton(IOutputService, OutputService, true);
 
 // Register Output Mode
 ModesRegistry.registerLanguage({
@@ -57,10 +57,10 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 	title: nls.localize('output', "Output"),
 	icon: outputViewIcon,
 	order: 1,
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: OUTPUT_VIEW_ID,
 	hideIfEmpty: true,
-}, ViewContainerLocation.Panel, { donotRegisterOpenCommand: true });
+}, ViewContainerLocation.Panel, { doNotRegisterOpenCommand: true });
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: OUTPUT_VIEW_ID,
@@ -107,6 +107,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			_isFakeAction: true,
 			id: `workbench.output.action.switchBetweenOutputs`,
 			title: nls.localize('switchToOutput.label', "Switch to Output"),
 			menu: {
@@ -165,10 +166,10 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: 3,
 			},
-			icon: Codicon.unlock,
+			icon: Codicon.lock,
 			toggled: {
 				condition: CONTEXT_OUTPUT_SCROLL_LOCK,
-				icon: Codicon.lock,
+				icon: Codicon.unlock,
 				tooltip: nls.localize('outputScrollOn', "Turn Auto Scrolling On")
 			}
 		});
@@ -231,9 +232,26 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const outputService = accessor.get(IOutputService);
 		const quickInputService = accessor.get(IQuickInputService);
-		const entries: { id: string; label: string }[] = outputService.getChannelDescriptors().filter(c => c.file && c.log)
-			.map(({ id, label }) => ({ id, label }));
-
+		const extensionLogs = [], logs = [];
+		for (const channel of outputService.getChannelDescriptors()) {
+			if (channel.log) {
+				if (channel.extensionId) {
+					extensionLogs.push(channel);
+				} else {
+					logs.push(channel);
+				}
+			}
+		}
+		const entries: ({ id: string; label: string } | IQuickPickSeparator)[] = [];
+		for (const { id, label } of logs) {
+			entries.push({ id, label });
+		}
+		if (extensionLogs.length && logs.length) {
+			entries.push({ type: 'separator', label: nls.localize('extensionLogs', "Extension Logs") });
+		}
+		for (const { id, label } of extensionLogs) {
+			entries.push({ id, label });
+		}
 		const entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Select Log") });
 		if (entry) {
 			return outputService.showChannel(entry.id);

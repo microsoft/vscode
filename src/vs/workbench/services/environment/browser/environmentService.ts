@@ -183,12 +183,13 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 		const webviewExternalEndpointCommit = this.payload?.get('webviewExternalEndpointCommit');
 		return endpoint
-			.replace('{{commit}}', webviewExternalEndpointCommit ?? this.productService.commit ?? '3c8520fab514b9f56070214496b26ff68d1b1cb5')
+			.replace('{{commit}}', webviewExternalEndpointCommit ?? this.productService.commit ?? 'ef65ac1ba57f57f2a3961bfe94aa20481caca4c6')
 			.replace('{{quality}}', (webviewExternalEndpointCommit ? 'insider' : this.productService.quality) ?? 'insider');
 	}
 
 	@memoize
 	get telemetryLogResource(): URI { return joinPath(this.logsHome, 'telemetry.log'); }
+	get extensionTelemetryLogResource(): URI { return joinPath(this.logsHome, 'extensionTelemetry.log'); }
 
 	@memoize
 	get disableTelemetry(): boolean { return false; }
@@ -207,6 +208,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get disableWorkspaceTrust(): boolean { return !this.options.enableWorkspaceTrust; }
+
+	@memoize
+	get lastActiveProfile(): string | undefined { return this.payload?.get('lastActiveProfile'); }
 
 	editSessionId: string | undefined = this.options.editSessionId;
 
@@ -326,6 +330,26 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 				return [
 					{ fileUri: URI.parse(fileToDiffSecondary) },
 					{ fileUri: URI.parse(fileToDiffPrimary) }
+				];
+			}
+		}
+
+		return undefined;
+	}
+
+	@memoize
+	get filesToMerge(): IPath[] | undefined {
+		if (this.payload) {
+			const fileToMerge1 = this.payload.get('mergeFile1');
+			const fileToMerge2 = this.payload.get('mergeFile2');
+			const fileToMergeBase = this.payload.get('mergeFileBase');
+			const fileToMergeResult = this.payload.get('mergeFileResult');
+			if (fileToMerge1 && fileToMerge2 && fileToMergeBase && fileToMergeResult) {
+				return [
+					{ fileUri: URI.parse(fileToMerge1) },
+					{ fileUri: URI.parse(fileToMerge2) },
+					{ fileUri: URI.parse(fileToMergeBase) },
+					{ fileUri: URI.parse(fileToMergeResult) }
 				];
 			}
 		}

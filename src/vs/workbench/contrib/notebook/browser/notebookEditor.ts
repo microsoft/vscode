@@ -27,7 +27,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorPaneSelectio
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { INotebookEditorOptions, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
+import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelActionViewItem';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -121,10 +121,6 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 		this._rootElement.id = `notebook-editor-element-${generateUuid()}`;
 	}
 
-	getDomNode() {
-		return this._rootElement;
-	}
-
 	override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === SELECT_KERNEL_ID) {
 			// this is being disposed by the consumer
@@ -182,9 +178,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 
 			// there currently is a widget which we still own so
 			// we need to hide it before getting a new widget
-			if (this._widget.value) {
-				this._widget.value.onWillHide();
-			}
+			this._widget.value?.onWillHide();
 
 			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input);
 
@@ -245,14 +239,14 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 			type WorkbenchNotebookOpenClassification = {
 				owner: 'rebornix';
 				comment: 'The notebook file open metrics. Used to get a better understanding of the performance of notebook file opening';
-				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				extensionActivated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				inputLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				webviewCommLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				customMarkdownLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				editorLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the notebook resource' };
+				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the notebook resource' };
+				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view type of the notebook editor' };
+				extensionActivated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension activation time for the resource opening' };
+				inputLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Editor Input loading time for the resource opening' };
+				webviewCommLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Webview initialization time for the resource opening' };
+				customMarkdownLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Custom markdown loading time for the resource opening' };
+				editorLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Overall editor loading time for the resource opening' };
 			};
 
 			type WorkbenchNotebookOpenEvent = {
@@ -423,20 +417,6 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 	}
 
 	//#endregion
-
-	//#region Editor Features
-
-	//#endregion
-
-	override dispose() {
-		super.dispose();
-	}
-
-	// toJSON(): object {
-	// 	return {
-	// 		notebookHandle: this.viewModel?.handle
-	// 	};
-	// }
 }
 
 class NotebookEditorSelection implements IEditorPaneSelection {

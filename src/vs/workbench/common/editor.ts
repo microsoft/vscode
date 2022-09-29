@@ -19,7 +19,6 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
 import { FileType, IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/window/common/window';
-import { coalesce } from 'vs/base/common/arrays';
 import { IExtUri } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -484,6 +483,38 @@ export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
 	readonly modified: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
+export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
+
+/**
+ * A resource merge editor input compares multiple editors
+ * highlighting the differences for merging.
+ *
+ * Note: all sides must be resolvable to the same editor, or
+ * a text based presentation will be used as fallback.
+ */
+export interface IResourceMergeEditorInput extends IBaseUntypedEditorInput {
+
+	/**
+	 * The one changed version of the file.
+	 */
+	readonly input1: IResourceMergeEditorInputSide;
+
+	/**
+	 * The second changed version of the file.
+	 */
+	readonly input2: IResourceMergeEditorInputSide;
+
+	/**
+	 * The base common ancestor of the file to merge.
+	 */
+	readonly base: IResourceEditorInput | ITextResourceEditorInput;
+
+	/**
+	 * The resulting output of the merge.
+	 */
+	readonly result: IResourceEditorInput | ITextResourceEditorInput;
+}
+
 export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
 	if (isEditorInput(editor)) {
 		return false; // make sure to not accidentally match on typed editor inputs
@@ -529,6 +560,22 @@ export function isUntitledResourceEditorInput(editor: unknown): editor is IUntit
 	}
 
 	return candidate.resource === undefined || candidate.resource.scheme === Schemas.untitled || candidate.forceUntitled === true;
+}
+
+const UNTITLED_WITHOUT_ASSOCIATED_RESOURCE_REGEX = /Untitled-\d+/;
+
+export function isUntitledWithAssociatedResource(resource: URI): boolean {
+	return resource.scheme === Schemas.untitled && resource.path.length > 1 && !UNTITLED_WITHOUT_ASSOCIATED_RESOURCE_REGEX.test(resource.path);
+}
+
+export function isResourceMergeEditorInput(editor: unknown): editor is IResourceMergeEditorInput {
+	if (isEditorInput(editor)) {
+		return false; // make sure to not accidentally match on typed editor inputs
+	}
+
+	const candidate = editor as IResourceMergeEditorInput | undefined;
+
+	return URI.isUri(candidate?.base?.resource) && URI.isUri(candidate?.input1?.resource) && URI.isUri(candidate?.input2?.resource) && URI.isUri(candidate?.result?.resource);
 }
 
 export const enum Verbosity {
@@ -693,9 +740,15 @@ export const enum EditorInputCapabilities {
 	 * editor by holding shift.
 	 */
 	CanDropIntoEditor = 1 << 7,
+
+	/**
+	 * Signals that the editor is composed of multiple editors
+	 * within.
+	 */
+	MultipleEditors = 1 << 8
 }
 
-export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput;
+export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
 
 export abstract class AbstractEditorInput extends Disposable {
 	// Marker class for implementing `isEditorInput`
@@ -1114,9 +1167,15 @@ class EditorResourceAccessorImpl {
 	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null): URI | undefined;
 	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY }): URI | undefined;
 	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI; secondary?: URI } | undefined;
+	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI; secondary?: URI } | undefined;
 	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI; secondary?: URI } | undefined {
 		if (!editor) {
 			return undefined;
+		}
+
+		// Merge editors are handled with `merged` result editor
+		if (isResourceMergeEditorInput(editor)) {
+			return EditorResourceAccessor.getOriginalUri(editor.result, options);
 		}
 
 		// Optionally support side-by-side editors
@@ -1136,8 +1195,8 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor)) {
-			return;
+		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+			return undefined;
 		}
 
 		// Original URI is the `preferredResource` of an editor if any
@@ -1177,9 +1236,15 @@ class EditorResourceAccessorImpl {
 	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null): URI | undefined;
 	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY }): URI | undefined;
 	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI; secondary?: URI } | undefined;
+	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI; secondary?: URI } | undefined;
 	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI; secondary?: URI } | undefined {
 		if (!editor) {
 			return undefined;
+		}
+
+		// Merge editors are handled with `merged` result editor
+		if (isResourceMergeEditorInput(editor)) {
+			return EditorResourceAccessor.getCanonicalUri(editor.result, options);
 		}
 
 		// Optionally support side-by-side editors
@@ -1199,8 +1264,8 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor)) {
-			return;
+		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+			return undefined;
 		}
 
 		// Canonical URI is the `resource` of an editor
@@ -1316,20 +1381,20 @@ class EditorFactoryRegistry implements IEditorFactoryRegistry {
 
 Registry.add(EditorExtensions.EditorFactory, new EditorFactoryRegistry());
 
-export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceEditorInput | IUntitledTextResourceEditorInput)[]> {
+export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<ReadonlyArray<IResourceEditorInput | IUntitledTextResourceEditorInput | undefined>> {
 	if (!paths || !paths.length) {
 		return [];
 	}
 
-	const editors = await Promise.all(paths.map(async path => {
+	return await Promise.all(paths.map(async path => {
 		const resource = URI.revive(path.fileUri);
 		if (!resource) {
-			return;
+			return undefined;
 		}
 
 		const canHandleResource = await fileService.canHandleResource(resource);
 		if (!canHandleResource) {
-			return;
+			return undefined;
 		}
 
 		let exists = path.exists;
@@ -1344,11 +1409,11 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 		}
 
 		if (!exists && path.openOnlyIfExists) {
-			return;
+			return undefined;
 		}
 
 		if (type === FileType.Directory) {
-			return;
+			return undefined;
 		}
 
 		const options: IEditorOptions = {
@@ -1356,17 +1421,12 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			pinned: true
 		};
 
-		let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
 		if (!exists) {
-			input = { resource, options, forceUntitled: true };
-		} else {
-			input = { resource, options };
+			return { resource, options, forceUntitled: true };
 		}
 
-		return input;
+		return { resource, options };
 	}));
-
-	return coalesce(editors);
 }
 
 export const enum EditorsOrder {

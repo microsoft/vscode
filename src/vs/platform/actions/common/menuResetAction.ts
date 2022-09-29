@@ -14,8 +14,8 @@ export class MenuHiddenStatesReset extends Action2 {
 		super({
 			id: 'menu.resetHiddenStates',
 			title: {
-				value: localize('title', 'Reset Hidden Menus'),
-				original: 'Reset Hidden Menus'
+				value: localize('title', 'Reset All Menus'),
+				original: 'Reset All Menus'
 			},
 			category: localize('cat', 'View'),
 			f1: true

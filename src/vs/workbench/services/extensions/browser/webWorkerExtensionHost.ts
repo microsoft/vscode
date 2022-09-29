@@ -27,7 +27,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { Barrier } from 'vs/base/common/async';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { FileAccess } from 'vs/base/common/network';
+import { COI, FileAccess } from 'vs/base/common/network';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { parentOriginHash } from 'vs/workbench/browser/webview';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -86,9 +86,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		if (this._environmentService.debugExtensionHost && this._environmentService.debugRenderer) {
 			suffixSearchParams.set('debugged', '1');
 		}
-		if (globalThis.crossOriginIsolated) {
-			suffixSearchParams.set('vscode-coi', '3' /*COOP+COEP*/);
-		}
+		COI.addSearchParam(suffixSearchParams, true, true);
+
 		const suffix = `?${suffixSearchParams.toString()}`;
 
 		const iframeModulePath = 'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html';
@@ -278,10 +277,16 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const [telemetryInfo, initData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
 		const workspace = this._contextService.getWorkspace();
 		const deltaExtensions = this.extensions.set(initData.allExtensions, initData.myExtensions);
+		const nlsBaseUrl = this._productService.extensionsGallery?.nlsBaseUrl;
+		let nlsUrlWithDetails: URI | undefined = undefined;
+		// Only use the nlsBaseUrl if we are using a language other than the default, English.
+		if (nlsBaseUrl && this._productService.commit && !platform.Language.isDefaultVariant()) {
+			nlsUrlWithDetails = URI.joinPath(URI.parse(nlsBaseUrl), this._productService.commit, this._productService.version, platform.Language.value());
+		}
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
-			parentPid: -1,
+			parentPid: 0,
 			environment: {
 				isExtensionDevelopmentDebug: this._environmentService.debugRenderer,
 				appName: this._productService.nameLong,
@@ -305,6 +310,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			},
 			allExtensions: deltaExtensions.toAdd,
 			myExtensions: deltaExtensions.myToAdd,
+			nlsBaseUrl: nlsUrlWithDetails,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
 			logsLocation: this._extensionHostLogsLocation,

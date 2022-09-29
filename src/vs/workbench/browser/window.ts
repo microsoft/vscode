@@ -203,9 +203,7 @@ export class BrowserWindow extends Disposable {
 
 					invokeProtocolHandler();
 
-					// We cannot know whether the protocol handler succeeded.
-					// Display guidance in case it did not, e.g. the app is not installed locally.
-					if (matchesScheme(href, this.productService.urlProtocol)) {
+					const showProtocolUrlOpenedDialog = async () => {
 						const showResult = await this.dialogService.show(
 							Severity.Info,
 							localize('openExternalDialogTitle', "All done. You can close this tab now."),
@@ -223,8 +221,22 @@ export class BrowserWindow extends Disposable {
 						if (showResult.choice === 0) {
 							invokeProtocolHandler();
 						} else if (showResult.choice === 1) {
-							await this.openerService.open(URI.parse(`http://aka.ms/vscode-install`));
+							// Route the user to the appropriate install link
+							await this.openerService.open(URI.parse(
+								this.productService.quality === 'stable'
+									? `http://aka.ms/vscode-install`
+									: `http://aka.ms/vscode-install-insiders`
+							));
+
+							// Re-show the dialog so that the user can come back after installing and try again
+							showProtocolUrlOpenedDialog();
 						}
+					};
+
+					// We cannot know whether the protocol handler succeeded.
+					// Display guidance in case it did not, e.g. the app is not installed locally.
+					if (matchesScheme(href, this.productService.urlProtocol)) {
+						await showProtocolUrlOpenedDialog();
 					}
 				}
 

@@ -88,11 +88,12 @@ class SearchEditorContribution implements IWorkbenchContribution {
 			},
 			{
 				singlePerResource: true,
-				canHandleDiff: false,
 				canSupportResource: resource => (extname(resource) === SEARCH_EDITOR_EXT)
 			},
-			({ resource }) => {
-				return { editor: instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'existingFile', fileUri: resource }) };
+			{
+				createEditorInput: ({ resource }) => {
+					return { editor: instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'existingFile', fileUri: resource }) };
+				}
 			}
 		);
 	}

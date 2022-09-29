@@ -9,11 +9,9 @@ import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/brow
 import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
 import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchObjectTreeOptions, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { editorBackground, focusBorder, foreground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler } from 'vs/platform/theme/common/styler';
@@ -203,8 +201,6 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		// test open mode
@@ -231,12 +227,11 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			new TOCTreeDelegate(),
 			[new TOCRenderer()],
 			options,
+			instantiationService,
 			contextKeyService,
 			listService,
 			themeService,
 			configurationService,
-			keybindingService,
-			accessibilityService,
 		);
 
 		this.disposables.add(attachStyler(themeService, {

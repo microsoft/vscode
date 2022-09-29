@@ -190,9 +190,9 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 			type RemoteConnectionSuccessClassification = {
 				owner: 'alexdima';
 				comment: 'The initial connection succeeded';
-				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Is web ui.' };
 				connectionTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time, in ms, until connected'; isMeasurement: true };
-				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
 			};
 			type RemoteConnectionSuccessEvent = {
 				web: boolean;
@@ -212,10 +212,10 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 			type RemoteConnectionFailureClassification = {
 				owner: 'alexdima';
 				comment: 'The initial connection failed';
-				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Is web ui.' };
+				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
 				connectionTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time, in ms, until connection failure'; isMeasurement: true };
-				message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Error message' };
 			};
 			type RemoteConnectionFailureEvent = {
 				web: boolean;

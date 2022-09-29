@@ -17,7 +17,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/
 import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Event } from 'vs/base/common/event';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { Disposable, IDisposable, toDisposable, MutableDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
@@ -466,7 +466,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		if (element.menuId) {
 			const menu = disposableStore.add(this.menuService.createMenu(element.menuId, contextKeyService));
 			let actions: IAction[] = [];
-			disposableStore.add(createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, actions));
+			createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, actions);
 			if (actions) {
 				const labelActions = actions.filter(action => action.id.toLowerCase().indexOf('label') >= 0);
 				if (labelActions.length > 1) {
@@ -760,7 +760,6 @@ export class TunnelPanel extends ViewPane {
 	private isEditing: boolean = false;
 	private titleActions: IAction[] = [];
 	private lastFocus: number[] = [];
-	private readonly titleActionsDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		protected viewModel: ITunnelViewModel,
@@ -798,7 +797,7 @@ export class TunnelPanel extends ViewPane {
 		const titleMenu = this._register(this.menuService.createMenu(MenuId.TunnelTitle, overlayContextKeyService));
 		const updateActions = () => {
 			this.titleActions = [];
-			this.titleActionsDisposable.value = createAndFillInActionBarActions(titleMenu, undefined, this.titleActions);
+			createAndFillInActionBarActions(titleMenu, undefined, this.titleActions);
 			this.updateActions();
 		};
 
@@ -1007,7 +1006,7 @@ export class TunnelPanel extends ViewPane {
 		event.browserEvent.preventDefault();
 		event.browserEvent.stopPropagation();
 
-		const node: ITunnelItem | undefined = event.element;
+		const node: TunnelItem | undefined = event.element;
 
 		if (node) {
 			this.table.setFocus([this.table.indexOf(node)]);
@@ -1026,7 +1025,7 @@ export class TunnelPanel extends ViewPane {
 
 		const menu = this.menuService.createMenu(MenuId.TunnelContext, this.table.contextKeyService);
 		const actions: IAction[] = [];
-		this._register(createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, actions));
+		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, actions);
 		menu.dispose();
 
 		this.contextMenuService.showContextMenu({
@@ -1044,7 +1043,7 @@ export class TunnelPanel extends ViewPane {
 					this.table.domFocus();
 				}
 			},
-			getActionsContext: () => node,
+			getActionsContext: () => node?.strip(),
 			actionRunner
 		});
 	}
@@ -1067,7 +1066,6 @@ export class TunnelPanelDescriptor implements IViewDescriptor {
 	readonly ctorDescriptor: SyncDescriptor<TunnelPanel>;
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
-	readonly workspace = true;
 	// group is not actually used for views that are not extension contributed. Use order instead.
 	readonly group = 'details@0';
 	// -500 comes from the remote explorer viewOrderDelegate
@@ -1289,7 +1287,7 @@ export namespace OpenPortInBrowserAction {
 	export function handler(): ICommandHandler {
 		return async (accessor, arg) => {
 			let key: string | undefined;
-			if (arg instanceof TunnelItem) {
+			if (isITunnelItem(arg)) {
 				key = makeAddress(arg.remoteHost, arg.remotePort);
 			} else if (arg.tunnelRemoteHost && arg.tunnelRemotePort) {
 				key = makeAddress(arg.tunnelRemoteHost, arg.tunnelRemotePort);
@@ -1318,7 +1316,7 @@ export namespace OpenPortInPreviewAction {
 	export function handler(): ICommandHandler {
 		return async (accessor, arg) => {
 			let key: string | undefined;
-			if (arg instanceof TunnelItem) {
+			if (isITunnelItem(arg)) {
 				key = makeAddress(arg.remoteHost, arg.remotePort);
 			} else if (arg.tunnelRemoteHost && arg.tunnelRemotePort) {
 				key = makeAddress(arg.tunnelRemoteHost, arg.tunnelRemotePort);
@@ -1500,7 +1498,7 @@ namespace ChangeLocalPortAction {
 namespace ChangeTunnelPrivacyAction {
 	export function handler(privacyId: string): ICommandHandler {
 		return async (accessor, arg) => {
-			if (arg instanceof TunnelItem) {
+			if (isITunnelItem(arg)) {
 				const remoteExplorerService = accessor.get(IRemoteExplorerService);
 				await remoteExplorerService.close({ host: arg.remoteHost, port: arg.remotePort });
 				return remoteExplorerService.forward({
@@ -1523,7 +1521,7 @@ namespace SetTunnelProtocolAction {
 	export const LABEL_HTTPS = nls.localize('remote.tunnel.protocolHttps', "HTTPS");
 
 	async function handler(arg: any, protocol: TunnelProtocol, remoteExplorerService: IRemoteExplorerService) {
-		if (arg instanceof TunnelItem) {
+		if (isITunnelItem(arg)) {
 			const attributes: Partial<Attributes> = {
 				protocol
 			};
@@ -1629,6 +1627,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	},
 	when: ContextKeyExpr.and(isForwardedOrDetectedExpr, isNotMultiSelectionExpr)
 }));
+const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '._open',
 	order: 1,
@@ -1637,7 +1636,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 		title: OpenPortInPreviewAction.LABEL,
 	},
 	when: ContextKeyExpr.and(
-		ContextKeyExpr.or(WebContextKey.negate(), isNotPrivateExpr),
+		ContextKeyExpr.or(WebContextKey.negate(), isNotPrivateExpr, openPreviewEnabledContext), //todo
 		isForwardedOrDetectedExpr,
 		isNotMultiSelectionExpr)
 }));
@@ -1777,7 +1776,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 		icon: openPreviewIcon
 	},
 	when: ContextKeyExpr.and(
-		ContextKeyExpr.or(WebContextKey.negate(), isNotPrivateExpr),
+		ContextKeyExpr.or(WebContextKey.negate(), isNotPrivateExpr, openPreviewEnabledContext),
 		isForwardedOrDetectedExpr)
 }));
 

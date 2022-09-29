@@ -13,7 +13,6 @@ import { Schemas } from 'vs/base/common/network';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/electron-sandbox/workspaceTags';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { splitLines } from 'vs/base/common/strings';
 import { MavenArtifactIdRegex, MavenDependenciesRegex, MavenDependencyRegex, GradleDependencyCompactRegex, GradleDependencyLooseRegex, MavenGroupIdRegex, JavaLibrariesToLookFor } from 'vs/workbench/contrib/tags/common/javaWorkspaceTags';
 
@@ -253,7 +252,6 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IProductService private readonly productService: IProductService,
 		@ITextFileService private readonly textFileService: ITextFileService
 	) { }
 
@@ -305,6 +303,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 		"WorkspaceTags" : {
 			"workbench.filesToOpenOrCreate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workbench.filesToDiff" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workbench.filesToMerge" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"workspace.roots" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.empty" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -572,15 +571,16 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 
 		tags['workspace.id'] = await this.getTelemetryWorkspaceId(workspace, state);
 
-		const { filesToOpenOrCreate, filesToDiff } = this.environmentService;
+		const { filesToOpenOrCreate, filesToDiff, filesToMerge } = this.environmentService;
 		tags['workbench.filesToOpenOrCreate'] = filesToOpenOrCreate && filesToOpenOrCreate.length || 0;
 		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || 0;
+		tags['workbench.filesToMerge'] = filesToMerge && filesToMerge.length || 0;
 
 		const isEmpty = state === WorkbenchState.EMPTY;
 		tags['workspace.roots'] = isEmpty ? 0 : workspace.folders.length;
 		tags['workspace.empty'] = isEmpty;
 
-		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.productService.quality !== 'stable' && this.findFolders();
+		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : undefined;
 		if (!folders || !folders.length) {
 			return Promise.resolve(tags);
 		}
@@ -605,7 +605,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			tags['workspace.bower'] = nameSet.has('bower.json') || nameSet.has('bower_components');
 
 			tags['workspace.java.pom'] = nameSet.has('pom.xml');
-			tags['workspace.java.gradle'] = nameSet.has('build.gradle') || nameSet.has('settings.gradle');
+			tags['workspace.java.gradle'] = nameSet.has('build.gradle') || nameSet.has('settings.gradle') || nameSet.has('build.gradle.kts') || nameSet.has('settings.gradle.kts') || nameSet.has('gradlew') || nameSet.has('gradlew.bat');
 
 			tags['workspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstart.md');
 
@@ -805,30 +805,6 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				return;
 			}
 		}
-	}
-
-	private findFolders(): URI[] | undefined {
-		const folder = this.findFolder();
-		return folder && [folder];
-	}
-
-	private findFolder(): URI | undefined {
-		const { filesToOpenOrCreate, filesToDiff } = this.environmentService;
-		if (filesToOpenOrCreate && filesToOpenOrCreate.length) {
-			return this.parentURI(filesToOpenOrCreate[0].fileUri);
-		} else if (filesToDiff && filesToDiff.length) {
-			return this.parentURI(filesToDiff[0].fileUri);
-		}
-		return undefined;
-	}
-
-	private parentURI(uri: URI | undefined): URI | undefined {
-		if (!uri) {
-			return undefined;
-		}
-		const path = uri.path;
-		const i = path.lastIndexOf('/');
-		return i !== -1 ? uri.with({ path: path.substr(0, i) }) : undefined;
 	}
 
 	private searchArray(arr: string[], regEx: RegExp): boolean | undefined {

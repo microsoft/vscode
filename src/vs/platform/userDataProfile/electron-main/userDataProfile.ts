@@ -11,13 +11,18 @@ import { refineServiceDecorator } from 'vs/platform/instantiation/common/instant
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfilesService, WorkspaceIdentifier, StoredUserDataProfile, StoredProfileAssociations, WillCreateProfileEvent, WillRemoveProfileEvent } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService, WorkspaceIdentifier, StoredUserDataProfile, StoredProfileAssociations, WillCreateProfileEvent, WillRemoveProfileEvent, IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
 export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProfilesService, IUserDataProfilesMainService>(IUserDataProfilesService);
 export interface IUserDataProfilesMainService extends IUserDataProfilesService {
-	unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier): Promise<void>;
+	isEnabled(): boolean;
+	getOrSetProfileForWorkspace(workspaceIdentifier: WorkspaceIdentifier, profileToSet?: IUserDataProfile): IUserDataProfile;
+	setProfileForWorkspaceSync(workspaceIdentifier: WorkspaceIdentifier, profileToSet: IUserDataProfile): void;
+	checkAndCreateProfileFromCli(args: NativeParsedArgs): Promise<IUserDataProfile> | undefined;
+	unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier, transient?: boolean): void;
 	readonly onWillCreateProfile: Event<WillCreateProfileEvent>;
 	readonly onWillRemoveProfile: Event<WillRemoveProfileEvent>;
 }
@@ -34,12 +39,47 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		super(stateMainService, uriIdentityService, environmentService, fileService, logService);
 	}
 
+	override setEnablement(enabled: boolean): void {
+		super.setEnablement(enabled);
+		if (!this.enabled) {
+			// reset
+			this.saveStoredProfiles([]);
+			this.saveStoredProfileAssociations({});
+		}
+	}
+
+	isEnabled(): boolean {
+		return this.enabled;
+	}
+
+	checkAndCreateProfileFromCli(args: NativeParsedArgs): Promise<IUserDataProfile> | undefined {
+		if (!this.isEnabled()) {
+			return undefined;
+		}
+		if (args.profile) {
+			const profile = this.profiles.find(p => p.name === args.profile);
+			return profile ? Promise.resolve(profile) : this.createNamedProfile(args.profile);
+		}
+		if (args['profile-temp']) {
+			return this.createTransientProfile();
+		}
+		return undefined;
+	}
+
 	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void {
-		this.stateMainService.setItem(UserDataProfilesMainService.PROFILES_KEY, storedProfiles);
+		if (storedProfiles.length) {
+			this.stateMainService.setItem(UserDataProfilesMainService.PROFILES_KEY, storedProfiles);
+		} else {
+			this.stateMainService.removeItem(UserDataProfilesMainService.PROFILES_KEY);
+		}
 	}
 
 	protected override saveStoredProfileAssociations(storedProfileAssociations: StoredProfileAssociations): void {
-		this.stateMainService.setItem(UserDataProfilesMainService.PROFILE_ASSOCIATIONS_KEY, storedProfileAssociations);
+		if (storedProfileAssociations.emptyWindow || storedProfileAssociations.workspaces) {
+			this.stateMainService.setItem(UserDataProfilesMainService.PROFILE_ASSOCIATIONS_KEY, storedProfileAssociations);
+		} else {
+			this.stateMainService.removeItem(UserDataProfilesMainService.PROFILE_ASSOCIATIONS_KEY);
+		}
 	}
 
 	protected override getStoredProfileAssociations(): StoredProfileAssociations {

@@ -23,6 +23,7 @@ import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEdit
 import { isEqual } from 'vs/base/common/resources';
 import { isGroupEditorMoveEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
+import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 
 interface TabInfo {
 	tab: IEditorTabDto;
@@ -90,6 +91,16 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	}
 
 	private _editorInputToDto(editor: EditorInput): AnyInputDto {
+
+		if (editor instanceof MergeEditorInput) {
+			return {
+				kind: TabInputKind.TextMergeInput,
+				base: editor.base,
+				input1: editor.input1.uri,
+				input2: editor.input2.uri,
+				result: editor.resource
+			};
+		}
 
 		if (editor instanceof AbstractTextResourceEditorInput) {
 			return {
@@ -537,7 +548,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	}
 	//#region Messages received from Ext Host
 	$moveTab(tabId: string, index: number, viewColumn: EditorGroupColumn, preserveFocus?: boolean): void {
-		const groupId = columnToEditorGroup(this._editorGroupsService, viewColumn);
+		const groupId = columnToEditorGroup(this._editorGroupsService, this._configurationService, viewColumn);
 		const tabInfo = this._tabInfoLookup.get(tabId);
 		const tab = tabInfo?.tab;
 		if (!tab) {

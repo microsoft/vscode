@@ -188,7 +188,7 @@ export class CodeCell extends Disposable {
 
 			if (model && this.templateData.editor) {
 				this.templateData.editor.setModel(model);
-				this.viewCell.attachTextEditor(this.templateData.editor);
+				this.viewCell.attachTextEditor(this.templateData.editor, this.viewCell.layoutInfo.estimatedHasHorizontalScrolling);
 				const focusEditorIfNeeded = () => {
 					if (
 						this.notebookEditor.getActiveCell() === this.viewCell &&
@@ -280,7 +280,7 @@ export class CodeCell extends Disposable {
 				}
 
 				if (options.outputClassName) {
-					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.outputClassName], []);
+					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.outputClassName], []);
 				}
 			});
 
@@ -290,7 +290,7 @@ export class CodeCell extends Disposable {
 				}
 
 				if (options.outputClassName) {
-					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [], [options.outputClassName]);
+					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [], [options.outputClassName]);
 				}
 			});
 		}));
@@ -301,7 +301,7 @@ export class CodeCell extends Disposable {
 			}
 
 			if (options.outputClassName) {
-				this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.outputClassName], []);
+				this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.outputClassName], []);
 			}
 		});
 	}

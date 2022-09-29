@@ -142,6 +142,8 @@ function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeSha
 	const queue: string[] = [];
 
 	const enqueue = (moduleId: string) => {
+		// To make the treeshaker work on windows...
+		moduleId = moduleId.replace(/\\/g, '/');
 		if (in_queue[moduleId]) {
 			return;
 		}
@@ -305,6 +307,12 @@ function getColor(node: ts.Node): NodeColor {
 function setColor(node: ts.Node, color: NodeColor): void {
 	(<any>node).$$$color = color;
 }
+function markNeededSourceFile(node: ts.SourceFile): void {
+	(<any>node).$$$neededSourceFile = true;
+}
+function isNeededSourceFile(node: ts.SourceFile): boolean {
+	return Boolean((<any>node).$$$neededSourceFile);
+}
 function nodeOrParentIsBlack(node: ts.Node): boolean {
 	while (node) {
 		const color = getColor(node);
@@ -447,6 +455,20 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 		});
 	}
 
+	/**
+	 * Return the parent of `node` which is an ImportDeclaration
+	 */
+	function findParentImportDeclaration(node: ts.Declaration): ts.ImportDeclaration | null {
+		let _node: ts.Node = node;
+		do {
+			if (ts.isImportDeclaration(_node)) {
+				return _node;
+			}
+			_node = _node.parent;
+		} while (_node);
+		return null;
+	}
+
 	function enqueue_gray(node: ts.Node): void {
 		if (nodeOrParentIsBlack(node) || getColor(node) === NodeColor.Gray) {
 			return;
@@ -529,6 +551,8 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 			console.warn(`Cannot find source file ${filename}`);
 			return;
 		}
+		// This source file should survive even if it is empty
+		markNeededSourceFile(sourceFile);
 		enqueue_black(sourceFile);
 	}
 
@@ -588,6 +612,10 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 			const [symbol, symbolImportNode] = getRealNodeSymbol(ts, checker, node);
 			if (symbolImportNode) {
 				setColor(symbolImportNode, NodeColor.Black);
+				const importDeclarationNode = findParentImportDeclaration(symbolImportNode);
+				if (importDeclarationNode && ts.isStringLiteral(importDeclarationNode.moduleSpecifier)) {
+					enqueueImport(importDeclarationNode, importDeclarationNode.moduleSpecifier.text);
+				}
 			}
 
 			if (isSymbolWithDeclarations(symbol) && !nodeIsInItsOwnDeclaration(nodeSourceFile, node, symbol)) {
@@ -800,11 +828,21 @@ function generateResult(ts: typeof import('typescript'), languageService: ts.Lan
 
 		if (getColor(sourceFile) !== NodeColor.Black) {
 			if (!nodeOrChildIsBlack(sourceFile)) {
-				// none of the elements are reachable => don't write this file at all!
-				return;
+				// none of the elements are reachable
+				if (isNeededSourceFile(sourceFile)) {
+					// this source file must be written, even if nothing is used from it
+					// because there is an import somewhere for it.
+					// However, TS complains with empty files with the error "x" is not a module,
+					// so we will export a dummy variable
+					result = 'export const __dummy = 0;';
+				} else {
+					// don't write this file at all!
+					return;
+				}
+			} else {
+				sourceFile.forEachChild(writeMarkedNodes);
+				result += sourceFile.endOfFileToken.getFullText(sourceFile);
 			}
-			sourceFile.forEachChild(writeMarkedNodes);
-			result += sourceFile.endOfFileToken.getFullText(sourceFile);
 		} else {
 			result = text;
 		}

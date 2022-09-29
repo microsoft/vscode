@@ -745,7 +745,8 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		type TEvent = { extensionId: string };
 		type TMeta = {
 			owner: 'joaomoreno';
-			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the extension contributing to the Source Control API.' };
+			comment: 'This is used to know what extensions contribute to the Source Control API.';
 		};
 		this._telemetry.$publicLog2<TEvent, TMeta>('api/scm/createSourceControl', {
 			extensionId: extension.identifier.value,

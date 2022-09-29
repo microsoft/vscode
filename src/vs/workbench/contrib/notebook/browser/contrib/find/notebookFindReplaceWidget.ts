@@ -87,8 +87,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 			run: async () => {
 				this.filters.markupInput = !this.filters.markupInput;
 			},
-			tooltip: '',
-			dispose: () => null
+			tooltip: ''
 		};
 
 		const markdownPreview: IAction = {
@@ -100,8 +99,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 			run: async () => {
 				this.filters.markupPreview = !this.filters.markupPreview;
 			},
-			tooltip: '',
-			dispose: () => null
+			tooltip: ''
 		};
 
 		const codeInput: IAction = {
@@ -113,8 +111,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 			run: async () => {
 				this.filters.codeInput = !this.filters.codeInput;
 			},
-			tooltip: '',
-			dispose: () => null
+			tooltip: ''
 		};
 
 		const codeOutput = {
@@ -163,8 +160,11 @@ class NotebookFindInput extends FindInput {
 		contextKeyService: IContextKeyService,
 		readonly contextMenuService: IContextMenuService,
 		readonly instantiationService: IInstantiationService,
-		parent: HTMLElement | null, contextViewProvider: IContextViewProvider, showOptionButtons: boolean, options: IFindInputOptions) {
-		super(parent, contextViewProvider, showOptionButtons, options);
+		parent: HTMLElement | null,
+		contextViewProvider: IContextViewProvider,
+		options: IFindInputOptions
+	) {
+		super(parent, contextViewProvider, options);
 
 		this._register(registerAndCreateHistoryNavigationContext(contextKeyService, this.inputBox));
 		this._filtersAction = new Action('notebookFindFilterAction', NOTEBOOK_FIND_FILTERS, 'notebook-filters ' + ThemeIcon.asClassName(filterIcon));
@@ -330,7 +330,6 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this.instantiationService,
 			null,
 			this._contextViewService,
-			true,
 			{
 				label: NLS_FIND_INPUT_LABEL,
 				placeholder: NLS_FIND_INPUT_PLACEHOLDER,
@@ -348,6 +347,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 					}
 				},
 				flexibleWidth: true,
+				showCommonFindToggles: true
 			}
 		));
 

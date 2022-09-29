@@ -9,7 +9,7 @@ import { IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { CustomEditorTabInput, InteractiveWindowInput, NotebookDiffEditorTabInput, NotebookEditorTabInput, TerminalEditorTabInput, TextDiffTabInput, TextTabInput, WebviewEditorTabInput } from 'vs/workbench/api/common/extHostTypes';
+import { CustomEditorTabInput, InteractiveWindowInput, NotebookDiffEditorTabInput, NotebookEditorTabInput, TerminalEditorTabInput, TextDiffTabInput, TextMergeTabInput, TextTabInput, WebviewEditorTabInput } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { diffSets } from 'vs/base/common/collections';
@@ -84,6 +84,8 @@ class ExtHostEditorTab {
 				return new TextTabInput(URI.revive(this._dto.input.uri));
 			case TabInputKind.TextDiffInput:
 				return new TextDiffTabInput(URI.revive(this._dto.input.original), URI.revive(this._dto.input.modified));
+			case TabInputKind.TextMergeInput:
+				return new TextMergeTabInput(URI.revive(this._dto.input.base), URI.revive(this._dto.input.input1), URI.revive(this._dto.input.input2), URI.revive(this._dto.input.result));
 			case TabInputKind.CustomEditorInput:
 				return new CustomEditorTabInput(URI.revive(this._dto.input.uri), this._dto.input.viewType);
 			case TabInputKind.WebviewEditorInput:
@@ -110,7 +112,7 @@ class ExtHostEditorTabGroup {
 	private _activeTabId: string = '';
 	private _activeGroupIdGetter: () => number | undefined;
 
-	constructor(dto: IEditorTabGroupDto, proxy: MainThreadEditorTabsShape, activeGroupIdGetter: () => number | undefined) {
+	constructor(dto: IEditorTabGroupDto, activeGroupIdGetter: () => number | undefined) {
 		this._dto = dto;
 		this._activeGroupIdGetter = activeGroupIdGetter;
 		// Construct all tabs from the given dto
@@ -284,7 +286,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 
 
 		this._extHostTabGroups = tabGroups.map(tabGroup => {
-			const group = new ExtHostEditorTabGroup(tabGroup, this._proxy, () => this._activeGroupId);
+			const group = new ExtHostEditorTabGroup(tabGroup, () => this._activeGroupId);
 			if (diff.added.includes(group.groupId)) {
 				opened.push(group.apiObject);
 			} else {

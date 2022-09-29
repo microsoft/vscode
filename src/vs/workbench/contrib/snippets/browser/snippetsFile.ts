@@ -105,7 +105,7 @@ export class Snippet {
 	readonly prefixLow: string;
 
 	constructor(
-		readonly isTopLevel: boolean,
+		readonly isFileTemplate: boolean,
 		readonly scopes: string[],
 		readonly name: string,
 		readonly prefix: string,
@@ -143,7 +143,7 @@ export class Snippet {
 
 
 interface JsonSerializedSnippet {
-	isTopLevel?: boolean;
+	isFileTemplate?: boolean;
 	body: string | string[];
 	scope?: string;
 	prefix: string | string[] | undefined;
@@ -261,7 +261,7 @@ export class SnippetFile {
 
 	private _parseSnippet(name: string, snippet: JsonSerializedSnippet, bucket: Snippet[]): void {
 
-		let { isTopLevel, prefix, body, description } = snippet;
+		let { isFileTemplate, prefix, body, description } = snippet;
 
 		if (!prefix) {
 			prefix = '';
@@ -306,7 +306,7 @@ export class SnippetFile {
 
 		for (const _prefix of Array.isArray(prefix) ? prefix : Iterable.single(prefix)) {
 			bucket.push(new Snippet(
-				Boolean(isTopLevel),
+				Boolean(isFileTemplate),
 				scopes,
 				name,
 				_prefix,

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as resources from 'vs/base/common/resources';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
@@ -36,6 +35,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -96,6 +96,8 @@ interface IUserFriendlyViewDescriptor {
 	icon?: string;
 	contextualTitle?: string;
 	visibility?: string;
+
+	initialSize?: number;
 
 	// From 'remoteViewDescriptor' type
 	group?: string;
@@ -159,6 +161,10 @@ const viewDescriptor: IJSONSchema = {
 				localize('vscode.extension.contributes.view.initialState.hidden', "The view will not be shown in the view container, but will be discoverable through the views menu and other view entry points and can be un-hidden by the user."),
 				localize('vscode.extension.contributes.view.initialState.collapsed', "The view will show in the view container, but will be collapsed.")
 			]
+		},
+		initialSize: {
+			type: 'number',
+			description: localize('vscode.extension.contributs.view.size', "The initial size of the view. The size will behave like the css 'flex' property, and will set the initial size when the view is first shown. In the side bar, this is the height of the view. This value is only respected when the same extension owns both the view and the view container."),
 		}
 	}
 };
@@ -256,7 +262,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 	private viewsRegistry: IViewsRegistry;
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		this.viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
@@ -469,15 +476,18 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					collector.warn(localize('ViewContainerDoesnotExist', "View container '{0}' does not exist and all views registered to it will be added to 'Explorer'.", key));
 				}
 				const container = viewContainer || this.getDefaultViewContainer();
-				const viewDescriptors = coalesce(value.map((item, index) => {
+				const viewDescriptors: ICustomViewDescriptor[] = [];
+
+				for (let index = 0; index < value.length; index++) {
+					const item = value[index];
 					// validate
 					if (viewIds.has(item.id)) {
 						collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}`", item.id));
-						return null;
+						continue;
 					}
 					if (this.viewsRegistry.getView(item.id) !== null) {
 						collector.error(localize('duplicateView2', "A view with id `{0}` is already registered.", item.id));
-						return null;
+						continue;
 					}
 
 					const order = ExtensionIdentifier.equals(extension.description.identifier, container.extensionId)
@@ -496,7 +506,16 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					const type = this.getViewType(item.type);
 					if (!type) {
 						collector.error(localize('unknownViewType', "Unknown view type `{0}`.", item.type));
-						return null;
+						continue;
+					}
+
+					let weight: number | undefined = undefined;
+					if (typeof item.initialSize === 'number') {
+						if (container.extensionId?.value === extension.description.identifier.value) {
+							weight = item.initialSize;
+						} else {
+							this.logService.warn(`${extension.description.identifier.value} tried to set the view size of ${item.id} but it was ignored because the view container does not belong to it.`);
+						}
 					}
 
 					const viewDescriptor = <ICustomTreeViewDescriptor>{
@@ -517,13 +536,14 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						group: item.group,
 						remoteAuthority: item.remoteName || (<any>item).remoteAuthority, // TODO@roblou - delete after remote extensions are updated
 						hideByDefault: initialVisibility === InitialVisibility.Hidden,
-						workspace: viewContainer?.id === REMOTE ? true : undefined
+						workspace: viewContainer?.id === REMOTE ? true : undefined,
+						weight
 					};
 
 
 					viewIds.add(viewDescriptor.id);
-					return viewDescriptor;
-				}));
+					viewDescriptors.push(viewDescriptor);
+				}
 
 				allViewDescriptors.push({ viewContainer: container, views: viewDescriptors });
 
