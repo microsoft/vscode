@@ -78,10 +78,6 @@ export class TaskTerminalStatus extends Disposable {
 		return this.terminalMap.get(event.__task._id);
 	}
 
-	private _playEndSound(exitCode?: number): void {
-		this._audioCueService.playAudioCue(exitCode && exitCode !== 0 ? AudioCue.taskFailed : AudioCue.taskCompleted);
-	}
-
 	private eventEnd(event: ITaskEvent) {
 		const terminalData = this.terminalFromEvent(event);
 		if (!terminalData) {
@@ -104,7 +100,7 @@ export class TaskTerminalStatus extends Disposable {
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Info) {
 			terminalData.terminal.statusList.add(INFO_TASK_STATUS);
 		}
-		this._playEndSound(event.exitCode);
+		this._audioCueService.playAudioCue(event.exitCode && event.exitCode !== 0 ? AudioCue.taskFailed : AudioCue.taskCompleted);
 	}
 
 	private eventInactive(event: ITaskEvent) {
