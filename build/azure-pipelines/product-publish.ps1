@@ -76,6 +76,9 @@ do {
 
 			$null,$product,$os,$arch,$type = $artifactName -split '_'
 			$asset = Get-ChildItem -rec "$env:AGENT_TEMPDIRECTORY/$artifactName"
+
+			Write-Host "Asset Size: $($asset.Size)"
+			Write-Host "Artifact Size: $($_.resource.properties.artifactsize)"
 			Write-Host "Processing artifact with the following values:"
 			# turning in into an object just to log nicely
 			@{
