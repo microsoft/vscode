@@ -254,8 +254,6 @@ export class WindowProfiler {
 				callstack: callstack.join('\n')
 			};
 			this._telemetryService.publicLog2<TelemetrySampleData, TelemetrySampleDataClassification>('prof.freeze.sample', data);
-
-			console.log(data);
 		}
 	}
 }
