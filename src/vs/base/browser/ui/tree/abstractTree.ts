@@ -337,7 +337,6 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	private hideTwistiesOfChildlessElements: boolean = false;
 
 	private shouldRenderIndentGuides: boolean = false;
-	private renderedIndentGuides = new SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>();
 	private activeIndentNodes = new Set<ITreeNode<T, TFilterData>>();
 	private indentGuidesDisposable: IDisposable = Disposable.None;
 
@@ -348,6 +347,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 		private modelProvider: () => ITreeModel<T, TFilterData, TRef>,
 		onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>,
 		private activeNodes: Collection<ITreeNode<T, TFilterData>>,
+		private renderedIndentGuides: SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>,
 		options: ITreeRendererOptions = {}
 	) {
 		this.templateId = renderer.templateId;
@@ -1448,7 +1448,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const onDidChangeCollapseStateRelay = new Relay<ICollapseStateChangeEvent<T, TFilterData>>();
 		const onDidChangeActiveNodes = new Relay<ITreeNode<T, TFilterData>[]>();
 		const activeNodes = this.disposables.add(new EventCollection(onDidChangeActiveNodes.event));
-		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, TRef, any>(r, () => this.model, onDidChangeCollapseStateRelay.event, activeNodes, _options));
+		const renderedIndentGuides = new SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>();
+		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, TRef, any>(r, () => this.model, onDidChangeCollapseStateRelay.event, activeNodes, renderedIndentGuides, _options));
 		for (const r of this.renderers) {
 			this.disposables.add(r);
 		}
