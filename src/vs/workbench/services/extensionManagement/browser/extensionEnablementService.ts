@@ -249,6 +249,11 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 				continue;
 			}
 
+			// Skip if dependency extension is disabled by extension kind
+			if (enablementStateOfExtension === EnablementState.DisabledByExtensionKind) {
+				continue;
+			}
+
 			// Check if the extension is a dependency or in extension pack
 			if (extensions.some(e =>
 				(options.dependencies && e.manifest.extensionDependencies?.some(id => areSameExtensions({ id }, extension.identifier)))
