@@ -54,8 +54,7 @@ export class TaskTerminalStatus extends Disposable {
 	}
 
 	private _playEndSound(exitCode?: number): void {
-		//TODO: determine sound based on exit code
-		this._audioCueService.playAudioCue(AudioCue.taskEnded);
+		this._audioCueService.playAudioCue(exitCode && exitCode !== 0 ? AudioCue.taskFailed : AudioCue.taskCompleted);
 	}
 
 
