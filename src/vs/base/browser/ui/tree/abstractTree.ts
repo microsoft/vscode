@@ -996,7 +996,11 @@ class FindController<T, TFilterData> implements IDisposable {
 		const noMatches = this.filter.totalCount > 0 && this.filter.matchCount === 0;
 
 		if (this.pattern && noMatches) {
-			this.widget?.showMessage({ type: MessageType.WARNING, content: localize('not found', "No elements found.") });
+			if (this.tree.options.showNotFoundMessage ?? true) {
+				this.widget?.showMessage({ type: MessageType.WARNING, content: localize('not found', "No elements found.") });
+			} else {
+				this.widget?.showMessage({ type: MessageType.WARNING });
+			}
 		} else {
 			this.widget?.clearMessage();
 		}
@@ -1062,6 +1066,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly typeNavigationEnabled?: boolean;
 	readonly typeNavigationMode?: TypeNavigationMode;
 	readonly defaultFindMode?: TreeFindMode;
+	readonly showNotFoundMessage?: boolean;
 	readonly smoothScrolling?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly mouseWheelScrollSensitivity?: number;
