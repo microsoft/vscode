@@ -58,7 +58,6 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 		},
 		exitStatus: false,
 		getQuickFixes: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
-			matchResult?.outputMatch?.groups?.ipAddress;
 			const port = matchResult?.outputMatch?.groups?.portNumber;
 			if (!port) {
 				return;
