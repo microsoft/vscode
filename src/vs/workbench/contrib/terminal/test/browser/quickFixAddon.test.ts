@@ -87,7 +87,7 @@ suite('QuickFixAddon', () => {
 		});
 		if (!isWindows) {
 			suite('freePort', () => {
-				const expected = new Map();
+				const expectedMap = new Map();
 				const portCommand = `yarn start dev`;
 				const output = `yarn run v1.22.17
 			warning ../../package.json: No license field
@@ -112,16 +112,16 @@ suite('QuickFixAddon', () => {
 				}];
 				setup(() => {
 					const command = freePort(terminalInstance);
-					expected.set(command.commandLineMatcher.toString(), [command]);
+					expectedMap.set(command.commandLineMatcher.toString(), [command]);
 					quickFixAddon.registerCommandFinishedListener(command);
 				});
 				suite('returns undefined when', () => {
 					test('output does not match', () => {
-						strictEqual(getQuickFixes(createCommand(portCommand, `invalid output`, FreePortOutputRegex), expected), undefined);
+						strictEqual(getQuickFixes(createCommand(portCommand, `invalid output`, FreePortOutputRegex), expectedMap), undefined);
 					});
 				});
 				test('returns actions', () => {
-					assertMatchOptions(getQuickFixes(createCommand(portCommand, output, FreePortOutputRegex), expected), actionOptions);
+					assertMatchOptions(getQuickFixes(createCommand(portCommand, output, FreePortOutputRegex), expectedMap), actionOptions);
 				});
 			});
 		}

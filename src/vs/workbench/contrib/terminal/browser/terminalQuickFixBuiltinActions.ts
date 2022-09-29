@@ -13,7 +13,7 @@ export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
 export const AnyCommandLineRegex = /.+/;
 export const GitSimilarOutputRegex = /most similar command is\s*\n\s*([^\s]{3,})/m;
-export const FreePortOutputRegex = /address already in use \d+\.\d+\.\d+\.\d+:(\d{4,5})|Unable to bind [^ ]*:(\d{4,5})|can't listen on port (\d{4,5})|listen EADDRINUSE [^ ]*:(\d{4,5})/;
+export const FreePortOutputRegex = /address already in use (0\.0\.0\.0|127\.0\.0\.1|localhost|::):(?<portNumber>\d{4,5})|can't listen on port (\d{4,5})|listen EADDRINUSE [^ ]*:(\d{4,5})/;
 export const GitPushOutputRegex = /git push --set-upstream origin ([^\s]+)/;
 // The previous line starts with "Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s*",
 // it's safe to assume it's a github pull request if the URL includes `/pull/`
@@ -58,7 +58,8 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 		},
 		exitStatus: false,
 		getQuickFixes: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
-			const port = matchResult?.outputMatch?.[1];
+			matchResult?.outputMatch?.groups?.ipAddress;
+			const port = matchResult?.outputMatch?.groups?.portNumber;
 			if (!port) {
 				return;
 			}
