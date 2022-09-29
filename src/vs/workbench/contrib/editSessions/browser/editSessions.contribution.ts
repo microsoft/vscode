@@ -144,21 +144,32 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			};
 			this.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.continue.resume');
 
+			const shouldAutoResumeOnReload = this.configurationService.getValue('workbench.editSessions.autoResume') === 'onReload';
+
 			if (this.environmentService.editSessionId !== undefined) {
 				this.logService.info(`Resuming edit session, reason: found editSessionId ${this.environmentService.editSessionId} in environment service...`);
 				await this.resumeEditSession(this.environmentService.editSessionId).finally(() => this.environmentService.editSessionId = undefined);
-			} else if (
-				this.configurationService.getValue('workbench.editSessions.autoResume') === 'onReload' &&
-				this.editSessionsStorageService.isSignedIn
-			) {
+			} else if (shouldAutoResumeOnReload && this.editSessionsStorageService.isSignedIn) {
 				this.logService.info('Resuming edit session, reason: edit sessions enabled...');
 				// Attempt to resume edit session based on edit workspace identifier
 				// Note: at this point if the user is not signed into edit sessions,
 				// we don't want them to be prompted to sign in and should just return early
 				await this.resumeEditSession(undefined, true);
-			} else {
+			} else if (shouldAutoResumeOnReload) {
 				// The application has previously launched via a protocol URL Continue On flow
 				const hasApplicationLaunchedFromContinueOnFlow = this.storageService.getBoolean(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, StorageScope.APPLICATION, false);
+
+				const handlePendingEditSessions = () => {
+					// display a badge in the accounts menu but do not prompt the user to sign in again
+					this.updateAccountsMenuBadge();
+					// attempt a resume if we are in a pending state and the user just signed in
+					const disposable = this.editSessionsStorageService.onDidSignIn(async () => {
+						disposable.dispose();
+						this.resumeEditSession(undefined, true);
+						this.storageService.remove(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, StorageScope.APPLICATION);
+						this.environmentService.continueOn = undefined;
+					});
+				};
 
 				if ((this.environmentService.continueOn !== undefined) &&
 					!this.editSessionsStorageService.isSignedIn &&
@@ -170,17 +181,14 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					if (this.editSessionsStorageService.isSignedIn) {
 						await this.resumeEditSession(undefined, true);
 					} else {
-						this.updateAccountsMenuBadge();
+						handlePendingEditSessions();
 					}
 					// store the fact that we prompted the user
 				} else if (!this.editSessionsStorageService.isSignedIn &&
 					// and user has been prompted to sign in on this machine
 					hasApplicationLaunchedFromContinueOnFlow === true
 				) {
-					// display a badge in the accounts menu but do not prompt the user to sign in again
-					this.updateAccountsMenuBadge();
-					// attempt a resume if we are in a pending state and the user just signed in
-					this._register(this.editSessionsStorageService.onDidSignIn(async () => this.resumeEditSession(undefined, true)));
+					handlePendingEditSessions();
 				}
 			}
 
