@@ -86,6 +86,10 @@ export class ConflictActionsFactory extends Disposable {
 		}
 
 		const items = derived('items', reader => {
+			if (!viewModel.model.hasBaseRange(modifiedBaseRange)) {
+				return [];
+			}
+
 			const state = viewModel.model.getState(modifiedBaseRange).read(reader);
 			const handled = viewModel.model.isHandled(modifiedBaseRange).read(reader);
 			const model = viewModel.model;
