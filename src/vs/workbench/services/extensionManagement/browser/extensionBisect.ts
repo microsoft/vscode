@@ -211,7 +211,6 @@ class ExtensionBisectUi {
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	ExtensionBisectUi,
-	'ExtensionBisectUi',
 	LifecyclePhase.Restored
 );
 

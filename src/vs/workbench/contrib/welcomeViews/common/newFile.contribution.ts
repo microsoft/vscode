@@ -206,7 +206,7 @@ class NewFileTemplatesManager extends Disposable {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(NewFileTemplatesManager, 'NewFileTemplatesManager', LifecyclePhase.Restored);
+	.registerWorkbenchContribution(NewFileTemplatesManager, LifecyclePhase.Restored);
 
 MenuRegistry.appendMenuItem(MenuId.NewFile, {
 	group: 'file',

@@ -56,6 +56,11 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return this._didSignIn.event;
 	}
 
+	private _didSignOut = new Emitter<void>();
+	get onDidSignOut() {
+		return this._didSignOut.event;
+	}
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -162,11 +167,11 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return [];
 	}
 
-	public async initialize(fromContinueOn: boolean) {
+	public async initialize(fromContinueOn: boolean, silent: boolean = false) {
 		if (this.initialized) {
 			return true;
 		}
-		this.initialized = await this.doInitialize(fromContinueOn);
+		this.initialized = await this.doInitialize(fromContinueOn, silent);
 		this.signedInContext.set(this.initialized);
 		if (this.initialized) {
 			this._didSignIn.fire();
@@ -181,7 +186,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	 * meaning that authentication is configured and it
 	 * can be used to communicate with the remote storage service
 	 */
-	private async doInitialize(fromContinueOn: boolean): Promise<boolean> {
+	private async doInitialize(fromContinueOn: boolean, silent: boolean): Promise<boolean> {
 		// Wait for authentication extensions to be registered
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
@@ -206,7 +211,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			return true;
 		}
 
-		const authenticationSession = await this.getAuthenticationSession(fromContinueOn);
+		const authenticationSession = await this.getAuthenticationSession(fromContinueOn, silent);
 		if (authenticationSession !== undefined) {
 			this.#authenticationInfo = authenticationSession;
 			this.storeClient.setAuthToken(authenticationSession.token, authenticationSession.providerId);
@@ -239,7 +244,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return currentMachineId;
 	}
 
-	private async getAuthenticationSession(fromContinueOn: boolean) {
+	private async getAuthenticationSession(fromContinueOn: boolean, silent: boolean) {
 		// If the user signed in previously and the session is still available, reuse that without prompting the user again
 		if (this.existingSessionId) {
 			this.logService.info(`Searching for existing authentication session with ID ${this.existingSessionId}`);
@@ -247,6 +252,8 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			if (existingSession) {
 				this.logService.info(`Found existing authentication session with ID ${existingSession.session.id}`);
 				return { sessionId: existingSession.session.id, token: existingSession.session.idToken ?? existingSession.session.accessToken, providerId: existingSession.session.providerId };
+			} else {
+				this._didSignOut.fire();
 			}
 		}
 
@@ -259,6 +266,12 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 				this.existingSessionId = authenticationSessionInfo.id;
 				return { sessionId: authenticationSessionInfo.id, token: authenticationSessionInfo.accessToken, providerId: authenticationSessionInfo.providerId };
 			}
+		}
+
+		// If we aren't supposed to prompt the user because
+		// we're in a silent flow, just return here
+		if (silent) {
+			return;
 		}
 
 		// Ask the user to pick a preferred account

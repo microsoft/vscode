@@ -285,7 +285,7 @@ class WorkspacePlatformContribution {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WorkspacePlatformContribution, 'WorkspacePlatformContribution', LifecyclePhase.Restored);
+	.registerWorkbenchContribution(WorkspacePlatformContribution, LifecyclePhase.Restored);
 
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -336,4 +336,4 @@ configurationRegistry.registerConfiguration({
 
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(StartupPageContribution, 'StartupPageContribution', LifecyclePhase.Restored);
+	.registerWorkbenchContribution(StartupPageContribution, LifecyclePhase.Restored);

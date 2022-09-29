@@ -1770,6 +1770,24 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 	}
 
+	setExtensionIgnoresUpdate(extension: IExtension, ignoreAutoUpate: boolean): void {
+		const extensionKey = new ExtensionKey(extension.identifier, extension.version);
+		if (ignoreAutoUpate) {
+			this.ignoreAutoUpdate(extensionKey);
+		}
+		else if (this.isAutoUpdateIgnored(extensionKey)) {
+			this.ignoredAutoUpdateExtensions = this.ignoredAutoUpdateExtensions.filter(extensionId => extensionId !== extensionKey.toString());
+		}
+		else {
+			return;
+		}
+		this._onChange.fire(extension);
+	}
+
+	isExtensionIgnoresUpdates(extension: IExtension): boolean {
+		return this.isAutoUpdateIgnored(new ExtensionKey(extension.identifier, extension.version));
+	}
+
 	private isAutoUpdateIgnored(extensionKey: ExtensionKey): boolean {
 		return this.ignoredAutoUpdateExtensions.indexOf(extensionKey.toString()) !== -1;
 	}

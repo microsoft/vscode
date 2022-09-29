@@ -32,8 +32,8 @@ export class MenuService implements IMenuService {
 		return new MenuImpl(id, this._hiddenStates, { emitEventsForSubmenuChanges: false, eventDebounceDelay: 50, ...options }, this._commandService, contextKeyService);
 	}
 
-	resetHiddenStates(id?: MenuId): void {
-		this._hiddenStates.reset(id);
+	resetHiddenStates(ids?: MenuId[]): void {
+		this._hiddenStates.reset(ids);
 	}
 }
 
@@ -108,17 +108,19 @@ class PersistedMenuHideState {
 		this._persist();
 	}
 
-	reset(menu?: MenuId): void {
-		if (menu === undefined) {
+	reset(menus?: MenuId[]): void {
+		if (menus === undefined) {
 			// reset all
 			this._data = Object.create(null);
 			this._persist();
 		} else {
 			// reset only for a specific menu
-			if (this._data[menu.id]) {
-				delete this._data[menu.id];
-				this._persist();
+			for (const { id } of menus) {
+				if (this._data[id]) {
+					delete this._data[id];
+				}
 			}
+			this._persist();
 		}
 	}
 
@@ -229,7 +231,8 @@ class MenuInfo {
 					const menuHide = createMenuHide(this._id, isMenuItem ? item.command : item, this._hiddenStates);
 					if (isMenuItem) {
 						// MenuItemAction
-						activeActions.push(new MenuItemAction(item.command, item.alt, options, menuHide, this._contextKeyService, this._commandService));
+						const actualMenuHide = item.command._isFakeAction ? undefined : menuHide;
+						activeActions.push(new MenuItemAction(item.command, item.alt, options, actualMenuHide, this._contextKeyService, this._commandService));
 
 					} else {
 						// SubmenuItemAction

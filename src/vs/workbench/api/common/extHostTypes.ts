@@ -2460,6 +2460,22 @@ export enum ProgressLocation {
 	Notification = 15
 }
 
+export namespace ViewBadge {
+	export function isViewBadge(thing: any): thing is vscode.ViewBadge {
+		const viewBadgeThing = thing as vscode.ViewBadge;
+
+		if (!isNumber(viewBadgeThing.value)) {
+			console.log('INVALID view badge, invalid value', viewBadgeThing.value);
+			return false;
+		}
+		if (viewBadgeThing.tooltip && !isString(viewBadgeThing.tooltip)) {
+			console.log('INVALID view badge, invalid tooltip', viewBadgeThing.tooltip);
+			return false;
+		}
+		return true;
+	}
+}
+
 @es5ClassCompat
 export class TreeItem {
 

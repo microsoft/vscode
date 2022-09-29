@@ -450,7 +450,21 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 				.forEach(p => this.eventuallyScanPossibleGitRepository(p));
 		};
 
-		const statusListener = repository.onDidRunGitStatus(checkForSubmodules);
+		const updateMergeChanges = () => {
+			// set mergeChanges context
+			const mergeChanges: Uri[] = [];
+			for (const { repository } of this.openRepositories.values()) {
+				for (const state of repository.mergeGroup.resourceStates) {
+					mergeChanges.push(state.resourceUri);
+				}
+			}
+			commands.executeCommand('setContext', 'git.mergeChanges', mergeChanges);
+		};
+
+		const statusListener = repository.onDidRunGitStatus(() => {
+			checkForSubmodules();
+			updateMergeChanges();
+		});
 		checkForSubmodules();
 
 		const dispose = () => {
@@ -466,6 +480,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 		const openRepository = { repository, dispose };
 		this.openRepositories.push(openRepository);
+		updateMergeChanges();
 		this._onDidOpenRepository.fire(repository);
 	}
 

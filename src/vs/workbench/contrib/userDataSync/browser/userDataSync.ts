@@ -609,7 +609,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			id: SyncResource.GlobalState,
 			label: getSyncAreaLabel(SyncResource.GlobalState),
 		}];
-		if (!this.environmentService.isBuilt || (this.productService.enableSyncingProfiles && this.configurationService.getValue('settingsSync.enableSyncingProfiles'))) {
+		if (!this.environmentService.isBuilt || this.productService.enableSyncingProfiles) {
 			result.push({
 				id: SyncResource.Profiles,
 				label: getSyncAreaLabel(SyncResource.Profiles),

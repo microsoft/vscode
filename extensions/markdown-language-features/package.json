@@ -477,8 +477,9 @@
           "type": "string",
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.validate.fileLinks.markdownFragmentLinks.description%",
-          "default": "ignore",
+          "default": "inherit",
           "enum": [
+            "inherit",
             "ignore",
             "warning",
             "error"
@@ -586,7 +587,7 @@
     "morphdom": "^2.6.1",
     "picomatch": "^2.3.1",
     "vscode-languageclient": "^8.0.2",
-    "vscode-nls": "^5.1.0",
+    "vscode-nls": "^5.2.0",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {

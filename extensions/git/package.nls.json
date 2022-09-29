@@ -104,7 +104,7 @@
 	"command.api.getRepositoryState": "Get Repository State",
 	"command.api.getRemoteSources": "Get Remote Sources",
 	"command.git.acceptMerge": "Accept Merge",
-	"command.git.openMergeEditor": "Open in Merge Editor",
+	"command.git.openMergeEditor": "Resolve in Merge Editor",
 	"command.git.runGitMerge": "Compute Conflicts With Git",
 	"command.git.runGitMergeDiff3": "Compute Conflicts With Git (Diff3)",
 	"config.enabled": "Whether git is enabled.",

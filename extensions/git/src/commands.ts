@@ -599,7 +599,7 @@ export class CommandCenter {
 					choices.push(addToWorkspace);
 				}
 
-				const result = await window.showInformationMessage(message, ...choices);
+				const result = await window.showInformationMessage(message, { modal: true }, ...choices);
 
 				action = result === open ? PostCloneAction.Open
 					: result === openNewWindow ? PostCloneAction.OpenNewWindow
