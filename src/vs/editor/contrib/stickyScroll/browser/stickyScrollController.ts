@@ -12,6 +12,12 @@ import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidge
 import { StickyLineCandidateProvider, StickyRange } from './stickyScrollProvider';
 import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import * as dom from 'vs/base/browser/dom';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IAction } from 'vs/base/common/actions';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class StickyScrollController extends Disposable implements IEditorContribution {
 
@@ -26,6 +32,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		_editor: ICodeEditor,
 		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
 		@IInstantiationService _instaService: IInstantiationService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IMenuService private readonly _menuService: IMenuService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._editor = _editor;
@@ -41,6 +50,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 		}));
 		this.readConfiguration();
+		this._register(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.CONTEXT_MENU, async (event: MouseEvent) => {
+			this.onContextMenu(event);
+		}));
 	}
 
 	public get stickyScrollCandidateProvider() {
@@ -49,6 +61,19 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	public get stickyScrollWidgetState() {
 		return this._widgetState;
+	}
+
+	private onContextMenu(event: MouseEvent) {
+		const menu = this._menuService.createMenu(MenuId.StickyScroll, this._contextKeyService);
+		const actions: IAction[] = [];
+		createAndFillInContextMenuActions(menu, undefined, actions);
+		this._contextMenuService.showContextMenu({
+			getActions: () => actions,
+			getAnchor: () => event,
+			onHide: () => {
+				menu.dispose();
+			}
+		});
 	}
 
 	private readConfiguration() {
