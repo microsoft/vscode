@@ -15,6 +15,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
@@ -159,6 +160,15 @@ export abstract class Composite extends Component implements IComposite {
 	 */
 	override updateStyles(): void {
 		super.updateStyles();
+	}
+
+
+	/**
+	 *
+	 * @returns the action runner for this composite
+	 */
+	getMenuIds(): readonly MenuId[] {
+		return [];
 	}
 
 	/**
