@@ -695,6 +695,14 @@ class FindWidget<T, TFilterData> extends Disposable {
 		this.findInput.inputBox.setPlaceHolder(mode === TreeFindMode.Filter ? localize('type to filter', "Type to filter") : localize('type to search', "Type to search"));
 	}
 
+	get value(): string {
+		return this.findInput.inputBox.value;
+	}
+
+	set value(value: string) {
+		this.findInput.inputBox.value = value;
+	}
+
 	private readonly modeToggle: ModeToggle;
 	private readonly findInput: FindInput;
 	private readonly actionbar: ActionBar;
@@ -876,6 +884,7 @@ class FindController<T, TFilterData> implements IDisposable {
 
 	private _pattern = '';
 	get pattern(): string { return this._pattern; }
+	private previousPattern = '';
 
 	private _mode: TreeFindMode;
 	get mode(): TreeFindMode { return this._mode; }
@@ -940,6 +949,9 @@ class FindController<T, TFilterData> implements IDisposable {
 		this.widget.layout(this.width);
 		this.widget.focus();
 
+		this.widget.value = this.previousPattern;
+		this.widget.select();
+
 		this._onDidChangeOpenState.fire(true);
 	}
 
@@ -953,6 +965,7 @@ class FindController<T, TFilterData> implements IDisposable {
 		this.enabledDisposables.dispose();
 		this.enabledDisposables = new DisposableStore();
 
+		this.previousPattern = this.pattern;
 		this.onDidChangeValue('');
 		this.tree.domFocus();
 
