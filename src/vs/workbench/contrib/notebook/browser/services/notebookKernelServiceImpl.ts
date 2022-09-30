@@ -246,7 +246,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		// bound kernel
 		const selectedId = this._notebookBindings.get(NotebookTextModelLikeId.str(notebook));
 		const selected = selectedId ? this._kernels.get(selectedId)?.kernel : undefined;
-		const suggestions = kernels.filter(item => item.instanceAffinity > 1 && item.kernel !== selected).map(item => item.kernel);
+		const suggestions = kernels.filter(item => item.instanceAffinity > 1).map(item => item.kernel);
 		const hidden = kernels.filter(item => item.instanceAffinity < 0).map(item => item.kernel);
 		return { all, selected, suggestions, hidden };
 	}

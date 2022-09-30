@@ -323,6 +323,33 @@
 			}
 		},
 		{
+			"type": "chrome",
+			"request": "launch",
+			"outFiles": [],
+			"perScriptSourcemaps": "yes",
+			"name": "VS Code Web (Chrome)",
+			"url": "http://localhost:8080",
+			"preLaunchTask": "Run code web",
+			"presentation": {
+				"group": "0_vscode",
+				"order": 3
+			}
+		},
+		{
+			"type": "msedge",
+			"request": "launch",
+			"outFiles": [],
+			"perScriptSourcemaps": "yes",
+			"name": "VS Code Web (Edge)",
+			"url": "http://localhost:8080",
+			"pauseForSourceMap": false,
+			"preLaunchTask": "Run code web",
+			"presentation": {
+				"group": "0_vscode",
+				"order": 3
+			}
+		},
+		{
 			"type": "node",
 			"request": "launch",
 			"name": "Git Unit Tests",

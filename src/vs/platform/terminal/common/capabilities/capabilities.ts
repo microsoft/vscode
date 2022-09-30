@@ -221,8 +221,33 @@ export interface ITerminalCommand {
 	commandStartLineContent?: string;
 	markProperties?: IMarkProperties;
 	getOutput(): string | undefined;
-	getOutputMatch(outputMatcher: { lineMatcher: string | RegExp; anchor?: 'top' | 'bottom'; offset?: number; length?: number }): RegExpMatchArray | undefined;
+	getOutputMatch(outputMatcher: ITerminalOutputMatcher): RegExpMatchArray | undefined;
 	hasOutput(): boolean;
+}
+
+
+/**
+ * A matcher that runs on a sub-section of a terminal command's output
+ */
+export interface ITerminalOutputMatcher {
+	/**
+	 * A string or regex to match against the unwrapped line. If this is a regex with the multiline
+	 * flag, it will scan an amount of lines equal to `\n` instances in the regex + 1.
+	 */
+	lineMatcher: string | RegExp;
+	/**
+	 * Which side of the output to anchor the {@link offset} and {@link length} against.
+	 */
+	anchor: 'top' | 'bottom';
+	/**
+	 * How far from either the top or the bottom of the butter to start matching against.
+	 */
+	offset: number;
+	/**
+	 * The number of rows to match against, this should be as small as possible for performance
+	 * reasons.
+	 */
+	length: number;
 }
 
 /**
