@@ -599,7 +599,7 @@ export class CommandCenter {
 					choices.push(addToWorkspace);
 				}
 
-				const result = await window.showInformationMessage(message, ...choices);
+				const result = await window.showInformationMessage(message, { modal: true }, ...choices);
 
 				action = result === open ? PostCloneAction.Open
 					: result === openNewWindow ? PostCloneAction.OpenNewWindow
@@ -1162,7 +1162,7 @@ export class CommandCenter {
 
 		const repository = this.model.getRepository(uri);
 		if (!repository) {
-			console.log(`FAILED to accept merge because uri ${uri.toString()} doesn't belong to any repository`);
+			console.log(`FAILED to complete merge because uri ${uri.toString()} doesn't belong to any repository`);
 			return;
 		}
 
@@ -1183,7 +1183,7 @@ export class CommandCenter {
 		// make sure to save the merged document
 		const doc = workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
 		if (!doc) {
-			console.log(`FAILED to accept merge because uri ${uri.toString()} doesn't match a document`);
+			console.log(`FAILED to complete merge because uri ${uri.toString()} doesn't match a document`);
 			return;
 		}
 		if (doc.isDirty) {

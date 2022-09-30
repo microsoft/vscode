@@ -16,7 +16,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { MergeMarkersController } from 'vs/workbench/contrib/mergeEditor/browser/mergeMarkers/mergeMarkersController';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { applyObservableDecorations, join } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
@@ -40,8 +39,6 @@ export class ResultCodeEditorView extends CodeEditorView {
 			isMergeResultEditor.set(true);
 			this._register(toDisposable(() => isMergeResultEditor.reset()));
 		});
-
-		this._register(new MergeMarkersController(this.editor, this.viewModel));
 
 		this.htmlElements.gutterDiv.style.width = '5px';
 

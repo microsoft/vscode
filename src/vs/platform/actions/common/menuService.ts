@@ -32,8 +32,8 @@ export class MenuService implements IMenuService {
 		return new MenuImpl(id, this._hiddenStates, { emitEventsForSubmenuChanges: false, eventDebounceDelay: 50, ...options }, this._commandService, contextKeyService);
 	}
 
-	resetHiddenStates(id?: MenuId): void {
-		this._hiddenStates.reset(id);
+	resetHiddenStates(ids?: MenuId[]): void {
+		this._hiddenStates.reset(ids);
 	}
 }
 
@@ -108,17 +108,19 @@ class PersistedMenuHideState {
 		this._persist();
 	}
 
-	reset(menu?: MenuId): void {
-		if (menu === undefined) {
+	reset(menus?: MenuId[]): void {
+		if (menus === undefined) {
 			// reset all
 			this._data = Object.create(null);
 			this._persist();
 		} else {
 			// reset only for a specific menu
-			if (this._data[menu.id]) {
-				delete this._data[menu.id];
-				this._persist();
+			for (const { id } of menus) {
+				if (this._data[id]) {
+					delete this._data[id];
+				}
 			}
+			this._persist();
 		}
 	}
 
