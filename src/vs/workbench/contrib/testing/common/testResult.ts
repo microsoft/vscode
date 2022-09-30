@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { getMarkId, IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { maxPriority, statesInOrder, terminalStatePriorities } from 'vs/workbench/contrib/testing/common/testingStates';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
@@ -130,6 +130,7 @@ export const maxCountPriority = (counts: Readonly<TestStateCount>) => {
 	return TestResultState.Unset;
 };
 
+const getMarkCode = (marker: number, start: boolean) => `\x1b]633;SetMark;Id=${getMarkId(marker, start)};Hidden\x07`;
 
 /**
  * Deals with output of a {@link LiveTestResult}. By default we pass-through
@@ -162,9 +163,17 @@ export class LiveOutputController {
 	/**
 	 * Appends data to the output.
 	 */
-	public append(data: VSBuffer): Promise<void> | void {
+	public append(data: VSBuffer, marker?: number): Promise<void> | void {
 		if (this.closed) {
 			return this.closed;
+		}
+
+		if (marker !== undefined) {
+			data = VSBuffer.concat([
+				VSBuffer.fromString(getMarkCode(marker, true)),
+				data,
+				VSBuffer.fromString(getMarkCode(marker, false)),
+			]);
 		}
 
 		this.previouslyWritten?.push(data);
@@ -285,6 +294,7 @@ export class LiveTestResult implements ITestResult {
 	private readonly completeEmitter = new Emitter<void>();
 	private readonly changeEmitter = new Emitter<TestResultItemChange>();
 	private readonly testById = new Map<string, TestResultItemWithChildren>();
+	private testMarkerCounter = 0;
 	private _completedAt?: number;
 
 	public readonly onChange = this.changeEmitter.event;
@@ -352,15 +362,24 @@ export class LiveTestResult implements ITestResult {
 	 */
 	public appendOutput(output: VSBuffer, taskId: string, location?: IRichLocation, testId?: string): void {
 		const preview = output.byteLength > 100 ? output.slice(0, 100).toString() + '…' : output.toString();
+		let marker: number | undefined;
+
+		// currently, the UI only exposes jump-to-message from tests or locations,
+		// so no need to mark outputs that don't come from either of those.
+		if (testId || location) {
+			marker = this.testMarkerCounter++;
+		}
+
 		const message: ITestOutputMessage = {
 			location,
 			message: removeAnsiEscapeCodes(preview),
 			offset: this.output.offset,
 			length: output.byteLength,
+			marker: marker,
 			type: TestMessageType.Output,
 		};
 
-		this.output.append(output);
+		this.output.append(output, marker);
 
 		const index = this.mustGetTaskIndex(taskId);
 		if (testId) {
