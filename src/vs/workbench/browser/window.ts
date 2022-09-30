@@ -210,11 +210,16 @@ export class BrowserWindow extends Disposable {
 							[
 								localize('openExternalDialogButtonRetry', "Try again"),
 								localize('openExternalDialogButtonInstall', "Install {0}", this.productService.nameLong),
-								localize('openExternalDialogButtonContinue', "Continue here")
+								localize('openExternalDialogButtonCancel', "Cancel")
 							],
 							{
 								cancelId: 2,
-								detail: localize('openExternalDialogDetail', "We tried opening {0} on your computer.", this.productService.nameLong)
+								detail: localize(
+									'openExternalDialogDetail.v2',
+									"We launched {0} on your computer.\n\nIf {1} did not launch, try again or install it below.",
+									this.productService.nameLong,
+									this.productService.nameLong,
+								)
 							},
 						);
 
