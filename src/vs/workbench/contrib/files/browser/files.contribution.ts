@@ -251,7 +251,7 @@ configurationRegistry.registerConfiguration({
 				'.*': { 'type': 'boolean' }
 			},
 			'default': {},
-			'markdownDescription': nls.localize('readonlyInclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to open as read-only."),
+			'markdownDescription': nls.localize('readonlyInclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to mark as read-only."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.readonlyExclude': {
@@ -260,7 +260,7 @@ configurationRegistry.registerConfiguration({
 				'.*': { 'type': 'boolean' }
 			},
 			'default': {},
-			'markdownDescription': nls.localize('readonlyExclude', "Override: paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to NOT open as read-only."),
+			'markdownDescription': nls.localize('readonlyExclude', "Override: paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to NOT mark as read-only."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.watcherExclude': {
