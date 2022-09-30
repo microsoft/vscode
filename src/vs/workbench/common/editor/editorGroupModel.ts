@@ -187,7 +187,7 @@ export class EditorGroupModel extends Disposable {
 	private sticky = -1; 						// index of first editor in sticky state
 
 	private editorOpenPositioning: ('left' | 'right' | 'first' | 'last') | undefined;
-	private focusRecentEditorAfterClose: boolean | undefined;
+	private focusRecentEditorAfterClose: ('recent' | 'left' | 'right') | undefined;
 
 	constructor(
 		labelOrSerializedGroup: ISerializedEditorGroupModel | undefined,
@@ -501,12 +501,16 @@ export class EditorGroupModel extends Disposable {
 			// More than one editor
 			if (this.mru.length > 1) {
 				let newActive: EditorInput;
-				if (this.focusRecentEditorAfterClose) {
+				if (this.focusRecentEditorAfterClose === 'recent') {
 					newActive = this.mru[1]; // active editor is always first in MRU, so pick second editor after as new active
 				} else {
-					if (index === this.editors.length - 1) {
+					if (index === 0) {
+						newActive = this.editors[index + 1]; // first editor is closed, pick next as new active
+					} else if (index === this.editors.length - 1) {
 						newActive = this.editors[index - 1]; // last editor is closed, pick previous as new active
-					} else {
+					} else if (this.focusRecentEditorAfterClose === 'left') {
+						newActive = this.editors[index - 1]; // pick previous editor as new active
+					} else { // this.focusRecentEditorAfterClose === 'right'
 						newActive = this.editors[index + 1]; // pick next editor as new active
 					}
 				}

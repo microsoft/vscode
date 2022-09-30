@@ -1058,7 +1058,7 @@ interface IEditorPartConfiguration {
 	tabSizing?: 'fit' | 'shrink';
 	pinnedTabSizing?: 'normal' | 'compact' | 'shrink';
 	titleScrollbarSizing?: 'default' | 'large';
-	focusRecentEditorAfterClose?: boolean;
+	focusRecentEditorAfterClose?: string;
 	showIcons?: boolean;
 	enablePreview?: boolean;
 	enablePreviewFromQuickOpen?: boolean;

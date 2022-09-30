@@ -36,7 +36,7 @@ suite('EditorGroupModel', () => {
 		inst.stub(ITelemetryService, NullTelemetryService);
 
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right', focusRecentEditorAfterClose: true } });
+		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right', focusRecentEditorAfterClose: 'recent' } });
 		inst.stub(IConfigurationService, config);
 
 		return inst;
@@ -1270,7 +1270,7 @@ suite('EditorGroupModel', () => {
 		inst.stub(ITelemetryService, NullTelemetryService);
 
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editor: { focusRecentEditorAfterClose: false } });
+		config.setUserConfiguration('workbench', { editor: { focusRecentEditorAfterClose: 'right' } });
 		inst.stub(IConfigurationService, config);
 
 		const group = inst.createInstance(EditorGroupModel, undefined);
@@ -1315,6 +1315,64 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.count, 1);
 
 		group.closeEditor(input2);
+
+		assert.ok(!group.activeEditor);
+		assert.strictEqual(group.count, 0);
+	});
+
+	test('Multiple Editors - closing picks next to the left', function () {
+		const inst = new TestInstantiationService();
+		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(ILifecycleService, new TestLifecycleService());
+		inst.stub(IWorkspaceContextService, new TestContextService());
+		inst.stub(ITelemetryService, NullTelemetryService);
+
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('workbench', { editor: { focusRecentEditorAfterClose: 'left' } });
+		inst.stub(IConfigurationService, config);
+
+		const group = inst.createInstance(EditorGroupModel, undefined);
+		const events = groupListener(group);
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+		const input4 = input();
+		const input5 = input();
+
+		group.openEditor(input1, { pinned: true, active: true });
+		group.openEditor(input2, { pinned: true, active: true });
+		group.openEditor(input3, { pinned: true, active: true });
+		group.openEditor(input4, { pinned: true, active: true });
+		group.openEditor(input5, { pinned: true, active: true });
+
+		assert.strictEqual(group.activeEditor, input5);
+		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[0], input5);
+		assert.strictEqual(group.count, 5);
+
+		group.closeEditor(input1);
+		assert.strictEqual(group.activeEditor, input2);
+		assert.strictEqual(events.activated[5].editor, input2);
+		assert.strictEqual(group.count, 4);
+
+		group.setActive(input5);
+		group.closeEditor(input5);
+
+		assert.strictEqual(group.activeEditor, input4);
+		assert.strictEqual(group.count, 3);
+
+		group.setActive(input3);
+		group.closeEditor(input3);
+
+		assert.strictEqual(group.activeEditor, input2);
+		assert.strictEqual(group.count, 2);
+
+		group.closeEditor(input2);
+
+		assert.strictEqual(group.activeEditor, input4);
+		assert.strictEqual(group.count, 1);
+
+		group.closeEditor(input4);
 
 		assert.ok(!group.activeEditor);
 		assert.strictEqual(group.count, 0);

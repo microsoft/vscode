@@ -176,9 +176,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('splitOnDragAndDrop', "Controls if editor groups can be split from drag and drop operations by dropping an editor or file on the edges of the editor area.")
 			},
 			'workbench.editor.focusRecentEditorAfterClose': {
-				'type': 'boolean',
-				'description': localize('focusRecentEditorAfterClose', "Controls whether tabs are closed in most recently used order or from left to right."),
-				'default': true
+				'type': 'string',
+				'enum': ['recent', 'left', 'right'],
+				'description': localize('focusRecentEditorAfterClose', "Controls whether tabs are closed in most recently used order or from the left or right."),
+				'default': 'recent'
 			},
 			'workbench.editor.showIcons': {
 				'type': 'boolean',

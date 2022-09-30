@@ -30,7 +30,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	tabSizing: 'fit',
 	pinnedTabSizing: 'normal',
 	titleScrollbarSizing: 'default',
-	focusRecentEditorAfterClose: true,
+	focusRecentEditorAfterClose: 'recent',
 	showIcons: true,
 	hasIcons: true, // 'vs-seti' is our default icon theme
 	enablePreview: true,
