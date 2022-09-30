@@ -419,7 +419,6 @@ export class CodeActionWidget extends Disposable {
 	}
 
 	public hide() {
-		this._ctxMenuWidgetVisible.reset();
 		this.codeActionList.clear();
 		this._contextViewService.hideContextView();
 	}
@@ -530,6 +529,7 @@ export class CodeActionWidget extends Disposable {
 		});
 
 		this.currentShowingContext = undefined;
+		this._ctxMenuWidgetVisible.reset();
 		delegate.onHide(cancelled);
 	}
 

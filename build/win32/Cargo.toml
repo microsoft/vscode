@@ -1,0 +1,19 @@
+[package]
+name = "inno_updater"
+version = "0.9.0"
+authors = ["Microsoft <monacotools@microsoft.com>"]
+build = "build.rs"
+
+[dependencies]
+byteorder = "1"
+crc = "^1.0.0"
+slog = "2.1.1"
+slog-async = "2.2.0"
+slog-term = "2.3.0"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "^0.3.9", features = ["winuser", "libloaderapi", "commctrl", "processthreadsapi", "tlhelp32", "handleapi", "psapi", "errhandlingapi", "winbase", "shellapi"] }
+
+[profile.release]
+lto = true
+panic = 'abort'

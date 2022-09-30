@@ -576,12 +576,16 @@ export class TernarySearchTree<K, V> {
 		if (!node.mid && !node.value) {
 			if (node.left && node.right) {
 				// full node
+				// replace deleted-node with the min-node of the right branch.
+				// If there is no true min-node leave things as they are
 				const min = this._min(node.right);
-				const { key, value, segment } = min;
-				this._delete(min.key!, false);
-				node.key = key;
-				node.value = value;
-				node.segment = segment;
+				if (min.key) {
+					const { key, value, segment } = min;
+					this._delete(min.key!, false);
+					node.key = key;
+					node.value = value;
+					node.segment = segment;
+				}
 
 			} else {
 				// empty or half empty

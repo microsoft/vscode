@@ -12,7 +12,7 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { IMarkProperties, ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IMarkProperties, ITerminalCapabilityStore, ITerminalCommand, ITerminalOutputMatcher } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -920,42 +920,17 @@ export interface ITerminalInstance {
 }
 
 export interface ITerminalQuickFixOptions {
-	quickFixLabel: string | DynamicQuickFixLabel;
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
 	getQuickFixes: QuickFixCallback;
 	exitStatus?: boolean;
 }
 export type QuickFixMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
-export type DynamicQuickFixLabel = (matchResult: QuickFixMatchResult) => string;
 export type QuickFixCallback = (matchResult: QuickFixMatchResult, command: ITerminalCommand) => ITerminalQuickFixAction[] | undefined;
 
 export interface ITerminalQuickFixAction extends IAction {
 	commandToRunInTerminal?: string;
 	addNewLine?: boolean;
-}
-
-/**
- * A matcher that runs on a sub-section of a terminal command's output
- */
-export interface ITerminalOutputMatcher {
-	/**
-	 * A string or regex to match against the unwrapped line.
-	 */
-	lineMatcher: string | RegExp;
-	/**
-	 * Which side of the output to anchor the {@link offset} and {@link length} against.
-	 */
-	anchor: 'top' | 'bottom';
-	/**
-	 * How far from either the top or the bottom of the butter to start matching against.
-	 */
-	offset: number;
-	/**
-	 * The number of rows to match against, this should be as small as possible for performance
-	 * reasons.
-	 */
-	length: number;
 }
 
 export interface IXtermTerminal {

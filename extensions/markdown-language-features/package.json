@@ -477,8 +477,9 @@
           "type": "string",
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.validate.fileLinks.markdownFragmentLinks.description%",
-          "default": "ignore",
+          "default": "inherit",
           "enum": [
+            "inherit",
             "ignore",
             "warning",
             "error"

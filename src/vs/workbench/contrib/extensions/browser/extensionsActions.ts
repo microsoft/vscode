@@ -877,10 +877,15 @@ export class SkipUpdateAction extends AbstractUpdateAction {
 	}
 
 	override update() {
-		super.update();
-		if (this.extension) {
-			this._checked = this.extensionsWorkbenchService.isExtensionIgnoresUpdates(this.extension);
+		if (!this.extension) {
+			return;
 		}
+		if (this.extension.isBuiltin) {
+			this.enabled = false;
+			return;
+		}
+		super.update();
+		this._checked = this.extensionsWorkbenchService.isExtensionIgnoresUpdates(this.extension);
 	}
 
 	override async run(): Promise<any> {

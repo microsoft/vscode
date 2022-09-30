@@ -236,7 +236,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			checked.push(extension);
 		}
 
-		const extensionsToDisable: IExtension[] = [];
+		const extensionsToEnable: IExtension[] = [];
 		for (const extension of allExtensions) {
 			// Extension is already checked
 			if (checked.some(e => areSameExtensions(e.identifier, extension.identifier))) {
@@ -244,8 +244,13 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			}
 
 			const enablementStateOfExtension = this.getEnablementState(extension);
-			// Extension enablement state is same as the end enablement state
-			if (enablementStateOfExtension === enablementState) {
+			// Extension is enabled
+			if (this.isEnabledEnablementState(enablementStateOfExtension)) {
+				continue;
+			}
+
+			// Skip if dependency extension is disabled by extension kind
+			if (enablementStateOfExtension === EnablementState.DisabledByExtensionKind) {
 				continue;
 			}
 
@@ -254,11 +259,11 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 				(options.dependencies && e.manifest.extensionDependencies?.some(id => areSameExtensions({ id }, extension.identifier)))
 				|| (options.pack && e.manifest.extensionPack?.some(id => areSameExtensions({ id }, extension.identifier))))) {
 
-				const index = extensionsToDisable.findIndex(e => areSameExtensions(e.identifier, extension.identifier));
+				const index = extensionsToEnable.findIndex(e => areSameExtensions(e.identifier, extension.identifier));
 
 				// Extension is not aded to the disablement list so add it
 				if (index === -1) {
-					extensionsToDisable.push(extension);
+					extensionsToEnable.push(extension);
 				}
 
 				// Extension is there already in the disablement list.
@@ -266,17 +271,17 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 					try {
 						// Replace only if the enablement state can be changed
 						this.throwErrorIfEnablementStateCannotBeChanged(extension, enablementStateOfExtension, true);
-						extensionsToDisable.splice(index, 1, extension);
+						extensionsToEnable.splice(index, 1, extension);
 					} catch (error) { /*Do not add*/ }
 				}
 			}
 		}
 
-		if (extensionsToDisable.length) {
-			extensionsToDisable.push(...this.getExtensionsToEnableRecursively(extensionsToDisable, allExtensions, enablementState, options, checked));
+		if (extensionsToEnable.length) {
+			extensionsToEnable.push(...this.getExtensionsToEnableRecursively(extensionsToEnable, allExtensions, enablementState, options, checked));
 		}
 
-		return extensionsToDisable;
+		return extensionsToEnable;
 	}
 
 	private _setUserEnablementState(extension: IExtension, newState: EnablementState): Promise<boolean> {

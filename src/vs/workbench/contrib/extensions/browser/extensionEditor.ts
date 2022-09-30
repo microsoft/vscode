@@ -1172,7 +1172,14 @@ export class ExtensionEditor extends EditorPane {
 		} else if (configuration) {
 			properties = configuration.properties;
 		}
-		const contrib = properties ? Object.keys(properties) : [];
+
+		let contrib = properties ? Object.keys(properties) : [];
+
+		// filter deprecated settings
+		contrib = contrib.filter(key => {
+			const config = properties[key];
+			return !config.deprecationMessage && !config.markdownDeprecationMessage;
+		});
 
 		if (!contrib.length) {
 			return false;
@@ -1187,7 +1194,7 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('default', "Default"))
 				),
 				...contrib.map(key => {
-					let description: (Node | string) = properties[key].description;
+					let description: (Node | string) = properties[key].description || '';
 					if (properties[key].markdownDescription) {
 						const { element, dispose } = renderMarkdown({ value: properties[key].markdownDescription }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this.contentDisposables } });
 						description = element;

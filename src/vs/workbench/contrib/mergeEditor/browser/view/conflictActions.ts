@@ -86,6 +86,10 @@ export class ConflictActionsFactory extends Disposable {
 		}
 
 		const items = derived('items', reader => {
+			if (!viewModel.model.hasBaseRange(modifiedBaseRange)) {
+				return [];
+			}
+
 			const state = viewModel.model.getState(modifiedBaseRange).read(reader);
 			const handled = viewModel.model.isHandled(modifiedBaseRange).read(reader);
 			const model = viewModel.model;
@@ -104,7 +108,7 @@ export class ConflictActionsFactory extends Disposable {
 			if (!state.conflicting && !state.isInputIncluded(inputNumber)) {
 				result.push(
 					!state.isInputIncluded(inputNumber)
-						? command(localize('accept', "$(pass) Accept {0}", inputData.title), async () => {
+						? command(localize('accept', "Accept {0}", inputData.title), async () => {
 							transaction((tx) => {
 								model.setState(
 									modifiedBaseRange,
@@ -114,7 +118,7 @@ export class ConflictActionsFactory extends Disposable {
 								);
 							});
 						})
-						: command(localize('remove', "$(error) Remove {0}", inputData.title), async () => {
+						: command(localize('remove', "Remove {0}", inputData.title), async () => {
 							transaction((tx) => {
 								model.setState(
 									modifiedBaseRange,
@@ -129,7 +133,7 @@ export class ConflictActionsFactory extends Disposable {
 				if (modifiedBaseRange.canBeCombined && state.isEmpty) {
 					result.push(
 						state.input1 && state.input2
-							? command(localize('removeBoth', "$(error) Remove Both"), async () => {
+							? command(localize('removeBoth', "Remove Both"), async () => {
 								transaction((tx) => {
 									model.setState(
 										modifiedBaseRange,
@@ -139,7 +143,7 @@ export class ConflictActionsFactory extends Disposable {
 									);
 								});
 							})
-							: command(localize('acceptBoth', "$(pass) Accept Both"), async () => {
+							: command(localize('acceptBoth', "Accept Both"), async () => {
 								transaction((tx) => {
 									model.setState(
 										modifiedBaseRange,
@@ -204,7 +208,7 @@ export class ConflictActionsFactory extends Disposable {
 
 			const stateToggles: IContentWidgetAction[] = [];
 			if (state.input1) {
-				result.push(command(localize('remove', "$(error) Remove {0}", model.input1.title), async () => {
+				result.push(command(localize('remove', "Remove {0}", model.input1.title), async () => {
 					transaction((tx) => {
 						model.setState(
 							modifiedBaseRange,
@@ -217,7 +221,7 @@ export class ConflictActionsFactory extends Disposable {
 				);
 			}
 			if (state.input2) {
-				result.push(command(localize('remove', "$(error) Remove {0}", model.input2.title), async () => {
+				result.push(command(localize('remove', "Remove {0}", model.input2.title), async () => {
 					transaction((tx) => {
 						model.setState(
 							modifiedBaseRange,
@@ -238,7 +242,7 @@ export class ConflictActionsFactory extends Disposable {
 
 			if (state.conflicting) {
 				result.push(
-					command(localize('resetToBase', "$(error) Reset to base"), async () => {
+					command(localize('resetToBase', "Reset to base"), async () => {
 						transaction((tx) => {
 							model.setState(
 								modifiedBaseRange,

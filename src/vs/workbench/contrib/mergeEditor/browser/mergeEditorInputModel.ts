@@ -18,7 +18,7 @@ import { localize } from 'vs/nls';
 import { ConfirmResult, IDialogOptions, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IRevertOptions } from 'vs/workbench/common/editor';
+import { IRevertOptions, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { conflictMarkers } from 'vs/workbench/contrib/mergeEditor/browser/mergeMarkers/mergeMarkersController';
@@ -269,6 +269,8 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 	) {
 	}
 
+	private static readonly FILE_SAVED_SOURCE = SaveSourceRegistry.registerSource('merge-editor.source', localize('merge-editor.source', "Before Resolving Conflicts In Merge Editor"));
+
 	public async createInputModel(args: MergeEditorArgs): Promise<IMergeEditorInputModel> {
 		const store = new DisposableStore();
 
@@ -302,7 +304,7 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 			throw new BugIndicatingError();
 		}
 		// So that "Don't save" does revert the file
-		await resultTextFileModel.save();
+		await resultTextFileModel.save({ source: WorkspaceMergeEditorModeFactory.FILE_SAVED_SOURCE });
 
 		const lines = resultTextFileModel.textEditorModel!.getLinesContent();
 		const hasConflictMarkers = lines.some(l => l.startsWith(conflictMarkers.start));
