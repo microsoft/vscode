@@ -609,7 +609,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			id: SyncResource.GlobalState,
 			label: getSyncAreaLabel(SyncResource.GlobalState),
 		}];
-		if (!this.environmentService.isBuilt || (this.productService.enableSyncingProfiles && this.configurationService.getValue('settingsSync.enableSyncingProfiles'))) {
+		if (!this.environmentService.isBuilt || this.productService.enableSyncingProfiles) {
 			result.push({
 				id: SyncResource.Profiles,
 				label: getSyncAreaLabel(SyncResource.Profiles),
@@ -1152,7 +1152,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: 'workbench.userDataSync.actions.acceptMerges',
-					title: localize('accept merges title', "Accept Merge"),
+					title: localize('complete merges title', "Complete Merge"),
 					menu: [{
 						id: MenuId.EditorContent,
 						when: ContextKeyExpr.and(ctxIsMergeResultEditor, ContextKeyExpr.regex(ctxMergeBaseUri.key, new RegExp(`^${USER_DATA_SYNC_SCHEME}:`))),

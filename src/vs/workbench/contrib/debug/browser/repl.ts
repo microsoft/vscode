@@ -879,6 +879,7 @@ function getReplView(viewsService: IViewsService): Repl | undefined {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			_isFakeAction: true,
 			id: FILTER_ACTION_ID,
 			title: localize('filter', "Filter"),
 			f1: false,
@@ -887,7 +888,7 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				when: ContextKeyExpr.equals('view', REPL_VIEW_ID),
 				order: 10
-			}
+			},
 		});
 	}
 

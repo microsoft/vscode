@@ -354,7 +354,12 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 				joiners.push(promise);
 			}
 		});
-		await Promises.settled(joiners);
+
+		try {
+			await Promise.allSettled(joiners);
+		} catch (error) {
+			this.logService.error(error);
+		}
 
 		if (profile.id === this.profilesObject.emptyWindow?.id) {
 			this.profilesObject.emptyWindow = undefined;

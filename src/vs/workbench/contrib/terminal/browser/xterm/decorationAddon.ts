@@ -496,6 +496,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			}
 			await this._configurationService.updateValue(TerminalSettingId.ShellIntegrationDecorationsEnabled, newValue);
 		});
+		quickPick.ok = false;
 		quickPick.show();
 	}
 }
