@@ -47,6 +47,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, ToWebviewMessage } from './webviewMessages';
 import { compressOutputItemStreams } from 'vs/workbench/contrib/notebook/browser/view/renderers/stdOutErrorPreProcessor';
+import { DeferredPromise } from 'vs/base/common/async';
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -110,9 +111,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private readonly _onMessage = this._register(new Emitter<INotebookWebviewMessage>());
 	private readonly _preloadsCache = new Set<string>();
 	public readonly onMessage: Event<INotebookWebviewMessage> = this._onMessage.event;
-	private _initialized?: Promise<void>;
 	private _disposed = false;
 	private _currentKernel?: INotebookKernel;
+
+	private _initialized?: DeferredPromise<void>;
+	private _pendingMessageQueue: ToWebviewMessage[] | undefined = [];
+	private firstInit = true;
+	private initializeMarkupPromise?: { readonly requestId: string; readonly p: DeferredPromise<void> };
 
 	private readonly nonce = UUID.generateUuid();
 
@@ -452,11 +457,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		}
 
 		let coreDependencies = '';
-		let resolveFunc: () => void;
 
-		this._initialized = new Promise<void>((resolve) => {
-			resolveFunc = resolve;
-		});
+		this._initialized = new DeferredPromise();
 
 		if (!isWeb) {
 			const loaderUri = FileAccess.asFileUri('vs/loader.js', require);
@@ -469,7 +471,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			</script>`;
 			const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
 			this._initialize(htmlContent);
-			resolveFunc!();
+			this._initialized.complete();
 		} else {
 			const loaderUri = FileAccess.asBrowserUri('vs/loader.js', require);
 
@@ -493,16 +495,21 @@ var requirejs = (function() {
 
 				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
 				this._initialize(htmlContent);
-				resolveFunc!();
+				this._initialized!.complete();
 			}, error => {
 				// the fetch request is rejected
 				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
 				this._initialize(htmlContent);
-				resolveFunc!();
+				this._initialized!.complete();
 			});
 		}
 
-		await this._initialized;
+		await this._initialized.p;
+
+		for (const msg of this._pendingMessageQueue ?? []) {
+			this.webview?.postMessage(msg);
+		}
+		this._pendingMessageQueue = undefined;
 	}
 
 	private getNotebookBaseUri() {
@@ -591,6 +598,13 @@ var requirejs = (function() {
 			switch (data.type) {
 				case 'initialized': {
 					this.initializeWebViewState();
+					break;
+				}
+				case 'initializedMarkup': {
+					if (this.initializeMarkupPromise?.requestId === data.requestId) {
+						this.initializeMarkupPromise?.p.complete();
+						this.initializeMarkupPromise = undefined;
+					}
 					break;
 				}
 				case 'dimension': {
@@ -932,8 +946,6 @@ var requirejs = (function() {
 		];
 	}
 
-	private firstInit = true;
-
 	private initializeWebViewState() {
 		this._preloadsCache.clear();
 		if (this._currentKernel) {
@@ -1160,15 +1172,11 @@ var requirejs = (function() {
 			return;
 		}
 
-		// TODO: use proper handler
-		const p = new Promise<void>(resolve => {
-			const sub = this.webview?.onMessage(e => {
-				if (e.message.type === 'initializedMarkup') {
-					resolve();
-					sub?.dispose();
-				}
-			});
-		});
+		this.firstInit = false;
+
+		this.initializeMarkupPromise?.p.complete();
+		const requestId = UUID.generateUuid();
+		this.initializeMarkupPromise = { p: new DeferredPromise(), requestId };
 
 		for (const cell of cells) {
 			this.markupPreviewMapping.set(cell.cellId, cell);
@@ -1177,9 +1185,10 @@ var requirejs = (function() {
 		this._sendMessageToWebview({
 			type: 'initializeMarkup',
 			cells,
+			requestId,
 		});
 
-		await p;
+		return this.initializeMarkupPromise.p.p;
 	}
 
 	/**
@@ -1506,12 +1515,16 @@ var requirejs = (function() {
 		});
 	}
 
-	private _sendMessageToWebview(message: ToWebviewMessage) {
+	private async _sendMessageToWebview(message: ToWebviewMessage) {
 		if (this._disposed) {
 			return;
 		}
 
-		this.webview?.postMessage(message);
+		if (this._pendingMessageQueue) {
+			this._pendingMessageQueue.push(message);
+		} else {
+			this.webview?.postMessage(message);
+		}
 	}
 
 	override dispose() {
