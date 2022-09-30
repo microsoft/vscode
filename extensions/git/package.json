@@ -2330,11 +2330,11 @@
           "default": false,
           "description": "%config.rebaseWhenSync%"
         },
-        "git.fetchBeforeCheckout": {
+        "git.pullBeforeCheckout": {
           "type": "boolean",
           "scope": "resource",
           "default": false,
-          "description": "%config.fetchBeforeCheckout%"
+          "description": "%config.pullBeforeCheckout%"
         },
         "git.fetchOnPull": {
           "type": "boolean",
