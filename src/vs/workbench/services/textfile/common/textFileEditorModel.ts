@@ -1144,10 +1144,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private isReadonlyByPath(): boolean {
 		const settingName = 'files.readonlyPath';  // temporary override readonly for this file.
 		const readonlyPath = this.configurationService.getValue<{ [path: string]: boolean | null } | undefined>(settingName);
-		for (const key in readonlyPath) {
-			if (key === this.resource.fsPath) {
-				this.tmpReadonly = readonlyPath[key];  // can be set to null to disable
-			}
+		const key = this.resource.path;
+		if (readonlyPath && Object.keys(readonlyPath).includes(key)) {
+			this.tmpReadonly = readonlyPath[key];  // can be set to null to disable
 		}
 		return this.tmpReadonly === null ? this.isReadonlyByGlob() : this.tmpReadonly;
 	}
