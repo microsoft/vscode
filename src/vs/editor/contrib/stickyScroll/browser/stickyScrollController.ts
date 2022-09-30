@@ -64,7 +64,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	private onContextMenu(event: MouseEvent) {
-		const menu = this._menuService.createMenu(MenuId.StickyScroll, this._contextKeyService);
+		const menu = this._menuService.createMenu(MenuId.StickyScrollContext, this._contextKeyService);
 		const actions: IAction[] = [];
 		createAndFillInContextMenuActions(menu, undefined, actions);
 		this._contextMenuService.showContextMenu({
