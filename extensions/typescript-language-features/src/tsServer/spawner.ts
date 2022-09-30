@@ -22,7 +22,6 @@ import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider
 import { ServiceConnection } from '@vscode/sync-api-common/browser';
 import { APIRequests, ApiService } from '@vscode/sync-api-service';
 import { MessageChannel } from 'worker_threads';
-import { Worker } from 'cluster';
 
 const enum CompositeServerType {
 	/** Run a single server that handles all commands  */
