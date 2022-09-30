@@ -19,7 +19,10 @@ import { ILogDirectoryProvider } from './logDirectoryProvider';
 import { GetErrRoutingTsServer, ITypeScriptServer, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerDelegate, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
-// import * as x from 'vscode-wasm-typescript';
+import { ServiceConnection } from '@vscode/sync-api-common/browser';
+import { APIRequests, ApiService } from '@vscode/sync-api-service';
+import { MessageChannel } from 'worker_threads';
+import { Worker } from 'cluster';
 
 const enum CompositeServerType {
 	/** Run a single server that handles all commands  */
@@ -167,6 +170,15 @@ export class TypeScriptServerSpawner {
 		// this._logger.info(JSON.stringify(x))
 		const process = this._factory.fork(version, args, kind, configuration, this._versionManager);
 		this._logger.info(`<${kind}> Starting...`);
+		const syncChannel = new MessageChannel();
+		process.postMessage(syncChannel.port2, [syncChannel.port2]);
+		// TODO: (1) process doesn't provide direct access to the worker
+		//       (2) it's already running -- does it need this port? I thought it could just postMessage to talk to the extension.
+		const connection = new ServiceConnection<APIRequests>(syncChannel.port1);
+		new ApiService('TypeScript???', connection, _rval => process.kill());
+		// TODO: I don't know what ApiService does in the testbed example, but it definitely doesn't need to manage the lifetime of process
+		connection.signalReady();
+		// TODO: The source of signalReady doesn't *directly* mention shared buffers, so might not be right.
 
 		return new ProcessBasedTsServer(
 			kind,
