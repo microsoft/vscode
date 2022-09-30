@@ -817,7 +817,8 @@ class StandaloneBulkEditService implements IBulkEditService {
 		}
 
 		return {
-			ariaSummary: strings.format(StandaloneServicesNLS.bulkEditServiceSummary, totalEdits, totalFiles)
+			ariaSummary: strings.format(StandaloneServicesNLS.bulkEditServiceSummary, totalEdits, totalFiles),
+			isApplied: totalEdits > 0
 		};
 	}
 }
