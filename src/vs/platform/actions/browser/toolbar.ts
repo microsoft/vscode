@@ -10,7 +10,7 @@ import { coalesceInPlace } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -182,23 +182,15 @@ export class WorkbenchToolBar extends ToolBar {
 					}));
 				}
 
-				// add context menu actions (iff appicable)
-				if (this._options?.contextMenu) {
-					const menu = this._menuService.createMenu(this._options.contextMenu, this._contextKeyService);
-					const contextMenuActions: IAction[] = [];
-					createAndFillInContextMenuActions(menu, { ...this._options?.menuOptions, renderShortTitle: true, }, contextMenuActions);
-					menu.dispose();
-
-					if (contextMenuActions.length > 0) {
-						actions = [...actions, new Separator(), ...contextMenuActions];
-					}
-				}
-
 				// this.getElement().classList.toggle('config', true);
 
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => e,
 					getActions: () => actions,
+					// add context menu actions (iff appicable)
+					menuId: this._options?.contextMenu,
+					menuActionOptions: { renderShortTitle: true, ...this._options?.menuOptions },
+					contextKeyService: this._contextKeyService,
 					onHide: () => this.getElement().classList.toggle('config', false),
 				});
 			}));
