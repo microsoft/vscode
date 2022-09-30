@@ -46,4 +46,4 @@ class MarkerListProvider implements IMarkerListProvider {
 
 Registry
 	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MarkerListProvider, 'MarkerListProvider', LifecyclePhase.Ready);
+	.registerWorkbenchContribution(MarkerListProvider, LifecyclePhase.Ready);

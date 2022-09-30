@@ -12,6 +12,7 @@ import * as querystring from 'querystring';
 import { OutputChannelLogger } from './log';
 
 const schemes = new Set(['file', 'git', 'http', 'https', 'ssh']);
+const refRegEx = /^$|[~\^:\\\*\s\[\]]|^-|^\.|\/\.|\.\.|\.lock\/|\.lock$|\/$|\.$/;
 
 export class GitProtocolHandler implements UriHandler {
 
@@ -44,7 +45,7 @@ export class GitProtocolHandler implements UriHandler {
 		}
 
 		if (ref !== undefined && typeof ref !== 'string') {
-			this.outputChannelLogger.logWarning('Failed to open URI:' + uri.toString());
+			this.outputChannelLogger.logWarning('Failed to open URI due to multiple references:' + uri.toString());
 			return;
 		}
 
@@ -62,6 +63,11 @@ export class GitProtocolHandler implements UriHandler {
 			if (!schemes.has(cloneUri.scheme.toLowerCase())) {
 				throw new Error('Unsupported scheme.');
 			}
+
+			// Validate the reference
+			if (typeof ref === 'string' && refRegEx.test(ref)) {
+				throw new Error('Invalid reference.');
+			}
 		}
 		catch (ex) {
 			this.outputChannelLogger.logWarning('Invalid URI:' + uri.toString());
@@ -74,7 +80,7 @@ export class GitProtocolHandler implements UriHandler {
 			const errorMessage = localize('no git', 'Could not clone your repository as Git is not installed.');
 			const downloadGit = localize('download git', 'Download Git');
 
-			if (await window.showErrorMessage(errorMessage, downloadGit) === downloadGit) {
+			if (await window.showErrorMessage(errorMessage, { modal: true }, downloadGit) === downloadGit) {
 				commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-download-git'));
 			}
 

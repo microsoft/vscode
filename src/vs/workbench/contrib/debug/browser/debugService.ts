@@ -94,7 +94,7 @@ export class DebugService implements IDebugService {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -120,14 +120,16 @@ export class DebugService implements IDebugService {
 		this.disposables.add(this.configurationManager);
 		this.debugStorage = this.instantiationService.createInstance(DebugStorage);
 
-		this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
-		this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
-		this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
-		this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
-		this.debugUx.set(this.debugStorage.loadDebugUxState());
-		this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
-		// Need to set disassemblyViewFocus here to make it in the same context as the debug event handlers
-		this.disassemblyViewFocus = CONTEXT_DISASSEMBLY_VIEW_FOCUS.bindTo(contextKeyService);
+		contextKeyService.bufferChangeEvents(() => {
+			this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
+			this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
+			this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
+			this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
+			this.debugUx.set(this.debugStorage.loadDebugUxState());
+			this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
+			// Need to set disassemblyViewFocus here to make it in the same context as the debug event handlers
+			this.disassemblyViewFocus = CONTEXT_DISASSEMBLY_VIEW_FOCUS.bindTo(contextKeyService);
+		});
 		this.chosenEnvironments = this.debugStorage.loadChosenEnvironments();
 
 		this.model = this.instantiationService.createInstance(DebugModel, this.debugStorage);
@@ -183,11 +185,13 @@ export class DebugService implements IDebugService {
 		this.disposables.add(this.model.onDidChangeBreakpoints(() => setBreakpointsExistContext()));
 
 		this.disposables.add(editorService.onDidActiveEditorChange(() => {
-			if (editorService.activeEditor === DisassemblyViewInput.instance) {
-				this.disassemblyViewFocus.set(true);
-			} else {
-				this.disassemblyViewFocus.reset();
-			}
+			this.contextKeyService.bufferChangeEvents(() => {
+				if (editorService.activeEditor === DisassemblyViewInput.instance) {
+					this.disassemblyViewFocus.set(true);
+				} else {
+					this.disassemblyViewFocus.reset();
+				}
+			});
 		}));
 
 		this.disposables.add(this.lifecycleService.onBeforeShutdown(() => {
@@ -271,12 +275,14 @@ export class DebugService implements IDebugService {
 	private onStateChange(): void {
 		const state = this.state;
 		if (this.previousState !== state) {
-			this.debugState.set(getStateLabel(state));
-			this.inDebugMode.set(state !== State.Inactive);
-			// Only show the simple ux if debug is not yet started and if no launch.json exists
-			const debugUxValue = ((state !== State.Inactive && state !== State.Initializing) || (this.adapterManager.hasEnabledDebuggers() && this.configurationManager.selectedConfiguration.name)) ? 'default' : 'simple';
-			this.debugUx.set(debugUxValue);
-			this.debugStorage.storeDebugUxState(debugUxValue);
+			this.contextKeyService.bufferChangeEvents(() => {
+				this.debugState.set(getStateLabel(state));
+				this.inDebugMode.set(state !== State.Inactive);
+				// Only show the simple ux if debug is not yet started and if no launch.json exists
+				const debugUxValue = ((state !== State.Inactive && state !== State.Initializing) || (this.adapterManager.hasEnabledDebuggers() && this.configurationManager.selectedConfiguration.name)) ? 'default' : 'simple';
+				this.debugUx.set(debugUxValue);
+				this.debugStorage.storeDebugUxState(debugUxValue);
+			});
 			this.previousState = state;
 			this._onDidChangeState.fire(state);
 		}

@@ -60,6 +60,7 @@ const homeDir = homedir();
 const NULL_PROFILE = {
 	name: '',
 	id: '',
+	shortName: '',
 	isDefault: false,
 	location: URI.file(homeDir),
 	settingsResource: joinPath(URI.file(homeDir), 'settings.json'),
@@ -84,7 +85,7 @@ export const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	product,
 	homeDir: homeDir,
 	tmpDir: tmpdir(),
-	userDataDir: getUserDataPath(args),
+	userDataDir: getUserDataPath(args, product.nameShort),
 	profiles: { profile: NULL_PROFILE, all: [NULL_PROFILE] },
 	...args
 };
@@ -187,7 +188,6 @@ export class TestSharedProcessService implements ISharedProcessService {
 }
 
 export class TestNativeHostService implements INativeHostService {
-
 	declare readonly _serviceBrand: undefined;
 
 	readonly windowId = -1;
@@ -240,6 +240,7 @@ export class TestNativeHostService implements INativeHostService {
 	async getOSStatistics(): Promise<IOSStatistics> { return Object.create(null); }
 	async getOSVirtualMachineHint(): Promise<number> { return 0; }
 	async getOSColorScheme(): Promise<IColorScheme> { return { dark: true, highContrast: false }; }
+	async hasWSLFeatureInstalled(): Promise<boolean> { return false; }
 	async killProcess(): Promise<void> { }
 	async setDocumentEdited(edited: boolean): Promise<void> { }
 	async openExternal(url: string): Promise<boolean> { return false; }
@@ -274,6 +275,9 @@ export class TestNativeHostService implements INativeHostService {
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async sendInputEvent(event: MouseInputEvent): Promise<void> { }
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
+	async startHeartbeat(): Promise<boolean> { return false; }
+	async sendHeartbeat(): Promise<boolean> { return false; }
+	async stopHeartbeat(): Promise<boolean> { return false; }
 }
 
 export function workbenchInstantiationService(disposables = new DisposableStore()): ITestInstantiationService {

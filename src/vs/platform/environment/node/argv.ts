@@ -129,6 +129,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'logsPath': { type: 'string' },
 	'__enable-file-policy': { type: 'boolean' },
 	'editSessionId': { type: 'string' },
+	'continueOn': { type: 'string' },
 	'locate-shell-integration-path': { type: 'string', args: ['bash', 'pwsh', 'zsh', 'fish'] },
 
 	'enable-coi': { type: 'boolean' },

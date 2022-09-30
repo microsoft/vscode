@@ -323,7 +323,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	@sequentialize
 	async openRepository(repoPath: string): Promise<void> {
 		this.outputChannelLogger.logTrace(`Opening repository: ${repoPath}`);
-		if (this.getRepository(repoPath)) {
+		if (this.getRepositoryExact(repoPath)) {
 			this.outputChannelLogger.logTrace(`Repository for path ${repoPath} already exists`);
 			return;
 		}
@@ -359,7 +359,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			const repositoryRoot = Uri.file(rawRoot).fsPath;
 			this.outputChannelLogger.logTrace(`Repository root: ${repositoryRoot}`);
 
-			if (this.getRepository(repositoryRoot)) {
+			if (this.getRepositoryExact(repositoryRoot)) {
 				this.outputChannelLogger.logTrace(`Repository for path ${repositoryRoot} already exists`);
 				return;
 			}
@@ -450,7 +450,21 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 				.forEach(p => this.eventuallyScanPossibleGitRepository(p));
 		};
 
-		const statusListener = repository.onDidRunGitStatus(checkForSubmodules);
+		const updateMergeChanges = () => {
+			// set mergeChanges context
+			const mergeChanges: Uri[] = [];
+			for (const { repository } of this.openRepositories.values()) {
+				for (const state of repository.mergeGroup.resourceStates) {
+					mergeChanges.push(state.resourceUri);
+				}
+			}
+			commands.executeCommand('setContext', 'git.mergeChanges', mergeChanges);
+		};
+
+		const statusListener = repository.onDidRunGitStatus(() => {
+			checkForSubmodules();
+			updateMergeChanges();
+		});
 		checkForSubmodules();
 
 		const dispose = () => {
@@ -466,6 +480,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 		const openRepository = { repository, dispose };
 		this.openRepositories.push(openRepository);
+		updateMergeChanges();
 		this._onDidOpenRepository.fire(repository);
 	}
 
@@ -508,6 +523,12 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	getRepository(hint: any): Repository | undefined {
 		const liveRepository = this.getOpenRepository(hint);
 		return liveRepository && liveRepository.repository;
+	}
+
+	private getRepositoryExact(repoPath: string): Repository | undefined {
+		const openRepository = this.openRepositories
+			.find(r => pathEquals(r.repository.root, repoPath));
+		return openRepository?.repository;
 	}
 
 	private getOpenRepository(repository: Repository): OpenRepository | undefined;
