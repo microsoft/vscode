@@ -9,6 +9,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { FIND_IDS } from 'vs/editor/contrib/find/browser/findModel';
+import 'vs/css!./findOptionsWidget';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { contrastBorder, editorWidgetBackground, editorWidgetForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
@@ -43,7 +44,6 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this._domNode.className = 'findOptionsWidget';
 		this._domNode.style.display = 'none';
 		this._domNode.style.top = '10px';
-		this._domNode.style.zIndex = '12';
 		this._domNode.setAttribute('role', 'presentation');
 		this._domNode.setAttribute('aria-hidden', 'true');
 
