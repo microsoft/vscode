@@ -38,44 +38,44 @@ __vsc_in_command_execution="1"
 __vsc_current_command=""
 
 __vsc_prompt_start() {
-	builtin printf "\033]633;A\007"
+	builtin printf '\e]633;A\a'
 }
 
 __vsc_prompt_end() {
-	builtin printf "\033]633;B\007"
+	builtin printf '\e]633;B\a'
 }
 
 __vsc_update_cwd() {
-	builtin printf "\033]633;P;Cwd=%s\007" "$PWD"
+	builtin printf '\e]633;P;Cwd=%s\a' "$PWD"
 }
 
 __vsc_command_output_start() {
-	builtin printf "\033]633;C\007"
+	builtin printf '\e]633;C\a'
 	# Send command line, escaping printf format chars %
-	builtin printf "\033]633;E;%s\007" "$__vsc_current_command"
+	builtin printf '\e]633;E;%s\a' "$__vsc_current_command"
 }
 
 __vsc_continuation_start() {
-	builtin printf "\033]633;F\007"
+	builtin printf '\e]633;F\a'
 }
 
 __vsc_continuation_end() {
-	builtin printf "\033]633;G\007"
+	builtin printf '\e]633;G\a'
 }
 
 __vsc_right_prompt_start() {
-	builtin printf "\033]633;H\007"
+	builtin printf '\e]633;H\a'
 }
 
 __vsc_right_prompt_end() {
-	builtin printf "\033]633;I\007"
+	builtin printf '\e]633;I\a'
 }
 
 __vsc_command_complete() {
 	if [[ "$__vsc_current_command" == "" ]]; then
-		builtin printf "\033]633;D\007"
+		builtin printf '\e]633;D\a'
 	else
-		builtin printf "\033]633;D;%s\007" "$__vsc_status"
+		builtin printf '\e]633;D;%s\a' "$__vsc_status"
 	fi
 	__vsc_update_cwd
 }
