@@ -33,6 +33,7 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { match as matchGlobPattern } from 'vs/base/common/glob';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -1129,6 +1130,19 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return !!this.textEditorModel;
 	}
 
+	private pathForThis() {
+
+	}
+	private onChangeConfig(event: ConfigurationChangeEvent) {
+		if (event.affectsConfiguration('files.readonlyPath')) {
+			const settingName = 'files.readonlyPath';  // temporary override readonly for this file.
+			const readonlyPath = this.configurationService.getValue<{ [path: string]: boolean | null } | undefined>(settingName);
+			const key = this.resource.path;
+			if (readonlyPath && Object.keys(readonlyPath).includes(key)) {
+				this.tmpReadonly = readonlyPath[key];  // can be set to null to disable
+			}
+		}
+	}
 	private anyGlobMatches(globs: { [glob: string]: boolean }, path: string): boolean {
 		return !!(globs && Object.keys(globs).find(glob => globs[glob] && matchGlobPattern(glob, path)));
 	}
@@ -1144,9 +1158,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private isReadonlyByPath(): boolean {
 		const settingName = 'files.readonlyPath';  // temporary override readonly for this file.
 		const readonlyPath = this.configurationService.getValue<{ [path: string]: boolean | null } | undefined>(settingName);
-		const key = this.resource.path;
-		if (readonlyPath && Object.keys(readonlyPath).includes(key)) {
-			this.tmpReadonly = readonlyPath[key];  // can be set to null to disable
+		if (readonlyPath) {
+			const valueForPath = readonlyPath[this.resource.path];
+			if (valueForPath !== undefined) {
+				this.tmpReadonly = valueForPath;  // can be set to null to disable
+			}
 		}
 		return this.tmpReadonly === null ? this.isReadonlyByGlob() : this.tmpReadonly;
 	}
