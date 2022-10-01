@@ -238,7 +238,7 @@ export interface IMenuService {
 	/**
 	 * Reset the menu's hidden states.
 	 */
-	resetHiddenStates(menuId: MenuId | undefined): void;
+	resetHiddenStates(menuIds: readonly MenuId[] | undefined): void;
 }
 
 export type ICommandsMap = Map<string, ICommandAction>;
@@ -554,6 +554,13 @@ export interface IAction2Options extends ICommandAction {
 	 * showing keybindings that have no other UX.
 	 */
 	description?: ICommandHandlerDescription;
+
+	/**
+	 * @deprecated workaround added for https://github.com/microsoft/vscode/issues/162004
+	 * This action doesn't do anything is just a workaround for rendering "something"
+	 * inside a specific toolbar
+	 */
+	_isFakeAction?: true;
 }
 
 export abstract class Action2 {

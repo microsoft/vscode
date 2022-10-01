@@ -17,8 +17,8 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 
 registerSingleton(IAudioCueService, AudioCueService, false);
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineFeatureContribution, 'AudioCueLineFeatureContribution', LifecyclePhase.Restored);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineDebuggerContribution, 'AudioCueLineDebuggerContribution', LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineFeatureContribution, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineDebuggerContribution, LifecyclePhase.Restored);
 
 const audioCueFeatureBase: IConfigurationPropertySchema = {
 	'type': 'string',
@@ -74,6 +74,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'audioCues.taskEnded': {
 			'description': localize('audioCues.taskEnded', "Plays a sound when a task ends."),
+			...audioCueFeatureBase,
+		},
+		'audioCues.terminalQuickFix': {
+			'description': localize('audioCues.terminalQuickFix', "Plays a sound when a terminal quick fixes are available"),
 			...audioCueFeatureBase,
 		},
 	}

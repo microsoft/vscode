@@ -10,30 +10,31 @@ import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '
 import type { ITerminalAddon } from 'xterm-headless';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ICommandAction, ITerminalContextualActionOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalQuickFixAction, ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Terminal, IDecoration } from 'xterm';
 import { IAction } from 'vs/base/common/actions';
+import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
+import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { Color } from 'vs/base/common/color';
+import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 
-export interface IContextualAction {
-	/**
-	 * Shows the quick fix menu
-	 */
-	showQuickFixMenu(): void;
-
+export interface ITerminalQuickFix {
+	showMenu(): void;
 	/**
 	 * Registers a listener on onCommandFinished scoped to a particular command or regular
 	 * expression and provides a callback to be executed for commands that match.
 	 */
-	registerCommandFinishedListener(options: ITerminalContextualActionOptions): void;
+	registerCommandFinishedListener(options: ITerminalQuickFixOptions): void;
 }
 
-export interface IContextualActionAdddon extends IContextualAction {
+export interface ITerminalQuickFixAddon extends ITerminalQuickFix {
 	onDidRequestRerunCommand: Event<{ command: string; addNewLine?: boolean }>;
 }
 
-export class ContextualActionAddon extends Disposable implements ITerminalAddon, IContextualActionAdddon {
+export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon, ITerminalQuickFixAddon {
 	private readonly _onDidRequestRerunCommand = new Emitter<{ command: string; addNewLine?: boolean }>();
 	readonly onDidRequestRerunCommand = this._onDidRequestRerunCommand.event;
 
@@ -43,15 +44,16 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 
 	private _decorationMarkerIds = new Set<number>();
 
-	private _commandListeners: Map<string, ITerminalContextualActionOptions[]> = new Map();
+	private _commandListeners: Map<string, ITerminalQuickFixOptions[]> = new Map();
 
-	private _matchActions: ICommandAction[] | undefined;
+	private _quickFixes: ITerminalQuickFixAction[] | undefined;
 
 	private _decoration: IDecoration | undefined;
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService) {
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAudioCueService private readonly _audioCueService: IAudioCueService) {
 		super();
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (commandDetectionCapability) {
@@ -68,11 +70,11 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 		this._terminal = terminal;
 	}
 
-	showQuickFixMenu(): void {
+	showMenu(): void {
 		this._currentQuickFixElement?.click();
 	}
 
-	registerCommandFinishedListener(options: ITerminalContextualActionOptions): void {
+	registerCommandFinishedListener(options: ITerminalQuickFixOptions): void {
 		const matcherKey = options.commandLineMatcher.toString();
 		const currentOptions = this._commandListeners.get(matcherKey) || [];
 		currentOptions.push(options);
@@ -92,15 +94,15 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 		this._register(commandDetection.onCommandFinished(async command => {
 			this._decoration?.dispose();
 			this._decoration = undefined;
-			this._matchActions = getMatchActions(command, this._commandListeners, this._onDidRequestRerunCommand);
+			this._quickFixes = getQuickFixes(command, this._commandListeners, this._onDidRequestRerunCommand);
 		}));
 		// The buffer is not ready by the time command finish
 		// is called. Add the decoration on command start using the actions, if any,
 		// from the last command
 		this._register(commandDetection.onCommandStarted(() => {
-			if (this._matchActions) {
+			if (this._quickFixes) {
 				this._registerContextualDecoration();
-				this._matchActions = undefined;
+				this._quickFixes = undefined;
 			}
 		}));
 	}
@@ -113,20 +115,19 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 		if (!marker) {
 			return;
 		}
-		const actions = this._matchActions;
+		const actions = this._quickFixes;
 		const decoration = this._terminal.registerDecoration({ marker, layer: 'top' });
 		this._decoration = decoration;
 		decoration?.onRender((e: HTMLElement) => {
 			if (!this._decorationMarkerIds.has(decoration.marker.id)) {
 				this._currentQuickFixElement = e;
-				e.classList.add(DecorationSelector.QuickFix, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration);
-				e.style.color = '#ffcc00';
+				e.classList.add(DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration);
 				updateLayout(this._configurationService, e);
+				this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 				if (actions) {
 					this._decorationMarkerIds.add(decoration.marker.id);
 					dom.addDisposableListener(e, dom.EventType.CLICK, () => {
-						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions });
-						this._contextMenuService.onDidHideContextMenu(() => decoration.dispose());
+						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions, autoSelectFirstItem: true });
 					});
 				}
 			}
@@ -134,8 +135,8 @@ export class ContextualActionAddon extends Disposable implements ITerminalAddon,
 	}
 }
 
-export function getMatchActions(command: ITerminalCommand, actionOptions: Map<string, ITerminalContextualActionOptions[]>, onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>): IAction[] | undefined {
-	const matchActions: IAction[] = [];
+export function getQuickFixes(command: ITerminalCommand, actionOptions: Map<string, ITerminalQuickFixOptions[]>, onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>): IAction[] | undefined {
+	const actions: IAction[] = [];
 	const newCommand = command.command;
 	for (const options of actionOptions.values()) {
 		for (const actionOption of options) {
@@ -151,26 +152,38 @@ export function getMatchActions(command: ITerminalCommand, actionOptions: Map<st
 			if (outputMatcher) {
 				outputMatch = command.getOutputMatch(outputMatcher);
 			}
-			const actions = actionOption.getActions({ commandLineMatch, outputMatch }, command);
-			if (!actions) {
-				return matchActions.length === 0 ? undefined : matchActions;
-			}
-			for (const a of actions) {
-				matchActions.push({
-					id: a.id,
-					label: a.label,
-					class: a.class,
-					enabled: a.enabled,
-					run: async () => {
-						await a.run();
-						if (a.commandToRunInTerminal) {
-							onDidRequestRerunCommand?.fire({ command: a.commandToRunInTerminal, addNewLine: a.addNewLine });
-						}
-					},
-					tooltip: a.tooltip
-				});
+			const quickFixes = actionOption.getQuickFixes({ commandLineMatch, outputMatch }, command);
+			if (quickFixes) {
+				for (const quickFix of quickFixes) {
+					actions.push({
+						id: quickFix.id,
+						label: quickFix.label,
+						class: quickFix.class,
+						enabled: quickFix.enabled,
+						run: async () => {
+							await quickFix.run();
+							if (quickFix.commandToRunInTerminal) {
+								onDidRequestRerunCommand?.fire({ command: quickFix.commandToRunInTerminal, addNewLine: quickFix.addNewLine });
+							}
+						},
+						tooltip: quickFix.tooltip
+					});
+				}
 			}
 		}
 	}
-	return matchActions.length === 0 ? undefined : matchActions;
+	return actions.length === 0 ? undefined : actions;
 }
+
+let foregroundColor: string | Color | undefined;
+let backgroundColor: string | Color | undefined;
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+	foregroundColor = theme.getColor('editorLightBulb.foreground');
+	backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
+	if (foregroundColor) {
+		collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.QuickFix} { color: ${foregroundColor.toString()} !important; } `);
+	}
+	if (backgroundColor) {
+		collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.QuickFix} { background-color: ${backgroundColor.toString()}; } `);
+	}
+});

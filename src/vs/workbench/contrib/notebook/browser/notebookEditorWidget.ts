@@ -86,12 +86,13 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { BaseCellEditorOptions } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEditorOptions';
 import { ILogService } from 'vs/platform/log/common/log';
+import { FloatingClickMenu } from 'vs/workbench/browser/codeeditor';
 
 const $ = DOM.$;
 
 export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOptions {
 	// We inlined the id to avoid loading comment contrib in tests
-	const skipContributions = ['editor.contrib.review'];
+	const skipContributions = ['editor.contrib.review', FloatingClickMenu.ID];
 	const contributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
 
 	return {

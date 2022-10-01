@@ -12,6 +12,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILogService } from 'vs/platform/log/common/log';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
+import { Event } from 'vs/base/common/event';
 
 export const EDIT_SESSION_SYNC_CATEGORY: ILocalizedString = {
 	original: 'Edit Sessions',
@@ -23,8 +24,10 @@ export interface IEditSessionsStorageService {
 	_serviceBrand: undefined;
 
 	readonly isSignedIn: boolean;
+	readonly onDidSignIn: Event<void>;
+	readonly onDidSignOut: Event<void>;
 
-	initialize(fromContinueOn: boolean): Promise<boolean>;
+	initialize(fromContinueOn: boolean, silent?: boolean): Promise<boolean>;
 	read(ref: string | undefined): Promise<{ ref: string; editSession: EditSession } | undefined>;
 	write(editSession: EditSession): Promise<string>;
 	delete(ref: string | null): Promise<void>;

@@ -76,6 +76,13 @@ do {
 
 			$null,$product,$os,$arch,$type = $artifactName -split '_'
 			$asset = Get-ChildItem -rec "$env:AGENT_TEMPDIRECTORY/$artifactName"
+
+			if ($asset.Size -ne $_.resource.properties.artifactsize) {
+				Write-Warning "Artifact size mismatch for '$artifactName'. Expected: $($_.resource.properties.artifactsize). Actual: $($asset.Size)"
+				$set.Remove($artifactName) | Out-Null
+				continue
+			}
+
 			Write-Host "Processing artifact with the following values:"
 			# turning in into an object just to log nicely
 			@{

@@ -46,7 +46,7 @@ import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/bro
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 import { IUserDataProfileService, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -621,23 +621,14 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private createProfilesActivity(): IProfileActivity {
-		const icon = this.userDataProfileService.currentProfile.shortName ? ThemeIcon.fromString(this.userDataProfileService.currentProfile.shortName) : undefined;
+		const shortName = this.userDataProfileService.getShortName(this.userDataProfileService.currentProfile);
+		const icon = ThemeIcon.fromString(shortName);
 		return {
 			id: 'workbench.actions.profiles',
-			name: icon ? this.userDataProfileService.currentProfile.name : this.getProfileEntryDisplayName(this.userDataProfileService.currentProfile),
+			name: icon ? this.userDataProfileService.currentProfile.name : shortName,
 			cssClass: icon ? `${ThemeIcon.asClassName(icon)} profile-activity-item` : 'profile-activity-item',
 			icon: !!icon
 		};
-	}
-
-	private getProfileEntryDisplayName(profile: IUserDataProfile): string {
-		if (profile.shortName) {
-			return profile.shortName;
-		}
-		if (profile.isTransient) {
-			return `T${this.userDataProfileService.currentProfile.name.charAt(this.userDataProfileService.currentProfile.name.length - 1)}`;
-		}
-		return this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase();
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction; pinnedAction: ToggleCompositePinnedAction } {
@@ -1073,7 +1064,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private get profilesVisibilityPreference(): boolean {
-		return this.userDataProfilesService.profiles.length > 1 && !this.userDataProfileService.currentProfile.isDefault && this.storageService.getBoolean(ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, true);
+		return this.storageService.getBoolean(ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, this.userDataProfilesService.profiles.length > 1);
 	}
 
 	private set profilesVisibilityPreference(value: boolean) {

@@ -201,6 +201,12 @@ export class AudioCue {
 		settingsKey: 'audioCues.lineHasInlineSuggestion',
 	});
 
+	public static readonly terminalQuickFix = AudioCue.register({
+		name: localize('audioCues.terminalQuickFix.name', 'Terminal Quick Fix'),
+		sound: Sound.quickFixes,
+		settingsKey: 'audioCues.terminalQuickFix',
+	});
+
 	public static readonly onDebugBreak = AudioCue.register({
 		name: localize('audioCues.onDebugBreak.name', 'Debugger Stopped on Breakpoint'),
 		sound: Sound.break,

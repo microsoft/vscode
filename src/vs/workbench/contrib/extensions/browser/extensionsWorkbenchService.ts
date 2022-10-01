@@ -1587,14 +1587,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			for (const extension of toCheck) {
 				checked.push(extension);
 			}
-			const extensionsToDisable = installed.filter(i => {
+			const extensionsToEanbleOrDisable = installed.filter(i => {
 				if (checked.indexOf(i) !== -1) {
 					return false;
 				}
-				if (i.enablementState === enablementState) {
+				const enable = enablementState === EnablementState.EnabledGlobally || enablementState === EnablementState.EnabledWorkspace;
+				const isExtensionEnabled = i.enablementState === EnablementState.EnabledGlobally || i.enablementState === EnablementState.EnabledWorkspace;
+				if (enable === isExtensionEnabled) {
 					return false;
 				}
-				const enable = enablementState === EnablementState.EnabledGlobally || enablementState === EnablementState.EnabledWorkspace;
 				return (enable || !i.isBuiltin) // Include all Extensions for enablement and only non builtin extensions for disablement
 					&& (options.dependencies || options.pack)
 					&& extensions.some(extension =>
@@ -1602,10 +1603,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 						|| (options.pack && extension.extensionPack.some(id => areSameExtensions({ id }, i.identifier)))
 					);
 			});
-			if (extensionsToDisable.length) {
-				extensionsToDisable.push(...this.getExtensionsRecursively(extensionsToDisable, installed, enablementState, options, checked));
+			if (extensionsToEanbleOrDisable.length) {
+				extensionsToEanbleOrDisable.push(...this.getExtensionsRecursively(extensionsToEanbleOrDisable, installed, enablementState, options, checked));
 			}
-			return extensionsToDisable;
+			return extensionsToEanbleOrDisable;
 		}
 		return [];
 	}
@@ -1768,6 +1769,24 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!this.isAutoUpdateIgnored(extensionKey)) {
 			this.ignoredAutoUpdateExtensions = [...this.ignoredAutoUpdateExtensions, extensionKey.toString()];
 		}
+	}
+
+	setExtensionIgnoresUpdate(extension: IExtension, ignoreAutoUpate: boolean): void {
+		const extensionKey = new ExtensionKey(extension.identifier, extension.version);
+		if (ignoreAutoUpate) {
+			this.ignoreAutoUpdate(extensionKey);
+		}
+		else if (this.isAutoUpdateIgnored(extensionKey)) {
+			this.ignoredAutoUpdateExtensions = this.ignoredAutoUpdateExtensions.filter(extensionId => extensionId !== extensionKey.toString());
+		}
+		else {
+			return;
+		}
+		this._onChange.fire(extension);
+	}
+
+	isExtensionIgnoresUpdates(extension: IExtension): boolean {
+		return this.isAutoUpdateIgnored(new ExtensionKey(extension.identifier, extension.version));
 	}
 
 	private isAutoUpdateIgnored(extensionKey: ExtensionKey): boolean {
