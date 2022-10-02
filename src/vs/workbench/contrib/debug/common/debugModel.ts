@@ -1065,7 +1065,8 @@ export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBre
 		public readonly supportsCondition: boolean,
 		condition: string | undefined,
 		public readonly description: string | undefined,
-		public readonly conditionDescription: string | undefined
+		public readonly conditionDescription: string | undefined,
+		private fallback: boolean = false
 	) {
 		super(enabled, undefined, condition, undefined, generateUuid());
 	}
@@ -1077,6 +1078,7 @@ export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBre
 		result.enabled = this.enabled;
 		result.supportsCondition = this.supportsCondition;
 		result.condition = this.condition;
+		result.fallback = this.fallback;
 
 		return result;
 	}
@@ -1090,12 +1092,16 @@ export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBre
 		}
 	}
 
+	setFallback(isFallback: boolean) {
+		this.fallback = isFallback;
+	}
+
 	get supported(): boolean {
 		return true;
 	}
 
-	isSupportedSession(sessionId: string): boolean {
-		return this.supportedSessions.has(sessionId);
+	isSupportedSession(sessionId?: string): boolean {
+		return sessionId ? this.supportedSessions.has(sessionId) : this.fallback;
 	}
 
 	matches(filter: DebugProtocol.ExceptionBreakpointsFilter) {
@@ -1360,29 +1366,40 @@ export class DebugModel implements IDebugModel {
 	}
 
 	getExceptionBreakpointsForSession(sessionId?: string): IExceptionBreakpoint[] {
-		return this.exceptionBreakpoints.filter(ebp => sessionId ? ebp.isSupportedSession(sessionId) : false);
+		return this.exceptionBreakpoints.filter(ebp => ebp.isSupportedSession(sessionId));
 	}
 
 	getInstructionBreakpoints(): IInstructionBreakpoint[] {
 		return this.instructionBreakpoints;
 	}
 
-	addExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
+	setExceptionBreakpointsForSession(sessionId: string, data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
 		if (data) {
 			let didChangeBreakpoints = false;
 			data.forEach(d => {
-				if (!this.exceptionBreakpoints.some((exbp) =>
-					exbp.matches(d)
-				)) {
+				let ebp = this.exceptionBreakpoints.filter((exbp) => exbp.matches(d)).pop();
+
+				if (!ebp) {
 					didChangeBreakpoints = true;
-					this.exceptionBreakpoints.push(new ExceptionBreakpoint(d.filter, d.label, !!d.default, !!d.supportsCondition, undefined /* condition */, d.description, d.conditionDescription));
+					ebp = new ExceptionBreakpoint(d.filter, d.label, !!d.default, !!d.supportsCondition, undefined /* condition */, d.description, d.conditionDescription);
+					this.exceptionBreakpoints.push(ebp);
 				}
+
+				ebp.setSupportedSession(sessionId, true);
 			});
 
 			if (didChangeBreakpoints) {
 				this._onDidChangeBreakpoints.fire(undefined);
 			}
 		}
+	}
+
+	removeExceptionBreakpointsForSession(sessionId: string): void {
+		this.exceptionBreakpoints.forEach(ebp => ebp.setSupportedSession(sessionId, false));
+	}
+
+	setExceptionBreakpointFallbackSession(sessionId: string): void {
+		this.exceptionBreakpoints.forEach(ebp => ebp.setFallback(ebp.isSupportedSession(sessionId)));
 	}
 
 	setExceptionBreakpointCondition(exceptionBreakpoint: IExceptionBreakpoint, condition: string | undefined): void {
@@ -1464,14 +1481,11 @@ export class DebugModel implements IDebugModel {
 		this.exceptionBreakpoints.forEach(ebp => {
 			if (!data) {
 				ebp.setSessionData(sessionId, undefined);
-				ebp.setSupportedSession(sessionId, false);
 			} else {
 				const ebpData = data.get(ebp.getId());
 				if (ebpData) {
 					ebp.setSessionData(sessionId, toBreakpointSessionData(ebpData, capabilites));
 				}
-
-				ebp.setSupportedSession(sessionId, capabilites.exceptionBreakpointFilters?.some((f) => ebp.matches(f)) || false);
 			}
 		});
 		this.instructionBreakpoints.forEach(ibp => {
