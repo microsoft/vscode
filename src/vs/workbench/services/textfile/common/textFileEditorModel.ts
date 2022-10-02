@@ -32,7 +32,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { match as matchGlobPattern } from 'vs/base/common/glob';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -1146,11 +1146,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			event.affectsConfiguration('files.readonlyExclude')) {
 			this.setPathReadonly();
 		} else if (event.affectsConfiguration('files.readonlyPath')) {
-			const readonlyPath = this.configurationService.getValue<{ [glob: string]: boolean | null }>('files.readonlyPath');
+			const readonlyPath = this.configurationService.getValue<{ [glob: string]: boolean | null | 'toggle' }>('files.readonlyPath');
 			if (readonlyPath) {
 				const pathValue = readonlyPath[this.resource.path];
 				if (pathValue !== undefined) {
-					this.tmpReadonly = pathValue;
+					if (pathValue === 'toggle') {
+						// must modify settings, so subsequent 'toggle' will be seen as a change:
+						this.tmpReadonly = readonlyPath[this.resource.path] = !this.oldReadonly;
+						this.configurationService.updateValue('files.readonlyPath', readonlyPath, ConfigurationTarget.WORKSPACE);
+					} else {
+						this.tmpReadonly = pathValue;
+					}
 				}
 			}
 		}
