@@ -32,8 +32,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { match as matchGlobPattern } from 'vs/base/common/glob';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -136,6 +135,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private registerListeners(): void {
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 		this._register(this.filesConfigurationService.onFilesAssociationChange(() => this.onFilesAssociationChange()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
 	}
 
 	private async onDidFilesChange(e: FileChangesEvent): Promise<void> {
@@ -1130,45 +1130,37 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return !!this.textEditorModel;
 	}
 
-	private pathForThis() {
-
-	}
-	private onChangeConfig(event: ConfigurationChangeEvent) {
-		if (event.affectsConfiguration('files.readonlyPath')) {
-			const settingName = 'files.readonlyPath';  // temporary override readonly for this file.
-			const readonlyPath = this.configurationService.getValue<{ [path: string]: boolean | null } | undefined>(settingName);
-			const key = this.resource.path;
-			if (readonlyPath && Object.keys(readonlyPath).includes(key)) {
-				this.tmpReadonly = readonlyPath[key];  // can be set to null to disable
-			}
-		}
-	}
-	private anyGlobMatches(globs: { [glob: string]: boolean }, path: string): boolean {
+	private anyGlobMatches(key: string, path: string): boolean {
+		const globs: { [glob: string]: boolean } = this.configurationService.getValue<{ [glob: string]: boolean }>(key);
 		return !!(globs && Object.keys(globs).find(glob => globs[glob] && matchGlobPattern(glob, path)));
 	}
 
-	// stable/semantic 'readonly'; typically based on filetype or directory.
-	private isReadonlyByGlob(): boolean {
-		const readonlyInclude = this.configurationService.getValue<{ [glob: string]: boolean }>('files.readonlyInclude');
-		const readonlyExclude = this.configurationService.getValue<{ [glob: string]: boolean }>('files.readonlyExclude');
-		return this.anyGlobMatches(readonlyInclude, this.resource.path)
-			&& !this.anyGlobMatches(readonlyExclude, this.resource.path);
-	}
-
-	private isReadonlyByPath(): boolean {
-		const settingName = 'files.readonlyPath';  // temporary override readonly for this file.
-		const readonlyPath = this.configurationService.getValue<{ [path: string]: boolean | null } | undefined>(settingName);
-		if (readonlyPath) {
-			const valueForPath = readonlyPath[this.resource.path];
-			if (valueForPath !== undefined) {
-				this.tmpReadonly = valueForPath;  // can be set to null to disable
+	private onDidChangeConfiguration(event: IConfigurationChangeEvent) {
+		if (event.affectsConfiguration('files.readonlyInclude') ||
+			event.affectsConfiguration('files.readonlyExclude')) {
+			this.pathReadonly = this.anyGlobMatches('files.readonlyInclude', this.resource.path)
+				&& !this.anyGlobMatches('files.readonlyExclude', this.resource.path);
+		} else if (event.affectsConfiguration('files.readonlyPath')) {
+			const readonlyPath = this.configurationService.getValue<{ [glob: string]: boolean | null }>('files.readonlyPath');
+			if (readonlyPath) {
+				const pathValue = readonlyPath[this.resource.path];
+				if (pathValue !== undefined) {
+					this.tmpReadonly = pathValue;
+				}
 			}
 		}
-		return this.tmpReadonly === null ? this.isReadonlyByGlob() : this.tmpReadonly;
 	}
 
 	// tri-state: true | false overrides isReadonlyByGlob; null does not.
 	private tmpReadonly: boolean | null = null;
+
+	// stable/semantic 'readonly'; typically based on filetype or directory.
+	// latest value of files.readonlyInclude/Exclude for this resource.path
+	private pathReadonly: boolean = false;
+
+	private isReadonlyByPath(): boolean {
+		return this.tmpReadonly !== null ? this.tmpReadonly : this.pathReadonly;
+	}
 
 	private oldReadonly = false;
 
