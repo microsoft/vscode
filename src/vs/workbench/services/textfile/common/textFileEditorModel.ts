@@ -32,7 +32,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { match as matchGlobPattern } from 'vs/base/common/glob';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -135,6 +135,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private registerListeners(): void {
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 		this._register(this.filesConfigurationService.onFilesAssociationChange(() => this.onFilesAssociationChange()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
 	}
 
 	private async onDidFilesChange(e: FileChangesEvent): Promise<void> {
@@ -1129,15 +1130,25 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return !!this.textEditorModel;
 	}
 
-	private anyGlobMatches(globs: { [glob: string]: boolean }, path: string): boolean {
+	private anyGlobMatches(key: string, path: string): boolean {
+		const globs: { [glob: string]: boolean } = this.configurationService.getValue<{ [glob: string]: boolean }>(key);
 		return !!(globs && Object.keys(globs).find(glob => globs[glob] && matchGlobPattern(glob, path)));
 	}
 
+	private onDidChangeConfiguration(event: IConfigurationChangeEvent) {
+		if (event.affectsConfiguration('files.readonlyInclude') ||
+			event.affectsConfiguration('files.readonlyExclude')) {
+			this.pathReadonly = this.anyGlobMatches('files.readonlyInclude', this.resource.path)
+				&& !this.anyGlobMatches('files.readonlyExclude', this.resource.path);
+		}
+	}
+
+	// stable/semantic 'readonly'; typically based on filetype or directory.
+	// latest value of files.readonlyInclude/Exclude for this resource.path
+	private pathReadonly: boolean = false;
+
 	private isReadonlyByPath(): boolean {
-		const readonlyInclude = this.configurationService.getValue<{ [glob: string]: boolean }>('files.readonlyInclude');
-		const readonlyExclude = this.configurationService.getValue<{ [glob: string]: boolean }>('files.readonlyExclude');
-		return this.anyGlobMatches(readonlyInclude, this.resource.path)
-			&& !this.anyGlobMatches(readonlyExclude, this.resource.path);
+		return this.pathReadonly;
 	}
 
 	private oldReadonly = false; // fileEditorInput.test.ts counts changes from 'false' not 'undefined'
