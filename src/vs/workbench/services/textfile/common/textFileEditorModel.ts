@@ -1153,7 +1153,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					if (pathValue === 'toggle') {
 						// must modify settings, so subsequent 'toggle' will be seen as a change:
 						this.tmpReadonly = readonlyPath[this.resource.path] = !this.oldReadonly;
-						this.configurationService.updateValue('files.readonlyPath', readonlyPath, ConfigurationTarget.WORKSPACE);
+						this.configurationService.updateValue('files.readonlyPath', readonlyPath, ConfigurationTarget.USER);
 					} else {
 						this.tmpReadonly = pathValue;
 					}
