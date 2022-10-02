@@ -130,6 +130,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this._register(this.workingCopyService.registerWorkingCopy(this));
 
 		this.registerListeners();
+		this.setPathReadonly();    // and then track with onDidChangeConfiguration()
 	}
 
 	private registerListeners(): void {
@@ -1135,11 +1136,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return !!(globs && Object.keys(globs).find(glob => globs[glob] && matchGlobPattern(glob, path)));
 	}
 
+	private setPathReadonly() {
+		this.pathReadonly = this.anyGlobMatches('files.readonlyInclude', this.resource.path)
+			&& !this.anyGlobMatches('files.readonlyExclude', this.resource.path);
+	}
+
 	private onDidChangeConfiguration(event: IConfigurationChangeEvent) {
 		if (event.affectsConfiguration('files.readonlyInclude') ||
 			event.affectsConfiguration('files.readonlyExclude')) {
-			this.pathReadonly = this.anyGlobMatches('files.readonlyInclude', this.resource.path)
-				&& !this.anyGlobMatches('files.readonlyExclude', this.resource.path);
+			this.setPathReadonly();
 		} else if (event.affectsConfiguration('files.readonlyPath')) {
 			const readonlyPath = this.configurationService.getValue<{ [glob: string]: boolean | null }>('files.readonlyPath');
 			if (readonlyPath) {
