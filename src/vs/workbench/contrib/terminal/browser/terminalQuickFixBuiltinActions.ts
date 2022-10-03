@@ -47,6 +47,34 @@ export function gitSimilarCommand(): ITerminalQuickFixOptions {
 		}
 	};
 }
+export function gitTwoDashes(): ITerminalQuickFixOptions {
+	return {
+		commandLineMatcher: GitCommandLineRegex,
+		outputMatcher: {
+			lineMatcher: /error: did you mean `--(.+)` \(with two dashes\)\?/,
+			anchor: 'bottom',
+			offset: 0,
+			length: 2
+		},
+		exitStatus: false,
+		getQuickFixes: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
+			const actions: ITerminalQuickFixAction[] = [];
+			const problemArg = matchResult?.outputMatch?.[1];
+			if (!problemArg) {
+				return;
+			}
+			const commandToRunInTerminal = command.command.replace(` -${problemArg}`, ` --${problemArg}`);
+			const label = localize("terminal.runCommand", "Run: {0}", commandToRunInTerminal);
+			actions.push({
+				class: undefined, tooltip: label, id: 'terminal.gitTwoDashes', label, enabled: true,
+				commandToRunInTerminal,
+				addNewLine: true,
+				run: () => { }
+			});
+			return actions;
+		}
+	};
+}
 export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITerminalQuickFixOptions {
 	return {
 		commandLineMatcher: AnyCommandLineRegex,
