@@ -178,6 +178,7 @@ export interface IGalleryExtensionAssets {
 	repository: IGalleryExtensionAsset | null;
 	download: IGalleryExtensionAsset;
 	icon: IGalleryExtensionAsset | null;
+	signature: IGalleryExtensionAsset | null;
 	coreTranslations: [string, IGalleryExtensionAsset][];
 }
 
@@ -224,6 +225,7 @@ export interface IGalleryExtension {
 	preview: boolean;
 	hasPreReleaseVersion: boolean;
 	hasReleaseVersion: boolean;
+	isSigned: boolean;
 	allTargetPlatforms: TargetPlatform[];
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
@@ -335,6 +337,7 @@ export interface IExtensionGalleryService {
 	getCompatibleExtension(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtension | null>;
 	getAllCompatibleVersions(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]>;
 	download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<void>;
+	downloadSignatureArchive(extension: IGalleryExtension, location: URI): Promise<void>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void>;
 	getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
 	getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest | null>;
@@ -390,6 +393,7 @@ export enum ExtensionManagementErrorCode {
 	CorruptZip = 'CorruptZip',
 	IncompleteZip = 'IncompleteZip',
 	Internal = 'Internal',
+	Signature = 'Signature'
 }
 
 export class ExtensionManagementError extends Error {
