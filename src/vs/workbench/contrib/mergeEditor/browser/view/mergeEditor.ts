@@ -103,7 +103,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 	protected readonly codeLensesVisible = observableFromEvent<boolean>(
 		this.configurationService.onDidChangeConfiguration,
-		() => /** @description codeLensesVisible */ this.configurationService.getValue('mergeEditor.showCodeLenses') ?? false
+		() => /** @description codeLensesVisible */ this.configurationService.getValue('mergeEditor.showCodeLenses') ?? true
 	);
 
 	private readonly scrollSynchronizer = this._register(new ScrollSynchronizer(this._viewModel, this.input1View, this.input2View, this.baseView, this.inputResultView, this._layoutModeObs));
@@ -278,6 +278,10 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 					return;
 				}
 				this.input1View.editor.revealLineInCenter(firstConflict.input1Range.startLineNumber);
+				transaction(tx => {
+					/** @description setActiveModifiedBaseRange */
+					viewModel.setActiveModifiedBaseRange(firstConflict, tx);
+				});
 			}));
 		}
 
@@ -444,7 +448,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 				if (shouldAlignBase && baseViewZoneAccessor) {
 					baseViewZoneIds.push(baseViewZoneAccessor.addZone({
-						afterLineNumber,
+						afterLineNumber: m.left.baseRange.startLineNumber - 1,
 						heightInPx: 16,
 						domNode: $('div.conflict-actions-placeholder'),
 					}));

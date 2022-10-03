@@ -19,11 +19,15 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { RenameProfileAction } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfileActions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE, PROFILE_EXTENSION, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { charCount } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { joinPath } from 'vs/base/common/resources';
+import { Codicon } from 'vs/base/common/codicons';
 
 export class UserDataProfilesWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
@@ -153,17 +157,20 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.currentprofileActionsDisposable.value = new DisposableStore();
 		this.currentprofileActionsDisposable.value.add(this.registerUpdateCurrentProfileShortNameAction());
 		this.currentprofileActionsDisposable.value.add(this.registerRenameCurrentProfileAction());
+		this.currentprofileActionsDisposable.value.add(this.registerExportCurrentProfileAction());
 	}
 
 	private registerUpdateCurrentProfileShortNameAction(): IDisposable {
 		const that = this;
 		return registerAction2(class UpdateCurrentProfileShortName extends Action2 {
 			constructor() {
+				const shortName = that.userDataProfileService.getShortName(that.userDataProfileService.currentProfile);
+				const themeIcon = ThemeIcon.fromString(shortName);
 				super({
 					id: `workbench.profiles.actions.updateCurrentProfileShortName`,
 					title: {
-						value: localize('change short name profile', "Change Short Name ({0})...", that.userDataProfileService.getShortName(that.userDataProfileService.currentProfile)),
-						original: `Change Short Name (${that.userDataProfileService.currentProfile.shortName})...`
+						value: localize('change short name profile', "Change Short Name ({0})...", themeIcon?.id ?? shortName),
+						original: `Change Short Name (${themeIcon?.id ?? shortName})...`
 					},
 					menu: [
 						{
@@ -184,7 +191,17 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					value: that.userDataProfileService.getShortName(profile),
 					title: localize('change short name', "Change Short Name..."),
 					validateInput: async (value: string) => {
-						if (profile.shortName !== value && !ThemeIcon.fromString(value) && charCount(value) > 2) {
+						if (profile.shortName === value) {
+							return undefined;
+						}
+						const themeIcon = ThemeIcon.fromString(value);
+						if (themeIcon) {
+							if (Codicon.getAll().some(c => c.id === themeIcon.id)) {
+								return undefined;
+							}
+							return localize('invalid codicon', "Invalid codicon. Please use a valid codicon id.");
+						}
+						if (charCount(value) > 2) {
 							return localize('invalid short name', "Short name should be at most 2 characters long.");
 						}
 						return undefined;
@@ -225,6 +242,66 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				accessor.get(ICommandService).executeCommand(RenameProfileAction.ID, that.userDataProfileService.currentProfile);
 			}
 		});
+	}
+
+	private registerExportCurrentProfileAction(): IDisposable {
+		const that = this;
+		const disposables = new DisposableStore();
+		const id = 'workbench.profiles.actions.exportProfile';
+		disposables.add(registerAction2(class ExportProfileAction extends Action2 {
+			constructor() {
+				super({
+					id,
+					title: {
+						value: localize('export profile', "Export ({0})...", that.userDataProfileService.currentProfile.name),
+						original: `Export (${that.userDataProfileService.currentProfile.name})...`
+					},
+					category: PROFILES_CATEGORY,
+					menu: [
+						{
+							id: ManageProfilesSubMenu,
+							group: '4_import_export_profiles',
+							when: PROFILES_ENABLEMENT_CONTEXT,
+							order: 1
+						}, {
+							id: MenuId.CommandPalette
+						}
+					]
+				});
+			}
+
+			async run(accessor: ServicesAccessor) {
+				const textFileService = accessor.get(ITextFileService);
+				const fileDialogService = accessor.get(IFileDialogService);
+				const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
+				const notificationService = accessor.get(INotificationService);
+
+				const profileLocation = await fileDialogService.showSaveDialog({
+					title: localize('export profile dialog', "Save Profile"),
+					filters: PROFILE_FILTER,
+					defaultUri: joinPath(await fileDialogService.defaultFilePath(), `profile.${PROFILE_EXTENSION}`),
+				});
+
+				if (!profileLocation) {
+					return;
+				}
+
+				const profile = await userDataProfileImportExportService.exportProfile({ skipComments: true });
+				await textFileService.create([{ resource: profileLocation, value: JSON.stringify(profile), options: { overwrite: true } }]);
+
+				notificationService.info(localize('export success', "{0}: Exported successfully.", PROFILES_CATEGORY));
+			}
+		}));
+		disposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarShare, {
+			command: {
+				id,
+				title: {
+					value: localize('export settings profile', "Export Settings Profile ({0})...", that.userDataProfileService.currentProfile.name),
+					original: `Export Settings Profile (${that.userDataProfileService.currentProfile.name})...`
+				}
+			},
+		}));
+		return disposables;
 	}
 
 }

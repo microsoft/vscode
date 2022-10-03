@@ -5,17 +5,15 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { joinPath } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
-import { Action2, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, IMenuService, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { QuickPickItem, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
-import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileImportExportService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT, MANAGE_PROFILES_ACTION_ID } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileImportExportService, PROFILES_CATEGORY, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT, MANAGE_PROFILES_ACTION_ID, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -136,16 +134,23 @@ registerAction2(class CreateProfileAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const pick = await quickInputService.pick(
 			[{
+				id: CreateEmptyProfileAction.ID,
+				label: CreateEmptyProfileAction.TITLE.value,
+			}, {
+				type: 'separator',
+			}, {
 				id: CreateFromCurrentProfileAction.ID,
 				label: CreateFromCurrentProfileAction.TITLE.value,
 			}, {
-				id: CreateEmptyProfileAction.ID,
-				label: CreateEmptyProfileAction.TITLE.value,
+				id: CreateFromTemplateAction.ID,
+				label: CreateFromTemplateAction.TITLE.value,
+			}, {
+				type: 'separator',
 			}, {
 				id: CreateTransientProfileAction.ID,
 				label: CreateTransientProfileAction.TITLE.value,
 			}], { hideInput: true, canPickMany: false, title: localize('create settings profile', "{0}: Create...", PROFILES_CATEGORY) });
-		if (pick) {
+		if (pick?.id) {
 			return commandService.executeCommand(pick.id);
 		}
 	}
@@ -379,70 +384,19 @@ registerAction2(class SwitchProfileAction extends Action2 {
 	}
 });
 
-registerAction2(class ExportProfileAction extends Action2 {
+class ImportProfileAction extends Action2 {
+	static readonly ID = 'workbench.profiles.actions.importProfile';
+	static readonly TITLE = {
+		value: localize('import profile', "Import from ..."),
+		original: 'Import...'
+	};
 	constructor() {
 		super({
-			id: 'workbench.profiles.actions.exportProfile',
-			title: {
-				value: localize('export profile', "Export..."),
-				original: 'Export...'
-			},
+			id: ImportProfileAction.ID,
+			title: ImportProfileAction.TITLE,
 			category: PROFILES_CATEGORY,
-			menu: [
-				{
-					id: ManageProfilesSubMenu,
-					group: '4_import_export_profiles',
-					when: PROFILES_ENABLEMENT_CONTEXT,
-					order: 1
-				}, {
-					id: MenuId.CommandPalette
-				}
-			]
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const textFileService = accessor.get(ITextFileService);
-		const fileDialogService = accessor.get(IFileDialogService);
-		const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
-		const notificationService = accessor.get(INotificationService);
-
-		const profileLocation = await fileDialogService.showSaveDialog({
-			title: localize('export profile dialog', "Save Profile"),
-			filters: PROFILE_FILTER,
-			defaultUri: joinPath(await fileDialogService.defaultFilePath(), `profile.${PROFILE_EXTENSION}`),
-		});
-
-		if (!profileLocation) {
-			return;
-		}
-
-		const profile = await userDataProfileImportExportService.exportProfile({ skipComments: true });
-		await textFileService.create([{ resource: profileLocation, value: JSON.stringify(profile), options: { overwrite: true } }]);
-
-		notificationService.info(localize('export success', "{0}: Exported successfully.", PROFILES_CATEGORY));
-	}
-});
-
-registerAction2(class ImportProfileAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.profiles.actions.importProfile',
-			title: {
-				value: localize('import profile', "Import..."),
-				original: 'Import...'
-			},
-			category: PROFILES_CATEGORY,
-			menu: [
-				{
-					id: ManageProfilesSubMenu,
-					group: '4_import_export_profiles',
-					when: PROFILES_ENABLEMENT_CONTEXT,
-					order: 2
-				}, {
-					id: MenuId.CommandPalette
-				}
-			]
+			f1: true,
+			precondition: PROFILES_ENABLEMENT_CONTEXT?.negate(),
 		});
 	}
 
@@ -470,11 +424,11 @@ registerAction2(class ImportProfileAction extends Action2 {
 		const disposables = new DisposableStore();
 		const quickPick = disposables.add(quickInputService.createQuickPick());
 		const updateQuickPickItems = (value?: string) => {
-			const selectFromFileItem: IQuickPickItem = { label: localize('select from file', "Import from profile file") };
-			quickPick.items = value ? [{ label: localize('select from url', "Import from URL"), description: quickPick.value }, selectFromFileItem] : [selectFromFileItem];
+			const selectFromFileItem: IQuickPickItem = { label: isSettingProfilesEnabled ? localize('select from file', "Select Settings Profile template file") : localize('import from file', "Import from profile file") };
+			quickPick.items = value ? [{ label: isSettingProfilesEnabled ? localize('select from url', "Create from template URL") : localize('import from url', "Import from URL"), description: quickPick.value }, selectFromFileItem] : [selectFromFileItem];
 		};
-		quickPick.title = localize('import profile quick pick title', "Import Settings from a Profile");
-		quickPick.placeholder = localize('import profile placeholder', "Provide profile URL or select profile file to import");
+		quickPick.title = isSettingProfilesEnabled ? localize('create from profile template quick pick title', "Create from Settings Profile Template") : localize('import profile quick pick title', "Import Settings from a Profile");
+		quickPick.placeholder = isSettingProfilesEnabled ? localize('create from profile template placeholder', "Provide a template URL or Select a template file") : localize('import profile placeholder', "Provide profile URL or select profile file to import");
 		quickPick.ignoreFocusOut = true;
 		disposables.add(quickPick.onDidChangeValue(updateQuickPickItems));
 		updateQuickPickItems();
@@ -527,7 +481,32 @@ registerAction2(class ImportProfileAction extends Action2 {
 		}
 	}
 
-});
+}
+registerAction2(ImportProfileAction);
+
+class CreateFromTemplateAction extends Action2 {
+	static readonly ID = 'workbench.profiles.actions.createFromTemplate';
+	static readonly TITLE = {
+		value: localize('create from template profile', "Create from a Settings Profile Template..."),
+		original: 'Create from a Settings Profile Template...'
+	};
+	constructor() {
+		super({
+			id: CreateFromTemplateAction.ID,
+			title: CreateFromTemplateAction.TITLE,
+			category: PROFILES_CATEGORY,
+			f1: true,
+			precondition: PROFILES_ENABLEMENT_CONTEXT,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		return accessor.get(ICommandService).executeCommand(ImportProfileAction.ID);
+	}
+
+}
+
+registerAction2(CreateFromTemplateAction);
 
 // Developer Actions
 

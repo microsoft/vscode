@@ -53,7 +53,7 @@
 			"fileMatch": [
 				"cgmanifest.json"
 			],
-			"url": "./.vscode/cgmanifest.schema.json"
+			"url": "https://json.schemastore.org/component-detection-manifest.json",
 		},
 		{
 			"fileMatch": [
@@ -65,11 +65,12 @@
 	"git.ignoreLimitWarning": true,
 	"git.branchProtection": [
 		"main",
+		"distro",
 		"release/*"
 	],
 	"git.branchProtectionPrompt": "alwaysCommitToNewBranch",
 	"git.branchRandomName.enable": true,
-	"git.fetchBeforeCheckout": true,
+	"git.pullBeforeCheckout": true,
 	"git.mergeEditor": true,
 	"remote.extensionKind": {
 		"msjsdiag.debugger-for-chrome": "workspace"

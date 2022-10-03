@@ -10,7 +10,7 @@ import { coalesceInPlace } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -96,7 +96,7 @@ export class WorkbenchToolBar extends ToolBar {
 		}
 	}
 
-	override setActions(_primary: readonly IAction[], _secondary: readonly IAction[] = []): void {
+	override setActions(_primary: readonly IAction[], _secondary: readonly IAction[] = [], menuIds?: readonly MenuId[]): void {
 
 		this._sessionDisposables.clear();
 		const primary = _primary.slice();
@@ -151,8 +151,14 @@ export class WorkbenchToolBar extends ToolBar {
 
 				// add "hide foo" actions
 				let hideAction: IAction;
-				if ((action instanceof MenuItemAction || action instanceof SubmenuItemAction) && action.hideActions) {
+				if (action instanceof MenuItemAction || action instanceof SubmenuItemAction) {
+					if (!action.hideActions) {
+						// no context menu for MenuItemAction instances that support no hiding
+						// those are fake actions and need to be cleaned up
+						return;
+					}
 					hideAction = action.hideActions.hide;
+
 				} else {
 					hideAction = toAction({
 						id: 'label',
@@ -164,32 +170,27 @@ export class WorkbenchToolBar extends ToolBar {
 				actions = [hideAction, new Separator(), ...toggleActions];
 
 				// add "Reset Menu" action
-				if (someAreHidden && this._options?.resetMenu) {
+				if (this._options?.resetMenu && !menuIds) {
+					menuIds = [this._options.resetMenu];
+				}
+				if (someAreHidden && menuIds) {
 					actions.push(new Separator());
 					actions.push(toAction({
 						id: 'resetThisMenu',
 						label: localize('resetThisMenu', "Reset Menu"),
-						run: () => this._menuService.resetHiddenStates(this._options!.resetMenu)
+						run: () => this._menuService.resetHiddenStates(menuIds)
 					}));
 				}
 
-				// add context menu actions (iff appicable)
-				if (this._options?.contextMenu) {
-					const menu = this._menuService.createMenu(this._options.contextMenu, this._contextKeyService);
-					const contextMenuActions: IAction[] = [];
-					createAndFillInContextMenuActions(menu, { ...this._options?.menuOptions, renderShortTitle: true, }, contextMenuActions);
-					menu.dispose();
-
-					if (contextMenuActions.length > 0) {
-						actions = [...actions, new Separator(), ...contextMenuActions];
-					}
-				}
-
-				this.getElement().classList.toggle('config', true);
+				// this.getElement().classList.toggle('config', true);
 
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => e,
 					getActions: () => actions,
+					// add context menu actions (iff appicable)
+					menuId: this._options?.contextMenu,
+					menuActionOptions: { renderShortTitle: true, ...this._options?.menuOptions },
+					contextKeyService: this._contextKeyService,
 					onHide: () => this.getElement().classList.toggle('config', false),
 				});
 			}));

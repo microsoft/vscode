@@ -61,7 +61,7 @@ export abstract class CodeEditorView extends Disposable {
 
 	protected readonly checkboxesVisible = observableFromEvent<boolean>(
 		this.configurationService.onDidChangeConfiguration,
-		() => /** @description checkboxesVisible */ this.configurationService.getValue('mergeEditor.showCheckboxes') ?? true
+		() => /** @description checkboxesVisible */ this.configurationService.getValue('mergeEditor.showCheckboxes') ?? false
 	);
 
 	public readonly editor = this.instantiationService.createInstance(

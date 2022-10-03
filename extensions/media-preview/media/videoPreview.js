@@ -30,6 +30,7 @@
 	if (settings.src !== null) {
 		video.src = settings.src;
 	}
+	video.playsInline = true;
 	video.controls = true;
 
 	function onLoaded() {

@@ -15,6 +15,11 @@ import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Terminal, IDecoration } from 'xterm';
 import { IAction } from 'vs/base/common/actions';
+import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
+import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { Color } from 'vs/base/common/color';
+import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 
 export interface ITerminalQuickFix {
 	showMenu(): void;
@@ -47,7 +52,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService) {
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAudioCueService private readonly _audioCueService: IAudioCueService) {
 		super();
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (commandDetectionCapability) {
@@ -115,13 +121,13 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		decoration?.onRender((e: HTMLElement) => {
 			if (!this._decorationMarkerIds.has(decoration.marker.id)) {
 				this._currentQuickFixElement = e;
-				e.classList.add(DecorationSelector.QuickFix, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration);
-				e.style.color = '#ffcc00';
+				e.classList.add(DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration);
 				updateLayout(this._configurationService, e);
+				this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 				if (actions) {
 					this._decorationMarkerIds.add(decoration.marker.id);
 					dom.addDisposableListener(e, dom.EventType.CLICK, () => {
-						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions });
+						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions, autoSelectFirstItem: true });
 					});
 				}
 			}
@@ -168,3 +174,16 @@ export function getQuickFixes(command: ITerminalCommand, actionOptions: Map<stri
 	}
 	return actions.length === 0 ? undefined : actions;
 }
+
+let foregroundColor: string | Color | undefined;
+let backgroundColor: string | Color | undefined;
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+	foregroundColor = theme.getColor('editorLightBulb.foreground');
+	backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
+	if (foregroundColor) {
+		collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.QuickFix} { color: ${foregroundColor.toString()} !important; } `);
+	}
+	if (backgroundColor) {
+		collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.QuickFix} { background-color: ${backgroundColor.toString()}; } `);
+	}
+});

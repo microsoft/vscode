@@ -122,6 +122,7 @@ export class InputCodeEditorView extends CodeEditorView {
 			return [];
 		}
 		const model = viewModel.model;
+		const textModel = (this.inputNumber === 1 ? model.input1 : model.input2).textModel;
 
 		const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
 
@@ -158,6 +159,7 @@ export class InputCodeEditorView extends CodeEditorView {
 				options: {
 					showIfCollapsed: true,
 					blockClassName: blockClassNames.join(' '),
+					blockIsAfterEnd: range.startLineNumber > textModel.getLineCount(),
 					description: 'Merge Editor',
 					minimap: {
 						position: MinimapPosition.Gutter,
