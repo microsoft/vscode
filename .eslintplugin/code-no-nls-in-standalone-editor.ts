@@ -21,9 +21,9 @@ export = new class NoNlsInStandaloneEditorRule implements eslint.Rule.RuleModule
 		if (
 			/vs(\/|\\)editor(\/|\\)standalone(\/|\\)/.test(fileName)
 			|| /vs(\/|\\)editor(\/|\\)common(\/|\\)standalone(\/|\\)/.test(fileName)
-			|| /vs(\/|\\)editor(\/|\\)editor.api/.test(fileName)
-			|| /vs(\/|\\)editor(\/|\\)editor.main/.test(fileName)
-			|| /vs(\/|\\)editor(\/|\\)editor.worker/.test(fileName)
+			// || /vs(\/|\\)editor(\/|\\)editor.api/.test(fileName)
+			// || /vs(\/|\\)editor(\/|\\)editor.main/.test(fileName)
+			// || /vs(\/|\\)editor(\/|\\)editor.worker/.test(fileName)
 		) {
 			return createImportRuleListener((node, path) => {
 				// resolve relative paths

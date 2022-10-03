@@ -20,10 +20,10 @@ export = new class NoNlsInStandaloneEditorRule implements eslint.Rule.RuleModule
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		if (/vs(\/|\\)editor/.test(context.getFilename())) {
-			// the vs/editor folder is allowed to use the standalone editor
-			return {};
-		}
+		// if (/vs(\/|\\)editor/.test(context.getFilename())) {
+		// 	// the vs/editor folder is allowed to use the standalone editor
+		// 	return {};
+		// }
 
 		return createImportRuleListener((node, path) => {
 
