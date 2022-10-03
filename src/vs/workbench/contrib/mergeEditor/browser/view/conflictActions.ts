@@ -320,6 +320,15 @@ class ActionsContentWidget extends Disposable implements IContentWidget {
 	}
 
 	getPosition(): IContentWidgetPosition | null {
+		// We cannot put the content widget after line 0, as line 0 gets normalized to line 1.
+		// Thus, we put the content widget before line 1 to make it slightly less buggy.
+		// TODO: Fix this properly.
+		if (this.lineNumber === 0) {
+			return {
+				position: { lineNumber: 1, column: 1, },
+				preference: [ContentWidgetPositionPreference.ABOVE],
+			};
+		}
 		return {
 			position: { lineNumber: this.lineNumber, column: 1, },
 			preference: [ContentWidgetPositionPreference.BELOW],
