@@ -41,19 +41,22 @@ async function getConfig(client: CosmosClient, quality: string): Promise<Config>
 	return res.resources[0] as Config;
 }
 
-async function main(): Promise<void> {
+async function main(force: boolean): Promise<void> {
 	const commit = process.env['VSCODE_DISTRO_COMMIT'] || getEnv('BUILD_SOURCEVERSION');
 	const quality = getEnv('VSCODE_QUALITY');
 
 	const aadCredentials = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
 	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, aadCredentials });
-	const config = await getConfig(client, quality);
 
-	console.log('Quality config:', config);
+	if (!force) {
+		const config = await getConfig(client, quality);
 
-	if (config.frozen) {
-		console.log(`Skipping release because quality ${quality} is frozen.`);
-		return;
+		console.log('Quality config:', config);
+
+		if (config.frozen) {
+			console.log(`Skipping release because quality ${quality} is frozen.`);
+			return;
+		}
 	}
 
 	console.log(`Releasing build ${commit}...`);
@@ -62,7 +65,9 @@ async function main(): Promise<void> {
 	await retry(() => scripts.storedProcedure('releaseBuild').execute('', [commit]));
 }
 
-main().then(() => {
+const [, , force] = process.argv;
+
+main(force === 'true').then(() => {
 	console.log('Build successfully released');
 	process.exit(0);
 }, err => {

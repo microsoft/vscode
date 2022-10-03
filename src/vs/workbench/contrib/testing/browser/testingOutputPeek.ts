@@ -904,7 +904,8 @@ class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
 }
 
 class ScrollableMarkdownMessage extends Disposable {
-	private scrollable: DomScrollableElement;
+	private readonly scrollable: DomScrollableElement;
+	private readonly element: HTMLElement;
 
 	constructor(container: HTMLElement, markdown: MarkdownRenderer, message: IMarkdownString) {
 		super();
@@ -913,6 +914,7 @@ class ScrollableMarkdownMessage extends Disposable {
 		rendered.element.style.height = '100%';
 		rendered.element.style.userSelect = 'text';
 		container.appendChild(rendered.element);
+		this.element = rendered.element;
 
 		this.scrollable = this._register(new DomScrollableElement(rendered.element, {
 			className: 'preview-text',
@@ -928,7 +930,12 @@ class ScrollableMarkdownMessage extends Disposable {
 
 	public layout(height: number, width: number) {
 		// Remove padding of `.monaco-editor .zone-widget.test-output-peek .preview-text`
-		this.scrollable.setScrollDimensions({ width: width - 32, height: height - 16 });
+		this.scrollable.setScrollDimensions({
+			width: width - 32,
+			height: height - 16,
+			scrollWidth: this.element.scrollWidth,
+			scrollHeight: this.element.scrollHeight
+		});
 	}
 }
 
@@ -1159,6 +1166,7 @@ class TestMessageElement implements ITreeElement {
 	public readonly uri: URI;
 	public readonly location?: IRichLocation;
 	public readonly description?: string;
+	public readonly marker?: number;
 
 	constructor(
 		public readonly result: ITestResult,
@@ -1166,9 +1174,10 @@ class TestMessageElement implements ITreeElement {
 		public readonly taskIndex: number,
 		public readonly messageIndex: number,
 	) {
-		const { message, location } = test.tasks[taskIndex].messages[messageIndex];
+		const m = test.tasks[taskIndex].messages[messageIndex];
 
-		this.location = location;
+		this.location = m.location;
+		this.marker = m.type === TestMessageType.Output ? m.marker : undefined;
 		this.uri = this.context = buildTestUri({
 			type: TestUriType.ResultMessage,
 			messageIndex,
@@ -1179,7 +1188,7 @@ class TestMessageElement implements ITreeElement {
 
 		this.id = this.uri.toString();
 
-		const asPlaintext = renderStringAsPlaintext(message);
+		const asPlaintext = renderStringAsPlaintext(m.message);
 		const lines = count(asPlaintext.trimRight(), '\n');
 		this.label = firstLine(asPlaintext);
 		if (lines > 0) {
@@ -1586,6 +1595,18 @@ class TreeActionsProvider {
 						ThemeIcon.asClassName(icons.testingDebugIcon),
 						undefined,
 						() => this.commandService.executeCommand('vscode.runTestsById', TestRunProfileBitset.Debug, extId),
+					));
+				}
+			}
+
+			if (element instanceof TestMessageElement) {
+				if (element.marker !== undefined) {
+					primary.push(new Action(
+						'testing.outputPeek.showMessageInTerminal',
+						localize('testing.showMessageInTerminal', "Show Output in Terminal"),
+						Codicon.terminal.classNames,
+						undefined,
+						() => this.testTerminalService.open(element.result, element.marker),
 					));
 				}
 			}

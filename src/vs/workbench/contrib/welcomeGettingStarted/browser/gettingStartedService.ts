@@ -716,4 +716,4 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerSingleton(IWalkthroughsService, WalkthroughsService, false);
+registerSingleton(IWalkthroughsService, WalkthroughsService, true);

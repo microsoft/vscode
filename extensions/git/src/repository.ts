@@ -336,6 +336,7 @@ export const enum Operation {
 	RenameBranch = 'RenameBranch',
 	DeleteRef = 'DeleteRef',
 	Merge = 'Merge',
+	MergeAbort = 'MergeAbort',
 	Rebase = 'Rebase',
 	Ignore = 'Ignore',
 	Tag = 'Tag',
@@ -459,10 +460,8 @@ class ProgressManager {
 		this.updateEnablement();
 
 		this.repository.onDidChangeOperations(() => {
-			const commitInProgress = this.repository.operations.isRunning(Operation.Commit);
-
-			this.repository.sourceControl.inputBox.enabled = !commitInProgress;
-			commands.executeCommand('setContext', 'commitInProgress', commitInProgress);
+			// Disable input box when the commit operation is running
+			this.repository.sourceControl.inputBox.enabled = !this.repository.operations.isRunning(Operation.Commit);
 		});
 	}
 
@@ -832,12 +831,31 @@ export class Repository implements Disposable {
 			this.inputBox.value = rebaseCommit.message;
 		}
 
+		const shouldUpdateContext = !!this._rebaseCommit !== !!rebaseCommit;
 		this._rebaseCommit = rebaseCommit;
-		commands.executeCommand('setContext', 'gitRebaseInProgress', !!this._rebaseCommit);
+
+		if (shouldUpdateContext) {
+			commands.executeCommand('setContext', 'gitRebaseInProgress', !!this._rebaseCommit);
+		}
 	}
 
 	get rebaseCommit(): Commit | undefined {
 		return this._rebaseCommit;
+	}
+
+	private _mergeInProgress: boolean = false;
+
+	set mergeInProgress(value: boolean) {
+		if (this._mergeInProgress === value) {
+			return;
+		}
+
+		this._mergeInProgress = value;
+		commands.executeCommand('setContext', 'gitMergeInProgress', value);
+	}
+
+	get mergeInProgress() {
+		return this._mergeInProgress;
 	}
 
 	private _operations = new OperationsImpl();
@@ -1257,7 +1275,9 @@ export class Repository implements Disposable {
 			});
 
 			// Execute post-commit command
-			await this.commitCommandCenter.executePostCommitCommand(opts.postCommitCommand);
+			if (opts.postCommitCommand !== null) {
+				await this.commitCommandCenter.executePostCommitCommand(opts.postCommitCommand);
+			}
 		}
 	}
 
@@ -1341,6 +1361,27 @@ export class Repository implements Disposable {
 		await this.run(Operation.RenameBranch, () => this.repository.renameBranch(name));
 	}
 
+	@throttle
+	async fastForwardBranch(name: string): Promise<void> {
+		// Get branch details
+		const branch = await this.getBranch(name);
+		if (!branch.upstream?.remote || !branch.upstream?.name || !branch.name) {
+			return;
+		}
+
+		try {
+			// Fast-forward the branch if possible
+			const options = { remote: branch.upstream.remote, ref: `${branch.upstream.name}:${branch.name}` };
+			await this.run(Operation.Fetch, async () => this.repository.fetch(options));
+		} catch (err) {
+			if (err.gitErrorCode === GitErrorCodes.BranchFastForwardRejected) {
+				return;
+			}
+
+			throw err;
+		}
+	}
+
 	async cherryPick(commitHash: string): Promise<void> {
 		await this.run(Operation.CherryPick, () => this.repository.cherryPick(commitHash));
 	}
@@ -1363,6 +1404,10 @@ export class Repository implements Disposable {
 
 	async merge(ref: string): Promise<void> {
 		await this.run(Operation.Merge, () => this.repository.merge(ref));
+	}
+
+	async mergeAbort(): Promise<void> {
+		await this.run(Operation.MergeAbort, async () => await this.repository.mergeAbort());
 	}
 
 	async rebase(branch: string): Promise<void> {
@@ -1990,13 +2035,14 @@ export class Repository implements Disposable {
 		if (sort !== 'alphabetically' && sort !== 'committerdate') {
 			sort = 'alphabetically';
 		}
-		const [refs, remotes, submodules, rebaseCommit] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit()]);
+		const [refs, remotes, submodules, rebaseCommit, mergeInProgress] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit(), this.isMergeInProgress()]);
 
 		this._HEAD = HEAD;
 		this._refs = refs!;
 		this._remotes = remotes!;
 		this._submodules = submodules!;
 		this.rebaseCommit = rebaseCommit;
+		this.mergeInProgress = mergeInProgress;
 
 		const index: Resource[] = [];
 		const workingTree: Resource[] = [];
@@ -2055,9 +2101,6 @@ export class Repository implements Disposable {
 		// set count badge
 		this.setCountBadge();
 
-		// set mergeChanges context
-		commands.executeCommand('setContext', 'git.mergeChanges', merge.map(item => item.resourceUri.toString()));
-
 		this._onDidChangeStatus.fire();
 
 		this._sourceControl.commitTemplate = await this.getInputTemplate();
@@ -2108,6 +2151,11 @@ export class Repository implements Disposable {
 		} catch (err) {
 			return undefined;
 		}
+	}
+
+	private isMergeInProgress(): Promise<boolean> {
+		const mergeHeadPath = path.join(this.repository.root, '.git', 'MERGE_HEAD');
+		return new Promise<boolean>(resolve => fs.exists(mergeHeadPath, resolve));
 	}
 
 	private async maybeAutoStash<T>(runOperation: () => Promise<T>): Promise<T> {

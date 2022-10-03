@@ -10,7 +10,6 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CompletionItem, CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
@@ -348,21 +347,3 @@ registerEditorCommand(new CommandCtor({
 	// 	primary: KeyCode.Enter,
 	// }
 }));
-
-
-// ---
-
-export function performSnippetEdit(editor: ICodeEditor, snippet: string, selections: ISelection[]): boolean {
-	const controller = SnippetController2.get(editor);
-	if (!controller) {
-		return false;
-	}
-	editor.focus();
-	controller.apply(selections.map(selection => {
-		return {
-			range: Selection.liftSelection(selection),
-			template: snippet
-		};
-	}));
-	return controller.isInSnippet();
-}

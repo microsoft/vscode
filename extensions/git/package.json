@@ -18,7 +18,8 @@
     "scmSelectedProvider",
     "scmValidation",
     "tabInputTextMerge",
-    "timeline"
+    "timeline",
+    "contribMergeEditorMenus"
   ],
   "categories": [
     "Other"
@@ -369,6 +370,11 @@
         "category": "Git"
       },
       {
+        "command": "git.mergeAbort",
+        "title": "%command.mergeAbort%",
+        "category": "Git"
+      },
+      {
         "command": "git.rebase",
         "title": "%command.rebase%",
         "category": "Git"
@@ -609,6 +615,18 @@
         "command": "git.openMergeEditor",
         "title": "%command.git.openMergeEditor%",
         "category": "Git"
+      },
+      {
+        "command": "git.runGitMerge",
+        "title": "%command.git.runGitMerge%",
+        "category": "Git",
+        "enablement": "isMergeEditor"
+      },
+      {
+        "command": "git.runGitMergeDiff3",
+        "title": "%command.git.runGitMergeDiff3%",
+        "category": "Git",
+        "enablement": "isMergeEditor"
       }
     ],
     "keybindings": [
@@ -647,7 +665,7 @@
         },
         {
           "command": "git.init",
-          "when": "config.git.enabled && !git.missing"
+          "when": "config.git.enabled && !git.missing && remoteName != 'codespaces'"
         },
         {
           "command": "git.openRepository",
@@ -884,6 +902,10 @@
         {
           "command": "git.merge",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.mergeAbort",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && gitMergeInProgress"
         },
         {
           "command": "git.rebase",
@@ -2308,6 +2330,12 @@
           "default": false,
           "description": "%config.rebaseWhenSync%"
         },
+        "git.pullBeforeCheckout": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.pullBeforeCheckout%"
+        },
         "git.fetchOnPull": {
           "type": "boolean",
           "scope": "resource",
@@ -2544,7 +2572,7 @@
         },
         "git.mergeEditor": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "%config.mergeEditor%",
           "scope": "window"
         }
@@ -2699,14 +2727,14 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.folder%",
-        "when": "config.git.enabled && !git.missing && workbenchState == folder",
+        "when": "config.git.enabled && !git.missing && workbenchState == folder && remoteName != 'codespaces'",
         "enablement": "git.state == initialized",
         "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
-        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0",
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0 && remoteName != 'codespaces'",
         "enablement": "git.state == initialized",
         "group": "5_scm@1"
       },
@@ -2741,7 +2769,7 @@
     "file-type": "16.5.4",
     "jschardet": "3.0.0",
     "picomatch": "2.3.1",
-    "vscode-nls": "^5.1.0",
+    "vscode-nls": "^5.2.0",
     "vscode-uri": "^2.0.0",
     "which": "^1.3.0"
   },

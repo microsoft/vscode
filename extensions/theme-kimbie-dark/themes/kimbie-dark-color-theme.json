@@ -32,6 +32,7 @@
 		"ports.iconRunningProcessForeground": "#369432",
 		"activityBar.background": "#221a0f",
 		"activityBar.foreground": "#d3af86",
+		"activityBarItem.settingsProfilesBackground": "#47351d",
 		"sideBar.background": "#362712",
 		"menu.background": "#362712",
 		"menu.foreground": "#CCCCCC",

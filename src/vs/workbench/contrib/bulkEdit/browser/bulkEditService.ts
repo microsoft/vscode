@@ -29,7 +29,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
-function reviveEdits(edits: ResourceEdit[]): ResourceEdit[] {
+function liftEdits(edits: ResourceEdit[]): ResourceEdit[] {
 	return edits.map(edit => {
 		if (ResourceTextEdit.is(edit)) {
 			return ResourceTextEdit.lift(edit);
@@ -181,7 +181,7 @@ export class BulkEditService implements IBulkEditService {
 	}
 
 	async apply(editsIn: ResourceEdit[] | WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
-		let edits = reviveEdits(Array.isArray(editsIn) ? editsIn : editsIn.edits);
+		let edits = liftEdits(Array.isArray(editsIn) ? editsIn : editsIn.edits);
 
 		if (edits.length === 0) {
 			return { ariaSummary: localize('nothing', "Made no edits") };

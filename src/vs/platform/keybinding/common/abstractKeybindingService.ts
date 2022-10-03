@@ -25,7 +25,7 @@ interface CurrentChord {
 	label: string | null;
 }
 
-const HIGH_FREQ_COMMANDS = /^(cursor|delete)/;
+const HIGH_FREQ_COMMANDS = /^(cursor|delete|undo|redo|tab|editor\.action\.clipboard)/;
 
 export abstract class AbstractKeybindingService extends Disposable implements IKeybindingService {
 	public _serviceBrand: undefined;

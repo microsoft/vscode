@@ -245,6 +245,9 @@ export class View extends ViewEventHandler {
 				const lastTextareaPosition = this._textAreaHandler.getLastRenderData();
 				return new PointerHandlerLastRenderData(lastViewCursorsRenderData, lastTextareaPosition);
 			},
+			renderNow: (): void => {
+				this.render(true, false);
+			},
 			shouldSuppressMouseDownOnViewZone: (viewZoneId: string) => {
 				return this._viewZones.shouldSuppressMouseDownOnViewZone(viewZoneId);
 			},

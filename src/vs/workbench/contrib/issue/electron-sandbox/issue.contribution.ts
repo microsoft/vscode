@@ -8,7 +8,7 @@ import product from 'vs/platform/product/common/product';
 import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandAction } from 'vs/platform/action/common/action';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { ReportPerformanceIssueUsingReporterAction, OpenProcessExplorer } from 'vs/workbench/contrib/issue/electron-sandbox/issueActions';
+import { ReportPerformanceIssueUsingReporterAction, OpenProcessExplorer, StopTracing } from 'vs/workbench/contrib/issue/electron-sandbox/issueActions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { WorkbenchIssueService } from 'vs/workbench/services/issue/electron-sandbox/issueService';
@@ -103,6 +103,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 });
 
 registerAction2(OpenProcessExplorer);
+registerAction2(StopTracing);
 
 registerSingleton(IWorkbenchIssueService, WorkbenchIssueService, true);
 
