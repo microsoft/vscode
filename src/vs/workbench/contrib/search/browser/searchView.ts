@@ -10,7 +10,6 @@ import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
-import { IAction } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
 import * as errors from 'vs/base/common/errors';
@@ -33,8 +32,7 @@ import { CommonFindController } from 'vs/editor/contrib/find/browser/findControl
 import { MultiCursorSelectionController } from 'vs/editor/contrib/multicursor/browser/multicursor';
 import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -122,8 +120,6 @@ export class SearchView extends ViewPane {
 	private hasFilePatternKey: IContextKey<boolean>;
 	private hasSomeCollapsibleResultKey: IContextKey<boolean>;
 
-	private contextMenu: IMenu | null = null;
-
 	private tree!: WorkbenchCompressibleObjectTree<RenderableMatch>;
 	private treeLabels!: ResourceLabels;
 	private viewletState: MementoObject;
@@ -179,7 +175,6 @@ export class SearchView extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ISearchHistoryService private readonly searchHistoryService: ISearchHistoryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IMenuService private readonly menuService: IMenuService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService storageService: IStorageService,
@@ -824,19 +819,15 @@ export class SearchView extends ViewPane {
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<RenderableMatch | null>): void {
-		if (!this.contextMenu) {
-			this.contextMenu = this._register(this.menuService.createMenu(MenuId.SearchContext, this.contextKeyService));
-		}
 
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
-		const actions: IAction[] = [];
-		createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions);
-
 		this.contextMenuService.showContextMenu({
+			menuId: MenuId.SearchContext,
+			menuActionOptions: { shouldForwardArgs: true },
+			contextKeyService: this.contextKeyService,
 			getAnchor: () => e.anchor,
-			getActions: () => actions,
 			getActionsContext: () => e.element,
 		});
 	}

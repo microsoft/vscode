@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IAction } from 'vs/base/common/actions';
 import { coalesce } from 'vs/base/common/arrays';
 import { decodeBase64 } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -21,8 +20,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
 import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import * as nls from 'vs/nls';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -130,7 +128,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFileService private readonly fileService: IFileService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -766,13 +763,8 @@ var requirejs = (function() {
 						// Then show the context menu
 						const webviewRect = this.element.getBoundingClientRect();
 						this.contextMenuService.showContextMenu({
-							getActions: () => {
-								const result: IAction[] = [];
-								const menu = this.menuService.createMenu(MenuId.NotebookCellTitle, this.contextKeyService);
-								createAndFillInContextMenuActions(menu, undefined, result);
-								menu.dispose();
-								return result;
-							},
+							menuId: MenuId.NotebookCellTitle,
+							contextKeyService: this.contextKeyService,
 							getAnchor: () => ({
 								x: webviewRect.x + data.clientX,
 								y: webviewRect.y + data.clientY
@@ -1529,4 +1521,3 @@ function getTokenizationCss() {
 	const tokenizationCss = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 	return tokenizationCss;
 }
-
