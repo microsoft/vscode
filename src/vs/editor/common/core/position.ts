@@ -152,7 +152,7 @@ export class Position {
 	 * Convert to a human-readable representation.
 	 */
 	public toString(): string {
-		return '(' + this.lineNumber + ',' + this.column + ')';
+		return '(' + this.lineNumber + ':' + this.column + ')';
 	}
 
 	// ---
