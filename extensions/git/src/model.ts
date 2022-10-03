@@ -5,7 +5,7 @@
 
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { Repository, RepositoryState } from './repository';
+import { Operation, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
@@ -467,11 +467,28 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		});
 		checkForSubmodules();
 
+		const updateCommitInProgressContext = () => {
+			let commitInProgress = false;
+			for (const { repository } of this.openRepositories.values()) {
+				if (repository.operations.isRunning(Operation.Commit)) {
+					commitInProgress = true;
+					break;
+				}
+			}
+
+			commands.executeCommand('setContext', 'commitInProgress', commitInProgress);
+		};
+
+		const operationEvent = anyEvent(repository.onDidRunOperation as Event<any>, repository.onRunOperation as Event<any>);
+		const operationListener = operationEvent(() => updateCommitInProgressContext());
+		updateCommitInProgressContext();
+
 		const dispose = () => {
 			disappearListener.dispose();
 			changeListener.dispose();
 			originalResourceChangeListener.dispose();
 			statusListener.dispose();
+			operationListener.dispose();
 			repository.dispose();
 
 			this.openRepositories = this.openRepositories.filter(e => e !== openRepository);
