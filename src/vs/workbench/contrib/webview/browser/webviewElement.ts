@@ -6,18 +6,16 @@
 import { isFirefox } from 'vs/base/browser/browser';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IAction } from 'vs/base/common/actions';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { streamToBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
+import { COI, Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -102,7 +100,7 @@ namespace WebviewState {
 
 export interface WebviewInitInfo {
 	readonly id: string;
-	readonly providedId?: string;
+	readonly providedViewType?: string;
 	readonly origin?: string;
 
 	readonly options: WebviewOptions;
@@ -116,6 +114,8 @@ interface WebviewActionContext {
 	[key: string]: unknown;
 }
 
+const webviewIdContext = 'webviewId';
+
 export class WebviewElement extends Disposable implements IWebview, WebviewFindDelegate {
 
 	/**
@@ -123,11 +123,10 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	 */
 	public readonly id: string;
 
-
 	/**
 	 * The provided identifier of this webview.
 	 */
-	public readonly providedId?: string;
+	public readonly providedViewType?: string;
 
 	/**
 	 * The origin this webview itself is loaded from. May not be unique
@@ -210,7 +209,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		super();
 
 		this.id = initInfo.id;
-		this.providedId = initInfo.providedId;
+		this.providedViewType = initInfo.providedViewType;
 		this.iframeId = generateUuid();
 		this.origin = initInfo.origin ?? this.iframeId;
 
@@ -339,20 +338,15 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				return;
 			}
 			const elementBox = this.element.getBoundingClientRect();
+			const contextKeyService = this._contextKeyService!.createOverlay([
+				...Object.entries(data.context),
+				[webviewIdContext, this.providedViewType],
+			]);
 			contextMenuService.showContextMenu({
-				getActions: () => {
-					const contextKeyService = this._contextKeyService!.createOverlay([
-						...Object.entries(data.context),
-						['webview', this.providedId],
-					]);
-
-					const result: IAction[] = [];
-					const menu = menuService.createMenu(MenuId.WebviewContext, contextKeyService);
-					createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result);
-					menu.dispose();
-					return result;
-				},
-				getActionsContext: (): WebviewActionContext => ({ ...data.context, webview: this.providedId }),
+				menuId: MenuId.WebviewContext,
+				menuActionOptions: { shouldForwardArgs: true },
+				contextKeyService,
+				getActionsContext: (): WebviewActionContext => ({ ...data.context, webview: this.providedViewType }),
 				getAnchor: () => ({
 					x: elementBox.x + data.clientX,
 					y: elementBox.y + data.clientY
@@ -531,9 +525,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			params.purpose = options.purpose;
 		}
 
-		if (globalThis.crossOriginIsolated) {
-			params['vscode-coi'] = '3'; /*COOP+COEP*/
-		}
+
+		COI.addSearchParam(params, true, true);
 
 		const queryString = new URLSearchParams(params).toString();
 
@@ -737,7 +730,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	}
 
 	protected style(): void {
-		let { styles, activeTheme, themeLabel } = this.webviewThemeDataProvider.getWebviewThemeData();
+		let { styles, activeTheme, themeLabel, themeId } = this.webviewThemeDataProvider.getWebviewThemeData();
 		if (this.options.transformCssVariables) {
 			styles = this.options.transformCssVariables(styles);
 		}
@@ -745,7 +738,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		const reduceMotion = this._accessibilityService.isMotionReduced();
 		const screenReader = this._accessibilityService.isScreenReaderOptimized();
 
-		this._send('styles', { styles, activeTheme, themeName: themeLabel, reduceMotion, screenReader });
+		this._send('styles', { styles, activeTheme, themeId, themeLabel, reduceMotion, screenReader });
 
 		this.styledFindWidget();
 	}

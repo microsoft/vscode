@@ -19,4 +19,4 @@ export class SandboxExtensionService extends ElectronExtensionService {
 	}
 }
 
-registerSingleton(IExtensionService, SandboxExtensionService);
+registerSingleton(IExtensionService, SandboxExtensionService, false);

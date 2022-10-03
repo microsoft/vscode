@@ -182,8 +182,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				id: 'showErrors',
 				label: Messages.MARKERS_PANEL_FILTER_LABEL_SHOW_ERRORS,
 				run: async () => this.filters.showErrors = !this.filters.showErrors,
-				tooltip: '',
-				dispose: () => null
+				tooltip: ''
 			},
 			{
 				checked: this.filters.showWarnings,
@@ -192,8 +191,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				id: 'showWarnings',
 				label: Messages.MARKERS_PANEL_FILTER_LABEL_SHOW_WARNINGS,
 				run: async () => this.filters.showWarnings = !this.filters.showWarnings,
-				tooltip: '',
-				dispose: () => null
+				tooltip: ''
 			},
 			{
 				checked: this.filters.showInfos,
@@ -202,8 +200,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				id: 'showInfos',
 				label: Messages.MARKERS_PANEL_FILTER_LABEL_SHOW_INFOS,
 				run: async () => this.filters.showInfos = !this.filters.showInfos,
-				tooltip: '',
-				dispose: () => null
+				tooltip: ''
 			},
 			new Separator(),
 			{
@@ -213,8 +210,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				id: 'activeFile',
 				label: Messages.MARKERS_PANEL_FILTER_LABEL_ACTIVE_FILE,
 				run: async () => this.filters.activeFile = !this.filters.activeFile,
-				tooltip: '',
-				dispose: () => null
+				tooltip: ''
 			},
 			{
 				checked: this.filters.excludedFiles,
@@ -223,8 +219,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				id: 'useFilesExclude',
 				label: Messages.MARKERS_PANEL_FILTER_LABEL_EXCLUDED_FILES,
 				run: async () => this.filters.excludedFiles = !this.filters.excludedFiles,
-				tooltip: '',
-				dispose: () => null
+				tooltip: ''
 			},
 		];
 	}
@@ -284,15 +279,11 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	override focus(): void {
-		if (this.filterInputBox) {
-			this.filterInputBox.focus();
-		}
+		this.filterInputBox?.focus();
 	}
 
 	override blur(): void {
-		if (this.filterInputBox) {
-			this.filterInputBox.blur();
-		}
+		this.filterInputBox?.blur();
 	}
 
 	override setFocusable(): void {
@@ -502,7 +493,7 @@ export class QuickFixActionViewItem extends ActionViewItem {
 			return;
 		}
 		const elementPosition = DOM.getDomNodePagePosition(this.element);
-		const quickFixes = (<QuickFixAction>this.getAction()).quickFixes;
+		const quickFixes = (<QuickFixAction>this.action).quickFixes;
 		if (quickFixes.length) {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => ({ x: elementPosition.left + 10, y: elementPosition.top + elementPosition.height + 4 }),

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IAction } from 'vs/base/common/actions';
 import { coalesce } from 'vs/base/common/arrays';
 import { decodeBase64 } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -13,6 +12,7 @@ import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { dirname, joinPath } from 'vs/base/common/resources';
+import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
@@ -20,8 +20,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
 import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import * as nls from 'vs/nls';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -33,10 +32,10 @@ import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/w
 import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/common/webview';
 import { CellEditState, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookWebviewMessage, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NOTEBOOK_WEBVIEW_BOUNDARY } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
-import { preloadsScriptStr, RendererMetadata } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
+import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { CellUri, INotebookRendererInfo, NotebookSetting, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, INotebookRendererInfo, isTextStreamMime, NotebookSetting, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -44,7 +43,8 @@ import { IWebviewElement, IWebviewService, WebviewContentPurpose } from 'vs/work
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, ToWebviewMessage } from './webviewMessages';
+import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, ToWebviewMessage } from './webviewMessages';
+import { compressOutputItemStreams } from 'vs/workbench/contrib/notebook/browser/view/renderers/stdOutErrorPreProcessor';
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -115,7 +115,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private readonly nonce = UUID.generateUuid();
 
 	constructor(
-		public readonly notebookEditor: INotebookDelegateForWebview,
+		public notebookEditor: INotebookDelegateForWebview,
 		public readonly id: string,
 		public readonly documentUri: URI,
 		private options: BacklayerWebviewOptions,
@@ -128,7 +128,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFileService private readonly fileService: IFileService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -315,7 +314,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						filter: brightness(0) invert(1)
 					}
 
-					#container > div.nb-symbolHighlight {
+					#container .markup > div.nb-symbolHighlight {
 						background-color: var(--theme-notebook-symbol-highlight-background);
 					}
 
@@ -392,9 +391,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				${coreDependencies}
 				<div id='findStart' tabIndex=-1></div>
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
-				<script type="module">${preloadScript}</script>
-				<div id="container" class="widgetarea" style="position: absolute; width:100%; top: 0px"></div>
 				<div id="_defaultColorPalatte"></div>
+				<script type="module">${preloadScript}</script>
 			</body>
 		</html>`;
 	}
@@ -440,7 +438,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	}
 
 	async createWebview(): Promise<void> {
-		const baseUrl = this.asWebviewUri(dirname(this.documentUri), undefined);
+		const baseUrl = this.asWebviewUri(this.getNotebookBaseUri(), undefined);
 
 		// Python notebooks assume that requirejs is a global.
 		// For all other notebooks, they need to provide their own loader.
@@ -502,6 +500,22 @@ var requirejs = (function() {
 		}
 
 		await this._initialized;
+	}
+
+	private getNotebookBaseUri() {
+		if (this.documentUri.scheme === Schemas.untitled || this.documentUri.scheme === Schemas.vscodeInteractive) {
+			const folder = this.workspaceContextService.getWorkspaceFolder(this.documentUri);
+			if (folder) {
+				return folder.uri;
+			}
+
+			const folders = this.workspaceContextService.getWorkspace().folders;
+			if (folders.length) {
+				return folders[0].uri;
+			}
+		}
+
+		return dirname(this.documentUri);
 	}
 
 	private getBuiltinLocalResourceRoots(): URI[] {
@@ -749,13 +763,8 @@ var requirejs = (function() {
 						// Then show the context menu
 						const webviewRect = this.element.getBoundingClientRect();
 						this.contextMenuService.showContextMenu({
-							getActions: () => {
-								const result: IAction[] = [];
-								const menu = this.menuService.createMenu(MenuId.NotebookCellTitle, this.contextKeyService);
-								createAndFillInContextMenuActions(menu, undefined, result);
-								menu.dispose();
-								return result;
-							},
+							menuId: MenuId.NotebookCellTitle,
+							contextKeyService: this.contextKeyService,
 							getAnchor: () => ({
 								x: webviewRect.x + data.clientX,
 								y: webviewRect.y + data.clientY
@@ -883,14 +892,7 @@ var requirejs = (function() {
 	}
 
 	private _createInset(webviewService: IWebviewService, content: string) {
-		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
-
-		this.localResourceRootsCache = [
-			...this.notebookService.getNotebookProviderResourceRoots(),
-			...this.notebookService.getRenderers().map(x => dirname(x.entrypoint)),
-			...workspaceFolders,
-			...this.getBuiltinLocalResourceRoots(),
-		];
+		this.localResourceRootsCache = this._getResourceRootsCache();
 		const webview = webviewService.createWebviewElement({
 			id: this.id,
 			options: {
@@ -910,14 +912,21 @@ var requirejs = (function() {
 		return webview;
 	}
 
-	private initializeWebViewState() {
-		const renderers = new Set<INotebookRendererInfo>();
-		for (const inset of this.insetMapping.values()) {
-			if (inset.renderer) {
-				renderers.add(inset.renderer);
-			}
-		}
+	private _getResourceRootsCache() {
+		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
+		const notebookDir = this.getNotebookBaseUri();
+		return [
+			...this.notebookService.getNotebookProviderResourceRoots(),
+			...this.notebookService.getRenderers().map(x => dirname(x.entrypoint)),
+			...workspaceFolders,
+			notebookDir,
+			...this.getBuiltinLocalResourceRoots()
+		];
+	}
 
+	private firstInit = true;
+
+	private initializeWebViewState() {
 		this._preloadsCache.clear();
 		if (this._currentKernel) {
 			this._updatePreloadsFromKernel(this._currentKernel);
@@ -927,9 +936,15 @@ var requirejs = (function() {
 			this._sendMessageToWebview({ ...inset.cachedCreation, initiallyHidden: this.hiddenInsetMapping.has(output) });
 		}
 
-		const mdCells = [...this.markupPreviewMapping.values()];
-		this.markupPreviewMapping.clear();
-		this.initializeMarkup(mdCells);
+		if (this.firstInit) {
+			// On first run the contents have already been initialized so we don't need to init them again
+			this.firstInit = false;
+		} else {
+			const mdCells = [...this.markupPreviewMapping.values()];
+			this.markupPreviewMapping.clear();
+			this.initializeMarkup(mdCells);
+		}
+
 		this._updateStyles();
 		this._updateOptions();
 	}
@@ -1023,31 +1038,33 @@ var requirejs = (function() {
 		});
 	}
 
-	async showMarkupPreview(initialization: IMarkupCellInitialization) {
+	async showMarkupPreview(newContent: IMarkupCellInitialization) {
 		if (this._disposed) {
 			return;
 		}
 
-		const entry = this.markupPreviewMapping.get(initialization.cellId);
+		const entry = this.markupPreviewMapping.get(newContent.cellId);
 		if (!entry) {
-			return this.createMarkupPreview(initialization);
+			return this.createMarkupPreview(newContent);
 		}
 
-		const sameContent = initialization.content === entry.content;
-		if (!sameContent || !entry.visible) {
+		const sameContent = newContent.content === entry.content;
+		const sameMetadata = (equals(newContent.metadata, entry.metadata));
+		if (!sameContent || !sameMetadata || !entry.visible) {
 			this._sendMessageToWebview({
 				type: 'showMarkupCell',
-				id: initialization.cellId,
-				handle: initialization.cellHandle,
+				id: newContent.cellId,
+				handle: newContent.cellHandle,
 				// If the content has not changed, we still want to make sure the
 				// preview is visible but don't need to send anything over
-				content: sameContent ? undefined : initialization.content,
-				top: initialization.offset
+				content: sameContent ? undefined : newContent.content,
+				top: newContent.offset,
+				metadata: sameMetadata ? undefined : newContent.metadata
 			});
 		}
-
-		entry.content = initialization.content;
-		entry.offset = initialization.offset;
+		entry.metadata = newContent.metadata;
+		entry.content = newContent.content;
+		entry.offset = newContent.offset;
 		entry.visible = true;
 	}
 
@@ -1157,25 +1174,37 @@ var requirejs = (function() {
 		await p;
 	}
 
+	/**
+	 * Validate if cached inset is out of date and require a rerender
+	 * Note that it doesn't account for output content change.
+	 */
+	private _cachedInsetEqual(cachedInset: ICachedInset<T>, content: IInsetRenderOutput) {
+		if (content.type === RenderOutputType.Extension) {
+			// Use a new renderer
+			return cachedInset.renderer?.id === content.renderer.id;
+		} else {
+			// The new renderer is the default HTML renderer
+			return cachedInset.cachedCreation.type === 'html';
+		}
+	}
+
 	async createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
 		if (this._disposed) {
 			return;
 		}
 
-		if (this.insetMapping.has(content.source)) {
-			const outputCache = this.insetMapping.get(content.source);
+		const cachedInset = this.insetMapping.get(content.source);
 
-			if (outputCache) {
-				this.hiddenInsetMapping.delete(content.source);
-				this._sendMessageToWebview({
-					type: 'showOutput',
-					cellId: outputCache.cellInfo.cellId,
-					outputId: outputCache.outputId,
-					cellTop: cellTop,
-					outputOffset: offset
-				});
-				return;
-			}
+		if (cachedInset && this._cachedInsetEqual(cachedInset, content)) {
+			this.hiddenInsetMapping.delete(content.source);
+			this._sendMessageToWebview({
+				type: 'showOutput',
+				cellId: cachedInset.cellInfo.cellId,
+				outputId: cachedInset.outputId,
+				cellTop: cellTop,
+				outputOffset: offset
+			});
+			return;
 		}
 
 		const messageBase = {
@@ -1241,12 +1270,14 @@ var requirejs = (function() {
 		let updatedContent: ICreationContent | undefined = undefined;
 		if (content.type === RenderOutputType.Extension) {
 			const output = content.source.model;
-			const first = output.outputs.find(op => op.mime === content.mimeType)!;
+			const firstBuffer = isTextStreamMime(content.mimeType) ?
+				compressOutputItemStreams(content.mimeType, output.outputs) :
+				output.outputs.find(op => op.mime === content.mimeType)!.data.buffer;
 			updatedContent = {
 				type: RenderOutputType.Extension,
 				outputId: outputCache.outputId,
-				mimeType: first.mime,
-				valueBytes: first.data.buffer,
+				mimeType: content.mimeType,
+				valueBytes: firstBuffer,
 				metadata: output.metadata,
 			};
 		}
@@ -1304,19 +1335,6 @@ var requirejs = (function() {
 			outputId: outputCache.outputId,
 			cellId: outputCache.cellInfo.cellId,
 		});
-	}
-
-	clearInsets() {
-		if (this._disposed) {
-			return;
-		}
-
-		this._sendMessageToWebview({
-			type: 'clear'
-		});
-
-		this.insetMapping = new Map();
-		this.reversedInsetMapping = new Map();
 	}
 
 	focusWebview() {
@@ -1399,7 +1417,7 @@ var requirejs = (function() {
 	}
 
 
-	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
+	deltaCellContainerClassNames(cellId: string, added: string[], removed: string[]) {
 		this._sendMessageToWebview({
 			type: 'decorations',
 			cellId,
@@ -1407,6 +1425,25 @@ var requirejs = (function() {
 			removedClassNames: removed
 		});
 
+	}
+
+	updateOutputRenderers() {
+		if (!this.webview) {
+			return;
+		}
+
+		const renderersData = this.getRendererData();
+		this.localResourceRootsCache = this._getResourceRootsCache();
+		const mixedResourceRoots = [
+			...(this.localResourceRootsCache || []),
+			...(this._currentKernel ? [this._currentKernel.localResourceRoot] : []),
+		];
+
+		this.webview.localResourcesRoot = mixedResourceRoots;
+		this._sendMessageToWebview({
+			type: 'updateRenderers',
+			rendererData: renderersData
+		});
 	}
 
 	async updateKernelPreloads(kernel: INotebookKernel | undefined) {
@@ -1469,13 +1506,12 @@ var requirejs = (function() {
 		this.webview?.postMessage(message);
 	}
 
-	clearPreloadsCache() {
-		this._preloadsCache.clear();
-	}
-
 	override dispose() {
 		this._disposed = true;
 		this.webview?.dispose();
+		this.webview = undefined;
+		this.notebookEditor = null!;
+		this.insetMapping.clear();
 		super.dispose();
 	}
 }
@@ -1485,4 +1521,3 @@ function getTokenizationCss() {
 	const tokenizationCss = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 	return tokenizationCss;
 }
-

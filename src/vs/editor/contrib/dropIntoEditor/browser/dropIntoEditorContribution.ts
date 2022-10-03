@@ -13,19 +13,16 @@ import { URI } from 'vs/base/common/uri';
 import { addExternalEditorsDropData, toVSDataTransfer, UriList } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { DocumentOnDropEdit, DocumentOnDropEditProvider } from 'vs/editor/common/languages';
+import { DocumentOnDropEdit, DocumentOnDropEditProvider, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
-import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
@@ -37,7 +34,6 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 	constructor(
 		editor: ICodeEditor,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
@@ -46,22 +42,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 
 		this._register(editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.event)));
 
-
 		this._languageFeaturesService.documentOnDropEditProvider.register('*', new DefaultOnDropProvider(workspaceContextService));
-
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.editor.dropIntoEditor.enabled')) {
-				this.updateEditorOptions(editor);
-			}
-		}));
-
-		this.updateEditorOptions(editor);
-	}
-
-	private updateEditorOptions(editor: ICodeEditor) {
-		editor.updateOptions({
-			enableDropIntoEditor: this._configurationService.getValue('workbench.editor.dropIntoEditor.enabled')
-		});
 	}
 
 	private async onDropIntoEditor(editor: ICodeEditor, position: IPosition, dragEvent: DragEvent) {
@@ -85,7 +66,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		try {
 			const providers = this._languageFeaturesService.documentOnDropEditProvider.ordered(model);
 
-			const edit = await this._progressService.withProgress({
+			const providerEdit = await this._progressService.withProgress({
 				location: ProgressLocation.Notification,
 				delay: 750,
 				title: localize('dropProgressTitle', "Running drop handlers..."),
@@ -111,13 +92,19 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 				return;
 			}
 
-			if (edit) {
-				const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-				performSnippetEdit(editor, typeof edit.insertText === 'string' ? SnippetParser.escape(edit.insertText) : edit.insertText.snippet, [Selection.fromRange(range, SelectionDirection.LTR)]);
-
-				if (edit.additionalEdit) {
-					await this._bulkEditService.apply(ResourceEdit.convert(edit.additionalEdit), { editor });
-				}
+			if (providerEdit) {
+				const snippet = typeof providerEdit.insertText === 'string' ? SnippetParser.escape(providerEdit.insertText) : providerEdit.insertText.snippet;
+				const combinedWorkspaceEdit: WorkspaceEdit = {
+					edits: [
+						new ResourceTextEdit(model.uri, {
+							range: new Range(position.lineNumber, position.column, position.lineNumber, position.column),
+							text: snippet,
+							insertAsSnippet: true,
+						}),
+						...(providerEdit.additionalEdit?.edits ?? [])
+					]
+				};
+				await this._bulkEditService.apply(combinedWorkspaceEdit, { editor });
 				return;
 			}
 		} finally {

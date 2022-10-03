@@ -89,9 +89,9 @@ export class ContextScopedHistoryInputBox extends HistoryInputBox {
 export class ContextScopedFindInput extends FindInput {
 
 	constructor(container: HTMLElement | null, contextViewProvider: IContextViewProvider, options: IFindInputOptions,
-		@IContextKeyService contextKeyService: IContextKeyService, showFindOptions: boolean = false
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(container, contextViewProvider, showFindOptions, options);
+		super(container, contextViewProvider, options);
 		this._register(registerAndCreateHistoryNavigationContext(contextKeyService, this.inputBox));
 	}
 }
@@ -118,9 +118,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.UpArrow,
 	secondary: [KeyMod.Alt | KeyCode.UpArrow],
 	handler: (accessor) => {
-		if (lastFocusedWidget) {
-			lastFocusedWidget.showPreviousValue();
-		}
+		lastFocusedWidget?.showPreviousValue();
 	}
 });
 
@@ -135,8 +133,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.DownArrow,
 	secondary: [KeyMod.Alt | KeyCode.DownArrow],
 	handler: (accessor) => {
-		if (lastFocusedWidget) {
-			lastFocusedWidget.showNextValue();
-		}
+		lastFocusedWidget?.showNextValue();
 	}
 });

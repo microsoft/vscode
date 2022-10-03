@@ -613,9 +613,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 		function settingsEditorFocusSearch(accessor: ServicesAccessor) {
 			const preferencesEditor = getPreferencesEditor(accessor);
-			if (preferencesEditor) {
-				preferencesEditor.focusSearch();
-			}
+			preferencesEditor?.focusSearch();
 		}
 
 		registerAction2(class extends Action2 {
@@ -655,9 +653,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 			run(accessor: ServicesAccessor) {
 				const preferencesEditor = getPreferencesEditor(accessor);
-				if (preferencesEditor) {
-					preferencesEditor.clearSearchResults();
-				}
+				preferencesEditor?.clearSearchResults();
 			}
 		});
 

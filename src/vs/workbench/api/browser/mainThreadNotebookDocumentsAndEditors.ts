@@ -13,7 +13,7 @@ import { MainThreadNotebookEditors } from 'vs/workbench/api/browser/mainThreadNo
 import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';

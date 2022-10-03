@@ -28,6 +28,7 @@ export interface IExtensionHostInitData {
 	workspace?: IStaticWorkspaceData | null;
 	allExtensions: IExtensionDescription[];
 	myExtensions: ExtensionIdentifier[];
+	nlsBaseUrl?: URI;
 	telemetryInfo: ITelemetryInfo;
 	logLevel: LogLevel;
 	logsLocation: URI;

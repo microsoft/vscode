@@ -11,7 +11,8 @@ import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { verifyMicrosoftInternalDomain } from 'vs/platform/telemetry/common/commonProperties';
+import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
 export class NullTelemetryServiceShape implements ITelemetryService {
@@ -21,13 +22,13 @@ export class NullTelemetryServiceShape implements ITelemetryService {
 	publicLog(eventName: string, data?: ITelemetryData) {
 		return Promise.resolve(undefined);
 	}
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
 		return this.publicLog(eventName, data as ITelemetryData);
 	}
 	publicLogError(eventName: string, data?: ITelemetryData) {
 		return Promise.resolve(undefined);
 	}
-	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
 		return this.publicLogError(eventName, data as ITelemetryData);
 	}
 
@@ -250,6 +251,18 @@ function flatKeys(result: string[], prefix: string, value: { [key: string]: any 
 	} else {
 		result.push(prefix);
 	}
+}
+
+/**
+ * Whether or not this is an internal user
+ * @param productService The product service
+ * @param configService The config servivce
+ * @returns true if internal, false otherwise
+ */
+export function isInternalTelemetry(productService: IProductService, configService: IConfigurationService) {
+	const msftInternalDomains = productService.msftInternalDomains || [];
+	const internalTesting = configService.getValue<boolean>('telemetry.internalTesting');
+	return verifyMicrosoftInternalDomain(msftInternalDomains) || internalTesting;
 }
 
 interface IPathEnvironment {

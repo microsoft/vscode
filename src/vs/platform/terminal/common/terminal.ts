@@ -7,8 +7,8 @@ import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
 
@@ -109,10 +109,8 @@ export const enum TerminalSettingId {
 	ShellIntegrationEnabled = 'terminal.integrated.shellIntegration.enabled',
 	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
-	ShellIntegrationDecorationIcon = 'terminal.integrated.shellIntegration.decorationIcon',
-	ShellIntegrationDecorationIconError = 'terminal.integrated.shellIntegration.decorationIconError',
-	ShellIntegrationDecorationIconSuccess = 'terminal.integrated.shellIntegration.decorationIconSuccess',
-	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history'
+	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
+	SmoothScrolling = 'terminal.integrated.smoothScrolling'
 }
 
 export const enum TerminalLogConstants {
@@ -167,9 +165,19 @@ export interface IPtyHostAttachTarget {
 	icon: TerminalIcon | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
-	reconnectionOwner?: string;
-	task?: { label: string; id: string; lastTask: string; group?: string };
+	reconnectionProperties?: IReconnectionProperties;
+	waitOnExit?: WaitOnExitValue;
+	hideFromUser?: boolean;
+	isFeatureTerminal?: boolean;
+	type?: TerminalType;
 }
+
+export interface IReconnectionProperties {
+	ownerId: string;
+	data?: unknown;
+}
+
+export type TerminalType = 'Task' | 'Local' | undefined;
 
 export enum TitleEventSource {
 	/** From the API or the rename command that overrides any other type */
@@ -289,7 +297,7 @@ export interface IPtyService extends IPtyHostController {
 		workspaceName: string
 	): Promise<number>;
 	attachToProcess(id: number): Promise<void>;
-	detachFromProcess(id: number): Promise<void>;
+	detachFromProcess(id: number, forcePersist?: boolean): Promise<void>;
 
 	/**
 	 * Lists all orphaned processes, ie. those without a connected frontend.
@@ -309,7 +317,7 @@ export interface IPtyService extends IPtyHostController {
 	/** Confirm the process is _not_ an orphan. */
 	orphanQuestionReply(id: number): Promise<void>;
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
-	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
+	updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void>;
 	installAutoReply(match: string, reply: string): Promise<void>;
 	uninstallAllAutoReplies(): Promise<void>;
 	uninstallAutoReply(match: string): Promise<void>;
@@ -323,6 +331,7 @@ export interface IPtyService extends IPtyHostController {
 	reduceConnectionGraceTime(): Promise<void>;
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
 	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
+	freePortKillProcess?(id: number, port: string): Promise<{ port: string; processId: string }>;
 	/**
 	 * Serializes and returns terminal state.
 	 * @param ids The persistent terminal IDs to serialize.
@@ -441,12 +450,12 @@ export interface IShellLaunchConfig {
 	ignoreConfigurationCwd?: boolean;
 
 	/**
-	 * The owner of this terminal for reconnection.
+	 * The reconnection properties for this terminal
 	 */
-	reconnectionOwner?: string;
+	reconnectionProperties?: IReconnectionProperties;
 
 	/** Whether to wait for a key press before closing the terminal. */
-	waitOnExit?: boolean | string | ((exitCode: number) => string);
+	waitOnExit?: WaitOnExitValue;
 
 	/**
 	 * A string including ANSI escape sequences that will be written to the terminal emulator
@@ -469,7 +478,9 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections; reconnectionOwner?: string; task?: { label: string; id: string; lastTask: string; group?: string } };
+	attachPersistentProcess?: {
+		id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections; reconnectionProperties?: IReconnectionProperties; type?: TerminalType; waitOnExit?: WaitOnExitValue; hideFromUser?: boolean; isFeatureTerminal?: boolean;
+	};
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -540,12 +551,9 @@ export interface IShellLaunchConfig {
 	 * Create a terminal without shell integration even when it's enabled
 	 */
 	ignoreShellIntegration?: boolean;
-
-	/**
-	 * The task associated with this terminal
-	 */
-	task?: { lastTask: string; group?: string; label: string; id: string };
 }
+
+export type WaitOnExitValue = boolean | string | ((exitCode: number) => string);
 
 export interface ICreateContributedTerminalProfileOptions {
 	icon?: URI | string | { light: URI; dark: URI };
@@ -573,6 +581,9 @@ export interface IShellLaunchConfigDto {
 	env?: ITerminalEnvironment;
 	useShellEnvironment?: boolean;
 	hideFromUser?: boolean;
+	reconnectionProperties?: IReconnectionProperties;
+	type?: 'Task' | 'Local';
+	isFeatureTerminal?: boolean;
 }
 
 /**
@@ -635,8 +646,14 @@ export interface ITerminalChildProcess {
 
 	/**
 	 * Detach the process from the UI and await reconnect.
+	 * @param forcePersist Whether to force the process to persist if it supports persistence.
 	 */
-	detach?(): Promise<void>;
+	detach?(forcePersist?: boolean): Promise<void>;
+
+	/**
+	 * Frees the port and kills the process
+	 */
+	freePortKillProcess?(port: string): Promise<{ port: string; processId: string }>;
 
 	/**
 	 * Shutdown the terminal process.

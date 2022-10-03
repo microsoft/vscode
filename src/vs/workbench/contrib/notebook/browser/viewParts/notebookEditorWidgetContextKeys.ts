@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as DOM from 'vs/base/browser/dom';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICellViewModel, INotebookEditorDelegate, KERNEL_EXTENSIONS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -29,6 +30,7 @@ export class NotebookEditorContextKeys {
 	private readonly _disposables = new DisposableStore();
 	private readonly _viewModelDisposables = new DisposableStore();
 	private readonly _cellOutputsListeners: IDisposable[] = [];
+	private readonly _selectedKernelDisposables = new DisposableStore();
 
 	constructor(
 		private readonly _editor: INotebookEditorDelegate,
@@ -102,9 +104,15 @@ export class NotebookEditorContextKeys {
 			this._hasOutputs.set(hasOutputs);
 		};
 
+		const layoutDisposable = this._viewModelDisposables.add(new DisposableStore());
+
 		const addCellOutputsListener = (c: ICellViewModel) => {
 			return c.model.onDidChangeOutputs(() => {
-				recomputeOutputsExistence();
+				layoutDisposable.clear();
+
+				layoutDisposable.add(DOM.scheduleAtNextAnimationFrame(() => {
+					recomputeOutputsExistence();
+				}));
 			});
 		};
 
@@ -117,7 +125,7 @@ export class NotebookEditorContextKeys {
 		this._updateForInstalledExtension();
 
 		this._viewModelDisposables.add(this._editor.onDidChangeViewCells(e => {
-			e.splices.reverse().forEach(splice => {
+			[...e.splices].reverse().forEach(splice => {
 				const [start, deleted, newCells] = splice;
 				const deletedCellOutputStates = this._cellOutputsListeners.splice(start, deleted, ...newCells.map(addCellOutputsListener));
 				dispose(deletedCellOutputStates);
@@ -137,7 +145,7 @@ export class NotebookEditorContextKeys {
 
 	private _updateForLastRunFailState(e: INotebookFailStateChangedEvent): void {
 		if (e.notebook === this._editor.textModel?.uri) {
-			this._lastCellFailed.set(e.failed);
+			this._lastCellFailed.set(e.visible);
 		}
 	}
 
@@ -167,6 +175,13 @@ export class NotebookEditorContextKeys {
 		this._interruptibleKernel.set(selected?.implementsInterrupt ?? false);
 		this._notebookKernelSelected.set(Boolean(selected));
 		this._notebookKernel.set(selected?.id ?? '');
+
+		this._selectedKernelDisposables.clear();
+		if (selected) {
+			this._selectedKernelDisposables.add(selected.onDidChange(() => {
+				this._interruptibleKernel.set(selected?.implementsInterrupt ?? false);
+			}));
+		}
 	}
 
 	private _updateForNotebookOptions(): void {

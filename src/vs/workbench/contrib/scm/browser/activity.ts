@@ -16,13 +16,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { stripIcons } from 'vs/base/common/iconLabels';
 import { Schemas } from 'vs/base/common/network';
 import { Iterable } from 'vs/base/common/iterator';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 function getCount(repository: ISCMRepository): number {
 	if (typeof repository.provider.count === 'number') {
@@ -159,13 +154,10 @@ export class SCMStatusController implements IWorkbenchContribution {
 			const command = commands[index];
 			const tooltip = `${label}${command.tooltip ? ` - ${command.tooltip}` : ''}`;
 
-			let ariaLabel = stripIcons(command.title).trim();
-			ariaLabel = ariaLabel ? `${ariaLabel}, ${label}` : label;
-
 			disposables.add(this.statusbarService.addEntry({
 				name: localize('status.scm', "Source Control"),
 				text: command.title,
-				ariaLabel: `${ariaLabel}${command.tooltip ? ` - ${command.tooltip}` : ''}`,
+				ariaLabel: tooltip,
 				tooltip,
 				command: command.id ? command : undefined
 			}, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, 10000 - index));
@@ -274,48 +266,5 @@ export class SCMActiveResourceContextKeyController implements IWorkbenchContribu
 		this.disposables = dispose(this.disposables);
 		dispose(this.repositoryDisposables.values());
 		this.repositoryDisposables.clear();
-	}
-}
-
-class SCMInputTextDocumentLabelFormatter {
-
-	readonly separator = '/';
-
-	readonly label = (resource: URI) => {
-		const match = /git\/(?<repositoryId>scm[\d+])\/input/i.exec(resource.path);
-
-		if (match?.groups === undefined) {
-			return resource.toString();
-		}
-
-		const { repositoryId } = match.groups;
-		const repository = this.scmService.getRepository(repositoryId);
-
-		if (repository === undefined || repository.provider.rootUri === undefined) {
-			return resource.toString();
-		}
-
-		const folder = this.workspaceContextService.getWorkspaceFolder(repository.provider.rootUri);
-		const repositoryName = folder?.uri.toString() === repository.provider.rootUri.toString() ? folder.name : basename(repository.provider.rootUri);
-
-		return `${repositoryName} (${repository.provider.label})`;
-	};
-
-	constructor(
-		@ISCMService private readonly scmService: ISCMService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-	) { }
-}
-
-export class SCMInputTextDocumentContribution implements IWorkbenchContribution {
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ILabelService labelService: ILabelService
-	) {
-		labelService.registerFormatter({
-			scheme: Schemas.vscode,
-			authority: 'scm',
-			formatting: instantiationService.createInstance(SCMInputTextDocumentLabelFormatter)
-		});
 	}
 }

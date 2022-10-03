@@ -576,12 +576,16 @@ export class TernarySearchTree<K, V> {
 		if (!node.mid && !node.value) {
 			if (node.left && node.right) {
 				// full node
+				// replace deleted-node with the min-node of the right branch.
+				// If there is no true min-node leave things as they are
 				const min = this._min(node.right);
-				const { key, value, segment } = min;
-				this._delete(min.key!, false);
-				node.key = key;
-				node.value = value;
-				node.segment = segment;
+				if (min.key) {
+					const { key, value, segment } = min;
+					this._delete(min.key!, false);
+					node.key = key;
+					node.value = value;
+					node.segment = segment;
+				}
 
 			} else {
 				// empty or half empty
@@ -1353,49 +1357,5 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 		if (this.size > this._limit) {
 			this.trimOld(Math.round(this._limit * this._ratio));
 		}
-	}
-}
-
-/**
- * Wraps the map in type that only implements readonly properties. Useful
- * in the extension host to prevent the consumer from making any mutations.
- */
-export class ReadonlyMapView<K, V> implements ReadonlyMap<K, V>{
-	readonly #source: ReadonlyMap<K, V>;
-
-	public get size() {
-		return this.#source.size;
-	}
-
-	constructor(source: ReadonlyMap<K, V>) {
-		this.#source = source;
-	}
-
-	forEach(callbackfn: (value: V, key: K, map: ReadonlyMap<K, V>) => void, thisArg?: any): void {
-		this.#source.forEach(callbackfn, thisArg);
-	}
-
-	get(key: K): V | undefined {
-		return this.#source.get(key);
-	}
-
-	has(key: K): boolean {
-		return this.#source.has(key);
-	}
-
-	entries(): IterableIterator<[K, V]> {
-		return this.#source.entries();
-	}
-
-	keys(): IterableIterator<K> {
-		return this.#source.keys();
-	}
-
-	values(): IterableIterator<V> {
-		return this.#source.values();
-	}
-
-	[Symbol.iterator](): IterableIterator<[K, V]> {
-		return this.#source.entries();
 	}
 }

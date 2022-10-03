@@ -43,7 +43,7 @@ suite('Search Actions', () => {
 		const target = data[2];
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
-		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
+		const actual = testObject.getElementToFocusAfterRemoved(tree, target, false);
 		assert.strictEqual(data[4], actual);
 	});
 
@@ -55,7 +55,7 @@ suite('Search Actions', () => {
 		const target = data[5];
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
-		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
+		const actual = testObject.getElementToFocusAfterRemoved(tree, target, false);
 		assert.strictEqual(data[4], actual);
 	});
 
@@ -67,7 +67,7 @@ suite('Search Actions', () => {
 		const target = data[4];
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
-		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
+		const actual = testObject.getElementToFocusAfterRemoved(tree, target, false);
 		assert.strictEqual(data[2], actual);
 	});
 
@@ -78,7 +78,7 @@ suite('Search Actions', () => {
 		const target = data[1];
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
-		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
+		const actual = testObject.getElementToFocusAfterRemoved(tree, target, false);
 		assert.strictEqual(undefined, actual);
 	});
 
@@ -91,7 +91,7 @@ suite('Search Actions', () => {
 		const target = data[2];
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
-		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
+		const actual = testObject.getElementToFocusAfterRemoved(tree, target, false);
 		assert.strictEqual(data[4], actual);
 	});
 
@@ -104,7 +104,7 @@ suite('Search Actions', () => {
 		const target = data[4];
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
-		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
+		const actual = testObject.getElementToFocusAfterRemoved(tree, target, false);
 		assert.strictEqual(data[3], actual);
 	});
 
@@ -115,7 +115,7 @@ suite('Search Actions', () => {
 		const target = data[0];
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
-		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
+		const actual = testObject.getElementToFocusAfterRemoved(tree, target, false);
 		assert.strictEqual(undefined, actual);
 	});
 
@@ -124,7 +124,7 @@ suite('Search Actions', () => {
 			resource: URI.file('somepath' + ++counter),
 			results: []
 		};
-		return instantiationService.createInstance(FileMatch, null, null, null, null, rawMatch);
+		return instantiationService.createInstance(FileMatch, null, null, null, null, rawMatch, null);
 	}
 
 	function aMatch(fileMatch: FileMatch): Match {

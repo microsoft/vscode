@@ -30,6 +30,7 @@ export interface IIconLabelValueOptions {
 	matches?: IMatch[];
 	labelEscapeNewLines?: boolean;
 	descriptionMatches?: IMatch[];
+	disabledCommand?: boolean;
 	readonly separator?: string;
 	readonly domId?: string;
 }
@@ -124,22 +125,28 @@ export class IconLabel extends Disposable {
 	}
 
 	setLabel(label: string | string[], description?: string, options?: IIconLabelValueOptions): void {
-		const classes = ['monaco-icon-label'];
+		const labelClasses = ['monaco-icon-label'];
+		const containerClasses = ['monaco-icon-label-container'];
 		if (options) {
 			if (options.extraClasses) {
-				classes.push(...options.extraClasses);
+				labelClasses.push(...options.extraClasses);
 			}
 
 			if (options.italic) {
-				classes.push('italic');
+				labelClasses.push('italic');
 			}
 
 			if (options.strikethrough) {
-				classes.push('strikethrough');
+				labelClasses.push('strikethrough');
+			}
+
+			if (options.disabledCommand) {
+				containerClasses.push('disabled');
 			}
 		}
 
-		this.domNode.className = classes.join(' ');
+		this.domNode.className = labelClasses.join(' ');
+		this.labelContainer.className = containerClasses.join(' ');
 		this.setupHover(options?.descriptionTitle ? this.labelContainer : this.element, options?.title);
 
 		this.nameNode.setLabel(label, options);

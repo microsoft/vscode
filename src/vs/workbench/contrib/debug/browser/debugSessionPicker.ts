@@ -24,11 +24,14 @@ export async function showDebugSessionMenu(accessor: ServicesAccessor, selectAnd
 	const quickPick = quickInputService.createQuickPick<IPickerDebugItem>();
 	localDisposableStore.add(quickPick);
 	quickPick.matchOnLabel = quickPick.matchOnDescription = quickPick.matchOnDetail = quickPick.sortByLabel = false;
-	quickPick.placeholder = nls.localize('moveFocusedView.selectView', 'Search for debug session by name');
-	quickPick.items = _getPicks(quickPick.value, selectAndStartID, debugService, viewsService, commandService);
+	quickPick.placeholder = nls.localize('moveFocusedView.selectView', 'Search debug sessions by name');
+
+	const pickItems = _getPicksAndActiveItem(quickPick.value, selectAndStartID, debugService, viewsService, commandService);
+	quickPick.items = pickItems.picks;
+	quickPick.activeItems = pickItems.activeItems;
 
 	localDisposableStore.add(quickPick.onDidChangeValue(async () => {
-		quickPick.items = _getPicks(quickPick.value, selectAndStartID, debugService, viewsService, commandService);
+		quickPick.items = _getPicksAndActiveItem(quickPick.value, selectAndStartID, debugService, viewsService, commandService).picks;
 	}));
 	localDisposableStore.add(quickPick.onDidAccept(() => {
 		const selectedItem = quickPick.selectedItems[0];
@@ -39,11 +42,13 @@ export async function showDebugSessionMenu(accessor: ServicesAccessor, selectAnd
 	quickPick.show();
 }
 
-function _getPicks(filter: string, selectAndStartID: string, debugService: IDebugService, viewsService: IViewsService, commandService: ICommandService): Array<IPickerDebugItem | IQuickPickSeparator> {
+function _getPicksAndActiveItem(filter: string, selectAndStartID: string, debugService: IDebugService, viewsService: IViewsService, commandService: ICommandService): { picks: Array<IPickerDebugItem | IQuickPickSeparator>; activeItems: Array<IPickerDebugItem> } {
 	const debugConsolePicks: Array<IPickerDebugItem | IQuickPickSeparator> = [];
 	const headerSessions: IDebugSession[] = [];
 
+	const currSession = debugService.getViewModel().focusedSession;
 	const sessions = debugService.getModel().getSessions(false);
+	const activeItems: Array<IPickerDebugItem> = [];
 
 	sessions.forEach((session) => {
 		if (session.compact && session.parentSession) {
@@ -61,6 +66,9 @@ function _getPicks(filter: string, selectAndStartID: string, debugService: IDebu
 			const pick = _createPick(session, filter, debugService, viewsService, commandService);
 			if (pick) {
 				debugConsolePicks.push(pick);
+				if (session.getId() === currSession?.getId()) {
+					activeItems.push(pick);
+				}
 			}
 		}
 	});
@@ -76,7 +84,7 @@ function _getPicks(filter: string, selectAndStartID: string, debugService: IDebu
 		accept: () => commandService.executeCommand(selectAndStartID)
 	});
 
-	return debugConsolePicks;
+	return { picks: debugConsolePicks, activeItems };
 }
 
 

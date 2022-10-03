@@ -142,7 +142,7 @@ registerAction2(class extends Action2 {
 		}
 
 		const notebook = editor.textModel;
-		const { selected, all, suggestions } = notebookKernelService.getMatchingKernel(notebook);
+		const { selected, all, suggestions, hidden } = notebookKernelService.getMatchingKernel(notebook);
 
 		if (selected && controllerId && selected.id === controllerId && ExtensionIdentifier.equals(selected.extension, extensionId)) {
 			// current kernel is wanted kernel -> done
@@ -200,9 +200,9 @@ registerAction2(class extends Action2 {
 				quickPickItems.push(...suggestions.map(toQuickPick));
 			}
 
-			// Next display all of the kernels grouped by categories or extensions.
+			// Next display all of the kernels not marked as hidden grouped by categories or extensions.
 			// If we don't have a kind, always display those at the bottom.
-			const picks = all.filter(item => !suggestions.includes(item)).map(toQuickPick);
+			const picks = all.filter(item => (!suggestions.includes(item) && !hidden.includes(item))).map(toQuickPick);
 			const kernelsPerCategory = groupBy(picks, (a, b) => compareIgnoreCase(a.kernel.kind || 'z', b.kernel.kind || 'z'));
 			kernelsPerCategory.forEach(items => {
 				quickPickItems.push({
@@ -463,7 +463,8 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		this._kernelInfoElement.clear();
 
 		const { selected, suggestions, all } = this._notebookKernelService.getMatchingKernel(notebook);
-		const suggested = (suggestions.length === 1 && all.length === 1) ? suggestions[0] : undefined;
+		const suggested = (suggestions.length === 1 ? suggestions[0] : undefined)
+			?? (all.length === 1) ? all[0] : undefined;
 		let isSuggested = false;
 
 		if (all.length === 0) {

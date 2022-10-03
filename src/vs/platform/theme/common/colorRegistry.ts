@@ -7,7 +7,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { assertNever } from 'vs/base/common/types';
+import { assertNever } from 'vs/base/common/assert';
 import * as nls from 'vs/nls';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as platform from 'vs/platform/registry/common/platform';
@@ -313,13 +313,17 @@ export const editorBackground = registerColor('editor.background', { light: '#ff
 export const editorForeground = registerColor('editor.foreground', { light: '#333333', dark: '#BBBBBB', hcDark: Color.white, hcLight: foreground }, nls.localize('editorForeground', "Editor default foreground color."));
 
 /**
+ * Sticky scroll
+ */
+export const editorStickyScrollBackground = registerColor('editorStickyScroll.background', { light: editorBackground, dark: editorBackground, hcDark: editorBackground, hcLight: editorBackground }, nls.localize('editorStickyScrollBackground', "Sticky scroll background color for the editor"));
+export const editorStickyScrollHoverBackground = registerColor('editorStickyScrollHover.background', { dark: '#2A2D2E', light: '#F0F0F0', hcDark: null, hcLight: Color.fromHex('#0F4A85').transparent(0.1) }, nls.localize('editorStickyScrollHoverBackground', "Sticky scroll on hover background color for the editor"));
+
+/**
  * Editor widgets
  */
 export const editorWidgetBackground = registerColor('editorWidget.background', { dark: '#252526', light: '#F3F3F3', hcDark: '#0C141F', hcLight: Color.white }, nls.localize('editorWidgetBackground', 'Background color of editor widgets, such as find/replace.'));
 export const editorWidgetForeground = registerColor('editorWidget.foreground', { dark: foreground, light: foreground, hcDark: foreground, hcLight: foreground }, nls.localize('editorWidgetForeground', 'Foreground color of editor widgets, such as find/replace.'));
-
 export const editorWidgetBorder = registerColor('editorWidget.border', { dark: '#454545', light: '#C8C8C8', hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('editorWidgetBorder', 'Border color of editor widgets. The color is only used if the widget chooses to have a border and if the color is not overridden by a widget.'));
-
 export const editorWidgetResizeBorder = registerColor('editorWidget.resizeBorder', { light: null, dark: null, hcDark: null, hcLight: null }, nls.localize('editorWidgetResizeBorder', "Border color of the resize bar of editor widgets. The color is only used if the widget chooses to have a resize border and if the color is not overridden by a widget."));
 
 /**
@@ -383,8 +387,8 @@ export const editorActiveLinkForeground = registerColor('editorLink.activeForegr
 /**
  * Inline hints
  */
-export const editorInlayHintForeground = registerColor('editorInlayHint.foreground', { dark: transparent(badgeForeground, .8), light: transparent(badgeForeground, .8), hcDark: badgeForeground, hcLight: badgeForeground }, nls.localize('editorInlayHintForeground', 'Foreground color of inline hints'));
-export const editorInlayHintBackground = registerColor('editorInlayHint.background', { dark: transparent(badgeBackground, .6), light: transparent(badgeBackground, .3), hcDark: badgeBackground, hcLight: badgeBackground }, nls.localize('editorInlayHintBackground', 'Background color of inline hints'));
+export const editorInlayHintForeground = registerColor('editorInlayHint.foreground', { dark: badgeForeground, light: badgeForeground, hcDark: Color.black, hcLight: badgeForeground }, nls.localize('editorInlayHintForeground', 'Foreground color of inline hints'));
+export const editorInlayHintBackground = registerColor('editorInlayHint.background', { dark: transparent(badgeBackground, .8), light: transparent(badgeBackground, .6), hcDark: '#f38518', hcLight: badgeBackground }, nls.localize('editorInlayHintBackground', 'Background color of inline hints'));
 export const editorInlayHintTypeForeground = registerColor('editorInlayHint.typeForeground', { dark: editorInlayHintForeground, light: editorInlayHintForeground, hcDark: editorInlayHintForeground, hcLight: editorInlayHintForeground }, nls.localize('editorInlayHintForegroundTypes', 'Foreground color of inline hints for types'));
 export const editorInlayHintTypeBackground = registerColor('editorInlayHint.typeBackground', { dark: editorInlayHintBackground, light: editorInlayHintBackground, hcDark: editorInlayHintBackground, hcLight: editorInlayHintBackground }, nls.localize('editorInlayHintBackgroundTypes', 'Background color of inline hints for types'));
 export const editorInlayHintParameterForeground = registerColor('editorInlayHint.parameterForeground', { dark: editorInlayHintForeground, light: editorInlayHintForeground, hcDark: editorInlayHintForeground, hcLight: editorInlayHintForeground }, nls.localize('editorInlayHintForegroundParameter', 'Foreground color of inline hints for parameters'));
@@ -402,8 +406,8 @@ export const editorLightBulbAutoFixForeground = registerColor('editorLightBulbAu
 export const defaultInsertColor = new Color(new RGBA(155, 185, 85, .2));
 export const defaultRemoveColor = new Color(new RGBA(255, 0, 0, .2));
 
-export const diffInserted = registerColor('diffEditor.insertedTextBackground', { dark: '#9ccc2c33', light: '#9ccc2c66', hcDark: null, hcLight: null }, nls.localize('diffEditorInserted', 'Background color for text that got inserted. The color must not be opaque so as not to hide underlying decorations.'), true);
-export const diffRemoved = registerColor('diffEditor.removedTextBackground', { dark: '#ff000066', light: '#ff00004d', hcDark: null, hcLight: null }, nls.localize('diffEditorRemoved', 'Background color for text that got removed. The color must not be opaque so as not to hide underlying decorations.'), true);
+export const diffInserted = registerColor('diffEditor.insertedTextBackground', { dark: '#9ccc2c33', light: '#9ccc2c40', hcDark: null, hcLight: null }, nls.localize('diffEditorInserted', 'Background color for text that got inserted. The color must not be opaque so as not to hide underlying decorations.'), true);
+export const diffRemoved = registerColor('diffEditor.removedTextBackground', { dark: '#ff000033', light: '#ff000033', hcDark: null, hcLight: null }, nls.localize('diffEditorRemoved', 'Background color for text that got removed. The color must not be opaque so as not to hide underlying decorations.'), true);
 
 export const diffInsertedLine = registerColor('diffEditor.insertedLineBackground', { dark: defaultInsertColor, light: defaultInsertColor, hcDark: null, hcLight: null }, nls.localize('diffEditorInsertedLines', 'Background color for lines that got inserted. The color must not be opaque so as not to hide underlying decorations.'), true);
 export const diffRemovedLine = registerColor('diffEditor.removedLineBackground', { dark: defaultRemoveColor, light: defaultRemoveColor, hcDark: null, hcLight: null }, nls.localize('diffEditorRemovedLines', 'Background color for lines that got removed. The color must not be opaque so as not to hide underlying decorations.'), true);

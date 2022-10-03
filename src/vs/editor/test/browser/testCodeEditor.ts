@@ -133,7 +133,7 @@ function isTextModel(arg: ITextModel | string | string[] | ITextBufferFactory): 
 
 function _withTestCodeEditor(arg: ITextModel | string | string[] | ITextBufferFactory, options: TestCodeEditorInstantiationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel, instantiationService: TestInstantiationService) => void): void;
 function _withTestCodeEditor(arg: ITextModel | string | string[] | ITextBufferFactory, options: TestCodeEditorInstantiationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel, instantiationService: TestInstantiationService) => Promise<void>): Promise<void>;
-function _withTestCodeEditor(arg: ITextModel | string | string[] | ITextBufferFactory, options: TestCodeEditorInstantiationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel, instantiationService: TestInstantiationService) => Promise<void> | void): Promise<void> | void {
+async function _withTestCodeEditor(arg: ITextModel | string | string[] | ITextBufferFactory, options: TestCodeEditorInstantiationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel, instantiationService: TestInstantiationService) => Promise<void> | void): Promise<Promise<void> | void> {
 	const disposables = new DisposableStore();
 	const instantiationService = createCodeEditorServices(disposables, options.serviceCollection);
 	delete options.serviceCollection;
@@ -149,12 +149,12 @@ function _withTestCodeEditor(arg: ITextModel | string | string[] | ITextBufferFa
 	const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model, options));
 	const viewModel = editor.getViewModel()!;
 	viewModel.setHasFocus(true);
-	const result = callback(<ITestCodeEditor>editor, editor.getViewModel()!, instantiationService);
-	if (result) {
-		return result.then(() => disposables.dispose());
+	try {
+		const result = callback(<ITestCodeEditor>editor, editor.getViewModel()!, instantiationService);
+		await result;
+	} finally {
+		disposables.dispose();
 	}
-
-	disposables.dispose();
 }
 
 export function createCodeEditorServices(disposables: DisposableStore, services: ServiceCollection = new ServiceCollection()): TestInstantiationService {

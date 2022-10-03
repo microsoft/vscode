@@ -26,7 +26,7 @@ export interface IConfigurationOverrides {
 export function isConfigurationUpdateOverrides(thing: any): thing is IConfigurationUpdateOverrides {
 	return thing
 		&& typeof thing === 'object'
-		&& (!thing.overrideIdentifiers || types.isArray(thing.overrideIdentifiers))
+		&& (!thing.overrideIdentifiers || Array.isArray(thing.overrideIdentifiers))
 		&& !thing.overrideIdentifier
 		&& (!thing.resource || thing.resource instanceof URI);
 }

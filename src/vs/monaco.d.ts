@@ -701,6 +701,10 @@ declare namespace monaco {
 		 */
 		collapseToStart(): Range;
 		/**
+		 * Moves the range by the given amount of lines.
+		 */
+		delta(lineCount: number): Range;
+		/**
 		 * Create a new empty range using this range's start position.
 		 */
 		static collapseToStart(range: IRange): Range;
@@ -1485,6 +1489,11 @@ declare namespace monaco.editor {
 		className?: string | null;
 		blockClassName?: string | null;
 		/**
+		 * Indicates if this block should be rendered after the last line.
+		 * In this case, the range must be empty and set to the last line.
+		 */
+		blockIsAfterEnd?: boolean | null;
+		/**
 		 * Message to be rendered when hovering over the glyph margin decoration.
 		 */
 		glyphMarginHoverMessage?: IMarkdownString | IMarkdownString[] | null;
@@ -1496,6 +1505,10 @@ declare namespace monaco.editor {
 		 * Should the decoration expand to encompass a whole line.
 		 */
 		isWholeLine?: boolean;
+		/**
+		 * Always render the decoration (even when the range it encompasses is collapsed).
+		 */
+		showIfCollapsed?: boolean;
 		/**
 		 * Specifies the stack order of a decoration.
 		 * A decoration with greater stack order is always in front of a decoration with
@@ -2010,7 +2023,7 @@ declare namespace monaco.editor {
 		 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
 		 * @return An array with the decorations
 		 */
-		getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+		getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[];
 		/**
 		 * Gets all the decorations as an array.
 		 * @param ownerId If set, it will ignore decorations belonging to other owners.
@@ -2626,6 +2639,10 @@ declare namespace monaco.editor {
 		 * New language
 		 */
 		readonly newLanguage: string;
+		/**
+		 * Source of the call that caused the event.
+		 */
+		readonly source: string;
 	}
 
 	/**
@@ -2946,6 +2963,10 @@ declare namespace monaco.editor {
 		 * Control the behavior and rendering of the scrollbars.
 		 */
 		scrollbar?: IEditorScrollbarOptions;
+		/**
+		 * Control the behavior of sticky scroll options
+		 */
+		stickyScroll?: IEditorStickyScrollOptions;
 		/**
 		 * Control the behavior and rendering of the minimap.
 		 */
@@ -3414,6 +3435,10 @@ declare namespace monaco.editor {
 		 */
 		showDeprecated?: boolean;
 		/**
+		 * Controls whether suggestions allow matches in the middle of the word instead of only at the beginning
+		 */
+		matchOnWordStartOnly?: boolean;
+		/**
 		 * Control the behavior and rendering of the inline hints.
 		 */
 		inlayHints?: IEditorInlayHintsOptions;
@@ -3435,11 +3460,11 @@ declare namespace monaco.editor {
 		*/
 		bracketPairColorization?: IBracketPairColorizationOptions;
 		/**
-		 * Enables dropping into the editor from an external source.
+		 * Controls dropping into the editor from an external source.
 		 *
-		 * This shows a preview of the drop location and triggers an `onDropIntoEditor` event.
+		 * When enabled, this shows a preview of the drop location and triggers an `onDropIntoEditor` event.
 		 */
-		enableDropIntoEditor?: boolean;
+		dropIntoEditor?: IDropIntoEditorOptions;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -3497,6 +3522,10 @@ declare namespace monaco.editor {
 		 * Control the wrapping of the diff editor.
 		 */
 		diffWordWrap?: 'off' | 'on' | 'inherit';
+		/**
+		 * Diff Algorithm
+		*/
+		diffAlgorithm?: 'smart' | 'experimental';
 	}
 
 	/**
@@ -3802,6 +3831,17 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		enabled?: boolean;
+	}
+
+	export interface IEditorStickyScrollOptions {
+		/**
+		 * Enable the sticky scroll
+		 */
+		enabled?: boolean;
+		/**
+		 * Maximum number of sticky lines to show
+		 */
+		maxLineCount?: number;
 	}
 
 	/**
@@ -4186,6 +4226,10 @@ declare namespace monaco.editor {
 		 */
 		showDeprecated?: boolean;
 		/**
+		 * Controls whether suggestions allow matches in the middle of the word instead of only at the beginning
+		 */
+		matchOnWordStartOnly?: boolean;
+		/**
 		 * Show field-suggestions.
 		 */
 		showFields?: boolean;
@@ -4316,6 +4360,17 @@ declare namespace monaco.editor {
 		readonly wrappingColumn: number;
 	}
 
+	/**
+	 * Configuration options for editor drop into behavior
+	 */
+	export interface IDropIntoEditorOptions {
+		/**
+		 * Enable the dropping into editor.
+		 * Defaults to true.
+		 */
+		enabled?: boolean;
+	}
+
 	export enum EditorOption {
 		acceptSuggestionOnCommitCharacter = 0,
 		acceptSuggestionOnEnter = 1,
@@ -4349,7 +4404,7 @@ declare namespace monaco.editor {
 		disableMonospaceOptimizations = 29,
 		domReadOnly = 30,
 		dragAndDrop = 31,
-		enableDropIntoEditor = 32,
+		dropIntoEditor = 32,
 		emptySelectionClipboard = 33,
 		extraEditorClassName = 34,
 		fastScrollSensitivity = 35,
@@ -4422,35 +4477,36 @@ declare namespace monaco.editor {
 		snippetSuggestions = 102,
 		smartSelect = 103,
 		smoothScrolling = 104,
-		stickyTabStops = 105,
-		stopRenderingLineAfter = 106,
-		suggest = 107,
-		suggestFontSize = 108,
-		suggestLineHeight = 109,
-		suggestOnTriggerCharacters = 110,
-		suggestSelection = 111,
-		tabCompletion = 112,
-		tabIndex = 113,
-		unicodeHighlighting = 114,
-		unusualLineTerminators = 115,
-		useShadowDOM = 116,
-		useTabStops = 117,
-		wordSeparators = 118,
-		wordWrap = 119,
-		wordWrapBreakAfterCharacters = 120,
-		wordWrapBreakBeforeCharacters = 121,
-		wordWrapColumn = 122,
-		wordWrapOverride1 = 123,
-		wordWrapOverride2 = 124,
-		wrappingIndent = 125,
-		wrappingStrategy = 126,
-		showDeprecated = 127,
-		inlayHints = 128,
-		editorClassName = 129,
-		pixelRatio = 130,
-		tabFocusMode = 131,
-		layoutInfo = 132,
-		wrappingInfo = 133
+		stickyScroll = 105,
+		stickyTabStops = 106,
+		stopRenderingLineAfter = 107,
+		suggest = 108,
+		suggestFontSize = 109,
+		suggestLineHeight = 110,
+		suggestOnTriggerCharacters = 111,
+		suggestSelection = 112,
+		tabCompletion = 113,
+		tabIndex = 114,
+		unicodeHighlighting = 115,
+		unusualLineTerminators = 116,
+		useShadowDOM = 117,
+		useTabStops = 118,
+		wordSeparators = 119,
+		wordWrap = 120,
+		wordWrapBreakAfterCharacters = 121,
+		wordWrapBreakBeforeCharacters = 122,
+		wordWrapColumn = 123,
+		wordWrapOverride1 = 124,
+		wordWrapOverride2 = 125,
+		wrappingIndent = 126,
+		wrappingStrategy = 127,
+		showDeprecated = 128,
+		inlayHints = 129,
+		editorClassName = 130,
+		pixelRatio = 131,
+		tabFocusMode = 132,
+		layoutInfo = 133,
+		wrappingInfo = 134
 	}
 
 	export const EditorOptions: {
@@ -4488,7 +4544,8 @@ declare namespace monaco.editor {
 		domReadOnly: IEditorOption<EditorOption.domReadOnly, boolean>;
 		dragAndDrop: IEditorOption<EditorOption.dragAndDrop, boolean>;
 		emptySelectionClipboard: IEditorOption<EditorOption.emptySelectionClipboard, boolean>;
-		enableDropIntoEditor: IEditorOption<EditorOption.enableDropIntoEditor, boolean>;
+		dropIntoEditor: IEditorOption<EditorOption.dropIntoEditor, Readonly<Required<IDropIntoEditorOptions>>>;
+		stickyScroll: IEditorOption<EditorOption.stickyScroll, Readonly<Required<IEditorStickyScrollOptions>>>;
 		extraEditorClassName: IEditorOption<EditorOption.extraEditorClassName, string>;
 		fastScrollSensitivity: IEditorOption<EditorOption.fastScrollSensitivity, number>;
 		find: IEditorOption<EditorOption.find, Readonly<Required<IEditorFindOptions>>>;
@@ -4994,6 +5051,8 @@ declare namespace monaco.editor {
 
 	export interface IMouseTargetOutsideEditor extends IBaseMouseTarget {
 		readonly type: MouseTargetType.OUTSIDE_EDITOR;
+		readonly outsidePosition: 'above' | 'below' | 'left' | 'right';
+		readonly outsideDistance: number;
 	}
 
 	/**
@@ -5345,9 +5404,13 @@ declare namespace monaco.editor {
 		 */
 		getVisibleRanges(): Range[];
 		/**
-		 * Get the vertical position (top offset) for the line w.r.t. to the first line.
+		 * Get the vertical position (top offset) for the line's top w.r.t. to the first line.
 		 */
 		getTopForLineNumber(lineNumber: number): number;
+		/**
+		 * Get the vertical position (top offset) for the line's bottom w.r.t. to the first line.
+		 */
+		getBottomForLineNumber(lineNumber: number): number;
 		/**
 		 * Get the vertical position (top offset) for the position w.r.t. to the first line.
 		 */
@@ -7041,6 +7104,7 @@ declare namespace monaco.languages {
 		folder?: boolean;
 		skipTrashBin?: boolean;
 		maxSize?: number;
+		contentsBase64?: string;
 	}
 
 	export interface IWorkspaceFileEdit {

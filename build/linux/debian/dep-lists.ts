@@ -20,19 +20,6 @@ export const recommendedDeps = [
 	'libvulkan1' // Move to additionalDeps once support for Trusty and Jessie are dropped.
 ];
 
-// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/98.0.4758.109:chrome/installer/linux/BUILD.gn;l=64-80
-// and the Linux Archive build
-// Shared library dependencies that we already bundle.
-export const bundledDeps = [
-	'libEGL.so',
-	'libGLESv2.so',
-	'libvulkan.so.1',
-	'swiftshader_libEGL.so',
-	'swiftshader_libGLESv2.so',
-	'libvk_swiftshader.so',
-	'libffmpeg.so'
-];
-
 export const referenceGeneratedDepsByArch = {
 	'amd64': [
 		'ca-certificates',
@@ -44,12 +31,12 @@ export const referenceGeneratedDepsByArch = {
 		'libc6 (>= 2.17)',
 		'libc6 (>= 2.2.5)',
 		'libcairo2 (>= 1.6.0)',
+		'libcups2 (>= 1.6.0)',
 		'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3',
 		'libdbus-1-3 (>= 1.5.12)',
 		'libdrm2 (>= 2.4.38)',
 		'libexpat1 (>= 2.0.1)',
 		'libgbm1 (>= 8.1~0)',
-		'libgcc1 (>= 1:3.0)',
 		'libglib2.0-0 (>= 2.16.0)',
 		'libglib2.0-0 (>= 2.39.4)',
 		'libgtk-3-0 (>= 3.9.10)',
@@ -81,13 +68,12 @@ export const referenceGeneratedDepsByArch = {
 		'libc6 (>= 2.4)',
 		'libc6 (>= 2.9)',
 		'libcairo2 (>= 1.6.0)',
+		'libcups2 (>= 1.6.0)',
 		'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3',
 		'libdbus-1-3 (>= 1.5.12)',
 		'libdrm2 (>= 2.4.38)',
 		'libexpat1 (>= 2.0.1)',
 		'libgbm1 (>= 8.1~0)',
-		'libgcc1 (>= 1:3.0)',
-		'libgcc1 (>= 1:3.5)',
 		'libglib2.0-0 (>= 2.16.0)',
 		'libglib2.0-0 (>= 2.39.4)',
 		'libgtk-3-0 (>= 3.9.10)',
@@ -121,6 +107,7 @@ export const referenceGeneratedDepsByArch = {
 		'libatspi2.0-0 (>= 2.9.90)',
 		'libc6 (>= 2.17)',
 		'libcairo2 (>= 1.6.0)',
+		'libcups2 (>= 1.6.0)',
 		'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3',
 		'libdbus-1-3 (>= 1.0.2)',
 		'libdrm2 (>= 2.4.38)',

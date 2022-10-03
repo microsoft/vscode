@@ -14,6 +14,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString, escapeDoubleQuotes, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
 import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
+import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { marked } from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
@@ -31,6 +32,53 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	readonly codeBlockRenderer?: (languageId: string, value: string) => Promise<HTMLElement>;
 	readonly asyncRenderCallback?: () => void;
 }
+
+const defaultMarkedRenderers = Object.freeze({
+	image: (href: string | null, title: string | null, text: string): string => {
+		let dimensions: string[] = [];
+		let attributes: string[] = [];
+		if (href) {
+			({ href, dimensions } = parseHrefAndDimensions(href));
+			attributes.push(`src="${escapeDoubleQuotes(href)}"`);
+		}
+		if (text) {
+			attributes.push(`alt="${escapeDoubleQuotes(text)}"`);
+		}
+		if (title) {
+			attributes.push(`title="${escapeDoubleQuotes(title)}"`);
+		}
+		if (dimensions.length) {
+			attributes = attributes.concat(dimensions);
+		}
+		return '<img ' + attributes.join(' ') + '>';
+	},
+
+	paragraph: (text: string): string => {
+		return `<p>${text}</p>`;
+	},
+
+	link: (href: string | null, title: string | null, text: string): string => {
+		if (typeof href !== 'string') {
+			return '';
+		}
+
+		// Remove markdown escapes. Workaround for https://github.com/chjj/marked/issues/829
+		if (href === text) { // raw link case
+			text = removeMarkdownEscapes(text);
+		}
+
+		title = typeof title === 'string' ? escapeDoubleQuotes(removeMarkdownEscapes(title)) : '';
+		href = removeMarkdownEscapes(href);
+
+		// HTML Encode href
+		href = href.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
+		return `<a href="${href}" title="${title || href}">${text}</a>`;
+	},
+});
 
 /**
  * Low-level way create a html element from a markdown string.
@@ -93,49 +141,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	};
 
 	const renderer = new marked.Renderer();
-
-	renderer.image = (href: string, title: string, text: string) => {
-		let dimensions: string[] = [];
-		let attributes: string[] = [];
-		if (href) {
-			({ href, dimensions } = parseHrefAndDimensions(href));
-			attributes.push(`src="${escapeDoubleQuotes(href)}"`);
-		}
-		if (text) {
-			attributes.push(`alt="${escapeDoubleQuotes(text)}"`);
-		}
-		if (title) {
-			attributes.push(`title="${escapeDoubleQuotes(title)}"`);
-		}
-		if (dimensions.length) {
-			attributes = attributes.concat(dimensions);
-		}
-		return '<img ' + attributes.join(' ') + '>';
-	};
-	renderer.link = (href, title, text): string => {
-		if (typeof href !== 'string') {
-			return '';
-		}
-
-		// Remove markdown escapes. Workaround for https://github.com/chjj/marked/issues/829
-		if (href === text) { // raw link case
-			text = removeMarkdownEscapes(text);
-		}
-
-		title = typeof title === 'string' ? escapeDoubleQuotes(removeMarkdownEscapes(title)) : '';
-		href = removeMarkdownEscapes(href);
-
-		// HTML Encode href
-		href = href.replace(/&/g, '&amp;')
-			.replace(/</g, '&lt;')
-			.replace(/>/g, '&gt;')
-			.replace(/"/g, '&quot;')
-			.replace(/'/g, '&#39;');
-		return `<a href="${href}" title="${title || href}">${text}</a>`;
-	};
-	renderer.paragraph = (text): string => {
-		return `<p>${text}</p>`;
-	};
+	renderer.image = defaultMarkedRenderers.image;
+	renderer.link = defaultMarkedRenderers.link;
+	renderer.paragraph = defaultMarkedRenderers.paragraph;
 
 	// Will collect [id, renderedElement] tuples
 	const codeBlocks: Promise<[string, HTMLElement]>[] = [];
@@ -143,7 +151,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	if (options.codeBlockRenderer) {
 		renderer.code = (code, lang) => {
 			const id = defaultGenerator.nextId();
-			const value = options.codeBlockRenderer!(lang ?? '', code);
+			const value = options.codeBlockRenderer!(postProcessCodeBlockLanguageId(lang), code);
 			codeBlocks.push(value.then(element => [id, element]));
 			return `<div class="code" data-code="${id}">${escape(code)}</div>`;
 		};
@@ -294,6 +302,18 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	};
 }
 
+function postProcessCodeBlockLanguageId(lang: string | undefined): string {
+	if (!lang) {
+		return '';
+	}
+
+	const parts = lang.split(/[\s+|:|,|\{|\?]/, 1);
+	if (parts.length) {
+		return parts[0];
+	}
+	return lang;
+}
+
 function resolveWithBaseUri(baseUri: URI, href: string): string {
 	const hasScheme = /^\w[\w\d+.-]*:/.test(href);
 	if (hasScheme) {
@@ -338,6 +358,26 @@ function sanitizeRenderedMarkdown(
 	}
 }
 
+export const allowedMarkdownAttr = [
+	'align',
+	'alt',
+	'class',
+	'controls',
+	'data-code',
+	'data-href',
+	'height',
+	'href',
+	'loop',
+	'muted',
+	'playsinline',
+	'poster',
+	'src',
+	'style',
+	'target',
+	'title',
+	'width',
+];
+
 function getSanitizerOptions(options: { readonly isTrusted?: boolean }): { config: dompurify.Config; allowedSchemes: string[] } {
 	const allowedSchemes = [
 		Schemas.http,
@@ -360,8 +400,8 @@ function getSanitizerOptions(options: { readonly isTrusted?: boolean }): { confi
 			// Since we have our own sanitize function for marked, it's possible we missed some tag so let dompurify make sure.
 			// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
 			// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
-			ALLOWED_TAGS: ['ul', 'li', 'p', 'b', 'i', 'code', 'blockquote', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'em', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'div', 'del', 'a', 'strong', 'br', 'img', 'span'],
-			ALLOWED_ATTR: ['href', 'data-href', 'target', 'title', 'src', 'alt', 'class', 'style', 'data-code', 'width', 'height', 'align'],
+			ALLOWED_TAGS: [...DOM.basicMarkupHtmlTags],
+			ALLOWED_ATTR: allowedMarkdownAttr,
 			ALLOW_UNKNOWN_PROTOCOLS: true,
 		},
 		allowedSchemes
@@ -380,6 +420,27 @@ export function renderStringAsPlaintext(string: IMarkdownString | string) {
  * Strips all markdown from `markdown`. For example `# Header` would be output as `Header`.
  */
 export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
+	// values that are too long will freeze the UI
+	let value = markdown.value ?? '';
+	if (value.length > 100_000) {
+		value = `${value.substr(0, 100_000)}…`;
+	}
+
+	const html = marked.parse(value, { renderer: plainTextRenderer.getValue() }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
+
+	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString();
+}
+
+const unescapeInfo = new Map<string, string>([
+	['&quot;', '"'],
+	['&nbsp;', ' '],
+	['&amp;', '&'],
+	['&#39;', '\''],
+	['&lt;', '<'],
+	['&gt;', '>'],
+]);
+
+const plainTextRenderer = new Lazy<marked.Renderer>(() => {
 	const renderer = new marked.Renderer();
 
 	renderer.code = (code: string): string => {
@@ -442,22 +503,5 @@ export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
 	renderer.link = (_href: string, _title: string, text: string): string => {
 		return text;
 	};
-	// values that are too long will freeze the UI
-	let value = markdown.value ?? '';
-	if (value.length > 100_000) {
-		value = `${value.substr(0, 100_000)}…`;
-	}
-
-	const unescapeInfo = new Map<string, string>([
-		['&quot;', '"'],
-		['&nbsp;', ' '],
-		['&amp;', '&'],
-		['&#39;', '\''],
-		['&lt;', '<'],
-		['&gt;', '>'],
-	]);
-
-	const html = marked.parse(value, { renderer }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
-
-	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString();
-}
+	return renderer;
+});

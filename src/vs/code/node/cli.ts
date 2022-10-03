@@ -19,7 +19,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
 import { addArg, parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
 import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from 'vs/platform/environment/node/stdin';
-import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
+import { createWaitMarkerFileSync } from 'vs/platform/environment/node/wait';
 import product from 'vs/platform/product/common/product';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { randomPath } from 'vs/base/common/extpath';
@@ -63,10 +63,6 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Shell integration
 	else if (args['locate-shell-integration-path']) {
-		// Silently fail when the terminal is not VS Code's integrated terminal
-		if (process.env['TERM_PROGRAM'] !== 'vscode') {
-			return;
-		}
 		let file: string;
 		switch (args['locate-shell-integration-path']) {
 			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path bash)"`
@@ -75,6 +71,8 @@ export async function main(argv: string[]): Promise<any> {
 			case 'pwsh': file = 'shellIntegration.ps1'; break;
 			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path zsh)"`
 			case 'zsh': file = 'shellIntegration-rc.zsh'; break;
+			// Usage: `string match -q "$TERM_PROGRAM" "vscode"; and . (code --locate-shell-integration-path fish)`
+			case 'fish': file = 'shellIntegration.fish'; break;
 			default: throw new Error('Error using --locate-shell-integration-path: Invalid shell type');
 		}
 		console.log(join(dirname(FileAccess.asFileUri('', require)).fsPath, 'out', 'vs', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
@@ -183,7 +181,7 @@ export async function main(argv: string[]): Promise<any> {
 
 				// returns a file path where stdin input is written into (write in progress).
 				try {
-					readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
+					await readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
 
 					// Make sure to open tmp file
 					addArg(argv, stdinFilePath);
@@ -222,7 +220,7 @@ export async function main(argv: string[]): Promise<any> {
 		// is closed and then exit the waiting process.
 		let waitMarkerFilePath: string | undefined;
 		if (args.wait) {
-			waitMarkerFilePath = createWaitMarkerFile(verbose);
+			waitMarkerFilePath = createWaitMarkerFileSync(verbose);
 			if (waitMarkerFilePath) {
 				addArg(argv, '--waitMarkerFilePath', waitMarkerFilePath);
 			}
@@ -336,7 +334,7 @@ export async function main(argv: string[]): Promise<any> {
 									return false;
 								}
 								if (target.type === 'page') {
-									return target.url.indexOf('workbench/workbench.html') > 0;
+									return target.url.indexOf('workbench/workbench.html') > 0 || target.url.indexOf('workbench/workbench-dev.html') > 0;
 								} else {
 									return true;
 								}

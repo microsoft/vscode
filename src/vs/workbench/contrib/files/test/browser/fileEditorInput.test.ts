@@ -37,6 +37,10 @@ suite('Files - FileEditorInput', () => {
 		override createTextEditor(input: IResourceEditorInput) {
 			return createFileInput(input.resource);
 		}
+
+		override async resolveTextEditor(input: IResourceEditorInput) {
+			return createFileInput(input.resource);
+		}
 	}
 
 	setup(() => {

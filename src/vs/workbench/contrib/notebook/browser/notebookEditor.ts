@@ -27,7 +27,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorPaneSelectio
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { INotebookEditorOptions, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
+import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelActionViewItem';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -121,10 +121,6 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 		this._rootElement.id = `notebook-editor-element-${generateUuid()}`;
 	}
 
-	getDomNode() {
-		return this._rootElement;
-	}
-
 	override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === SELECT_KERNEL_ID) {
 			// this is being disposed by the consumer
@@ -182,9 +178,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 
 			// there currently is a widget which we still own so
 			// we need to hide it before getting a new widget
-			if (this._widget.value) {
-				this._widget.value.onWillHide();
-			}
+			this._widget.value?.onWillHide();
 
 			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input);
 
@@ -423,20 +417,6 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 	}
 
 	//#endregion
-
-	//#region Editor Features
-
-	//#endregion
-
-	override dispose() {
-		super.dispose();
-	}
-
-	// toJSON(): object {
-	// 	return {
-	// 		notebookHandle: this.viewModel?.handle
-	// 	};
-	// }
 }
 
 class NotebookEditorSelection implements IEditorPaneSelection {

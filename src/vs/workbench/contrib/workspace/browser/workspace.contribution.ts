@@ -271,7 +271,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 							localize('addWorkspaceFolderMessage', "Do you trust the authors of the files in this folder?"),
 							[localize('yes', 'Yes'), localize('no', 'No')],
 							{
-								detail: localize('addWorkspaceFolderDetail', "You are adding files to a trusted workspace that are not currently trusted. Do you trust the authors of these new files?"),
+								detail: localize('addWorkspaceFolderDetail', "You are adding files that are not currently trusted to a trusted workspace. Do you trust the authors of these new files?"),
 								cancelId: 1,
 								custom: { icon: Codicon.shield }
 							}

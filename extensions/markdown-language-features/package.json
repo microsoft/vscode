@@ -187,22 +187,22 @@
         },
         {
           "command": "markdown.showSource",
-          "when": "markdownPreviewFocus",
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "navigation"
         },
         {
           "command": "markdown.preview.refresh",
-          "when": "markdownPreviewFocus",
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "1_markdown"
         },
         {
           "command": "markdown.preview.toggleLock",
-          "when": "markdownPreviewFocus",
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "1_markdown"
         },
         {
           "command": "markdown.showPreviewSecuritySelector",
-          "when": "markdownPreviewFocus",
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "1_markdown"
         }
       ],
@@ -247,7 +247,7 @@
         },
         {
           "command": "markdown.showSource",
-          "when": "markdownPreviewFocus",
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "navigation"
         },
         {
@@ -256,11 +256,11 @@
         },
         {
           "command": "markdown.showPreviewSecuritySelector",
-          "when": "markdownPreviewFocus"
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'"
         },
         {
           "command": "markdown.preview.toggleLock",
-          "when": "markdownPreviewFocus"
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'"
         },
         {
           "command": "markdown.preview.refresh",
@@ -268,7 +268,7 @@
         },
         {
           "command": "markdown.preview.refresh",
-          "when": "markdownPreviewFocus"
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'"
         },
         {
           "command": "markdown.findAllFileReferences",
@@ -434,78 +434,98 @@
             "experimental"
           ]
         },
-        "markdown.experimental.validate.enabled": {
+        "markdown.validate.enabled": {
           "type": "boolean",
           "scope": "resource",
-          "description": "%configuration.markdown.experimental.validate.enabled.description%",
-          "default": false,
-          "tags": [
-            "experimental"
-          ]
+          "description": "%configuration.markdown.validate.enabled.description%",
+          "default": false
         },
-        "markdown.experimental.validate.referenceLinks.enabled": {
+        "markdown.validate.referenceLinks.enabled": {
           "type": "string",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.referenceLinks.enabled.description%",
+          "markdownDescription": "%configuration.markdown.validate.referenceLinks.enabled.description%",
           "default": "warning",
           "enum": [
             "ignore",
             "warning",
             "error"
-          ],
-          "tags": [
-            "experimental"
           ]
         },
-        "markdown.experimental.validate.fragmentLinks.enabled": {
+        "markdown.validate.fragmentLinks.enabled": {
           "type": "string",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.fragmentLinks.enabled.description%",
+          "markdownDescription": "%configuration.markdown.validate.fragmentLinks.enabled.description%",
           "default": "warning",
           "enum": [
             "ignore",
             "warning",
             "error"
-          ],
-          "tags": [
-            "experimental"
           ]
         },
-        "markdown.experimental.validate.fileLinks.enabled": {
+        "markdown.validate.fileLinks.enabled": {
           "type": "string",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.fileLinks.enabled.description%",
+          "markdownDescription": "%configuration.markdown.validate.fileLinks.enabled.description%",
           "default": "warning",
           "enum": [
             "ignore",
             "warning",
             "error"
-          ],
-          "tags": [
-            "experimental"
           ]
         },
-        "markdown.experimental.validate.fileLinks.markdownFragmentLinks": {
+        "markdown.validate.fileLinks.markdownFragmentLinks": {
           "type": "string",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.fileLinks.markdownFragmentLinks.description%",
-          "default": "ignore",
+          "markdownDescription": "%configuration.markdown.validate.fileLinks.markdownFragmentLinks.description%",
+          "default": "inherit",
           "enum": [
+            "inherit",
             "ignore",
             "warning",
             "error"
-          ],
-          "tags": [
-            "experimental"
           ]
         },
-        "markdown.experimental.validate.ignoreLinks": {
+        "markdown.validate.ignoredLinks": {
           "type": "array",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.ignoreLinks.description%",
+          "markdownDescription": "%configuration.markdown.validate.ignoredLinks.description%",
           "items": {
             "type": "string"
-          },
+          }
+        },
+        "markdown.experimental.updateLinksOnFileMove.enabled": {
+          "type": "string",
+          "enum": [
+            "prompt",
+            "always",
+            "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.markdown.experimental.updateLinksOnFileMove.enabled.prompt%",
+            "%configuration.markdown.experimental.updateLinksOnFileMove.enabled.always%",
+            "%configuration.markdown.experimental.updateLinksOnFileMove.enabled.never%"
+          ],
+          "default": "never",
+          "markdownDescription": "%configuration.markdown.experimental.updateLinksOnFileMove.enabled%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "markdown.experimental.updateLinksOnFileMove.externalFileGlobs": {
+          "type": "string",
+          "default": "**/*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif,tiff,svg,mp4}",
+          "description": "%configuration.markdown.experimental.updateLinksOnFileMove.fileGlobs%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "markdown.experimental.updateLinksOnFileMove.enableForDirectories": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.markdown.experimental.updateLinksOnFileMove.enableForDirectories%",
+          "scope": "resource",
           "tags": [
             "experimental"
           ]
@@ -515,7 +535,11 @@
     "configurationDefaults": {
       "[markdown]": {
         "editor.wordWrap": "on",
-        "editor.quickSuggestions": false
+        "editor.quickSuggestions": {
+          "comments": "off",
+          "strings": "off",
+          "other": "off"
+        }
       }
     },
     "jsonValidation": [
@@ -562,9 +586,8 @@
     "markdown-it-front-matter": "^0.2.1",
     "morphdom": "^2.6.1",
     "picomatch": "^2.3.1",
-    "vscode-languageclient": "^8.0.1",
-    "vscode-languageserver-textdocument": "^1.0.4",
-    "vscode-nls": "^5.0.0",
+    "vscode-languageclient": "^8.0.2",
+    "vscode-nls": "^5.2.0",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {

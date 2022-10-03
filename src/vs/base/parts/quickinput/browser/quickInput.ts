@@ -15,6 +15,7 @@ import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybi
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
 import { IProgressBarStyles, ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
@@ -28,7 +29,7 @@ import { isIOS } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { isString, withNullAsUndefined } from 'vs/base/common/types';
 import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickWillAcceptEvent, ItemActivation, NO_KEY_MODS, QuickInputHideReason, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickWillAcceptEvent, ItemActivation, NO_KEY_MODS, QuickInputHideReason, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 import { QuickInputBox } from './quickInputBox';
@@ -740,6 +741,14 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.update();
 	}
 
+	set toggles(toggles: IQuickInputToggle[] | undefined) {
+		// HACK: Filter out toggles here that are not concrete Toggle objects. This is to workaround
+		// a layering issue as quick input's interface is in common but Toggle is in browser and
+		// it requires a HTMLElement on its interface
+		const concreteToggles = toggles?.filter(opts => opts instanceof Toggle) as Toggle[];
+		this.ui.inputBox.toggles = concreteToggles;
+	}
+
 	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
 
 	onDidTriggerItemButton = this.onDidTriggerItemButtonEmitter.event;
@@ -1157,11 +1166,14 @@ class InputBox extends QuickInput implements IInputBox {
 		if (!this.visible) {
 			return;
 		}
+
+		this.ui.container.classList.remove('hidden-input');
 		const visibilities: Visibilities = {
 			title: !!this.title || !!this.step || !!this.buttons.length,
 			description: !!this.description || !!this.step,
 			inputBox: true, message: true
 		};
+
 		this.ui.setVisibilities(visibilities);
 		super.update();
 		if (this.ui.inputBox.value !== this.value) {
@@ -1177,7 +1189,6 @@ class InputBox extends QuickInput implements IInputBox {
 		if (this.ui.inputBox.password !== this.password) {
 			this.ui.inputBox.password = this.password;
 		}
-
 	}
 }
 
@@ -1610,9 +1621,7 @@ export class QuickInputController extends Disposable {
 		this.onShowEmitter.fire();
 		const oldController = this.controller;
 		this.controller = controller;
-		if (oldController) {
-			oldController.didHide();
-		}
+		oldController?.didHide();
 
 		this.setEnabled(true);
 		ui.leftActionBar.clear();
@@ -1686,10 +1695,10 @@ export class QuickInputController extends Disposable {
 		if (enabled !== this.enabled) {
 			this.enabled = enabled;
 			for (const item of this.getUI().leftActionBar.viewItems) {
-				(item as ActionViewItem).getAction().enabled = enabled;
+				(item as ActionViewItem).action.enabled = enabled;
 			}
 			for (const item of this.getUI().rightActionBar.viewItems) {
-				(item as ActionViewItem).getAction().enabled = enabled;
+				(item as ActionViewItem).action.enabled = enabled;
 			}
 			this.getUI().checkAll.disabled = !enabled;
 			// this.getUI().inputBox.enabled = enabled; Avoid loosing focus.

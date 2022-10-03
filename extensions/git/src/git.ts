@@ -427,7 +427,7 @@ export class Git {
 			let previousProgress = 0;
 
 			lineStream.on('data', (line: string) => {
-				let match: RegExpMatchArray | null = null;
+				let match: RegExpExecArray | null = null;
 
 				if (match = /Counting objects:\s*(\d+)%/i.exec(line)) {
 					totalProgress = Math.floor(parseInt(match[1]) * 0.1);
@@ -481,7 +481,7 @@ export class Git {
 			const repoUri = Uri.file(repoPath);
 			const pathUri = Uri.file(repositoryPath);
 			if (repoUri.authority.length !== 0 && pathUri.authority.length === 0) {
-				// eslint-disable-next-line code-no-look-behind-regex
+				// eslint-disable-next-line local/code-no-look-behind-regex
 				const match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
 				if (match !== null) {
 					const [, letter] = match;
@@ -504,13 +504,6 @@ export class Git {
 				}
 
 				return path.normalize(pathUri.fsPath);
-			}
-
-			// On Windows, there are cases in which the normalized path for a mapped folder contains a trailing `\`
-			// character (ex: \\server\folder\) due to the implementation of `path.normalize()`. This behaviour is
-			// by design as documented in https://github.com/nodejs/node/issues/1765.
-			if (repoUri.authority.length !== 0) {
-				return repoPath.replace(/\\$/, '');
 			}
 		}
 
@@ -655,6 +648,27 @@ export class Git {
 
 	private log(output: string): void {
 		this._onOutput.emit('log', output);
+	}
+
+	async mergeFile(options: { input1Path: string; input2Path: string; basePath: string; diff3?: boolean }): Promise<string> {
+		const args = ['merge-file', '-p', options.input1Path, options.basePath, options.input2Path];
+		if (options.diff3) {
+			args.push('--diff3');
+		} else {
+			args.push('--no-diff3');
+		}
+
+		try {
+			const result = await this.exec('', args);
+			return result.stdout;
+		} catch (err) {
+			if (typeof err.stdout === 'string') {
+				// The merge had conflicts, stdout still contains the merged result (with conflict markers)
+				return err.stdout;
+			} else {
+				throw err;
+			}
+		}
 	}
 }
 
@@ -1095,7 +1109,7 @@ export class Repository {
 		}
 
 		if (!isText) {
-			const result = filetype(buffer);
+			const result = await filetype.fromBuffer(buffer);
 
 			if (!result) {
 				return { mimetype: 'application/octet-stream' };
@@ -1556,6 +1570,10 @@ export class Repository {
 		}
 	}
 
+	async mergeAbort(): Promise<void> {
+		await this.exec(['merge', '--abort']);
+	}
+
 	async tag(name: string, message?: string): Promise<void> {
 		let args = ['tag'];
 
@@ -1690,6 +1708,9 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.NoRemoteRepositorySpecified;
 			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
+			} else if (/! \[rejected\].*\(non-fast-forward\)/m.test(err.stderr || '')) {
+				// The local branch has outgoing changes and it cannot be fast-forwarded.
+				err.gitErrorCode = GitErrorCodes.BranchFastForwardRejected;
 			}
 
 			throw err;
