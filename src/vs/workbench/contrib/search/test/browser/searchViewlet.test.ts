@@ -73,7 +73,7 @@ suite('Search - Viewlet', () => {
 		const lineMatch = fileMatch.matches()[0];
 
 		assert.strictEqual(fileMatch.id(), URI.file(`${getRootName()}/foo`).toString());
-		assert.strictEqual(lineMatch.id(), `${URI.file(`${getRootName()}/foo`).toString()}>[2,1 -> 2,2]b`);
+		assert.strictEqual(lineMatch.id(), `${URI.file(`${getRootName()}/foo`).toString()}>[2:1..2:2)b`);
 	});
 
 	test('Comparer', () => {

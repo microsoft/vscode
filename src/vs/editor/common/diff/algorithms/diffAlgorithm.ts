@@ -34,6 +34,10 @@ export class OffsetRange {
 	public get length(): number {
 		return this.endExclusive - this.start;
 	}
+
+	public toString(): string {
+		return `[${this.start}..${this.endExclusive})`;
+	}
 }
 
 export interface ISequence {

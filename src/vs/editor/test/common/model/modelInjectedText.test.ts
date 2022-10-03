@@ -91,11 +91,11 @@ suite('Editor Model - Injected Text Events', () => {
 		thisModel.pushEditOperations(null, [EditOperation.replace(new Range(2, 2, 2, 2), '\n\n\n')], null);
 		assert.deepStrictEqual(thisModel.getAllDecorations(undefined).map(d => ({ description: d.options.description, range: d.range.toString() })), [{
 			'description': 'test1',
-			'range': '[2,1 -> 2,1]'
+			'range': '[2:1..2:1)'
 		},
 		{
 			'description': 'test2',
-			'range': '[2,2 -> 5,6]'
+			'range': '[2:2..5:6)'
 		}]);
 		assert.deepStrictEqual(recordedChanges.splice(0), [
 			{

@@ -306,10 +306,12 @@ export class Range {
 	}
 
 	/**
-	 * Transform to a user presentable string representation.
+	 * Provides a human readable string representation for debugging purposes.
+	 * This representation uses "half-open interval" notation, indicating the endpoint character is not included.
+	 * Example: [10:1..20:1), indicating the text starts at line 10 column 1 and ends at line 20 column 1 not included.
 	 */
 	public toString(): string {
-		return '[' + this.startLineNumber + ',' + this.startColumn + ' -> ' + this.endLineNumber + ',' + this.endColumn + ']';
+		return '[' + this.startLineNumber + ':' + this.startColumn + '..' + this.endLineNumber + ':' + this.endColumn + ')';
 	}
 
 	/**

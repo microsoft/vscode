@@ -40,7 +40,7 @@ export class RangeMapping {
 		readonly modifiedRange: Range,
 	) { }
 
-	toString(): string {
+	public toString(): string {
 		return `{${this.originalRange.toString()}->${this.modifiedRange.toString()}}`;
 	}
 }
@@ -63,8 +63,8 @@ export class LineRange {
 		return this.endLineNumberExclusive - this.startLineNumber;
 	}
 
-	toString(): string {
-		return `[${this.startLineNumber},${this.endLineNumberExclusive})`;
+	public toString(): string {
+		return `[${this.startLineNumber}..${this.endLineNumberExclusive})`;
 	}
 
 	public join(other: LineRange): LineRange {

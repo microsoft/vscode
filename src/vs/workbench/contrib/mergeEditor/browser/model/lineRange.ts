@@ -74,7 +74,7 @@ export class LineRange {
 	}
 
 	public toString() {
-		return `[${this.startLineNumber},${this.endLineNumberExclusive})`;
+		return `[${this.startLineNumber}..${this.endLineNumberExclusive})`;
 	}
 
 	public equals(originalRange: LineRange) {

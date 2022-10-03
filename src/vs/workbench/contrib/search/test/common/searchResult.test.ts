@@ -50,7 +50,7 @@ suite('SearchResult', () => {
 		assert.strictEqual(lineMatch.range().endLineNumber, 2);
 		assert.strictEqual(lineMatch.range().startColumn, 1);
 		assert.strictEqual(lineMatch.range().endColumn, 6);
-		assert.strictEqual(lineMatch.id(), 'file:///folder/file.txt>[2,1 -> 2,6]foo');
+		assert.strictEqual(lineMatch.id(), 'file:///folder/file.txt>[2:1..2:6)foo');
 
 		assert.strictEqual(lineMatch.fullMatchText(), 'foo');
 		assert.strictEqual(lineMatch.fullMatchText(true), '0 foo bar');

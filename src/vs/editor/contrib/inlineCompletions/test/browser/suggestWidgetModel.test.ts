@@ -116,7 +116,7 @@ suite('Suggest Widget Model', () => {
 			range: result.range.toString(),
 			text: result.insertText
 		}, {
-			range: '[1,4 -> 1,4]',
+			range: '[1:4..1:4)',
 			text: 'ction'
 		});
 

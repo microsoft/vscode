@@ -41,21 +41,21 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 				[
 					{
 						level: 0,
-						range: '[1,1 -> 1,2]',
-						openRange: '[1,1 -> 1,2]',
-						closeRange: '[1,23 -> 1,24]',
+						range: '[1:1..1:2)',
+						openRange: '[1:1..1:2)',
+						closeRange: '[1:23..1:24)',
 					},
 					{
 						level: 1,
-						range: '[1,3 -> 1,4]',
-						openRange: '[1,3 -> 1,4]',
-						closeRange: '[1,9 -> 1,10]',
+						range: '[1:3..1:4)',
+						openRange: '[1:3..1:4)',
+						closeRange: '[1:9..1:10)',
 					},
 					{
 						level: 1,
-						range: '[1,11 -> 1,12]',
-						openRange: '[1,11 -> 1,12]',
-						closeRange: '[1,18 -> 1,19]',
+						range: '[1:11..1:12)',
+						openRange: '[1:11..1:12)',
+						closeRange: '[1:18..1:19)',
 					},
 				]
 			);
@@ -74,15 +74,15 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 				[
 					{
 						level: 0,
-						range: '[1,1 -> 1,2]',
-						openRange: '[1,1 -> 1,2]',
-						closeRange: '[1,23 -> 1,24]',
+						range: '[1:1..1:2)',
+						openRange: '[1:1..1:2)',
+						closeRange: '[1:23..1:24)',
 					},
 					{
 						level: 1,
-						range: '[1,3 -> 1,4]',
-						openRange: '[1,3 -> 1,4]',
-						closeRange: '[1,9 -> 1,10]',
+						range: '[1:3..1:4)',
+						openRange: '[1:3..1:4)',
+						closeRange: '[1:9..1:10)',
 					},
 				]
 			);
@@ -115,45 +115,45 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 				[
 					{
 						level: 0,
-						range: '[1,2 -> 1,3]',
-						openRange: '[1,2 -> 1,3]',
-						closeRange: '[1,23 -> 1,24]',
+						range: '[1:2..1:3)',
+						openRange: '[1:2..1:3)',
+						closeRange: '[1:23..1:24)',
 					},
 					{
 						level: 1,
-						range: '[1,4 -> 1,5]',
-						openRange: '[1,4 -> 1,5]',
-						closeRange: '[1,9 -> 1,10]',
+						range: '[1:4..1:5)',
+						openRange: '[1:4..1:5)',
+						closeRange: '[1:9..1:10)',
 					},
 					{
 						level: 2,
-						range: '[1,6 -> 1,7]',
-						openRange: '[1,6 -> 1,7]',
-						closeRange: '[1,7 -> 1,8]',
+						range: '[1:6..1:7)',
+						openRange: '[1:6..1:7)',
+						closeRange: '[1:7..1:8)',
 					},
 					{
 						level: 1,
-						range: '[1,11 -> 1,12]',
-						openRange: '[1,11 -> 1,12]',
-						closeRange: '[1,18 -> 1,19]',
+						range: '[1:11..1:12)',
+						openRange: '[1:11..1:12)',
+						closeRange: '[1:18..1:19)',
 					},
 					{
 						level: 2,
-						range: '[1,14 -> 1,15]',
-						openRange: '[1,14 -> 1,15]',
-						closeRange: '[1,16 -> 1,17]',
+						range: '[1:14..1:15)',
+						openRange: '[1:14..1:15)',
+						closeRange: '[1:16..1:17)',
 					},
 					{
 						level: 1,
-						range: '[1,20 -> 1,21]',
-						openRange: '[1,20 -> 1,21]',
-						closeRange: '[1,21 -> 1,22]',
+						range: '[1:20..1:21)',
+						openRange: '[1:20..1:21)',
+						closeRange: '[1:21..1:22)',
 					},
 					{
 						level: 0,
-						range: '[1,25 -> 1,26]',
-						openRange: '[1,25 -> 1,26]',
-						closeRange: '[1,26 -> 1,27]',
+						range: '[1:25..1:26)',
+						openRange: '[1:25..1:26)',
+						closeRange: '[1:26..1:27)',
 					},
 				]
 			);
