@@ -15,6 +15,7 @@ import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { CodeActionItem, CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CodeActionsState } from './codeActionModel';
 import { CodeActionShowOptions, CodeActionWidget } from './codeActionWidget';
@@ -34,8 +35,9 @@ export class CodeActionUi extends Disposable {
 		private readonly delegate: {
 			applyCodeAction: (action: CodeActionItem, regtriggerAfterApply: boolean, preview: boolean) => Promise<void>;
 		},
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -166,7 +168,7 @@ export class CodeActionUi extends Disposable {
 			onHide: () => {
 				this._editor?.focus();
 			},
-		});
+		}, this._contextKeyService);
 	}
 
 	private toCoords(position: IPosition): IAnchor {
