@@ -10,7 +10,7 @@ import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '
 import type { ITerminalAddon } from 'xterm-headless';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITerminalQuickFixAction, ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Terminal, IDecoration } from 'xterm';
@@ -20,6 +20,9 @@ import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
+import { asArray } from 'vs/base/common/arrays';
+import { localize } from 'vs/nls';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export interface ITerminalQuickFix {
 	showMenu(): void;
@@ -46,14 +49,17 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _commandListeners: Map<string, ITerminalQuickFixOptions[]> = new Map();
 
-	private _quickFixes: ITerminalQuickFixAction[] | undefined;
+	private _quickFixes: IAction[] | undefined;
 
 	private _decoration: IDecoration | undefined;
 
-	constructor(private readonly _capabilities: ITerminalCapabilityStore,
+	constructor(
+		private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService) {
+		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IOpenerService private readonly _openerService: IOpenerService
+	) {
 		super();
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (commandDetectionCapability) {
@@ -94,7 +100,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		this._register(commandDetection.onCommandFinished(async command => {
 			this._decoration?.dispose();
 			this._decoration = undefined;
-			this._quickFixes = getQuickFixes(command, this._commandListeners, this._onDidRequestRerunCommand);
+			this._quickFixes = getQuickFixes(command, this._commandListeners, this._openerService, this._onDidRequestRerunCommand);
 		}));
 		// The buffer is not ready by the time command finish
 		// is called. Add the decoration on command start using the actions, if any,
@@ -135,7 +141,12 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	}
 }
 
-export function getQuickFixes(command: ITerminalCommand, actionOptions: Map<string, ITerminalQuickFixOptions[]>, onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>): IAction[] | undefined {
+export function getQuickFixes(
+	command: ITerminalCommand,
+	actionOptions: Map<string, ITerminalQuickFixOptions[]>,
+	openerService: IOpenerService,
+	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>
+): IAction[] | undefined {
 	const actions: IAction[] = [];
 	const newCommand = command.command;
 	for (const options of actionOptions.values()) {
@@ -154,26 +165,63 @@ export function getQuickFixes(command: ITerminalCommand, actionOptions: Map<stri
 			}
 			const quickFixes = actionOption.getQuickFixes({ commandLineMatch, outputMatch }, command);
 			if (quickFixes) {
-				for (const quickFix of quickFixes) {
-					actions.push({
-						id: quickFix.id,
-						label: quickFix.label,
-						class: quickFix.class,
-						enabled: quickFix.enabled,
-						run: async () => {
-							await quickFix.run();
-							if (quickFix.commandToRunInTerminal) {
-								onDidRequestRerunCommand?.fire({ command: quickFix.commandToRunInTerminal, addNewLine: quickFix.addNewLine });
+				for (const quickFix of asArray(quickFixes)) {
+					let action: IAction | undefined;
+					if ('type' in quickFix) {
+						switch (quickFix.type) {
+							case 'command': {
+								const label = localize('quickFix.command', 'Run: {0}', quickFix.command);
+								action = {
+									id: `quickFix.command`,
+									label,
+									class: undefined,
+									enabled: true,
+									run: () => {
+										onDidRequestRerunCommand?.fire({
+											command: quickFix.command,
+											addNewLine: quickFix.addNewLine
+										});
+									},
+									tooltip: label,
+									command: quickFix.command
+								} as IAction;
+								break;
 							}
-						},
-						tooltip: quickFix.tooltip
-					});
+							case 'opener': {
+								const label = localize('quickFix.opener', 'Open: {0}', quickFix.uri.toString());
+								action = {
+									id: `quickFix.opener`,
+									label,
+									class: undefined,
+									enabled: true,
+									run: () => openerService.open(quickFix.uri),
+									tooltip: label,
+									uri: quickFix.uri
+								} as IAction;
+								break;
+							}
+						}
+					} else {
+						action = {
+							id: quickFix.id,
+							label: quickFix.label,
+							class: quickFix.class,
+							enabled: quickFix.enabled,
+							run: () => quickFix.run(),
+							tooltip: quickFix.tooltip
+						};
+					}
+					if (action) {
+						actions.push(action);
+					}
 				}
 			}
 		}
 	}
 	return actions.length === 0 ? undefined : actions;
 }
+
+
 
 let foregroundColor: string | Color | undefined;
 let backgroundColor: string | Color | undefined;

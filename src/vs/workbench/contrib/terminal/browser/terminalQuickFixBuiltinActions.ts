@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { QuickFixMatchResult, ITerminalQuickFixAction, ITerminalQuickFixOptions, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalQuickFixMatchResult, ITerminalQuickFixOptions, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
+import { URI } from 'vs/base/common/uri';
 
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
@@ -29,21 +28,16 @@ export function gitSimilarCommand(): ITerminalQuickFixOptions {
 			length: 3
 		},
 		exitStatus: false,
-		getQuickFixes: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
-			const actions: ITerminalQuickFixAction[] = [];
+		getQuickFixes: (matchResult: TerminalQuickFixMatchResult, command: ITerminalCommand) => {
 			const fixedCommand = matchResult?.outputMatch?.[1];
 			if (!fixedCommand) {
 				return;
 			}
-			const commandToRunInTerminal = `git ${fixedCommand}`;
-			const label = localize("terminal.runCommand", "Run: {0}", commandToRunInTerminal);
-			actions.push({
-				class: undefined, tooltip: label, id: 'terminal.gitSimilarCommand', label, enabled: true,
-				commandToRunInTerminal,
-				addNewLine: true,
-				run: () => { }
-			});
-			return actions;
+			return {
+				type: 'command',
+				command: `git ${fixedCommand}`,
+				addNewLine: true
+			};
 		}
 	};
 }
@@ -57,22 +51,20 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 			length: 30
 		},
 		exitStatus: false,
-		getQuickFixes: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
+		getQuickFixes: (matchResult: TerminalQuickFixMatchResult, command: ITerminalCommand) => {
 			const port = matchResult?.outputMatch?.[1];
 			if (!port) {
 				return;
 			}
-			const actions: ITerminalQuickFixAction[] = [];
 			const label = localize("terminal.freePort", "Free port {0}", port);
-			actions.push({
-				class: undefined, tooltip: label, id: 'terminal.freePort', label, enabled: true,
-				run: async () => {
-					await terminalInstance?.freePortKillProcess?.(port);
-				},
-				commandToRunInTerminal: command.command,
-				addNewLine: false
-			});
-			return actions;
+			return {
+				class: undefined,
+				tooltip: label,
+				id: 'terminal.freePort',
+				label,
+				enabled: true,
+				run: async () => terminalInstance?.freePortKillProcess?.(port)
+			};
 		}
 	};
 }
@@ -86,26 +78,21 @@ export function gitPushSetUpstream(): ITerminalQuickFixOptions {
 			length: 5
 		},
 		exitStatus: false,
-		getQuickFixes: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
+		getQuickFixes: (matchResult: TerminalQuickFixMatchResult, command: ITerminalCommand) => {
 			const branch = matchResult?.outputMatch?.[1];
 			if (!branch) {
 				return;
 			}
-			const actions: ITerminalQuickFixAction[] = [];
-			const commandToRunInTerminal = `git push --set-upstream origin ${branch}`;
-			const label = localize("terminal.runCommand", "Run: {0}", commandToRunInTerminal);
-			actions.push({
-				class: undefined, tooltip: label, id: 'terminal.gitPush', label, enabled: true,
-				commandToRunInTerminal,
-				addNewLine: true,
-				run: () => { }
-			});
-			return actions;
+			return {
+				type: 'command',
+				command: `git push --set-upstream origin ${branch}`,
+				addNewLine: true
+			};
 		}
 	};
 }
 
-export function gitCreatePr(openerService: IOpenerService): ITerminalQuickFixOptions {
+export function gitCreatePr(): ITerminalQuickFixOptions {
 	return {
 		commandLineMatcher: GitPushCommandLineRegex,
 		outputMatcher: {
@@ -115,7 +102,7 @@ export function gitCreatePr(openerService: IOpenerService): ITerminalQuickFixOpt
 			length: 5
 		},
 		exitStatus: true,
-		getQuickFixes: (matchResult: QuickFixMatchResult, command?: ITerminalCommand) => {
+		getQuickFixes: (matchResult: TerminalQuickFixMatchResult, command?: ITerminalCommand) => {
 			if (!command) {
 				return;
 			}
@@ -123,13 +110,10 @@ export function gitCreatePr(openerService: IOpenerService): ITerminalQuickFixOpt
 			if (!link) {
 				return;
 			}
-			const actions: IAction[] = [];
-			const label = localize("terminal.openLink", "Open link: {0}", link);
-			actions.push({
-				class: undefined, tooltip: label, id: 'terminal.gitCreatePr', label, enabled: true,
-				run: () => openerService.open(link)
-			});
-			return actions;
+			return {
+				type: 'opener',
+				uri: URI.parse(link)
+			};
 		}
 	};
 }
