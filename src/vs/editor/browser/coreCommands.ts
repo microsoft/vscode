@@ -194,8 +194,8 @@ export namespace EditorScroll_ {
 	}
 
 	export interface ParsedArguments {
-		direction: Direction;
-		unit: Unit;
+		direction: Direction | HorizontalDirection;
+		unit: Unit | HorizontalUnit;
 		value: number;
 		revealCursor: boolean;
 		select: boolean;
@@ -206,12 +206,21 @@ export namespace EditorScroll_ {
 		Down = 2
 	}
 
+	export const enum HorizontalDirection {
+		Left = 1,
+		Right = 2
+	}
+
 	export const enum Unit {
 		Line = 1,
 		WrappedLine = 2,
 		Page = 3,
 		HalfPage = 4,
 		Editor = 5
+	}
+
+	export const enum HorizontalUnit {
+		Character = 1
 	}
 }
 
@@ -1361,6 +1370,16 @@ export namespace CoreNavigationCommands {
 			const deltaLines = (args.direction === EditorScroll_.Direction.Up ? -1 : 1) * noOfLines;
 			return viewModel.viewLayout.getCurrentScrollTop() + deltaLines * viewModel.cursorConfig.lineHeight;
 		}
+
+		_runHorizontalEditorScroll(viewModel: IViewModel, source: string | null | undefined, args: EditorScroll_.ParsedArguments): void {
+			const desiredScrollLeft = this._computeDesiredScrollLeft(viewModel, args);
+			viewModel.viewLayout.setScrollPosition({ scrollLeft: desiredScrollLeft }, ScrollType.Smooth);
+		}
+
+		_computeDesiredScrollLeft(viewModel: IViewModel, args: EditorScroll_.ParsedArguments) {
+			const factor = args.direction === EditorScroll_.HorizontalDirection.Left ? -1 : 1;
+			return viewModel.viewLayout.getCurrentScrollLeft() + factor;
+		}
 	}
 
 	export const EditorScroll: EditorScrollImpl = registerEditorCommand(new EditorScrollImpl());
@@ -1383,6 +1402,54 @@ export namespace CoreNavigationCommands {
 			EditorScroll._runEditorScroll(viewModel, args.source, {
 				direction: EditorScroll_.Direction.Up,
 				unit: EditorScroll_.Unit.WrappedLine,
+				value: 1,
+				revealCursor: false,
+				select: false
+			});
+		}
+	});
+
+	export const ScrollCharLeft: CoreEditorCommand<BaseCommandOptions> = registerEditorCommand(new class extends CoreEditorCommand<BaseCommandOptions> {
+		constructor() {
+			super({
+				id: 'scrollCharLeft',
+				precondition: undefined,
+				kbOpts: {
+					weight: CORE_WEIGHT,
+					kbExpr: EditorContextKeys.textInputFocus,
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
+				}
+			});
+		}
+
+		runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions>): void {
+			EditorScroll._runHorizontalEditorScroll(viewModel, args.source, {
+				direction: EditorScroll_.HorizontalDirection.Left,
+				unit: EditorScroll_.HorizontalUnit.Character,
+				value: 1,
+				revealCursor: false,
+				select: false
+			});
+		}
+	});
+
+	export const ScrollCharRight: CoreEditorCommand<BaseCommandOptions> = registerEditorCommand(new class extends CoreEditorCommand<BaseCommandOptions> {
+		constructor() {
+			super({
+				id: 'scrollCharRight',
+				precondition: undefined,
+				kbOpts: {
+					weight: CORE_WEIGHT,
+					kbExpr: EditorContextKeys.textInputFocus,
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
+				}
+			});
+		}
+
+		runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions>): void {
+			EditorScroll._runHorizontalEditorScroll(viewModel, args.source, {
+				direction: EditorScroll_.HorizontalDirection.Right,
+				unit: EditorScroll_.HorizontalUnit.Character,
 				value: 1,
 				revealCursor: false,
 				select: false
