@@ -28,12 +28,21 @@ import type * as vscode from 'vscode';
  * but new ones must not be added
  * */
 function es5ClassCompat(target: Function): any {
-	///@ts-expect-error
-	function _() { return Reflect.construct(target, arguments, this.constructor); }
-	Object.defineProperty(_, 'name', Object.getOwnPropertyDescriptor(target, 'name')!);
-	Object.setPrototypeOf(_, target);
-	Object.setPrototypeOf(_.prototype, target.prototype);
-	return _;
+	const interceptFunctions = {
+		apply: function () {
+			const args = arguments.length === 1 ? [] : arguments[1];
+			return Reflect.construct(target, args, arguments[0].constructor);
+		},
+		call: function () {
+			if (arguments.length === 0) {
+				return Reflect.construct(target, []);
+			} else {
+				const [thisArg, ...restArgs] = arguments;
+				return Reflect.construct(target, restArgs, thisArg.constructor);
+			}
+		}
+	};
+	return Object.assign(target, interceptFunctions);
 }
 
 @es5ClassCompat

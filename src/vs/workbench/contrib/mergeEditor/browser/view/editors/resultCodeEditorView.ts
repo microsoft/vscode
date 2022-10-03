@@ -113,6 +113,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 			return [];
 		}
 		const model = viewModel.model;
+		const textModel = model.resultTextModel;
 		const result = new Array<IModelDeltaDecoration>();
 
 		const baseRangeWithStoreAndTouchingDiffs = join(
@@ -151,11 +152,13 @@ export class ResultCodeEditorView extends CodeEditorView {
 					continue;
 				}
 
+				const range = model.getLineRangeInResult(modifiedBaseRange.baseRange, reader);
 				result.push({
-					range: model.getLineRangeInResult(modifiedBaseRange.baseRange, reader).toInclusiveRangeOrEmpty(),
+					range: range.toInclusiveRangeOrEmpty(),
 					options: {
 						showIfCollapsed: true,
 						blockClassName: blockClassNames.join(' '),
+						blockIsAfterEnd: range.startLineNumber > textModel.getLineCount(),
 						description: 'Result Diff',
 						minimap: {
 							position: MinimapPosition.Gutter,
@@ -167,9 +170,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 						} : undefined
 					}
 				});
-
 			}
-
 
 			if (!modifiedBaseRange || modifiedBaseRange.isConflicting) {
 				for (const diff of m.rights) {

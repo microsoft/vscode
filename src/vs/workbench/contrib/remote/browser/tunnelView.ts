@@ -23,7 +23,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IMenuService, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ILocalizedString } from 'vs/platform/action/common/action';
-import { createAndFillInContextMenuActions, createAndFillInActionBarActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInActionBarActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelItem, Tunnel, TUNNEL_VIEW_ID, parseAddress, CandidatePort, TunnelEditId, mapHasAddressLocalhostOrAllInterfaces, Attributes, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -1023,14 +1023,11 @@ export class TunnelPanel extends ViewPane {
 			this.portChangableContextKey.set(false);
 		}
 
-		const menu = this.menuService.createMenu(MenuId.TunnelContext, this.table.contextKeyService);
-		const actions: IAction[] = [];
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, actions);
-		menu.dispose();
-
 		this.contextMenuService.showContextMenu({
+			menuId: MenuId.TunnelContext,
+			menuActionOptions: { shouldForwardArgs: true },
+			contextKeyService: this.table.contextKeyService,
 			getAnchor: () => event.anchor,
-			getActions: () => actions,
 			getActionViewItem: (action) => {
 				const keybinding = this.keybindingService.lookupKeybinding(action.id);
 				if (keybinding) {
