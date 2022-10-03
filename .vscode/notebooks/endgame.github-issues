@@ -32,7 +32,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS -$MILESTONE is:issue is:closed label:bug label:insiders-released -label:verified -label:*duplicate -label:*as-designed -label:z-author-verified -label:on-testplan"
+    "value": "$REPOS -$MILESTONE is:issue is:closed reason:completed label:bug label:insiders-released -label:verified -label:*duplicate -label:*as-designed -label:z-author-verified -label:on-testplan"
   },
   {
     "kind": 1,
@@ -42,7 +42,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS -$MILESTONE is:issue is:closed label:feature-request label:insiders-released -label:on-testplan -label:verified -label:*duplicate"
+    "value": "$REPOS -$MILESTONE is:issue is:closed reason:completed label:feature-request label:insiders-released -label:on-testplan -label:verified -label:*duplicate"
   },
   {
     "kind": 1,
@@ -62,7 +62,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE is:issue is:closed label:feature-request -label:verification-needed -label:on-testplan -label:verified -label:*duplicate"
+    "value": "$REPOS $MILESTONE is:issue is:closed reason:completed label:feature-request -label:verification-needed -label:on-testplan -label:verified -label:*duplicate"
   },
   {
     "kind": 1,
@@ -97,7 +97,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE is:issue is:closed label:verification-needed -label:verified"
+    "value": "$REPOS $MILESTONE is:issue is:closed reason:completed label:verification-needed -label:verified"
   },
   {
     "kind": 1,
@@ -112,7 +112,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE is:issue is:closed sort:updated-asc label:bug -label:verified -label:on-testplan -label:*duplicate -label:duplicate -label:invalid -label:*as-designed -label:error-telemetry -label:verification-steps-needed -label:verification-found -label:z-author-verified -label:unreleased"
+    "value": "$REPOS $MILESTONE is:issue is:closed reason:completed sort:updated-asc label:bug -label:verified -label:on-testplan -label:*duplicate -label:duplicate -label:invalid -label:*as-designed -label:error-telemetry -label:verification-steps-needed -label:verification-found -label:z-author-verified -label:unreleased"
   },
   {
     "kind": 1,
@@ -122,7 +122,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE is:issue is:closed sort:updated-asc label:bug -label:verified -label:on-testplan -label:*duplicate -label:duplicate -label:invalid -label:*as-designed -label:error-telemetry -label:verification-steps-needed -label:verification-found -label:z-author-verified label:unreleased"
+    "value": "$REPOS $MILESTONE is:issue is:closed reason:completed sort:updated-asc label:bug -label:verified -label:on-testplan -label:*duplicate -label:duplicate -label:invalid -label:*as-designed -label:error-telemetry -label:verification-steps-needed -label:verification-found -label:z-author-verified label:unreleased"
   },
   {
     "kind": 1,
