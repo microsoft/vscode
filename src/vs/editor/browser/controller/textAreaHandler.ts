@@ -34,7 +34,6 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { ColorId, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
 import { Color } from 'vs/base/common/color';
-
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
 }
@@ -136,21 +135,21 @@ export class TextAreaHandler extends ViewPart {
 	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
 	public readonly textAreaCover: FastDomNode<HTMLElement>;
 	private readonly _textAreaInput: TextAreaInput;
+	private _width: number;
 
-	constructor(context: ViewContext, viewController: ViewController, visibleRangeProvider: IVisibleRangeProvider) {
+	constructor(context: ViewContext, viewController: ViewController, visibleRangeProvider: IVisibleRangeProvider, width: number) {
 		super(context);
-
 		this._viewController = viewController;
 		this._visibleRangeProvider = visibleRangeProvider;
 		this._scrollLeft = 0;
 		this._scrollTop = 0;
-
+		this._width = width;
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
 		this._setAccessibilityOptions(options);
 		this._contentLeft = layoutInfo.contentLeft;
-		this._contentWidth = layoutInfo.contentWidth;
+		this._contentWidth = width || layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
@@ -161,12 +160,11 @@ export class TextAreaHandler extends ViewPart {
 		this._selections = [new Selection(1, 1, 1, 1)];
 		this._modelSelections = [new Selection(1, 1, 1, 1)];
 		this._lastRenderPosition = null;
-
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
 		this.textArea = createFastDomNode(document.createElement('textarea'));
 		PartFingerprints.write(this.textArea, PartFingerprint.TextArea);
 		this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-		this.textArea.setAttribute('wrap', 'off');
+		// this.textArea.setAttribute('wrap', 'off');
 		this.textArea.setAttribute('autocorrect', 'off');
 		this.textArea.setAttribute('autocapitalize', 'off');
 		this.textArea.setAttribute('autocomplete', 'off');
@@ -179,13 +177,14 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('aria-haspopup', 'false');
 		this.textArea.setAttribute('aria-autocomplete', 'both');
 
-		if (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly)) {
-			this.textArea.setAttribute('readonly', 'true');
-		}
-
+		// if (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly)) {
+		// 	this.textArea.setAttribute('readonly', 'true');
+		// }
+		// console.log($('.editor-instance').clientWidth);
+		this.textArea.setWidth(width);
 		this.textAreaCover = createFastDomNode(document.createElement('div'));
 		this.textAreaCover.setPosition('absolute');
-
+		this.textAreaCover.setWidth(width);
 		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
 				return this._context.viewModel.getLineCount();
@@ -649,7 +648,10 @@ export class TextAreaHandler extends ViewPart {
 		this._visibleTextArea?.prepareRender(ctx);
 	}
 
-	public render(ctx: RestrictedRenderingContext): void {
+	public render(ctx?: RestrictedRenderingContext, width?: number): void {
+		if (width) {
+			this._width = width;
+		}
 		this._textAreaInput.writeScreenReaderContent('render');
 		this._render();
 	}
@@ -806,7 +808,7 @@ export class TextAreaHandler extends ViewPart {
 		applyFontInfo(ta, this._fontInfo);
 		ta.setTop(renderData.top);
 		ta.setLeft(renderData.left);
-		ta.setWidth(renderData.width);
+		this.textArea.setWidth(this._width);
 		ta.setHeight(renderData.height);
 
 		ta.setColor(renderData.color ? Color.Format.CSS.formatHex(renderData.color) : '');

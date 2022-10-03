@@ -2326,8 +2326,8 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const wordWrap = (wordWrapOverride1 === 'inherit' ? options.get(EditorOption.wordWrap) : wordWrapOverride1);
 
 		const wordWrapColumn = options.get(EditorOption.wordWrapColumn);
-		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
-		const isDominatedByLongLines = env.isDominatedByLongLines;
+		// const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		// const isDominatedByLongLines = env.isDominatedByLongLines;
 
 		const showGlyphMargin = options.get(EditorOption.glyphMargin);
 		const showLineNumbers = (options.get(EditorOption.lineNumbers).renderType !== RenderLineNumbersType.Off);
@@ -2378,21 +2378,21 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let isViewportWrapping = false;
 		let wrappingColumn = -1;
 
-		if (accessibilitySupport !== AccessibilitySupport.Enabled) {
-			// See https://github.com/microsoft/vscode/issues/27766
-			// Never enable wrapping when a screen reader is attached
-			// because arrow down etc. will not move the cursor in the way
-			// a screen reader expects.
-			if (wordWrapOverride1 === 'inherit' && isDominatedByLongLines) {
-				// Force viewport width wrapping if model is dominated by long lines
-				isWordWrapMinified = true;
-				isViewportWrapping = true;
-			} else if (wordWrap === 'on' || wordWrap === 'bounded') {
-				isViewportWrapping = true;
-			} else if (wordWrap === 'wordWrapColumn') {
-				wrappingColumn = wordWrapColumn;
-			}
-		}
+		// if (accessibilitySupport !== AccessibilitySupport.Enabled) {
+		// 	// See https://github.com/microsoft/vscode/issues/27766
+		// 	// Never enable wrapping when a screen reader is attached
+		// 	// because arrow down etc. will not move the cursor in the way
+		// 	// a screen reader expects.
+		// 	if (wordWrapOverride1 === 'inherit' && isDominatedByLongLines) {
+		// 		// Force viewport width wrapping if model is dominated by long lines
+		// 		isWordWrapMinified = true;
+		// 		isViewportWrapping = true;
+		// 	} else if (wordWrap === 'on' || wordWrap === 'bounded') {
+		// 		isViewportWrapping = true;
+		// 	} else if (wordWrap === 'wordWrapColumn') {
+		// 		wrappingColumn = wordWrapColumn;
+		// 	}
+		// }
 
 		const minimapLayout = EditorLayoutInfoComputer._computeMinimapLayout({
 			outerWidth: outerWidth,
