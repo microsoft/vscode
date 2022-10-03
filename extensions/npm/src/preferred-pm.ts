@@ -6,13 +6,15 @@
 import findWorkspaceRoot = require('../node_modules/find-yarn-workspace-root');
 import findUp = require('find-up');
 import * as path from 'path';
-import whichPM = require('which-pm');
+import preferredPM = require('preferred-pm');
 import { Uri, workspace } from 'vscode';
 
 interface PreferredProperties {
 	isPreferred: boolean;
 	hasLockfile: boolean;
 }
+
+type PackageManager = 'npm' | 'yarn' | 'pnpm';
 
 async function pathExists(filePath: string) {
 	try {
@@ -57,7 +59,7 @@ async function isNPMPreferred(pkgPath: string): Promise<PreferredProperties> {
 }
 
 export async function findPreferredPM(pkgPath: string): Promise<{ name: string; multipleLockFilesDetected: boolean }> {
-	const detectedPackageManagerNames: string[] = [];
+	const detectedPackageManagerNames: PackageManager[] = [];
 	const detectedPackageManagerProperties: PreferredProperties[] = [];
 
 	const npmPreferred = await isNPMPreferred(pkgPath);
@@ -78,7 +80,7 @@ export async function findPreferredPM(pkgPath: string): Promise<{ name: string; 
 		detectedPackageManagerProperties.push(pnpmPreferred);
 	}
 
-	const pmUsedForInstallation: { name: string } | null = await whichPM(pkgPath);
+	const pmUsedForInstallation: { name: PackageManager; version: string } | undefined = await preferredPM(pkgPath);
 
 	if (pmUsedForInstallation && !detectedPackageManagerNames.includes(pmUsedForInstallation.name)) {
 		detectedPackageManagerNames.push(pmUsedForInstallation.name);
