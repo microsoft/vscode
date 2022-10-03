@@ -30,26 +30,26 @@ module.exports = {
 			url: 'https://eslint.org/docs/rules/no-unused-expressions'
 		},
 
-		schema: [
-			{
-				type: 'object',
-				properties: {
-					allowShortCircuit: {
-						type: 'boolean',
-						default: false
-					},
-					allowTernary: {
-						type: 'boolean',
-						default: false
-					},
-					allowTaggedTemplates: {
-						type: 'boolean',
-						default: false
-					}
-				},
-				additionalProperties: false
-			}
-		]
+		// schema: [
+		// 	{
+		// 		type: 'object',
+		// 		properties: {
+		// 			allowShortCircuit: {
+		// 				type: 'boolean',
+		// 				default: false
+		// 			},
+		// 			allowTernary: {
+		// 				type: 'boolean',
+		// 				default: false
+		// 			},
+		// 			allowTaggedTemplates: {
+		// 				type: 'boolean',
+		// 				default: false
+		// 			}
+		// 		},
+		// 		additionalProperties: false
+		// 	}
+		// ]
 	},
 
 	create(context: eslint.Rule.RuleContext) {
