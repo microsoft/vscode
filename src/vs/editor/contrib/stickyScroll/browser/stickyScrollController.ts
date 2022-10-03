@@ -14,10 +14,7 @@ import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IAction } from 'vs/base/common/actions';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export class StickyScrollController extends Disposable implements IEditorContribution {
 
@@ -33,8 +30,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
 		@IInstantiationService _instaService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IMenuService private readonly _menuService: IMenuService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._editor = _editor;
@@ -64,15 +59,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	private onContextMenu(event: MouseEvent) {
-		const menu = this._menuService.createMenu(MenuId.StickyScrollContext, this._contextKeyService);
-		const actions: IAction[] = [];
-		createAndFillInContextMenuActions(menu, undefined, actions);
 		this._contextMenuService.showContextMenu({
-			getActions: () => actions,
+			menuId: MenuId.StickyScrollContext,
 			getAnchor: () => event,
-			onHide: () => {
-				menu.dispose();
-			}
 		});
 	}
 
