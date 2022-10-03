@@ -1,0 +1,25 @@
+name: Analytics Treemap Embedding
+
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the main branch
+  push:
+    branches:
+      - main
+      
+  pull_request:
+    branches:
+      - main
+      - add-analytics-embedding
+
+jobs:
+  analytics-embedding:
+    name: Run Analytics Treemap Embedding 🔎
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v3
+
+      - name: Run Hiviser Action
+        uses: hpicgs/hiviser-action@v0
