@@ -1979,6 +1979,15 @@ export class Repository {
 
 	async getHEAD(): Promise<Ref> {
 		try {
+			// Attempt for parse the HEAD file
+			const refsFromHEADFileRaw = await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'HEAD'), 'utf8');
+			const refsFromHEADFile = refsFromHEADFileRaw.split(/\r?\n/g, 1);
+
+			if (refsFromHEADFile[0].startsWith('ref: refs/heads/')) {
+				return { name: refsFromHEADFile[0].substring(16).trim(), commit: undefined, type: RefType.Head };
+			}
+
+			// Fallback to using git to determine HEAD
 			const result = await this.exec(['symbolic-ref', '--short', 'HEAD']);
 
 			if (!result.stdout) {
