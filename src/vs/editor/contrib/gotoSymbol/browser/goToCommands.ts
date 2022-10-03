@@ -79,9 +79,11 @@ export abstract class SymbolNavigationAction extends EditorAction2 {
 	private static _allSymbolNavigationCommands = new Map<string, SymbolNavigationAction>();
 	private static _activeAlternativeCommands = new Set<string>();
 
-	readonly configuration: SymbolNavigationActionConfig;
+	static all(): IterableIterator<SymbolNavigationAction> {
+		return SymbolNavigationAction._allSymbolNavigationCommands.values();
+	}
 
-	private static aaa(opts: IAction2Options): IAction2Options {
+	private static _patchConfig(opts: IAction2Options): IAction2Options {
 		const result = { ...opts, f1: true };
 		// patch context menu when clause
 		if (result.menu) {
@@ -95,8 +97,10 @@ export abstract class SymbolNavigationAction extends EditorAction2 {
 		return result;
 	}
 
+	readonly configuration: SymbolNavigationActionConfig;
+
 	constructor(configuration: SymbolNavigationActionConfig, opts: IAction2Options) {
-		super(SymbolNavigationAction.aaa(opts));
+		super(SymbolNavigationAction._patchConfig(opts));
 		this.configuration = configuration;
 		SymbolNavigationAction._allSymbolNavigationCommands.set(opts.id, this);
 	}
