@@ -621,3 +621,5 @@ stages:
                 displayName: Release Build
                 steps:
                   - template: product-release.yml
+                    parameters:
+                      VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
