@@ -30,13 +30,11 @@ if (
 	majorYarnVersion < 1 ||
 	majorYarnVersion === 1 && (
 		minorYarnVersion < 10 || (minorYarnVersion === 10 && patchYarnVersion < 1)
-	)
+	) ||
+	majorYarnVersion >= 2
 ) {
 	console.error('\033[1;31m*** Please use yarn >=1.10.1 and <2.\033[0;0m');
 	err = true;
-}
-if (majorYarnVersion >= 2) {
-	console.warn('\033[1;31m*** Warning: Versions of yarn >= 2 have not been tested.\033[0;0m')
 }
 
 if (!/yarn[\w-.]*\.c?js$|yarnpkg$/.test(process.env['npm_execpath'])) {
