@@ -713,10 +713,6 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 	}
 
 	async query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>> {
-		if (!this.isEnabled()) {
-			throw new Error('No extension gallery service configured.');
-		}
-
 		let text = options.text || '';
 		const pageSize = options.pageSize ?? 50;
 
