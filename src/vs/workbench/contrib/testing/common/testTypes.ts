@@ -163,8 +163,15 @@ export interface ITestOutputMessage {
 	type: TestMessageType.Output;
 	offset: number;
 	length: number;
+	marker?: number;
 	location: IRichLocation | undefined;
 }
+
+/**
+ * Gets the TTY marker ID for either starting or ending
+ * an ITestOutputMessage.marker of the given ID.
+ */
+export const getMarkId = (marker: number, start: boolean) => `${start ? 's' : 'e'}${marker}`;
 
 export namespace ITestOutputMessage {
 	export interface Serialized {
