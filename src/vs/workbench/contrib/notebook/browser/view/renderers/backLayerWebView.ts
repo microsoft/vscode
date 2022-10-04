@@ -115,9 +115,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private _currentKernel?: INotebookKernel;
 
 	private _initialized?: DeferredPromise<void>;
+	private _webviewPreloadInitialized?: DeferredPromise<void>;
 	private _pendingMessageQueue: ToWebviewMessage[] | undefined = [];
 	private firstInit = true;
-	private initializeMarkupPromise?: { readonly requestId: string; readonly p: DeferredPromise<void> };
+	private initializeMarkupPromise?: { readonly requestId: string; readonly p: DeferredPromise<void>; isFirstInit: boolean };
 
 	private readonly nonce = UUID.generateUuid();
 
@@ -459,6 +460,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		let coreDependencies = '';
 
 		this._initialized = new DeferredPromise();
+		this._webviewPreloadInitialized = new DeferredPromise();
 
 		if (!isWeb) {
 			const loaderUri = FileAccess.asFileUri('vs/loader.js', require);
@@ -597,6 +599,7 @@ var requirejs = (function() {
 
 			switch (data.type) {
 				case 'initialized': {
+					this._webviewPreloadInitialized?.complete();
 					this.initializeWebViewState();
 					break;
 				}
@@ -956,9 +959,9 @@ var requirejs = (function() {
 			this._sendMessageToWebview({ ...inset.cachedCreation, initiallyHidden: this.hiddenInsetMapping.has(output) });
 		}
 
-		if (this.firstInit) {
+		if (this.initializeMarkupPromise?.isFirstInit) {
 			// On first run the contents have already been initialized so we don't need to init them again
-			this.firstInit = false;
+			// no op
 		} else {
 			const mdCells = [...this.markupPreviewMapping.values()];
 			this.markupPreviewMapping.clear();
@@ -1172,11 +1175,16 @@ var requirejs = (function() {
 			return;
 		}
 
-		this.firstInit = false;
-
 		this.initializeMarkupPromise?.p.complete();
 		const requestId = UUID.generateUuid();
-		this.initializeMarkupPromise = { p: new DeferredPromise(), requestId };
+		this.initializeMarkupPromise = { p: new DeferredPromise(), requestId, isFirstInit: this.firstInit };
+
+		if (this._webviewPreloadInitialized) {
+			// wait for webview preload script module to be loaded
+			await this._webviewPreloadInitialized.p;
+		}
+
+		this.firstInit = false;
 
 		for (const cell of cells) {
 			this.markupPreviewMapping.set(cell.cellId, cell);
