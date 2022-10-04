@@ -67,6 +67,7 @@ export class BaseCodeEditorView extends CodeEditorView {
 			return [];
 		}
 		const model = viewModel.model;
+		const textModel = model.base;
 
 		const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
 		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
@@ -98,6 +99,7 @@ export class BaseCodeEditorView extends CodeEditorView {
 				options: {
 					showIfCollapsed: true,
 					blockClassName: blockClassNames.join(' '),
+					blockIsAfterEnd: range.startLineNumber > textModel.getLineCount(),
 					description: 'Merge Editor',
 					minimap: {
 						position: MinimapPosition.Gutter,

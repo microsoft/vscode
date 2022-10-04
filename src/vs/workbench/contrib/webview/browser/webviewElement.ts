@@ -6,7 +6,6 @@
 import { isFirefox } from 'vs/base/browser/browser';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IAction } from 'vs/base/common/actions';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { streamToBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -17,7 +16,6 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -340,19 +338,14 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				return;
 			}
 			const elementBox = this.element.getBoundingClientRect();
+			const contextKeyService = this._contextKeyService!.createOverlay([
+				...Object.entries(data.context),
+				[webviewIdContext, this.providedViewType],
+			]);
 			contextMenuService.showContextMenu({
-				getActions: () => {
-					const contextKeyService = this._contextKeyService!.createOverlay([
-						...Object.entries(data.context),
-						[webviewIdContext, this.providedViewType],
-					]);
-
-					const result: IAction[] = [];
-					const menu = menuService.createMenu(MenuId.WebviewContext, contextKeyService);
-					createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result);
-					menu.dispose();
-					return result;
-				},
+				menuId: MenuId.WebviewContext,
+				menuActionOptions: { shouldForwardArgs: true },
+				contextKeyService,
 				getActionsContext: (): WebviewActionContext => ({ ...data.context, webview: this.providedViewType }),
 				getAnchor: () => ({
 					x: elementBox.x + data.clientX,

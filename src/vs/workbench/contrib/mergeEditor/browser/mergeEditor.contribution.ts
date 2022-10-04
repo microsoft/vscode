@@ -39,7 +39,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		'mergeEditor.diffAlgorithm': {
 			type: 'string',
 			enum: ['smart', 'experimental'],
-			default: 'smart',
+			default: 'experimental',
 			markdownEnumDescriptions: [
 				localize('diffAlgorithm.smart', "Uses the default diffing algorithm."),
 				localize('diffAlgorithm.experimental', "Uses an experimental diffing algorithm."),

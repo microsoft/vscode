@@ -183,7 +183,8 @@
 	padding: 0px;
 	justify-content: center;
 	align-items: center;
-	font-size: 14px;
+	font-size: 11px;
+	font-weight: 600;
 	border-radius: 10px;
 }
 

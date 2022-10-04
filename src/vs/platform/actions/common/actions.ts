@@ -397,6 +397,12 @@ export interface IMenuItemHide {
 // subscribes to events of Action or modified properties
 export class MenuItemAction implements IAction {
 
+	static label(action: ICommandAction, options?: IMenuActionOptions): string {
+		return options?.renderShortTitle && action.shortTitle
+			? (typeof action.shortTitle === 'string' ? action.shortTitle : action.shortTitle.value)
+			: (typeof action.title === 'string' ? action.title : action.title.value);
+	}
+
 	readonly item: ICommandAction;
 	readonly alt: MenuItemAction | undefined;
 
@@ -418,9 +424,7 @@ export class MenuItemAction implements IAction {
 		@ICommandService private _commandService: ICommandService
 	) {
 		this.id = item.id;
-		this.label = options?.renderShortTitle && item.shortTitle
-			? (typeof item.shortTitle === 'string' ? item.shortTitle : item.shortTitle.value)
-			: (typeof item.title === 'string' ? item.title : item.title.value);
+		this.label = MenuItemAction.label(item, options);
 		this.tooltip = (typeof item.tooltip === 'string' ? item.tooltip : item.tooltip?.value) ?? '';
 		this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
 		this.checked = undefined;
