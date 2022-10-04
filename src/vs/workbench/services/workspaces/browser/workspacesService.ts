@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkspacesService, IWorkspaceFolderCreationData, IEnterWorkspaceResult, IRecentlyOpened, restoreRecentlyOpened, IRecent, isRecentFile, isRecentFolder, toStoreData, IStoredWorkspaceFolder, getStoredWorkspaceFolder, IStoredWorkspace, isRecentWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
@@ -215,4 +215,4 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 	//#endregion
 }
 
-registerSingleton(IWorkspacesService, BrowserWorkspacesService, true);
+registerSingleton(IWorkspacesService, BrowserWorkspacesService, InstantiationType.Delayed);

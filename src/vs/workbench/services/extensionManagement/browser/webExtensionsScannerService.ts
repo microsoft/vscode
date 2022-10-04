@@ -7,7 +7,7 @@ import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionIdentifier, 
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IScannedExtension, IWebExtensionsScannerService, ScanOptions } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { isWeb, Language } from 'vs/base/common/platform';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
@@ -887,4 +887,4 @@ if (isWeb) {
 	});
 }
 
-registerSingleton(IWebExtensionsScannerService, WebExtensionsScannerService, true);
+registerSingleton(IWebExtensionsScannerService, WebExtensionsScannerService, InstantiationType.Delayed);

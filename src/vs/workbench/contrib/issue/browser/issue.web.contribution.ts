@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ICommandAction } from 'vs/platform/action/common/action';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -106,4 +106,4 @@ CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
 	return nls.localize('statusUnsupported', "The --status argument is not yet supported in browsers.");
 });
 
-registerSingleton(IWorkbenchIssueService, WebIssueService, true);
+registerSingleton(IWorkbenchIssueService, WebIssueService, InstantiationType.Delayed);
