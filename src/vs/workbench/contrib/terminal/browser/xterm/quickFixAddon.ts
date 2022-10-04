@@ -21,6 +21,9 @@ import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/
 import { Color } from 'vs/base/common/color';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { localize } from 'vs/nls';
 
 export interface ITerminalQuickFix {
 	showMenu(): void;
@@ -57,7 +60,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService) {
+		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService) {
 		super();
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (commandDetectionCapability) {
@@ -123,6 +127,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		const actions = this._quickFixes;
 		const decoration = this._terminal.registerDecoration({ marker, layer: 'top' });
 		this._decoration = decoration;
+		const kb = this._keybindingService.lookupKeybinding(TerminalCommandId.QuickFix);
+		const hoverLabel = kb ? localize('preferredcodeActionWithKb', "Show Quick Fixes. Preferred Quick Fix Available ({0})", kb.getLabel()) : '';
 		decoration?.onRender((e: HTMLElement) => {
 			if (!this._decorationMarkerIds.has(decoration.marker.id)) {
 				this._currentQuickFixElement = e;
@@ -134,7 +140,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
 						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions, autoSelectFirstItem: true });
 					}));
-					const hoverDisposables = this._terminalDecorationHoverService.createHover(e, undefined, actions[0].label);
+					const hoverDisposables = this._terminalDecorationHoverService.createHover(e, undefined, hoverLabel);
 					for (const disposable of hoverDisposables) {
 						this._register(disposable);
 					}
