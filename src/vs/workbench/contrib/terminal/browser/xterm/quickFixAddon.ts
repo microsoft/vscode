@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import * as dom from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
@@ -52,9 +52,10 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _commandListeners: Map<string, ITerminalQuickFixOptions[]> = new Map();
 
-	private _quickFixes: IAction[] | undefined;
-
-	private _decoration: IDecoration | undefined;
+	private _disposable: IDisposable | undefined;
+	private _quickFixes: Map<number, IAction[]> = new Map();
+	private _decorations: Map<number, IDecoration> = new Map();
+	private _quickFixId: number | undefined;
 
 	private readonly _terminalDecorationHoverService: TerminalDecorationHoverManager;
 
@@ -100,19 +101,31 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (!terminal || !commandDetection) {
 			return;
 		}
-		this._register(commandDetection.onCommandExecuted(() => {
-			this._decoration?.dispose();
-			this._decoration = undefined;
-		}));
 		this._register(commandDetection.onCommandFinished(async command => {
-			this._decoration?.dispose();
-			this._decoration = undefined;
 			const quickFixResult = getQuickFixes(command, this._commandListeners, this._openerService, this._onDidRequestRerunCommand);
 			if (quickFixResult) {
-				this._quickFixes = quickFixResult.quickFixes;
-				quickFixResult.onDidRunQuickFix(() => {
-					this._decoration?.dispose();
-					this._quickFixes = undefined;
+				this._quickFixId = this._quickFixId || 1;
+				const id = this._quickFixId;
+				this._quickFixes.set(id, quickFixResult.quickFixes);
+				quickFixResult.onDidRunQuickFix((actionLabel) => {
+					const quickFixes = this._quickFixes.get(id);
+					this._disposable?.dispose();
+					if (quickFixes) {
+						const actions = quickFixes.filter(q => q.label !== actionLabel);
+						this._quickFixes.set(id, actions);
+						const decoration = this._decorations.get(id)?.element;
+						if (decoration && quickFixes.length > 1) {
+							this._register(dom.addDisposableListener(decoration, dom.EventType.CLICK, () => {
+								this._contextMenuService.showContextMenu({ getAnchor: () => decoration, getActions: () => actions, autoSelectFirstItem: true });
+							}));
+						}
+						if (quickFixes.length <= 1) {
+							const decoration = this._decorations.get(id);
+							decoration?.dispose();
+							this._decorations.delete(id);
+							return;
+						}
+					}
 				});
 			}
 		}));
@@ -120,24 +133,27 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		// is called. Add the decoration on command start using the actions, if any,
 		// from the last command
 		this._register(commandDetection.onCommandStarted(() => {
-			if (this._quickFixes) {
+			if (this._quickFixId && this._quickFixes.get(this._quickFixId) && !this._decorations.get(this._quickFixId)) {
 				this._registerContextualDecoration();
-				this._quickFixes = undefined;
+				this._quickFixId++;
 			}
 		}));
 	}
 
 	private _registerContextualDecoration(): void {
 		if (!this._terminal) {
-			return;
+			return undefined;
 		}
 		const marker = this._terminal.registerMarker();
-		if (!marker) {
+		if (!marker || !this._quickFixId) {
 			return;
 		}
-		const actions = this._quickFixes;
+		const actions = this._quickFixes.get(this._quickFixId);
 		const decoration = this._terminal.registerDecoration({ marker, layer: 'top' });
-		this._decoration = decoration;
+		if (!decoration) {
+			return;
+		}
+		this._decorations.set(this._quickFixId, decoration);
 		const kb = this._keybindingService.lookupKeybinding(TerminalCommandId.QuickFix);
 		const hoverLabel = kb ? localize('terminalQuickFixWithKb', "Show Quick Fixes ({0})", kb.getLabel()) : '';
 		decoration?.onRender((e: HTMLElement) => {
@@ -148,7 +164,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 				if (actions) {
 					this._decorationMarkerIds.add(decoration.marker.id);
-					this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
+					this._disposable = this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
 						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions, autoSelectFirstItem: true });
 					}));
 					this._register(this._terminalDecorationHoverService.createHover(e, undefined, hoverLabel));
@@ -163,8 +179,8 @@ export function getQuickFixes(
 	actionOptions: Map<string, ITerminalQuickFixOptions[]>,
 	openerService: IOpenerService,
 	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>
-): { quickFixes: IAction[]; onDidRunQuickFix: Event<void> } | undefined {
-	const _onDidRunQuickFix = new Emitter<void>();
+): { quickFixes: IAction[]; onDidRunQuickFix: Event<string> } | undefined {
+	const _onDidRunQuickFix = new Emitter<string>();
 	const onDidRunQuickFix = _onDidRunQuickFix.event;
 	const actions: IAction[] = [];
 	const newCommand = command.command;
@@ -200,6 +216,7 @@ export function getQuickFixes(
 											command: quickFix.command,
 											addNewLine: quickFix.addNewLine
 										});
+										_onDidRunQuickFix.fire(label);
 									},
 									tooltip: label,
 									command: quickFix.command
@@ -217,7 +234,7 @@ export function getQuickFixes(
 										openerService.open(quickFix.uri);
 										// since no command gets run here, need to
 										// clear the decoration and quick fix
-										_onDidRunQuickFix.fire();
+										_onDidRunQuickFix.fire(label);
 									},
 									tooltip: label,
 									uri: quickFix.uri
