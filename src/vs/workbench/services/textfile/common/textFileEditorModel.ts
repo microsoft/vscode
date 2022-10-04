@@ -1152,10 +1152,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	// latest value of files.readonlyInclude/Exclude for this resource.path
 	private pathReadonly: boolean = false;
 
-	private isReadonlyByPath(): boolean {
-		return this.pathReadonly;
-	}
-
 	private oldReadonly = false; // fileEditorInput.test.ts counts changes from 'false' not 'undefined'
 
 	private checkDidChangeReadonly(newReadonly: boolean): boolean {
@@ -1168,7 +1164,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	override isReadonly(): boolean {
 		return this.checkDidChangeReadonly(
-			this.isReadonlyByPath() ||
+			this.pathReadonly ||
 			this.lastResolvedFileStat?.readonly ||
 			this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly));
 	}
