@@ -670,7 +670,6 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 				lines.pop();
 			}
 			const match = lines.join('\n').match(matcher);
-			console.log('match', match);
 			if (match) {
 				return match;
 			}
