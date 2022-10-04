@@ -35,7 +35,7 @@ import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platfor
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { URI } from 'vs/base/common/uri';
-import { isAllInterfaces, isLocalhost, isPortPrivileged, ITunnelService, RemoteTunnel, TunnelPrivacyId, TunnelProtocol } from 'vs/platform/tunnel/common/tunnel';
+import { isAllInterfaces, isLocalhost, ITunnelService, RemoteTunnel, TunnelPrivacyId, TunnelProtocol } from 'vs/platform/tunnel/common/tunnel';
 import { TunnelPrivacy } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -1138,13 +1138,13 @@ export namespace ForwardPortAction {
 	export const TREEITEM_LABEL = nls.localize('remote.tunnel.forwardItem', "Forward Port");
 	const forwardPrompt = nls.localize('remote.tunnel.forwardPrompt', "Port number or address (eg. 3000 or 10.10.10.10:2000).");
 
-	function validateInput(remoteExplorerService: IRemoteExplorerService, value: string, canElevate: boolean): { content: string; severity: Severity } | null {
+	function validateInput(remoteExplorerService: IRemoteExplorerService, tunnelService: ITunnelService, value: string, canElevate: boolean): { content: string; severity: Severity } | null {
 		const parsed = parseAddress(value);
 		if (!parsed) {
 			return { content: invalidPortString, severity: Severity.Error };
 		} else if (parsed.port >= maxPortNumber) {
 			return { content: invalidPortNumberString, severity: Severity.Error };
-		} else if (canElevate && isPortPrivileged(parsed.port)) {
+		} else if (canElevate && tunnelService.isPortPrivileged(parsed.port)) {
 			return { content: requiresSudoString, severity: Severity.Info };
 		} else if (mapHasAddressLocalhostOrAllInterfaces(remoteExplorerService.tunnelModel.forwarded, parsed.host, parsed.port)) {
 			return { content: alreadyForwarded, severity: Severity.Error };
@@ -1174,7 +1174,7 @@ export namespace ForwardPortAction {
 						}).then(tunnel => error(notificationService, tunnel, parsed!.host, parsed!.port));
 					}
 				},
-				validationMessage: (value) => validateInput(remoteExplorerService, value, tunnelService.canElevate),
+				validationMessage: (value) => validateInput(remoteExplorerService, tunnelService, value, tunnelService.canElevate),
 				placeholder: forwardPrompt
 			});
 		};
@@ -1190,7 +1190,7 @@ export namespace ForwardPortAction {
 			await viewsService.openView(TunnelPanel.ID, true);
 			const value = await quickInputService.input({
 				prompt: forwardPrompt,
-				validateInput: (value) => Promise.resolve(validateInput(remoteExplorerService, value, tunnelService.canElevate))
+				validateInput: (value) => Promise.resolve(validateInput(remoteExplorerService, tunnelService, value, tunnelService.canElevate))
 			});
 			let parsed: { host: string; port: number } | undefined;
 			if (value && (parsed = parseAddress(value))) {
@@ -1436,12 +1436,12 @@ namespace ChangeLocalPortAction {
 	export const ID = 'remote.tunnel.changeLocalPort';
 	export const LABEL = nls.localize('remote.tunnel.changeLocalPort', "Change Local Address Port");
 
-	function validateInput(value: string, canElevate: boolean): { content: string; severity: Severity } | null {
+	function validateInput(tunnelService: ITunnelService, value: string, canElevate: boolean): { content: string; severity: Severity } | null {
 		if (!value.match(/^[0-9]+$/)) {
 			return { content: invalidPortString, severity: Severity.Error };
 		} else if (Number(value) >= maxPortNumber) {
 			return { content: invalidPortNumberString, severity: Severity.Error };
-		} else if (canElevate && isPortPrivileged(Number(value))) {
+		} else if (canElevate && tunnelService.isPortPrivileged(Number(value))) {
 			return { content: requiresSudoString, severity: Severity.Info };
 		}
 		return null;
@@ -1484,7 +1484,7 @@ namespace ChangeLocalPortAction {
 							}
 						}
 					},
-					validationMessage: (value) => validateInput(value, tunnelService.canElevate),
+					validationMessage: (value) => validateInput(tunnelService, value, tunnelService.canElevate),
 					placeholder: nls.localize('remote.tunnelsView.changePort', "New local port")
 				});
 			}
