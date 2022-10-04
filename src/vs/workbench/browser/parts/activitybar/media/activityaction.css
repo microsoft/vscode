@@ -179,8 +179,8 @@
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label.profile-activity-item {
 	height: 20px;
 	width: 32px;
-	margin: 14px 8px;
-	padding: 0px;
+	margin: 14px 8px !important;
+	padding: 0px !important;
 	justify-content: center;
 	align-items: center;
 	font-size: 11px;
