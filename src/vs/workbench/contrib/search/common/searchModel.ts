@@ -476,6 +476,7 @@ export interface IChangeEvent {
 	elements: FileMatch[];
 	added?: boolean;
 	removed?: boolean;
+	clear?: boolean;
 }
 
 export class FolderMatch extends Disposable {
@@ -576,7 +577,7 @@ export class FolderMatch extends Disposable {
 	clear(): void {
 		const changed: FileMatch[] = this.downstreamFileMatches();
 		this.disposeMatches();
-		this._onChange.fire({ elements: changed, removed: true, added: false });
+		this._onChange.fire({ elements: changed, removed: true, added: false, clear: true });
 	}
 
 	remove(matches: FileMatch | FolderMatchWithResource | (FileMatch | FolderMatchWithResource)[]): void {
