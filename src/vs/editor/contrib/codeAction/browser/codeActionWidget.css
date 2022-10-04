@@ -70,7 +70,7 @@
 
 .codeActionWidget .monaco-list-row.code-action {
 	display: flex;
-	gap: 10px;
+	gap: 6px;
 	align-items: center;
 }
 
