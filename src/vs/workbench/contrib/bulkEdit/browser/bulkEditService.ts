@@ -184,7 +184,7 @@ export class BulkEditService implements IBulkEditService {
 		let edits = liftEdits(Array.isArray(editsIn) ? editsIn : editsIn.edits);
 
 		if (edits.length === 0) {
-			return { ariaSummary: localize('nothing', "Made no edits") };
+			return { ariaSummary: localize('nothing', "Made no edits"), isApplied: false };
 		}
 
 		if (this._previewHandler && (options?.showPreview || edits.some(value => value.metadata?.needsConfirmation))) {
@@ -248,7 +248,7 @@ export class BulkEditService implements IBulkEditService {
 				await this._saveAll(resources);
 			}
 
-			return { ariaSummary: bulkEdit.ariaMessage() };
+			return { ariaSummary: bulkEdit.ariaMessage(), isApplied: edits.length > 0 };
 		} catch (err) {
 			// console.log('apply FAILED');
 			// console.log(err);
