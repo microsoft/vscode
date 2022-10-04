@@ -432,8 +432,7 @@ export function sanitizeFishHistoryCmd(cmd: string): string {
 	 * But since not all browsers support look aheads we opted to a simple
 	 * pattern and repeatedly calling replace method.
 	 */
-	return repeatedReplace(/(^|[^\\])((?:\\\\)*)(\\n)/g, cmd, '$1$2\n')
-		.replace(/\\/g, '\\');
+	return repeatedReplace(/(^|[^\\])((?:\\\\)*)(\\n)/g, cmd, '$1$2\n');
 }
 
 function repeatedReplace(pattern: RegExp, value: string, replaceValue: string): string {

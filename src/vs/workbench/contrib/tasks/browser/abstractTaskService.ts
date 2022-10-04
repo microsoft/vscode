@@ -1928,7 +1928,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._contextService, this._environmentService,
 			AbstractTaskService.OutputChannelId, this._fileService, this._terminalProfileResolverService,
 			this._pathService, this._viewDescriptorService, this._logService, this._configurationService, this._notificationService,
-			this,
+			this, this._instantiationService,
 			(workspaceFolder: IWorkspaceFolder | undefined) => {
 				if (workspaceFolder) {
 					return this._getTaskSystemInfo(workspaceFolder.uri.scheme);
@@ -2953,7 +2953,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					// eat the error, it has already been surfaced to the user and we don't care about it here
 				});
 			}
-
 			const chooseAndRunTask = (tasks: Task[]) => {
 				this._showIgnoredFoldersMessage().then(() => {
 					this._showQuickPick(tasks,
@@ -2968,7 +2967,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								return;
 							}
 							if (task === null) {
-								configure();
+								configure.apply(this);
 								return;
 							}
 							runSingleTask(task, { attachProblemMatcher: true }, this);

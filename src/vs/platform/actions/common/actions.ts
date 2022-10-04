@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
+import { Action, IAction, SubmenuAction } from 'vs/base/common/actions';
 import { CSSIcon } from 'vs/base/common/codicons';
 import { Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -199,8 +199,15 @@ export interface IMenuActionOptions {
 	renderShortTitle?: boolean;
 }
 
+export interface IMenuChangeEvent {
+	readonly menu: IMenu;
+	readonly isStructuralChange: boolean;
+	readonly isToggleChange: boolean;
+	readonly isEnablementChange: boolean;
+}
+
 export interface IMenu extends IDisposable {
-	readonly onDidChange: Event<IMenu>;
+	readonly onDidChange: Event<IMenuChangeEvent>;
 	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
 }
 
@@ -227,6 +234,11 @@ export interface IMenuService {
 	 * Reset **all** menu item hidden states.
 	 */
 	resetHiddenStates(): void;
+
+	/**
+	 * Reset the menu's hidden states.
+	 */
+	resetHiddenStates(menuIds: readonly MenuId[] | undefined): void;
 }
 
 export type ICommandsMap = Map<string, ICommandAction>;
@@ -368,28 +380,10 @@ export class SubmenuItemAction extends SubmenuAction {
 
 	constructor(
 		readonly item: ISubmenuItem,
-		private readonly _menuService: IMenuService,
-		private readonly _contextKeyService: IContextKeyService,
-		private readonly _options?: IMenuActionOptions
+		readonly hideActions: IMenuItemHide | undefined,
+		actions: IAction[],
 	) {
-		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, [], 'submenu');
-	}
-
-	override get actions(): readonly IAction[] {
-		const result: IAction[] = [];
-		const menu = this._menuService.createMenu(this.item.submenu, this._contextKeyService);
-		const groups = menu.getActions(this._options);
-		menu.dispose();
-		for (const [, actions] of groups) {
-			if (actions.length > 0) {
-				result.push(...actions);
-				result.push(new Separator());
-			}
-		}
-		if (result.length) {
-			result.pop(); // remove last separator
-		}
-		return result;
+		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, actions, 'submenu');
 	}
 }
 
@@ -402,6 +396,12 @@ export interface IMenuItemHide {
 // implements IAction, does NOT extend Action, so that no one
 // subscribes to events of Action or modified properties
 export class MenuItemAction implements IAction {
+
+	static label(action: ICommandAction, options?: IMenuActionOptions): string {
+		return options?.renderShortTitle && action.shortTitle
+			? (typeof action.shortTitle === 'string' ? action.shortTitle : action.shortTitle.value)
+			: (typeof action.title === 'string' ? action.title : action.title.value);
+	}
 
 	readonly item: ICommandAction;
 	readonly alt: MenuItemAction | undefined;
@@ -424,9 +424,7 @@ export class MenuItemAction implements IAction {
 		@ICommandService private _commandService: ICommandService
 	) {
 		this.id = item.id;
-		this.label = options?.renderShortTitle && item.shortTitle
-			? (typeof item.shortTitle === 'string' ? item.shortTitle : item.shortTitle.value)
-			: (typeof item.title === 'string' ? item.title : item.title.value);
+		this.label = MenuItemAction.label(item, options);
 		this.tooltip = (typeof item.tooltip === 'string' ? item.tooltip : item.tooltip?.value) ?? '';
 		this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
 		this.checked = undefined;
@@ -560,6 +558,13 @@ export interface IAction2Options extends ICommandAction {
 	 * showing keybindings that have no other UX.
 	 */
 	description?: ICommandHandlerDescription;
+
+	/**
+	 * @deprecated workaround added for https://github.com/microsoft/vscode/issues/162004
+	 * This action doesn't do anything is just a workaround for rendering "something"
+	 * inside a specific toolbar
+	 */
+	_isFakeAction?: true;
 }
 
 export abstract class Action2 {

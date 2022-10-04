@@ -32,4 +32,4 @@ export class BrowserWorkingCopyBackupService extends WorkingCopyBackupService {
 registerSingleton(IWorkingCopyBackupService, BrowserWorkingCopyBackupService, InstantiationType.Eager);
 
 // Register Backup Tracker
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BrowserWorkingCopyBackupTracker, 'BrowserWorkingCopyBackupTracker', LifecyclePhase.Starting);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BrowserWorkingCopyBackupTracker, LifecyclePhase.Starting);

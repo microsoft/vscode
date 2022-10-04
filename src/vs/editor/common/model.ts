@@ -93,6 +93,11 @@ export interface IModelDecorationOptions {
 	className?: string | null;
 	blockClassName?: string | null;
 	/**
+	 * Indicates if this block should be rendered after the last line.
+	 * In this case, the range must be empty and set to the last line.
+	 */
+	blockIsAfterEnd?: boolean | null;
+	/**
 	 * Message to be rendered when hovering over the glyph margin decoration.
 	 */
 	glyphMarginHoverMessage?: IMarkdownString | IMarkdownString[] | null;

@@ -406,7 +406,7 @@ class SharedProcessMain extends Disposable {
 		const userDataSyncStoreManagementChannel = new UserDataSyncStoreManagementServiceChannel(accessor.get(IUserDataSyncStoreManagementService));
 		this.server.registerChannel('userDataSyncStoreManagement', userDataSyncStoreManagementChannel);
 
-		const userDataSyncChannel = new UserDataSyncChannel(accessor.get(IUserDataSyncService), accessor.get(ILogService));
+		const userDataSyncChannel = new UserDataSyncChannel(accessor.get(IUserDataSyncService), accessor.get(IUserDataProfilesService), accessor.get(ILogService));
 		this.server.registerChannel('userDataSync', userDataSyncChannel);
 
 		const userDataAutoSync = this._register(accessor.get(IInstantiationService).createInstance(UserDataAutoSyncService));

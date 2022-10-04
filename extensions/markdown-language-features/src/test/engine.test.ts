@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { InMemoryDocument } from '../util/inMemoryDocument';
+import { InMemoryDocument } from '../client/inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
 
 

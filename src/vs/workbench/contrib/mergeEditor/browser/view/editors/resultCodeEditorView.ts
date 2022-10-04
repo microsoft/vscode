@@ -8,14 +8,14 @@ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { CompareResult } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, derived, IObservable } from 'vs/base/common/observable';
+import { autorun, autorunWithStore, derived, IObservable } from 'vs/base/common/observable';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { MergeMarkersController } from 'vs/workbench/contrib/mergeEditor/browser/mergeMarkers/mergeMarkersController';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { applyObservableDecorations, join } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
@@ -29,8 +29,9 @@ export class ResultCodeEditorView extends CodeEditorView {
 		viewModel: IObservable<MergeEditorViewModel | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(instantiationService, viewModel);
+		super(instantiationService, viewModel, configurationService);
 
 		this.editor.invokeWithinContext(accessor => {
 			const contextKeyService = accessor.get(IContextKeyService);
@@ -39,15 +40,17 @@ export class ResultCodeEditorView extends CodeEditorView {
 			this._register(toDisposable(() => isMergeResultEditor.reset()));
 		});
 
-		this._register(new MergeMarkersController(this.editor, this.viewModel));
-
 		this.htmlElements.gutterDiv.style.width = '5px';
 
 		this._register(
-			new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
-				getIntersectingGutterItems: (range, reader) => [],
-				createView: (item, target) => { throw new BugIndicatingError(); },
-			})
+			autorunWithStore((reader, store) => {
+				if (this.checkboxesVisible.read(reader)) {
+					store.add(new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
+						getIntersectingGutterItems: (range, reader) => [],
+						createView: (item, target) => { throw new BugIndicatingError(); },
+					}));
+				}
+			}, 'update checkboxes')
 		);
 
 		this._register(autorun('update labels & text model', reader => {
@@ -110,6 +113,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 			return [];
 		}
 		const model = viewModel.model;
+		const textModel = model.resultTextModel;
 		const result = new Array<IModelDeltaDecoration>();
 
 		const baseRangeWithStoreAndTouchingDiffs = join(
@@ -124,6 +128,8 @@ export class ResultCodeEditorView extends CodeEditorView {
 		);
 
 		const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
+
+		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
 
 		for (const m of baseRangeWithStoreAndTouchingDiffs) {
 			const modifiedBaseRange = m.left;
@@ -142,11 +148,17 @@ export class ResultCodeEditorView extends CodeEditorView {
 				}
 				blockClassNames.push('result');
 
+				if (!modifiedBaseRange.isConflicting && !showNonConflictingChanges && isHandled) {
+					continue;
+				}
+
+				const range = model.getLineRangeInResult(modifiedBaseRange.baseRange, reader);
 				result.push({
-					range: model.getLineRangeInResult(modifiedBaseRange.baseRange, reader).toInclusiveRangeOrEmpty(),
+					range: range.toInclusiveRangeOrEmpty(),
 					options: {
 						showIfCollapsed: true,
 						blockClassName: blockClassNames.join(' '),
+						blockIsAfterEnd: range.startLineNumber > textModel.getLineCount(),
 						description: 'Result Diff',
 						minimap: {
 							position: MinimapPosition.Gutter,
@@ -158,9 +170,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 						} : undefined
 					}
 				});
-
 			}
-
 
 			if (!modifiedBaseRange || modifiedBaseRange.isConflicting) {
 				for (const diff of m.rights) {

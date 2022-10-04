@@ -113,15 +113,6 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 				test: /\.ts$/,
 				exclude: /node_modules/,
 				use: [
-					// TODO: bring this back once vscode-nls-dev supports browser
-					// {
-					// 	// vscode-nls-dev loader:
-					// 	// * rewrite nls-calls
-					// 	loader: 'vscode-nls-dev/lib/webpack-loader',
-					// 	options: {
-					// 		base: path.join(extConfig.context, 'src')
-					// 	}
-					// },
 					{
 						// configure TypeScript loader:
 						// * enable sources maps for end-to-end source maps
@@ -137,7 +128,6 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 		},
 		externals: {
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
-			'vscode-nls-web-data': 'commonjs vscode-nls-web-data', // ignored because this is injected by the webworker extension host
 			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
 			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing' // ignored because we don't ship this module
 		},

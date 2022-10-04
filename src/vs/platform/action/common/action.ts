@@ -40,6 +40,8 @@ export interface ICommandAction {
 	source?: string;
 	precondition?: ContextKeyExpression;
 	toggled?: ContextKeyExpression | { condition: ContextKeyExpression; icon?: Icon; tooltip?: string; title?: string | ILocalizedString };
+	/** @deprecated see https://github.com/microsoft/vscode/issues/162004 */
+	_isFakeAction?: true;
 }
 
 export type ISerializableCommandAction = UriDto<ICommandAction>;

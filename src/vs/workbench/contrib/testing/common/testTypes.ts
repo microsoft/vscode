@@ -163,8 +163,15 @@ export interface ITestOutputMessage {
 	type: TestMessageType.Output;
 	offset: number;
 	length: number;
+	marker?: number;
 	location: IRichLocation | undefined;
 }
+
+/**
+ * Gets the TTY marker ID for either starting or ending
+ * an ITestOutputMessage.marker of the given ID.
+ */
+export const getMarkId = (marker: number, start: boolean) => `${start ? 's' : 'e'}${marker}`;
 
 export namespace ITestOutputMessage {
 	export interface Serialized {
@@ -369,12 +376,6 @@ export interface ITestItemUpdate {
 	extId: string;
 	expand?: TestItemExpandState;
 	item?: Partial<ITestItem>;
-
-	/**
-	 * The document version at the time the operation was made, if the test has
-	 * a URI and the document was open in the extension host.
-	 */
-	docv?: number;
 }
 
 export namespace ITestItemUpdate {
@@ -382,7 +383,6 @@ export namespace ITestItemUpdate {
 		extId: string;
 		expand?: TestItemExpandState;
 		item?: Partial<ITestItem.Serialized>;
-		docv?: number;
 	}
 
 	export const serialize = (u: ITestItemUpdate): Serialized => {
@@ -399,7 +399,7 @@ export namespace ITestItemUpdate {
 			if (u.item.sortText !== undefined) { item.sortText = u.item.sortText; }
 		}
 
-		return { extId: u.extId, expand: u.expand, item, docv: u.docv };
+		return { extId: u.extId, expand: u.expand, item };
 	};
 
 	export const deserialize = (u: Serialized): ITestItemUpdate => {
@@ -415,7 +415,7 @@ export namespace ITestItemUpdate {
 			if (u.item.sortText !== undefined) { item.sortText = u.item.sortText; }
 		}
 
-		return { extId: u.extId, expand: u.expand, item, docv: u.docv };
+		return { extId: u.extId, expand: u.expand, item };
 	};
 
 }
@@ -533,6 +533,8 @@ export const enum TestDiffOpType {
 	Add,
 	/** Shallow-updates an existing test */
 	Update,
+	/** Ranges of some tests in a document were synced, so it should be considered up-to-date */
+	DocumentSynced,
 	/** Removes a test (and all its children) */
 	Remove,
 	/** Changes the number of controllers who are yet to publish their collection roots. */
@@ -552,7 +554,8 @@ export type TestsDiffOp =
 	| { op: TestDiffOpType.Retire; itemId: string }
 	| { op: TestDiffOpType.IncrementPendingExtHosts; amount: number }
 	| { op: TestDiffOpType.AddTag; tag: ITestTagDisplayInfo }
-	| { op: TestDiffOpType.RemoveTag; id: string };
+	| { op: TestDiffOpType.RemoveTag; id: string }
+	| { op: TestDiffOpType.DocumentSynced; uri: URI; docv?: number };
 
 export namespace TestsDiffOp {
 	export type Serialized =
@@ -562,13 +565,16 @@ export namespace TestsDiffOp {
 		| { op: TestDiffOpType.Retire; itemId: string }
 		| { op: TestDiffOpType.IncrementPendingExtHosts; amount: number }
 		| { op: TestDiffOpType.AddTag; tag: ITestTagDisplayInfo }
-		| { op: TestDiffOpType.RemoveTag; id: string };
+		| { op: TestDiffOpType.RemoveTag; id: string }
+		| { op: TestDiffOpType.DocumentSynced; uri: UriComponents; docv?: number };
 
 	export const deserialize = (u: Serialized): TestsDiffOp => {
 		if (u.op === TestDiffOpType.Add) {
 			return { op: u.op, item: InternalTestItem.deserialize(u.item) };
 		} else if (u.op === TestDiffOpType.Update) {
 			return { op: u.op, item: ITestItemUpdate.deserialize(u.item) };
+		} else if (u.op === TestDiffOpType.DocumentSynced) {
+			return { op: u.op, uri: URI.revive(u.uri), docv: u.docv };
 		} else {
 			return u;
 		}

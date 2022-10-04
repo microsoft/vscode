@@ -147,8 +147,8 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		return !this.debuggerWhen || this.contextKeyService.contextMatchesRules(this.debuggerWhen);
 	}
 
-	get uiMessages() {
-		return this.debuggerContribution.uiMessages;
+	get strings() {
+		return this.debuggerContribution.strings ?? (this.debuggerContribution as any).uiMessages;
 	}
 
 	interestedInLanguage(languageId: string): boolean {

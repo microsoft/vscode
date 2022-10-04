@@ -302,7 +302,7 @@ export class WebClientServer {
 		const workbenchWebConfiguration = {
 			remoteAuthority,
 			_wrapWebWorkerExtHostInIframe,
-			developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined },
+			developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined, logLevel: this._logService.getLevel() },
 			settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
 			enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
 			folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),

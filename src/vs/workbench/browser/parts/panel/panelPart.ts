@@ -37,7 +37,6 @@ import { Before2D, CompositeDragAndDropObserver, ICompositeDragAndDrop, toggleDr
 import { IActivity } from 'vs/workbench/common/activity';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { Extensions as PaneCompositeExtensions, PaneComposite, PaneCompositeDescriptor, PaneCompositeRegistry } from 'vs/workbench/browser/panecomposite';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IComposite } from 'vs/workbench/common/composite';
@@ -46,6 +45,7 @@ import { IPartOptions } from 'vs/workbench/browser/part';
 import { StringSHA1 } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
 import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 
 interface ICachedPanel {
 	id: string;

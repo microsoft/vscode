@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { SequenceFromIntArray, OffsetRange, SequenceDiff, ISequence } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
@@ -56,12 +57,44 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		})();
 
 		const alignments: RangeMapping[] = [];
+
+		const scanForWhitespaceChanges = (equalLinesCount: number) => {
+			for (let i = 0; i < equalLinesCount; i++) {
+				const seq1Offset = seq1LastStart + i;
+				const seq2Offset = seq2LastStart + i;
+				if (originalLines[seq1Offset] !== modifiedLines[seq2Offset]) {
+					// This is because of whitespace changes, diff these lines
+					const characterDiffs = this.refineDiff(originalLines, modifiedLines, new SequenceDiff(
+						new OffsetRange(seq1Offset, seq1Offset + 1),
+						new OffsetRange(seq2Offset, seq2Offset + 1)
+					));
+					for (const a of characterDiffs) {
+						alignments.push(a);
+					}
+				}
+			}
+		};
+
+		let seq1LastStart = 0;
+		let seq2LastStart = 0;
+
 		for (const diff of lineAlignments) {
+			assertFn(() => diff.seq1Range.start - seq1LastStart === diff.seq2Range.start - seq2LastStart);
+
+			const equalLinesCount = diff.seq1Range.start - seq1LastStart;
+
+			scanForWhitespaceChanges(equalLinesCount);
+
+			seq1LastStart = diff.seq1Range.endExclusive;
+			seq2LastStart = diff.seq2Range.endExclusive;
+
 			const characterDiffs = this.refineDiff(originalLines, modifiedLines, diff);
 			for (const a of characterDiffs) {
 				alignments.push(a);
 			}
 		}
+
+		scanForWhitespaceChanges(originalLines.length - seq1LastStart);
 
 		const changes: LineRangeMapping[] = lineRangeMappingFromRangeMappings(alignments);
 
@@ -91,7 +124,9 @@ export function lineRangeMappingFromRangeMappings(alignments: RangeMapping[]): L
 	const changes: LineRangeMapping[] = [];
 	for (const g of group(
 		alignments,
-		(a1, a2) => a2.modifiedRange.startLineNumber - (a1.modifiedRange.endLineNumber - (a1.modifiedRange.endColumn > 1 ? 0 : 1)) <= 1
+		(a1, a2) =>
+			(a2.originalRange.startLineNumber - (a1.originalRange.endLineNumber - (a1.originalRange.endColumn > 1 ? 0 : 1)) <= 1)
+			|| (a2.modifiedRange.startLineNumber - (a1.modifiedRange.endLineNumber - (a1.modifiedRange.endColumn > 1 ? 0 : 1)) <= 1)
 	)) {
 		const first = g[0];
 		const last = g[g.length - 1];
@@ -108,6 +143,17 @@ export function lineRangeMappingFromRangeMappings(alignments: RangeMapping[]): L
 			g
 		));
 	}
+
+	assertFn(() => {
+		return checkAdjacentItems(changes,
+			(m1, m2) => m2.originalRange.startLineNumber - m1.originalRange.endLineNumberExclusive === m2.modifiedRange.startLineNumber - m1.modifiedRange.endLineNumberExclusive &&
+				// There has to be an unchanged line in between (otherwise both diffs should have been joined)
+				m1.originalRange.endLineNumberExclusive < m2.originalRange.startLineNumber &&
+				m1.modifiedRange.endLineNumberExclusive < m2.modifiedRange.startLineNumber,
+		);
+	});
+
+
 	return changes;
 }
 
