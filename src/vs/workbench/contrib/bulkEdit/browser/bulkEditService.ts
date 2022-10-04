@@ -16,7 +16,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
@@ -289,7 +289,7 @@ export class BulkEditService implements IBulkEditService {
 	}
 }
 
-registerSingleton(IBulkEditService, BulkEditService, true);
+registerSingleton(IBulkEditService, BulkEditService, InstantiationType.Delayed);
 
 const autoSaveSetting = 'files.refactoring.autoSave';
 

@@ -81,7 +81,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
-registerSingleton(IExtensionRecommendationNotificationService, ExtensionRecommendationNotificationService, true);
+registerSingleton(IExtensionRecommendationNotificationService, ExtensionRecommendationNotificationService, InstantiationType.Delayed);
 registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsService, InstantiationType.Eager /* Prompts recommendations in the background */);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)

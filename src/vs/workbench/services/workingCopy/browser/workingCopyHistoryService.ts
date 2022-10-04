@@ -11,7 +11,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkingCopyHistoryModelOptions, WorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 
 export class BrowserWorkingCopyHistoryService extends WorkingCopyHistoryService {
@@ -34,4 +34,4 @@ export class BrowserWorkingCopyHistoryService extends WorkingCopyHistoryService 
 }
 
 // Register Service
-registerSingleton(IWorkingCopyHistoryService, BrowserWorkingCopyHistoryService, true);
+registerSingleton(IWorkingCopyHistoryService, BrowserWorkingCopyHistoryService, InstantiationType.Delayed);

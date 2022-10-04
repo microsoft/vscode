@@ -9,7 +9,7 @@ import { parse } from 'vs/base/common/json';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { isWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
@@ -266,4 +266,4 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 
 }
 
-registerSingleton(IWorkspaceExtensionsConfigService, WorkspaceExtensionsConfigService, true);
+registerSingleton(IWorkspaceExtensionsConfigService, WorkspaceExtensionsConfigService, InstantiationType.Delayed);

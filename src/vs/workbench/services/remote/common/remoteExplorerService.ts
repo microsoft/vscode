@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ALL_INTERFACES_ADDRESSES, isAllInterfaces, isLocalhost, ITunnelService, LOCALHOST_ADDRESSES, PortAttributesProvider, ProvidedOnAutoForward, ProvidedPortAttributes, RemoteTunnel, TunnelPrivacyId, TunnelProtocol } from 'vs/platform/tunnel/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -1015,4 +1015,4 @@ class RemoteExplorerService implements IRemoteExplorerService {
 	}
 }
 
-registerSingleton(IRemoteExplorerService, RemoteExplorerService, true);
+registerSingleton(IRemoteExplorerService, RemoteExplorerService, InstantiationType.Delayed);
