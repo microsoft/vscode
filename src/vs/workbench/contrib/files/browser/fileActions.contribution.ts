@@ -18,11 +18,11 @@ import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/com
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext, ExplorerResourceNotReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerViewletVisibleContext, ExplorerResourceAvailableEditorIdsContext } from 'vs/workbench/contrib/files/common/files';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
-import { CLOSE_SAVED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_SAVED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, REOPEN_WITH_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { AutoSaveAfterShortDelayContext } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { WorkbenchListDoubleSelection } from 'vs/platform/list/browser/listService';
 import { Schemas } from 'vs/base/common/network';
-import { DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, WorkbenchStateContext, WorkspaceFolderCountContext, SidebarFocusContext, ActiveEditorCanRevertContext, ActiveEditorContext, ResourceContextKey } from 'vs/workbench/common/contextkeys';
+import { DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, WorkbenchStateContext, WorkspaceFolderCountContext, SidebarFocusContext, ActiveEditorCanRevertContext, ActiveEditorContext, ResourceContextKey, ActiveEditorAvailableEditorIdsContext } from 'vs/workbench/common/contextkeys';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -224,6 +224,16 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	order: 10,
 	command: openToSideCommand,
 	when: isFileOrUntitledResourceContextKey
+});
+
+MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+	group: '1_open',
+	order: 10,
+	command: {
+		id: REOPEN_WITH_COMMAND_ID,
+		title: nls.localize('reopenWith', "Reopen Editor With...")
+	},
+	when: ActiveEditorAvailableEditorIdsContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {

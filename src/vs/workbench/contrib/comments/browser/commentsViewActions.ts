@@ -412,6 +412,7 @@ registerAction2(class extends ViewAction<ICommentsView> {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			_isFakeAction: true,
 			id: `workbench.actions.treeView.${COMMENTS_VIEW_ID}.filter`,
 			title: localize('filter', "Filter"),
 			menu: {

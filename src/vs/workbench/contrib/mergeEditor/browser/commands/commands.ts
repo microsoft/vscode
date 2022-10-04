@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
+import { basename } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
@@ -294,7 +295,7 @@ export class ShowHideAtTopBase extends Action2 {
 					order: 10,
 				},
 			],
-			precondition: ContextKeyExpr.and(ctxIsMergeEditor, ctxMergeEditorShowBase),
+			precondition: ContextKeyExpr.and(ctxIsMergeEditor, ctxMergeEditorShowBase, ctxMergeEditorLayout.isEqualTo('mixed')),
 		});
 	}
 
@@ -603,31 +604,7 @@ export class ResetToBaseAndAutoMergeCommand extends MergeEditorAction {
 	}
 
 	override runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void {
-		viewModel.model.resetResultToBaseAndAutoMerge();
-	}
-}
-
-export class ResetDirtyConflictsToBaseCommand extends MergeEditorAction {
-	constructor() {
-		super({
-			id: 'mergeEditor.resetDirtyConflictsToBase',
-			category: mergeEditorCategory,
-			title: {
-				value: localize(
-					'mergeEditor.resetDirtyConflictsToBase',
-					'Reset Dirty Conflicts In Result To Base'
-				),
-				original: 'Reset Dirty Conflicts In Result To Base',
-			},
-			shortTitle: localize('mergeEditor.resetDirtyConflictsToBase.short', 'Reset Dirty Conflicts To Base'),
-			f1: true,
-			precondition: ctxIsMergeEditor,
-			menu: { id: MenuId.MergeInputResultToolbar }
-		});
-	}
-
-	override runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void {
-		viewModel.model.resetDirtyConflictsToBase();
+		viewModel.model.reset();
 	}
 }
 
@@ -640,9 +617,9 @@ export class AcceptMerge extends MergeEditorAction2 {
 			title: {
 				value: localize(
 					'mergeEditor.acceptMerge',
-					'Accept Merge'
+					'Complete Merge'
 				),
-				original: 'Accept Merge',
+				original: 'Complete Merge',
 			},
 			f1: false,
 			precondition: ctxIsMergeEditor
@@ -656,8 +633,9 @@ export class AcceptMerge extends MergeEditorAction2 {
 		if (viewModel.model.unhandledConflictsCount.get() > 0) {
 			const confirmResult = await dialogService.confirm({
 				type: 'info',
-				message: localize('mergeEditor.acceptMerge.unhandledConflicts', "There are still unhandled conflicts. Are you sure you want to accept the merge?"),
-				primaryButton: localize('mergeEditor.acceptMerge.unhandledConflicts.accept', "Accept merge with unhandled conflicts"),
+				message: localize('mergeEditor.acceptMerge.unhandledConflicts.message', "Do you want to complete the merge of {0}?", basename(inputModel.resultUri)),
+				detail: localize('mergeEditor.acceptMerge.unhandledConflicts.detail', "The file contains unhandled conflicts."),
+				primaryButton: localize('mergeEditor.acceptMerge.unhandledConflicts.accept', "Complete with Conflicts"),
 				secondaryButton: localize('mergeEditor.acceptMerge.unhandledConflicts.cancel', "Cancel"),
 			});
 

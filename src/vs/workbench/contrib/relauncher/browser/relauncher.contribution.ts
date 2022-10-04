@@ -27,7 +27,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
 	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean } };
-	workbench?: { experimental?: { settingsProfiles?: { enabled?: boolean } } };
+	workbench?: { experimental?: { settingsProfiles?: { enabled?: boolean } }; enableExperiments?: boolean };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -42,6 +42,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 	private workspaceTrustEnabled: boolean | undefined;
 	private settingsProfilesEnabled: boolean | undefined;
+	private experimentsEnabled: boolean | undefined;
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -120,6 +121,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		// Profiles
 		if (this.productService.quality === 'stable' && typeof config.workbench?.experimental?.settingsProfiles?.enabled === 'boolean' && config.workbench.experimental.settingsProfiles.enabled !== this.settingsProfilesEnabled) {
 			this.settingsProfilesEnabled = config.workbench.experimental.settingsProfiles.enabled;
+			changed = true;
+		}
+
+		// Experiments
+		if (typeof config.workbench?.enableExperiments === 'boolean' && config.workbench.enableExperiments !== this.experimentsEnabled) {
+			this.experimentsEnabled = config.workbench.enableExperiments;
 			changed = true;
 		}
 
@@ -225,5 +232,5 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, 'SettingsChangeRelauncher', LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(WorkspaceChangeExtHostRelauncher, 'WorkspaceChangeExtHostRelauncher', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(WorkspaceChangeExtHostRelauncher, LifecyclePhase.Restored);

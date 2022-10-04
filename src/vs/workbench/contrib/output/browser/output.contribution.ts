@@ -102,11 +102,12 @@ class OutputContribution implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(OutputContribution, 'OutputContribution', LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(OutputContribution, LifecyclePhase.Restored);
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			_isFakeAction: true,
 			id: `workbench.output.action.switchBetweenOutputs`,
 			title: nls.localize('switchToOutput.label', "Switch to Output"),
 			menu: {
@@ -165,10 +166,10 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: 3,
 			},
-			icon: Codicon.unlock,
+			icon: Codicon.lock,
 			toggled: {
 				condition: CONTEXT_OUTPUT_SCROLL_LOCK,
-				icon: Codicon.lock,
+				icon: Codicon.unlock,
 				tooltip: nls.localize('outputScrollOn', "Turn Auto Scrolling On")
 			}
 		});

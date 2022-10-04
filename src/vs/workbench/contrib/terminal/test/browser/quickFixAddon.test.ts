@@ -11,10 +11,10 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalCommand, ITerminalOutputMatcher, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { ITerminalQuickFixAction, ITerminalInstance, ITerminalOutputMatcher } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalQuickFixAction, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, gitSimilarCommand, GitSimilarOutputRegex } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { TerminalQuickFixAddon, getQuickFixes } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { Terminal } from 'xterm';
@@ -56,9 +56,9 @@ suite('QuickFixAddon', () => {
 			const actions = [
 				{
 					id: 'terminal.gitSimilarCommand',
-					label: 'Run git status',
+					label: 'Run: git status',
 					run: true,
-					tooltip: 'Run git status',
+					tooltip: 'Run: git status',
 					enabled: true
 				}
 			];
@@ -136,9 +136,9 @@ suite('QuickFixAddon', () => {
 			const actions = [
 				{
 					id: 'terminal.gitPush',
-					label: 'Git push test22',
+					label: 'Run: git push --set-upstream origin test22',
 					run: true,
-					tooltip: 'Git push test22',
+					tooltip: 'Run: git push --set-upstream origin test22',
 					enabled: true
 				}
 			];
@@ -179,9 +179,9 @@ suite('QuickFixAddon', () => {
 			const actions = [
 				{
 					id: 'terminal.gitCreatePr',
-					label: 'Create PR',
+					label: 'Open link: https://github.com/meganrogge/xterm.js/pull/new/test22',
 					run: true,
-					tooltip: 'Create PR',
+					tooltip: 'Open link: https://github.com/meganrogge/xterm.js/pull/new/test22',
 					enabled: true
 				}
 			];
@@ -219,9 +219,9 @@ suite('QuickFixAddon', () => {
 		const actions = [
 			{
 				id: 'terminal.gitPush',
-				label: 'Git push test22',
+				label: 'Run: git push --set-upstream origin test22',
 				run: true,
-				tooltip: 'Git push test22',
+				tooltip: 'Run: git push --set-upstream origin test22',
 				enabled: true
 			}
 		];

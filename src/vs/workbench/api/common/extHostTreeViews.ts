@@ -14,7 +14,7 @@ import { CheckboxUpdate, DataTransferDTO, ExtHostTreeViewsShape, MainThreadTreeV
 import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand, TreeViewPaneHandleArg, ITreeItemCheckboxState } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { asPromise } from 'vs/base/common/async';
-import { TreeItemCollapsibleState, TreeItemCheckboxState, ThemeIcon, MarkdownString as MarkdownStringType, TreeItem } from 'vs/workbench/api/common/extHostTypes';
+import { TreeItemCollapsibleState, TreeItemCheckboxState, ThemeIcon, MarkdownString as MarkdownStringType, TreeItem, ViewBadge as ExtHostViewBadge } from 'vs/workbench/api/common/extHostTypes';
 import { isUndefinedOrNull, isString } from 'vs/base/common/types';
 import { equals, coalesce } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -122,7 +122,12 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 				return treeView.badge;
 			},
 			set badge(badge: vscode.ViewBadge | undefined) {
-				treeView.badge = badge;
+				if (ExtHostViewBadge.isViewBadge(badge)) {
+					treeView.badge = {
+						value: Math.floor(Math.abs(badge.value)),
+						tooltip: badge.tooltip
+					};
+				}
 			},
 			reveal: (element: T, options?: IRevealOptions): Promise<void> => {
 				return treeView.reveal(element, options);

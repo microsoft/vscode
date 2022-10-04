@@ -65,6 +65,7 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	}
 
 	private filterEvent({ profileLocation, applicationScoped }: { profileLocation?: URI; applicationScoped?: boolean }): boolean {
+		profileLocation = profileLocation ?? this.userDataProfileService.currentProfile.extensionsResource;
 		return applicationScoped || this.uriIdentityService.extUri.isEqual(this.userDataProfileService.currentProfile.extensionsResource, profileLocation);
 	}
 

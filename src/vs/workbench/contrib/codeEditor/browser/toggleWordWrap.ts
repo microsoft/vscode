@@ -269,7 +269,7 @@ class EditorWordWrapContextKeyTracker implements IWorkbenchContribution {
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(EditorWordWrapContextKeyTracker, 'EditorWordWrapContextKeyTracker', LifecyclePhase.Ready);
+workbenchRegistry.registerWorkbenchContribution(EditorWordWrapContextKeyTracker, LifecyclePhase.Ready);
 
 registerEditorContribution(ToggleWordWrapController.ID, ToggleWordWrapController);
 
