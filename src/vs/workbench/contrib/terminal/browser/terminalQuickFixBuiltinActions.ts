@@ -13,10 +13,10 @@ export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
 export const GitTwoDashesRegex = /error: did you mean `--(.+)` \(with two dashes\)\?/;
 export const AnyCommandLineRegex = /.+/;
-export const GitSimilarOutputRegex = /most similar command is\s*\n\s*([^\s]{3,})/m;
+export const GitSimilarOutputRegex = /(?:(most similar (command|commands) (is|are)))((\n\s*[^\s]+)+)/m;
 export const FreePortOutputRegex = /address already in use \d+\.\d+\.\d+\.\d+:(\d{4,5})|Unable to bind [^ ]*:(\d{4,5})|can't listen on port (\d{4,5})|listen EADDRINUSE [^ ]*:(\d{4,5})/;
 export const GitPushOutputRegex = /git push --set-upstream origin ([^\s]+)/;
-// The previous line starts with "Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s*",
+// The previous line starts with "Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s*"
 // it's safe to assume it's a github pull request if the URL includes `/pull/`
 export const GitCreatePrOutputRegex = /remote:\s*(https:\/\/github\.com\/.+\/.+\/pull\/new\/.+)/;
 
@@ -27,23 +27,26 @@ export function gitSimilarCommand(): ITerminalQuickFixOptions {
 			lineMatcher: GitSimilarOutputRegex,
 			anchor: 'bottom',
 			offset: 0,
-			length: 3
+			length: 10
 		},
 		exitStatus: false,
 		getQuickFixes: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
 			const actions: ITerminalQuickFixAction[] = [];
-			const fixedCommand = matchResult?.outputMatch?.[1];
-			if (!fixedCommand) {
+			if (!matchResult?.outputMatch) {
 				return;
 			}
-			const commandToRunInTerminal = `git ${fixedCommand}`;
-			const label = localize("terminal.runCommand", "Run: {0}", commandToRunInTerminal);
-			actions.push({
-				class: undefined, tooltip: label, id: 'terminal.gitSimilarCommand', label, enabled: true,
-				commandToRunInTerminal,
-				addNewLine: true,
-				run: () => { }
-			});
+			const results = matchResult.outputMatch[0].split('\n').map(r => r.trim());
+			for (let i = 1; i < results.length; i++) {
+				const fixedCommand = results[i];
+				const commandToRunInTerminal = `git ${fixedCommand}`;
+				const label = localize("terminal.runCommand", "Run: {0}", commandToRunInTerminal);
+				actions.push({
+					class: undefined, tooltip: label, id: 'terminal.gitSimilarCommand', label, enabled: true,
+					commandToRunInTerminal,
+					addNewLine: true,
+					run: () => { }
+				});
+			}
 			return actions;
 		}
 	};

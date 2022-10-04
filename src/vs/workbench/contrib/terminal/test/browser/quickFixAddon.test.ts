@@ -48,7 +48,7 @@ suite('QuickFixAddon', () => {
 		suite('gitSimilarCommand', async () => {
 			const expectedMap = new Map();
 			const command = `git sttatus`;
-			const output = `git: 'sttatus' is not a git command. See 'git --help'.
+			let output = `git: 'sttatus' is not a git command. See 'git --help'.
 
 			The most similar command is
 			status`;
@@ -81,6 +81,36 @@ suite('QuickFixAddon', () => {
 				});
 				test('matching exit status', () => {
 					assertMatchOptions(getQuickFixes(createCommand(command, output, GitSimilarOutputRegex, 2), expectedMap), actions);
+				});
+			});
+			suite('returns match', () => {
+				test('returns match', () => {
+					assertMatchOptions(getQuickFixes(createCommand(command, output, GitSimilarOutputRegex), expectedMap), actions);
+				});
+
+				test('returns multiple match', () => {
+					output = `git: 'pu' is not a git command. See 'git --help'.
+
+				The most similar commands are
+						pull
+						push`;
+					const actions = [
+						{
+							id: 'terminal.gitSimilarCommand',
+							label: 'Run: git pull',
+							run: true,
+							tooltip: 'Run: git pull',
+							enabled: true
+						},
+						{
+							id: 'terminal.gitSimilarCommand',
+							label: 'Run: git push',
+							run: true,
+							tooltip: 'Run: git push',
+							enabled: true
+						}
+					];
+					assertMatchOptions(getQuickFixes(createCommand('git pu', output, GitSimilarOutputRegex), expectedMap), actions);
 				});
 			});
 		});
