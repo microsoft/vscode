@@ -1846,7 +1846,8 @@ export namespace TestResults {
 		const byInternalId = new Map<string, TestResultItem.Serialized>();
 		for (const item of serialized.items) {
 			byInternalId.set(item.item.extId, item);
-			if (serialized.request.targets.some(t => t.controllerId === item.controllerId && t.testIds.includes(item.item.extId))) {
+			const controllerId = TestId.root(item.item.extId);
+			if (serialized.request.targets.some(t => t.controllerId === controllerId && t.testIds.includes(item.item.extId))) {
 				roots.push(item);
 			}
 		}

@@ -41,6 +41,7 @@ import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/work
 import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
 import { DefaultGutterClickAction, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState, Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestDecoration as IPublicTestDecoration, ITestingDecorationsService, TestDecorations } from 'vs/workbench/contrib/testing/common/testingDecorations';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState, maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -849,7 +850,7 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 		const testItems = this.tests.map(testItem => ({
 			currentLabel: testItem.test.item.label,
 			testItem,
-			parent: testItem.test.parent,
+			parent: TestId.fromString(testItem.test.item.extId).parentId,
 		}));
 
 		const getLabelConflicts = (tests: typeof testItems) => {
@@ -865,9 +866,9 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 		while ((conflicts = getLabelConflicts(testItems)).length && hasParent) {
 			for (const conflict of conflicts) {
 				if (conflict.parent) {
-					const parent = this.testService.collection.getNodeById(conflict.parent);
+					const parent = this.testService.collection.getNodeById(conflict.parent.toString());
 					conflict.currentLabel = parent?.item.label + ' > ' + conflict.currentLabel;
-					conflict.parent = parent?.parent ? parent.parent : null;
+					conflict.parent = conflict.parent.parentId;
 				} else {
 					hasParent = false;
 				}

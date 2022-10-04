@@ -751,7 +751,8 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 
 		this.updated.delete(node);
 
-		if (node.parent && this.alreadyRemoved.has(node.parent)) {
+		const parentId = TestId.parentId(node.item.extId);
+		if (parentId && this.alreadyRemoved.has(parentId.toString())) {
 			this.alreadyRemoved.add(node.item.extId);
 			return;
 		}
