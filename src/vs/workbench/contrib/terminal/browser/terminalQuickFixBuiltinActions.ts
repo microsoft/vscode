@@ -41,11 +41,13 @@ export function gitSimilarCommand(): ITerminalQuickFixOptions {
 			const results = matchResult.outputMatch[0].split('\n').map(r => r.trim());
 			for (let i = 1; i < results.length; i++) {
 				const fixedCommand = results[i];
-				return {
-					type: 'command',
-					command: `git ${fixedCommand}`,
-					addNewLine: true
-				};
+				if (fixedCommand) {
+					actions.push({
+						type: 'command',
+						command: `git ${fixedCommand}`,
+						addNewLine: true
+					});
+				}
 			}
 			return actions;
 		}

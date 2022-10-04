@@ -97,22 +97,19 @@ suite('QuickFixAddon', () => {
 				The most similar commands are
 						pull
 						push`;
-					const actions = [
-						{
-							id: 'terminal.gitSimilarCommand',
-							label: 'Run: git pull',
-							run: true,
-							tooltip: 'Run: git pull',
-							enabled: true
-						},
-						{
-							id: 'terminal.gitSimilarCommand',
-							label: 'Run: git push',
-							run: true,
-							tooltip: 'Run: git push',
-							enabled: true
-						}
-					];
+					const actions = [{
+						id: `quickFix.command`,
+						enabled: true,
+						label: 'Run: git pull',
+						tooltip: 'Run: git pull',
+						command: 'git pull'
+					}, {
+						id: `quickFix.command`,
+						enabled: true,
+						label: 'Run: git push',
+						tooltip: 'Run: git push',
+						command: 'git push'
+					}];
 					assertMatchOptions(getQuickFixes(createCommand('git pu', output, GitSimilarOutputRegex), expectedMap, openerService), actions);
 				});
 			});
@@ -122,15 +119,13 @@ suite('QuickFixAddon', () => {
 			const command = `git add . -all`;
 			const output = 'error: did you mean `--all` (with two dashes)?';
 			const exitCode = 1;
-			const actions = [
-				{
-					id: 'terminal.gitTwoDashes',
-					label: 'Run: git add . --all',
-					run: true,
-					tooltip: 'Run: git add . --all',
-					enabled: true
-				}
-			];
+			const actions = [{
+				id: `quickFix.command`,
+				enabled: true,
+				label: 'Run: git add . --all',
+				tooltip: 'Run: git add . --all',
+				command: 'git add . --all'
+			}];
 			setup(() => {
 				const command = gitTwoDashes();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
