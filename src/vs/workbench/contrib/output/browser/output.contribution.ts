@@ -10,7 +10,7 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { OutputService, LogContentProvider } from 'vs/workbench/contrib/output/browser/outputServices';
 import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
 import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
@@ -34,7 +34,7 @@ import { CATEGORIES } from 'vs/workbench/common/actions';
 import { EditorExtensions } from 'vs/workbench/common/editor';
 
 // Register Service
-registerSingleton(IOutputService, OutputService, true);
+registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
 
 // Register Output Mode
 ModesRegistry.registerLanguage({
@@ -102,7 +102,7 @@ class OutputContribution implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(OutputContribution, 'OutputContribution', LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(OutputContribution, LifecyclePhase.Restored);
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -166,10 +166,10 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: 3,
 			},
-			icon: Codicon.unlock,
+			icon: Codicon.lock,
 			toggled: {
 				condition: CONTEXT_OUTPUT_SCROLL_LOCK,
-				icon: Codicon.lock,
+				icon: Codicon.unlock,
 				tooltip: nls.localize('outputScrollOn', "Turn Auto Scrolling On")
 			}
 		});

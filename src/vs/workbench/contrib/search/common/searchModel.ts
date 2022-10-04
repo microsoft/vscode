@@ -928,11 +928,37 @@ export class FolderMatchNoRoot extends FolderMatch {
  * and their sort order is undefined.
  */
 export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch, sortOrder: SearchSortOrder = SearchSortOrder.Default): number {
+
+	if (elementA instanceof FileMatch && elementB instanceof FolderMatch) {
+		return 1;
+	}
+
+	if (elementB instanceof FileMatch && elementA instanceof FolderMatch) {
+		return -1;
+	}
+
 	if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
 		const elemAIndex = elementA.index();
 		const elemBIndex = elementB.index();
 		if (elemAIndex !== null && elemBIndex !== null) {
 			return elemAIndex - elemBIndex;
+		}
+
+		switch (sortOrder) {
+			case SearchSortOrder.CountDescending:
+				return elementB.count() - elementA.count();
+			case SearchSortOrder.CountAscending:
+				return elementA.count() - elementB.count();
+			case SearchSortOrder.Type:
+				return compareFileExtensions(elementA.name(), elementB.name());
+			case SearchSortOrder.FileNames:
+				return compareFileNames(elementA.name(), elementB.name());
+			// Fall through otherwise
+			default:
+				if (!elementA.resource || !elementB.resource) {
+					return 0;
+				}
+				return comparePaths(elementA.resource.fsPath, elementB.resource.fsPath) || compareFileNames(elementA.name(), elementB.name());
 		}
 	}
 
@@ -947,12 +973,11 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 			case SearchSortOrder.FileNames:
 				return compareFileNames(elementA.name(), elementB.name());
 			case SearchSortOrder.Modified: {
-				if (!(elementA instanceof FolderMatch) || !(elementB instanceof FolderMatch)) {
-					const fileStatA = elementA.fileStat;
-					const fileStatB = elementB.fileStat;
-					if (fileStatA && fileStatB) {
-						return fileStatB.mtime - fileStatA.mtime;
-					}
+				const fileStatA = elementA.fileStat;
+				const fileStatB = elementB.fileStat;
+				if (fileStatA && fileStatB) {
+					return fileStatB.mtime - fileStatA.mtime;
+
 				}
 			}
 			// Fall through otherwise

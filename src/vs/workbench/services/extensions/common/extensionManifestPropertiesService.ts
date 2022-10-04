@@ -11,7 +11,7 @@ import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/ex
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionUntrustedWorkspaceSupport } from 'vs/base/common/product';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
@@ -371,4 +371,4 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 	}
 }
 
-registerSingleton(IExtensionManifestPropertiesService, ExtensionManifestPropertiesService, true);
+registerSingleton(IExtensionManifestPropertiesService, ExtensionManifestPropertiesService, InstantiationType.Delayed);

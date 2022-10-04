@@ -11,7 +11,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isMacintosh, isWindows, isLinux, isNative } from 'vs/base/common/platform';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { TitlebarPart as BrowserTitleBarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -62,13 +62,12 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IHoverService hoverService: IHoverService,
 	) {
-		super(contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, menuService, contextKeyService, hostService, hoverService);
+		super(contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService);
 
 		this.environmentService = environmentService;
 	}

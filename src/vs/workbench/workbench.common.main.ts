@@ -128,21 +128,21 @@ import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDat
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { IExtensionsProfileScannerService, ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 
-registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, true);
-registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, true);
-registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService, true);
-registerSingleton(IExtensionStorageService, ExtensionStorageService, true);
-registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
-registerSingleton(IContextViewService, ContextViewService, true);
-registerSingleton(IListService, ListService, true);
+registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
+registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, InstantiationType.Delayed);
+registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService, InstantiationType.Delayed);
+registerSingleton(IExtensionStorageService, ExtensionStorageService, InstantiationType.Delayed);
+registerSingleton(IExtensionGalleryService, ExtensionGalleryService, InstantiationType.Delayed);
+registerSingleton(IContextViewService, ContextViewService, InstantiationType.Delayed);
+registerSingleton(IListService, ListService, InstantiationType.Delayed);
 registerSingleton(IEditorWorkerService, EditorWorkerService, InstantiationType.Eager /* registers link detection and word based suggestions for any document */);
-registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, true);
-registerSingleton(IMarkerService, MarkerService, true);
-registerSingleton(IContextKeyService, ContextKeyService, true);
-registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService, true);
-registerSingleton(IDownloadService, DownloadService, true);
-registerSingleton(IOpenerService, OpenerService, true);
-registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, true);
+registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, InstantiationType.Delayed);
+registerSingleton(IMarkerService, MarkerService, InstantiationType.Delayed);
+registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Delayed);
+registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService, InstantiationType.Delayed);
+registerSingleton(IDownloadService, DownloadService, InstantiationType.Delayed);
+registerSingleton(IOpenerService, OpenerService, InstantiationType.Delayed);
+registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, InstantiationType.Delayed);
 
 //#endregion
 

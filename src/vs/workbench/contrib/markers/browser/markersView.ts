@@ -32,7 +32,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, MarkersWidgetAccessibilityProvider, MarkersViewModel } from 'vs/workbench/contrib/markers/browser/markersTreeViewer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
@@ -53,7 +53,6 @@ import { groupBy } from 'vs/base/common/arrays';
 import { ResourceMap } from 'vs/base/common/map';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ResourceListDnDHandler } from 'vs/workbench/browser/dnd';
 import { ITableContextMenuEvent, ITableEvent } from 'vs/base/browser/ui/table/table';
 import { MarkersTable } from 'vs/workbench/contrib/markers/browser/markersTable';
@@ -148,7 +147,6 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IMenuService private readonly menuService: IMenuService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService storageService: IStorageService,
@@ -803,6 +801,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor!,
+			menuId: MenuId.ProblemsPanelContext,
 			getActions: () => this.getMenuActions(element),
 			getActionViewItem: (action) => {
 				const keybinding = this.keybindingService.lookupKeybinding(action.id);
@@ -833,9 +832,6 @@ export class MarkersView extends ViewPane implements IMarkersView {
 			}
 		}
 
-		const menu = this.menuService.createMenu(MenuId.ProblemsPanelContext, this.widget.contextKeyService);
-		createAndFillInContextMenuActions(menu, undefined, result);
-		menu.dispose();
 		return result;
 	}
 

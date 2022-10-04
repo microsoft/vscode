@@ -16,7 +16,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { MergeMarkersController } from 'vs/workbench/contrib/mergeEditor/browser/mergeMarkers/mergeMarkersController';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { applyObservableDecorations, join } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
@@ -40,8 +39,6 @@ export class ResultCodeEditorView extends CodeEditorView {
 			isMergeResultEditor.set(true);
 			this._register(toDisposable(() => isMergeResultEditor.reset()));
 		});
-
-		this._register(new MergeMarkersController(this.editor, this.viewModel));
 
 		this.htmlElements.gutterDiv.style.width = '5px';
 
@@ -116,6 +113,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 			return [];
 		}
 		const model = viewModel.model;
+		const textModel = model.resultTextModel;
 		const result = new Array<IModelDeltaDecoration>();
 
 		const baseRangeWithStoreAndTouchingDiffs = join(
@@ -154,11 +152,13 @@ export class ResultCodeEditorView extends CodeEditorView {
 					continue;
 				}
 
+				const range = model.getLineRangeInResult(modifiedBaseRange.baseRange, reader);
 				result.push({
-					range: model.getLineRangeInResult(modifiedBaseRange.baseRange, reader).toInclusiveRangeOrEmpty(),
+					range: range.toInclusiveRangeOrEmpty(),
 					options: {
 						showIfCollapsed: true,
 						blockClassName: blockClassNames.join(' '),
+						blockIsAfterEnd: range.startLineNumber > textModel.getLineCount(),
 						description: 'Result Diff',
 						minimap: {
 							position: MinimapPosition.Gutter,
@@ -170,9 +170,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 						} : undefined
 					}
 				});
-
 			}
-
 
 			if (!modifiedBaseRange || modifiedBaseRange.isConflicting) {
 				for (const diff of m.rights) {

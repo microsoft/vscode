@@ -1061,11 +1061,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return true;
 		}
 
-		// with the command center enabled, we should always show
-		if (this.configurationService.getValue<boolean>('window.commandCenter')) {
-			return true;
-		}
-
 		// remaining behavior is based on menubar visibility
 		switch (getMenuBarVisibility(this.configurationService)) {
 			case 'classic':

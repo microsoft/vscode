@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/hover';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorHoverBackground, editorHoverBorder, textLinkForeground, editorHoverForeground, editorHoverStatusBarBackground, textCodeBlockBackground, widgetShadow, textLinkActiveForeground, focusBorder, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IHoverService, IHoverOptions, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
@@ -156,7 +156,7 @@ class HoverContextViewDelegate implements IDelegate {
 	}
 }
 
-registerSingleton(IHoverService, HoverService, true);
+registerSingleton(IHoverService, HoverService, InstantiationType.Delayed);
 
 registerThemingParticipant((theme, collector) => {
 	const hoverBackground = theme.getColor(editorHoverBackground);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -93,4 +93,4 @@ export class UserDataProfileImportExportService implements IUserDataProfileImpor
 
 }
 
-registerSingleton(IUserDataProfileImportExportService, UserDataProfileImportExportService, true);
+registerSingleton(IUserDataProfileImportExportService, UserDataProfileImportExportService, InstantiationType.Delayed);

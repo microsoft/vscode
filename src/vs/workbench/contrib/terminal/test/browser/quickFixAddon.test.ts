@@ -11,10 +11,10 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalCommand, ITerminalOutputMatcher, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { ITerminalQuickFixAction, ITerminalInstance, ITerminalOutputMatcher } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalQuickFixAction, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, gitSimilarCommand, GitSimilarOutputRegex } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { TerminalQuickFixAddon, getQuickFixes } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { Terminal } from 'xterm';
