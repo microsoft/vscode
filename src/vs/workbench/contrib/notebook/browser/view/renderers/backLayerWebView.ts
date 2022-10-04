@@ -116,9 +116,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 	private _initialized?: DeferredPromise<void>;
 	private _webviewPreloadInitialized?: DeferredPromise<void>;
-	private _pendingMessageQueue: ToWebviewMessage[] | undefined = [];
 	private firstInit = true;
-	private initializeMarkupPromise?: { readonly requestId: string; readonly p: DeferredPromise<void>; isFirstInit: boolean };
+	private initializeMarkupPromise?: { readonly requestId: string; readonly p: DeferredPromise<void>; readonly isFirstInit: boolean };
 
 	private readonly nonce = UUID.generateUuid();
 
@@ -507,11 +506,6 @@ var requirejs = (function() {
 		}
 
 		await this._initialized.p;
-
-		for (const msg of this._pendingMessageQueue ?? []) {
-			this.webview?.postMessage(msg);
-		}
-		this._pendingMessageQueue = undefined;
 	}
 
 	private getNotebookBaseUri() {
@@ -1528,11 +1522,7 @@ var requirejs = (function() {
 			return;
 		}
 
-		if (this._pendingMessageQueue) {
-			this._pendingMessageQueue.push(message);
-		} else {
-			this.webview?.postMessage(message);
-		}
+		this.webview?.postMessage(message);
 	}
 
 	override dispose() {
