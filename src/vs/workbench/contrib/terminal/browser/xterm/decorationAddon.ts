@@ -303,9 +303,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (command?.exitCode === undefined && !command?.markProperties) {
 			return [];
 		} else if (command?.markProperties || markProperties) {
-			return [...this._terminalDecorationHoverService.createHover(element, command || markProperties, markProperties?.hoverMessage)];
+			return [this._terminalDecorationHoverService.createHover(element, command || markProperties, markProperties?.hoverMessage)];
 		}
-		return [this._createContextMenu(element, command), ...this._terminalDecorationHoverService.createHover(element, command)];
+		return [this._createContextMenu(element, command), this._terminalDecorationHoverService.createHover(element, command)];
 	}
 
 	private _updateClasses(element?: HTMLElement, exitCode?: number, markProperties?: IMarkProperties): void {

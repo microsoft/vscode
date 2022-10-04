@@ -128,7 +128,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		const decoration = this._terminal.registerDecoration({ marker, layer: 'top' });
 		this._decoration = decoration;
 		const kb = this._keybindingService.lookupKeybinding(TerminalCommandId.QuickFix);
-		const hoverLabel = kb ? localize('preferredcodeActionWithKb', "Show Quick Fixes. Preferred Quick Fix Available ({0})", kb.getLabel()) : '';
+		const hoverLabel = kb ? localize('terminalQuickFixWithKb', "Show Quick Fixes ({0})", kb.getLabel()) : '';
 		decoration?.onRender((e: HTMLElement) => {
 			if (!this._decorationMarkerIds.has(decoration.marker.id)) {
 				this._currentQuickFixElement = e;
@@ -140,10 +140,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
 						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions, autoSelectFirstItem: true });
 					}));
-					const hoverDisposables = this._terminalDecorationHoverService.createHover(e, undefined, hoverLabel);
-					for (const disposable of hoverDisposables) {
-						this._register(disposable);
-					}
+					this._register(this._terminalDecorationHoverService.createHover(e, undefined, hoverLabel));
 				}
 			}
 		});

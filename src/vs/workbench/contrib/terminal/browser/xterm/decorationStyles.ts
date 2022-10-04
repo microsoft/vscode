@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { Delayer } from 'vs/base/common/async';
 import { fromNow } from 'vs/base/common/date';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -46,18 +46,13 @@ export class TerminalDecorationHoverService extends Disposable {
 		this._hoverDelayer = this._register(new Delayer(configurationService.getValue('workbench.hover.delay')));
 	}
 
-	public hideHover(hoverDelayer?: Delayer<void>, hoverService?: IHoverService) {
-		if (hoverDelayer && hoverService) {
-			hoverDelayer.cancel();
-			hoverService.hideHover();
-			return;
-		}
+	public hideHover() {
 		this._hoverDelayer.cancel();
 		this._hoverService.hideHover();
 	}
 
-	createHover(element: HTMLElement, command: ITerminalCommand | undefined, hoverMessage?: string): IDisposable[] {
-		return [
+	createHover(element: HTMLElement, command: ITerminalCommand | undefined, hoverMessage?: string): IDisposable {
+		return combinedDisposable(
 			dom.addDisposableListener(element, dom.EventType.MOUSE_ENTER, () => {
 				if (this._contextMenuVisible) {
 					return;
@@ -91,7 +86,7 @@ export class TerminalDecorationHoverService extends Disposable {
 			}),
 			dom.addDisposableListener(element, dom.EventType.MOUSE_LEAVE, () => this.hideHover()),
 			dom.addDisposableListener(element, dom.EventType.MOUSE_OUT, () => this.hideHover())
-		];
+		);
 	}
 
 }
