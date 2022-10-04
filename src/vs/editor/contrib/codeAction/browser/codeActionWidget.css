@@ -95,7 +95,7 @@
 /* Action bar */
 
 .codeActionWidget .codeActionWidget-action-bar {
-	padding: 4px 0;
+	margin-top: 4px;
 	background-color: var(--vscode-editorHoverWidget-statusBarBackground);
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 }
@@ -107,17 +107,19 @@
 }
 
 .codeActionWidget .codeActionWidget-action-bar .actions-container {
-	padding: 0 10px;
+	padding: 0 8px;
 }
 
 .codeActionWidget-action-bar .action-label {
 	color: var(--vscode-textLink-activeForeground);
 	font-size: 12px;
+	line-height: 22px;
+	padding: 0;
 	pointer-events: all;
 }
 
 .codeActionWidget-action-bar .action-item {
-	margin-right: 10px;
+	margin-right: 16px;
 	pointer-events: none;
 }
 
