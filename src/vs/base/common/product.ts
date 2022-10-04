@@ -158,6 +158,8 @@ export interface IProductConfiguration {
 
 	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 
+	readonly 'remoteTunnels.store'?: { authenticationProviders: IStringDictionary<{ scopes: string[] }> };
+
 	readonly darwinUniversalAssetId?: string;
 
 	// experimental
