@@ -68,7 +68,7 @@ let installEvent: Emitter<InstallExtensionEvent>,
 
 let disposables: DisposableStore;
 
-async function setupTest() {
+function setupTest() {
 	disposables = new DisposableStore();
 	installEvent = new Emitter<InstallExtensionEvent>();
 	didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
