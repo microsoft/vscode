@@ -204,34 +204,42 @@ export class BrowserWindow extends Disposable {
 					invokeProtocolHandler();
 
 					const showProtocolUrlOpenedDialog = async () => {
+						const { downloadUrl } = this.productService;
+						let detail = localize(
+							'openExternalDialogDetail.v2',
+							"We launched {0} on your computer.\n\nIf {1} did not launch, try again or install it below.",
+							this.productService.nameLong,
+							this.productService.nameLong
+						);
+						const options = [
+							localize('openExternalDialogButtonRetry', "Try again"),
+							localize('openExternalDialogButtonInstall.v2', "Install {0}", this.productService.nameLong),
+							localize('openExternalDialogButtonCancel', "Cancel")
+						];
+						if (downloadUrl === undefined) {
+							options.splice(1, 1);
+							detail = localize(
+								'openExternalDialogDetailNoInstall',
+								"We launched {0} on your computer.\n\nIf {1} did not launch, try again below.",
+								this.productService.nameLong,
+								this.productService.nameLong
+							);
+						}
+
 						const showResult = await this.dialogService.show(
 							Severity.Info,
 							localize('openExternalDialogTitle', "All done. You can close this tab now."),
-							[
-								localize('openExternalDialogButtonRetry', "Try again"),
-								localize('openExternalDialogButtonInstall', "Install {0}", this.productService.nameLong),
-								localize('openExternalDialogButtonCancel', "Cancel")
-							],
+							options,
 							{
-								cancelId: 2,
-								detail: localize(
-									'openExternalDialogDetail.v2',
-									"We launched {0} on your computer.\n\nIf {1} did not launch, try again or install it below.",
-									this.productService.nameLong,
-									this.productService.nameLong,
-								)
+								cancelId: downloadUrl === undefined ? 1 : 2,
+								detail
 							},
 						);
 
 						if (showResult.choice === 0) {
 							invokeProtocolHandler();
-						} else if (showResult.choice === 1) {
-							// Route the user to the appropriate install link
-							await this.openerService.open(URI.parse(
-								this.productService.quality === 'stable'
-									? `http://aka.ms/vscode-install`
-									: `http://aka.ms/vscode-install-insiders`
-							));
+						} else if (showResult.choice === 1 && downloadUrl !== undefined) {
+							await this.openerService.open(URI.parse(downloadUrl));
 
 							// Re-show the dialog so that the user can come back after installing and try again
 							showProtocolUrlOpenedDialog();
