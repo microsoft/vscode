@@ -133,7 +133,7 @@ registerAction2(class ToggleLineNumberFromEditorTitle extends Action2 {
 			f1: true,
 			toggled: {
 				condition: ContextKeyExpr.notEquals('config.notebook.lineNumbers', 'off'),
-				title: { value: localize('notebook.showLineNumbers', "Show Notebook Line Numbers"), original: 'Show Notebook Line Numbers' },
+				title: localize('notebook.showLineNumbers', "Notebook Line Numbers"),
 			}
 		});
 	}
