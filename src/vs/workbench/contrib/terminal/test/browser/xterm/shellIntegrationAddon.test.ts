@@ -287,20 +287,8 @@ suite('deserializeMessage', () => {
 		['non-initial escaped backslash followed by literal "x0a" is not a newline', `foo${Backslash}${Backslash}x0a`, `foo${Backslash}x0a`],
 	];
 
-	const BROKEN: readonly string[] = [
-		'escaped backslash followed by literal "x3b" is not a semicolon',
-		'non-initial escaped backslash followed by literal "x3b" is not a semicolon',
-		'escaped backslash followed by literal "x0a" is not a newline',
-		'non-initial escaped backslash followed by literal "x0a" is not a newline',
-	];
-
 	cases.forEach(([title, input, expected]) => {
-		const fn = () => strictEqual(deserializeMessage(input), expected);
-		if (BROKEN.includes(title)) {
-			test.skip(title, fn);
-		} else {
-			test(title, fn);
-		}
+		test(title, () => strictEqual(deserializeMessage(input), expected));
 	});
 });
 
