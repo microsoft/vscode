@@ -88,10 +88,6 @@ class BulkEdit {
 		}
 	}
 
-	isApplied(): boolean {
-		return this._edits.length > 0;
-	}
-
 	async perform(): Promise<readonly URI[]> {
 
 		if (this._edits.length === 0) {
@@ -252,7 +248,7 @@ export class BulkEditService implements IBulkEditService {
 				await this._saveAll(resources);
 			}
 
-			return { ariaSummary: bulkEdit.ariaMessage(), isApplied: bulkEdit.isApplied() };
+			return { ariaSummary: bulkEdit.ariaMessage(), isApplied: edits.length > 0 };
 		} catch (err) {
 			// console.log('apply FAILED');
 			// console.log(err);
