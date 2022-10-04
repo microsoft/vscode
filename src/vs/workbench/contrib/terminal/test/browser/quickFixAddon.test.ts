@@ -80,15 +80,15 @@ suite('QuickFixAddon', () => {
 			});
 			suite('returns undefined when', () => {
 				test('expected unix exit code', () => {
-					assertMatchOptions(getQuickFixes(createCommand(command, output, GitSimilarOutputRegex, exitCode), expectedMap, openerService), actions);
+					assertMatchOptions(getQuickFixes(createCommand(command, output, GitSimilarOutputRegex, exitCode), expectedMap, openerService)?.quickFixes, actions);
 				});
 				test('matching exit status', () => {
-					assertMatchOptions(getQuickFixes(createCommand(command, output, GitSimilarOutputRegex, 2), expectedMap, openerService), actions);
+					assertMatchOptions(getQuickFixes(createCommand(command, output, GitSimilarOutputRegex, 2), expectedMap, openerService)?.quickFixes, actions);
 				});
 			});
 			suite('returns match', () => {
 				test('returns match', () => {
-					assertMatchOptions(getQuickFixes(createCommand(command, output, GitSimilarOutputRegex), expectedMap, openerService), actions);
+					assertMatchOptions(getQuickFixes(createCommand(command, output, GitSimilarOutputRegex), expectedMap, openerService)?.quickFixes, actions);
 				});
 
 				test('returns multiple match', () => {
@@ -110,7 +110,7 @@ suite('QuickFixAddon', () => {
 						tooltip: 'Run: git push',
 						command: 'git push'
 					}];
-					assertMatchOptions(getQuickFixes(createCommand('git pu', output, GitSimilarOutputRegex), expectedMap, openerService), actions);
+					assertMatchOptions(getQuickFixes(createCommand('git pu', output, GitSimilarOutputRegex), expectedMap, openerService)?.quickFixes, actions);
 				});
 			});
 		});
@@ -141,10 +141,10 @@ suite('QuickFixAddon', () => {
 			});
 			suite('returns undefined when', () => {
 				test('expected unix exit code', () => {
-					assertMatchOptions(getQuickFixes(createCommand(command, output, GitTwoDashesRegex, exitCode), expectedMap, openerService), actions);
+					assertMatchOptions(getQuickFixes(createCommand(command, output, GitTwoDashesRegex, exitCode), expectedMap, openerService)?.quickFixes, actions);
 				});
 				test('matching exit status', () => {
-					assertMatchOptions(getQuickFixes(createCommand(command, output, GitTwoDashesRegex, 2), expectedMap, openerService), actions);
+					assertMatchOptions(getQuickFixes(createCommand(command, output, GitTwoDashesRegex, 2), expectedMap, openerService)?.quickFixes, actions);
 				});
 			});
 		});
@@ -184,7 +184,7 @@ suite('QuickFixAddon', () => {
 					});
 				});
 				test('returns actions', () => {
-					assertMatchOptions(getQuickFixes(createCommand(portCommand, output, FreePortOutputRegex), expected, openerService), actionOptions);
+					assertMatchOptions(getQuickFixes(createCommand(portCommand, output, FreePortOutputRegex), expected, openerService)?.quickFixes, actionOptions);
 				});
 			});
 		}
@@ -219,10 +219,10 @@ suite('QuickFixAddon', () => {
 			});
 			suite('returns actions when', () => {
 				test('expected unix exit code', () => {
-					assertMatchOptions(getQuickFixes(createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap, openerService), actions);
+					assertMatchOptions(getQuickFixes(createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap, openerService)?.quickFixes, actions);
 				});
 				test('matching exit status', () => {
-					assertMatchOptions(getQuickFixes(createCommand(command, output, GitPushOutputRegex, 2), expectedMap, openerService), actions);
+					assertMatchOptions(getQuickFixes(createCommand(command, output, GitPushOutputRegex, 2), expectedMap, openerService)?.quickFixes, actions);
 				});
 			});
 		});
@@ -263,7 +263,7 @@ suite('QuickFixAddon', () => {
 			});
 			suite('returns actions when', () => {
 				test('expected unix exit code', () => {
-					assertMatchOptions(getQuickFixes(createCommand(command, output, GitCreatePrOutputRegex, exitCode), expectedMap, openerService), actions);
+					assertMatchOptions(getQuickFixes(createCommand(command, output, GitCreatePrOutputRegex, exitCode), expectedMap, openerService)?.quickFixes, actions);
 				});
 			});
 		});
