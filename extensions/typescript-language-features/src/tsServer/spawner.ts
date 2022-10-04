@@ -19,9 +19,6 @@ import { ILogDirectoryProvider } from './logDirectoryProvider';
 import { GetErrRoutingTsServer, ITypeScriptServer, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerDelegate, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
-import { ServiceConnection } from '@vscode/sync-api-common/browser';
-import { APIRequests, ApiService } from '@vscode/sync-api-service';
-import { MessageChannel } from 'worker_threads';
 
 const enum CompositeServerType {
 	/** Run a single server that handles all commands  */
@@ -158,26 +155,8 @@ export class TypeScriptServerSpawner {
 		}
 
 		this._logger.info(`<${kind}> Forking...`);
-		// this is pretty close, but (1) lol it should happen way earlier
-		// (2) no node module resolution means that the import code in index.js isn't going to refer correctly to tsserver.js
-		// (and won't refer to tsserver.web.js at all)
-		// I might have to try a cheat-bundle of tsserver.web.js plus the code in vscode-wasm-typescript, since that's the final way it'll have to ship anyway.
-		// oh wait, no idea how @vscode/wasm packages are going to get looked up either =(
-		// LATER: No this is all wrong, just change webpack to modify tsserver.web.js to include my code at build
-		// TODO: The code will ALSO need to turn off the existing listener that tsserver/webServer.ts adds *unconditionally* (well, the condition would be in tsserver/server.ts)
-		this._logger.info('modifying path to http://localhost:8080/static/sources/extensions/typescript-language-features/node_modules/vscode-wasm-typescript/dist/index.js');
-		// this._logger.info(JSON.stringify(x))
 		const process = this._factory.fork(version, args, kind, configuration, this._versionManager);
 		this._logger.info(`<${kind}> Starting...`);
-		const syncChannel = new MessageChannel();
-		process.postMessage(syncChannel.port2, [syncChannel.port2]);
-		// TODO: (1) process doesn't provide direct access to the worker
-		//       (2) it's already running -- does it need this port? I thought it could just postMessage to talk to the extension.
-		const connection = new ServiceConnection<APIRequests>(syncChannel.port1);
-		new ApiService('TypeScript???', connection, _rval => process.kill());
-		// TODO: I don't know what ApiService does in the testbed example, but it definitely doesn't need to manage the lifetime of process
-		connection.signalReady();
-		// TODO: The source of signalReady doesn't *directly* mention shared buffers, so might not be right.
 
 		return new ProcessBasedTsServer(
 			kind,

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
@@ -10,12 +9,31 @@ import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { memoize } from '../utils/memoize';
 import { TsServerProcess, TsServerProcessKind } from './server';
 import { TypeScriptVersion } from './versionProvider';
-
+// NIEUW
+import { ServiceConnection } from '@vscode/sync-api-common/browser';
+import { APIRequests, ApiService } from '@vscode/sync-api-service';
 
 const localize = nls.loadMessageBundle();
 
+// slightly more detailed webworker types
 declare const Worker: any;
-declare type Worker = any;
+interface Worker {
+	onerror: ((ev: Error /*actually, ErrorEvent from webworker*/) => any) | null;
+	addEventListener(type: string, listener: (evt: unknown /*Event*/) => void): void;
+	postMessage(message: any, transfer?: unknown[] /*MessagePort[]*/): void;
+	terminate(): void;
+}
+interface MessageChannel {
+	/** Returns the first MessagePort object. */
+	readonly port1: unknown; // MessagePort;
+	/** Returns the second MessagePort object. */
+	readonly port2: unknown; // MessagePort;
+}
+
+declare const MessageChannel: {
+	prototype: MessageChannel;
+	new(): MessageChannel;
+};
 
 export class WorkerServerProcess implements TsServerProcess {
 
@@ -50,16 +68,27 @@ export class WorkerServerProcess implements TsServerProcess {
 				return;
 			}
 
+			this.output.append(JSON.stringify(msg.data) + '\n');
 			for (const handler of this._onDataHandlers) {
 				handler(msg.data);
 			}
 		});
 		worker.onerror = (err: Error) => {
+			this.output.append(JSON.stringify('error! ' + JSON.stringify(err)) + '\n');
 			for (const handler of this._onErrorHandlers) {
 				handler(err);
 			}
 		};
-		worker.postMessage(args);
+		this.output.append('creating new MessageChannel and posting its port2 + args: ' + args.join(' '));
+		const syncChannel = new MessageChannel();
+		worker.postMessage({ args, port: syncChannel.port2 }, [syncChannel.port2]);
+		const connection = new ServiceConnection<APIRequests>(syncChannel.port1);
+		this.output.append('\ncreating new ApiService with connection\n');
+		new ApiService('TypeScript???', connection, _rval => worker.terminate());
+		// TODO: not sure whether ApiService's exitHandler should worker.terminate()
+		this.output.append('about to signalReady\n');
+		connection.signalReady();
+		this.output.append('done constructing WorkerServerProcess\n');
 	}
 
 	@memoize
