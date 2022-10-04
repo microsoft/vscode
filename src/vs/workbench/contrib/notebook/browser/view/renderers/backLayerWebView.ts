@@ -1517,7 +1517,7 @@ var requirejs = (function() {
 		});
 	}
 
-	private async _sendMessageToWebview(message: ToWebviewMessage) {
+	private _sendMessageToWebview(message: ToWebviewMessage) {
 		if (this._disposed) {
 			return;
 		}
