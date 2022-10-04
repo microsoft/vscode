@@ -371,7 +371,6 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 	shouldConfirmClose(): boolean {
 		// Always confirm
 		return true;
-		//return this.resultTextFileModel.isDirty();
 	}
 
 	async confirmClose(inputModels: IMergeEditorInputModel[]): Promise<ConfirmResult> {
@@ -400,7 +399,6 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 					ConfirmResult.SAVE,
 				],
 				[localize('workspace.doNotSave', "Don't Save"), ConfirmResult.DONT_SAVE],
-				// TODO [localize('workspace.discard', "Discard changes"), ConfirmResult.DONT_SAVE],
 				[localize('workspace.cancel', 'Cancel'), ConfirmResult.CANCEL],
 			];
 
@@ -426,7 +424,6 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 						: localize('workspace.close', 'Close'),
 					ConfirmResult.SAVE,
 				],
-				// TODO [localize('workspace.discard', "Discard changes"), ConfirmResult.DONT_SAVE],
 				[localize('workspace.cancel', 'Cancel'), ConfirmResult.CANCEL],
 			];
 
