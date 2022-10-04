@@ -23,7 +23,7 @@ export const enum TestPosition {
 	IsParent,
 }
 
-type TestItemLike = { id: string; parent?: TestItemLike };
+type TestItemLike = { id: string; parent?: TestItemLike; _isRoot?: boolean };
 
 /**
  * The test ID is a stringifiable client that
@@ -35,7 +35,7 @@ export class TestId {
 	 * Creates a test ID from an ext host test item.
 	 */
 	public static fromExtHostTestItem(item: TestItemLike, rootId: string, parent = item.parent) {
-		if (item.id === rootId) {
+		if (item._isRoot) {
 			return new TestId([rootId]);
 		}
 
@@ -56,7 +56,7 @@ export class TestId {
 	}
 
 	/**
-	 * Cheaply ets whether the ID refers to the root .
+	 * Cheaply gets whether the ID refers to the root .
 	 */
 	public static root(idString: string) {
 		const idx = idString.indexOf(TestIdPathParts.Delimiter);

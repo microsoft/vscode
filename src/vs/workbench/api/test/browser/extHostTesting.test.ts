@@ -141,6 +141,19 @@ suite('ExtHost Testing', () => {
 			assert.strictEqual(ab.parent, a);
 		});
 
+		test('can add an item with same ID as root', () => {
+			single.collectDiff();
+
+			const child = new TestItemImpl('ctrlId', 'ctrlId', 'c', undefined);
+			single.root.children.add(child);
+			assert.deepStrictEqual(single.collectDiff(), [
+				{
+					op: TestDiffOpType.Add,
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(child) },
+				}
+			]);
+		});
+
 		test('no-ops if items not changed', () => {
 			single.collectDiff();
 			assert.deepStrictEqual(single.collectDiff(), []);

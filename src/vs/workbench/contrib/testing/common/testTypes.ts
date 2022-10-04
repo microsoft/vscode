@@ -334,7 +334,7 @@ export const enum TestItemExpandState {
 }
 
 /**
- * TestItem-like shape, butm with an ID and children as strings.
+ * TestItem-like shape, but with an ID and children as strings.
  */
 export interface InternalTestItem {
 	/** Controller ID from whence this test came */
