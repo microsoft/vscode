@@ -11,7 +11,7 @@ import type { ITerminalAddon } from 'xterm-headless';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITerminalQuickFixAction, ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { DecorationSelector, TerminalDecorationHoverService, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
+import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Terminal, IDecoration } from 'xterm';
 import { IAction } from 'vs/base/common/actions';
@@ -54,7 +54,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _decoration: IDecoration | undefined;
 
-	private readonly _terminalDecorationHoverService: TerminalDecorationHoverService;
+	private readonly _terminalDecorationHoverService: TerminalDecorationHoverManager;
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -73,7 +73,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				}
 			});
 		}
-		this._terminalDecorationHoverService = instantiationService.createInstance(TerminalDecorationHoverService);
+		this._terminalDecorationHoverService = instantiationService.createInstance(TerminalDecorationHoverManager);
 	}
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;

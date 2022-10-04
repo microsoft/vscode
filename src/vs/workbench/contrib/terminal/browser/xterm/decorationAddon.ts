@@ -21,7 +21,7 @@ import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationMark, terminalDecorationSuccess } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { DecorationSelector, TerminalDecorationHoverService, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
+import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -36,7 +36,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _placeholderDecoration: IDecoration | undefined;
 	private _showGutterDecorations?: boolean;
 	private _showOverviewRulerDecorations?: boolean;
-	private _terminalDecorationHoverService: TerminalDecorationHoverService;
+	private _terminalDecorationHoverService: TerminalDecorationHoverManager;
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -71,7 +71,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._register(this._capabilities.onDidAddCapability(c => this._createCapabilityDisposables(c)));
 		this._register(this._capabilities.onDidRemoveCapability(c => this._removeCapabilityDisposables(c)));
 		this._register(lifecycleService.onWillShutdown(() => this._disposeAllDecorations()));
-		this._terminalDecorationHoverService = instantiationService.createInstance(TerminalDecorationHoverService);
+		this._terminalDecorationHoverService = instantiationService.createInstance(TerminalDecorationHoverManager);
 	}
 
 	private _removeCapabilityDisposables(c: TerminalCapability): void {

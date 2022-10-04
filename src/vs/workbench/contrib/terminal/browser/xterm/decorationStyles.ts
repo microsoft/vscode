@@ -33,7 +33,7 @@ export const enum DecorationSelector {
 	LightBulb = 'codicon-light-bulb'
 }
 
-export class TerminalDecorationHoverService extends Disposable {
+export class TerminalDecorationHoverManager extends Disposable {
 	private _hoverDelayer: Delayer<void>;
 	private _contextMenuVisible: boolean = false;
 
