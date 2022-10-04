@@ -20,7 +20,7 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService, WorkbenchListFocusContextKey, WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
@@ -57,8 +57,8 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ISearchConfiguration, SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 
-registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
-registerSingleton(ISearchHistoryService, SearchHistoryService, true);
+registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, InstantiationType.Delayed);
+registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
 
 replaceContributions();
 searchWidgetContributions();

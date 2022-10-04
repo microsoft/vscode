@@ -16,6 +16,7 @@ import type * as vscode from 'vscode';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtUri, extUri } from 'vs/base/common/resources';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 
 suite('ExtHostDiagnostics', () => {
 
@@ -438,43 +439,46 @@ suite('ExtHostDiagnostics', () => {
 	});
 
 	test('Diagnostics created by tasks aren\'t accessible to extensions #47292', async function () {
-		const diags = new ExtHostDiagnostics(new class implements IMainContext {
-			getProxy(id: any): any {
-				return {};
-			}
-			set(): any {
-				return null;
-			}
-			dispose() { }
-			assertRegistered(): void {
+		return runWithFakedTimers({}, async function () {
 
-			}
-			drain() {
-				return undefined!;
-			}
-		}, new NullLogService(), fileSystemInfoService);
+			const diags = new ExtHostDiagnostics(new class implements IMainContext {
+				getProxy(id: any): any {
+					return {};
+				}
+				set(): any {
+					return null;
+				}
+				dispose() { }
+				assertRegistered(): void {
+
+				}
+				drain() {
+					return undefined!;
+				}
+			}, new NullLogService(), fileSystemInfoService);
 
 
-		//
-		const uri = URI.parse('foo:bar');
-		const data: IMarkerData[] = [{
-			message: 'message',
-			startLineNumber: 1,
-			startColumn: 1,
-			endLineNumber: 1,
-			endColumn: 1,
-			severity: 3
-		}];
+			//
+			const uri = URI.parse('foo:bar');
+			const data: IMarkerData[] = [{
+				message: 'message',
+				startLineNumber: 1,
+				startColumn: 1,
+				endLineNumber: 1,
+				endColumn: 1,
+				severity: 3
+			}];
 
-		const p1 = Event.toPromise(diags.onDidChangeDiagnostics);
-		diags.$acceptMarkersChange([[uri, data]]);
-		await p1;
-		assert.strictEqual(diags.getDiagnostics(uri).length, 1);
+			const p1 = Event.toPromise(diags.onDidChangeDiagnostics);
+			diags.$acceptMarkersChange([[uri, data]]);
+			await p1;
+			assert.strictEqual(diags.getDiagnostics(uri).length, 1);
 
-		const p2 = Event.toPromise(diags.onDidChangeDiagnostics);
-		diags.$acceptMarkersChange([[uri, []]]);
-		await p2;
-		assert.strictEqual(diags.getDiagnostics(uri).length, 0);
+			const p2 = Event.toPromise(diags.onDidChangeDiagnostics);
+			diags.$acceptMarkersChange([[uri, []]]);
+			await p2;
+			assert.strictEqual(diags.getDiagnostics(uri).length, 0);
+		});
 	});
 
 	test('languages.getDiagnostics doesn\'t handle case insensitivity correctly #128198', function () {

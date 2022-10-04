@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservableValue } from 'vs/base/common/observableValue';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -108,4 +108,4 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	}
 }
 
-registerSingleton(ITelemetryService, TelemetryService, true);
+registerSingleton(ITelemetryService, TelemetryService, InstantiationType.Delayed);

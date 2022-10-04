@@ -85,6 +85,14 @@ export class TestId {
 	}
 
 	/**
+	 * Cheaply gets the parent ID of a test identified with the string.
+	 */
+	public static parentId(idString: string) {
+		const idx = idString.lastIndexOf(TestIdPathParts.Delimiter);
+		return idx === -1 ? undefined : idString.slice(0, idx);
+	}
+
+	/**
 	 * Compares the position of the two ID strings.
 	 */
 	public static compare(a: string, b: string) {
@@ -115,8 +123,8 @@ export class TestId {
 	/**
 	 * Gets the ID of the parent test.
 	 */
-	public get parentId(): TestId {
-		return this.viewEnd > 1 ? new TestId(this.path, this.viewEnd - 1) : this;
+	public get parentId(): TestId | undefined {
+		return this.viewEnd > 1 ? new TestId(this.path, this.viewEnd - 1) : undefined;
 	}
 
 	/**
@@ -146,6 +154,16 @@ export class TestId {
 	 */
 	public *idsFromRoot() {
 		for (let i = 1; i <= this.viewEnd; i++) {
+			yield new TestId(this.path, i);
+		}
+	}
+
+	/**
+	 * Returns an iterable that yields IDs of the current item up to the root
+	 * item.
+	 */
+	public *idsToRoot() {
+		for (let i = this.viewEnd; i > 0; i--) {
 			yield new TestId(this.path, i);
 		}
 	}

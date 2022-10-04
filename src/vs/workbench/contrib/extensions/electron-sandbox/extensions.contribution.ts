@@ -25,12 +25,12 @@ import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services
 import { ExtensionRecommendationNotificationServiceChannel } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
 import { Codicon } from 'vs/base/common/codicons';
 import { RemoteExtensionsInitializerContribution } from 'vs/workbench/contrib/extensions/electron-sandbox/remoteExtensionsInit';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionHostProfileService } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionProfileService';
 import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsAutoProfiler';
 
 // Singletons
-registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService, true);
+registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService, InstantiationType.Delayed);
 
 // Running Extensions Editor
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
