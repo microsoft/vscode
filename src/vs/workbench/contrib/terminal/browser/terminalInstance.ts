@@ -730,7 +730,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm = xterm;
 		this._quickFixAddon = this._scopedInstantiationService.createInstance(TerminalQuickFixAddon, this.capabilities);
 		this.xterm?.raw.loadAddon(this._quickFixAddon);
-		this.registerQuickFixProvider(gitSimilarCommand(), gitTwoDashes(), gitCreatePr(this._openerService), gitPushSetUpstream(), freePort(this));
+		this.registerQuickFixProvider(gitSimilarCommand(), gitTwoDashes(), gitCreatePr(), gitPushSetUpstream(), freePort(this));
 		this._register(this._quickFixAddon.onDidRequestRerunCommand((e) => this.sendText(e.command, e.addNewLine || false)));
 		const lineDataEventAddon = new LineDataEventAddon();
 		this.xterm.raw.loadAddon(lineDataEventAddon);

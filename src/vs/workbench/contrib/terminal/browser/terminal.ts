@@ -921,15 +921,22 @@ export interface ITerminalInstance {
 export interface ITerminalQuickFixOptions {
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
-	getQuickFixes: QuickFixCallback;
+	getQuickFixes: TerminalQuickFixCallback;
 	exitStatus?: boolean;
 }
-export type QuickFixMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
-export type QuickFixCallback = (matchResult: QuickFixMatchResult, command: ITerminalCommand) => ITerminalQuickFixAction[] | undefined;
+export type TerminalQuickFixMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
+export type TerminalQuickFixAction = IAction | ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
+export type TerminalQuickFixCallback = (matchResult: TerminalQuickFixMatchResult, command: ITerminalCommand) => TerminalQuickFixAction[] | TerminalQuickFixAction | undefined;
 
-export interface ITerminalQuickFixAction extends IAction {
-	commandToRunInTerminal?: string;
-	addNewLine?: boolean;
+export interface ITerminalQuickFixCommandAction {
+	type: 'command';
+	command: string;
+	// TODO: Should this depend on whether alt is held?
+	addNewLine: boolean;
+}
+export interface ITerminalQuickFixOpenerAction {
+	type: 'opener';
+	uri: URI;
 }
 
 export interface IXtermTerminal {
