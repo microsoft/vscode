@@ -6,6 +6,8 @@
 import { strictEqual } from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -31,6 +33,7 @@ suite('QuickFixAddon', () => {
 			cols: 80,
 			rows: 30
 		});
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		const capabilities = new TerminalCapabilityStore();
 		instantiationService.stub(ILogService, new NullLogService());
 		commandDetection = instantiationService.createInstance(CommandDetectionCapability, xterm);
