@@ -919,8 +919,8 @@ export class FolderMatchNoRoot extends FolderMatch {
 	}
 }
 
-let elemAIndex: number | null = null;
-let elemBIndex: number | null = null;
+let elemAIndex: number = -1;
+let elemBIndex: number = -1;
 /**
  * Compares instances of the same match type. Different match types should not be siblings
  * and their sort order is undefined.
