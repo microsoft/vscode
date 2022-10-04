@@ -495,15 +495,9 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		[TaskSettingId.AllowAutomaticTasks]: {
-			type: 'string',
-			enum: ['on', 'auto', 'off'],
-			enumDescriptions: [
-				nls.localize('task.allowAutomaticTasks.on', "Always"),
-				nls.localize('task.allowAutomaticTasks.auto', "Prompt for permission for each folder"),
-				nls.localize('task.allowAutomaticTasks.off', "Never"),
-			],
-			description: nls.localize('task.allowAutomaticTasks', "Enable automatic tasks in the folder - note that tasks won't run in an untrusted workspace."),
-			default: 'auto',
+			type: 'boolean',
+			description: nls.localize('task.allowAutomaticTasks', "Enable automatic tasks in any trusted workspace"),
+			default: true,
 			restricted: true
 		},
 		[TaskSettingId.ShowDecorations]: {
