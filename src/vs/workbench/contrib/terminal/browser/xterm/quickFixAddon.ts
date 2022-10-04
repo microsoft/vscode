@@ -51,7 +51,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _decoration: IDecoration | undefined;
 
-	private _terminalDecorationHoverService: TerminalDecorationHoverService;
+	private readonly _terminalDecorationHoverService: TerminalDecorationHoverService;
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
