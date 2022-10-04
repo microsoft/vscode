@@ -504,15 +504,20 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 			id: 'breadcrumbs.toggle',
 			title: {
 				value: localize('cmd.toggle', "Toggle Breadcrumbs"),
-				mnemonicTitle: localize('miBreadcrumbs', "&&Breadcrumbs"),
+				mnemonicTitle: localize('miBreadcrumbs', "Toggle &&Breadcrumbs"),
 				original: 'Toggle Breadcrumbs',
 			},
 			category: CATEGORIES.View,
-			toggled: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
+			toggled: {
+				condition: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
+				title: localize('cmd.toggle2', "Breadcrumbs"),
+				mnemonicTitle: localize('miBreadcrumbs2', "&&Breadcrumbs")
+			},
 			menu: [
 				{ id: MenuId.CommandPalette },
 				{ id: MenuId.MenubarViewMenu, group: '5_editor', order: 3 },
-				{ id: MenuId.NotebookToolbar, group: 'notebookLayout', order: 2 }
+				{ id: MenuId.NotebookToolbar, group: 'notebookLayout', order: 2 },
+				{ id: MenuId.StickyScrollContext }
 			]
 		});
 	}

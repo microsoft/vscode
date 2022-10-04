@@ -5,24 +5,27 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import * as dom from 'vs/base/browser/dom';
+import { IAction } from 'vs/base/common/actions';
+import { asArray } from 'vs/base/common/arrays';
+import { Color } from 'vs/base/common/color';
+import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
+import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
+import { ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
+import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IDecoration, Terminal } from 'xterm';
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
 import type { ITerminalAddon } from 'xterm-headless';
-import * as dom from 'vs/base/browser/dom';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITerminalQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Terminal, IDecoration } from 'xterm';
-import { IAction } from 'vs/base/common/actions';
-import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { Color } from 'vs/base/common/color';
-import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
-import { asArray } from 'vs/base/common/arrays';
-import { localize } from 'vs/nls';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export interface ITerminalQuickFix {
 	showMenu(): void;
@@ -53,11 +56,14 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _decoration: IDecoration | undefined;
 
-	constructor(
-		private readonly _capabilities: ITerminalCapabilityStore,
+	private readonly _terminalDecorationHoverService: TerminalDecorationHoverManager;
+
+	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super();
@@ -71,6 +77,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				}
 			});
 		}
+		this._terminalDecorationHoverService = instantiationService.createInstance(TerminalDecorationHoverManager);
 	}
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
@@ -124,6 +131,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		const actions = this._quickFixes;
 		const decoration = this._terminal.registerDecoration({ marker, layer: 'top' });
 		this._decoration = decoration;
+		const kb = this._keybindingService.lookupKeybinding(TerminalCommandId.QuickFix);
+		const hoverLabel = kb ? localize('terminalQuickFixWithKb', "Show Quick Fixes ({0})", kb.getLabel()) : '';
 		decoration?.onRender((e: HTMLElement) => {
 			if (!this._decorationMarkerIds.has(decoration.marker.id)) {
 				this._currentQuickFixElement = e;
@@ -132,9 +141,10 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 				if (actions) {
 					this._decorationMarkerIds.add(decoration.marker.id);
-					dom.addDisposableListener(e, dom.EventType.CLICK, () => {
+					this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
 						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions, autoSelectFirstItem: true });
-					});
+					}));
+					this._register(this._terminalDecorationHoverService.createHover(e, undefined, hoverLabel));
 				}
 			}
 		});

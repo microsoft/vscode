@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ExtensionType, IExtension, isResolverExtension } from 'vs/platform/extensions/common/extensions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -161,7 +161,7 @@ class ExtensionBisectService implements IExtensionBisectService {
 	}
 }
 
-registerSingleton(IExtensionBisectService, ExtensionBisectService, true);
+registerSingleton(IExtensionBisectService, ExtensionBisectService, InstantiationType.Delayed);
 
 // --- bisect UI
 

@@ -25,9 +25,11 @@ export class ClickLinkMouseEvent {
 	public readonly hasTriggerModifier: boolean;
 	public readonly hasSideBySideModifier: boolean;
 	public readonly isNoneOrSingleMouseDown: boolean;
+	public readonly hasRightClick: boolean;
 
 	constructor(source: IEditorMouseEvent, opts: ClickLinkOptions) {
 		this.target = source.target;
+		this.hasRightClick = source.event.rightButton;
 		this.hasTriggerModifier = hasModifier(source.event, opts.triggerModifier);
 		this.hasSideBySideModifier = hasModifier(source.event, opts.triggerSideBySideModifier);
 		this.isNoneOrSingleMouseDown = (source.event.detail <= 1);

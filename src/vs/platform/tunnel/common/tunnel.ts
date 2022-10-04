@@ -129,6 +129,7 @@ export interface ITunnelService {
 	closeTunnel(remoteHost: string, remotePort: number): Promise<void>;
 	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable;
 	setTunnelFeatures(features: TunnelProviderFeatures): void;
+	isPortPrivileged(port: number): boolean;
 }
 
 export function extractLocalHostUriMetaDataForPortMapping(uri: URI): { address: string; port: number } | undefined {
@@ -402,6 +403,24 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		return !!extractLocalHostUriMetaDataForPortMapping(uri);
 	}
 
+	public abstract isPortPrivileged(port: number): boolean;
+
+	protected doIsPortPrivileged(port: number, isWindows: boolean, isMacintosh: boolean, osRelease: string): boolean {
+		if (isWindows) {
+			return false;
+		} else if (isMacintosh) {
+			const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(osRelease);
+			if (osVersion?.length === 4) {
+				const major = parseInt(osVersion[1]);
+				const minor = parseInt(osVersion[2]);
+				if (((major > 10) || (major === 10 && minor >= 14))) {
+					return false;
+				}
+			}
+		}
+		return port < 1024;
+	}
+
 	protected abstract retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
 
 	protected createWithProvider(tunnelProvider: ITunnelProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
@@ -409,7 +428,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		const key = remotePort;
 		this._factoryInProgress.add(key);
 		const preferredLocalPort = localPort === undefined ? remotePort : localPort;
-		const creationInfo = { elevationRequired: elevateIfNeeded ? isPortPrivileged(preferredLocalPort) : false };
+		const creationInfo = { elevationRequired: elevateIfNeeded ? this.isPortPrivileged(preferredLocalPort) : false };
 		const tunnelOptions: TunnelOptions = { remoteAddress: { host: remoteHost, port: remotePort }, localAddressPort: localPort, privacy, public: privacy ? (privacy !== TunnelPrivacyId.Private) : undefined, protocol };
 		const tunnel = tunnelProvider.forwardPort(tunnelOptions, creationInfo);
 		if (tunnel) {
