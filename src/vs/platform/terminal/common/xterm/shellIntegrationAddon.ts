@@ -517,7 +517,7 @@ export function deserializeMessage(message: string): string {
 	const deserializeRegex = /\\x([0-9a-f]{2})/i;
 	while (true) {
 		const match = result.match(deserializeRegex);
-		if (!match?.index || match.length < 2) {
+		if (match?.index == null || match.length < 2) {
 			break;
 		}
 		result = result.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + result.slice(match.index + 4);

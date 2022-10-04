@@ -288,15 +288,9 @@ suite('deserializeMessage', () => {
 	];
 
 	const BROKEN: readonly string[] = [
-		'escaped semicolon',
-		'escaped semicolon (upper hex)',
-		// only "passing" due to interaction between two separate bugs:
-		// 'escaped backslash followed by literal "x3b" is not a semicolon',
+		'escaped backslash followed by literal "x3b" is not a semicolon',
 		'non-initial escaped backslash followed by literal "x3b" is not a semicolon',
-		'escaped newline',
-		'escaped newline (upper hex)',
-		// only "passing" due to interaction between two separate bugs:
-		// 'escaped backslash followed by literal "x0a" is not a newline',
+		'escaped backslash followed by literal "x0a" is not a newline',
 		'non-initial escaped backslash followed by literal "x0a" is not a newline',
 	];
 
