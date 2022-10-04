@@ -11,6 +11,7 @@ import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal'
 
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
+export const GitTwoDashesRegex = /error: did you mean `--(.+)` \(with two dashes\)\?/;
 export const AnyCommandLineRegex = /.+/;
 export const GitSimilarOutputRegex = /most similar command is\s*\n\s*([^\s]{3,})/m;
 export const FreePortOutputRegex = /address already in use \d+\.\d+\.\d+\.\d+:(\d{4,5})|Unable to bind [^ ]*:(\d{4,5})|can't listen on port (\d{4,5})|listen EADDRINUSE [^ ]*:(\d{4,5})/;
@@ -39,6 +40,34 @@ export function gitSimilarCommand(): ITerminalQuickFixOptions {
 			const label = localize("terminal.runCommand", "Run: {0}", commandToRunInTerminal);
 			actions.push({
 				class: undefined, tooltip: label, id: 'terminal.gitSimilarCommand', label, enabled: true,
+				commandToRunInTerminal,
+				addNewLine: true,
+				run: () => { }
+			});
+			return actions;
+		}
+	};
+}
+export function gitTwoDashes(): ITerminalQuickFixOptions {
+	return {
+		commandLineMatcher: GitCommandLineRegex,
+		outputMatcher: {
+			lineMatcher: GitTwoDashesRegex,
+			anchor: 'bottom',
+			offset: 0,
+			length: 2
+		},
+		exitStatus: false,
+		getQuickFixes: (matchResult: QuickFixMatchResult, command: ITerminalCommand) => {
+			const actions: ITerminalQuickFixAction[] = [];
+			const problemArg = matchResult?.outputMatch?.[1];
+			if (!problemArg) {
+				return;
+			}
+			const commandToRunInTerminal = command.command.replace(` -${problemArg}`, ` --${problemArg}`);
+			const label = localize("terminal.runCommand", "Run: {0}", commandToRunInTerminal);
+			actions.push({
+				class: undefined, tooltip: label, id: 'terminal.gitTwoDashes', label, enabled: true,
 				commandToRunInTerminal,
 				addNewLine: true,
 				run: () => { }
