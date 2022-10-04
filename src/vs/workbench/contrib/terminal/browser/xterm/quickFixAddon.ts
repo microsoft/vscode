@@ -107,7 +107,14 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		this._register(commandDetection.onCommandFinished(async command => {
 			this._decoration?.dispose();
 			this._decoration = undefined;
-			this._quickFixes = getQuickFixes(command, this._commandListeners, this._openerService, this._onDidRequestRerunCommand);
+			const quickFixResult = getQuickFixes(command, this._commandListeners, this._openerService, this._onDidRequestRerunCommand);
+			if (quickFixResult) {
+				this._quickFixes = quickFixResult.quickFixes;
+				quickFixResult.onDidRunQuickFix(() => {
+					this._decoration?.dispose();
+					this._quickFixes = undefined;
+				});
+			}
 		}));
 		// The buffer is not ready by the time command finish
 		// is called. Add the decoration on command start using the actions, if any,
@@ -156,7 +163,9 @@ export function getQuickFixes(
 	actionOptions: Map<string, ITerminalQuickFixOptions[]>,
 	openerService: IOpenerService,
 	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>
-): IAction[] | undefined {
+): { quickFixes: IAction[]; onDidRunQuickFix: Event<void> } | undefined {
+	const _onDidRunQuickFix = new Emitter<void>();
+	const onDidRunQuickFix = _onDidRunQuickFix.event;
 	const actions: IAction[] = [];
 	const newCommand = command.command;
 	for (const options of actionOptions.values()) {
@@ -204,7 +213,12 @@ export function getQuickFixes(
 									label,
 									class: undefined,
 									enabled: true,
-									run: () => openerService.open(quickFix.uri),
+									run: () => {
+										openerService.open(quickFix.uri);
+										// since no command gets run here, need to
+										// clear the decoration and quick fix
+										_onDidRunQuickFix.fire();
+									},
 									tooltip: label,
 									uri: quickFix.uri
 								} as IAction;
@@ -228,7 +242,7 @@ export function getQuickFixes(
 			}
 		}
 	}
-	return actions.length === 0 ? undefined : actions;
+	return actions.length === 0 ? undefined : { quickFixes: actions, onDidRunQuickFix };
 }
 
 

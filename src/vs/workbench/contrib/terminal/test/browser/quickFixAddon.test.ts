@@ -300,10 +300,10 @@ suite('QuickFixAddon', () => {
 		});
 		suite('returns actions when', () => {
 			test('expected unix exit code', () => {
-				assertMatchOptions(getQuickFixes(createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap, openerService), actions);
+				assertMatchOptions(getQuickFixes(createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap, openerService)?.quickFixes, actions);
 			});
 			test('matching exit status', () => {
-				assertMatchOptions(getQuickFixes(createCommand(command, output, GitPushOutputRegex, 2), expectedMap, openerService), actions);
+				assertMatchOptions(getQuickFixes(createCommand(command, output, GitPushOutputRegex, 2), expectedMap, openerService)?.quickFixes, actions);
 			});
 		});
 	});
