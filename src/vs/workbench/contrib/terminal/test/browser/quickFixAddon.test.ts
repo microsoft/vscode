@@ -44,7 +44,7 @@ suite('QuickFixAddon', () => {
 		quickFixAddon = instantiationService.createInstance(TerminalQuickFixAddon, capabilities);
 		xterm.loadAddon(quickFixAddon);
 	});
-	suite.only('registerCommandFinishedListener & getMatchActions', () => {
+	suite('registerCommandFinishedListener & getMatchActions', () => {
 		suite('gitSimilarCommand', async () => {
 			const expectedMap = new Map();
 			const command = `git sttatus`;

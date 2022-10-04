@@ -655,7 +655,7 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 	const endLine = endMarker.line;
 
 	const matcher = outputMatcher.lineMatcher;
-	const linesToCheck = typeof matcher === 'string' ? 1 : countNewLines(matcher);
+	const linesToCheck = typeof matcher === 'string' ? 1 : outputMatcher.length || countNewLines(matcher);
 	const lines: string[] = [];
 	if (outputMatcher.anchor === 'bottom') {
 		for (let i = endLine - (outputMatcher.offset || 0); i >= startLine; i--) {
@@ -669,7 +669,10 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 			if (lines.length > linesToCheck) {
 				lines.pop();
 			}
+			console.log(lines);
+			console.log(matcher);
 			const match = lines.join('\n').match(matcher);
+			console.log('match', match);
 			if (match) {
 				return match;
 			}
