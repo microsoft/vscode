@@ -669,8 +669,6 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 			if (lines.length > linesToCheck) {
 				lines.pop();
 			}
-			console.log(lines);
-			console.log(matcher);
 			const match = lines.join('\n').match(matcher);
 			console.log('match', match);
 			if (match) {
