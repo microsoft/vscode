@@ -16,10 +16,9 @@ if ($ExecutionContext.SessionState.LanguageMode -ne "FullLanguage") {
 $Global:__VSCodeOriginalPrompt = $function:Prompt
 
 $Global:__LastHistoryId = -1
-function Set-Serialized {
-	param ([string] $toSerialize)
-	$toSerialize = $toSerialize.Replace("\", "\\").Replace("`n", "\x0a").Replace(";", "\x3b")
-	return $toSerialize
+
+function Global:__VSCode-Escape-Value([string]$value) {
+	$value.Replace("\", "\\").Replace("`n", "\x0a").Replace(";", "\x3b")
 }
 
 function Global:Prompt() {
@@ -43,7 +42,7 @@ function Global:Prompt() {
 			} else {
 				$CommandLine = ""
 			}
-			$Result += Set-Serialized($CommandLine)
+			$Result += $(__VSCode-Escape-Value $CommandLine)
 			$Result += "`a"
 			# Command finished exit code
 			# OSC 633 ; D [; <ExitCode>] ST
