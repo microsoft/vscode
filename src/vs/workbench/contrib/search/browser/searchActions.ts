@@ -129,26 +129,6 @@ export class FocusPreviousInputAction extends Action {
 	}
 }
 
-export abstract class FindOrReplaceInFilesAction extends Action {
-
-	constructor(id: string, label: string, protected viewsService: IViewsService,
-		private expandSearchReplaceWidget: boolean
-	) {
-		super(id, label);
-	}
-
-	override run(): Promise<any> {
-		return openSearchView(this.viewsService, false).then(openedView => {
-			if (openedView) {
-				const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
-				searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
-
-				const updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: !this.expandSearchReplaceWidget });
-				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
-			}
-		});
-	}
-}
 export interface IFindInFilesArgs {
 	query?: string;
 	replace?: string;
@@ -197,17 +177,6 @@ export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFiles
 	}
 };
 
-export class ReplaceInFilesAction extends FindOrReplaceInFilesAction {
-
-	static readonly ID = 'workbench.action.replaceInFiles';
-	static readonly LABEL = nls.localize('replaceInFiles', "Replace in Files");
-
-	constructor(id: string, label: string,
-		@IViewsService viewsService: IViewsService) {
-		super(id, label, viewsService, /*expandSearchReplaceWidget=*/true);
-	}
-}
-
 export class CloseReplaceAction extends Action {
 
 	constructor(id: string, label: string,
@@ -223,29 +192,6 @@ export class CloseReplaceAction extends Action {
 			searchView.searchAndReplaceWidget.focus();
 		}
 		return Promise.resolve(null);
-	}
-}
-
-// --- Toggle Search On Type
-
-export class ToggleSearchOnTypeAction extends Action {
-
-	static readonly ID = 'workbench.action.toggleSearchOnType';
-	static readonly LABEL = nls.localize('toggleTabs', "Toggle Search on Type");
-
-	private static readonly searchOnTypeKey = 'search.searchOnType';
-
-	constructor(
-		id: string,
-		label: string,
-		@IConfigurationService private readonly configurationService: IConfigurationService
-	) {
-		super(id, label);
-	}
-
-	override run(): Promise<any> {
-		const searchOnType = this.configurationService.getValue<boolean>(ToggleSearchOnTypeAction.searchOnTypeKey);
-		return this.configurationService.updateValue(ToggleSearchOnTypeAction.searchOnTypeKey, !searchOnType);
 	}
 }
 
@@ -357,52 +303,42 @@ export function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 	}
 }
 
-export class FocusNextSearchResultAction extends Action {
-	static readonly ID = 'search.action.focusNextSearchResult';
-	static readonly LABEL = nls.localize('FocusNextSearchResult.label', "Focus Next Search Result");
-
-	constructor(id: string, label: string,
-		@IViewsService private readonly viewsService: IViewsService,
-		@IEditorService private readonly editorService: IEditorService,
-	) {
-		super(id, label);
+export async function focusNextSearchResult(accessor: ServicesAccessor): Promise<any> {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
+		return (editorService.activeEditorPane as SearchEditor).focusNextResult();
 	}
 
-	override async run(): Promise<any> {
-		const input = this.editorService.activeEditor;
-		if (input instanceof SearchEditorInput) {
-			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
-			return (this.editorService.activeEditorPane as SearchEditor).focusNextResult();
-		}
-
-		return openSearchView(this.viewsService).then(searchView => {
-			searchView?.selectNextMatch();
-		});
-	}
+	return openSearchView(accessor.get(IViewsService)).then(searchView => {
+		searchView?.selectNextMatch();
+	});
 }
 
-export class FocusPreviousSearchResultAction extends Action {
-	static readonly ID = 'search.action.focusPreviousSearchResult';
-	static readonly LABEL = nls.localize('FocusPreviousSearchResult.label', "Focus Previous Search Result");
-
-	constructor(id: string, label: string,
-		@IViewsService private readonly viewsService: IViewsService,
-		@IEditorService private readonly editorService: IEditorService,
-	) {
-		super(id, label);
+export async function focusPreviousSearchResult(accessor: ServicesAccessor): Promise<any> {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
+		return (editorService.activeEditorPane as SearchEditor).focusPreviousResult();
 	}
 
-	override async run(): Promise<any> {
-		const input = this.editorService.activeEditor;
-		if (input instanceof SearchEditorInput) {
-			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
-			return (this.editorService.activeEditorPane as SearchEditor).focusPreviousResult();
+	return openSearchView(accessor.get(IViewsService)).then(searchView => {
+		searchView?.selectPreviousMatch();
+	});
+}
+
+export async function findOrReplaceInFiles(accessor: ServicesAccessor, expandSearchReplaceWidget: boolean): Promise<any> {
+	return openSearchView(accessor.get(IViewsService), false).then(openedView => {
+		if (openedView) {
+			const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
+			searchAndReplaceWidget.toggleReplace(expandSearchReplaceWidget);
+
+			const updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: !expandSearchReplaceWidget });
+			openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 		}
-
-		return openSearchView(this.viewsService).then(searchView => {
-			searchView?.selectPreviousMatch();
-		});
-	}
+	});
 }
 
 export abstract class AbstractSearchAndReplaceAction extends Action {
