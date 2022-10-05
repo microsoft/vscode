@@ -367,7 +367,7 @@ class SharedProcessMain extends Disposable {
 		services.set(ISharedProcessTunnelService, new SyncDescriptor(SharedProcessTunnelService));
 
 		// Remote Tunnel
-		services.set(IRemoteTunnelService, new SyncDescriptor(RemoteTunnelService, undefined, true));
+		services.set(IRemoteTunnelService, new SyncDescriptor(RemoteTunnelService));
 
 		return new InstantiationService(services);
 	}

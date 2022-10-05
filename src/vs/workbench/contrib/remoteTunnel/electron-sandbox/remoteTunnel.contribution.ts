@@ -98,8 +98,8 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		// If another window changes the preferred session storage, reset our cached auth state in memory
 		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
 
-		this.registerSignInAction();
-		this.registerResetAuthenticationAction();
+		this.registerTurnOnAction();
+		this.registerTurnOffAction();
 
 		this.signedInContext.set(this.existingSessionId !== undefined);
 
@@ -313,12 +313,12 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		return configuredAuthenticationProviders.filter(({ id }) => availableAuthenticationProviders.some(provider => provider.id === id));
 	}
 
-	private registerSignInAction() {
+	private registerTurnOnAction() {
 		const that = this;
 		this._register(registerAction2(class ShareMachineAction extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.remoteTunnel.actions.signIn',
+					id: 'workbench.remoteTunnel.actions.turnOn',
 					title: localize('remoteTunnel.tunrOnSharing', 'Turn on Machine Sharing...'),
 					category: MACHINE_SHARING_CATEGORY,
 					precondition: ContextKeyExpr.equals(REMOTE_TUNNEL_SIGNED_IN_KEY, false),
@@ -327,7 +327,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					},
 					{
 						id: MenuId.AccountsContext,
-						group: '2_editSessions',
+						group: '2_remoteTunnel',
 						when: ContextKeyExpr.equals(REMOTE_TUNNEL_SIGNED_IN_KEY, false),
 					}]
 				});
@@ -339,12 +339,12 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		}));
 	}
 
-	private registerResetAuthenticationAction() {
+	private registerTurnOffAction() {
 		const that = this;
-		this._register(registerAction2(class ResetEditSessionAuthenticationAction extends Action2 {
+		this._register(registerAction2(class ResetShareMachineAuthenticationAction extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.remoteTunnel.actions.resetAuth',
+					id: 'workbench.remoteTunnel.actions.turnOff',
 					title: localize('remoteTunnel.tunrOffSharing', 'Turn off Machine Sharing...'),
 					category: MACHINE_SHARING_CATEGORY,
 					precondition: ContextKeyExpr.equals(REMOTE_TUNNEL_SIGNED_IN_KEY, true),
@@ -353,7 +353,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					},
 					{
 						id: MenuId.AccountsContext,
-						group: '2_editSessions',
+						group: '2_remoteTunnel',
 						when: ContextKeyExpr.equals(REMOTE_TUNNEL_SIGNED_IN_KEY, true),
 					}]
 				});
@@ -372,7 +372,6 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			}
 		}));
 	}
-
 
 }
 

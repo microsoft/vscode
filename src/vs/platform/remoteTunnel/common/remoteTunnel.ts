@@ -17,6 +17,8 @@ export interface IRemoteTunnelService {
 	readonly _serviceBrand: undefined;
 
 	readonly onTokenFailed: Event<boolean>;
+	readonly onTunnelFailed: Event<void>;
+
 	getAccount(): Promise<IRemoteTunnelAccount | undefined>;
 	readonly onDidChangeAccount: Event<IRemoteTunnelAccount | undefined>;
 	updateAccount(account: IRemoteTunnelAccount | undefined): Promise<void>;
