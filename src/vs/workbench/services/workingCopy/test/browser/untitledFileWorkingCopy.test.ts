@@ -270,7 +270,7 @@ suite('UntitledFileWorkingCopy', () => {
 		assert.strictEqual(workingCopy.model?.contents, 'Hello Initial');
 		assert.strictEqual(contentChangeCounter, 1);
 
-		workingCopy.model.updateContents('Changed contents');
+		workingCopy.model?.updateContents('Changed contents');
 
 		await workingCopy.resolve(); // second resolve should be ignored
 		assert.strictEqual(workingCopy.model?.contents, 'Changed contents');

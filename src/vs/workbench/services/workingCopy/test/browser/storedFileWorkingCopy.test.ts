@@ -286,7 +286,7 @@ suite('StoredFileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.isReadonly(), false);
 		assert.strictEqual(workingCopy.model?.contents, 'hello backup');
 
-		workingCopy.model.updateContents('hello updated');
+		workingCopy.model?.updateContents('hello updated');
 		await workingCopy.save();
 
 		// subsequent resolve ignores any backups
@@ -858,7 +858,7 @@ suite('StoredFileWorkingCopy', function () {
 		});
 
 		let disposedModelEvent = false;
-		workingCopy.model.onWillDispose(() => {
+		workingCopy.model?.onWillDispose(() => {
 			disposedModelEvent = true;
 		});
 
