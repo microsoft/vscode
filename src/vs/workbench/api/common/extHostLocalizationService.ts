@@ -49,8 +49,8 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 		return format(str ?? key, ...(args ?? []));
 	}
 
-	getBundle(extensionId: string): { [key: string]: string } {
-		return this.bundleCache.get(extensionId)?.contents ?? {};
+	getBundle(extensionId: string): { [key: string]: string } | undefined {
+		return this.bundleCache.get(extensionId)?.contents;
 	}
 
 	getBundleUri(extensionId: string): URI | undefined {

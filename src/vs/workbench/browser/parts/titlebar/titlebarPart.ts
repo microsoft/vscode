@@ -34,7 +34,7 @@ import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { CommandCenterControl } from 'vs/workbench/browser/parts/titlebar/commandCenterControl';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 export class TitlebarPart extends Part implements ITitleService {
@@ -320,7 +320,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				super({
 					id: `workbench.action.focusTitleBar`,
 					title: { value: localize('focusTitleBar', "Focus Title Bar"), original: 'Focus Title Bar' },
-					category: CATEGORIES.View,
+					category: Categories.View,
 					f1: true,
 				});
 			}

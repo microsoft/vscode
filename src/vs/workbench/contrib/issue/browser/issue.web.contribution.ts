@@ -11,7 +11,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { WebIssueService } from 'vs/workbench/contrib/issue/browser/issueService';
 import { OpenIssueReporterArgs, OpenIssueReporterActionId, OpenIssueReporterApiCommandId } from 'vs/workbench/contrib/issue/common/commands';
@@ -86,7 +86,7 @@ class RegisterIssueContribution implements IWorkbenchContribution {
 			const command: ICommandAction = {
 				id: OpenIssueReporterActionId,
 				title: { value: OpenIssueReporterActionLabel, original: 'Report Issue' },
-				category: CATEGORIES.Help
+				category: Categories.Help
 			};
 
 			MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command });

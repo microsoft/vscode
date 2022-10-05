@@ -9,7 +9,8 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Action } from 'vs/base/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor, MenuId, MenuRegistry, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions, CATEGORIES } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IWorkbenchLayoutService, PanelAlignment, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
@@ -159,7 +160,7 @@ PositionPanelActionConfigs.forEach(positionPanelAction => {
 			super({
 				id,
 				title,
-				category: CATEGORIES.View,
+				category: Categories.View,
 				f1: true
 			});
 		}
@@ -193,7 +194,7 @@ AlignPanelActionConfigs.forEach(alignPanelAction => {
 			super({
 				id,
 				title: title,
-				category: CATEGORIES.View,
+				category: Categories.View,
 				toggled: when.negate(),
 				f1: true
 			});
@@ -322,10 +323,10 @@ export class NextPanelViewAction extends SwitchPanelViewAction {
 }
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(TogglePanelAction, { primary: KeyMod.CtrlCmd | KeyCode.KeyJ }), 'View: Toggle Panel Visibility', CATEGORIES.View.value);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPanelAction), 'View: Focus into Panel', CATEGORIES.View.value);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(PreviousPanelViewAction), 'View: Previous Panel View', CATEGORIES.View.value);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NextPanelViewAction), 'View: Next Panel View', CATEGORIES.View.value);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(TogglePanelAction, { primary: KeyMod.CtrlCmd | KeyCode.KeyJ }), 'View: Toggle Panel Visibility', Categories.View.value);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPanelAction), 'View: Focus into Panel', Categories.View.value);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(PreviousPanelViewAction), 'View: Previous Panel View', Categories.View.value);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NextPanelViewAction), 'View: Next Panel View', Categories.View.value);
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -333,7 +334,7 @@ registerAction2(class extends Action2 {
 			id: 'workbench.action.toggleMaximizedPanel',
 			title: { value: localize('toggleMaximizedPanel', "Toggle Maximized Panel"), original: 'Toggle Maximized Panel' },
 			tooltip: localize('maximizePanel', "Maximize Panel Size"),
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true,
 			icon: maximizeIcon,
 			// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
@@ -374,7 +375,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.closePanel',
 			title: { value: localize('closePanel', "Close Panel"), original: 'Close Panel' },
-			category: CATEGORIES.View,
+			category: Categories.View,
 			icon: closeIcon,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -396,7 +397,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.closeAuxiliaryBar',
 			title: { value: localize('closeSecondarySideBar', "Close Secondary Side Bar"), original: 'Close Secondary Side Bar' },
-			category: CATEGORIES.View,
+			category: Categories.View,
 			icon: closeIcon,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -500,7 +501,7 @@ class MovePanelToSidePanelAction extends MoveViewsBetweenPanelsAction {
 				value: localize('movePanelToSecondarySideBar', "Move Panel Views To Secondary Side Bar"),
 				original: 'Move Panel Views To Secondary Side Bar'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: false
 		});
 	}
@@ -515,7 +516,7 @@ export class MovePanelToSecondarySideBarAction extends MoveViewsBetweenPanelsAct
 				value: localize('movePanelToSecondarySideBar', "Move Panel Views To Secondary Side Bar"),
 				original: 'Move Panel Views To Secondary Side Bar'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true
 		});
 	}
@@ -536,7 +537,7 @@ class MoveSidePanelToPanelAction extends MoveViewsBetweenPanelsAction {
 				value: localize('moveSidePanelToPanel', "Move Secondary Side Bar Views To Panel"),
 				original: 'Move Secondary Side Bar Views To Panel'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: false
 		});
 	}
@@ -552,7 +553,7 @@ export class MoveSecondarySideBarToPanelAction extends MoveViewsBetweenPanelsAct
 				value: localize('moveSidePanelToPanel', "Move Secondary Side Bar Views To Panel"),
 				original: 'Move Secondary Side Bar Views To Panel'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true
 		});
 	}

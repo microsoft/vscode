@@ -6,6 +6,7 @@
 import { URI, UriDto } from 'vs/base/common/uri';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { Categories } from './actionCommonCategories';
 
 export interface ILocalizedString {
 
@@ -60,7 +61,7 @@ export interface ICommandAction {
 	id: string;
 	title: string | ICommandActionTitle;
 	shortTitle?: string | ICommandActionTitle;
-	category?: string | ILocalizedString;
+	category?: keyof typeof Categories | ILocalizedString | string;
 	tooltip?: string | ILocalizedString;
 	icon?: Icon;
 	source?: string;
