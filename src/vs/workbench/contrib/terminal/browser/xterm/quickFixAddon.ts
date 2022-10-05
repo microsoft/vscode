@@ -54,6 +54,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	private _decorations: Map<number, IDecoration> = new Map();
 	private _quickFixId: number | undefined;
 
+	private _currentQuickFixElement: HTMLElement | undefined;
+
 	private readonly _terminalDecorationHoverService: TerminalDecorationHoverManager;
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
@@ -82,7 +84,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	}
 
 	showMenu(): void {
-		Object.values(this._decorations).pop()?.element?.click();
+		this._currentQuickFixElement?.click();
 	}
 
 	registerCommandFinishedListener(options: ITerminalQuickFixOptions): void {
@@ -144,7 +146,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (!marker || !this._quickFixId) {
 			return;
 		}
-		const actions = this._quickFixes.get(this._quickFixId);
 		const decoration = this._terminal.registerDecoration({ marker, layer: 'top' });
 		if (!decoration) {
 			return;
@@ -154,18 +155,18 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		const hoverLabel = kb ? localize('terminalQuickFixWithKb', "Show Quick Fixes ({0})", kb.getLabel()) : '';
 		const id = this._quickFixId;
 		decoration?.onRender((e: HTMLElement) => {
-			if (!this._decorationMarkerIds.has(decoration.marker.id)) {
-				e.classList.add(DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration);
-				updateLayout(this._configurationService, e);
-				this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
-				if (actions) {
-					this._decorationMarkerIds.add(decoration.marker.id);
-					this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
-						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => this._quickFixes.get(id) || [], autoSelectFirstItem: true });
-					}));
-					this._register(this._terminalDecorationHoverService.createHover(e, undefined, hoverLabel));
-				}
+			if (this._decorationMarkerIds.has(decoration.marker.id)) {
+				return;
 			}
+			this._currentQuickFixElement = e;
+			e.classList.add(DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration);
+			updateLayout(this._configurationService, e);
+			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
+			this._decorationMarkerIds.add(decoration.marker.id);
+			this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
+				this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => this._quickFixes.get(id) || [], autoSelectFirstItem: true });
+			}));
+			this._register(this._terminalDecorationHoverService.createHover(e, undefined, hoverLabel));
 		});
 	}
 }
