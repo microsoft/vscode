@@ -7,7 +7,8 @@ import 'vs/platform/update/common/update.config.contribution';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { SyncActionDescriptor, MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution, CheckForVSCodeUpdateAction, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution } from 'vs/workbench/contrib/update/browser/update';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -103,7 +104,7 @@ if (isWindows) {
 			super({
 				id: '_update.applyupdate',
 				title: { value: localize('applyUpdate', "Apply Update..."), original: 'Apply Update...' },
-				category: CATEGORIES.Developer,
+				category: Categories.Developer,
 				f1: true,
 				precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
 			});
