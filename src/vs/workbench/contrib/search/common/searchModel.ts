@@ -476,6 +476,7 @@ export interface IChangeEvent {
 	elements: FileMatch[];
 	added?: boolean;
 	removed?: boolean;
+	clearingAll?: boolean;
 }
 
 export class FolderMatch extends Disposable {
@@ -578,10 +579,10 @@ export class FolderMatch extends Disposable {
 		folderMatch.onDispose(() => disposable.dispose());
 	}
 
-	clear(): void {
+	clear(clearingAll = false): void {
 		const changed: FileMatch[] = this.downstreamFileMatches();
 		this.disposeMatches();
-		this._onChange.fire({ elements: changed, removed: true, added: false });
+		this._onChange.fire({ elements: changed, removed: true, added: false, clearingAll });
 	}
 
 	remove(matches: FileMatch | FolderMatchWithResource | (FileMatch | FolderMatchWithResource)[]): void {
@@ -1191,7 +1192,7 @@ export class SearchResult extends Disposable {
 	}
 
 	clear(): void {
-		this.folderMatches().forEach((folderMatch) => folderMatch.clear());
+		this.folderMatches().forEach((folderMatch) => folderMatch.clear(true));
 		this.disposeMatches();
 		this._folderMatches = [];
 		this._otherFilesMatch = null;
