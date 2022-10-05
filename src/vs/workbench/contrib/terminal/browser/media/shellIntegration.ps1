@@ -64,7 +64,7 @@ function Global:Prompt() {
 	$Result += "$([char]0x1b)]633;A`a"
 	# Current working directory
 	# OSC 633 ; <Property>=<Value> ST
-	$Result += if($pwd.Provider.Name -eq 'FileSystem'){"$([char]0x1b)]633;P;Cwd=$($pwd.ProviderPath)`a"}
+	$Result += if($pwd.Provider.Name -eq 'FileSystem'){"$([char]0x1b)]633;P;Cwd=$(__VSCode-Escape-Value $pwd.ProviderPath)`a"}
 	# Before running the original prompt, put $? back to what it was:
 	if ($FakeCode -ne 0) {
 		Write-Error "failure" -ea ignore
