@@ -2,9 +2,10 @@ parameters:
   - name: VSCODE_CLI_TARGETS
     default: []
     type: object
+  - name: VSCODE_QUALITY
+    type: string
   - name: VSCODE_CLI_DIR
     type: string
-    default: './'
   - name: VSCODE_CLI_BINARY_NAME
     type: string
   - name: channel
@@ -19,10 +20,24 @@ steps:
       sudo ln -s "/usr/bin/g++" "/usr/bin/musl-g++" || echo "link exists"
     displayName: Install build dependencies
 
-  - template: ./install-rust.yml
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "16.x"
+
+  - template: ../mixin-distro-posix.yml
+    parameters:
+      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+  - script: |
+      set -e
+      node build/azure-pipelines/cli/prepare.js
+    displayName: Prepare CLI build
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+
+  - template: ../cli/install-rust-posix.yml
     parameters:
       targets: ${{ parameters.VSCODE_CLI_TARGETS }}
-      channel: ${{ parameters.channel }}
 
   - ${{ each target in parameters.VSCODE_CLI_TARGETS }}:
     - script: cargo build --release --target ${{ target.target }} --bin=${{ parameters.VSCODE_CLI_BINARY_NAME }}
@@ -38,6 +53,14 @@ steps:
         CXX_aarch64-unknown-linux-musl: musl-g++
         CC_aarch64-unknown-linux-musl: musl-gcc
 
-    - publish: ${{ parameters.VSCODE_CLI_DIR }}/target/${{ target.target }}/release/${{ parameters.VSCODE_CLI_BINARY_NAME }}
+    - task: ArchiveFiles@2
+      inputs:
+        rootFolderOrFile: ${{ parameters.VSCODE_CLI_DIR }}/target/${{ target.target }}/release/${{ parameters.VSCODE_CLI_BINARY_NAME }}
+        includeRootFolder: false
+        archiveType: tar
+        tarCompression: gz
+        archiveFile: $(Build.ArtifactStagingDirectory)/${{ target.artifact }}.tar.gz
+
+    - publish: $(Build.ArtifactStagingDirectory)/${{ target.artifact }}.tar.gz
       artifact: ${{ target.artifact }}
       displayName: Publish ${{ target.artifact }} artifact

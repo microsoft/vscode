@@ -6,6 +6,7 @@
 const gulp = require('gulp');
 const path = require('path');
 const util = require('./lib/util');
+const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const optimize = require('./lib/optimize');
 const es = require('event-stream');
@@ -18,7 +19,7 @@ const monacoapi = require('./lib/monaco-api');
 const fs = require('fs');
 
 const root = path.dirname(__dirname);
-const sha1 = util.getVersion(root);
+const sha1 = getVersion(root);
 const semver = require('./monaco/package.json').version;
 const headerVersion = semver + '(' + sha1 + ')';
 

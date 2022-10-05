@@ -15,17 +15,6 @@ steps:
       echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
     env:
       RUSTUP_TOOLCHAIN: ${{ parameters.channel }}
-    condition: not(eq(variables['Agent.OS'], 'Windows_NT'))
-    displayName: "Install Rust"
-
-  - script: |
-      curl -sSf -o rustup-init.exe https://win.rustup.rs
-      rustup-init.exe -y --profile minimal --default-toolchain %RUSTUP_TOOLCHAIN% --default-host x86_64-pc-windows-msvc
-      set PATH=%PATH%;%USERPROFILE%\.cargo\bin
-      echo "##vso[task.setvariable variable=PATH;]%PATH%;%USERPROFILE%\.cargo\bin"
-    env:
-      RUSTUP_TOOLCHAIN: ${{ parameters.channel }}
-    condition: eq(variables['Agent.OS'], 'Windows_NT')
     displayName: "Install Rust"
 
   - bash: |

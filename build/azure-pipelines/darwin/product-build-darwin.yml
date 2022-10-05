@@ -191,11 +191,12 @@ steps:
       inputs:
         artifact: ${{ parameters.VSCODE_CLI_ARTIFACT }}
         patterns: '**'
-        path: $(APP_PATH)/Contents/Resources/app/bin
+        path: $(Build.ArtifactStagingDirectory)
       displayName: Download VS Code CLI
 
     - script: |
         set -e
+        unzip "$(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip" -d "$(APP_PATH)/Contents/Resources/app/bin"
         chmod +x "$(APP_PATH)/Contents/Resources/app/bin/$(VSCODE_CLI_BINARY_NAME)"
         if [ "$(VSCODE_QUALITY)" != "stable" ]; then
           mv "$(APP_PATH)/Contents/Resources/app/bin/$(VSCODE_CLI_BINARY_NAME)" "$(APP_PATH)/Contents/Resources/app/bin/$(VSCODE_CLI_BINARY_NAME)-$(VSCODE_QUALITY)"

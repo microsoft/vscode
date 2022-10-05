@@ -15,8 +15,6 @@ import * as VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
 import * as sm from 'source-map';
 
-export { getVersion } from './getVersion';
-
 const root = path.dirname(path.dirname(__dirname));
 
 export interface ICancellationToken {
