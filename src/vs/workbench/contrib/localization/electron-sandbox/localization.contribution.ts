@@ -25,11 +25,11 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { ClearDisplayLanguageAction, ConfigureDisplayLanguageAction } from 'vs/workbench/contrib/localization/browser/localizationsActions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
 import { NativeLocaleService } from 'vs/workbench/contrib/localization/electron-sandbox/localeService';
 
-registerSingleton(ILocaleService, NativeLocaleService, true);
+registerSingleton(ILocaleService, NativeLocaleService, InstantiationType.Delayed);
 
 // Register action to configure locale and related settings
 registerAction2(ConfigureDisplayLanguageAction);
@@ -123,11 +123,11 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 							const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.filter(x => x.languageId.toLowerCase() === locale)[0];
 							const languageName = loc ? (loc.languageName || locale) : locale;
 							const languageDisplayName = loc ? (loc.localizedLanguageName || loc.languageName || locale) : locale;
-							const translationsFromPack: any = translation && translation.contents ? translation.contents['vs/workbench/contrib/localization/electron-sandbox/minimalTranslations'] : {};
+							const translationsFromPack: { [key: string]: string } = translation?.contents?.['vs/workbench/contrib/localization/electron-sandbox/minimalTranslations'] ?? {};
 							const promptMessageKey = extensionToInstall ? 'installAndRestartMessage' : 'showLanguagePackExtensions';
 							const useEnglish = !translationsFromPack[promptMessageKey];
 
-							const translations: any = {};
+							const translations: { [key: string]: string } = {};
 							Object.keys(minimumTranslatedStrings).forEach(key => {
 								if (!translationsFromPack[key] || useEnglish) {
 									translations[key] = minimumTranslatedStrings[key].replace('{0}', languageName);
@@ -220,7 +220,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(LocalizationWorkbenchContribution, 'LocalizationWorkbenchContribution', LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(LocalizationWorkbenchContribution, LifecyclePhase.Eventually);
 
 ExtensionsRegistry.registerExtensionPoint({
 	extensionPoint: 'localizations',

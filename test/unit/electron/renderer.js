@@ -298,7 +298,7 @@ function runTests(opts) {
 			mocha.grep(opts.grep);
 		}
 
-		if (!opts.debug) {
+		if (!opts.dev) {
 			mocha.reporter(IPCReporter);
 		}
 
@@ -308,7 +308,7 @@ function runTests(opts) {
 			});
 		});
 
-		if (opts.debug) {
+		if (opts.dev) {
 			runner.on('fail', (test, err) => {
 
 				console.error(test.fullTitle());

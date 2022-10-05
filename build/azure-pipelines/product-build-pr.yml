@@ -26,10 +26,7 @@ jobs:
   - ${{ if ne(variables['VSCODE_CIBUILD'], true) }}:
     - job: Compile
       displayName: Compile & Hygiene
-      pool:
-        name: vscode-1es-vscode-linux-20.04
-        demands:
-          - ImageVersionOverride -equals 40.0.0
+      pool: vscode-1es-vscode-linux-20.04
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64
@@ -40,10 +37,7 @@ jobs:
 
     - job: Linuxx64UnitTest
       displayName: Linux (Unit Tests)
-      pool:
-        name: vscode-1es-vscode-linux-20.04
-        demands:
-          - ImageVersionOverride -equals 40.0.0
+      pool: vscode-1es-vscode-linux-20.04
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64
@@ -60,10 +54,7 @@ jobs:
 
     - job: Linuxx64IntegrationTest
       displayName: Linux (Integration Tests)
-      pool:
-        name: vscode-1es-vscode-linux-20.04
-        demands:
-          - ImageVersionOverride -equals 40.0.0
+      pool: vscode-1es-vscode-linux-20.04
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64
@@ -80,10 +71,7 @@ jobs:
 
     - job: Linuxx64SmokeTest
       displayName: Linux (Smoke Tests)
-      pool:
-        name: vscode-1es-vscode-linux-20.04
-        demands:
-          - ImageVersionOverride -equals 40.0.0
+      pool: vscode-1es-vscode-linux-20.04
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64
@@ -101,10 +89,7 @@ jobs:
   - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
     - job: Linuxx64MaintainNodeModulesCache
       displayName: Linux (Maintain node_modules cache)
-      pool:
-        name: vscode-1es-vscode-linux-20.04
-        demands:
-          - ImageVersionOverride -equals 40.0.0
+      pool: vscode-1es-vscode-linux-20.04
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64

@@ -6,7 +6,7 @@
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IUserDataSyncUtilService, getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -53,4 +53,4 @@ class UserDataSyncUtilService implements IUserDataSyncUtilService {
 
 }
 
-registerSingleton(IUserDataSyncUtilService, UserDataSyncUtilService, true);
+registerSingleton(IUserDataSyncUtilService, UserDataSyncUtilService, InstantiationType.Delayed);

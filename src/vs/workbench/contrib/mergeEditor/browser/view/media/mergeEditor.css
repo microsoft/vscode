@@ -229,3 +229,46 @@
 .merge-conflict-input-selection {
 	background-color: red;
 }
+
+.merge-editor-conflict-actions {
+	margin: -4px 3px;
+}
+
+.merge-editor-conflict-actions {
+	overflow: hidden;
+	display: inline-block;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--vscode-editorCodeLens-foreground)
+}
+
+.merge-editor-conflict-actions>span,
+.merge-editor-conflict-actions>a {
+	user-select: none;
+	-webkit-user-select: none;
+	white-space: nowrap;
+	vertical-align: sub;
+}
+
+.merge-editor-conflict-actions>a {
+	text-decoration: none;
+}
+
+.merge-editor-conflict-actions>a:hover {
+	cursor: pointer;
+	color: var(--vscode-editorLink-activeForeground) !important;
+}
+
+.merge-editor-conflict-actions>a:hover .codicon {
+	color: var(--vscode-editorLink-activeForeground) !important;
+}
+
+.merge-editor-conflict-actions .codicon {
+	vertical-align: middle;
+	color: currentColor !important;
+	color: var(--vscode-editorCodeLens-foreground);
+}
+
+.merge-editor-conflict-actions>a:hover .codicon::before {
+	cursor: pointer;
+}

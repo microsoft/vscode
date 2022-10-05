@@ -6,7 +6,7 @@
 import 'vs/workbench/contrib/markers/browser/markersFileDecorations';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
@@ -201,7 +201,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.problems.focus',
 			title: { value: Messages.MARKERS_PANEL_SHOW_LABEL, original: 'Focus Problems (Errors, Warnings, Infos)' },
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true,
 		});
 	}
@@ -409,6 +409,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			_isFakeAction: true,
 			id: `workbench.actions.treeView.${Markers.MARKERS_VIEW_ID}.filter`,
 			title: localize('filter', "Filter"),
 			menu: {
@@ -513,7 +514,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	}
 }
 
-workbenchRegistry.registerWorkbenchContribution(MarkersStatusBarContributions, 'MarkersStatusBarContributions', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(MarkersStatusBarContributions, LifecyclePhase.Restored);
 
 class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 
@@ -536,4 +537,4 @@ class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 	}
 }
 
-workbenchRegistry.registerWorkbenchContribution(ActivityUpdater, 'ActivityUpdater', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(ActivityUpdater, LifecyclePhase.Restored);

@@ -15,7 +15,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkingCopyHistoryModelOptions, WorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkingCopyHistoryService, MAX_PARALLEL_HISTORY_IO_OPS } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
@@ -98,4 +98,4 @@ export class NativeWorkingCopyHistoryService extends WorkingCopyHistoryService {
 }
 
 // Register Service
-registerSingleton(IWorkingCopyHistoryService, NativeWorkingCopyHistoryService, true);
+registerSingleton(IWorkingCopyHistoryService, NativeWorkingCopyHistoryService, InstantiationType.Delayed);

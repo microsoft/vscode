@@ -337,7 +337,6 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	private hideTwistiesOfChildlessElements: boolean = false;
 
 	private shouldRenderIndentGuides: boolean = false;
-	private renderedIndentGuides = new SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>();
 	private activeIndentNodes = new Set<ITreeNode<T, TFilterData>>();
 	private indentGuidesDisposable: IDisposable = Disposable.None;
 
@@ -348,6 +347,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 		private modelProvider: () => ITreeModel<T, TFilterData, TRef>,
 		onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>,
 		private activeNodes: Collection<ITreeNode<T, TFilterData>>,
+		private renderedIndentGuides: SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>,
 		options: ITreeRendererOptions = {}
 	) {
 		this.templateId = renderer.templateId;
@@ -695,6 +695,14 @@ class FindWidget<T, TFilterData> extends Disposable {
 		this.findInput.inputBox.setPlaceHolder(mode === TreeFindMode.Filter ? localize('type to filter', "Type to filter") : localize('type to search', "Type to search"));
 	}
 
+	get value(): string {
+		return this.findInput.inputBox.value;
+	}
+
+	set value(value: string) {
+		this.findInput.inputBox.value = value;
+	}
+
 	private readonly modeToggle: ModeToggle;
 	private readonly findInput: FindInput;
 	private readonly actionbar: ActionBar;
@@ -876,6 +884,7 @@ class FindController<T, TFilterData> implements IDisposable {
 
 	private _pattern = '';
 	get pattern(): string { return this._pattern; }
+	private previousPattern = '';
 
 	private _mode: TreeFindMode;
 	get mode(): TreeFindMode { return this._mode; }
@@ -940,6 +949,9 @@ class FindController<T, TFilterData> implements IDisposable {
 		this.widget.layout(this.width);
 		this.widget.focus();
 
+		this.widget.value = this.previousPattern;
+		this.widget.select();
+
 		this._onDidChangeOpenState.fire(true);
 	}
 
@@ -953,6 +965,7 @@ class FindController<T, TFilterData> implements IDisposable {
 		this.enabledDisposables.dispose();
 		this.enabledDisposables = new DisposableStore();
 
+		this.previousPattern = this.pattern;
 		this.onDidChangeValue('');
 		this.tree.domFocus();
 
@@ -996,7 +1009,11 @@ class FindController<T, TFilterData> implements IDisposable {
 		const noMatches = this.filter.totalCount > 0 && this.filter.matchCount === 0;
 
 		if (this.pattern && noMatches) {
-			this.widget?.showMessage({ type: MessageType.WARNING, content: localize('not found', "No elements found.") });
+			if (this.tree.options.showNotFoundMessage ?? true) {
+				this.widget?.showMessage({ type: MessageType.WARNING, content: localize('not found', "No elements found.") });
+			} else {
+				this.widget?.showMessage({ type: MessageType.WARNING });
+			}
 		} else {
 			this.widget?.clearMessage();
 		}
@@ -1062,6 +1079,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly typeNavigationEnabled?: boolean;
 	readonly typeNavigationMode?: TypeNavigationMode;
 	readonly defaultFindMode?: TreeFindMode;
+	readonly showNotFoundMessage?: boolean;
 	readonly smoothScrolling?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly mouseWheelScrollSensitivity?: number;
@@ -1430,7 +1448,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const onDidChangeCollapseStateRelay = new Relay<ICollapseStateChangeEvent<T, TFilterData>>();
 		const onDidChangeActiveNodes = new Relay<ITreeNode<T, TFilterData>[]>();
 		const activeNodes = this.disposables.add(new EventCollection(onDidChangeActiveNodes.event));
-		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, TRef, any>(r, () => this.model, onDidChangeCollapseStateRelay.event, activeNodes, _options));
+		const renderedIndentGuides = new SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>();
+		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, TRef, any>(r, () => this.model, onDidChangeCollapseStateRelay.event, activeNodes, renderedIndentGuides, _options));
 		for (const r of this.renderers) {
 			this.disposables.add(r);
 		}

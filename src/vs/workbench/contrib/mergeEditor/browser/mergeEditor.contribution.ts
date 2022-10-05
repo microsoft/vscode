@@ -11,7 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { AcceptAllInput1, AcceptAllInput2, AcceptMerge, CompareInput1WithBaseCommand, CompareInput2WithBaseCommand, GoToNextUnhandledConflict, GoToPreviousUnhandledConflict, OpenBaseFile, OpenMergeEditor, OpenResultResource, ResetDirtyConflictsToBaseCommand, ResetToBaseAndAutoMergeCommand, SetColumnLayout, SetMixedLayout, ShowHideAtTopBase, ShowHideBase, ShowNonConflictingChanges, ToggleActiveConflictInput1, ToggleActiveConflictInput2 } from 'vs/workbench/contrib/mergeEditor/browser/commands/commands';
+import { AcceptAllInput1, AcceptAllInput2, AcceptMerge, CompareInput1WithBaseCommand, CompareInput2WithBaseCommand, GoToNextUnhandledConflict, GoToPreviousUnhandledConflict, OpenBaseFile, OpenMergeEditor, OpenResultResource, ResetToBaseAndAutoMergeCommand, SetColumnLayout, SetMixedLayout, ShowHideAtTopBase, ShowHideBase, ShowNonConflictingChanges, ToggleActiveConflictInput1, ToggleActiveConflictInput2 } from 'vs/workbench/contrib/mergeEditor/browser/commands/commands';
 import { MergeEditorCopyContentsToJSON, MergeEditorLoadContentsFromFolder, MergeEditorSaveContentsToFolder } from 'vs/workbench/contrib/mergeEditor/browser/commands/devCommands';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { MergeEditor, MergeEditorOpenHandlerContribution, MergeEditorResolverContribution } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
@@ -39,7 +39,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		'mergeEditor.diffAlgorithm': {
 			type: 'string',
 			enum: ['smart', 'experimental'],
-			default: 'smart',
+			default: 'experimental',
 			markdownEnumDescriptions: [
 				localize('diffAlgorithm.smart', "Uses the default diffing algorithm."),
 				localize('diffAlgorithm.experimental', "Uses an experimental diffing algorithm."),
@@ -70,7 +70,6 @@ registerAction2(AcceptAllInput1);
 registerAction2(AcceptAllInput2);
 
 registerAction2(ResetToBaseAndAutoMergeCommand);
-registerAction2(ResetDirtyConflictsToBaseCommand);
 
 registerAction2(AcceptMerge);
 
@@ -81,28 +80,8 @@ registerAction2(MergeEditorLoadContentsFromFolder);
 
 Registry
 	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MergeEditorOpenHandlerContribution, 'MergeEditorOpenHandlerContribution', LifecyclePhase.Restored);
+	.registerWorkbenchContribution(MergeEditorOpenHandlerContribution, LifecyclePhase.Restored);
 
 Registry
 	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MergeEditorResolverContribution, 'MergeEditorResolverContribution', LifecyclePhase.Starting);
-/*
-class MergeEditorWorkbenchContribution extends Disposable implements IWorkbenchContribution {
-	constructor(@IWorkingCopyEditorService private readonly _workingCopyEditorService: IWorkingCopyEditorService) {
-		super();
-
-		this._register(
-			_workingCopyEditorService.registerHandler({
-				createEditor(workingCopy) {
-					throw new BugIndicatingError('not supported');
-				},
-				handles(workingCopy) {
-					return workingCopy.typeId === '';
-				},
-				isOpen(workingCopy, editor) {
-					return workingCopy.resource.toString() === that._model?.resultTextModel.uri.toString();
-				},
-			}));
-	}
-}
-*/
+	.registerWorkbenchContribution(MergeEditorResolverContribution, LifecyclePhase.Starting);
