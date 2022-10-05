@@ -158,14 +158,14 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		showOptions: extHostProtocol.WebviewPanelShowOptions,
 	): void {
 		const targetGroup = this.getTargetGroupFromShowOptions(showOptions);
-		const mainThreadShowOptions: ICreateWebViewShowOptions = showOptions ? {
+		const mainThreadShowOptions: IWebViewShowOptions = showOptions ? {
 			preserveFocus: !!showOptions.preserveFocus,
 			group: targetGroup
 		} : {};
 
 		const extension = reviveWebviewExtension(extensionData);
 
-		const webview = this._webviewWorkbenchService.createWebview({
+		const webview = this._webviewWorkbenchService.openWebview({
 			id: handle,
 			providedViewType: viewType,
 			options: reviveWebviewOptions(initData.panelOptions),
