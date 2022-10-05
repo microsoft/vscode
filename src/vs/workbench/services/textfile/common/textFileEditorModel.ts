@@ -130,7 +130,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this._register(this.workingCopyService.registerWorkingCopy(this));
 
 		this.registerListeners();
-		this.setPathReadonly();    // and then track with onDidChangeConfiguration()
+		this.setGlobReadonly();    // and then track with onDidChangeConfiguration()
 	}
 
 	private registerListeners(): void {
@@ -1136,21 +1136,21 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return !!(globs && Object.keys(globs).find(glob => globs[glob] && matchGlobPattern(glob, path)));
 	}
 
-	private setPathReadonly() {
-		this.pathReadonly = this.anyGlobMatches('files.readonlyInclude', this.resource.path)
+	private setGlobReadonly() {
+		this.globReadonly = this.anyGlobMatches('files.readonlyInclude', this.resource.path)
 			&& !this.anyGlobMatches('files.readonlyExclude', this.resource.path);
 	}
 
 	private onDidChangeConfiguration(event: IConfigurationChangeEvent) {
 		if (event.affectsConfiguration('files.readonlyInclude') ||
 			event.affectsConfiguration('files.readonlyExclude')) {
-			this.setPathReadonly();
+			this.setGlobReadonly();
 		}
 	}
 
 	// stable/semantic 'readonly'; typically based on filetype or directory.
 	// latest value of files.readonlyInclude/Exclude for this resource.path
-	private pathReadonly: boolean = false;
+	private globReadonly: boolean = false;
 
 	private oldReadonly = false; // fileEditorInput.test.ts counts changes from 'false' not 'undefined'
 
@@ -1164,7 +1164,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	override isReadonly(): boolean {
 		return this.checkDidChangeReadonly(
-			this.pathReadonly ||
+			this.globReadonly ||
 			this.lastResolvedFileStat?.readonly ||
 			this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly));
 	}
