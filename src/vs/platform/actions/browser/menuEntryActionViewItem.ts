@@ -16,7 +16,7 @@ import { isLinux, isWindows, OS } from 'vs/base/common/platform';
 import 'vs/css!./menuEntryActionViewItem';
 import { localize } from 'vs/nls';
 import { IMenu, IMenuActionOptions, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { ICommandAction, Icon } from 'vs/platform/action/common/action';
+import { ICommandAction, isICommandActionToggleInfo } from 'vs/platform/action/common/action';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -240,7 +240,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			return;
 		}
 
-		const icon = this._commandAction.checked && (item.toggled as { icon?: Icon })?.icon ? (item.toggled as { icon: Icon }).icon : item.icon;
+		const icon = this._commandAction.checked && isICommandActionToggleInfo(item.toggled) && item.toggled.icon ? item.toggled.icon : item.icon;
 
 		if (!icon) {
 			return;
