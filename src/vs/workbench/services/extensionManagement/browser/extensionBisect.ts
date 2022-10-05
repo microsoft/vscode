@@ -259,7 +259,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'extension.bisect.next',
 			title: { value: localize('title.isBad', "Continue Extension Bisect"), original: 'Continue Extension Bisect' },
-			category: localize('help', "Help"),
+			category: Categories.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive
 		});
@@ -346,7 +346,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'extension.bisect.stop',
 			title: { value: localize('title.stop', "Stop Extension Bisect"), original: 'Stop Extension Bisect' },
-			category: localize('help', "Help"),
+			category: Categories.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive
 		});
