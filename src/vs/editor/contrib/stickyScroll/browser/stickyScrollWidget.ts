@@ -152,7 +152,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 					this._editor.revealPosition({ lineNumber: this._hoverOnLine, column: 1 });
 				}
 				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor } as Location);
-			} else if (!e.hasRightClick) {
+			} else if (!e.isRightClick) {
 				// Normal click
 				this._editor.revealPosition({ lineNumber: this._hoverOnLine, column: 1 });
 			}
