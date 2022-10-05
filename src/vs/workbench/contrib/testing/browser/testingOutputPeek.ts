@@ -55,7 +55,7 @@ import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listSe
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
@@ -1686,7 +1686,7 @@ export class GoToNextMessageAction extends EditorAction2 {
 			f1: true,
 			title: { value: localize('testing.goToNextMessage', "Go to Next Test Failure"), original: 'Go to Next Test Failure' },
 			icon: Codicon.arrowDown,
-			category: CATEGORIES.Test,
+			category: Categories.Test,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.F8,
 				weight: KeybindingWeight.EditorContrib + 1,
@@ -1716,7 +1716,7 @@ export class GoToPreviousMessageAction extends EditorAction2 {
 			f1: true,
 			title: { value: localize('testing.goToPreviousMessage', "Go to Previous Test Failure"), original: 'Go to Previous Test Failure' },
 			icon: Codicon.arrowUp,
-			category: CATEGORIES.Test,
+			category: Categories.Test,
 			keybinding: {
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8,
 				weight: KeybindingWeight.EditorContrib + 1,
@@ -1746,7 +1746,7 @@ export class OpenMessageInEditorAction extends EditorAction2 {
 			f1: false,
 			title: { value: localize('testing.openMessageInEditor', "Open in Editor"), original: 'Open in Editor' },
 			icon: Codicon.linkExternal,
-			category: CATEGORIES.Test,
+			category: Categories.Test,
 			menu: [{ id: MenuId.TestPeekTitle }],
 		});
 	}
@@ -1764,7 +1764,7 @@ export class ToggleTestingPeekHistory extends EditorAction2 {
 			f1: true,
 			title: { value: localize('testing.toggleTestingPeekHistory', "Toggle Test History in Peek"), original: 'Toggle Test History in Peek' },
 			icon: Codicon.history,
-			category: CATEGORIES.Test,
+			category: Categories.Test,
 			menu: [{
 				id: MenuId.TestPeekTitle,
 				group: 'navigation',

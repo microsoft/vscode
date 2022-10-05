@@ -153,6 +153,9 @@ export class SearchView extends ViewPane {
 
 	private treeViewKey: IContextKey<boolean>;
 
+	private _uiRefreshHandle: any;
+	private _visibleMatches: number = 0;
+
 	constructor(
 		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
@@ -527,7 +530,7 @@ export class SearchView extends ViewPane {
 
 	private refreshAndUpdateCount(event?: IChangeEvent): void {
 		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
-		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors);
+		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, event?.clearingAll);
 		return this.refreshTree(event);
 	}
 
@@ -1588,22 +1591,25 @@ export class SearchView extends ViewPane {
 			}
 		};
 
-		let visibleMatches = 0;
+		this._visibleMatches = 0;
 
 		// Handle UI updates in an interval to show frequent progress and results
-		const uiRefreshHandle: any = setInterval(() => {
-			if (this.state === SearchUIState.Idle) {
-				window.clearInterval(uiRefreshHandle);
-				return;
-			}
+		if (!this._uiRefreshHandle) {
+			this._uiRefreshHandle = setInterval(() => {
+				if (this.state === SearchUIState.Idle) {
+					window.clearInterval(this._uiRefreshHandle);
+					this._uiRefreshHandle = undefined;
+					return;
+				}
 
-			// Search result tree update
-			const fileCount = this.viewModel.searchResult.fileCount();
-			if (visibleMatches !== fileCount) {
-				visibleMatches = fileCount;
-				this.refreshAndUpdateCount();
-			}
-		}, 100);
+				// Search result tree update
+				const fileCount = this.viewModel.searchResult.fileCount();
+				if (this._visibleMatches !== fileCount) {
+					this._visibleMatches = fileCount;
+					this.refreshAndUpdateCount();
+				}
+			}, 100);
+		}
 
 		this.searchWidget.setReplaceAllActionState(false);
 
@@ -1646,14 +1652,14 @@ export class SearchView extends ViewPane {
 		this.inputPatternIncludes.setOnlySearchInOpenEditors(false);
 	}
 
-	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean, onlyOpenEditors?: boolean): void {
+	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean, onlyOpenEditors?: boolean, clear: boolean = false): void {
 		const fileCount = this.viewModel.searchResult.fileCount();
 		this.hasSearchResultsKey.set(fileCount > 0);
 
 		const msgWasHidden = this.messagesElement.style.display === 'none';
 
 		const messageEl = this.clearMessage();
-		const resultMsg = this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount);
+		const resultMsg = clear ? '' : this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount);
 		this.tree.ariaLabel = resultMsg + nls.localize('forTerm', " - Search: {0}", this.searchResult.query?.contentPattern.pattern ?? '');
 		dom.append(messageEl, resultMsg);
 

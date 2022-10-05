@@ -30,7 +30,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { EditorExtensions } from 'vs/workbench/common/editor';
 
 // Register Service
@@ -130,7 +130,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: `workbench.output.action.clearOutput`,
 			title: { value: nls.localize('clearOutput.label', "Clear Output"), original: 'Clear Output' },
-			category: CATEGORIES.View,
+			category: Categories.View,
 			menu: [{
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
@@ -223,7 +223,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.showLogs',
 			title: { value: nls.localize('showLogs', "Show Logs..."), original: 'Show Logs...' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			menu: {
 				id: MenuId.CommandPalette,
 			},
@@ -268,7 +268,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.openLogFile',
 			title: { value: nls.localize('openLogFile', "Open Log File..."), original: 'Open Log File...' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			menu: {
 				id: MenuId.CommandPalette,
 			},

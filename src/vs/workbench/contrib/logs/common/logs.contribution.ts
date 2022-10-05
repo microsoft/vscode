@@ -5,7 +5,8 @@
 
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { SetLogLevelAction } from 'vs/workbench/contrib/logs/common/logsActions';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
@@ -22,7 +23,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { URI } from 'vs/base/common/uri';
 
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SetLogLevelAction), 'Developer: Set Log Level...', CATEGORIES.Developer.value);
+workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SetLogLevelAction), 'Developer: Set Log Level...', Categories.Developer.value);
 
 class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
@@ -62,7 +63,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 				super({
 					id: Constants.showWindowLogActionId,
 					title: { value: nls.localize('show window log', "Show Window Log"), original: 'Show Window Log' },
-					category: CATEGORIES.Developer,
+					category: Categories.Developer,
 					f1: true
 				});
 			}
