@@ -916,6 +916,8 @@ export interface ITerminalInstance {
 	registerQuickFixProvider(...options: ITerminalQuickFixOptions[]): void;
 
 	freePortKillProcess(port: string): Promise<void>;
+
+	runCommand(command: string, alt?: boolean): void;
 }
 
 export interface ITerminalQuickFixOptions {

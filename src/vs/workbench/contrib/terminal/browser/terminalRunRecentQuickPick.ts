@@ -26,7 +26,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { runCommand } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 
 export async function showRunRecentQuickPick(
 	accessor: ServicesAccessor,
@@ -266,7 +265,7 @@ export async function showRunRecentQuickPick(
 			text = result.rawLabel;
 		}
 		quickPick.hide();
-		runCommand(instance, text, !quickPick.keyMods.alt);
+		instance.runCommand(text, !quickPick.keyMods.alt);
 		if (quickPick.keyMods.alt) {
 			instance.focus();
 		}

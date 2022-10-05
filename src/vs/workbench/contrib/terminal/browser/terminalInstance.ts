@@ -731,7 +731,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._quickFixAddon = this._scopedInstantiationService.createInstance(TerminalQuickFixAddon, this.capabilities);
 		this.xterm?.raw.loadAddon(this._quickFixAddon);
 		this.registerQuickFixProvider(gitSimilarCommand(), gitTwoDashes(), gitCreatePr(), gitPushSetUpstream(), freePort(this));
-		this._register(this._quickFixAddon.onDidRequestRerunCommand((e) => runCommand(this, e.command, e.addNewLine || false)));
+		this._register(this._quickFixAddon.onDidRequestRerunCommand(async (e) => await this.runCommand(e.command, e.addNewLine || false)));
 		const lineDataEventAddon = new LineDataEventAddon();
 		this.xterm.raw.loadAddon(lineDataEventAddon);
 		this.updateAccessibilitySupport();
@@ -819,6 +819,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		return xterm;
 	}
+
+	async runCommand(commandLine: string, addNewLine: boolean): Promise<void> {
+		// Determine whether to send ETX (ctrl+c) before running the command. This should always
+		// happen unless command detection can reliably say that a command is being entered and
+		// there is no content in the prompt
+		if (this.capabilities.get(TerminalCapability.CommandDetection)?.hasInput !== false) {
+			await this.sendText('\x03', false);
+			// Wait a little before running the command to avoid the sequences being echoed while the ^C
+			// is being evaluated
+			await timeout(100);
+		}
+		// Use bracketed paste mode only when not running the command
+		await this.sendText(commandLine, addNewLine, !addNewLine);
+	}
+
 
 	private _loadTypeAheadAddon(xterm: XtermTerminal): void {
 		const enabled = this._configHelper.config.localEchoEnabled;
@@ -2707,18 +2722,4 @@ async function preparePathForShell(originalPath: string, executable: string | un
 
 		c(escapeNonWindowsPath(originalPath));
 	});
-}
-
-export async function runCommand(instance: ITerminalInstance, commandLine: string, addNewLine: boolean): Promise<void> {
-	// Determine whether to send ETX (ctrl+c) before running the command. This should always
-	// happen unless command detection can reliably say that a command is being entered and
-	// there is no content in the prompt
-	if (instance.capabilities.get(TerminalCapability.CommandDetection)?.hasInput !== false) {
-		await instance.sendText('\x03', false);
-		// Wait a little before running the command to avoid the sequences being echoed while the ^C
-		// is being evaluated
-		await timeout(100);
-	}
-	// Use bracketed paste mode only when not running the command
-	await instance.sendText(commandLine, addNewLine, !addNewLine);
 }
