@@ -1162,7 +1162,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	// tri-state: true | false overrides isReadonlyByGlob; null does not.
+	// tri-state: true | false overrides globReadonly; null does not.
 	private pathReadonly: boolean | null = null;
 
 	// stable/semantic 'readonly'; typically based on filetype or directory.
