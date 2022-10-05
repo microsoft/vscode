@@ -85,9 +85,6 @@ export class OutlinePane extends ViewPane {
 	private _ctxFilterOnType!: IContextKey<boolean>;
 	private _ctxSortMode!: IContextKey<OutlineSortOrder>;
 	private _ctxAllCollapsed!: IContextKey<boolean>;
-	private _updateAllCollapsedContext(): void {
-		this._ctxAllCollapsed.set(this._tree?.getNode(null).children.every(node => !node.collapsible || node.collapsed) || false);
-	}
 
 	constructor(
 		options: IViewletViewOptions,
@@ -123,8 +120,6 @@ export class OutlinePane extends ViewPane {
 		};
 		updateContext();
 		this._disposables.add(this._outlineViewState.onDidChange(updateContext));
-
-		this._updateAllCollapsedContext();
 	}
 
 	override dispose(): void {
@@ -371,6 +366,14 @@ export class OutlinePane extends ViewPane {
 			}
 		}));
 
+		// feature: update all-collapsed context key
+		const updateAllCollapsedCtx = () => {
+			this._ctxAllCollapsed.set(tree.getNode(null).children.every(node => !node.collapsible || node.collapsed));
+		};
+		this._editorControlDisposables.add(tree.onDidChangeCollapseState(updateAllCollapsedCtx));
+		this._editorControlDisposables.add(tree.onDidChangeModel(updateAllCollapsedCtx));
+		updateAllCollapsedCtx();
+
 		// last: set tree property and wire it up to one of our context keys
 		tree.layout(this._treeDimensions?.height, this._treeDimensions?.width);
 		this._tree = tree;
@@ -378,7 +381,6 @@ export class OutlinePane extends ViewPane {
 			tree.dispose();
 			this._tree = undefined;
 		}));
-		this._disposables.add(this._tree.onDidChangeCollapseState(() => this._updateAllCollapsedContext()));
 	}
 }
 
