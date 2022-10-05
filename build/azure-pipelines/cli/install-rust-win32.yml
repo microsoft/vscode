@@ -1,0 +1,36 @@
+parameters:
+  - name: channel
+    type: string
+    default: stable
+  - name: targets
+    default: []
+    type: object
+
+# Todo: use 1ES pipeline once extension is installed in ADO
+
+steps:
+  - script: |
+      curl -sSf -o rustup-init.exe https://win.rustup.rs
+      rustup-init.exe -y --profile minimal --default-toolchain %RUSTUP_TOOLCHAIN% --default-host x86_64-pc-windows-msvc
+      set PATH=%PATH%;%USERPROFILE%\.cargo\bin
+      echo "##vso[task.setvariable variable=PATH;]%PATH%;%USERPROFILE%\.cargo\bin"
+    env:
+      RUSTUP_TOOLCHAIN: ${{ parameters.channel }}
+    displayName: "Install Rust"
+
+  - bash: |
+      rustup default $RUSTUP_TOOLCHAIN
+      rustup update $RUSTUP_TOOLCHAIN
+    env:
+      RUSTUP_TOOLCHAIN: ${{ parameters.channel }}
+    displayName: "Set Rust version"
+
+  - ${{ each target in parameters.targets }}:
+    - script: rustup target add ${{ target.target }}
+      displayName: "🎯 Adding '${{ target.target }}'"
+
+  - script: |
+      rustc --version
+      cargo --version
+      rustup --version
+    displayName: "Check Rust versions"

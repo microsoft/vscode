@@ -8,11 +8,14 @@ parameters:
     type: string
 
 steps:
-  - script: git clone https://github.com/microsoft/vcpkg.git $(Build.ArtifactStagingDirectory)/vcpkg
-    displayName: Checkout vcpkg
-
-  - script: $(Build.ArtifactStagingDirectory)/vcpkg/bootstrap-vcpkg.bat
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      exec { git clone https://github.com/microsoft/vcpkg.git $(Build.ArtifactStagingDirectory)/vcpkg }
+      exec { cd $(Build.ArtifactStagingDirectory)/vcpkg; git checkout 779ce74ef67d3e12d904da1b15f9ed5626d5f677 }
+      exec { $(Build.ArtifactStagingDirectory)/vcpkg/bootstrap-vcpkg.bat }
+      Write-Output "##vso[task.setvariable variable=VSCODE_DID_BOOTSTRAP_VCPKG]true"
     displayName: Bootstrap vcpkg
+    condition: not(eq(variables.VSCODE_DID_BOOTSTRAP_VCPKG, true))
 
   - ${{ each target in parameters.targets }}:
     - task: Cache@2

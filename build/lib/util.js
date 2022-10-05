@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildWebNodePaths = exports.createExternalLoaderConfig = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.debounce = exports.incremental = exports.getVersion = void 0;
+exports.buildWebNodePaths = exports.createExternalLoaderConfig = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.debounce = exports.incremental = void 0;
 const es = require("event-stream");
 const _debounce = require("debounce");
 const _filter = require("gulp-filter");
@@ -13,8 +13,6 @@ const path = require("path");
 const fs = require("fs");
 const _rimraf = require("rimraf");
 const VinylFile = require("vinyl");
-var getVersion_1 = require("./getVersion");
-Object.defineProperty(exports, "getVersion", { enumerable: true, get: function () { return getVersion_1.getVersion; } });
 const root = path.dirname(path.dirname(__dirname));
 const NoCancellationToken = { isCancellationRequested: () => false };
 function incremental(streamProvider, initial, supportsCancellation) {

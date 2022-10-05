@@ -1,4 +1,3 @@
-
 parameters:
   - name: VSCODE_QUALITY
     type: string

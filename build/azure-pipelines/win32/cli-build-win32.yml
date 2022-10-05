@@ -2,9 +2,10 @@ parameters:
   - name: VSCODE_CLI_TARGETS
     default: []
     type: object
+  - name: VSCODE_QUALITY
+    type: string
   - name: VSCODE_CLI_DIR
     type: string
-    default: './'
   - name: VSCODE_CLI_BINARY_NAME
     type: string
   - name: channel
@@ -12,12 +13,37 @@ parameters:
     default: stable
 
 steps:
-  - template: ./install-rust.yml
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "16.x"
+
+  - template: ../mixin-distro-win32.yml
+    parameters:
+      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { node build/azure-pipelines/cli/prepare.js }
+    displayName: Prepare CLI build
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+
+  - template: ../cli/install-rust-win32.yml
     parameters:
       targets: ${{ parameters.VSCODE_CLI_TARGETS }}
-      channel: ${{ parameters.channel }}
 
   - ${{ each target in parameters.VSCODE_CLI_TARGETS }}:
+    - template: ../vcpkg-install.yml
+      parameters:
+        targets:
+          - ${{ if eq(target.target, 'x86_64-pc-windows-msvc') }}:
+            - x64-windows-static-md
+          - ${{ if eq(target.target, 'aarch64-pc-windows-msvc') }}:
+            - arm64-windows-static-md
+        vcpkgDir: $(Build.SourcesDirectory)/build/azure-pipelines/cli/vcpkg
+        targetDirectory: $(Build.ArtifactStagingDirectory)/deps
+
     - script: cargo build --release --target ${{ target.target }} --bin=${{ parameters.VSCODE_CLI_BINARY_NAME }}
       displayName: Compile ${{ target.artifact }}
       workingDirectory: ${{ parameters.VSCODE_CLI_DIR }}
@@ -35,6 +61,13 @@ steps:
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/deps/arm64-windows-static-md/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/deps/arm64-windows-static-md/include
 
-    - publish: ${{ parameters.VSCODE_CLI_DIR }}/target/${{ target.target }}/release/${{ parameters.VSCODE_CLI_BINARY_NAME }}.exe
+    - task: ArchiveFiles@2
+      inputs:
+        rootFolderOrFile: ${{ parameters.VSCODE_CLI_DIR }}/target/${{ target.target }}/release/${{ parameters.VSCODE_CLI_BINARY_NAME }}.exe
+        includeRootFolder: false
+        archiveType: zip
+        archiveFile: $(Build.ArtifactStagingDirectory)/${{ target.artifact }}.zip
+
+    - publish: $(Build.ArtifactStagingDirectory)/${{ target.artifact }}.zip
       artifact: ${{ target.artifact }}
       displayName: Publish ${{ target.artifact }} artifact

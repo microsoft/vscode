@@ -9,6 +9,7 @@ const gulp = require('gulp');
 const path = require('path');
 const es = require('event-stream');
 const util = require('./lib/util');
+const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const optimize = require('./lib/optimize');
 const product = require('../product.json');
@@ -26,7 +27,7 @@ const REPO_ROOT = path.dirname(__dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
 const WEB_FOLDER = path.join(REPO_ROOT, 'remote', 'web');
 
-const commit = util.getVersion(REPO_ROOT);
+const commit = getVersion(REPO_ROOT);
 const quality = product.quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
