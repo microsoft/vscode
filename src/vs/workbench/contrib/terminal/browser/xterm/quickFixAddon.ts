@@ -101,19 +101,24 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (!terminal || !commandDetection) {
 			return;
 		}
-		this._register(commandDetection.onCommandFinished(command => this._handleCommandFinished(command)));
+		this._register(commandDetection.onCommandFinished(command => this._resolveQuickFixes(command)));
 		// The buffer is not ready by the time command finish
-		// is called. Add the decoration on command start using the actions, if any,
-		// from the last command
+		// is called. Add the decoration on command start if there are corresponding quick fixes
 		this._register(commandDetection.onCommandStarted(() => {
-			if (this._quickFixId && this._quickFixes.get(this._quickFixId) && !this._decorations.get(this._quickFixId)) {
-				this._registerContextualDecoration();
+			const registeredDecoration = this._registerQuickFixDecoration();
+			if (registeredDecoration && this._quickFixId) {
 				this._quickFixId++;
 			}
 		}));
 	}
 
-	private _handleCommandFinished(command: ITerminalCommand): void {
+	/**
+	 * Resolves quick fixes, if any, based on the
+	 * @param command & its output
+	 * and establishes an event which will update the quick fixes
+	 * when one has been run
+	 */
+	private _resolveQuickFixes(command: ITerminalCommand): void {
 		const result = getQuickFixesForCommand(command, this._commandListeners, this._openerService, this._onDidRequestRerunCommand);
 		if (!result) {
 			return;
@@ -122,11 +127,11 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		const id = this._quickFixId || 1;
 		this._quickFixId = id;
 		this._quickFixes.set(id, fixes);
-		onDidRunQuickFix((actionLabel) => this._updateQuickFixes(id, actionLabel));
+		onDidRunQuickFix((quickFixLabel) => this._updateQuickFixes(id, quickFixLabel));
 	}
 
-	private _updateQuickFixes(id: number, actionLabel: string): void {
-		const remainingFixes = this._quickFixes.get(id)?.filter(q => q.label !== actionLabel);
+	private _updateQuickFixes(id: number, quickFixLabel: string): void {
+		const remainingFixes = this._quickFixes.get(id)?.filter(q => q.label !== quickFixLabel);
 		if (!remainingFixes) {
 			// should not happen
 			this._decorations.delete(id);
@@ -143,21 +148,24 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		}
 	}
 
-	private _registerContextualDecoration(): void {
+	/**
+	 * Registers a decoration with the quick fixes
+	 */
+	private _registerQuickFixDecoration(): boolean {
 		if (!this._terminal) {
-			return undefined;
+			return false;
+		}
+		const id = this._quickFixId;
+		if (!id || !this._quickFixes.get(id) || this._decorations.get(id)) {
+			return false;
 		}
 		const marker = this._terminal.registerMarker();
 		if (!marker) {
-			return;
+			return false;
 		}
 		const decoration = this._terminal.registerDecoration({ marker, layer: 'top' });
 		if (!decoration) {
-			return;
-		}
-		const id = this._quickFixId;
-		if (!id) {
-			return;
+			return false;
 		}
 		this._decorations.set(id, decoration);
 		const kb = this._keybindingService.lookupKeybinding(TerminalCommandId.QuickFix);
@@ -171,10 +179,11 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			updateLayout(this._configurationService, e);
 			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 			this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
-				this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => this._quickFixes.get(id) || [], autoSelectFirstItem: true });
+				this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => this._quickFixes.get(id!) || [], autoSelectFirstItem: true });
 			}));
 			this._register(this._terminalDecorationHoverService.createHover(e, undefined, hoverLabel));
 		});
+		return true;
 	}
 }
 
