@@ -120,18 +120,18 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		this._quickFixId = id;
 		this._quickFixes.set(id, fixes);
 		onDidRunQuickFix((actionLabel) => {
-			const remainingFixes = fixes.filter(q => q.label !== actionLabel);
+			const remainingFixes = this._quickFixes.get(id)?.filter(q => q.label !== actionLabel);
+			if (!remainingFixes) {
+				this._decorations.delete(id);
+				this._quickFixes.delete(id);
+				return;
+			}
 			this._quickFixes.set(id, remainingFixes);
 			const decoration = this._decorations.get(id);
-			const element = decoration?.element;
 			if (decoration && remainingFixes.length === 0) {
 				decoration.dispose();
 				this._decorations.delete(id);
-			} else if (element) {
-				this._register(dom.addDisposableListener(element, dom.EventType.CLICK, (e) => {
-					this._contextMenuService.showContextMenu({ getAnchor: () => element, getActions: () => remainingFixes, autoSelectFirstItem: true });
-					e.stopImmediatePropagation();
-				}));
+				this._quickFixes.delete(id);
 			}
 		});
 	}
@@ -152,6 +152,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		this._decorations.set(this._quickFixId, decoration);
 		const kb = this._keybindingService.lookupKeybinding(TerminalCommandId.QuickFix);
 		const hoverLabel = kb ? localize('terminalQuickFixWithKb', "Show Quick Fixes ({0})", kb.getLabel()) : '';
+		const id = this._quickFixId;
 		decoration?.onRender((e: HTMLElement) => {
 			if (!this._decorationMarkerIds.has(decoration.marker.id)) {
 				e.classList.add(DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration);
@@ -160,7 +161,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				if (actions) {
 					this._decorationMarkerIds.add(decoration.marker.id);
 					this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
-						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions, autoSelectFirstItem: true });
+						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => this._quickFixes.get(id) || [], autoSelectFirstItem: true });
 					}));
 					this._register(this._terminalDecorationHoverService.createHover(e, undefined, hoverLabel));
 				}
