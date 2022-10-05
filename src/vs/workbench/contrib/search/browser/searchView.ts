@@ -153,6 +153,9 @@ export class SearchView extends ViewPane {
 
 	private treeViewKey: IContextKey<boolean>;
 
+	private _uiRefreshHandle: any;
+	private _visibleMatches: number = 0;
+
 	constructor(
 		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
@@ -1588,22 +1591,25 @@ export class SearchView extends ViewPane {
 			}
 		};
 
-		let visibleMatches = 0;
+		this._visibleMatches = 0;
 
 		// Handle UI updates in an interval to show frequent progress and results
-		const uiRefreshHandle: any = setInterval(() => {
-			if (this.state === SearchUIState.Idle) {
-				window.clearInterval(uiRefreshHandle);
-				return;
-			}
+		if (!this._uiRefreshHandle) {
+			this._uiRefreshHandle = setInterval(() => {
+				if (this.state === SearchUIState.Idle) {
+					window.clearInterval(this._uiRefreshHandle);
+					this._uiRefreshHandle = undefined;
+					return;
+				}
 
-			// Search result tree update
-			const fileCount = this.viewModel.searchResult.fileCount();
-			if (visibleMatches !== fileCount) {
-				visibleMatches = fileCount;
-				this.refreshAndUpdateCount();
-			}
-		}, 100);
+				// Search result tree update
+				const fileCount = this.viewModel.searchResult.fileCount();
+				if (this._visibleMatches !== fileCount) {
+					this._visibleMatches = fileCount;
+					this.refreshAndUpdateCount();
+				}
+			}, 100);
+		}
 
 		this.searchWidget.setReplaceAllActionState(false);
 
