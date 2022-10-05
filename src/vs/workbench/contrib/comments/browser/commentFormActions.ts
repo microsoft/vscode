@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Button } from 'vs/base/browser/ui/button/button';
+import { Button, ButtonWithDropdown, IButton } from 'vs/base/browser/ui/button/button';
 import { IAction } from 'vs/base/common/actions';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IMenu } from 'vs/platform/actions/common/actions';
+import { IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export class CommentFormActions implements IDisposable {
 	private _buttonElements: HTMLElement[] = [];
@@ -18,7 +19,8 @@ export class CommentFormActions implements IDisposable {
 	constructor(
 		private container: HTMLElement,
 		private actionHandler: (action: IAction) => void,
-		private themeService: IThemeService
+		private themeService: IThemeService,
+		private contextMenuService?: IContextMenuService
 	) { }
 
 	setActions(menu: IMenu) {
@@ -33,16 +35,33 @@ export class CommentFormActions implements IDisposable {
 
 			this._actions = actions;
 			for (const action of actions) {
-				const button = new Button(this.container, { secondary: !isPrimary });
+				const submenuAction = action as SubmenuItemAction;
+
+				// Use the first action from the submenu as the primary button.
+				let appliedAction: IAction = submenuAction.actions?.length > 0 ? submenuAction.actions[0] : action;
+				let button: IButton | undefined;
+
+				// Use dropdown only if submenu contains more than 1 action.
+				if (submenuAction.actions?.length > 1 && this.contextMenuService) {
+					button = new ButtonWithDropdown(this.container,
+						{
+							contextMenuProvider: this.contextMenuService,
+							actions: submenuAction.actions.slice(1),
+							addPrimaryActionToDropdown: false
+						});
+				} else {
+					button = new Button(this.container, { secondary: !isPrimary });
+				}
+
 				isPrimary = false;
 				this._buttonElements.push(button.element);
 
 				this._toDispose.add(button);
 				this._toDispose.add(attachButtonStyler(button, this.themeService));
-				this._toDispose.add(button.onDidClick(() => this.actionHandler(action)));
+				this._toDispose.add(button.onDidClick(() => this.actionHandler(appliedAction)));
 
-				button.enabled = action.enabled;
-				button.label = action.label;
+				button.enabled = appliedAction.enabled;
+				button.label = appliedAction.label;
 			}
 		}
 	}
