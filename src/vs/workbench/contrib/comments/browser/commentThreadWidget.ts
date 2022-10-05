@@ -36,6 +36,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	private _header!: CommentThreadHeader<T>;
 	private _body!: CommentThreadBody<T>;
 	private _commentReply?: CommentReply<T>;
+	private _additionalActions?: CommentThreadAdditionalActions<T>;
 	private _commentMenus: CommentMenus;
 	private _commentThreadDisposables: IDisposable[] = [];
 	private _threadIsEmpty: IContextKey<boolean>;
