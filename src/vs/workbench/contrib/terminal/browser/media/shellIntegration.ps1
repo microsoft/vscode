@@ -18,7 +18,17 @@ $Global:__VSCodeOriginalPrompt = $function:Prompt
 $Global:__LastHistoryId = -1
 
 function Global:__VSCode-Escape-Value([string]$value) {
-	$value.Replace("\", "\\").Replace("`n", "\x0a").Replace(";", "\x3b")
+	# NOTE: In PowerShell v6.1+, this can be written `$value -replace '…', { … }` instead of `[regex]::Replace`.
+	# Replace any non-alphanumeric characters.
+	[regex]::Replace($value, '[^a-zA-Z0-9]', { param($match)
+		# Backslashes must be doubled.
+		if ($match.Value -eq '\') {
+			'\\'
+		} else {
+			# Any other character is encoded as hex.
+			'\x{0:x2}' -f [int][char]$match.Value
+		}
+	})
 }
 
 function Global:Prompt() {
