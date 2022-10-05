@@ -111,7 +111,7 @@ export class InstantiationService implements IInstantiationService {
 		}
 
 		// now create the instance
-		return <T>new ctor(...[...args, ...serviceArgs]);
+		return Reflect.construct<any, T>(ctor, args.concat(serviceArgs));
 	}
 
 	private _setServiceInstance<T>(id: ServiceIdentifier<T>, instance: T): void {
