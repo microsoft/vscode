@@ -2800,7 +2800,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}
 			const exactMatchTask = tasks.find(t => task && (t.getDefinition(true)?.configurationProperties?.identifier === task || t.configurationProperties?.identifier === task || t._label === task));
-			const filteredTasks = tasks.filter(t => t._label.includes(task));
+			const atLeastOneMatch = tasks.some(t => {
+				if (task) {
+					if (t._label.includes(task)) {
+						if (!type || t.type === type) {
+							return true;
+						}
+					}
+				} else if (type && t.type === type) {
+					return true;
+				}
+				return false;
+			});
 			if (exactMatchTask) {
 				const id = exactMatchTask.configurationProperties?.identifier || exactMatchTask.getDefinition(true)?.configurationProperties?.identifier;
 				if (id) {
@@ -2812,7 +2823,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						}
 					}
 				}
-			} else if (filteredTasks?.length > 1) {
+			} else if (atLeastOneMatch) {
 				return this._doRunTaskCommand(tasks, type, task);
 			} else {
 				return this._doRunTaskCommand();
