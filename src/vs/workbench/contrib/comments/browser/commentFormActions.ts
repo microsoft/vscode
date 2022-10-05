@@ -38,7 +38,7 @@ export class CommentFormActions implements IDisposable {
 				const submenuAction = action as SubmenuItemAction;
 
 				// Use the first action from the submenu as the primary button.
-				let appliedAction: IAction = submenuAction.actions?.length > 0 ? submenuAction.actions[0] : action;
+				const appliedAction: IAction = submenuAction.actions?.length > 0 ? submenuAction.actions[0] : action;
 				let button: IButton | undefined;
 
 				// Use dropdown only if submenu contains more than 1 action.
