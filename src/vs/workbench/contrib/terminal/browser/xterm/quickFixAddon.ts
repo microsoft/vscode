@@ -54,7 +54,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	private _decorations: Map<number, IDecoration> = new Map();
 	private _quickFixId: number | undefined;
 
-	private _currentQuickFixElement: HTMLElement | undefined;
+	private _currentQuickFix: IDecoration | undefined;
 
 	private readonly _terminalDecorationHoverService: TerminalDecorationHoverManager;
 
@@ -85,7 +85,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	}
 
 	showMenu(): void {
-		this._currentQuickFixElement?.click();
+		this._currentQuickFix?.element?.click();
 	}
 
 	registerCommandFinishedListener(options: ITerminalQuickFixOptions): void {
@@ -119,6 +119,20 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	 * when one has been run
 	 */
 	private _resolveQuickFixes(command: ITerminalCommand): void {
+		if (command.command !== '') {
+			this._disposeQuickFix();
+		} else if (this._currentQuickFix && this._quickFixId) {
+			// move it to the bottom
+			this._quickFixId--;
+			if (this._quickFixId < 1) {
+				this._quickFixId = 1;
+			}
+			const decoration = this._decorations.get(this._quickFixId);
+			decoration?.dispose();
+			this._decorations.delete(this._quickFixId);
+			this._registerQuickFixDecoration();
+			return;
+		}
 		const result = getQuickFixesForCommand(command, this._commandListeners, this._openerService, this._onDidRequestRerunCommand);
 		if (!result) {
 			return;
@@ -127,24 +141,14 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		const id = this._quickFixId || 1;
 		this._quickFixId = id;
 		this._quickFixes.set(id, fixes);
-		onDidRunQuickFix((quickFixLabel) => this._updateQuickFixes(id, quickFixLabel));
+		onDidRunQuickFix(() => this._disposeQuickFix());
 	}
 
-	private _updateQuickFixes(id: number, quickFixLabel: string): void {
-		const remainingFixes = this._quickFixes.get(id)?.filter(q => q.label !== quickFixLabel);
-		if (!remainingFixes) {
-			// should not happen
-			this._decorations.delete(id);
-			this._quickFixes.delete(id);
-			return;
-		}
-		const decoration = this._decorations.get(id);
-		if (remainingFixes.length > 0) {
-			this._quickFixes.set(id, remainingFixes);
-		} else if (decoration) {
-			decoration.dispose();
-			this._decorations.delete(id);
-			this._quickFixes.delete(id);
+	private _disposeQuickFix(): void {
+		this._currentQuickFix?.dispose();
+		if (this._quickFixId) {
+			this._decorations.delete(this._quickFixId);
+			this._quickFixes.delete(this._quickFixId);
 		}
 	}
 
@@ -174,7 +178,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			if (e.classList.contains(DecorationSelector.QuickFix)) {
 				return;
 			}
-			this._currentQuickFixElement = e;
+			this._currentQuickFix = decoration;
 			e.classList.add(...quickFixSelectors);
 			updateLayout(this._configurationService, e);
 			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
@@ -192,8 +196,8 @@ export function getQuickFixesForCommand(
 	actionOptions: Map<string, ITerminalQuickFixOptions[]>,
 	openerService: IOpenerService,
 	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>
-): { fixes: IAction[]; onDidRunQuickFix: Event<string> } | undefined {
-	const _onDidRunQuickFix = new Emitter<string>();
+): { fixes: IAction[]; onDidRunQuickFix: Event<void> } | undefined {
+	const _onDidRunQuickFix = new Emitter<void>();
 	const onDidRunQuickFix = _onDidRunQuickFix.event;
 	const fixes: IAction[] = [];
 	const newCommand = command.command;
@@ -229,7 +233,6 @@ export function getQuickFixesForCommand(
 											command: quickFix.command,
 											addNewLine: quickFix.addNewLine
 										});
-										_onDidRunQuickFix.fire(label);
 									},
 									tooltip: label,
 									command: quickFix.command
@@ -247,7 +250,7 @@ export function getQuickFixesForCommand(
 										openerService.open(quickFix.uri);
 										// since no command gets run here, need to
 										// clear the decoration and quick fix
-										_onDidRunQuickFix.fire(label);
+										_onDidRunQuickFix.fire();
 									},
 									tooltip: label,
 									uri: quickFix.uri
