@@ -5,6 +5,7 @@
 
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -19,8 +20,7 @@ export class ToggleStickyScroll extends Action2 {
 				mnemonicTitle: localize('mitoggleStickyScroll', "&&Toggle Sticky Scroll"),
 				original: 'Toggle Sticky Scroll',
 			},
-			// Hardcoding due to import violation
-			category: { value: localize('view', "View"), original: 'View' },
+			category: Categories.View,
 			toggled: {
 				condition: ContextKeyExpr.equals('config.editor.stickyScroll.enabled', true),
 				title: localize('stickyScroll', "Sticky Scroll"),
