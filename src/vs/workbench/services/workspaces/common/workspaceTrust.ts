@@ -887,4 +887,4 @@ class WorkspaceTrustMemento {
 	}
 }
 
-registerSingleton(IWorkspaceTrustRequestService, WorkspaceTrustRequestService, false);
+registerSingleton(IWorkspaceTrustRequestService, WorkspaceTrustRequestService, true);
