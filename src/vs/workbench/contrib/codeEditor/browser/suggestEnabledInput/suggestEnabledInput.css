@@ -5,6 +5,7 @@
 
 .suggest-input-container {
 	padding: 2px 4px;
+	border-radius: 2px;
 }
 
 .suggest-input-container .monaco-editor-background,

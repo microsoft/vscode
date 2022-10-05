@@ -285,6 +285,7 @@
 	box-sizing: border-box;
 	padding: 1px;
 	outline-offset: -1px;
+	border-radius: 2px;
 }
 
 .scm-editor-validation-container {
