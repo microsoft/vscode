@@ -1815,7 +1815,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		if (saveBeforeRunTaskConfig === SaveBeforeRunConfigOptions.Never) {
 			return false;
-		} else if (saveBeforeRunTaskConfig === SaveBeforeRunConfigOptions.Prompt) {
+		} else if (saveBeforeRunTaskConfig === SaveBeforeRunConfigOptions.Prompt && this._editorService.editors.some(e => e.isDirty())) {
 			const dialogOptions = await this._dialogService.show(
 				Severity.Info,
 				nls.localize('TaskSystem.saveBeforeRun.prompt.title', 'Save all editors?'),

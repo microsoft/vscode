@@ -812,13 +812,13 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 		if (newBadgeNumber > 0) {
 			let msg = '';
 			if (outdated) {
-				msg += outdated === 1 ? localize('extensionToUpdate', '{0} Extension requires update', outdated) : localize('extensionsToUpdate', '{0} Extensions require update', outdated);
+				msg += outdated === 1 ? localize('extensionToUpdate', '{0} requires update', outdated) : localize('extensionsToUpdate', '{0} require update', outdated);
 			}
 			if (outdated > 0 && extensionsReloadRequired.length > 0) {
 				msg += ', ';
 			}
 			if (extensionsReloadRequired.length) {
-				msg += extensionsReloadRequired.length === 1 ? localize('extensionToReload', '{0} Extension requires reload', extensionsReloadRequired.length) : localize('extensionsToReload', '{0} Extensions require reload', extensionsReloadRequired.length);
+				msg += extensionsReloadRequired.length === 1 ? localize('extensionToReload', '{0} requires reload', extensionsReloadRequired.length) : localize('extensionsToReload', '{0} require reload', extensionsReloadRequired.length);
 			}
 			const badge = new NumberBadge(newBadgeNumber, () => msg);
 			this.badgeHandle.value = this.activityService.showViewContainerActivity(VIEWLET_ID, { badge, clazz: 'extensions-badge count-badge' });
