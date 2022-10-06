@@ -649,7 +649,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 						return;
 					}
 				}
-				reject(new Error('Task to terminate not found'));
+				reject(new Error(`Task to terminate not found for ID: ${id}, tasks: ${tasks.map(t => `ID: ${t._id} Label: ${t._label}`)}`));
 			});
 		});
 	}
