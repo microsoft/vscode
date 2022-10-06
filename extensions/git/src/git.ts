@@ -593,7 +593,7 @@ export class Git {
 				"owner": "lszomoru",
 				"comment": "Time it takes to spawn and execute a git command",
 				"durSpawn": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth","isMeasurement": true, "comment": "Time it took to run spawn git" },
-				"durExec": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth","isMeasurement": true, "comment": "Time git took" },
+				"durExec": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth","isMeasurement": true, "comment": "Time git took" }
 			}
 		*/
 		this.telemetryReporter.sendTelemetryEvent('git.execDuration', undefined, { durSpawn, durExec });
