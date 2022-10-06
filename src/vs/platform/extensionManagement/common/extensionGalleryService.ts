@@ -390,7 +390,7 @@ function getRepositoryAsset(version: IRawGalleryExtensionVersion): IGalleryExten
 
 function getDownloadAsset(version: IRawGalleryExtensionVersion): IGalleryExtensionAsset {
 	return {
-		uri: `${version.fallbackAssetUri}/${AssetType.VSIX}?redirect=true${version.targetPlatform ? `&targetPlatform=${version.targetPlatform}` : ''}`,
+		uri: `${version.assetUri}/${AssetType.VSIX}?redirect=true${version.targetPlatform ? `&targetPlatform=${version.targetPlatform}` : ''}`,
 		fallbackUri: `${version.fallbackAssetUri}/${AssetType.VSIX}${version.targetPlatform ? `?targetPlatform=${version.targetPlatform}` : ''}`
 	};
 }
