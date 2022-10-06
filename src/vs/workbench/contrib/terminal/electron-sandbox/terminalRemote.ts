@@ -3,59 +3,52 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { TERMINAL_ACTION_CATEGORY, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { Action } from 'vs/base/common/actions';
-import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { localize } from 'vs/nls';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { URI } from 'vs/base/common/uri';
+import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { Schemas } from 'vs/base/common/network';
 
 export function registerRemoteContributions() {
-	const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(CreateNewLocalTerminalAction), 'Terminal: Create New Integrated Terminal (Local)', TERMINAL_ACTION_CATEGORY);
-}
-
-export class CreateNewLocalTerminalAction extends Action {
-	static readonly ID = TerminalCommandId.NewLocal;
-	static readonly LABEL = nls.localize('workbench.action.terminal.newLocal', "Create New Integrated Terminal (Local)");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@INativeEnvironmentService private readonly _nativeEnvironmentService: INativeEnvironmentService,
-		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IHistoryService private readonly _historyService: IHistoryService
-	) {
-		super(id, label);
-	}
-
-	override async run(): Promise<any> {
-		let cwd: URI | undefined;
-		try {
-			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.vscodeRemote);
-			if (activeWorkspaceRootUri) {
-				const canonicalUri = await this._remoteAuthorityResolverService.getCanonicalURI(activeWorkspaceRootUri);
-				if (canonicalUri.scheme === Schemas.file) {
-					cwd = canonicalUri;
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.NewLocal,
+				title: { value: localize('workbench.action.terminal.newLocal', "Create New Integrated Terminal (Local)"), original: 'Create New Integrated Terminal (Local)' },
+				f1: true
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const historyService = accessor.get(IHistoryService);
+			const remoteAuthorityResolverService = accessor.get(IRemoteAuthorityResolverService);
+			const nativeEnvironmentService = accessor.get(INativeEnvironmentService);
+			const terminalService = accessor.get(ITerminalService);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
+			let cwd: URI | undefined;
+			try {
+				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.vscodeRemote);
+				if (activeWorkspaceRootUri) {
+					const canonicalUri = await remoteAuthorityResolverService.getCanonicalURI(activeWorkspaceRootUri);
+					if (canonicalUri.scheme === Schemas.file) {
+						cwd = canonicalUri;
+					}
 				}
+			} catch { }
+			if (!cwd) {
+				cwd = nativeEnvironmentService.userHome;
 			}
-		} catch { }
-		if (!cwd) {
-			cwd = this._nativeEnvironmentService.userHome;
-		}
-		const instance = await this._terminalService.createTerminal({ cwd });
-		if (!instance) {
-			return Promise.resolve(undefined);
-		}
+			const instance = await terminalService.createTerminal({ cwd });
+			if (!instance) {
+				return Promise.resolve(undefined);
+			}
 
-		this._terminalService.setActiveInstance(instance);
-		return this._terminalGroupService.showPanel(true);
-	}
+			terminalService.setActiveInstance(instance);
+			return terminalGroupService.showPanel(true);
+		}
+	});
 }

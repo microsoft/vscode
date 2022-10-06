@@ -2206,7 +2206,7 @@ export interface ExtHostLocalizationShape {
 
 export interface IStringDetails {
 	message: string;
-	args?: any[];
+	args?: Record<string | number, any>;
 	comment?: string[];
 }
 

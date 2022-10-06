@@ -1171,12 +1171,16 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: l10n
 		const l10n: typeof vscode.l10n = {
-			t(...params: [message: string, ...args: any[]] | [{ message: string; args?: any[]; comment: string[] }]): string {
+			t(...params: [message: string, ...args: Array<string | number>] | [message: string, args: Record<string, any>] | [{ message: string; args?: Array<string | number> | Record<string, any>; comment: string[] }]): string {
 				checkProposedApiEnabled(extension, 'localization');
 
 				if (typeof params[0] === 'string') {
 					const key = params.shift() as string;
-					return extHostLocalization.getMessage(extension.identifier.value, { message: key, args: params as any[] | undefined });
+
+					// We have either rest args which are Array<string | number> or an array with a single Record<string, any>. This ensures we get a
+					// Record<string | number> which will be formatted correctly.
+					const argsFormatted = !params || typeof params[0] !== 'object' ? params : params[0];
+					return extHostLocalization.getMessage(extension.identifier.value, { message: key, args: argsFormatted as Record<string | number, any> | undefined });
 				}
 
 				return extHostLocalization.getMessage(extension.identifier.value, params[0]);
