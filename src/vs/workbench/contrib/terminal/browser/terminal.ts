@@ -777,6 +777,8 @@ export interface ITerminalInstance {
 	 */
 	sendPath(originalPath: string, addNewLine: boolean): Promise<void>;
 
+	runCommand(command: string, addNewLine?: boolean): void;
+
 	/**
 	 * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this
 	 * includes trying to prepare the path for WSL if needed.
@@ -916,8 +918,6 @@ export interface ITerminalInstance {
 	registerQuickFixProvider(...options: ITerminalQuickFixOptions[]): void;
 
 	freePortKillProcess(port: string): Promise<void>;
-
-	runCommand(command: string, alt?: boolean): void;
 }
 
 export interface ITerminalQuickFixOptions {
