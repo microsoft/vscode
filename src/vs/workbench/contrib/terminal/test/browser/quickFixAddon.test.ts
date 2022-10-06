@@ -23,7 +23,7 @@ import { TerminalQuickFixAddon, getQuickFixes } from 'vs/workbench/contrib/termi
 import { URI } from 'vs/base/common/uri';
 import { Terminal } from 'xterm';
 
-suite.only('QuickFixAddon', () => {
+suite('QuickFixAddon', () => {
 	let quickFixAddon: TerminalQuickFixAddon;
 	let terminalInstance: Pick<ITerminalInstance, 'freePortKillProcess'>;
 	let commandDetection: CommandDetectionCapability;
