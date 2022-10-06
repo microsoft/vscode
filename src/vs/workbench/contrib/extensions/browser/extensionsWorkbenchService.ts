@@ -1030,12 +1030,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 						const extensionInOtherServer = this.installed.filter(e => areSameExtensions(e.identifier, extension!.identifier) && e.server !== extension!.server)[0];
 						if (extensionInOtherServer) {
 							// This extension prefers to run on UI/Local side but is running in remote
-							if (runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer && this.extensionManifestPropertiesService.prefersExecuteOnUI(extension.local!.manifest)) {
+							if (runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer && this.extensionManifestPropertiesService.prefersExecuteOnUI(extension.local!.manifest) && extensionInOtherServer.server === this.extensionManagementServerService.localExtensionManagementServer) {
 								return nls.localize('enable locally', "Please reload Visual Studio Code to enable this extension locally.");
 							}
 
 							// This extension prefers to run on Workspace/Remote side but is running in local
-							if (runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer && this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(extension.local!.manifest)) {
+							if (runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer && this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(extension.local!.manifest) && extensionInOtherServer.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
 								return nls.localize('enable remote', "Please reload Visual Studio Code to enable this extension in {0}.", this.extensionManagementServerService.remoteExtensionManagementServer?.label);
 							}
 						}
