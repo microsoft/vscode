@@ -20,6 +20,7 @@ export const enum TerminalContextKeyStrings {
 	TerminalHasBeenCreated = 'terminalHasBeenCreated',
 	TerminalEditorActive = 'terminalEditorActive',
 	TabsMouse = 'terminalTabsMouse',
+	QuickFixMenuVisible = 'terminalQuickFixVisible',
 	AltBufferActive = 'terminalAltBufferActive',
 	A11yTreeFocus = 'terminalA11yTreeFocus',
 	NavigationModeActive = 'terminalNavigationModeActive',
@@ -68,6 +69,9 @@ export namespace TerminalContextKeys {
 
 	/** Whether at least one terminal has been created */
 	export const terminalEditorActive = new RawContextKey<boolean>(TerminalContextKeyStrings.TerminalEditorActive, false, true);
+
+	/** Whether the quick fix menu is currently visible */
+	export const terminalQuickFixMenuVisible = new RawContextKey<boolean>(TerminalContextKeyStrings.QuickFixMenuVisible, false, true);
 
 	/** Whether the mouse is within the terminal tabs list. */
 	export const tabsMouse = new RawContextKey<boolean>(TerminalContextKeyStrings.TabsMouse, false, true);

@@ -26,6 +26,8 @@ import { IDecoration, Terminal } from 'xterm';
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
 import type { ITerminalAddon } from 'xterm-headless';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 export interface ITerminalQuickFix {
 	showMenu(): void;
@@ -56,7 +58,9 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _decoration: IDecoration | undefined;
 
-	private readonly _terminalDecorationHoverService: TerminalDecorationHoverManager;
+	private readonly _terminalDecorationHoverManager: TerminalDecorationHoverManager;
+
+	private _quickFixMenuVisible: IContextKey<boolean>;
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -64,7 +68,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IOpenerService private readonly _openerService: IOpenerService
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
@@ -77,7 +82,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				}
 			});
 		}
-		this._terminalDecorationHoverService = instantiationService.createInstance(TerminalDecorationHoverManager);
+		this._terminalDecorationHoverManager = instantiationService.createInstance(TerminalDecorationHoverManager);
+		this._quickFixMenuVisible = TerminalContextKeys.terminalQuickFixMenuVisible.bindTo(contextKeyService);
 	}
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
@@ -143,8 +149,10 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 					this._decorationMarkerIds.add(decoration.marker.id);
 					this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
 						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions, autoSelectFirstItem: true });
+						this._quickFixMenuVisible.set(true);
 					}));
-					this._register(this._terminalDecorationHoverService.createHover(e, undefined, hoverLabel));
+					this._register(this._contextMenuService.onDidHideContextMenu(() => this._quickFixMenuVisible.reset()));
+					this._register(this._terminalDecorationHoverManager.createHover(e, undefined, hoverLabel));
 				}
 			}
 		});
