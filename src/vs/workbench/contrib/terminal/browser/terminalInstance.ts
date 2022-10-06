@@ -1208,7 +1208,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	override dispose(reason?: TerminalExitReason): void {
-  	if (this._isDisposed) {
+  	        if (this._isDisposed) {
 			return;
 		}
 		this._isDisposed = true;
