@@ -377,7 +377,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		this.info(`Using tsserver from: ${version.path}`);
-            this.info('this is the place I will hardcode the path import("vscode-wasm-typescript")')
 
 		const apiVersion = version.apiVersion || API.defaultVersion;
 		const mytoken = ++this.token;

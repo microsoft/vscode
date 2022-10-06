@@ -73,8 +73,8 @@ module.exports = withBrowserDefaults({
 						// TODO: All this extra work can *probably* be done with webpack tools in some way.
 						const filenames = {
 							'vscode-uri': path.join(__dirname, 'node_modules', 'vscode-uri', 'lib', 'umd', 'index.js'),
-							'./apiClient': path.join(__dirname, 'node_modules', '@vscode/sync-api-client', 'lib', 'apiClient.js'),
 							'./vscode': path.join(__dirname, 'node_modules', '@vscode/sync-api-client', 'lib', 'vscode.js'),
+							'./apiClient': path.join(__dirname, 'node_modules', '@vscode/sync-api-client', 'lib', 'apiClient.js'),
 							'@vscode/sync-api-client': path.join(__dirname, 'node_modules', '@vscode/sync-api-client', 'lib', 'main.js'),
 							'./ral': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'common', 'ral.js'),
 							'common--./connection': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'common', 'connection.js'), // referenced from common/api.js and /protocol.js

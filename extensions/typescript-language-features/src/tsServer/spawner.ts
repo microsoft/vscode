@@ -132,7 +132,6 @@ export class TypeScriptServerSpawner {
 		pluginManager: PluginManager,
 		cancellerFactory: OngoingRequestCancellerFactory,
 	): ITypeScriptServer {
-		console.log('ooband logging');
 		const apiVersion = version.apiVersion || API.defaultVersion;
 
 		const canceller = cancellerFactory.create(kind, this._tracer);
