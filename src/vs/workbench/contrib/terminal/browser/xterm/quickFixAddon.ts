@@ -30,7 +30,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 export interface ITerminalQuickFix {
-	showMenu(): void;
+	access(type: 'runDefault' | 'showMenu'): void;
 	/**
 	 * Registers a listener on onCommandFinished scoped to a particular command or regular
 	 * expression and provides a callback to be executed for commands that match.
@@ -62,6 +62,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _quickFixMenuVisible: IContextKey<boolean>;
 
+	private _defaultAction: IAction | undefined;
+
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -89,8 +91,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		this._terminal = terminal;
 	}
 
-	showMenu(): void {
-		this._currentQuickFixElement?.click();
+	access(type: 'runDefault' | 'showMenu'): void {
+		type === 'runDefault' ? this._defaultAction?.run() : this._currentQuickFixElement?.click();
 	}
 
 	registerCommandFinishedListener(options: ITerminalQuickFixOptions): void {
@@ -148,6 +150,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				if (actions) {
 					this._decorationMarkerIds.add(decoration.marker.id);
 					this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
+						this._defaultAction = actions[0];
 						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions, autoSelectFirstItem: true });
 						this._quickFixMenuVisible.set(true);
 					}));

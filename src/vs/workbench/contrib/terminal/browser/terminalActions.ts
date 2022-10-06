@@ -150,7 +150,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.quickFix', "Quick Fix"), original: 'Quick Fix' },
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported,
+				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported),
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.Period,
 					when: TerminalContextKeys.focus,
@@ -159,7 +159,28 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.quickFix?.showMenu();
+			accessor.get(ITerminalService).activeInstance?.quickFix?.access('showMenu');
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.QuickFixRunDefaultFix,
+				title: { value: localize('workbench.action.terminal.quickFixAcceptDefault', "Quick Fix Run Default Fix"), original: 'Quick Fix Run Default Fix' },
+				f1: false,
+				category,
+				precondition: TerminalContextKeys.processSupported,
+				keybinding: {
+					when: TerminalContextKeys.terminalQuickFixMenuVisible,
+					weight: KeybindingWeight.WorkbenchContrib + 100000,
+					primary: KeyCode.Enter,
+					secondary: [KeyMod.CtrlCmd | KeyCode.Period],
+				},
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).activeInstance?.quickFix?.access('runDefault');
 		}
 	});
 

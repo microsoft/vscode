@@ -555,6 +555,7 @@ export const enum TerminalCommandId {
 	ToggleEscapeSequenceLogging = 'toggleEscapeSequenceLogging',
 	SendSequence = 'workbench.action.terminal.sendSequence',
 	QuickFix = 'workbench.action.terminal.quickFix',
+	QuickFixRunDefaultFix = 'workbench.action.terminal.quickFixRunDefaultFix',
 	ToggleFindRegex = 'workbench.action.terminal.toggleFindRegex',
 	ToggleFindWholeWord = 'workbench.action.terminal.toggleFindWholeWord',
 	ToggleFindCaseSensitive = 'workbench.action.terminal.toggleFindCaseSensitive',
