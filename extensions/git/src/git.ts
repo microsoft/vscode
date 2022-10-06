@@ -559,7 +559,9 @@ export class Git {
 	}
 
 	private async _exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
+		const startSpawn = Date.now();
 		const child = this.spawn(args, options);
+		const durSpawn = Date.now() - startSpawn;
 
 		options.onSpawn?.(child);
 
@@ -567,12 +569,13 @@ export class Git {
 			child.stdin!.end(options.input, 'utf8');
 		}
 
-		const startTime = Date.now();
+		const startExec = Date.now();
 		const bufferResult = await exec(child, options.cancellationToken);
+		const durExec = Date.now() - startExec;
 
 		if (options.log !== false) {
 			// command
-			this.log(`> git ${args.join(' ')} [${Date.now() - startTime}ms]\n`);
+			this.log(`> git ${args.join(' ')} [${durExec}ms]\n`);
 
 			// stdout
 			if (bufferResult.stdout.length > 0 && args.find(a => this.commandsToLog.includes(a))) {
@@ -588,10 +591,12 @@ export class Git {
 		/* __GDPR__
 			"git.execDuration" : {
 				"owner": "lszomoru",
-				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth","isMeasurement": true, "comment": "Time it took to run git" },
+				"comment": "Time it takes to spawn and execute a git command",
+				"durSpawn": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth","isMeasurement": true, "comment": "Time it took to run spawn git" },
+				"durExec": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth","isMeasurement": true, "comment": "Time git took" },
 			}
 		*/
-		this.telemetryReporter.sendTelemetryEvent('git.execDuration', undefined, { duration: Date.now() - startTime });
+		this.telemetryReporter.sendTelemetryEvent('git.execDuration', undefined, { durSpawn, durExec });
 
 		let encoding = options.encoding || 'utf8';
 		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
