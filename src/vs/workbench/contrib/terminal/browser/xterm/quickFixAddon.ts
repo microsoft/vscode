@@ -120,9 +120,9 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (!result) {
 			return;
 		}
-		const { fixes, onDidRunQuickFixEmitter } = result;
+		const { fixes, onDidRunQuickFix } = result;
 		this._quickFixes = fixes;
-		onDidRunQuickFixEmitter(() => this._disposeQuickFix());
+		onDidRunQuickFix(() => this._disposeQuickFix());
 	}
 
 	private _disposeQuickFix(): void {
@@ -177,9 +177,9 @@ export function getQuickFixesForCommand(
 	quickFixOptions: Map<string, ITerminalQuickFixOptions[]>,
 	openerService: IOpenerService,
 	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>
-): { fixes: IAction[]; onDidRunQuickFixEmitter: Event<void> } | undefined {
-	const _onDidRunQuickFixEmitter = new Emitter<void>();
-	const onDidRunQuickFixEmitter = _onDidRunQuickFixEmitter.event;
+): { fixes: IAction[]; onDidRunQuickFix: Event<void> } | undefined {
+	const onDidRunQuickFixEmitter = new Emitter<void>();
+	const onDidRunQuickFix = onDidRunQuickFixEmitter.event;
 	const fixes: IAction[] = [];
 	const newCommand = command.command;
 	for (const options of quickFixOptions.values()) {
@@ -231,7 +231,7 @@ export function getQuickFixesForCommand(
 										openerService.open(quickFix.uri);
 										// since no command gets run here, need to
 										// clear the decoration and quick fix
-										_onDidRunQuickFixEmitter.fire();
+										onDidRunQuickFixEmitter.fire();
 									},
 									tooltip: label,
 									uri: quickFix.uri
@@ -256,7 +256,7 @@ export function getQuickFixesForCommand(
 			}
 		}
 	}
-	return fixes.length > 0 ? { fixes, onDidRunQuickFixEmitter } : undefined;
+	return fixes.length > 0 ? { fixes, onDidRunQuickFix } : undefined;
 }
 
 
