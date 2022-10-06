@@ -117,7 +117,7 @@ suite('QuickFixAddon', () => {
 
 				The most similar commands are
 						checkout`;
-					assertMatchOptions(getQuickFixes(createCommand('git checkoutt .', output, GitSimilarOutputRegex), expectedMap, openerService), [{
+					assertMatchOptions(getQuickFixesForCommand(createCommand('git checkoutt .', output, GitSimilarOutputRegex), expectedMap, openerService)?.fixes, [{
 						id: `quickFix.command`,
 						enabled: true,
 						label: 'Run: git checkout .',
