@@ -193,7 +193,7 @@ suite('QuickFixAddon', () => {
 				});
 				suite('returns undefined when', () => {
 					test('output does not match', () => {
-						strictEqual(getQuickFixesForCommand(createCommand(portCommand, `invalid output`, FreePortOutputRegex), expectedMap, openerService), undefined);
+						strictEqual(getQuickFixesForCommand(createCommand(portCommand, `invalid output`, FreePortOutputRegex), expectedMap, openerService)?.fixes, undefined);
 					});
 				});
 				test('returns actions', () => {
