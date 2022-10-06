@@ -1011,9 +1011,9 @@
   integrity sha512-LXRap3bb4AjtLZ5NOFc4ssVZrQPTgdPcNm++0SEJuJZaOA+xHkojJNYqy33A5q/94BmG5tA6yaMeD4VdCv5aSA==
 
 "@types/node@16.x":
-  version "16.11.6"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-16.11.6.tgz#6bef7a2a0ad684cf6e90fcfe31cecabd9ce0a3ae"
-  integrity sha512-ua7PgUoeQFjmWPcoo9khiPum3Pd60k4/2ZGXt18sm2Slk0W0xZTqt5Y0Ny1NyBiN1EVQ/+FaF9NcY4Qe6rwk5w==
+  version "16.11.64"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-16.11.64.tgz#9171f327298b619e2c52238b120c19056415d820"
+  integrity sha512-z5hPTlVFzNwtJ2LNozTpJcD1Cu44c4LNuzaq1mwxmiHWQh2ULdR6Vjwo1UGldzRpzL0yUEdZddnfqGW2G70z6Q==
 
 "@types/node@^10.11.7":
   version "10.12.21"
@@ -10817,10 +10817,10 @@ typescript@^2.6.2:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
 
-typescript@^4.9.0-dev.20220921:
-  version "4.9.0-dev.20220921"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.9.0-dev.20220921.tgz#ad0a24dcc94a29ee8d3845ad025ced94fe732d82"
-  integrity sha512-0WdiNgM0YfgPURswuah1JJfnDwa6e7Ki0DJcfAEruw17mACMCJw2F7vK/4jLcd1uIl4La3ZIPnA7dOyM7y5Skg==
+typescript@^4.9.0-dev.20221005:
+  version "4.9.0-dev.20221005"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.9.0-dev.20221005.tgz#ebfb29da9c5b054736ba1e00b3d6aaad49e0228e"
+  integrity sha512-uKa1ioEqENveT1YE90O1PoX27pdr+wWvKOcpGJaDNninks4m2Ygjj5ZcHb+AKuqdc1b8A39EvSZDWSxXky9F2Q==
 
 typical@^4.0.0:
   version "4.0.0"
