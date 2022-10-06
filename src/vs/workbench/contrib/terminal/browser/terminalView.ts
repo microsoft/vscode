@@ -164,19 +164,15 @@ export class TerminalViewPane extends ViewPane {
 
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			this._viewShowing.set(visible);
+			if (!this._terminalsInitialized) {
+				await this._terminalService.primaryBackendRegistered;
+				this._terminalsInitialized = true;
+			}
 			if (visible) {
 				const hadTerminals = !!this._terminalGroupService.groups.length;
-				// Ensure the primary backend is registered as it's important to do before
-				// initializeTerminals is called.
-				await this._terminalService.primaryBackendRegistered;
 				if (this._terminalService.isProcessSupportRegistered) {
-					if (this._terminalsInitialized) {
-						if (!hadTerminals) {
-							this._terminalService.createTerminal({ location: TerminalLocation.Panel });
-						}
-					} else {
-						this._terminalsInitialized = true;
-						this._terminalService.initializeTerminals();
+					if (!hadTerminals) {
+						this._terminalService.createTerminal({ location: TerminalLocation.Panel });
 					}
 				} else {
 					this._onDidChangeViewWelcomeState.fire();
