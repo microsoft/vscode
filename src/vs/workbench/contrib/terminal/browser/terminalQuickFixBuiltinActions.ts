@@ -33,10 +33,6 @@ export function gitSimilarCommand(): ITerminalQuickFixOptions {
 			if (!matchResult?.outputMatch) {
 				return;
 			}
-			// const fixedCommand = matchResult?.outputMatch?.[1];
-			// if (!fixedCommand) {
-			// 	return;
-			// }
 			const actions: TerminalQuickFixAction[] = [];
 			const results = matchResult.outputMatch[0].split('\n').map(r => r.trim());
 			for (let i = 1; i < results.length; i++) {
@@ -44,7 +40,7 @@ export function gitSimilarCommand(): ITerminalQuickFixOptions {
 				if (fixedCommand) {
 					actions.push({
 						type: 'command',
-						command: `git ${fixedCommand}`,
+						command: command.command.replace(/git\s+[^\s]+/, `git ${fixedCommand}`),
 						addNewLine: true
 					});
 				}

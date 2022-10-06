@@ -19,7 +19,7 @@ import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabili
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, gitSimilarCommand, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
-import { TerminalQuickFixAddon, getQuickFixes } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
+import { TerminalQuickFixAddon, getQuickFixesForCommand } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { URI } from 'vs/base/common/uri';
 import { Terminal } from 'xterm';
 
@@ -72,23 +72,23 @@ suite('QuickFixAddon', () => {
 			});
 			suite('returns undefined when', () => {
 				test('output does not match', () => {
-					strictEqual(getQuickFixes(createCommand(command, `invalid output`, GitSimilarOutputRegex, exitCode), expectedMap, openerService), undefined);
+					strictEqual(getQuickFixesForCommand(createCommand(command, `invalid output`, GitSimilarOutputRegex, exitCode), expectedMap, openerService), undefined);
 				});
 				test('command does not match', () => {
-					strictEqual(getQuickFixes(createCommand(`gt sttatus`, output, GitSimilarOutputRegex, exitCode), expectedMap, openerService), undefined);
+					strictEqual(getQuickFixesForCommand(createCommand(`gt sttatus`, output, GitSimilarOutputRegex, exitCode), expectedMap, openerService), undefined);
 				});
 			});
 			suite('returns undefined when', () => {
 				test('expected unix exit code', () => {
-					assertMatchOptions(getQuickFixes(createCommand(command, output, GitSimilarOutputRegex, exitCode), expectedMap, openerService), actions);
+					assertMatchOptions(getQuickFixesForCommand(createCommand(command, output, GitSimilarOutputRegex, exitCode), expectedMap, openerService)?.fixes, actions);
 				});
 				test('matching exit status', () => {
-					assertMatchOptions(getQuickFixes(createCommand(command, output, GitSimilarOutputRegex, 2), expectedMap, openerService), actions);
+					assertMatchOptions(getQuickFixesForCommand(createCommand(command, output, GitSimilarOutputRegex, 2), expectedMap, openerService)?.fixes, actions);
 				});
 			});
 			suite('returns match', () => {
 				test('returns match', () => {
-					assertMatchOptions(getQuickFixes(createCommand(command, output, GitSimilarOutputRegex), expectedMap, openerService), actions);
+					assertMatchOptions(getQuickFixesForCommand(createCommand(command, output, GitSimilarOutputRegex), expectedMap, openerService)?.fixes, actions);
 				});
 
 				test('returns multiple match', () => {
@@ -110,7 +110,20 @@ suite('QuickFixAddon', () => {
 						tooltip: 'Run: git push',
 						command: 'git push'
 					}];
-					assertMatchOptions(getQuickFixes(createCommand('git pu', output, GitSimilarOutputRegex), expectedMap, openerService), actions);
+					assertMatchOptions(getQuickFixesForCommand(createCommand('git pu', output, GitSimilarOutputRegex), expectedMap, openerService)?.fixes, actions);
+				});
+				test('passes any arguments through', () => {
+					output = `git: 'checkoutt' is not a git command. See 'git --help'.
+
+				The most similar commands are
+						checkout`;
+					assertMatchOptions(getQuickFixes(createCommand('git checkoutt .', output, GitSimilarOutputRegex), expectedMap, openerService), [{
+						id: `quickFix.command`,
+						enabled: true,
+						label: 'Run: git checkout .',
+						tooltip: 'Run: git checkout .',
+						command: 'git checkout .'
+					}]);
 				});
 			});
 		});
@@ -133,18 +146,18 @@ suite('QuickFixAddon', () => {
 			});
 			suite('returns undefined when', () => {
 				test('output does not match', () => {
-					strictEqual(getQuickFixes(createCommand(command, `invalid output`, GitTwoDashesRegex, exitCode), expectedMap, openerService), undefined);
+					strictEqual(getQuickFixesForCommand(createCommand(command, `invalid output`, GitTwoDashesRegex, exitCode), expectedMap, openerService), undefined);
 				});
 				test('command does not match', () => {
-					strictEqual(getQuickFixes(createCommand(`gt sttatus`, output, GitTwoDashesRegex, exitCode), expectedMap, openerService), undefined);
+					strictEqual(getQuickFixesForCommand(createCommand(`gt sttatus`, output, GitTwoDashesRegex, exitCode), expectedMap, openerService), undefined);
 				});
 			});
 			suite('returns undefined when', () => {
 				test('expected unix exit code', () => {
-					assertMatchOptions(getQuickFixes(createCommand(command, output, GitTwoDashesRegex, exitCode), expectedMap, openerService), actions);
+					assertMatchOptions(getQuickFixesForCommand(createCommand(command, output, GitTwoDashesRegex, exitCode), expectedMap, openerService)?.fixes, actions);
 				});
 				test('matching exit status', () => {
-					assertMatchOptions(getQuickFixes(createCommand(command, output, GitTwoDashesRegex, 2), expectedMap, openerService), actions);
+					assertMatchOptions(getQuickFixesForCommand(createCommand(command, output, GitTwoDashesRegex, 2), expectedMap, openerService)?.fixes, actions);
 				});
 			});
 		});
@@ -180,11 +193,11 @@ suite('QuickFixAddon', () => {
 				});
 				suite('returns undefined when', () => {
 					test('output does not match', () => {
-						strictEqual(getQuickFixes(createCommand(portCommand, `invalid output`, FreePortOutputRegex), expectedMap, openerService), undefined);
+						strictEqual(getQuickFixesForCommand(createCommand(portCommand, `invalid output`, FreePortOutputRegex), expectedMap, openerService), undefined);
 					});
 				});
 				test('returns actions', () => {
-					assertMatchOptions(getQuickFixes(createCommand(portCommand, output, FreePortOutputRegex), expectedMap, openerService), actionOptions);
+					assertMatchOptions(getQuickFixesForCommand(createCommand(portCommand, output, FreePortOutputRegex), expectedMap, openerService), actionOptions);
 				});
 			});
 		}
@@ -211,18 +224,18 @@ suite('QuickFixAddon', () => {
 			});
 			suite('returns undefined when', () => {
 				test('output does not match', () => {
-					strictEqual(getQuickFixes(createCommand(command, `invalid output`, GitPushOutputRegex, exitCode), expectedMap, openerService), undefined);
+					strictEqual(getQuickFixesForCommand(createCommand(command, `invalid output`, GitPushOutputRegex, exitCode), expectedMap, openerService), undefined);
 				});
 				test('command does not match', () => {
-					strictEqual(getQuickFixes(createCommand(`git status`, output, GitPushOutputRegex, exitCode), expectedMap, openerService), undefined);
+					strictEqual(getQuickFixesForCommand(createCommand(`git status`, output, GitPushOutputRegex, exitCode), expectedMap, openerService), undefined);
 				});
 			});
 			suite('returns actions when', () => {
 				test('expected unix exit code', () => {
-					assertMatchOptions(getQuickFixes(createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap, openerService), actions);
+					assertMatchOptions(getQuickFixesForCommand(createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap, openerService)?.fixes, actions);
 				});
 				test('matching exit status', () => {
-					assertMatchOptions(getQuickFixes(createCommand(command, output, GitPushOutputRegex, 2), expectedMap, openerService), actions);
+					assertMatchOptions(getQuickFixesForCommand(createCommand(command, output, GitPushOutputRegex, 2), expectedMap, openerService)?.fixes, actions);
 				});
 			});
 		});
@@ -252,18 +265,18 @@ suite('QuickFixAddon', () => {
 			});
 			suite('returns undefined when', () => {
 				test('output does not match', () => {
-					strictEqual(getQuickFixes(createCommand(command, `invalid output`, GitCreatePrOutputRegex, exitCode), expectedMap, openerService), undefined);
+					strictEqual(getQuickFixesForCommand(createCommand(command, `invalid output`, GitCreatePrOutputRegex, exitCode), expectedMap, openerService), undefined);
 				});
 				test('command does not match', () => {
-					strictEqual(getQuickFixes(createCommand(`git status`, output, GitCreatePrOutputRegex, exitCode), expectedMap, openerService), undefined);
+					strictEqual(getQuickFixesForCommand(createCommand(`git status`, output, GitCreatePrOutputRegex, exitCode), expectedMap, openerService), undefined);
 				});
 				test('failure exit status', () => {
-					strictEqual(getQuickFixes(createCommand(command, output, GitCreatePrOutputRegex, 2), expectedMap, openerService), undefined);
+					strictEqual(getQuickFixesForCommand(createCommand(command, output, GitCreatePrOutputRegex, 2), expectedMap, openerService), undefined);
 				});
 			});
 			suite('returns actions when', () => {
 				test('expected unix exit code', () => {
-					assertMatchOptions(getQuickFixes(createCommand(command, output, GitCreatePrOutputRegex, exitCode), expectedMap, openerService), actions);
+					assertMatchOptions(getQuickFixesForCommand(createCommand(command, output, GitCreatePrOutputRegex, exitCode), expectedMap, openerService)?.fixes, actions);
 				});
 			});
 		});
@@ -292,18 +305,18 @@ suite('QuickFixAddon', () => {
 		});
 		suite('returns undefined when', () => {
 			test('output does not match', () => {
-				strictEqual(getQuickFixes(createCommand(command, `invalid output`, GitPushOutputRegex, exitCode), expectedMap, openerService), undefined);
+				strictEqual(getQuickFixesForCommand(createCommand(command, `invalid output`, GitPushOutputRegex, exitCode), expectedMap, openerService), undefined);
 			});
 			test('command does not match', () => {
-				strictEqual(getQuickFixes(createCommand(`git status`, output, GitPushOutputRegex, exitCode), expectedMap, openerService), undefined);
+				strictEqual(getQuickFixesForCommand(createCommand(`git status`, output, GitPushOutputRegex, exitCode), expectedMap, openerService), undefined);
 			});
 		});
 		suite('returns actions when', () => {
 			test('expected unix exit code', () => {
-				assertMatchOptions(getQuickFixes(createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap, openerService), actions);
+				assertMatchOptions(getQuickFixesForCommand(createCommand(command, output, GitPushOutputRegex, exitCode), expectedMap, openerService)?.fixes, actions);
 			});
 			test('matching exit status', () => {
-				assertMatchOptions(getQuickFixes(createCommand(command, output, GitPushOutputRegex, 2), expectedMap, openerService), actions);
+				assertMatchOptions(getQuickFixesForCommand(createCommand(command, output, GitPushOutputRegex, 2), expectedMap, openerService)?.fixes, actions);
 			});
 		});
 	});
