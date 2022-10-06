@@ -197,7 +197,7 @@ suite('QuickFixAddon', () => {
 					});
 				});
 				test('returns actions', () => {
-					assertMatchOptions(getQuickFixesForCommand(createCommand(portCommand, output, FreePortOutputRegex), expectedMap, openerService), actionOptions);
+					assertMatchOptions(getQuickFixesForCommand(createCommand(portCommand, output, FreePortOutputRegex), expectedMap, openerService)?.fixes, actionOptions);
 				});
 			});
 		}
