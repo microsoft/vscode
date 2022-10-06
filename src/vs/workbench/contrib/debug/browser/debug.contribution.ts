@@ -3,61 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { FileAccess } from 'vs/base/common/network';
+import { isMacintosh, isWeb } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/debug.contribution';
 import 'vs/css!./media/debugHover';
-import * as nls from 'vs/nls';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { BreakpointsView } from 'vs/workbench/contrib/debug/browser/breakpointsView';
-import { CallStackView } from 'vs/workbench/contrib/debug/browser/callStackView';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import {
-	IDebugService, VIEWLET_ID, DEBUG_PANEL_ID, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA,
-	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, LOADED_SCRIPTS_VIEW_ID, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_DEBUG_UX, BREAKPOINT_EDITOR_CONTRIBUTION_ID, REPL_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, EDITOR_CONTRIBUTION_ID, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_SET_VARIABLE_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, getStateLabel, State, CONTEXT_WATCH_ITEM_TYPE, CONTEXT_STACK_FRAME_SUPPORTS_RESTART, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, DISASSEMBLY_VIEW_ID, CONTEXT_SET_EXPRESSION_SUPPORTED, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_CAN_VIEW_MEMORY, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_STEP_INTO_TARGETS_SUPPORTED,
-} from 'vs/workbench/contrib/debug/common/debug';
-import { DebugToolBar } from 'vs/workbench/contrib/debug/browser/debugToolBar';
-import { DebugService } from 'vs/workbench/contrib/debug/browser/debugService';
-import { ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID, COPY_STACK_TRACE_ID, RESTART_SESSION_ID, TERMINATE_THREAD_ID, STEP_OVER_ID, STEP_INTO_ID, STEP_OUT_ID, PAUSE_ID, DISCONNECT_ID, STOP_ID, RESTART_FRAME_ID, CONTINUE_ID, FOCUS_REPL_ID, JUMP_TO_CURSOR_ID, RESTART_LABEL, STEP_INTO_LABEL, STEP_OVER_LABEL, STEP_OUT_LABEL, PAUSE_LABEL, DISCONNECT_LABEL, STOP_LABEL, CONTINUE_LABEL, DEBUG_START_LABEL, DEBUG_START_COMMAND_ID, DEBUG_RUN_LABEL, DEBUG_RUN_COMMAND_ID, EDIT_EXPRESSION_COMMAND_ID, REMOVE_EXPRESSION_COMMAND_ID, SELECT_AND_START_ID, SELECT_AND_START_LABEL, SET_EXPRESSION_COMMAND_ID, DISCONNECT_AND_SUSPEND_ID, DISCONNECT_AND_SUSPEND_LABEL, NEXT_DEBUG_CONSOLE_ID, NEXT_DEBUG_CONSOLE_LABEL, PREV_DEBUG_CONSOLE_ID, PREV_DEBUG_CONSOLE_LABEL, OPEN_LOADED_SCRIPTS_LABEL, SHOW_LOADED_SCRIPTS_ID, DEBUG_QUICK_ACCESS_PREFIX, DEBUG_CONSOLE_QUICK_ACCESS_PREFIX, SELECT_DEBUG_CONSOLE_ID, SELECT_DEBUG_CONSOLE_LABEL, STEP_INTO_TARGET_LABEL, STEP_INTO_TARGET_ID, CALLSTACK_TOP_ID, CALLSTACK_TOP_LABEL, CALLSTACK_BOTTOM_LABEL, CALLSTACK_UP_LABEL, CALLSTACK_BOTTOM_ID, CALLSTACK_UP_ID, CALLSTACK_DOWN_ID, CALLSTACK_DOWN_LABEL, DEBUG_COMMAND_CATEGORY, SELECT_DEBUG_SESSION_ID, SELECT_DEBUG_SESSION_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { StatusBarColorProvider } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
-import { IViewsRegistry, Extensions as ViewExtensions, IViewContainersRegistry, ViewContainerLocation, ViewContainer } from 'vs/workbench/common/views';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { URI } from 'vs/base/common/uri';
-import { DebugStatusContribution } from 'vs/workbench/contrib/debug/browser/debugStatus';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
-import { LoadedScriptsView } from 'vs/workbench/contrib/debug/browser/loadedScriptsView';
-import { RunToCursorAction, SelectionToReplAction, SelectionToWatchExpressionsAction } from 'vs/workbench/contrib/debug/browser/debugEditorActions';
-import { WatchExpressionsView, ADD_WATCH_LABEL, REMOVE_WATCH_EXPRESSIONS_COMMAND_ID, REMOVE_WATCH_EXPRESSIONS_LABEL, ADD_WATCH_ID } from 'vs/workbench/contrib/debug/browser/watchExpressionsView';
-import { VariablesView, SET_VARIABLE_ID, COPY_VALUE_ID, BREAK_WHEN_VALUE_CHANGES_ID, COPY_EVALUATE_PATH_ID, ADD_TO_WATCH_ID, BREAK_WHEN_VALUE_IS_ACCESSED_ID, BREAK_WHEN_VALUE_IS_READ_ID, VIEW_MEMORY_ID } from 'vs/workbench/contrib/debug/browser/variablesView';
-import { Repl } from 'vs/workbench/contrib/debug/browser/repl';
-import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
-import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
-import { DebugViewPaneContainer } from 'vs/workbench/contrib/debug/browser/debugViewlet';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { CallStackEditorContribution } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
-import { BreakpointEditorContribution } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
-import { StartDebugQuickAccessProvider } from 'vs/workbench/contrib/debug/browser/debugQuickAccess';
-import { DebugProgressContribution } from 'vs/workbench/contrib/debug/browser/debugProgress';
-import { DebugTitleContribution } from 'vs/workbench/contrib/debug/browser/debugTitle';
-import { registerColors } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { DebugEditorContribution } from 'vs/workbench/contrib/debug/browser/debugEditorContribution';
-import { FileAccess } from 'vs/base/common/network';
-import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { EditorExtensions } from 'vs/workbench/common/editor';
-import { DisassemblyView, DisassemblyViewContribution } from 'vs/workbench/contrib/debug/browser/disassemblyView';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
-import { DebugLifecycle } from 'vs/workbench/contrib/debug/common/debugLifecycle';
-import { ICommandActionTitle, Icon } from 'vs/platform/action/common/action';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import * as nls from 'vs/nls';
+import { ICommandActionTitle, Icon } from 'vs/platform/action/common/action';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { Extensions as QuickAccessExtensions, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { EditorExtensions } from 'vs/workbench/common/editor';
+import { Extensions as ViewExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { LazyBreakpointEditorContribution } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
+import { BreakpointsView } from 'vs/workbench/contrib/debug/browser/breakpointsView';
+import { LazyCallStackEditorContribution } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
+import { CallStackView } from 'vs/workbench/contrib/debug/browser/callStackView';
+import { registerColors } from 'vs/workbench/contrib/debug/browser/debugColors';
+import { ADD_CONFIGURATION_ID, CALLSTACK_BOTTOM_ID, CALLSTACK_BOTTOM_LABEL, CALLSTACK_DOWN_ID, CALLSTACK_DOWN_LABEL, CALLSTACK_TOP_ID, CALLSTACK_TOP_LABEL, CALLSTACK_UP_ID, CALLSTACK_UP_LABEL, CONTINUE_ID, CONTINUE_LABEL, COPY_STACK_TRACE_ID, DEBUG_COMMAND_CATEGORY, DEBUG_CONSOLE_QUICK_ACCESS_PREFIX, DEBUG_QUICK_ACCESS_PREFIX, DEBUG_RUN_COMMAND_ID, DEBUG_RUN_LABEL, DEBUG_START_COMMAND_ID, DEBUG_START_LABEL, DISCONNECT_AND_SUSPEND_ID, DISCONNECT_AND_SUSPEND_LABEL, DISCONNECT_ID, DISCONNECT_LABEL, EDIT_EXPRESSION_COMMAND_ID, FOCUS_REPL_ID, JUMP_TO_CURSOR_ID, NEXT_DEBUG_CONSOLE_ID, NEXT_DEBUG_CONSOLE_LABEL, OPEN_LOADED_SCRIPTS_LABEL, PAUSE_ID, PAUSE_LABEL, PREV_DEBUG_CONSOLE_ID, PREV_DEBUG_CONSOLE_LABEL, REMOVE_EXPRESSION_COMMAND_ID, RESTART_FRAME_ID, RESTART_LABEL, RESTART_SESSION_ID, SELECT_AND_START_ID, SELECT_AND_START_LABEL, SELECT_DEBUG_CONSOLE_ID, SELECT_DEBUG_CONSOLE_LABEL, SELECT_DEBUG_SESSION_ID, SELECT_DEBUG_SESSION_LABEL, SET_EXPRESSION_COMMAND_ID, SHOW_LOADED_SCRIPTS_ID, STEP_INTO_ID, STEP_INTO_LABEL, STEP_INTO_TARGET_ID, STEP_INTO_TARGET_LABEL, STEP_OUT_ID, STEP_OUT_LABEL, STEP_OVER_ID, STEP_OVER_LABEL, STOP_ID, STOP_LABEL, TERMINATE_THREAD_ID, TOGGLE_INLINE_BREAKPOINT_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { DebugConsoleQuickAccess } from 'vs/workbench/contrib/debug/browser/debugConsoleQuickAccess';
+import { RunToCursorAction, SelectionToReplAction, SelectionToWatchExpressionsAction } from 'vs/workbench/contrib/debug/browser/debugEditorActions';
+import { LazyDebugEditorContribution } from 'vs/workbench/contrib/debug/browser/debugEditorContribution';
+import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { DebugProgressContribution } from 'vs/workbench/contrib/debug/browser/debugProgress';
+import { StartDebugQuickAccessProvider } from 'vs/workbench/contrib/debug/browser/debugQuickAccess';
+import { DebugService } from 'vs/workbench/contrib/debug/browser/debugService';
+import { DebugStatusContribution } from 'vs/workbench/contrib/debug/browser/debugStatus';
+import { DebugTitleContribution } from 'vs/workbench/contrib/debug/browser/debugTitle';
+import { DebugToolBar } from 'vs/workbench/contrib/debug/browser/debugToolBar';
+import { DebugViewPaneContainer } from 'vs/workbench/contrib/debug/browser/debugViewlet';
+import { DisassemblyView, DisassemblyViewContribution } from 'vs/workbench/contrib/debug/browser/disassemblyView';
+import { LoadedScriptsView } from 'vs/workbench/contrib/debug/browser/loadedScriptsView';
+import { Repl } from 'vs/workbench/contrib/debug/browser/repl';
+import { StatusBarColorProvider } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
+import { ADD_TO_WATCH_ID, BREAK_WHEN_VALUE_CHANGES_ID, BREAK_WHEN_VALUE_IS_ACCESSED_ID, BREAK_WHEN_VALUE_IS_READ_ID, COPY_EVALUATE_PATH_ID, COPY_VALUE_ID, SET_VARIABLE_ID, VariablesView, VIEW_MEMORY_ID } from 'vs/workbench/contrib/debug/browser/variablesView';
+import { ADD_WATCH_ID, ADD_WATCH_LABEL, REMOVE_WATCH_EXPRESSIONS_COMMAND_ID, REMOVE_WATCH_EXPRESSIONS_LABEL, WatchExpressionsView } from 'vs/workbench/contrib/debug/browser/watchExpressionsView';
+import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
+import { BREAKPOINTS_VIEW_ID, BREAKPOINT_EDITOR_CONTRIBUTION_ID, CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_CAN_VIEW_MEMORY, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_UX, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_IN_DEBUG_MODE, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_SET_EXPRESSION_SUPPORTED, CONTEXT_SET_VARIABLE_SUPPORTED, CONTEXT_STACK_FRAME_SUPPORTS_RESTART, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_WATCH_ITEM_TYPE, DEBUG_PANEL_ID, DISASSEMBLY_VIEW_ID, EDITOR_CONTRIBUTION_ID, getStateLabel, IDebugService, INTERNAL_CONSOLE_OPTIONS_SCHEMA, LOADED_SCRIPTS_VIEW_ID, REPL_VIEW_ID, State, VARIABLES_VIEW_ID, VIEWLET_ID, WATCH_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
+import { DebugLifecycle } from 'vs/workbench/contrib/debug/common/debugLifecycle';
+import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
+import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registerColors();
@@ -93,9 +90,9 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Show All Debug Consoles"), commandId: SELECT_DEBUG_CONSOLE_ID }]
 });
 
-registerEditorContribution('editor.contrib.callStack', CallStackEditorContribution);
-registerEditorContribution(BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointEditorContribution);
-registerEditorContribution(EDITOR_CONTRIBUTION_ID, DebugEditorContribution);
+registerEditorContribution('editor.contrib.callStack', LazyCallStackEditorContribution);
+registerEditorContribution(BREAKPOINT_EDITOR_CONTRIBUTION_ID, LazyBreakpointEditorContribution);
+registerEditorContribution(EDITOR_CONTRIBUTION_ID, LazyDebugEditorContribution);
 
 const registerDebugCommandPaletteItem = (id: string, title: ICommandActionTitle, when?: ContextKeyExpression, precondition?: ContextKeyExpression) => {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
