@@ -179,7 +179,7 @@ export function merge(localExtensions: ISyncExtensionWithVersion[], remoteExtens
 			newRemoteExtensionsMap.set(key, merge(key, localExtension, remoteExtension, localExtension));
 		}
 
-		// Locally removed extensions => exist in base and does not exit in local
+		// Locally removed extensions => exist in base and does not exist in local
 		for (const key of baseToLocal.removed.values()) {
 			// If updated in remote (already handled)
 			if (baseToRemote.updated.has(key)) {
