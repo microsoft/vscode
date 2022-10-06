@@ -91,6 +91,10 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			this.logger.info('Clearing authentication preference because of successive token failures.');
 			this.clearAuthenticationPreference();
 		}));
+		this._register(this.remoteTunnelService.onTunnelFailed(() => {
+			this.logger.info('Clearing authentication preference because of tunnel failure.');
+			this.clearAuthenticationPreference();
+		}));
 
 		// If the user signs out of the current session, reset our cached auth state in memory and on disk
 		this._register(this.authenticationService.onDidChangeSessions((e) => this.onDidChangeSessions(e.event)));

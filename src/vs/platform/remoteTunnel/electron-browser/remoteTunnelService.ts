@@ -15,6 +15,7 @@ import { ChildProcess, spawn } from 'child_process';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { isWindows } from 'vs/base/common/platform';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { ISharedProcessLifecycleService } from 'vs/platform/lifecycle/electron-browser/sharedProcessLifecycleService';
 
 
 type RemoteTunnelEnablementClassification = {
@@ -55,21 +56,19 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		@IProductService private readonly productService: IProductService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILoggerService loggerService: ILoggerService,
+		@ISharedProcessLifecycleService sharedProcessLifecycleService: ISharedProcessLifecycleService,
 	) {
 		super();
 		const logFileUri = URI.file(join(dirname(environmentService.logsPath), 'remoteTunnel.log'));
 		this._logger = this._register(loggerService.createLogger(logFileUri, { name: 'remoteTunnel' }));
-	}
 
-	override dispose(): void {
-		this._logger.info('disposed');
-		console.log('xxxx disposed');
-		if (this._tunnelProcess) {
-			this._tunnelProcess.cancel();
-			this._tunnelProcess = undefined;
-		}
-		this._logger.flush();
-		super.dispose();
+		this._register(sharedProcessLifecycleService.onWillShutdown(e => {
+			if (this._tunnelProcess) {
+				this._tunnelProcess.cancel();
+				this._tunnelProcess = undefined;
+			}
+			this.dispose();
+		}));
 	}
 
 	async getAccount(): Promise<IRemoteTunnelAccount | undefined> {
@@ -77,7 +76,6 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 	}
 
 	async updateAccount(account: IRemoteTunnelAccount | undefined): Promise<void> {
-		console.log('updateAccount');
 		if (account && this._account ? account.token !== this._account.token || account.authenticationProviderId !== this._account.authenticationProviderId : account !== this._account) {
 			this._account = account;
 			this._onDidChangeAccountEmitter.fire(account);
@@ -113,7 +111,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			this._onTokenFailedEmitter.fire(true);
 		}
 		if (this._tunnelProcess === loginProcess) {
-			const serveCommand = this.runCodeTunneCommand('tunnel', 'tunnel');
+			const serveCommand = this.runCodeTunneCommand('tunnel', 'tunnel', '--random-name');
 			this._tunnelProcess = serveCommand;
 			serveCommand.finally(() => {
 				if (serveCommand === this._tunnelProcess) {

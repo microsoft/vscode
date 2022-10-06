@@ -108,14 +108,17 @@ import { UserDataProfilesNativeService } from 'vs/platform/userDataProfile/elect
 import { SharedProcessRequestService } from 'vs/platform/request/electron-browser/sharedProcessRequestService';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 import { UserDataProfilesCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/userDataProfilesCleaner';
-import { RemoteTunnelService } from 'vs/platform/remoteTunnel/node/remoteTunnelService';
+import { RemoteTunnelService } from 'vs/platform/remoteTunnel/electron-browser/remoteTunnelService';
 import { IRemoteTunnelService } from 'vs/platform/remoteTunnel/common/remoteTunnel';
+import { ISharedProcessLifecycleService, SharedProcessLifecycleService } from 'vs/platform/lifecycle/electron-browser/sharedProcessLifecycleService';
 
 class SharedProcessMain extends Disposable {
 
 	private server = this._register(new MessagePortServer());
 
 	private sharedProcessWorkerService: ISharedProcessWorkerService | undefined = undefined;
+
+	private lifecycleService: SharedProcessLifecycleService | undefined = undefined;;
 
 	constructor(private configuration: ISharedProcessConfiguration) {
 		super();
@@ -126,7 +129,14 @@ class SharedProcessMain extends Disposable {
 	private registerListeners(): void {
 
 		// Shared process lifecycle
-		const onExit = () => this.dispose();
+		const onExit = async () => {
+			if (this.lifecycleService) {
+				await this.lifecycleService.fireOnWillShutdown();
+				this.lifecycleService.dispose();
+				this.lifecycleService = undefined;
+			}
+			this.dispose();
+		};
 		process.once('exit', onExit);
 		ipcRenderer.once('vscode:electron-main->shared-process=exit', onExit);
 
@@ -182,6 +192,8 @@ class SharedProcessMain extends Disposable {
 	private async initServices(): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
+		// Lifecycle
+
 		// Product
 		const productService = { _serviceBrand: undefined, ...product };
 		services.set(IProductService, productService);
@@ -212,6 +224,10 @@ class SharedProcessMain extends Disposable {
 
 		const logService = this._register(new FollowerLogService(logLevelClient, multiplexLogger));
 		services.set(ILogService, logService);
+
+		// Lifecycle
+		this.lifecycleService = new SharedProcessLifecycleService(logService);
+		services.set(ISharedProcessLifecycleService, this.lifecycleService);
 
 		// Worker
 		this.sharedProcessWorkerService = new SharedProcessWorkerService(logService);
