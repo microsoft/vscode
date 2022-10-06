@@ -14,7 +14,7 @@ import { Schemas } from 'vs/base/common/network';
 import { ITextModelService, ITextModelContentProvider, ITextEditorModel, IResolvedTextEditorModel, isResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { ModelUndoRedoParticipant } from 'vs/editor/common/services/modelUndoRedoParticipant';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -246,4 +246,4 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 	}
 }
 
-registerSingleton(ITextModelService, TextModelResolverService, true);
+registerSingleton(ITextModelService, TextModelResolverService, InstantiationType.Delayed);

@@ -22,7 +22,7 @@ import { ExplorerViewletViewsContribution } from 'vs/workbench/contrib/files/bro
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExplorerService, UNDO_REDO_SOURCE } from 'vs/workbench/contrib/files/browser/explorerService';
 import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
 import { Schemas } from 'vs/base/common/network';
@@ -53,7 +53,7 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 	}
 }
 
-registerSingleton(IExplorerService, ExplorerService, true);
+registerSingleton(IExplorerService, ExplorerService, InstantiationType.Delayed);
 
 // Register file editors
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(

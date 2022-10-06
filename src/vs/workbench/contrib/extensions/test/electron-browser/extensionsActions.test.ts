@@ -68,7 +68,7 @@ let installEvent: Emitter<InstallExtensionEvent>,
 
 let disposables: DisposableStore;
 
-async function setupTest() {
+function setupTest() {
 	disposables = new DisposableStore();
 	installEvent = new Emitter<InstallExtensionEvent>();
 	didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
@@ -136,6 +136,7 @@ async function setupTest() {
 	instantiationService.stub(IExtensionRecommendationsService, {});
 	instantiationService.stub(IURLService, NativeURLService);
 
+	instantiationService.stub(IExtensionGalleryService, 'isEnabled', true);
 	instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
 	instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', []);
 	instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{ extensions: [], onDidChangeExtensions: Event.None, canAddExtension: (extension: IExtensionDescription) => false, canRemoveExtension: (extension: IExtensionDescription) => false, whenInstalledExtensionsRegistered: () => Promise.resolve(true) });

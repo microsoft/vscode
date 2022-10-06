@@ -21,7 +21,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -41,7 +41,7 @@ import { expandAndGetTestById, IMainThreadTestCollection, ITestService, testsInF
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
-const category = CATEGORIES.Test;
+const category = Categories.Test;
 
 const enum ActionOrder {
 	// Navigation:

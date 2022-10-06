@@ -10,7 +10,7 @@ import { coalesceInPlace } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -18,8 +18,12 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const enum HiddenItemStrategy {
+	/** This toolbar doesn't support hiding*/
+	NoHide = -1,
+	/** Hidden items aren't shown anywhere */
 	Ignore = 0,
-	RenderInSecondaryGroup = 1
+	/** Hidden items move into the secondary group */
+	RenderInSecondaryGroup = 1,
 }
 
 export type IWorkbenchToolBarOptions = IToolBarOptions & {
@@ -104,32 +108,33 @@ export class WorkbenchToolBar extends ToolBar {
 		const toggleActions: IAction[] = [];
 
 		let someAreHidden = false;
+		// unless disabled, move all hidden items to secondary group or ignore them
+		if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.NoHide) {
+			let shouldPrependSeparator = secondary.length > 0;
+			for (let i = 0; i < primary.length; i++) {
+				const action = primary[i];
+				if (!(action instanceof MenuItemAction) && !(action instanceof SubmenuItemAction)) {
+					// console.warn(`Action ${action.id}/${action.label} is not a MenuItemAction`);
+					continue;
+				}
+				if (!action.hideActions) {
+					continue;
+				}
 
-		// move all hidden items to secondary group or ignore them
-		let shouldPrependSeparator = secondary.length > 0;
-		for (let i = 0; i < primary.length; i++) {
-			const action = primary[i];
-			if (!(action instanceof MenuItemAction) && !(action instanceof SubmenuItemAction)) {
-				// console.warn(`Action ${action.id}/${action.label} is not a MenuItemAction`);
-				continue;
-			}
-			if (!action.hideActions) {
-				continue;
-			}
+				// collect all toggle actions
+				toggleActions.push(action.hideActions.toggle);
 
-			// collect all toggle actions
-			toggleActions.push(action.hideActions.toggle);
-
-			// hidden items move into overflow or ignore
-			if (action.hideActions.isHidden) {
-				someAreHidden = true;
-				primary[i] = undefined!;
-				if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.Ignore) {
-					if (shouldPrependSeparator) {
-						shouldPrependSeparator = false;
-						secondary.unshift(new Separator());
+				// hidden items move into overflow or ignore
+				if (action.hideActions.isHidden) {
+					someAreHidden = true;
+					primary[i] = undefined!;
+					if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.Ignore) {
+						if (shouldPrependSeparator) {
+							shouldPrependSeparator = false;
+							secondary.unshift(new Separator());
+						}
+						secondary.unshift(action);
 					}
-					secondary.unshift(action);
 				}
 			}
 		}
@@ -182,23 +187,15 @@ export class WorkbenchToolBar extends ToolBar {
 					}));
 				}
 
-				// add context menu actions (iff appicable)
-				if (this._options?.contextMenu) {
-					const menu = this._menuService.createMenu(this._options.contextMenu, this._contextKeyService);
-					const contextMenuActions: IAction[] = [];
-					createAndFillInContextMenuActions(menu, { ...this._options?.menuOptions, renderShortTitle: true, }, contextMenuActions);
-					menu.dispose();
-
-					if (contextMenuActions.length > 0) {
-						actions = [...actions, new Separator(), ...contextMenuActions];
-					}
-				}
-
 				// this.getElement().classList.toggle('config', true);
 
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => e,
 					getActions: () => actions,
+					// add context menu actions (iff appicable)
+					menuId: this._options?.contextMenu,
+					menuActionOptions: { renderShortTitle: true, ...this._options?.menuOptions },
+					contextKeyService: this._contextKeyService,
 					onHide: () => this.getElement().classList.toggle('config', false),
 				});
 			}));

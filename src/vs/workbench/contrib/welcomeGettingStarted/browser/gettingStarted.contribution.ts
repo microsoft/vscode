@@ -30,6 +30,7 @@ import { IExtensionManagementServerService } from 'vs/workbench/services/extensi
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { StartupPageContribution, } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
 
 export * as icons from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
@@ -39,7 +40,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.openWalkthrough',
 			title: { value: localize('miGetStarted', "Get Started"), original: 'Get Started' },
-			category: localize('help', "Help"),
+			category: Categories.Help,
 			f1: true,
 			menu: {
 				id: MenuId.MenubarHelpMenu,

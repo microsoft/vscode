@@ -64,7 +64,7 @@ import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/s
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-
+const interactiveWindowCategory = localize('interactiveWindow', 'Interactive Window');
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -325,7 +325,7 @@ registerAction2(class extends Action2 {
 			id: '_interactive.open',
 			title: { value: localize('interactive.open', "Open Interactive Window"), original: 'Open Interactive Window' },
 			f1: false,
-			category: 'Interactive Window',
+			category: interactiveWindowCategory,
 			description: {
 				description: localize('interactive.open', "Open Interactive Window"),
 				args: [
@@ -441,7 +441,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'interactive.execute',
 			title: { value: localize('interactive.execute', "Execute Code"), original: 'Execute Code' },
-			category: 'Interactive Window',
+			category: interactiveWindowCategory,
 			keybinding: {
 				// when: NOTEBOOK_CELL_LIST_FOCUSED,
 				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
@@ -557,7 +557,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'interactive.input.clear',
 			title: { value: localize('interactive.input.clear', "Clear the interactive window input editor contents"), original: 'Clear the interactive window input editor contents' },
-			category: 'Interactive Window',
+			category: interactiveWindowCategory,
 			f1: false
 		});
 	}
@@ -583,7 +583,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'interactive.history.previous',
 			title: { value: localize('interactive.history.previous', "Previous value in history"), original: 'Previous value in history' },
-			category: 'Interactive Window',
+			category: interactiveWindowCategory,
 			f1: false,
 			keybinding: {
 				when: ContextKeyExpr.and(
@@ -622,7 +622,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'interactive.history.next',
 			title: { value: localize('interactive.history.next', "Next value in history"), original: 'Next value in history' },
-			category: 'Interactive Window',
+			category: interactiveWindowCategory,
 			f1: false,
 			keybinding: {
 				when: ContextKeyExpr.and(
@@ -668,7 +668,7 @@ registerAction2(class extends Action2 {
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow },
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			category: 'Interactive Window',
+			category: interactiveWindowCategory,
 		});
 	}
 
@@ -697,7 +697,7 @@ registerAction2(class extends Action2 {
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			category: 'Interactive Window',
+			category: interactiveWindowCategory,
 		});
 	}
 
@@ -721,7 +721,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'interactive.input.focus',
 			title: { value: localize('interactive.input.focus', "Focus input editor in the interactive window"), original: 'Focus input editor in the interactive window' },
-			category: 'Interactive Window',
+			category: interactiveWindowCategory,
 			f1: true
 		});
 	}
@@ -756,7 +756,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'interactive.history.focus',
 			title: { value: localize('interactive.history.focus', "Focus history in the interactive window"), original: 'Focus input editor in the interactive window' },
-			category: 'Interactive Window',
+			category: interactiveWindowCategory,
 			f1: true,
 			precondition: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
 		});

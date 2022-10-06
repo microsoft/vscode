@@ -45,7 +45,10 @@ export interface IQuickPickItem {
 
 export interface IQuickPickSeparator {
 	type: 'separator';
+	id?: string;
 	label?: string;
+	ariaLabel?: string;
+	buttons?: IQuickInputButton[];
 }
 
 export interface IKeyMods {
@@ -126,6 +129,7 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	onKeyMods?: (keyMods: IKeyMods) => void;
 	onDidFocus?: (entry: T) => void;
 	onDidTriggerItemButton?: (context: IQuickPickItemButtonContext<T>) => void;
+	onDidTriggerSeparatorButton?: (context: IQuickPickSeparatorButtonEvent) => void;
 }
 
 export interface IInputOptions {
@@ -284,6 +288,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	readonly onDidTriggerItemButton: Event<IQuickPickItemButtonEvent<T>>;
 
+	readonly onDidTriggerSeparatorButton: Event<IQuickPickSeparatorButtonEvent>;
+
 	items: ReadonlyArray<T | IQuickPickSeparator>;
 
 	canSelectMany: boolean;
@@ -426,6 +432,11 @@ export interface IQuickInputButton {
 export interface IQuickPickItemButtonEvent<T extends IQuickPickItem> {
 	button: IQuickInputButton;
 	item: T;
+}
+
+export interface IQuickPickSeparatorButtonEvent {
+	button: IQuickInputButton;
+	separator: IQuickPickSeparator;
 }
 
 export interface IQuickPickItemButtonContext<T extends IQuickPickItem> extends IQuickPickItemButtonEvent<T> {
