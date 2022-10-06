@@ -18,7 +18,7 @@ import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormat
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { match } from 'vs/base/common/glob';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
@@ -143,9 +143,9 @@ export class LabelService extends Disposable implements ILabelService {
 		this.os = OS;
 		this.userHome = pathService.defaultUriScheme === Schemas.file ? this.pathService.userHome({ preferLocal: true }) : undefined;
 
-		const memento = this.storedFormattersMemento = new Memento('cachedResourceLabelFormatters', storageService);
+		const memento = this.storedFormattersMemento = new Memento('cachedResourceLabelFormatters2', storageService);
 		this.storedFormatters = memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
-		this.formatters = this.storedFormatters?.formatters || [];
+		this.formatters = this.storedFormatters?.formatters?.slice() || [];
 
 		// Remote environment is potentially long running
 		this.resolveRemoteEnvironment();
@@ -455,4 +455,4 @@ export class LabelService extends Disposable implements ILabelService {
 	}
 }
 
-registerSingleton(ILabelService, LabelService, true);
+registerSingleton(ILabelService, LabelService, InstantiationType.Delayed);

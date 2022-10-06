@@ -13,7 +13,7 @@ import { strings } from './utils';
 import { readFileSync, statSync } from 'fs';
 import * as log from 'fancy-log';
 import colors = require('ansi-colors');
-import { Transpiler } from './transpiler';
+import { ITranspiler, SwcTranspiler, TscTranspiler } from './transpiler';
 
 export interface IncrementalCompiler {
 	(token?: any): Readable & Writable;
@@ -36,7 +36,7 @@ const _defaultOnError = (err: string) => console.log(JSON.stringify(err, null, 4
 export function create(
 	projectPath: string,
 	existingOptions: Partial<ts.CompilerOptions>,
-	config: { verbose?: boolean; transpileOnly?: boolean; transpileOnlyIncludesDts?: boolean },
+	config: { verbose?: boolean; transpileOnly?: boolean; transpileOnlyIncludesDts?: boolean; transpileWithSwc?: boolean },
 	onError: (message: string) => void = _defaultOnError
 ): IncrementalCompiler {
 
@@ -95,7 +95,7 @@ export function create(
 	}
 
 	// TRANSPILE ONLY stream doing just TS to JS conversion
-	function createTranspileStream(transpiler: Transpiler): Readable & Writable {
+	function createTranspileStream(transpiler: ITranspiler): Readable & Writable {
 		return through(function (this: through.ThroughStream & { queue(a: any): void }, file: Vinyl) {
 			// give the file to the compiler
 			if (file.isStream()) {
@@ -126,7 +126,9 @@ export function create(
 
 	let result: IncrementalCompiler;
 	if (config.transpileOnly) {
-		const transpiler = new Transpiler(logFn, printDiagnostic, projectPath, cmdLine);
+		const transpiler = !config.transpileWithSwc
+			? new TscTranspiler(logFn, printDiagnostic, projectPath, cmdLine)
+			: new SwcTranspiler(logFn, printDiagnostic, projectPath, cmdLine);
 		result = <any>(() => createTranspileStream(transpiler));
 	} else {
 		const _builder = builder.createTypeScriptBuilder({ logFn }, projectPath, cmdLine);

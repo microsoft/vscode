@@ -15,7 +15,7 @@ import { AudioCueService, IAudioCueService } from 'vs/workbench/contrib/audioCue
 import { ShowAudioCueHelp } from 'vs/workbench/contrib/audioCues/browser/commands';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-registerSingleton(IAudioCueService, AudioCueService);
+registerSingleton(IAudioCueService, AudioCueService, false);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineFeatureContribution, LifecyclePhase.Restored);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineDebuggerContribution, LifecyclePhase.Restored);
@@ -70,6 +70,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'audioCues.noInlayHints': {
 			'description': localize('audioCues.noInlayHints', "Plays a sound when trying to read a line with inlay hints that has no inlay hints."),
+			...audioCueFeatureBase,
+		},
+		'audioCues.taskCompleted': {
+			'description': localize('audioCues.taskCompleted', "Plays a sound when a task completed."),
+			...audioCueFeatureBase,
+		},
+		'audioCues.taskFailed': {
+			'description': localize('audioCues.taskFailed', "Plays a sound when a task fails (non-zero exit code)."),
+			...audioCueFeatureBase,
+		},
+		'audioCues.terminalQuickFix': {
+			'description': localize('audioCues.terminalQuickFix', "Plays a sound when a terminal quick fixes are available"),
 			...audioCueFeatureBase,
 		},
 	}

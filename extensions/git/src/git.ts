@@ -18,6 +18,7 @@ import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
+import TelemetryReporter from '@vscode/extension-telemetry';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
@@ -373,11 +374,14 @@ export class Git {
 	private _onOutput = new EventEmitter();
 	get onOutput(): EventEmitter { return this._onOutput; }
 
-	constructor(options: IGitOptions) {
+	private readonly telemetryReporter: TelemetryReporter;
+
+	constructor(options: IGitOptions, telemetryReporter: TelemetryReporter) {
 		this.path = options.gitPath;
 		this.version = options.version;
 		this.userAgent = options.userAgent;
 		this.env = options.env || {};
+		this.telemetryReporter = telemetryReporter;
 
 		const onConfigurationChanged = (e?: ConfigurationChangeEvent) => {
 			if (e !== undefined && !e.affectsConfiguration('git.commandsToLog')) {
@@ -427,7 +431,7 @@ export class Git {
 			let previousProgress = 0;
 
 			lineStream.on('data', (line: string) => {
-				let match: RegExpMatchArray | null = null;
+				let match: RegExpExecArray | null = null;
 
 				if (match = /Counting objects:\s*(\d+)%/i.exec(line)) {
 					totalProgress = Math.floor(parseInt(match[1]) * 0.1);
@@ -475,12 +479,13 @@ export class Git {
 		const repoPath = path.normalize(result.stdout.trimLeft().replace(/[\r\n]+$/, ''));
 
 		if (isWindows) {
-			// On Git 2.25+ if you call `rev-parse --show-toplevel` on a mapped drive, instead of getting the mapped drive path back, you get the UNC path for the mapped drive.
-			// So we will try to normalize it back to the mapped drive path, if possible
+			// On Git 2.25+ if you call `rev-parse --show-toplevel` on a mapped drive, instead of getting the mapped
+			// drive path back, you get the UNC path for the mapped drive. So we will try to normalize it back to the
+			// mapped drive path, if possible
 			const repoUri = Uri.file(repoPath);
 			const pathUri = Uri.file(repositoryPath);
 			if (repoUri.authority.length !== 0 && pathUri.authority.length === 0) {
-				// eslint-disable-next-line code-no-look-behind-regex
+				// eslint-disable-next-line local/code-no-look-behind-regex
 				const match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
 				if (match !== null) {
 					const [, letter] = match;
@@ -554,7 +559,9 @@ export class Git {
 	}
 
 	private async _exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
+		const startSpawn = Date.now();
 		const child = this.spawn(args, options);
+		const durSpawn = Date.now() - startSpawn;
 
 		options.onSpawn?.(child);
 
@@ -562,12 +569,13 @@ export class Git {
 			child.stdin!.end(options.input, 'utf8');
 		}
 
-		const startTime = Date.now();
+		const startExec = Date.now();
 		const bufferResult = await exec(child, options.cancellationToken);
+		const durExec = Date.now() - startExec;
 
 		if (options.log !== false) {
 			// command
-			this.log(`> git ${args.join(' ')} [${Date.now() - startTime}ms]\n`);
+			this.log(`> git ${args.join(' ')} [${durExec}ms]\n`);
 
 			// stdout
 			if (bufferResult.stdout.length > 0 && args.find(a => this.commandsToLog.includes(a))) {
@@ -579,6 +587,16 @@ export class Git {
 				this.log(`${bufferResult.stderr}\n`);
 			}
 		}
+
+		/* __GDPR__
+			"git.execDuration" : {
+				"owner": "lszomoru",
+				"comment": "Time it takes to spawn and execute a git command",
+				"durSpawn": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth","isMeasurement": true, "comment": "Time it took to run spawn git" },
+				"durExec": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth","isMeasurement": true, "comment": "Time git took" }
+			}
+		*/
+		this.telemetryReporter.sendTelemetryEvent('git.execDuration', undefined, { durSpawn, durExec });
 
 		let encoding = options.encoding || 'utf8';
 		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
@@ -647,6 +665,27 @@ export class Git {
 
 	private log(output: string): void {
 		this._onOutput.emit('log', output);
+	}
+
+	async mergeFile(options: { input1Path: string; input2Path: string; basePath: string; diff3?: boolean }): Promise<string> {
+		const args = ['merge-file', '-p', options.input1Path, options.basePath, options.input2Path];
+		if (options.diff3) {
+			args.push('--diff3');
+		} else {
+			args.push('--no-diff3');
+		}
+
+		try {
+			const result = await this.exec('', args);
+			return result.stdout;
+		} catch (err) {
+			if (typeof err.stdout === 'string') {
+				// The merge had conflicts, stdout still contains the merged result (with conflict markers)
+				return err.stdout;
+			} else {
+				throw err;
+			}
+		}
 	}
 }
 
@@ -1087,7 +1126,7 @@ export class Repository {
 		}
 
 		if (!isText) {
-			const result = filetype(buffer);
+			const result = await filetype.fromBuffer(buffer);
 
 			if (!result) {
 				return { mimetype: 'application/octet-stream' };
@@ -1467,7 +1506,7 @@ export class Repository {
 		const args = ['rebase', '--continue'];
 
 		try {
-			await this.exec(args);
+			await this.exec(args, { env: { GIT_EDITOR: 'true' } });
 		} catch (commitErr) {
 			await this.handleCommitError(commitErr);
 		}
@@ -1546,6 +1585,10 @@ export class Repository {
 
 			throw err;
 		}
+	}
+
+	async mergeAbort(): Promise<void> {
+		await this.exec(['merge', '--abort']);
 	}
 
 	async tag(name: string, message?: string): Promise<void> {
@@ -1682,6 +1725,9 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.NoRemoteRepositorySpecified;
 			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
+			} else if (/! \[rejected\].*\(non-fast-forward\)/m.test(err.stderr || '')) {
+				// The local branch has outgoing changes and it cannot be fast-forwarded.
+				err.gitErrorCode = GitErrorCodes.BranchFastForwardRejected;
 			}
 
 			throw err;

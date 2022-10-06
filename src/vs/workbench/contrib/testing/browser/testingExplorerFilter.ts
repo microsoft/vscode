@@ -24,6 +24,7 @@ import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { denamespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { Emitter } from 'vs/base/common/event';
 
 const testFilterDescriptions: { [K in TestFilterTerm]: string } = {
 	[TestFilterTerm.Failed]: localize('testing.filters.showOnlyFailed', "Show Only Failed Tests"),
@@ -35,7 +36,9 @@ const testFilterDescriptions: { [K in TestFilterTerm]: string } = {
 export class TestingExplorerFilter extends BaseActionViewItem {
 	private input!: SuggestEnabledInputWithHistory;
 	private wrapper!: HTMLDivElement;
-	private readonly history: StoredValue<string[]> = this.instantiationService.createInstance(StoredValue, {
+	private readonly focusEmitter = this._register(new Emitter<void>());
+	public readonly onDidFocus = this.focusEmitter.event;
+	private readonly history: StoredValue<{ values: string[]; lastValue: string } | string[]> = this.instantiationService.createInstance(StoredValue, {
 		key: 'testing.filterHistory2',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.USER
@@ -65,9 +68,12 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 		const wrapper = this.wrapper = dom.$('.testing-filter-wrapper');
 		container.appendChild(wrapper);
 
-		const history = this.history.get([]);
-		if (history.length) {
-			this.state.setText(history[history.length - 1]);
+		let history = this.history.get({ lastValue: '', values: [] });
+		if (history instanceof Array) {
+			history = { lastValue: '', values: history };
+		}
+		if (history.lastValue) {
+			this.state.setText(history.lastValue);
 		}
 
 		const input = this.input = this._register(this.instantiationService.createInstance(ContextScopedSuggestEnabledInputWithHistory, {
@@ -94,7 +100,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 				value: this.state.text.value,
 				placeholderText: localize('testExplorerFilter', "Filter (e.g. text, !exclude, @tag)"),
 			},
-			history
+			history: history.values
 		}));
 		this._register(attachSuggestEnabledInputBoxStyler(input, this.themeService));
 
@@ -106,6 +112,10 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 
 		this._register(this.state.onDidRequestInputFocus(() => {
 			input.focus();
+		}));
+
+		this._register(input.onDidFocus(() => {
+			this.focusEmitter.fire();
 		}));
 
 		this._register(input.onInputDidChange(() => updateDelayer.trigger(() => {
@@ -145,12 +155,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 	 * Persists changes to the input history.
 	 */
 	public saveState() {
-		const history = this.input.getHistory();
-		if (history.length) {
-			this.history.store(history);
-		} else {
-			this.history.delete();
-		}
+		this.history.store({ lastValue: this.input.getValue(), values: this.input.getHistory() });
 	}
 
 	/**
@@ -216,8 +221,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				id: 'fuzzy',
 				label: localize('testing.filters.fuzzyMatch', "Fuzzy Match"),
 				run: () => this.filters.fuzzy.value = !this.filters.fuzzy.value,
-				tooltip: '',
-				dispose: () => null
+				tooltip: ''
 			},
 			new Separator(),
 			{
@@ -227,8 +231,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				id: 'showExcluded',
 				label: localize('testing.filters.showExcludedTests', "Show Hidden Tests"),
 				run: () => this.filters.toggleFilteringFor(TestFilterTerm.Hidden),
-				tooltip: '',
-				dispose: () => null
+				tooltip: ''
 			},
 			{
 				checked: false,
@@ -237,8 +240,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				id: 'removeExcluded',
 				label: localize('testing.filters.removeTestExclusions', "Unhide All Tests"),
 				run: async () => this.testService.excluded.clear(),
-				tooltip: '',
-				dispose: () => null
+				tooltip: ''
 			}
 		];
 	}
@@ -251,6 +253,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			_isFakeAction: true,
 			id: TestCommandId.FilterAction,
 			title: { value: localize('filter', "Filter"), original: 'Filter' },
 		});

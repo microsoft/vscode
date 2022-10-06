@@ -442,6 +442,17 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 					}
 				}
 				if (!hasHeader) {
+					// no markdown syntax headers, try to find html tags
+					const match = fullContent.match(/<h([1-6]).*>(.*)<\/h\1>/i);
+					if (match) {
+						hasHeader = true;
+						const level = parseInt(match[1]);
+						const text = match[2].trim();
+						entries.push(new OutlineEntry(entries.length, level, cell, text, false, false));
+					}
+				}
+
+				if (!hasHeader) {
 					content = renderMarkdownAsPlaintext({ value: content });
 				}
 			}

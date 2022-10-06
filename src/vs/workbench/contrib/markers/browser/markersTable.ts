@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
-import * as network from 'vs/base/common/network';
 import { Event } from 'vs/base/common/event';
 import { ITableContextMenuEvent, ITableEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -29,6 +28,7 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IProblemsWidget } from 'vs/workbench/contrib/markers/browser/markersView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Range } from 'vs/editor/common/core/range';
+import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
 
 const $ = DOM.$;
 
@@ -135,15 +135,17 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 	}
 
 	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerCodeColumnTemplateData, height: number | undefined): void {
-		if (element.marker.source && element.marker.code) {
-			templateData.codeColumn.classList.toggle('code-link', typeof element.marker.code !== 'string');
-			DOM.show(templateData.codeLabel.element);
+		templateData.codeColumn.classList.remove('code-label');
+		templateData.codeColumn.classList.remove('code-link');
 
+		if (element.marker.source && element.marker.code) {
 			if (typeof element.marker.code === 'string') {
+				templateData.codeColumn.classList.add('code-label');
 				templateData.codeColumn.title = `${element.marker.source} (${element.marker.code})`;
 				templateData.sourceLabel.set(element.marker.source, element.sourceMatches);
 				templateData.codeLabel.set(element.marker.code, element.codeMatches);
 			} else {
+				templateData.codeColumn.classList.add('code-link');
 				templateData.codeColumn.title = `${element.marker.source} (${element.marker.code.value})`;
 				templateData.sourceLabel.set(element.marker.source, element.sourceMatches);
 
@@ -159,7 +161,6 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 		} else {
 			templateData.codeColumn.title = '';
 			templateData.sourceLabel.set('-');
-			DOM.hide(templateData.codeLabel.element);
 		}
 	}
 
@@ -410,7 +411,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 		const items: MarkerTableItem[] = [];
 		for (const resourceMarker of this.resourceMarkers) {
 			for (const marker of resourceMarker.markers) {
-				if (marker.resource.scheme === network.Schemas.walkThrough || marker.resource.scheme === network.Schemas.walkThroughSnippet) {
+				if (unsupportedSchemas.has(marker.resource.scheme)) {
 					continue;
 				}
 

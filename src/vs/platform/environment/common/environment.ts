@@ -65,6 +65,7 @@ export interface IEnvironmentService {
 	sync: 'on' | 'off' | undefined;
 
 	// --- continue edit session
+	continueOn?: string;
 	editSessionId?: string;
 	editSessionsLogResource: URI;
 
@@ -86,6 +87,7 @@ export interface IEnvironmentService {
 	// --- telemetry
 	disableTelemetry: boolean;
 	telemetryLogResource: URI;
+	extensionTelemetryLogResource: URI;
 	serviceMachineIdResource: URI;
 
 	// --- Policy
@@ -123,6 +125,13 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	args: NativeParsedArgs;
 
 	// --- data paths
+	/**
+	 * Root path of the JavaScript sources.
+	 *
+	 * Note: This is NOT the installation root
+	 * directory itself but contained in it at
+	 * a level that is platform dependent.
+	 */
 	appRoot: string;
 	userHome: URI;
 	appSettingsHome: URI;
@@ -138,6 +147,8 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 
 	// --- use keytar for credentials
 	disableKeytar?: boolean;
+
+	crossOriginIsolated?: boolean;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//

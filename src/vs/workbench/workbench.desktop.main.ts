@@ -85,10 +85,10 @@ import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistorySer
 import 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService';
 import 'vs/workbench/services/extensions/electron-sandbox/sandboxExtensionService';
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 
-registerSingleton(IUserDataInitializationService, UserDataInitializationService);
+registerSingleton(IUserDataInitializationService, UserDataInitializationService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -156,5 +156,8 @@ import 'vs/workbench/contrib/splash/electron-sandbox/splash.contribution';
 
 // Local History
 import 'vs/workbench/contrib/localHistory/electron-sandbox/localHistory.contribution';
+
+// Merge Editor
+import 'vs/workbench/contrib/mergeEditor/electron-sandbox/mergeEditor.contribution';
 
 //#endregion

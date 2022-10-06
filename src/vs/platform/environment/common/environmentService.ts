@@ -226,6 +226,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	@memoize
 	get telemetryLogResource(): URI { return URI.file(join(this.logsPath, 'telemetry.log')); }
+	get extensionTelemetryLogResource(): URI { return URI.file(join(this.logsPath, 'extensionTelemetry.log')); }
 	get disableTelemetry(): boolean { return !!this.args['disable-telemetry']; }
 
 	@memoize
@@ -245,6 +246,14 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	}
 
 	editSessionId: string | undefined = this.args['editSessionId'];
+
+	get continueOn(): string | undefined {
+		return this.args['continueOn'];
+	}
+
+	set continueOn(value: string | undefined) {
+		this.args['continueOn'] = value;
+	}
 
 	get args(): NativeParsedArgs { return this._args; }
 

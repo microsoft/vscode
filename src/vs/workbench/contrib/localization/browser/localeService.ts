@@ -33,7 +33,7 @@ export class WebLocaleService implements ILocaleService {
 
 		const restartDialog = await this.dialogService.confirm({
 			type: 'info',
-			message: localize('relaunchDisplayLanguageMessage', "{0} needs to reload to change the display language", this.productService.nameLong),
+			message: localize('relaunchDisplayLanguageMessage', "To change the display language, {0} needs to reload", this.productService.nameLong),
 			detail: localize('relaunchDisplayLanguageDetail', "Press the reload button to refresh the page and set the display language to {0}.", languagePackItem.label),
 			primaryButton: localize({ key: 'reload', comment: ['&& denotes a mnemonic character'] }, "&&Reload"),
 		});
@@ -52,7 +52,7 @@ export class WebLocaleService implements ILocaleService {
 
 		const restartDialog = await this.dialogService.confirm({
 			type: 'info',
-			message: localize('clearDisplayLanguageMessage', "{0} needs to reload to change the display language", this.productService.nameLong),
+			message: localize('clearDisplayLanguageMessage', "To change the display language, {0} needs to reload", this.productService.nameLong),
 			detail: localize('clearDisplayLanguageDetail', "Press the reload button to refresh the page and use your browser's language."),
 			primaryButton: localize({ key: 'reload', comment: ['&& denotes a mnemonic character'] }, "&&Reload"),
 		});

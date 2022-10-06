@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { timeout } from 'vs/base/common/async';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { TestServiceClient } from './testService';
@@ -15,7 +16,9 @@ function createClient(): Client {
 	});
 }
 
-suite('IPC, Child Process', () => {
+suite('IPC, Child Process', function () {
+	this.timeout(10000);
+
 	test('createChannel', () => {
 		const client = createClient();
 		const channel = client.getChannel('test');
@@ -45,10 +48,12 @@ suite('IPC, Child Process', () => {
 			});
 		});
 
-		const request = service.marco();
-		const result = Promise.all([request, event]);
+		return timeout(100).then(() => {
+			const request = service.marco();
+			const result = Promise.all([request, event]);
 
-		return result.finally(() => client.dispose());
+			return result.finally(() => client.dispose());
+		});
 	});
 
 	test('event dispose', () => {

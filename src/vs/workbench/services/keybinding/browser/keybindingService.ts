@@ -32,7 +32,7 @@ import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMappe
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { commandsExtensionPoint } from 'vs/workbench/services/actions/common/menusExtensionPoint';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -41,7 +41,6 @@ import { parse } from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
 import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 import { getDispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
-import { isArray } from 'vs/base/common/types';
 import { INavigatorWithKeyboard, IKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
 import { flatten } from 'vs/base/common/arrays';
 import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
@@ -743,7 +742,9 @@ class UserKeybindings extends Disposable {
 
 	private async whenCurrentProfieChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
 		if (e.preserveData) {
-			await this.fileService.copy(e.previous.keybindingsResource, e.profile.keybindingsResource);
+			if (await this.fileService.exists(e.previous.keybindingsResource)) {
+				await this.fileService.copy(e.previous.keybindingsResource, e.profile.keybindingsResource);
+			}
 		}
 		this.watch();
 		this.reloadConfigurationScheduler.schedule();
@@ -765,7 +766,7 @@ class UserKeybindings extends Disposable {
 		try {
 			const content = await this.fileService.readFile(this.userDataProfileService.currentProfile.keybindingsResource);
 			const value = parse(content.value.toString());
-			this._keybindings = isArray(value) ? value : [];
+			this._keybindings = Array.isArray(value) ? value : [];
 		} catch (e) {
 			this._keybindings = [];
 		}
@@ -921,4 +922,4 @@ const keyboardConfiguration: IConfigurationNode = {
 
 configurationRegistry.registerConfiguration(keyboardConfiguration);
 
-registerSingleton(IKeybindingService, WorkbenchKeybindingService);
+registerSingleton(IKeybindingService, WorkbenchKeybindingService, InstantiationType.Eager);

@@ -130,7 +130,7 @@ export class NativeLocaleService implements ILocaleService {
 	private async showRestartDialog(languageName: string) {
 		const restartDialog = await this.dialogService.confirm({
 			type: 'info',
-			message: localize('restartDisplayLanguageMessage', "{0} needs to restart to change the display language", this.productService.nameLong),
+			message: localize('restartDisplayLanguageMessage', "To change the display language, {0} needs to restart", this.productService.nameLong),
 			detail: localize(
 				'restartDisplayLanguageDetail',
 				"Press the restart button to restart {0} and set the display language to {1}.",

@@ -8,7 +8,7 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme, ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -358,7 +358,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: SelectColorThemeCommandId,
 			title: { value: localize('selectTheme.label', "Color Theme"), original: 'Color Theme' },
-			category: CATEGORIES.Preferences,
+			category: Categories.Preferences,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -400,7 +400,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: SelectFileIconThemeCommandId,
 			title: { value: localize('selectIconTheme.label', "File Icon Theme"), original: 'File Icon Theme' },
-			category: CATEGORIES.Preferences,
+			category: Categories.Preferences,
 			f1: true
 		});
 	}
@@ -435,7 +435,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: SelectProductIconThemeCommandId,
 			title: { value: localize('selectProductIconTheme.label', "Product Icon Theme"), original: 'Product Icon Theme' },
-			category: CATEGORIES.Preferences,
+			category: Categories.Preferences,
 			f1: true
 		});
 	}
@@ -546,7 +546,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.generateColorTheme',
 			title: { value: localize('generateColorTheme.label', "Generate Color Theme From Current Settings"), original: 'Generate Color Theme From Current Settings' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}
@@ -600,7 +600,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: toggleLightDarkThemesCommandId,
 			title: { value: localize('toggleLightDarkThemes.label', "Toggle between Light/Dark Themes"), original: 'Toggle between Light/Dark Themes' },
-			category: CATEGORIES.Preferences,
+			category: Categories.Preferences,
 			f1: true,
 		});
 	}

@@ -44,7 +44,7 @@ delete process.env.VSCODE_RECONNECT_GRACE_TIME;
 delete process.env.VSCODE_RECONNECT_SHORT_GRACE_TIME;
 delete process.env.VSCODE_RECONNECT_SCROLLBACK;
 
-const ptyService = new PtyService(lastPtyId, logService, reconnectConstants);
+const ptyService = new PtyService(lastPtyId, logService, productService, reconnectConstants);
 server.registerChannel(TerminalIpcChannels.PtyHost, ProxyChannel.fromService(ptyService));
 
 process.once('exit', () => {

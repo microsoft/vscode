@@ -31,6 +31,8 @@ export const enum TerminalContextKeyStrings {
 	TabsSingularSelection = 'terminalTabsSingularSelection',
 	SplitTerminal = 'terminalSplitTerminal',
 	ShellType = 'terminalShellType',
+	InTerminalRunCommandPicker = 'inTerminalRunCommandPicker',
+	TerminalShellIntegrationEnabled = 'terminalShellIntegrationEnabled'
 }
 
 export namespace TerminalContextKeys {
@@ -105,7 +107,7 @@ export namespace TerminalContextKeys {
 	/** Whether the active terminal's find widget text input is focused. */
 	export const findInputFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.FindInputFocused, false, true);
 
-	/** Whether an element iwhtin the active terminal's find widget is focused. */
+	/** Whether an element within the active terminal's find widget is focused. */
 	export const findFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.FindFocused, false, true);
 
 	/** Whether NO elements within the active terminal's find widget is focused. */
@@ -119,4 +121,10 @@ export namespace TerminalContextKeys {
 
 	/** Whether the focused tab's terminal is a split terminal. */
 	export const splitTerminal = new RawContextKey<boolean>(TerminalContextKeyStrings.SplitTerminal, false, localize('isSplitTerminalContextKey', "Whether the focused tab's terminal is a split terminal."));
+
+	/** Whether the terminal run command picker is currently open. */
+	export const inTerminalRunCommandPicker = new RawContextKey<boolean>(TerminalContextKeyStrings.InTerminalRunCommandPicker, false, localize('inTerminalRunCommandPickerContextKey', "Whether the terminal run command picker is currently open."));
+
+	/** Whether shell integration is enabled in the active terminal. This only considers full VS Code shell integration. */
+	export const terminalShellIntegrationEnabled = new RawContextKey<boolean>(TerminalContextKeyStrings.TerminalShellIntegrationEnabled, false, localize('terminalShellIntegrationEnabled', "Whether shell integration is enabled in the active terminal"));
 }

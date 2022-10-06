@@ -23,26 +23,25 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'vs/workbench/contrib/update/common/update';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
-import product from 'vs/platform/product/common/product';
 import { IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { Promises } from 'vs/base/common/async';
 import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 
-export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Idle);
+export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
+export const RELEASE_NOTES_URL = new RawContextKey<string>('releaseNotesUrl', '');
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
-function showReleaseNotes(instantiationService: IInstantiationService, version: string) {
+export function showReleaseNotes(instantiationService: IInstantiationService, version: string) {
 	if (!releaseNotesManager) {
 		releaseNotesManager = instantiationService.createInstance(ReleaseNotesManager);
 	}
 
-	return instantiationService.invokeFunction(accessor => releaseNotesManager!.show(accessor, version));
+	return releaseNotesManager.show(version);
 }
 
 export class OpenLatestReleaseNotesInBrowserAction extends Action {
@@ -104,22 +103,6 @@ export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
 	}
 }
 
-export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesAction {
-
-	static readonly ID = ShowCurrentReleaseNotesActionId;
-	static readonly LABEL = nls.localize('showReleaseNotes', "Show Release Notes");
-	static readonly AVAILABE = !!product.releaseNotesUrl;
-
-	constructor(
-		id = ShowCurrentReleaseNotesAction.ID,
-		label = ShowCurrentReleaseNotesAction.LABEL,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IProductService productService: IProductService
-	) {
-		super(id, label, productService.version, instantiationService);
-	}
-}
-
 interface IVersion {
 	major: number;
 	minor: number;
@@ -156,8 +139,14 @@ export class ProductContribution implements IWorkbenchContribution {
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
+		if (productService.releaseNotesUrl) {
+			const releaseNotesUrlKey = RELEASE_NOTES_URL.bindTo(contextKeyService);
+			releaseNotesUrlKey.set(productService.releaseNotesUrl);
+		}
+
 		hostService.hadLastFocus().then(async hadLastFocus => {
 			if (!hadLastFocus) {
 				return;
@@ -602,23 +591,5 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 				}
 			});
 		}
-	}
-}
-
-export class CheckForVSCodeUpdateAction extends Action {
-
-	static readonly ID = CheckForVSCodeUpdateActionId;
-	static LABEL = nls.localize('checkForUpdates', "Check for Updates...");
-
-	constructor(
-		id: string,
-		label: string,
-		@IUpdateService private readonly updateService: IUpdateService,
-	) {
-		super(id, label, undefined, true);
-	}
-
-	override run(): Promise<void> {
-		return this.updateService.checkForUpdates(true);
 	}
 }

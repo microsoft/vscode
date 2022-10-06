@@ -26,7 +26,7 @@ import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Parts, IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
@@ -362,32 +362,22 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			case GroupsArrangement.EVEN:
 				this.gridWidget.distributeViewSizes();
 				break;
-			case GroupsArrangement.MINIMIZE_OTHERS:
+			case GroupsArrangement.MAXIMIZE:
 				this.gridWidget.maximizeViewSize(target);
 				break;
 			case GroupsArrangement.TOGGLE:
 				if (this.isGroupMaximized(target)) {
 					this.arrangeGroups(GroupsArrangement.EVEN);
 				} else {
-					this.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
+					this.arrangeGroups(GroupsArrangement.MAXIMIZE);
 				}
 
 				break;
 		}
 	}
 
-	private isGroupMaximized(targetGroup: IEditorGroupView): boolean {
-		for (const group of this.groups) {
-			if (group === targetGroup) {
-				continue; // ignore target group
-			}
-
-			if (!group.isMinimized) {
-				return false; // target cannot be maximized if one group is not minimized
-			}
-		}
-
-		return true;
+	isGroupMaximized(targetGroup: IEditorGroupView): boolean {
+		return this.gridWidget.isViewSizeMaximized(targetGroup);
 	}
 
 	setGroupOrientation(orientation: GroupOrientation): void {
@@ -609,7 +599,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		if (this.gridWidget) {
 			const viewSize = this.gridWidget.getViewSize(group);
 			if (viewSize.width === group.minimumWidth || viewSize.height === group.minimumHeight) {
-				this.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS, group);
+				this.arrangeGroups(GroupsArrangement.MAXIMIZE, group);
 			}
 		}
 	}
@@ -1203,5 +1193,5 @@ class EditorDropService implements IEditorDropService {
 	}
 }
 
-registerSingleton(IEditorGroupsService, EditorPart);
-registerSingleton(IEditorDropService, EditorDropService);
+registerSingleton(IEditorGroupsService, EditorPart, InstantiationType.Eager);
+registerSingleton(IEditorDropService, EditorDropService, InstantiationType.Delayed);

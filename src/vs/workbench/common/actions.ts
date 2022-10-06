@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -44,7 +43,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		// keybinding
 		const weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingWeight.WorkbenchContrib : descriptor.keybindingWeight);
 		const keybindings = descriptor.keybindings;
-		KeybindingsRegistry.registerKeybindingRule({
+		registrations.add(KeybindingsRegistry.registerKeybindingRule({
 			id: descriptor.id,
 			weight: weight,
 			when:
@@ -56,7 +55,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 			win: keybindings?.win,
 			mac: keybindings?.mac,
 			linux: keybindings?.linux
-		});
+		}));
 
 		// menu item
 		// TODO@Rob slightly weird if-check required because of
@@ -76,14 +75,10 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 				category: category ? { value: category, original: categoryOriginal } : undefined
 			};
 
-			MenuRegistry.addCommand(command);
+			registrations.add(MenuRegistry.addCommand(command));
 
 			registrations.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command, when }));
 		}
-
-		// TODO@alex,joh
-		// support removal of keybinding rule
-		// support removal of command-ui
 		return registrations;
 	}
 
@@ -125,11 +120,3 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		}
 	}
 });
-
-export const CATEGORIES = {
-	View: { value: localize('view', "View"), original: 'View' },
-	Help: { value: localize('help', "Help"), original: 'Help' },
-	Test: { value: localize('test', "Test"), original: 'Test' },
-	Preferences: { value: localize('preferences', "Preferences"), original: 'Preferences' },
-	Developer: { value: localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' }
-};

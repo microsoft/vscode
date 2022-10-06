@@ -27,6 +27,8 @@ import { TerminalEnvironmentManager } from './terminal';
 import { OutputChannelLogger } from './log';
 import { createIPCServer, IPCServer } from './ipc/ipcServer';
 import { GitEditor } from './gitEditor';
+import { GitPostCommitCommandsProvider } from './postCommitCommands';
+import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -87,7 +89,7 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 		userAgent: `git/${info.version} (${(os as any).version?.() ?? os.type()} ${os.release()}; ${os.platform()} ${os.arch()}) vscode/${vscodeVersion} (${env.appName})`,
 		version: info.version,
 		env: environment,
-	});
+	}, telemetryReporter);
 	const model = new Model(git, askpass, context.globalState, outputChannelLogger, telemetryReporter);
 	disposables.push(model);
 
@@ -113,9 +115,12 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 		cc,
 		new GitFileSystemProvider(model),
 		new GitDecorations(model),
-		new GitProtocolHandler(),
-		new GitTimelineProvider(model, cc)
+		new GitTimelineProvider(model, cc),
+		new GitEditSessionIdentityProvider(model)
 	);
+
+	const postCommitCommandsProvider = new GitPostCommitCommandsProvider();
+	model.registerPostCommitCommandsProvider(postCommitCommandsProvider);
 
 	checkGitVersion(info);
 
@@ -215,6 +220,8 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 		warnAboutMissingGit();
 
 		return new GitExtensionImpl();
+	} finally {
+		disposables.push(new GitProtocolHandler(outputChannelLogger));
 	}
 }
 
