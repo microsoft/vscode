@@ -1567,7 +1567,7 @@ export class ExtensionEditor extends EditorPane {
 			$('table', undefined,
 				$('tr', undefined,
 					$('th', undefined, localize('command name', "ID")),
-					$('th', undefined, localize('description', "Title")),
+					$('th', undefined, localize('command title', "Title")),
 					$('th', undefined, localize('keyboard shortcuts', "Keyboard Shortcuts")),
 					$('th', undefined, localize('menuContexts', "Menu Contexts"))
 				),
