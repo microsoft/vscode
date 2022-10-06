@@ -585,10 +585,23 @@ export interface ITerminalInstance {
 
 	onDidFocusFindWidget: Event<void>;
 
+	/**
+	 * The exit code or undefined when the terminal process hasn't yet exited or
+	 * the process exit code could not be determined. Use {@link exitReason} to see
+	 * why the process has exited.
+	 */
 	readonly exitCode: number | undefined;
 
+	/**
+	 * The reason the terminal process exited, this will be undefined if the process is still
+	 * running.
+	 */
 	readonly exitReason: TerminalExitReason | undefined;
 
+	/**
+	 * Whether links in the terminal are ready, links aren't available until after the process is
+	 * ready.
+	 */
 	readonly areLinksReady: boolean;
 
 	/**
@@ -649,11 +662,21 @@ export interface ITerminalInstance {
 	 */
 	disableLayout: boolean;
 
+	/**
+	 * Access to the navigation mode accessibility feature.
+	 */
 	readonly navigationMode: INavigationMode | undefined;
 
+	/**
+	 * The description of the terminal, this is typically displayed next to {@link title}.
+	 */
 	description: string | undefined;
 
+	/**
+	 * The remote-aware $HOME directory (or Windows equivalent) of the terminal.
+	 */
 	userHome: string | undefined;
+
 	/**
 	 * Shows the environment information hover if the widget exists.
 	 */
@@ -856,8 +879,14 @@ export interface ITerminalInstance {
 	 */
 	toggleSizeToContentWidth(): Promise<void>;
 
+	/**
+	 * Toggles escape sequence logging in the devtools console.
+	 */
 	toggleEscapeSequenceLogging(): Promise<boolean>;
 
+	/**
+	 * Sets whether escape seqeunce logging is enabled in the devtools console.
+	 */
 	setEscapeSequenceLogging(enable: boolean): void;
 
 	/**
@@ -917,6 +946,9 @@ export interface ITerminalInstance {
 	 */
 	registerQuickFixProvider(...options: ITerminalQuickFixOptions[]): void;
 
+	/**
+	 * Attempts to detect and kill the process listening on specified port.
+	 */
 	freePortKillProcess(port: string): Promise<void>;
 }
 
