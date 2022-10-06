@@ -220,7 +220,7 @@ export namespace EditorScroll_ {
 	}
 
 	export const enum HorizontalUnit {
-		Character = 1
+		Column = 1
 	}
 }
 
@@ -1377,8 +1377,8 @@ export namespace CoreNavigationCommands {
 		}
 
 		_computeDesiredScrollLeft(viewModel: IViewModel, args: EditorScroll_.ParsedArguments) {
-			const factor = args.direction === EditorScroll_.HorizontalDirection.Left ? -1 : 1;
-			return viewModel.viewLayout.getCurrentScrollLeft() + factor;
+			const deltaColumns = (args.direction === EditorScroll_.HorizontalDirection.Left ? -1 : 1) * args.value;
+			return viewModel.viewLayout.getCurrentScrollLeft() + deltaColumns * viewModel.cursorConfig.typicalHalfwidthCharacterWidth;
 		}
 	}
 
@@ -1402,54 +1402,6 @@ export namespace CoreNavigationCommands {
 			EditorScroll._runEditorScroll(viewModel, args.source, {
 				direction: EditorScroll_.Direction.Up,
 				unit: EditorScroll_.Unit.WrappedLine,
-				value: 1,
-				revealCursor: false,
-				select: false
-			});
-		}
-	});
-
-	export const ScrollCharLeft: CoreEditorCommand<BaseCommandOptions> = registerEditorCommand(new class extends CoreEditorCommand<BaseCommandOptions> {
-		constructor() {
-			super({
-				id: 'scrollCharLeft',
-				precondition: undefined,
-				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
-				}
-			});
-		}
-
-		runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions>): void {
-			EditorScroll._runHorizontalEditorScroll(viewModel, args.source, {
-				direction: EditorScroll_.HorizontalDirection.Left,
-				unit: EditorScroll_.HorizontalUnit.Character,
-				value: 1,
-				revealCursor: false,
-				select: false
-			});
-		}
-	});
-
-	export const ScrollCharRight: CoreEditorCommand<BaseCommandOptions> = registerEditorCommand(new class extends CoreEditorCommand<BaseCommandOptions> {
-		constructor() {
-			super({
-				id: 'scrollCharRight',
-				precondition: undefined,
-				kbOpts: {
-					weight: CORE_WEIGHT,
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
-				}
-			});
-		}
-
-		runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions>): void {
-			EditorScroll._runHorizontalEditorScroll(viewModel, args.source, {
-				direction: EditorScroll_.HorizontalDirection.Right,
-				unit: EditorScroll_.HorizontalUnit.Character,
 				value: 1,
 				revealCursor: false,
 				select: false
@@ -1573,6 +1525,54 @@ export namespace CoreNavigationCommands {
 			EditorScroll._runEditorScroll(viewModel, args.source, {
 				direction: EditorScroll_.Direction.Down,
 				unit: EditorScroll_.Unit.Editor,
+				value: 1,
+				revealCursor: false,
+				select: false
+			});
+		}
+	});
+
+	export const ScrollColumnLeft: CoreEditorCommand<BaseCommandOptions> = registerEditorCommand(new class extends CoreEditorCommand<BaseCommandOptions> {
+		constructor() {
+			super({
+				id: 'scrollColumnLeft',
+				precondition: undefined,
+				kbOpts: {
+					weight: CORE_WEIGHT,
+					kbExpr: EditorContextKeys.textInputFocus,
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
+				}
+			});
+		}
+
+		runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions>): void {
+			EditorScroll._runHorizontalEditorScroll(viewModel, args.source, {
+				direction: EditorScroll_.HorizontalDirection.Left,
+				unit: EditorScroll_.HorizontalUnit.Column,
+				value: 1,
+				revealCursor: false,
+				select: false
+			});
+		}
+	});
+
+	export const ScrollColumnRight: CoreEditorCommand<BaseCommandOptions> = registerEditorCommand(new class extends CoreEditorCommand<BaseCommandOptions> {
+		constructor() {
+			super({
+				id: 'scrollColumnRight',
+				precondition: undefined,
+				kbOpts: {
+					weight: CORE_WEIGHT,
+					kbExpr: EditorContextKeys.textInputFocus,
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
+				}
+			});
+		}
+
+		runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions>): void {
+			EditorScroll._runHorizontalEditorScroll(viewModel, args.source, {
+				direction: EditorScroll_.HorizontalDirection.Right,
+				unit: EditorScroll_.HorizontalUnit.Column,
 				value: 1,
 				revealCursor: false,
 				select: false
