@@ -112,6 +112,19 @@ suite('QuickFixAddon', () => {
 					}];
 					assertMatchOptions(getQuickFixes(createCommand('git pu', output, GitSimilarOutputRegex), expectedMap, openerService), actions);
 				});
+				test('passes any arguments through', () => {
+					output = `git: 'checkoutt' is not a git command. See 'git --help'.
+
+				The most similar commands are
+						checkout`;
+					assertMatchOptions(getQuickFixes(createCommand('git checkoutt .', output, GitSimilarOutputRegex), expectedMap, openerService), [{
+						id: `quickFix.command`,
+						enabled: true,
+						label: 'Run: git checkout .',
+						tooltip: 'Run: git checkout .',
+						command: 'git checkout .'
+					}]);
+				});
 			});
 		});
 		suite('gitTwoDashes', async () => {
