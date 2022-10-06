@@ -2779,9 +2779,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _runTaskCommand(arg?: any): void {
-		if (!this._tasksReconnected) {
-			return;
-		}
 		const identifier = this._getTaskIdentifier(arg);
 		const type = arg && typeof arg !== 'string' && 'type' in arg ? arg.type : undefined;
 		const task = arg && typeof arg !== 'string' && 'task' in arg ? arg.task : arg === 'string' ? arg : undefined;
