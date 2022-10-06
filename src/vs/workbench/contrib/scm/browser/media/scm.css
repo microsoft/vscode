@@ -194,6 +194,19 @@
 .scm-view .scm-input {
 	height: 100%;
 	padding-left: 11px;
+	border-radius: 2px;
+}
+
+.scm-view .scm-input .margin {
+	width: 6px !important;
+}
+
+.scm-input .monaco-scrollable-element {
+	left: 6px !important;
+}
+
+.scm-view .scm-editor-container .monaco-editor {
+	border-radius: 2px !important;
 }
 
 .scm-view .scm-editor {
@@ -285,6 +298,7 @@
 	box-sizing: border-box;
 	padding: 1px;
 	outline-offset: -1px;
+	border-radius: 2px;
 }
 
 .scm-editor-validation-container {
@@ -324,7 +338,7 @@
 	position: absolute;
 	pointer-events: none;
 	z-index: 1;
-	padding: 2px 4px 3px 4px;
+	padding: 2px 6px 3px 6px;
 	box-sizing: border-box;
 	width: 100%;
 	overflow: hidden;
