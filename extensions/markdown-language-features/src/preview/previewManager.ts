@@ -42,8 +42,9 @@ class PreviewStore<T extends IManagedMarkdownPreview> extends Disposable {
 	}
 
 	public get(resource: vscode.Uri, previewSettings: DynamicPreviewSettings): T | undefined {
+		const previewColumn = this.resolvePreviewColumn(previewSettings);
 		for (const preview of this._previews) {
-			if (preview.matchesResource(resource, previewSettings.previewColumn, previewSettings.locked)) {
+			if (preview.matchesResource(resource, previewColumn, previewSettings.locked)) {
 				return preview;
 			}
 		}
@@ -56,6 +57,18 @@ class PreviewStore<T extends IManagedMarkdownPreview> extends Disposable {
 
 	public delete(preview: T) {
 		this._previews.delete(preview);
+	}
+
+	private resolvePreviewColumn(previewSettings: DynamicPreviewSettings): vscode.ViewColumn | undefined {
+		if (previewSettings.previewColumn === vscode.ViewColumn.Active) {
+			return vscode.window.tabGroups.activeTabGroup.viewColumn;
+		}
+
+		if (previewSettings.previewColumn === vscode.ViewColumn.Beside) {
+			return vscode.window.tabGroups.activeTabGroup.viewColumn + 1;
+		}
+
+		return previewSettings.previewColumn;
 	}
 }
 

@@ -10,6 +10,7 @@
 	left: 50%;
 	margin-left: -300px;
 	-webkit-app-region: no-drag;
+	border-radius: 4px;
 }
 
 .quick-input-titlebar {
@@ -56,7 +57,7 @@
 
 .quick-input-header {
 	display: flex;
-	padding: 6px 6px 0px 6px;
+	padding: 8px 8px 0px 8px;
 	margin-bottom: -2px;
 }
 
@@ -149,7 +150,7 @@
 
 .quick-input-list {
 	line-height: 22px;
-	margin-top: 6px;
+	margin-top: 8px;
 	padding: 0px 1px 1px 1px;
 }
 

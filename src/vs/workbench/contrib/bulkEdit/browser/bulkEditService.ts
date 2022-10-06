@@ -16,7 +16,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
@@ -184,7 +184,7 @@ export class BulkEditService implements IBulkEditService {
 		let edits = liftEdits(Array.isArray(editsIn) ? editsIn : editsIn.edits);
 
 		if (edits.length === 0) {
-			return { ariaSummary: localize('nothing', "Made no edits") };
+			return { ariaSummary: localize('nothing', "Made no edits"), isApplied: false };
 		}
 
 		if (this._previewHandler && (options?.showPreview || edits.some(value => value.metadata?.needsConfirmation))) {
@@ -244,11 +244,11 @@ export class BulkEditService implements IBulkEditService {
 
 			// when enabled (option AND setting) loop over all dirty working copies and trigger save
 			// for those that were involved in this bulk edit operation.
-			if (options?.respectAutoSaveConfig && this._configService.getValue(autoSaveSetting) === true && resources.length > 1) {
+			if (options?.respectAutoSaveConfig && this._configService.getValue(autoSaveSetting) === true) {
 				await this._saveAll(resources);
 			}
 
-			return { ariaSummary: bulkEdit.ariaMessage() };
+			return { ariaSummary: bulkEdit.ariaMessage(), isApplied: edits.length > 0 };
 		} catch (err) {
 			// console.log('apply FAILED');
 			// console.log(err);
@@ -289,7 +289,7 @@ export class BulkEditService implements IBulkEditService {
 	}
 }
 
-registerSingleton(IBulkEditService, BulkEditService, true);
+registerSingleton(IBulkEditService, BulkEditService, InstantiationType.Delayed);
 
 const autoSaveSetting = 'files.refactoring.autoSave';
 

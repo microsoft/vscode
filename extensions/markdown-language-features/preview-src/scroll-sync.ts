@@ -36,7 +36,6 @@ const getCodeLineElements = (() => {
 					cachedElements.push({ element: element as HTMLElement, line });
 				}
 			}
-			console.log(cachedElements);
 		}
 		return cachedElements;
 	};
