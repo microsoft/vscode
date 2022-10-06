@@ -586,7 +586,7 @@ export interface ITerminalInstance {
 	onDidFocusFindWidget: Event<void>;
 
 	/**
-	 * The exit code or undefined when the terminal process hasn't yet exited or 
+	 * The exit code or undefined when the terminal process hasn't yet exited or
 	 * the process exit code could not be determined. Use {@link exitReason} to see
 	 * why the process has exited.
 	 */
@@ -599,7 +599,7 @@ export interface ITerminalInstance {
 	readonly exitReason: TerminalExitReason | undefined;
 
 	/**
-	 * Whether links in the terminal are ready, links are available until after the process is
+	 * Whether links in the terminal are ready, links aren't available until after the process is
 	 * ready.
 	 */
 	readonly areLinksReady: boolean;
