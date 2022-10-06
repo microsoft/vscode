@@ -586,9 +586,9 @@ export interface ITerminalInstance {
 	onDidFocusFindWidget: Event<void>;
 
 	/**
-	 * The exit code if the terminal process has exited, this will be undefined if the process has
-	 * not yet exited or the exit code could not be determined. Use {@link exitReason} to see
-	 * whether the process has exited.
+	 * The exit code or undefined when the terminal process hasn't yet exited or 
+	 * the process exit code could not be determined. Use {@link exitReason} to see
+	 * why the process has exited.
 	 */
 	readonly exitCode: number | undefined;
 
