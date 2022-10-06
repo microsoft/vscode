@@ -160,12 +160,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 	renderElement(element: ListElement, index: number, data: IListElementTemplateData): void {
 		data.toDisposeElement = dispose(data.toDisposeElement);
 		data.element = element;
-		let mainItem: QuickPickItem;
-		if (element.item) {
-			mainItem = element.item;
-		} else {
-			mainItem = element.separator!;
-		}
+		const mainItem: QuickPickItem = element.item ? element.item : element.separator!;
 
 		data.checkbox.checked = element.checked;
 		data.toDisposeElement.push(element.onChecked(checked => data.checkbox.checked = checked));
@@ -196,9 +191,10 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 				matches: detailHighlights,
 				title: element.saneDetail
 			});
-		} else {
+		} /* else {
+			// TODO investigate potential detail bleeding into next quickpicks
 			data.detail.setLabel('');
-		}
+		} */
 
 		// Separator
 		if (element.item && element.separator && element.separator.label) {
