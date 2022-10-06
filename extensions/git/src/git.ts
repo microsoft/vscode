@@ -1980,11 +1980,9 @@ export class Repository {
 	async getHEAD(): Promise<Ref> {
 		try {
 			// Attempt for parse the HEAD file
-			const refsFromHEADFileRaw = await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'HEAD'), 'utf8');
-			const refsFromHEADFile = refsFromHEADFileRaw.split(/\r?\n/g, 1);
-
-			if (refsFromHEADFile[0].startsWith('ref: refs/heads/')) {
-				return { name: refsFromHEADFile[0].substring(16).trim(), commit: undefined, type: RefType.Head };
+			const resultFS = await this.getHEADFS();
+			if (resultFS) {
+				return resultFS;
 			}
 
 			// Fallback to using git to determine HEAD
@@ -2004,6 +2002,27 @@ export class Repository {
 
 			return { name: undefined, commit: result.stdout.trim(), type: RefType.Head };
 		}
+	}
+
+	async getHEADFS(): Promise<Ref | undefined> {
+		try {
+			const raw = await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'HEAD'), 'utf8');
+
+			// Branch
+			const branchMatch = raw.match(/^ref: refs\/heads\/(?<name>.*)$/m);
+			if (branchMatch?.groups?.name) {
+				return { name: branchMatch.groups.name, commit: undefined, type: RefType.Head };
+			}
+
+			// Detached
+			const commitMatch = raw.match(/^(?<commit>[0-9a-f]{40})$/m);
+			if (commitMatch?.groups?.commit) {
+				return { name: undefined, commit: commitMatch.groups.commit, type: RefType.Head };
+			}
+		}
+		catch (err) { }
+
+		return undefined;
 	}
 
 	async findTrackingBranches(upstreamBranch: string): Promise<Branch[]> {
