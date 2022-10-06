@@ -8,16 +8,19 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, RELEASE_NOTES_URL } from 'vs/workbench/contrib/update/browser/update';
+import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, RELEASE_NOTES_URL, showReleaseNotes } from 'vs/workbench/contrib/update/browser/update';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import product from 'vs/platform/product/common/product';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isWindows } from 'vs/base/common/platform';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { URI } from 'vs/base/common/uri';
 
 const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 
@@ -27,17 +30,46 @@ workbench.registerWorkbenchContribution(SwitchProductQualityContribution, Lifecy
 
 // Release notes
 
-registerAction2(ShowCurrentReleaseNotesAction);
+export class ShowCurrentReleaseNotesAction extends Action2 {
 
-MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-	group: '1_welcome',
-	command: {
-		id: ShowCurrentReleaseNotesActionId,
-		title: localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")
-	},
-	when: RELEASE_NOTES_URL,
-	order: 5
-});
+	constructor() {
+		super({
+			id: ShowCurrentReleaseNotesActionId,
+			title: {
+				value: localize('showReleaseNotes', "Show Release Notes"),
+				mnemonicTitle: localize('mshowReleaseNotes', "Show &&Release Notes"),
+				original: 'Show Release Notes'
+			},
+			category: { value: product.nameShort, original: product.nameShort },
+			f1: true,
+			precondition: RELEASE_NOTES_URL,
+			menu: [{
+				id: MenuId.MenubarHelpMenu,
+				group: '1_welcome',
+				order: 5,
+				when: RELEASE_NOTES_URL,
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const instantiationService = accessor.get(IInstantiationService);
+		const productService = accessor.get(IProductService);
+		const openerService = accessor.get(IOpenerService);
+
+		try {
+			await showReleaseNotes(instantiationService, productService.version);
+		} catch (err) {
+			if (productService.releaseNotesUrl) {
+				await openerService.open(URI.parse(productService.releaseNotesUrl));
+			} else {
+				throw new Error(localize('update.noReleaseNotesOnline', "This version of {0} does not have release notes online", productService.nameLong));
+			}
+		}
+	}
+}
+
+registerAction2(ShowCurrentReleaseNotesAction);
 
 // Update
 
