@@ -275,7 +275,7 @@ export class Extension implements IExtension {
 	}
 
 	get preview(): boolean {
-		return this.gallery ? this.gallery.preview : false;
+		return this.local?.manifest.preview ?? this.gallery?.preview ?? false;
 	}
 
 	get hasPreReleaseVersion(): boolean {
