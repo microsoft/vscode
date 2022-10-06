@@ -79,9 +79,9 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 		this.signedInContext = REMOTE_TUNNEL_SIGNED_IN.bindTo(this.contextKeyService);
 
-		const serverConfiguration = productService['remoteTunnels.store'];
+		const serverConfiguration = productService.tunnelApplicationConfig;
 		if (!serverConfiguration || !productService.tunnelApplicationName) {
-			this.logger.error('Missing \'remoteTunnels.store\' or \'tunnelApplicationName\' in product.json, machine sharing is not available.');
+			this.logger.error('Missing \'tunnelApplicationConfig\' or \'tunnelApplicationName\' in product.json, machine sharing is not available.');
 			this.serverConfiguration = { authenticationProviders: {} };
 			return;
 		}

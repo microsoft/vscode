@@ -131,6 +131,7 @@ export interface IProductConfiguration {
 	readonly serverDataFolderName?: string;
 
 	readonly tunnelApplicationName?: string;
+	readonly tunnelApplicationConfig?: { authenticationProviders: IStringDictionary<{ scopes: string[] }> };
 
 	readonly npsSurveyUrl?: string;
 	readonly cesSurveyUrl?: string;
@@ -157,9 +158,6 @@ export interface IProductConfiguration {
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 
 	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
-
-	readonly 'remoteTunnels.store'?: { authenticationProviders: IStringDictionary<{ scopes: string[] }> };
-
 	readonly darwinUniversalAssetId?: string;
 
 	// experimental
