@@ -1532,15 +1532,14 @@ export namespace CoreNavigationCommands {
 		}
 	});
 
-	export const ScrollColumnLeft: CoreEditorCommand<BaseCommandOptions> = registerEditorCommand(new class extends CoreEditorCommand<BaseCommandOptions> {
+	export const ScrollLeft: CoreEditorCommand<BaseCommandOptions> = registerEditorCommand(new class extends CoreEditorCommand<BaseCommandOptions> {
 		constructor() {
 			super({
-				id: 'scrollColumnLeft',
+				id: 'scrollLeft',
 				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
 				}
 			});
 		}
@@ -1549,22 +1548,21 @@ export namespace CoreNavigationCommands {
 			EditorScroll._runHorizontalEditorScroll(viewModel, args.source, {
 				direction: EditorScroll_.HorizontalDirection.Left,
 				unit: EditorScroll_.HorizontalUnit.Column,
-				value: 1,
+				value: 2,
 				revealCursor: false,
 				select: false
 			});
 		}
 	});
 
-	export const ScrollColumnRight: CoreEditorCommand<BaseCommandOptions> = registerEditorCommand(new class extends CoreEditorCommand<BaseCommandOptions> {
+	export const ScrollRight: CoreEditorCommand<BaseCommandOptions> = registerEditorCommand(new class extends CoreEditorCommand<BaseCommandOptions> {
 		constructor() {
 			super({
-				id: 'scrollColumnRight',
+				id: 'scrollRight',
 				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
 				}
 			});
 		}
@@ -1573,7 +1571,7 @@ export namespace CoreNavigationCommands {
 			EditorScroll._runHorizontalEditorScroll(viewModel, args.source, {
 				direction: EditorScroll_.HorizontalDirection.Right,
 				unit: EditorScroll_.HorizontalUnit.Column,
-				value: 1,
+				value: 2,
 				revealCursor: false,
 				select: false
 			});
