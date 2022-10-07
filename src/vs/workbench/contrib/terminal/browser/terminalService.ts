@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { Barrier, timeout } from 'vs/base/common/async';
+import { timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -80,11 +80,6 @@ export class TerminalService implements ITerminalService {
 	get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 	get instances(): ITerminalInstance[] {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
-	}
-
-	private _primaryBackendRegistered: Barrier = new Barrier();
-	get primaryBackendRegistered(): Promise<void> {
-		return this._primaryBackendRegistered.wait().then(() => { });
 	}
 
 	private _reconnectedTerminals: Map<string, ITerminalInstance[]> = new Map();
@@ -276,10 +271,6 @@ export class TerminalService implements ITerminalService {
 		} else {
 			this._setConnected();
 		}
-
-		// Open the primary backend registered barrier to allow ITerminalService consumers to
-		// start using the backend
-		this._primaryBackendRegistered.open();
 
 		backend.onDidRequestDetach(async (e) => {
 			const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
