@@ -414,7 +414,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		this.decorations.syncDecorations(uri);
 
 		(async () => {
-			for await (const _test of testsInFile(this.testService.collection, this.uriIdentityService, uri)) {
+			for await (const _test of testsInFile(this.testService, this.uriIdentityService, uri, false)) {
 				// consume the iterator so that all tests in the file get expanded. Or
 				// at least until the URI changes. If new items are requested, changes
 				// will be trigged in the `onDidProcessDiff` callback.
