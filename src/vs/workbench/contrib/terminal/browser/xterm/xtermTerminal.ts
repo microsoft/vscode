@@ -218,13 +218,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon, disableShellIntegrationReporting, this._telemetryService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
-
-		// Load the relevant renderer addon ahead of open being called as it's asynchronous
-		if (this._shouldLoadWebgl()) {
-			this._enableWebglRenderer();
-		} else if (this._shouldLoadCanvas()) {
-			this._enableCanvasRenderer();
-		}
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
@@ -253,6 +246,12 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this._updateTheme();
 		if (!this._container) {
 			this.raw.open(container);
+		}
+		// TODO: Move before open to the DOM renderer doesn't initialize
+		if (this._shouldLoadWebgl()) {
+			this._enableWebglRenderer();
+		} else if (this._shouldLoadCanvas()) {
+			this._enableCanvasRenderer();
 		}
 		this._container = container;
 		// Screen must be created at this point as xterm.open is called
