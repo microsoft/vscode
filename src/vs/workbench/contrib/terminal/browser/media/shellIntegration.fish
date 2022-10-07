@@ -31,15 +31,15 @@ end
 # Marks the beginning of command output.
 function __vsc_cmd_executed --on-event fish_preexec
 	__vsc_esc C
-	__vsc_esc E (__vsc_escape_cmd "$argv")
+	__vsc_esc E (__vsc_escape_value "$argv")
 
 	# Creates a marker to indicate a command was run.
 	set --global _vsc_has_cmd
 end
 
 
-# Escapes backslashes, newlines, and semicolons to serialize the command line.
-function __vsc_escape_cmd
+# Escape a value for use in the 'P' ("Property") or 'E' ("Command Line") sequences.
+function __vsc_escape_value
 	set -l commandline "$argv"
 	# `string replace` automatically breaks its input apart on any newlines.
 	# Then `string join` at the end will bring it all back together.
