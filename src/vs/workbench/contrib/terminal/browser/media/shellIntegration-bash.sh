@@ -37,6 +37,43 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
+# The property (P) and command (E) codes embed values which require escaping.
+# Backslashes are doubled. Non-alphanumeric characters are converted to escaped hex.
+__vsc_escape_value() {
+	# Process text byte by byte, not by codepoint.
+	builtin local LC_ALL=C str="${1}" i byte token out=''
+
+	for (( i=0; i < "${#str}"; ++i )); do
+		byte="${str:$i:1}"
+
+		# Backslashes must be doubled.
+		if [ "$byte" = "\\" ]; then
+			token="\\\\"
+		# Conservatively pass alphanumerics through.
+		elif [[ "$byte" == [0-9A-Za-z] ]]; then
+			token="$byte"
+		# Hex-encode anything else.
+		# (Importantly including: semicolon, newline, and control chars).
+		else
+			# The printf '0x%02X' "'$byte'" converts the character to a hex integer.
+			# See printf's specification:
+			# > If the leading character is a single-quote or double-quote, the value shall be the numeric value in the
+			# > underlying codeset of the character following the single-quote or double-quote.
+			# However, the result is a sign-extended int, so a high bit like 0xD7 becomes 0xFFF…FD7
+			# We mask that word with 0xFF to get lowest 8 bits, and then encode that byte as "\xD7" per our escaping scheme.
+			builtin printf -v token '\\x%02X' "$(( $(builtin printf '0x%X' "'$byte'") & 0xFF ))"
+			#                └──┬──┘ └┬┘└┬─┘                        └─┬──┘  └──┬──┘  └───┬──┘
+			# store in "token" ─╯     │  │   the hex value ───────────╯        │         │
+			# the '\x…'-prefixed ─────╯  │   of the byte as an integer ────────╯         │
+			# 0-padded, two hex digits ──╯   masked to one byte (due to sign extension) ─╯
+		fi
+
+		out+="$token"
+	done
+
+	builtin printf '%s\n' "${out}"
+}
+
 # Send the IsWindows property if the environment looks like Windows
 if [[ "$(uname -s)" =~ ^CYGWIN*|MINGW*|MSYS* ]]; then
 	builtin printf '\e]633;P;IsWindows=True\a'
@@ -67,12 +104,12 @@ __vsc_prompt_end() {
 }
 
 __vsc_update_cwd() {
-	builtin printf '\e]633;P;Cwd=%s\a' "$PWD"
+	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$PWD")"
 }
 
 __vsc_command_output_start() {
 	builtin printf '\e]633;C\a'
-	builtin printf '\e]633;E;%s\a' "$__vsc_current_command"
+	builtin printf '\e]633;E;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")"
 }
 
 __vsc_continuation_start() {
