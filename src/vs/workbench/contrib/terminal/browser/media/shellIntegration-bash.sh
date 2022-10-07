@@ -122,8 +122,12 @@ __vsc_preexec() {
 		# Use history if it's available to verify the command as BASH_COMMAND comes in with aliases
 		# resolved
 		if [ "$__vsc_history_verify" = "1" ]; then
+			# IFS=' ' tells `read` to separate fields by spaces.
+			# The first field is the history number (we don't care, other than to consume it),
+			# and the rest of the input is stored as the current command.
 			# We locally unset HISTTIMEFORMAT to avoid stumbling over an unexpected timestamp field.
-			__vsc_current_command="$(HISTTIMEFORMAT='' builtin history 1 | sed 's/ *[0-9]* *//')"
+			builtin local _histnum
+			IFS=' ' builtin read -r _histnum __vsc_current_command < <(HISTTIMEFORMAT='' builtin history 1)
 		else
 			__vsc_current_command=$BASH_COMMAND
 		fi
