@@ -443,3 +443,51 @@ export function disposeOnReturn(fn: (store: DisposableStore) => void): void {
 		store.dispose();
 	}
 }
+
+/**
+ * A map the manages the lifecycle of the values that it stores.
+ */
+export class DisposableMap<K, V extends IDisposable = IDisposable> implements IDisposable {
+
+	private readonly _store = new Map<K, V>();
+	private _isDisposed = false;
+
+	dispose() {
+		this.clearAndDisposeAll();
+		this._isDisposed = true;
+	}
+
+	clearAndDisposeAll() {
+		dispose(this._store.values());
+		this._store.clear();
+	}
+
+	has(key: K): boolean {
+		return this._store.has(key);
+	}
+
+	get(key: K): V | undefined {
+		return this._store.get(key);
+	}
+
+	set(key: K, value: V, skipDisposeOnOverwrite = false): void {
+		if (this._isDisposed) {
+			console.warn(new Error('Trying to add a disposable to a DisposableMap that has already been disposed of. The added object will be leaked!').stack);
+		}
+
+		if (!skipDisposeOnOverwrite) {
+			this._store.get(key)?.dispose();
+		}
+
+		this._store.set(key, value);
+	}
+
+	deleteAndDispose(key: K): void {
+		this._store.get(key)?.dispose();
+		this._store.delete(key);
+	}
+
+	[Symbol.iterator](): IterableIterator<[K, V]> {
+		return this._store[Symbol.iterator]();
+	}
+}
