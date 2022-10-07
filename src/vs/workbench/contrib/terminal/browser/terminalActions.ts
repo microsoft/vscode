@@ -2235,7 +2235,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.showTextureAtlas', "Show Terminal Texture Atlas"), original: 'Show Terminal Texture Atlas' },
 				f1: true,
 				category: Categories.Developer.value,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
+				precondition: ContextKeyExpr.or(TerminalContextKeys.isOpen)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
