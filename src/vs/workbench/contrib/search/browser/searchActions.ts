@@ -424,17 +424,18 @@ class ReplaceActionRunner {
 		// since multiple elements can be selected, we need to check the type of the FolderMatch/FileMatch/Match before we perform the replace.
 		const opInfo = getElementsToOperateOnInfo(this.viewer, element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
 		const elementsToReplace = opInfo.elements;
-		const focusElement = this.viewer.getFocus()[0];
+		let focusElement = this.viewer.getFocus()[0];
 
+		if (!focusElement || (focusElement && !arrayContainsElementOrParent(focusElement, elementsToReplace)) || (focusElement instanceof SearchResult)) {
+			focusElement = element;
+		}
 
 		if (elementsToReplace.length === 0) {
 			return;
 		}
 		let nextFocusElement;
-		if (opInfo.mustReselect && focusElement) {
-			nextFocusElement = !focusElement || focusElement instanceof SearchResult || arrayContainsElementOrParent(focusElement, elementsToReplace) ?
-				getElementToFocusAfterRemoved(this.viewer, focusElement, elementsToReplace) :
-				null;
+		if (focusElement) {
+			nextFocusElement = getElementToFocusAfterRemoved(this.viewer, focusElement, elementsToReplace);
 		}
 
 		const searchResult = getSearchView(this.viewsService)?.searchResult;
@@ -443,7 +444,7 @@ class ReplaceActionRunner {
 			searchResult.batchReplace(elementsToReplace);
 		}
 
-		if (opInfo.mustReselect && focusElement) {
+		if (focusElement) {
 			if (!nextFocusElement) {
 				nextFocusElement = getLastNodeFromSameType(this.viewer, focusElement);
 			}
@@ -500,16 +501,19 @@ export class RemoveAction extends Action {
 	override async run(): Promise<any> {
 		const opInfo = getElementsToOperateOnInfo(this.viewer, this.element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
 		const elementsToRemove = opInfo.elements;
-		const focusElement = this.viewer.getFocus()[0];
+		let focusElement = this.viewer.getFocus()[0];
 
 		if (elementsToRemove.length === 0) {
 			return;
 		}
+
+		if (!focusElement || (focusElement instanceof SearchResult)) {
+			focusElement = this.element;
+		}
+
 		let nextFocusElement;
 		if (opInfo.mustReselect && focusElement) {
-			nextFocusElement = !focusElement || focusElement instanceof SearchResult || arrayContainsElementOrParent(focusElement, elementsToRemove) ?
-				getElementToFocusAfterRemoved(this.viewer, focusElement, elementsToRemove) :
-				null;
+			nextFocusElement = getElementToFocusAfterRemoved(this.viewer, focusElement, elementsToRemove);
 		}
 
 		const searchResult = getSearchView(this.viewsService)?.searchResult;
