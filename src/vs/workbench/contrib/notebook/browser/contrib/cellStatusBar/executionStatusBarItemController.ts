@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -29,7 +29,7 @@ export function formatCellDuration(duration: number): string {
 }
 
 export class NotebookStatusBarController extends Disposable {
-	private readonly _visibleCells = new Map<number, IDisposable>();
+	private readonly _visibleCells = this._register(new DisposableMap<number>());
 	private readonly _observer: NotebookVisibleCellObserver;
 
 	constructor(
@@ -44,8 +44,7 @@ export class NotebookStatusBarController extends Disposable {
 	}
 
 	private _updateEverything(): void {
-		this._visibleCells.forEach(dispose);
-		this._visibleCells.clear();
+		this._visibleCells.clearAndDisposeAll();
 		this._updateVisibleCells({ added: this._observer.visibleCells, removed: [] });
 	}
 
@@ -56,20 +55,12 @@ export class NotebookStatusBarController extends Disposable {
 		}
 
 		for (const oldCell of e.removed) {
-			this._visibleCells.get(oldCell.handle)?.dispose();
-			this._visibleCells.delete(oldCell.handle);
+			this._visibleCells.deleteAndDispose(oldCell.handle);
 		}
 
 		for (const newCell of e.added) {
 			this._visibleCells.set(newCell.handle, this._itemFactory(vm, newCell));
 		}
-	}
-
-	override dispose(): void {
-		super.dispose();
-
-		this._visibleCells.forEach(dispose);
-		this._visibleCells.clear();
 	}
 }
 

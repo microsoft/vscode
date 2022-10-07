@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { combinedDisposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
@@ -183,7 +183,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 class EditorState {
 
-	private readonly _listener = new Map<ICodeEditor, IDisposable>();
+	private readonly _listener = new DisposableMap<ICodeEditor>();
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _onDidChange = new Emitter<{ editor: ICodeEditor }>();
@@ -198,7 +198,7 @@ class EditorState {
 	dispose(): void {
 		this._disposables.dispose();
 		this._onDidChange.dispose();
-		dispose(this._listener.values());
+		this._listener.dispose();
 	}
 
 	private _onDidAddEditor(editor: ICodeEditor): void {
@@ -209,7 +209,6 @@ class EditorState {
 	}
 
 	private _onDidRemoveEditor(editor: ICodeEditor): void {
-		this._listener.get(editor)?.dispose();
-		this._listener.delete(editor);
+		this._listener.deleteAndDispose(editor);
 	}
 }

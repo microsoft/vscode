@@ -12,7 +12,7 @@ import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderT
 import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, DisposableStore, Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { ToggleActivityBarVisibilityAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -115,7 +115,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	private readonly accountsActivity: ICompositeActivity[] = [];
 
 	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction; pinnedAction: ToggleCompositePinnedAction }>();
-	private readonly viewContainerDisposables = new Map<string, IDisposable>();
+	private readonly viewContainerDisposables = this._register(new DisposableMap<string>());
 
 	private readonly keyboardNavigationDisposables = this._register(new DisposableStore());
 
@@ -684,10 +684,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private onDidDeregisterViewContainer(viewContainer: ViewContainer): void {
-		const disposable = this.viewContainerDisposables.get(viewContainer.id);
-		disposable?.dispose();
-
-		this.viewContainerDisposables.delete(viewContainer.id);
+		this.viewContainerDisposables.deleteAndDispose(viewContainer.id);
 		this.removeComposite(viewContainer.id);
 	}
 

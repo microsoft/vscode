@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, IOutputDto, ICellOutput, IOutputItemDto, ISelectionState, NullablePartialNotebookCellMetadata, NotebookCellInternalMetadata, NullablePartialNotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent, NotebookCellTextModelSplice, ICell, NotebookCellCollapseState, NotebookCellDefaultCollapseConfig, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -168,7 +168,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	readonly onWillAddRemoveCells = this._onWillAddRemoveCells.event;
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 	private _cellhandlePool: number = 0;
-	private readonly _cellListeners: Map<number, IDisposable> = new Map();
+	private readonly _cellListeners = new DisposableMap<number>();
 	private _cells: NotebookCellTextModel[] = [];
 	private _defaultCollapseConfig: NotebookCellDefaultCollapseConfig | undefined;
 
@@ -355,8 +355,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._onWillDispose.fire();
 		this._undoService.removeElements(this.uri);
 
-		dispose(this._cellListeners.values());
-		this._cellListeners.clear();
+		this._cellListeners.dispose();
 
 		dispose(this._cells);
 		this._cells = [];
@@ -709,8 +708,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		// prepare remove
 		for (let i = index; i < Math.min(index + count, this._cells.length); i++) {
 			const cell = this._cells[i];
-			this._cellListeners.get(cell.handle)?.dispose();
-			this._cellListeners.delete(cell.handle);
+			this._cellListeners.deleteAndDispose(cell.handle);
 		}
 
 		// prepare add
@@ -844,8 +842,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _removeCell(index: number, count: number, synchronous: boolean, endSelections: ISelectionState | undefined) {
 		for (let i = index; i < index + count; i++) {
 			const cell = this._cells[i];
-			this._cellListeners.get(cell.handle)?.dispose();
-			this._cellListeners.delete(cell.handle);
+			this._cellListeners.deleteAndDispose(cell.handle);
 		}
 		const changes: NotebookCellTextModelSplice<ICell>[] = [[index, count, []]];
 		this._onWillAddRemoveCells.fire({ rawEvent: { kind: NotebookCellsChangeType.ModelChange, changes } });
@@ -861,8 +858,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _replaceNewCells(index: number, count: number, cells: NotebookCellTextModel[], synchronous: boolean, endSelections: ISelectionState | undefined) {
 		for (let i = index; i < index + count; i++) {
 			const cell = this._cells[i];
-			this._cellListeners.get(cell.handle)?.dispose();
-			this._cellListeners.delete(cell.handle);
+			this._cellListeners.deleteAndDispose(cell.handle);
 		}
 
 		for (let i = 0; i < cells.length; i++) {

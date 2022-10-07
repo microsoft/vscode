@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import * as languages from 'vs/editor/common/languages';
 import { Emitter } from 'vs/base/common/event';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
@@ -29,7 +29,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 	private _onDidResize = new Emitter<dom.Dimension>();
 	onDidResize = this._onDidResize.event;
 
-	private _commentDisposable = new Map<CommentNode<T>, IDisposable>();
+	private _commentDisposable = this._register(new DisposableMap<CommentNode<T>>());
 	private _markdownRenderer: MarkdownRenderer;
 
 	get length() {
@@ -39,7 +39,6 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 	get activeComment() {
 		return this._commentElements.filter(node => node.isEditing)[0];
 	}
-
 
 	constructor(
 		readonly owner: string,
@@ -160,8 +159,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		// del removed elements
 		for (let i = commentElementsToDel.length - 1; i >= 0; i--) {
 			const commentToDelete = commentElementsToDel[i];
-			this._commentDisposable.get(commentToDelete)?.dispose();
-			this._commentDisposable.delete(commentToDelete);
+			this._commentDisposable.deleteAndDispose(commentToDelete);
 
 			this._commentElements.splice(commentElementsToDelIndex[i], 1);
 			this._commentsElement.removeChild(commentToDelete.domNode);
@@ -256,7 +254,5 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			this._resizeObserver.disconnect();
 			this._resizeObserver = null;
 		}
-
-		this._commentDisposable.forEach(v => v.dispose());
 	}
 }

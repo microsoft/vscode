@@ -27,7 +27,7 @@ import { IActivityHoverOptions, ToggleCompositePinnedAction } from 'vs/workbench
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, trackFocus, EventHelper, $, asCSSUrl, createCSSRule } from 'vs/base/browser/dom';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, DisposableMap } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -114,7 +114,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	private globalToolBar: ToolBar | undefined;
 	private globalActions: CompositeMenuActions;
 
-	private readonly panelDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
+	private readonly panelDisposables = new DisposableMap<string>();
 
 	private blockOpeningPanel = false;
 	protected contentDimension: Dimension | undefined;
@@ -292,9 +292,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	private async onDidDeregisterPanel(panelId: string): Promise<void> {
-		const disposable = this.panelDisposables.get(panelId);
-		disposable?.dispose();
-		this.panelDisposables.delete(panelId);
+		this.panelDisposables.deleteAndDispose(panelId);
 
 		const activeContainers = this.viewDescriptorService.getViewContainersByLocation(this.viewContainerLocation)
 			.filter(container => this.viewDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);

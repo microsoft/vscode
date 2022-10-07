@@ -5,7 +5,7 @@
 
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction } from 'vs/base/common/actions';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/debugViewlet';
 import * as nls from 'vs/nls';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -38,7 +38,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 	private startDebugActionViewItem: StartDebugActionViewItem | undefined;
 	private progressResolve: (() => void) | undefined;
 	private breakpointView: ViewPane | undefined;
-	private paneListeners = new Map<string, IDisposable>();
+	private readonly paneListeners = this._register(new DisposableMap<string>());
 
 	private readonly stopActionViewItemDisposables = this._register(new DisposableStore());
 
@@ -149,8 +149,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 	override removePanes(panes: ViewPane[]): void {
 		super.removePanes(panes);
 		for (const pane of panes) {
-			dispose(this.paneListeners.get(pane.id));
-			this.paneListeners.delete(pane.id);
+			this.paneListeners.deleteAndDispose(pane.id);
 		}
 	}
 

@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, dispose } from 'vs/base/common/lifecycle';
 import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { IViewBadge } from 'vs/workbench/common/views';
@@ -18,7 +18,7 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 	private readonly _proxy: extHostProtocol.ExtHostWebviewViewsShape;
 
 	private readonly _webviewViews = new Map<string, WebviewView>();
-	private readonly _webviewViewProviders = new Map<string, IDisposable>();
+	private readonly _webviewViewProviders = this._register(new DisposableMap<string>());
 
 	constructor(
 		context: IExtHostContext,
@@ -32,9 +32,6 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 
 	override dispose() {
 		super.dispose();
-
-		dispose(this._webviewViewProviders.values());
-		this._webviewViewProviders.clear();
 
 		dispose(this._webviewViews.values());
 	}
@@ -114,13 +111,11 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 	}
 
 	public $unregisterWebviewViewProvider(viewType: string): void {
-		const provider = this._webviewViewProviders.get(viewType);
-		if (!provider) {
+		if (!this._webviewViewProviders.has(viewType)) {
 			throw new Error(`No view provider for ${viewType} registered`);
 		}
 
-		provider.dispose();
-		this._webviewViewProviders.delete(viewType);
+		this._webviewViewProviders.deleteAndDispose(viewType);
 	}
 
 	private getWebviewView(handle: string): WebviewView {

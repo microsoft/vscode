@@ -5,7 +5,7 @@
 
 import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { IDebugService, IDebugSession, IReplElement } from 'vs/workbench/contrib/debug/common/debug';
 
 export class UrlFinder extends Disposable {
@@ -28,7 +28,7 @@ export class UrlFinder extends Disposable {
 
 	private _onDidMatchLocalUrl: Emitter<{ host: string; port: number }> = new Emitter();
 	public readonly onDidMatchLocalUrl = this._onDidMatchLocalUrl.event;
-	private listeners: Map<ITerminalInstance | string, IDisposable> = new Map();
+	private readonly listeners = this._register(new DisposableMap<ITerminalInstance | string>());
 
 	constructor(terminalService: ITerminalService, debugService: IDebugService) {
 		super();
@@ -40,8 +40,7 @@ export class UrlFinder extends Disposable {
 			this.registerTerminalInstance(instance);
 		}));
 		this._register(terminalService.onDidDisposeInstance(instance => {
-			this.listeners.get(instance)?.dispose();
-			this.listeners.delete(instance);
+			this.listeners.deleteAndDispose(instance);
 		}));
 
 		// Debug
@@ -53,10 +52,7 @@ export class UrlFinder extends Disposable {
 			}
 		}));
 		this._register(debugService.onDidEndSession(session => {
-			if (this.listeners.has(session.getId())) {
-				this.listeners.get(session.getId())?.dispose();
-				this.listeners.delete(session.getId());
-			}
+			this.listeners.deleteAndDispose(session.getId());
 		}));
 	}
 
@@ -86,14 +82,6 @@ export class UrlFinder extends Disposable {
 					this.processData(element.toString());
 				}
 			}
-		}
-	}
-
-	override dispose() {
-		super.dispose();
-		const listeners = this.listeners.values();
-		for (const listener of listeners) {
-			listener.dispose();
 		}
 	}
 

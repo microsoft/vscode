@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { autorunWithStore } from 'vs/base/common/observable';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
@@ -24,21 +24,14 @@ export class AudioCueLineDebuggerContribution
 				return;
 			}
 
-			const sessionDisposables = new Map<IDebugSession, IDisposable>();
-			store.add(toDisposable(() => {
-				sessionDisposables.forEach(d => d.dispose());
-				sessionDisposables.clear();
-			}));
+			const sessionDisposables = store.add(new DisposableMap<IDebugSession>());
 
-			store.add(
-				debugService.onDidNewSession((session) =>
-					sessionDisposables.set(session, this.handleSession(session))
-				)
-			);
+			store.add(debugService.onDidNewSession((session) =>
+				sessionDisposables.set(session, this.handleSession(session))
+			));
 
 			store.add(debugService.onDidEndSession(session => {
-				sessionDisposables.get(session)?.dispose();
-				sessionDisposables.delete(session);
+				sessionDisposables.deleteAndDispose(session);
 			}));
 
 			debugService

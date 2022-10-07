@@ -5,7 +5,7 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/languages';
@@ -277,9 +277,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 export class MainThreadSCM implements MainThreadSCMShape {
 
 	private readonly _proxy: ExtHostSCMShape;
-	private _repositories = new Map<number, ISCMRepository>();
-	private _repositoryDisposables = new Map<number, IDisposable>();
-	private readonly _disposables = new DisposableStore();
+	private readonly _repositories = new DisposableMap<number, ISCMRepository>();
+	private readonly _repositoryDisposables = new DisposableMap<number>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -290,13 +289,8 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	dispose(): void {
-		dispose(this._repositories.values());
-		this._repositories.clear();
-
-		dispose(this._repositoryDisposables.values());
-		this._repositoryDisposables.clear();
-
-		this._disposables.dispose();
+		this._repositories.dispose();
+		this._repositoryDisposables.dispose();
 	}
 
 	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined): void {
@@ -332,17 +326,8 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$unregisterSourceControl(handle: number): void {
-		const repository = this._repositories.get(handle);
-
-		if (!repository) {
-			return;
-		}
-
-		this._repositoryDisposables.get(handle)!.dispose();
-		this._repositoryDisposables.delete(handle);
-
-		repository.dispose();
-		this._repositories.delete(handle);
+		this._repositories.deleteAndDispose(handle);
+		this._repositoryDisposables.deleteAndDispose(handle);
 	}
 
 	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][], splices: SCMRawResourceSplices[]): void {

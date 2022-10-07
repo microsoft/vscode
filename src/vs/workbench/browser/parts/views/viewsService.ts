@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable, DisposableStore, DisposableMap } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer } from 'vs/workbench/common/views';
 import { FocusedViewContext, getVisbileViewContextKey, getEnabledViewContainerContextKey } from 'vs/workbench/common/contextkeys';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -37,7 +37,7 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly viewDisposable: Map<IViewDescriptor, IDisposable>;
+	private readonly viewDisposable = this._register(new DisposableMap<IViewDescriptor>());
 	private readonly viewPaneContainers: Map<string, ViewPaneContainer>;
 
 	private readonly _onDidChangeViewVisibility: Emitter<{ id: string; visible: boolean }> = this._register(new Emitter<{ id: string; visible: boolean }>());
@@ -57,14 +57,8 @@ export class ViewsService extends Disposable implements IViewsService {
 	) {
 		super();
 
-		this.viewDisposable = new Map<IViewDescriptor, IDisposable>();
 		this.visibleViewContextKeys = new Map<string, IContextKey<boolean>>();
 		this.viewPaneContainers = new Map<string, ViewPaneContainer>();
-
-		this._register(toDisposable(() => {
-			this.viewDisposable.forEach(disposable => disposable.dispose());
-			this.viewDisposable.clear();
-		}));
 
 		this.viewDescriptorService.viewContainers.forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer, this.viewDescriptorService.getViewContainerLocation(viewContainer)!));
 		this._register(this.viewDescriptorService.onDidChangeViewContainers(({ added, removed }) => this.onDidChangeContainers(added, removed)));
@@ -147,11 +141,7 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	private onViewDescriptorsRemoved(views: ReadonlyArray<IViewDescriptor>): void {
 		for (const view of views) {
-			const disposable = this.viewDisposable.get(view);
-			if (disposable) {
-				disposable.dispose();
-				this.viewDisposable.delete(view);
-			}
+			this.viewDisposable.deleteAndDispose(view);
 		}
 	}
 

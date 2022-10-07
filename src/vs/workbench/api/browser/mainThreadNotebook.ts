@@ -6,7 +6,7 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -23,12 +23,10 @@ import { assertType } from 'vs/base/common/types';
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks implements MainThreadNotebookShape {
 
-	private readonly _disposables = new DisposableStore();
-
 	private readonly _proxy: ExtHostNotebookShape;
 	private readonly _notebookProviders = new Map<string, { controller: INotebookContentProvider; disposable: IDisposable }>();
-	private readonly _notebookSerializer = new Map<number, IDisposable>();
-	private readonly _notebookCellStatusBarRegistrations = new Map<number, IDisposable>();
+	private readonly _notebookSerializer = new DisposableMap<number>();
+	private readonly _notebookCellStatusBarRegistrations = new DisposableMap<number>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -40,12 +38,13 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
 		// remove all notebook providers
 		for (const item of this._notebookProviders.values()) {
 			item.disposable.dispose();
 		}
-		dispose(this._notebookSerializer.values());
+		this._notebookProviders.clear();
+		this._notebookSerializer.dispose();
+		this._notebookCellStatusBarRegistrations.dispose();
 	}
 
 	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, options: TransientOptions, data: INotebookContributionData | undefined): Promise<void> {
@@ -112,8 +111,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 	}
 
 	$unregisterNotebookSerializer(handle: number): void {
-		this._notebookSerializer.get(handle)?.dispose();
-		this._notebookSerializer.delete(handle);
+		this._notebookSerializer.deleteAndDispose(handle);
 	}
 
 	$emitCellStatusBarEvent(eventHandle: number): void {
@@ -152,11 +150,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 
 	async $unregisterNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined): Promise<void> {
 		const unregisterThing = (handle: number) => {
-			const entry = this._notebookCellStatusBarRegistrations.get(handle);
-			if (entry) {
-				this._notebookCellStatusBarRegistrations.get(handle)?.dispose();
-				this._notebookCellStatusBarRegistrations.delete(handle);
-			}
+			this._notebookCellStatusBarRegistrations.deleteAndDispose(handle);
 		};
 		unregisterThing(handle);
 		if (typeof eventHandle === 'number') {

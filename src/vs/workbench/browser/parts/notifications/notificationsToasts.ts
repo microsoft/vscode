@@ -6,7 +6,7 @@
 import 'vs/css!./media/notificationsToasts';
 import { localize } from 'vs/nls';
 import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
-import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, DisposableStore, DisposableMap } from 'vs/base/common/lifecycle';
 import { isAncestor, addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
@@ -68,7 +68,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	private isNotificationsCenterVisible: boolean | undefined;
 
 	private readonly mapNotificationToToast = new Map<INotificationViewItem, INotificationToast>();
-	private readonly mapNotificationToDisposable = new Map<INotificationViewItem, IDisposable>();
+	private readonly mapNotificationToDisposable = new DisposableMap<INotificationViewItem>();
 
 	private readonly notificationsToastsVisibleContextKey = NotificationsToastsVisibleContext.bindTo(this.contextKeyService);
 
@@ -331,12 +331,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		}
 
 		// Disposables
-		const notificationDisposables = this.mapNotificationToDisposable.get(item);
-		if (notificationDisposables) {
-			dispose(notificationDisposables);
-
-			this.mapNotificationToDisposable.delete(item);
-		}
+		this.mapNotificationToDisposable.deleteAndDispose(item);
 
 		// Layout if we still have toasts
 		if (this.mapNotificationToToast.size > 0) {
@@ -360,8 +355,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		this.mapNotificationToToast.clear();
 
 		// Disposables
-		this.mapNotificationToDisposable.forEach(disposable => dispose(disposable));
-		this.mapNotificationToDisposable.clear();
+		this.mapNotificationToDisposable.clearAndDisposeAll();
 
 		this.doHide();
 	}
