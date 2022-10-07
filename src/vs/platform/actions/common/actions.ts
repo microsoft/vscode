@@ -592,7 +592,8 @@ interface ICommandPaletteOptions extends IAction2CommonOptions {
 
 	/**
 	 * Shorthand to add this command to the command palette. Note: this is not the only way to declare that
-	 * a command should be in the command palette... however, enforcing ILocalized
+	 * a command should be in the command palette... however, enforcing ILocalizedString in the other scenarios
+	 * is much more challenging and this gets us most of the way there.
 	 */
 	f1: true;
 }
