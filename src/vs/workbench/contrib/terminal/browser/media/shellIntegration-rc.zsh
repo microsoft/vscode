@@ -34,6 +34,40 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
+# The property (P) and command (E) codes embed values which require escaping.
+# Backslashes are doubled. Non-alphanumeric characters are converted to escaped hex.
+__vsc_escape_value() {
+	builtin emulate -L zsh
+
+	# Process text byte by byte, not by codepoint.
+	builtin local LC_ALL=C str="$1" i byte token out=''
+
+	for (( i = 0; i < ${#str}; ++i )); do
+		byte="${str:$i:1}"
+
+		# Backslashes must be doubled.
+		if [ "$byte" = "\\" ]; then
+			token="\\\\"
+		# Conservatively pass alphanumerics through.
+		elif [[ "$byte" == [0-9A-Za-z] ]]; then
+			token="$byte"
+		# Hex-encode anything else.
+		# (Importantly including: semicolon, newline, and control chars).
+		else
+			token="\\x${(l:2::0:)$(( [##16] #byte ))}"
+			#            │ │  │      └┬┘└┬┘ └─┬─┘
+			#            │ │  │       │  │    │
+			# left-pad ──╯ │  │       │  │    ╰─ the byte value of the character
+			# two digits ──╯  │       │  ╰────── in hexadecimal
+			# with '0' ───────╯       ╰───────── with no prefix
+		fi
+
+		out+="$token"
+	done
+
+	builtin print -r "$out"
+}
+
 __vsc_in_command_execution="1"
 __vsc_current_command=""
 
@@ -46,13 +80,12 @@ __vsc_prompt_end() {
 }
 
 __vsc_update_cwd() {
-	builtin printf '\e]633;P;Cwd=%s\a' "$PWD"
+	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "${PWD}")"
 }
 
 __vsc_command_output_start() {
 	builtin printf '\e]633;C\a'
-	# Send command line, escaping printf format chars %
-	builtin printf '\e]633;E;%s\a' "$__vsc_current_command"
+	builtin printf '\e]633;E;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")"
 }
 
 __vsc_continuation_start() {
