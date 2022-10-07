@@ -207,6 +207,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _target?: TerminalLocation | undefined;
 	private _disableShellIntegrationReporting: boolean | undefined;
 	private _usedShellIntegrationInjection: boolean = false;
+	get usedShellIntegrationInjection(): boolean { return this._usedShellIntegrationInjection; }
 	private _quickFixAddon: TerminalQuickFixAddon | undefined;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
