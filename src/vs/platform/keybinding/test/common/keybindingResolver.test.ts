@@ -235,12 +235,23 @@ suite('KeybindingResolver', () => {
 		]);
 	});
 
-	test('issue #157751: Keyboard Shortcuts: Change When Expression might actually remove keybinding in Insiders', () => {
+	test('issue #157751: Auto-quoting of context keys prevents removal of keybindings via UI', () => {
 		const defaults = [
 			kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.deserialize(`editorTextFocus && activeEditor != workbench.editor.notebook && editorLangId in julia.supportedLanguageIds`), true),
 		];
 		const overrides = [
 			kbItem(KeyCode.KeyA, '-command1', null, ContextKeyExpr.deserialize(`editorTextFocus && activeEditor != 'workbench.editor.notebook' && editorLangId in 'julia.supportedLanguageIds'`), false),
+		];
+		const actual = KeybindingResolver.handleRemovals([...defaults, ...overrides]);
+		assert.deepStrictEqual(actual, []);
+	});
+
+	test('issue #160604: Remove keybindings with when clause does not work', () => {
+		const defaults = [
+			kbItem(KeyCode.KeyA, 'command1', null, undefined, true),
+		];
+		const overrides = [
+			kbItem(KeyCode.KeyA, '-command1', null, ContextKeyExpr.true(), false),
 		];
 		const actual = KeybindingResolver.handleRemovals([...defaults, ...overrides]);
 		assert.deepStrictEqual(actual, []);
