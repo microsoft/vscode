@@ -40,7 +40,7 @@ const $ = dom.$;
 
 async function doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression | null> {
 	if (!container) {
-		return Promise.resolve(null);
+		return null;
 	}
 
 	const children = await container.getChildren();
@@ -201,7 +201,8 @@ export class DebugHoverWidget implements IContentWidget {
 		const session = this.debugService.getViewModel().focusedSession;
 
 		if (!session || !this.editor.hasModel()) {
-			return Promise.resolve(this.hide());
+			this.hide();
+			return;
 		}
 
 		const result = await this.debugHoverComputer.compute(position, cancellationSource.token);
@@ -256,7 +257,7 @@ export class DebugHoverWidget implements IContentWidget {
 				this.valueContainer.focus();
 			}
 
-			return Promise.resolve(undefined);
+			return undefined;
 		}
 
 		this.valueContainer.hidden = true;
