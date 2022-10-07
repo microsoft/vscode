@@ -121,6 +121,14 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 	get target(): TerminalLocation | undefined { return this._target; }
 
+	get textureAtlas(): Promise<ImageBitmap> | undefined {
+		const canvas = this._webglAddon?.textureAtlas || this._canvasAddon?.textureAtlas;
+		if (!canvas) {
+			return undefined;
+		}
+		return createImageBitmap(canvas);
+	}
+
 	/**
 	 * @param xtermCtor The xterm.js constructor, this is passed in so it can be fetched lazily
 	 * outside of this class such that {@link raw} is not nullable.
@@ -210,6 +218,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon, disableShellIntegrationReporting, this._telemetryService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
+
+		// Load the relevant renderer addon ahead of open being called as it's asynchronous
+		if (this._shouldLoadWebgl()) {
+			this._enableWebglRenderer();
+		} else if (this._shouldLoadCanvas()) {
+			this._enableCanvasRenderer();
+		}
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
@@ -240,11 +255,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			this.raw.open(container);
 		}
 		this._container = container;
-		if (this._shouldLoadWebgl()) {
-			this._enableWebglRenderer();
-		} else if (this._shouldLoadCanvas()) {
-			this._enableCanvasRenderer();
-		}
 		// Screen must be created at this point as xterm.open is called
 		return this._container.querySelector('.xterm-screen')!;
 	}

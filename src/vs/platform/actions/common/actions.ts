@@ -9,6 +9,7 @@ import { Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from 'vs/platform/action/common/action';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { CommandsRegistry, ICommandHandlerDescription, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor, SyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
@@ -31,6 +32,7 @@ export interface ISubmenuItem {
 	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
+	isSelection?: boolean;
 	rememberDefaultAction?: boolean;	// for dropdown menu: if true the last executed action is remembered as the default action
 }
 
@@ -566,6 +568,11 @@ export interface IAction2Options extends ICommandAction {
 	 * inside a specific toolbar
 	 */
 	_isFakeAction?: true;
+}
+
+export interface IAction2F1RequiredOptions {
+	title: ICommandActionTitle;
+	category?: keyof typeof Categories | ILocalizedString;
 }
 
 export abstract class Action2 {

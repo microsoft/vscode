@@ -493,6 +493,29 @@
             "type": "string"
           }
         },
+        "markdown.validate.unusedLinkDefinitions.enabled": {
+          "type": "string",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.validate.unusedLinkDefinitions.description%",
+          "default": "hint",
+          "enum": [
+            "ignore",
+            "hint",
+            "warning",
+            "error"
+          ]
+        },
+        "markdown.validate.duplicateLinkDefinitions.enabled": {
+          "type": "string",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.validate.duplicateLinkDefinitions.description%",
+          "default": "warning",
+          "enum": [
+            "ignore",
+            "warning",
+            "error"
+          ]
+        },
         "markdown.experimental.updateLinksOnFileMove.enabled": {
           "type": "string",
           "enum": [

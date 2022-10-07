@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IAction } from 'vs/base/common/actions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -14,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
-import { OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
+import { OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK } from 'vs/workbench/services/output/common/output';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -23,18 +22,13 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { editorBackground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
-import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { Dimension } from 'vs/base/browser/dom';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -121,12 +115,6 @@ export class OutputViewPane extends ViewPane {
 		this.editor.layout(new Dimension(width, height));
 	}
 
-	override getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (action.id === 'workbench.output.action.switchBetweenOutputs') {
-			return this.instantiationService.createInstance(SwitchOutputActionViewItem, action);
-		}
-		return super.getActionViewItem(action);
-	}
 
 	private onDidChangeVisibility(visible: boolean): void {
 		this.editor.setVisible(visible);
@@ -267,85 +255,6 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		if (scopedContextKeyService) {
 			CONTEXT_IN_OUTPUT.bindTo(scopedContextKeyService).set(true);
 		}
-	}
-}
-
-type OutputChannelSelectionOptionItem = ISelectOptionItem & { readonly channel?: IOutputChannelDescriptor };
-
-class SwitchOutputActionViewItem extends SelectActionViewItem {
-
-	private static readonly SEPARATOR = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
-
-	private selectionOptionItems: OutputChannelSelectionOptionItem[] = [];
-
-	constructor(
-		action: IAction,
-		@IOutputService private readonly outputService: IOutputService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IContextViewService contextViewService: IContextViewService
-	) {
-		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputChannels', "Output Channels"), optionsAsChildren: true });
-
-		const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
-		this._register(outputChannelRegistry.onDidRegisterChannel(() => this.updateOptions()));
-		this._register(outputChannelRegistry.onDidRemoveChannel(() => this.updateOptions()));
-		this._register(this.outputService.onActiveOutputChannel(() => this.updateOptions()));
-		this._register(attachSelectBoxStyler(this.selectBox, themeService));
-
-		this.updateOptions();
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-		container.classList.add('switch-output');
-		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
-			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
-		}));
-	}
-
-	protected override getActionContext(option: string, index: number): string {
-		return this.selectionOptionItems[index]?.channel?.id ?? option;
-	}
-
-	private updateOptions(): void {
-		const outputChannels = [];
-		const logChannels = [];
-		const extensionLogChannels = [];
-		this.selectionOptionItems = [];
-		for (const descriptor of this.outputService.getChannelDescriptors()) {
-			if (descriptor.log) {
-				if (descriptor.extensionId) {
-					extensionLogChannels.push(descriptor);
-				} else {
-					logChannels.push(descriptor);
-				}
-			} else {
-				outputChannels.push(descriptor);
-			}
-		}
-
-		for (const descriptor of outputChannels) {
-			this.selectionOptionItems.push({ text: descriptor.label, isDisabled: false, channel: descriptor });
-		}
-		if (outputChannels.length && logChannels.length) {
-			this.selectionOptionItems.push({ text: SwitchOutputActionViewItem.SEPARATOR, isDisabled: true });
-		}
-		for (const descriptor of logChannels) {
-			this.selectionOptionItems.push({ text: nls.localize('logChannel', "Log ({0})", descriptor.label), isDisabled: false, channel: descriptor });
-		}
-		if (logChannels.length && extensionLogChannels.length) {
-			this.selectionOptionItems.push({ text: SwitchOutputActionViewItem.SEPARATOR, isDisabled: true });
-		}
-		for (const descriptor of extensionLogChannels) {
-			this.selectionOptionItems.push({ text: nls.localize('logChannel', "Log ({0})", descriptor.label), isDisabled: false, channel: descriptor });
-		}
-
-		let selected = 0;
-		const activeChannel = this.outputService.getActiveChannel();
-		if (activeChannel) {
-			selected = this.selectionOptionItems.findIndex(item => item.channel?.id === activeChannel.id);
-		}
-		this.setOptions(this.selectionOptionItems, Math.max(0, selected));
 	}
 }
 

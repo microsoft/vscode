@@ -111,7 +111,7 @@ let welcomeOverlay: WelcomeOverlay;
 export class WelcomeOverlayAction extends Action2 {
 
 	public static readonly ID = 'workbench.action.showInterfaceOverview';
-	public static readonly LABEL = localize('welcomeOverlay', "User Interface Overview");
+	public static readonly LABEL = { value: localize('welcomeOverlay', "User Interface Overview"), original: 'User Interface Overview' };
 
 	constructor(
 	) {
@@ -136,7 +136,7 @@ export class WelcomeOverlayAction extends Action2 {
 export class HideWelcomeOverlayAction extends Action2 {
 
 	public static readonly ID = 'workbench.action.hideInterfaceOverview';
-	public static readonly LABEL = localize('hideWelcomeOverlay', "Hide Interface Overview");
+	public static readonly LABEL = { value: localize('hideWelcomeOverlay', "Hide Interface Overview"), original: 'Hide Interface Overview' };
 
 	constructor() {
 		super({
