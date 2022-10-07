@@ -289,7 +289,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				const profile = await userDataProfileImportExportService.exportProfile({ skipComments: true });
 				await textFileService.create([{ resource: profileLocation, value: JSON.stringify(profile), options: { overwrite: true } }]);
 
-				notificationService.info(localize('export success', "{0}: Exported successfully.", PROFILES_CATEGORY));
+				notificationService.info(localize('export success', "{0}: Exported successfully.", PROFILES_CATEGORY.value));
 			}
 		}));
 		disposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarShare, {
