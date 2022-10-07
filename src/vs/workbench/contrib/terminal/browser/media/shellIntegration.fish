@@ -24,7 +24,7 @@ set --global VSCODE_SHELL_INTEGRATION 1
 
 # Helper function
 function __vsc_esc -d "Emit escape sequences for VS Code shell integration"
-	builtin printf "\e]633;%s\007" (string join ";" $argv)
+	builtin printf "\e]633;%s\a" (string join ";" $argv)
 end
 
 # Sent right before executing an interactive command.
@@ -44,8 +44,8 @@ function __vsc_escape_cmd
 	# `string replace` automatically breaks its input apart on any newlines.
 	# Then `string join` at the end will bring it all back together.
 	string replace --all '\\' '\\\\' $commandline \
-		| string replace --all ';' '\x3b' \
-		| string join '\x0a'
+		| string replace --all ';' '\\x3b' \
+		| string join '\\x0a'
 end
 
 # Sent right after an interactive command has finished executing.
