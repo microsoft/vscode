@@ -177,7 +177,7 @@ export class DisposableStore implements IDisposable {
 
 	static DISABLE_DISPOSED_WARNING = false;
 
-	private _toDispose = new Set<IDisposable>();
+	private readonly _toDispose = new Set<IDisposable>();
 	private _isDisposed = false;
 
 	constructor() {
@@ -210,6 +210,10 @@ export class DisposableStore implements IDisposable {
 	 * Dispose of all registered disposables but do not mark this object as disposed.
 	 */
 	public clear(): void {
+		if (this._toDispose.size === 0) {
+			return;
+		}
+
 		try {
 			dispose(this._toDispose.values());
 		} finally {
