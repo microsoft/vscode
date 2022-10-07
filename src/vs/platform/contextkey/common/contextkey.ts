@@ -162,12 +162,12 @@ export abstract class ContextKeyExpr {
 
 		if (serializedOne.indexOf(' not in ') >= 0) {
 			const pieces = serializedOne.split(' not in ');
-			return ContextKeyNotInExpr.create(pieces[0].trim(), pieces[1].trim());
+			return ContextKeyNotInExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1], strict));
 		}
 
 		if (serializedOne.indexOf(' in ') >= 0) {
 			const pieces = serializedOne.split(' in ');
-			return ContextKeyInExpr.create(pieces[0].trim(), pieces[1].trim());
+			return ContextKeyInExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1], strict));
 		}
 
 		if (/^[^<=>]+>=[^<=>]+$/.test(serializedOne)) {
