@@ -137,7 +137,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly defaultLocation: TerminalLocation;
 	readonly primaryBackendRegistered: Promise<void>;
 
-	initializeTerminals(): Promise<void>;
 	onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 	onDidDisposeGroup: Event<ITerminalGroup>;
 	onDidCreateInstance: Event<ITerminalInstance>;

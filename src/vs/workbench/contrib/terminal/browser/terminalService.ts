@@ -68,8 +68,6 @@ export class TerminalService implements ITerminalService {
 	private _terminalHasBeenCreated: IContextKey<boolean>;
 	private _terminalCountContextKey: IContextKey<number>;
 	private _configHelper: TerminalConfigHelper;
-	private _remoteTerminalsInitPromise: Promise<void> | undefined;
-	private _localTerminalsInitPromise: Promise<void> | undefined;
 	private _connectionState: TerminalConnectionState = TerminalConnectionState.Connecting;
 	private _nativeDelegate?: ITerminalServiceNativeDelegate;
 	private _shutdownWindowCount?: number;
@@ -272,11 +270,11 @@ export class TerminalService implements ITerminalService {
 		const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
 
 		if (isPersistentRemote) {
-			this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals().then(() => this._setConnected());
+			this._reconnectToRemoteTerminals().then(() => this._setConnected());
 		} else if (enableTerminalReconnection) {
-			this._localTerminalsInitPromise = this._reconnectToLocalTerminals().then(() => this._setConnected());
+			this._reconnectToLocalTerminals().then(() => this._setConnected());
 		} else {
-			this._connectionState = TerminalConnectionState.Connected;
+			this._setConnected();
 		}
 
 		// Open the primary backend registered barrier to allow ITerminalService consumers to
@@ -396,11 +394,6 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _setConnected() {
-		console.log('setting connected');
-		if (this._connectionState === TerminalConnectionState.Connected) {
-			console.log('returning');
-			return;
-		}
 		this._connectionState = TerminalConnectionState.Connected;
 		this._onDidChangeConnectionState.fire();
 		this._logService.trace('Reconnected to terminals');
@@ -736,19 +729,6 @@ export class TerminalService implements ITerminalService {
 
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean {
 		return this.instances.some(term => term.processId === remoteTerm.pid);
-	}
-
-	async initializeTerminals(): Promise<void> {
-		if (this._remoteTerminalsInitPromise) {
-			await this._remoteTerminalsInitPromise;
-			this._setConnected();
-		} else if (this._localTerminalsInitPromise) {
-			await this._localTerminalsInitPromise;
-			this._setConnected();
-		}
-		if (this._terminalGroupService.groups.length === 0 && this.isProcessSupportRegistered) {
-			this.createTerminal({ location: TerminalLocation.Panel });
-		}
 	}
 
 	moveToEditor(source: ITerminalInstance): void {

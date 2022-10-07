@@ -166,9 +166,6 @@ export class TerminalViewPane extends ViewPane {
 			this._viewShowing.set(visible);
 			if (visible) {
 				const hadTerminals = !!this._terminalGroupService.groups.length;
-				// Ensure the primary backend is registered as it's important to do before
-				// initializeTerminals is called.
-				await this._terminalService.primaryBackendRegistered;
 				if (this._terminalService.isProcessSupportRegistered) {
 					if (this._terminalsInitialized) {
 						if (!hadTerminals) {
@@ -176,7 +173,6 @@ export class TerminalViewPane extends ViewPane {
 						}
 					} else {
 						this._terminalsInitialized = true;
-						this._terminalService.initializeTerminals();
 					}
 				} else {
 					this._onDidChangeViewWelcomeState.fire();
