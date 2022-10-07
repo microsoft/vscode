@@ -58,6 +58,11 @@ export class NativeMenubarControl extends MenubarControl {
 		this.registerListeners();
 	}
 
+	protected override registerListeners(): void {
+		// Listen for changes on the main menu
+		this._register(this.mainMenu.onDidChange(() => { this.setupMainMenu(); this.doUpdateMenubar(); }));
+	}
+
 	protected override setupMainMenu(): void {
 		super.setupMainMenu();
 

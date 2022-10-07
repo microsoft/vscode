@@ -199,9 +199,6 @@ export abstract class MenubarControl extends Disposable {
 
 		// Update recent menu items on formatter registration
 		this._register(this.labelService.onDidChangeFormatters(() => { this.onDidChangeRecentlyOpened(); }));
-
-		// Listen for changes on the main menu
-		this._register(this.mainMenu.onDidChange(() => { this.setupMainMenu(); this.doUpdateMenubar(true); }));
 	}
 
 	protected setupMainMenu(): void {
@@ -890,6 +887,23 @@ export class CustomMenubarControl extends MenubarControl {
 			this._register(this.layoutService.onDidChangeFullscreen(e => this.updateMenubar()));
 			this._register(this.webNavigationMenu.onDidChange(() => this.updateMenubar()));
 		}
+
+		// Listen for changes on the main menu
+		this._register(this.mainMenu.onDidChange(() => {
+			// Don't update the menu bar if the focus is inside the menubar
+			if (this.menubar && this.focusInsideMenubar) {
+				const disposeChange = this.menubar.onFocusStateChange(focused => {
+					if (!focused) {
+						this.setupMainMenu();
+						this.doUpdateMenubar(true);
+						disposeChange.dispose();
+					}
+				});
+			} else {
+				this.setupMainMenu();
+				this.doUpdateMenubar(true);
+			}
+		}));
 	}
 
 	get onVisibilityChange(): Event<boolean> {
