@@ -118,10 +118,10 @@ export function isDisposable<E extends object>(thing: E): thing is E & IDisposab
 
 export function dispose<T extends IDisposable>(disposable: T): T;
 export function dispose<T extends IDisposable>(disposable: T | undefined): T | undefined;
-export function dispose<T extends IDisposable, A extends IterableIterator<T> = IterableIterator<T>>(disposables: IterableIterator<T>): A;
+export function dispose<T extends IDisposable, A extends Iterable<T> = Iterable<T>>(disposables: A): A;
 export function dispose<T extends IDisposable>(disposables: Array<T>): Array<T>;
 export function dispose<T extends IDisposable>(disposables: ReadonlyArray<T>): ReadonlyArray<T>;
-export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | undefined): any {
+export function dispose<T extends IDisposable>(arg: T | Iterable<T> | undefined): any {
 	if (Iterable.is(arg)) {
 		const errors: any[] = [];
 
@@ -215,7 +215,7 @@ export class DisposableStore implements IDisposable {
 		}
 
 		try {
-			dispose(this._toDispose.values());
+			dispose(this._toDispose);
 		} finally {
 			this._toDispose.clear();
 		}
