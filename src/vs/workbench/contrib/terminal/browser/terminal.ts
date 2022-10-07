@@ -455,6 +455,7 @@ export interface ITerminalInstance {
 	readonly initialCwd?: string;
 	readonly os?: OperatingSystem;
 	readonly capabilities: ITerminalCapabilityStore;
+	readonly usedShellIntegrationInjection: boolean;
 
 	readonly statusList: ITerminalStatusList;
 
