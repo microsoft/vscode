@@ -18,8 +18,9 @@ import { isWindows } from 'vs/base/common/platform';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { URI } from 'vs/base/common/uri';
 
 const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
@@ -139,6 +140,37 @@ class RestartToUpdateAction extends Action2 {
 	}
 }
 
+class DownloadAction extends Action2 {
+
+	static readonly ID = 'workbench.action.download';
+	static readonly AVAILABLE = !!product.downloadUrl;
+
+	constructor() {
+		super({
+			id: DownloadAction.ID,
+			title: {
+				value: localize('openDownloadPage', "Download {0}", product.nameLong),
+				original: `Download ${product.downloadUrl}`
+			},
+			precondition: IsWebContext, // Only show when running in a web browser
+			f1: true,
+			menu: [{
+				id: MenuId.StatusBarRemoteIndicatorMenu,
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const productService = accessor.get(IProductService);
+		const openerService = accessor.get(IOpenerService);
+
+		if (productService.downloadUrl) {
+			openerService.open(URI.parse(productService.downloadUrl));
+		}
+	}
+}
+
+registerAction2(DownloadAction);
 registerAction2(CheckForUpdateAction);
 registerAction2(DownloadUpdateAction);
 registerAction2(InstallUpdateAction);
