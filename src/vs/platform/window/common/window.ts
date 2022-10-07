@@ -11,13 +11,12 @@ import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileType } from 'vs/platform/files/common/files';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const WindowMinimumSize = {
 	WIDTH: 400,
@@ -63,7 +62,7 @@ export interface IAddFoldersRequest {
 
 export interface IOpenedWindow {
 	readonly id: number;
-	readonly workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
+	readonly workspace?: IAnyWorkspaceIdentifier;
 	readonly title: string;
 	readonly filename?: string;
 	readonly dirty: boolean;
@@ -164,17 +163,21 @@ export function getTitleBarStyle(configurationService: IConfigurationService): '
 	return isLinux ? 'native' : 'custom'; // default to custom on all macOS and Windows
 }
 
-export function useWindowControlsOverlay(configurationService: IConfigurationService, environmentService: IEnvironmentService): boolean {
-	// Window Controls Overlay are only configurable on Windows
-	if (!isWindows || isWeb || !environmentService.isBuilt) {
-		return false;
+export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
+	if (!isWindows || isWeb) {
+		return false; // only supported on a desktop Windows instance
 	}
 
 	if (getTitleBarStyle(configurationService) === 'native') {
-		return false;
+		return false; // only supported when title bar is custom
 	}
 
-	return configurationService.getValue<boolean>('window.experimental.windowControlsOverlay.enabled');
+	const configuredUseWindowControlsOverlay = configurationService.getValue<boolean | undefined>('window.experimental.windowControlsOverlay.enabled');
+	if (typeof configuredUseWindowControlsOverlay === 'boolean') {
+		return configuredUseWindowControlsOverlay;
+	}
+
+	return false; // disable by default
 }
 
 export interface IPath<T = IEditorOptions> extends IPathData<T> {
@@ -279,7 +282,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	profiles: {
 		all: readonly UriDto<IUserDataProfile>[];
-		current: UriDto<IUserDataProfile>;
+		profile: UriDto<IUserDataProfile>;
 	};
 
 	homeDir: string;

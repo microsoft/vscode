@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export interface IDataTransferFile {
 	readonly name: string;
@@ -12,6 +13,7 @@ export interface IDataTransferFile {
 }
 
 export interface IDataTransferItem {
+	readonly id: string;
 	asString(): Thenable<string>;
 	asFile(): IDataTransferFile | undefined;
 	value: any;
@@ -19,6 +21,7 @@ export interface IDataTransferItem {
 
 export function createStringDataTransferItem(stringOrPromise: string | Promise<string>): IDataTransferItem {
 	return {
+		id: generateUuid(),
 		asString: async () => stringOrPromise,
 		asFile: () => undefined,
 		value: typeof stringOrPromise === 'string' ? stringOrPromise : undefined,
@@ -27,6 +30,7 @@ export function createStringDataTransferItem(stringOrPromise: string | Promise<s
 
 export function createFileDataTransferItem(fileName: string, uri: URI | undefined, data: () => Promise<Uint8Array>): IDataTransferItem {
 	return {
+		id: generateUuid(),
 		asString: async () => '',
 		asFile: () => ({ name: fileName, uri, data }),
 		value: undefined,

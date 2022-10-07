@@ -5,7 +5,7 @@
 
 import { protocol } from 'electron';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { FileAccess, Schemas } from 'vs/base/common/network';
+import { COI, FileAccess, Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 
 
@@ -35,7 +35,13 @@ export class WebviewProtocolProvider extends Disposable {
 			if (typeof entry === 'string') {
 				const relativeResourcePath = `vs/workbench/contrib/webview/browser/pre/${entry}`;
 				const url = FileAccess.asFileUri(relativeResourcePath, require);
-				return callback(decodeURIComponent(url.fsPath));
+				return callback({
+					path: decodeURIComponent(url.fsPath),
+					headers: {
+						...COI.getHeadersFromQuery(request.url),
+						'Cross-Origin-Resource-Policy': 'cross-origin'
+					}
+				});
 			} else {
 				return callback({ error: -10 /* ACCESS_DENIED - https://cs.chromium.org/chromium/src/net/base/net_error_list.h?l=32 */ });
 			}

@@ -556,8 +556,13 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 		this.onDidScroll = this.scrollableElement.onScroll;
 		this._register(this.onDidScroll(e => {
-			this.viewContainer.scrollTop = e.scrollTop;
-			this.viewContainer.scrollLeft = e.scrollLeft;
+			if (e.scrollTopChanged) {
+				this.viewContainer.scrollTop = e.scrollTop;
+			}
+
+			if (e.scrollLeftChanged) {
+				this.viewContainer.scrollLeft = e.scrollLeft;
+			}
 		}));
 
 		append(this.el, this.scrollableElement.getDomNode());

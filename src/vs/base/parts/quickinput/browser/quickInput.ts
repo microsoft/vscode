@@ -15,6 +15,7 @@ import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybi
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
 import { IProgressBarStyles, ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
@@ -28,7 +29,7 @@ import { isIOS } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { isString, withNullAsUndefined } from 'vs/base/common/types';
 import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickWillAcceptEvent, ItemActivation, NO_KEY_MODS, QuickInputHideReason, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, ItemActivation, NO_KEY_MODS, QuickInputHideReason, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 import { QuickInputBox } from './quickInputBox';
@@ -464,6 +465,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private selectedItemsToConfirm: T[] | null = [];
 	private readonly onDidChangeSelectionEmitter = this._register(new Emitter<T[]>());
 	private readonly onDidTriggerItemButtonEmitter = this._register(new Emitter<IQuickPickItemButtonEvent<T>>());
+	private readonly onDidTriggerSeparatorButtonEmitter = this._register(new Emitter<IQuickPickSeparatorButtonEvent>());
 	private _valueSelection: Readonly<[number, number]> | undefined;
 	private valueSelectionUpdated = true;
 	private _ok: boolean | 'default' = 'default';
@@ -740,9 +742,19 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.update();
 	}
 
+	set toggles(toggles: IQuickInputToggle[] | undefined) {
+		// HACK: Filter out toggles here that are not concrete Toggle objects. This is to workaround
+		// a layering issue as quick input's interface is in common but Toggle is in browser and
+		// it requires a HTMLElement on its interface
+		const concreteToggles = toggles?.filter(opts => opts instanceof Toggle) as Toggle[];
+		this.ui.inputBox.toggles = concreteToggles;
+	}
+
 	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
 
 	onDidTriggerItemButton = this.onDidTriggerItemButtonEmitter.event;
+
+	onDidTriggerSeparatorButton = this.onDidTriggerSeparatorButtonEmitter.event;
 
 	private trySelectFirst() {
 		if (this.autoFocusOnList) {
@@ -883,6 +895,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				this.onDidChangeSelectionEmitter.fire(checkedItems as T[]);
 			}));
 			this.visibleDisposables.add(this.ui.list.onButtonTriggered(event => this.onDidTriggerItemButtonEmitter.fire(event as IQuickPickItemButtonEvent<T>)));
+			this.visibleDisposables.add(this.ui.list.onSeparatorButtonTriggered(event => this.onDidTriggerSeparatorButtonEmitter.fire(event)));
 			this.visibleDisposables.add(this.registerQuickNavigation());
 			this.valueSelectionUpdated = true;
 		}
@@ -1157,11 +1170,14 @@ class InputBox extends QuickInput implements IInputBox {
 		if (!this.visible) {
 			return;
 		}
+
+		this.ui.container.classList.remove('hidden-input');
 		const visibilities: Visibilities = {
 			title: !!this.title || !!this.step || !!this.buttons.length,
 			description: !!this.description || !!this.step,
 			inputBox: true, message: true
 		};
+
 		this.ui.setVisibilities(visibilities);
 		super.update();
 		if (this.ui.inputBox.value !== this.value) {
@@ -1177,7 +1193,6 @@ class InputBox extends QuickInput implements IInputBox {
 		if (this.ui.inputBox.password !== this.password) {
 			this.ui.inputBox.password = this.password;
 		}
-
 	}
 }
 
@@ -1473,6 +1488,7 @@ export class QuickInputController extends Disposable {
 						}
 					}
 				})),
+				input.onDidTriggerSeparatorButton(event => options.onDidTriggerSeparatorButton?.(event)),
 				input.onDidChangeValue(value => {
 					if (activeItem && !value && (input.activeItems.length !== 1 || input.activeItems[0] !== activeItem)) {
 						input.activeItems = [activeItem];
@@ -1816,6 +1832,9 @@ export class QuickInputController extends Disposable {
 			}
 			if (this.styles.list.pickerGroupForeground) {
 				content.push(`.quick-input-list .quick-input-list-separator { color:  ${this.styles.list.pickerGroupForeground}; }`);
+			}
+			if (this.styles.list.pickerGroupForeground) {
+				content.push(`.quick-input-list .quick-input-list-separator-as-item { color:  ${this.styles.list.pickerGroupForeground}; }`);
 			}
 
 			if (

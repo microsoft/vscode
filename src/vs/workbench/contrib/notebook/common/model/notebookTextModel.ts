@@ -173,7 +173,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _defaultCollapseConfig: NotebookCellDefaultCollapseConfig | undefined;
 
 	metadata: NotebookDocumentMetadata = {};
-	transientOptions: TransientOptions = { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false };
+	transientOptions: TransientOptions = { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} };
 	private _versionId = 0;
 
 	/**
@@ -359,6 +359,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._cellListeners.clear();
 
 		dispose(this._cells);
+		this._cells = [];
 		super.dispose();
 	}
 
@@ -401,7 +402,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			true,
 			undefined, () => undefined,
 			undefined,
-			true
+			false
 		);
 	}
 

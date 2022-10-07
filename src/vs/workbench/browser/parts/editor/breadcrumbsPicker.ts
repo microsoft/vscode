@@ -381,6 +381,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 				identityProvider: new FileIdentityProvider(),
 				keyboardNavigationLabelProvider: new FileNavigationLabelProvider(),
 				accessibilityProvider: this._instantiationService.createInstance(FileAccessibilityProvider),
+				showNotFoundMessage: false,
 				overrideStyles: {
 					listBackground: breadcrumbsPickerBackground
 				},
@@ -474,6 +475,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 				collapseByDefault: true,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
+				showNotFoundMessage: false
 			}
 		);
 	}

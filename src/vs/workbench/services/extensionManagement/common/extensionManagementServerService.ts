@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { ExtensionInstallLocation, IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ExtensionInstallLocation, IExtensionManagementServer, IExtensionManagementServerService, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Schemas } from 'vs/base/common/network';
 import { Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -32,8 +32,12 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 	) {
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const extensionManagementService = new class extends ExtensionManagementChannelClient {
-				readonly onDidChangeProfileExtensions = Event.None;
+			const extensionManagementService = new class extends ExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
+				get onProfileAwareInstallExtension() { return super.onInstallExtension; }
+				get onProfileAwareDidInstallExtensions() { return super.onDidInstallExtensions; }
+				get onProfileAwareUninstallExtension() { return super.onUninstallExtension; }
+				get onProfileAwareDidUninstallExtension() { return super.onDidUninstallExtension; }
+				readonly onDidChangeProfile = Event.None;
 			}(remoteAgentConnection.getChannel<IChannel>('extensions'));
 			this.remoteExtensionManagementServer = {
 				id: 'remote',
@@ -67,4 +71,4 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 	}
 }
 
-registerSingleton(IExtensionManagementServerService, ExtensionManagementServerService);
+registerSingleton(IExtensionManagementServerService, ExtensionManagementServerService, InstantiationType.Delayed);

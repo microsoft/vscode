@@ -22,7 +22,6 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -31,6 +30,7 @@ import { IExtensionManagementServerService } from 'vs/workbench/services/extensi
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { StartupPageContribution, } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
 
 export * as icons from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
@@ -40,7 +40,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.openWalkthrough',
 			title: { value: localize('miGetStarted', "Get Started"), original: 'Get Started' },
-			category: localize('help', "Help"),
+			category: Categories.Help,
 			f1: true,
 			menu: {
 				id: MenuId.MenubarHelpMenu,
@@ -77,10 +77,11 @@ registerAction2(class extends Action2 {
 			const result = editorService.findEditors({ typeId: GettingStartedInput.ID, editorId: undefined, resource: GettingStartedInput.RESOURCE });
 			for (const { editor, groupId } of result) {
 				if (editor instanceof GettingStartedInput) {
-					if (!editor.selectedCategory) {
+					const group = editorGroupsService.getGroup(groupId);
+					if (!editor.selectedCategory && group) {
 						editor.selectedCategory = selectedCategory;
 						editor.selectedStep = selectedStep;
-						editorService.openEditor(editor, { revealIfOpened: true, override: EditorResolution.DISABLED }, groupId);
+						group.openEditor(editor, { revealIfOpened: true });
 						return;
 					}
 				}

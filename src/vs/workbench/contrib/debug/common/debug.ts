@@ -6,6 +6,7 @@
 import { IAction } from 'vs/base/common/actions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -162,7 +163,7 @@ export interface IDebugger {
 export interface IDebuggerMetadata {
 	label: string;
 	type: string;
-	uiMessages?: { [key in DebuggerUiMessage]: string };
+	strings?: { [key in DebuggerString]: string };
 	interestedInLanguage(languageId: string): boolean;
 }
 
@@ -206,7 +207,7 @@ export interface IDebugSessionOptions {
 		simple?: boolean;
 	};
 	startedByUser?: boolean;
-	saveBeforeStart?: boolean;
+	saveBeforeRestart?: boolean;
 }
 
 export interface IDataBreakpointInfoResponse {
@@ -297,7 +298,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly subId: string | undefined;
 	readonly compact: boolean;
 	readonly compoundRoot: DebugCompoundRoot | undefined;
-	readonly saveBeforeStart: boolean;
+	readonly saveBeforeRestart: boolean;
 	readonly name: string;
 	readonly isSimpleUI: boolean;
 	readonly autoExpandLazyVariables: boolean;
@@ -785,7 +786,7 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 	variables?: { [key: string]: string };
 	when?: string;
 	deprecated?: string;
-	uiMessages?: { [key in DebuggerUiMessage]: string };
+	strings?: { [key in DebuggerString]: string };
 }
 
 export interface IBreakpointContribution {
@@ -861,7 +862,7 @@ export interface IConfigurationManager {
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any, token: CancellationToken): Promise<any>;
 }
 
-export enum DebuggerUiMessage {
+export enum DebuggerString {
 	UnverifiedBreakpoints = 'unverifiedBreakpoints'
 }
 
@@ -1091,7 +1092,7 @@ export interface IDebugService {
 	 * Returns true if the start debugging was successful. For compound launches, all configurations have to start successfully for it to return success.
 	 * On errors the startDebugging will throw an error, however some error and cancelations are handled and in that case will simply return false.
 	 */
-	startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions): Promise<boolean>;
+	startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions, saveBeforeStart?: boolean): Promise<boolean>;
 
 	/**
 	 * Restarts a session or creates a new one if there is no active session.
@@ -1141,4 +1142,17 @@ export interface IBreakpointEditorContribution extends editorCommon.IEditorContr
 	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext): void;
 	closeBreakpointWidget(): void;
 	getContextMenuActionsAtPosition(lineNumber: number, model: EditorIModel): IAction[];
+}
+
+export interface IReplConfiguration {
+	readonly fontSize: number;
+	readonly fontFamily: string;
+	readonly lineHeight: number;
+	readonly cssLineHeight: string;
+	readonly backgroundColor: Color | undefined;
+	readonly fontSizeForTwistie: number;
+}
+
+export interface IReplOptions {
+	readonly replConfiguration: IReplConfiguration;
 }

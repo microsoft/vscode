@@ -10,10 +10,15 @@ import { IExtensionManagementService, IGalleryExtension, ILocalExtension, Instal
 import { URI } from 'vs/base/common/uri';
 import { FileAccess } from 'vs/base/common/network';
 
-export type DidChangeProfileExtensionsEvent = { readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] };
+export type DidChangeProfileEvent = { readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] };
 
+export const IProfileAwareExtensionManagementService = refineServiceDecorator<IExtensionManagementService, IProfileAwareExtensionManagementService>(IExtensionManagementService);
 export interface IProfileAwareExtensionManagementService extends IExtensionManagementService {
-	readonly onDidChangeProfileExtensions: Event<DidChangeProfileExtensionsEvent>;
+	readonly onProfileAwareInstallExtension: Event<InstallExtensionEvent>;
+	readonly onProfileAwareDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
+	readonly onProfileAwareUninstallExtension: Event<UninstallExtensionEvent>;
+	readonly onProfileAwareDidUninstallExtension: Event<DidUninstallExtensionEvent>;
+	readonly onDidChangeProfile: Event<DidChangeProfileEvent>;
 }
 
 export interface IExtensionManagementServer {
@@ -43,17 +48,21 @@ export const DefaultIconPath = FileAccess.asBrowserUri('./media/defaultIcon.png'
 export type InstallExtensionOnServerEvent = InstallExtensionEvent & { server: IExtensionManagementServer };
 export type UninstallExtensionOnServerEvent = UninstallExtensionEvent & { server: IExtensionManagementServer };
 export type DidUninstallExtensionOnServerEvent = DidUninstallExtensionEvent & { server: IExtensionManagementServer };
-export type DidChangeProfileExtensionsOnServerEvent = DidChangeProfileExtensionsEvent & { server: IExtensionManagementServer };
+export type DidChangeProfileForServerEvent = DidChangeProfileEvent & { server: IExtensionManagementServer };
 
-export const IWorkbenchExtensionManagementService = refineServiceDecorator<IExtensionManagementService, IWorkbenchExtensionManagementService>(IExtensionManagementService);
-export interface IWorkbenchExtensionManagementService extends IExtensionManagementService {
+export const IWorkbenchExtensionManagementService = refineServiceDecorator<IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService>(IProfileAwareExtensionManagementService);
+export interface IWorkbenchExtensionManagementService extends IProfileAwareExtensionManagementService {
 	readonly _serviceBrand: undefined;
 
 	onInstallExtension: Event<InstallExtensionOnServerEvent>;
 	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
 	onUninstallExtension: Event<UninstallExtensionOnServerEvent>;
 	onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
-	onDidChangeProfileExtensions: Event<DidChangeProfileExtensionsOnServerEvent>;
+	onProfileAwareInstallExtension: Event<InstallExtensionOnServerEvent>;
+	onProfileAwareDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
+	onProfileAwareUninstallExtension: Event<UninstallExtensionOnServerEvent>;
+	onProfileAwareDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
+	onDidChangeProfile: Event<DidChangeProfileForServerEvent>;
 
 	installVSIX(location: URI, manifest: IExtensionManifest, installOptions?: InstallVSIXOptions): Promise<ILocalExtension>;
 	installWebExtension(location: URI): Promise<ILocalExtension>;

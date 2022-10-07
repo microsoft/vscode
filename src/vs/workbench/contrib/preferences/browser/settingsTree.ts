@@ -23,7 +23,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, isDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { isDefined, isUndefinedOrNull } from 'vs/base/common/types';
@@ -895,7 +895,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.context = element;
 		template.toolbar.context = element;
 		const actions = this.disposableActionFactory(element.setting);
-		actions.forEach(a => template.elementDisposables?.add(a));
+		actions.forEach(a => isDisposable(a) && template.elementDisposables?.add(a));
 		template.toolbar.setActions([], [...this.settingActions, ...actions]);
 
 		const setting = element.setting;

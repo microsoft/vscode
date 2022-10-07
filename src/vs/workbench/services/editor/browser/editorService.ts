@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceEditorInput, IEditorOptions, EditorActivation, EditorResolution, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput, IEditorOptions, EditorActivation, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { SideBySideEditor, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, EditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup, IFindEditorOptions, isResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -21,7 +21,7 @@ import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/commo
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupView, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { isUndefined, withNullAsUndefined } from 'vs/base/common/types';
 import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
 import { Promises, timeout } from 'vs/base/common/async';
@@ -501,7 +501,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Resolve override unless disabled
-		if (options?.override !== EditorResolution.DISABLED && !isEditorInput(editor)) {
+		if (!isEditorInput(editor)) {
 			const resolvedEditor = await this.editorResolverService.resolveEditor(editor, preferredGroup);
 
 			if (resolvedEditor === ResolvedStatus.ABORT) {
@@ -561,7 +561,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			let group: IEditorGroup | undefined = undefined;
 
 			// Resolve override unless disabled
-			if (editor.options?.override !== EditorResolution.DISABLED && !isEditorInputWithOptions(editor)) {
+			if (!isEditorInputWithOptions(editor)) {
 				const resolvedEditor = await this.editorResolverService.resolveEditor(editor, preferredGroup);
 
 				if (resolvedEditor === ResolvedStatus.ABORT) {
@@ -851,16 +851,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		for (const replacement of replacements) {
 			let typedReplacement: IEditorReplacement | undefined = undefined;
 
-			// Figure out the override rule based on options
-			let override: string | EditorResolution | undefined;
-			if (isEditorReplacement(replacement)) {
-				override = replacement.options?.override;
-			} else {
-				override = replacement.replacement.options?.override;
-			}
-
 			// Resolve override unless disabled
-			if (override !== EditorResolution.DISABLED && !isEditorInput(replacement.replacement)) {
+			if (!isEditorInput(replacement.replacement)) {
 				const resolvedEditor = await this.editorResolverService.resolveEditor(
 					replacement.replacement,
 					targetGroup
@@ -1061,4 +1053,4 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 }
 
-registerSingleton(IEditorService, EditorService);
+registerSingleton(IEditorService, EditorService, InstantiationType.Eager);

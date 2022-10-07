@@ -196,9 +196,9 @@ function getSuffix(c: EmbeddedRegion) {
 }
 
 function substituteWithWhitespace(result: string, start: number, end: number, oldContent: string, before: string, after: string) {
-	let accumulatedWS = 0;
 	result += before;
-	for (let i = start + before.length; i < end; i++) {
+	let accumulatedWS = -before.length; // start with a negative value to account for the before string
+	for (let i = start; i < end; i++) {
 		const ch = oldContent[i];
 		if (ch === '\n' || ch === '\r') {
 			// only write new lines, skip the whitespace

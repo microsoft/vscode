@@ -116,7 +116,7 @@ class ModelEditTask implements IDisposable {
 		if (!edit.text) {
 			return edit;
 		}
-		const text = new SnippetParser().text(edit.text);
+		const text = SnippetParser.asInsertText(edit.text);
 		return { ...edit, insertAsSnippet: false, text };
 	}
 }

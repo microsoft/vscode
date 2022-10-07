@@ -8,8 +8,9 @@
 export async function parentOriginHash(parentOrigin: string, salt: string): Promise<string> {
 	// This same code is also inlined at `src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html`
 	if (!crypto.subtle) {
-		throw new Error(`Can't compute sha-256`);
+		throw new Error(`'crypto.subtle' is not available so webviews will not work. This is likely because the editor is not running in a secure context (https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts).`);
 	}
+
 	const strData = JSON.stringify({ parentOrigin, salt });
 	const encoder = new TextEncoder();
 	const arrData = encoder.encode(strData);

@@ -138,6 +138,7 @@ export interface ICellDragEndMessage extends BaseToWebviewMessage {
 
 export interface IInitializedMarkupMessage extends BaseToWebviewMessage {
 	readonly type: 'initializedMarkup';
+	readonly requestId: string;
 }
 
 export interface ICodeBlockHighlightRequest {
@@ -351,6 +352,7 @@ export interface IMarkupCellInitialization {
 export interface IInitializeMarkupCells {
 	readonly type: 'initializeMarkup';
 	readonly cells: readonly IMarkupCellInitialization[];
+	readonly requestId: string;
 }
 
 export interface INotebookStylesMessage {

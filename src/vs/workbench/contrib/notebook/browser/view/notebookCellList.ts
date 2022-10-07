@@ -68,11 +68,6 @@ function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange[]) {
 	return result;
 }
 
-export interface IFocusNextPreviousDelegate {
-	onFocusNext(applyFocusNext: () => void): void;
-	onFocusPrevious(applyFocusPrevious: () => void): void;
-}
-
 export const NOTEBOOK_WEBVIEW_BOUNDARY = 5000;
 
 function validateWebviewBoundary(element: HTMLElement) {
@@ -939,7 +934,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
-		this.view.triggerScrollFromMouseWheelEvent(browserEvent);
+		this.view.delegateScrollFromMouseWheelEvent(browserEvent);
+	}
+
+	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent) {
+		this.view.delegateVerticalScrollbarPointerDown(browserEvent);
 	}
 
 	isElementAboveViewport(index: number) {

@@ -752,10 +752,10 @@ declare module 'vscode' {
 	export interface TextDocumentShowOptions {
 		/**
 		 * An optional view column in which the {@link TextEditor editor} should be shown.
-		 * The default is the {@link ViewColumn.Active active}, other values are adjusted to
-		 * be `Min(column, columnCount + 1)`, the {@link ViewColumn.Active active}-column is
-		 * not adjusted. Use {@linkcode ViewColumn.Beside} to open the
-		 * editor to the side of the currently active one.
+		 * The default is the {@link ViewColumn.Active active}. Columns that do not exist
+		 * will be created as needed up to the maximum of {@linkcode ViewColumn.Nine}.
+		 * Use {@linkcode ViewColumn.Beside} to open the editor to the side of the currently
+		 * active one.
 		 */
 		viewColumn?: ViewColumn;
 
@@ -814,10 +814,10 @@ declare module 'vscode' {
 	export interface NotebookDocumentShowOptions {
 		/**
 		 * An optional view column in which the {@link NotebookEditor notebook editor} should be shown.
-		 * The default is the {@link ViewColumn.Active active}, other values are adjusted to
-		 * be `Min(column, columnCount + 1)`, the {@link ViewColumn.Active active}-column is
-		 * not adjusted. Use {@linkcode ViewColumn.Beside} to open the
-		 * editor to the side of the currently active one.
+		 * The default is the {@link ViewColumn.Active active}. Columns that do not exist
+		 * will be created as needed up to the maximum of {@linkcode ViewColumn.Nine}.
+		 * Use {@linkcode ViewColumn.Beside} to open the editor to the side of the currently
+		 * active one.
 		 */
 		readonly viewColumn?: ViewColumn;
 
@@ -2276,6 +2276,18 @@ declare module 'vscode' {
 		static readonly RefactorInline: CodeActionKind;
 
 		/**
+		 * Base kind for refactoring move actions: `refactor.move`
+		 *
+		 * Example move actions:
+		 *
+		 * - Move a function to a new file
+		 * - Move a property between classes
+		 * - Move method to base class
+		 * - ...
+		 */
+		static readonly RefactorMove: CodeActionKind;
+
+		/**
 		 * Base kind for refactoring rewrite actions: `refactor.rewrite`
 		 *
 		 * Example rewrite actions:
@@ -2284,7 +2296,6 @@ declare module 'vscode' {
 		 * - Add or remove parameter
 		 * - Encapsulate field
 		 * - Make method static
-		 * - Move method to base class
 		 * - ...
 		 */
 		static readonly RefactorRewrite: CodeActionKind;
@@ -3427,6 +3438,120 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A snippet edit represents an interactive edit that is performed by
+	 * the editor.
+	 *
+	 * *Note* that a snippet edit can always be performed as a normal {@link TextEdit text edit}.
+	 * This will happen when no matching editor is open or when a {@link WorkspaceEdit workspace edit}
+	 * contains snippet edits for multiple files. In that case only those that match the active editor
+	 * will be performed as snippet edits and the others as normal text edits.
+	 */
+	export class SnippetTextEdit {
+
+		/**
+		 * Utility to create a replace snippet edit.
+		 *
+		 * @param range A range.
+		 * @param snippet A snippet string.
+		 * @return A new snippet edit object.
+		 */
+		static replace(range: Range, snippet: SnippetString): SnippetTextEdit;
+
+		/**
+		 * Utility to create an insert snippet edit.
+		 *
+		 * @param position A position, will become an empty range.
+		 * @param snippet A snippet string.
+		 * @return A new snippet edit object.
+		 */
+		static insert(position: Position, snippet: SnippetString): SnippetTextEdit;
+
+		/**
+		 * The range this edit applies to.
+		 */
+		range: Range;
+
+		/**
+		 * The {@link SnippetString snippet} this edit will perform.
+		 */
+		snippet: SnippetString;
+
+		/**
+		 * Create a new snippet edit.
+		 *
+		 * @param range A range.
+		 * @param snippet A snippet string.
+		 */
+		constructor(range: Range, snippet: SnippetString);
+	}
+
+	/**
+	 * A notebook edit represents edits that should be applied to the contents of a notebook.
+	 */
+	export class NotebookEdit {
+
+		/**
+		 * Utility to create a edit that replaces cells in a notebook.
+		 *
+		 * @param range The range of cells to replace
+		 * @param newCells The new notebook cells.
+		 */
+		static replaceCells(range: NotebookRange, newCells: NotebookCellData[]): NotebookEdit;
+
+		/**
+		 * Utility to create an edit that replaces cells in a notebook.
+		 *
+		 * @param index The index to insert cells at.
+		 * @param newCells The new notebook cells.
+		 */
+		static insertCells(index: number, newCells: NotebookCellData[]): NotebookEdit;
+
+		/**
+		 * Utility to create an edit that deletes cells in a notebook.
+		 *
+		 * @param range The range of cells to delete.
+		 */
+		static deleteCells(range: NotebookRange): NotebookEdit;
+
+		/**
+		 * Utility to create an edit that update a cell's metadata.
+		 *
+		 * @param index The index of the cell to update.
+		 * @param newCellMetadata The new metadata for the cell.
+		 */
+		static updateCellMetadata(index: number, newCellMetadata: { [key: string]: any }): NotebookEdit;
+
+		/**
+		 * Utility to create an edit that updates the notebook's metadata.
+		 *
+		 * @param newNotebookMetadata The new metadata for the notebook.
+		 */
+		static updateNotebookMetadata(newNotebookMetadata: { [key: string]: any }): NotebookEdit;
+
+		/**
+		 * Range of the cells being edited. May be empty.
+		 */
+		range: NotebookRange;
+
+		/**
+		 * New cells being inserted. May be empty.
+		 */
+		newCells: NotebookCellData[];
+
+		/**
+		 * Optional new metadata for the cells.
+		 */
+		newCellMetadata?: { [key: string]: any };
+
+		/**
+		 * Optional new metadata for the notebook.
+		 */
+		newNotebookMetadata?: { [key: string]: any };
+
+		constructor(range: NotebookRange, newCells: NotebookCellData[]);
+	}
+
+	/**
 	 * Additional data for entries of a workspace edit. Supports to label entries and marks entries
 	 * as needing confirmation by the user. The editor groups edits with equal labels into tree nodes,
 	 * for instance all edits labelled with "Changes in Strings" would be a tree node.
@@ -3452,6 +3577,16 @@ declare module 'vscode' {
 		 * The icon path or {@link ThemeIcon} for the edit.
 		 */
 		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+	}
+
+	/**
+	 * Additional data about a workspace edit.
+	 */
+	export interface WorkspaceEditMetadata {
+		/**
+		 * Signal to the editor that this edit is a refactoring.
+		 */
+		isRefactoring?: boolean;
 	}
 
 	/**
@@ -3505,12 +3640,36 @@ declare module 'vscode' {
 		has(uri: Uri): boolean;
 
 		/**
-		 * Set (and replace) text edits for a resource.
+		 * Set (and replace) notebook edits for a resource.
 		 *
 		 * @param uri A resource identifier.
-		 * @param edits An array of text edits.
+		 * @param edits An array of edits.
 		 */
-		set(uri: Uri, edits: TextEdit[]): void;
+		set(uri: Uri, edits: readonly NotebookEdit[]): void;
+
+		/**
+		 * Set (and replace) notebook edits with metadata for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: ReadonlyArray<[NotebookEdit, WorkspaceEditEntryMetadata]>): void;
+
+		/**
+		 * Set (and replace) text edits or snippet edits for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: ReadonlyArray<TextEdit | SnippetTextEdit>): void;
+
+		/**
+		 * Set (and replace) text edits or snippet edits with metadata for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, WorkspaceEditEntryMetadata]>): void;
 
 		/**
 		 * Get the text edits for a resource.
@@ -3523,14 +3682,15 @@ declare module 'vscode' {
 		/**
 		 * Create a regular file.
 		 *
-		 * @param uri Uri of the new file..
+		 * @param uri Uri of the new file.
 		 * @param options Defines if an existing file should be overwritten or be
-		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
+		 * ignored. When `overwrite` and `ignoreIfExists` are both set `overwrite` wins.
 		 * When both are unset and when the file already exists then the edit cannot
-		 * be applied successfully.
+		 * be applied successfully. The `content`-property allows to set the initial contents
+		 * the file is being created with.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		createFile(uri: Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
+		createFile(uri: Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Delete a file or folder.
@@ -3538,7 +3698,7 @@ declare module 'vscode' {
 		 * @param uri The uri of the file that is to be deleted.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		deleteFile(uri: Uri, options?: { recursive?: boolean; ignoreIfNotExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
+		deleteFile(uri: Uri, options?: { readonly recursive?: boolean; readonly ignoreIfNotExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Rename a file or folder.
@@ -3549,7 +3709,7 @@ declare module 'vscode' {
 		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
+		renameFile(oldUri: Uri, newUri: Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Get all text edits grouped by resource.
@@ -6178,8 +6338,6 @@ declare module 'vscode' {
 	 * Denotes a location of an editor in the window. Editors can be arranged in a grid
 	 * and each column represents one editor location in that grid by counting the editors
 	 * in order of their appearance.
-	 *
-	 * Columns that do not exists will be created as needed up to the maximum of `ViewColumn.Nine`.
 	 */
 	export enum ViewColumn {
 		/**
@@ -6537,10 +6695,10 @@ declare module 'vscode' {
 	export interface TerminalEditorLocationOptions {
 		/**
 		 * A view column in which the {@link Terminal terminal} should be shown in the editor area.
-		 * Use {@link ViewColumn.Active active} to open in the active editor group, other values are
-		 * adjusted to be `Min(column, columnCount + 1)`, the
-		 * {@link ViewColumn.Active active}-column is not adjusted. Use
-		 * {@linkcode ViewColumn.Beside} to open the editor to the side of the currently active one.
+		 * The default is the {@link ViewColumn.Active active}. Columns that do not exist
+		 * will be created as needed up to the maximum of {@linkcode ViewColumn.Nine}.
+		 * Use {@linkcode ViewColumn.Beside} to open the editor to the side of the currently
+		 * active one.
 		 */
 		viewColumn: ViewColumn;
 		/**
@@ -8573,6 +8731,12 @@ declare module 'vscode' {
 		description?: string;
 
 		/**
+		 * The badge to display for this webview view.
+		 * To remove the badge, set to undefined.
+		 */
+		badge?: ViewBadge | undefined;
+
+		/**
 		 * Event fired when the view is disposed.
 		 *
 		 * Views are disposed when they are explicitly hidden by a user (this happens when a user
@@ -9451,8 +9615,8 @@ declare module 'vscode' {
 		 * to control where the editor is being shown. Might change the {@link window.activeTextEditor active editor}.
 		 *
 		 * @param document A text document to be shown.
-		 * @param column A view column in which the {@link TextEditor editor} should be shown. The default is the {@link ViewColumn.Active active}, other values
-		 * are adjusted to be `Min(column, columnCount + 1)`, the {@link ViewColumn.Active active}-column is not adjusted. Use {@linkcode ViewColumn.Beside}
+		 * @param column A view column in which the {@link TextEditor editor} should be shown. The default is the {@link ViewColumn.Active active}.
+		 * Columns that do not exist will be created as needed up to the maximum of {@linkcode ViewColumn.Nine}. Use {@linkcode ViewColumn.Beside}
 		 * to open the editor to the side of the currently active one.
 		 * @param preserveFocus When `true` the editor will not take focus.
 		 * @return A promise that resolves to an {@link TextEditor editor}.
@@ -10259,6 +10423,22 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A badge presenting a value for a view
+	 */
+	export interface ViewBadge {
+
+		/**
+		 * A label to present in tooltip for the badge.
+		 */
+		readonly tooltip: string;
+
+		/**
+		 * The value to present in the badge.
+		 */
+		readonly value: number;
+	}
+
+	/**
 	 * Represents a Tree view
 	 */
 	export interface TreeView<T> extends Disposable {
@@ -10310,6 +10490,12 @@ declare module 'vscode' {
 		 * Setting the title description to null, undefined, or empty string will remove the description from the view.
 		 */
 		description?: string;
+
+		/**
+		 * The badge to display for this TreeView.
+		 * To remove the badge, set to undefined.
+		 */
+		badge?: ViewBadge | undefined;
 
 		/**
 		 * Reveals the given element in the tree view.
@@ -10550,7 +10736,7 @@ declare module 'vscode' {
 		 * Whether the terminal process environment should be exactly as provided in
 		 * `TerminalOptions.env`. When this is false (default), the environment will be based on the
 		 * window's environment and also apply configured platform settings like
-		 * `terminal.integrated.windows.env` on top. When this is true, the complete environment
+		 * `terminal.integrated.env.windows` on top. When this is true, the complete environment
 		 * must be provided as nothing will be inherited from the process or any configuration.
 		 */
 		strictEnv?: boolean;
@@ -11989,9 +12175,10 @@ declare module 'vscode' {
 		 * not be attempted, when a single edit fails.
 		 *
 		 * @param edit A workspace edit.
+		 * @param metadata Optional {@link WorkspaceEditMetadata metadata} for the edit.
 		 * @return A thenable that resolves when the edit could be applied.
 		 */
-		export function applyEdit(edit: WorkspaceEdit): Thenable<boolean>;
+		export function applyEdit(edit: WorkspaceEdit, metadata?: WorkspaceEditMetadata): Thenable<boolean>;
 
 		/**
 		 * All text documents currently known to the editor.
@@ -13027,7 +13214,7 @@ declare module 'vscode' {
 		/**
 		 * The metadata of this cell. Can be anything but must be JSON-stringifyable.
 		 */
-		readonly metadata: { [key: string]: any };
+		readonly metadata: { readonly [key: string]: any };
 
 		/**
 		 * The outputs of this cell.
@@ -13127,7 +13314,7 @@ declare module 'vscode' {
 	export interface NotebookDocumentCellChange {
 
 		/**
-		 * The affected notebook.
+		 * The affected cell.
 		 */
 		readonly cell: NotebookCell;
 
@@ -15642,9 +15829,9 @@ declare module 'vscode' {
 
 	/**
 	 * A TestRunRequest is a precursor to a {@link TestRun}, which in turn is
-	 * created by passing a request to {@link tests.runTests}. The TestRunRequest
-	 * contains information about which tests should be run, which should not be
-	 * run, and how they are run (via the {@link TestRunRequest.profile profile}).
+	 * created by passing a request to {@link TestController.createTestRun}. The
+	 * TestRunRequest contains information about which tests should be run, which
+	 * should not be run, and how they are run (via the {@link TestRunRequest.profile profile}).
 	 *
 	 * In general, TestRunRequests are created by the editor and pass to
 	 * {@link TestRunProfile.runHandler}, however you can also create test
@@ -15687,7 +15874,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options given to {@link TestController.runTests}
+	 * A TestRun represents an in-progress or completed test run and
+	 * provides methods to report the state of individual tests in the run.
 	 */
 	export interface TestRun {
 		/**

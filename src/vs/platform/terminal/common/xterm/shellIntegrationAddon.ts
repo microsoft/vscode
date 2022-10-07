@@ -8,15 +8,19 @@ import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/l
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { CwdDetectionCapability } from 'vs/platform/terminal/common/capabilities/cwdDetectionCapability';
-import { ICommandDetectionCapability, ICwdDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, ISerializedCommandDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
 import { ILogService } from 'vs/platform/log/common/log';
 // Importing types is safe in any layer
-// eslint-disable-next-line code-import-patterns
-import type { ITerminalAddon, Terminal } from 'xterm-headless';
-import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+// eslint-disable-next-line local/code-import-patterns
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Emitter } from 'vs/base/common/event';
+import { BufferMarkCapability } from 'vs/platform/terminal/common/capabilities/bufferMarkCapability';
+// Importing types is safe in any layer
+// eslint-disable-next-line local/code-import-patterns
+import type { ITerminalAddon, Terminal } from 'xterm-headless';
+import { URI } from 'vs/base/common/uri';
+
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -48,7 +52,9 @@ const enum ShellIntegrationOscPs {
 	/**
 	 * Sequences pioneered by iTerm.
 	 */
-	ITerm = 1337
+	ITerm = 1337,
+	SetCwd = 7,
+	SetWindowsFriendlyCwd = 9
 }
 
 /**
@@ -148,7 +154,16 @@ const enum VSCodeOscPt {
 	 *
 	 * WARNING: Any other properties may be changed and are not guaranteed to work in the future.
 	 */
-	Property = 'P'
+	Property = 'P',
+
+	/**
+	 * Sets a mark/point-of-interest in the buffer. `OSC 633 ; SetMark [; Id=<string>] [; Hidden]`
+	 * `Id` - The identifier of the mark that can be used to reference it
+	 * `Hidden` - When set, the mark will be available to reference internally but will not visible
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
+	 */
+	SetMark = 'SetMark',
 }
 
 /**
@@ -158,7 +173,12 @@ const enum ITermOscPt {
 	/**
 	 * Sets a mark/point-of-interest in the buffer. `OSC 1337 ; SetMark`
 	 */
-	SetMark = 'SetMark'
+	SetMark = 'SetMark',
+
+	/**
+	 * Reports current working directory (CWD). `OSC 1337 ; CurrentDir=<Cwd> ST`
+	 */
+	CurrentDir = 'CurrentDir'
 }
 
 /**
@@ -204,6 +224,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this._commonProtocolDisposables.push(
 			xterm.parser.registerOscHandler(ShellIntegrationOscPs.FinalTerm, data => this._handleFinalTermSequence(data))
 		);
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.SetCwd, data => this._doHandleSetCwd(data)));
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.SetWindowsFriendlyCwd, data => this._doHandleSetWindowsFriendlyCwd(data)));
 		this._ensureCapabilitiesOrAddFailureTelemetry();
 	}
 
@@ -306,7 +328,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			case VSCodeOscPt.CommandLine: {
 				let commandLine: string;
 				if (args.length === 1) {
-					commandLine = this._deserializeMessage(args[0]);
+					commandLine = deserializeMessage(args[0]);
 				} else {
 					commandLine = '';
 				}
@@ -330,20 +352,13 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.Property: {
-				const [key, rawValue] = args[0].split('=');
-				if (rawValue === undefined) {
+				const { key, value } = parseKeyValueAssignment(args[0]);
+				if (value === undefined) {
 					return true;
 				}
-				const value = this._deserializeMessage(rawValue);
 				switch (key) {
 					case 'Cwd': {
-						// TODO: Ideally we would also support the following to supplement our own:
-						//       - OSC 1337 ; CurrentDir=<Cwd> ST (iTerm)
-						//       - OSC 7 ; scheme://cwd ST        (Unknown origin)
-						//       - OSC 9 ; 9 ; <cwd> ST           (cmder)
-						this._createOrGetCwdDetection().updateCwd(value);
-						const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
-						commandDetection?.setCwd(value);
+						this._updateCwd(value);
 						return true;
 					}
 					case 'IsWindows': {
@@ -351,14 +366,26 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						return true;
 					}
 					case 'Task': {
+						this._createOrGetBufferMarkDetection(this._terminal);
 						this.capabilities.get(TerminalCapability.CommandDetection)?.setIsCommandStorageDisabled();
+						return true;
 					}
 				}
+			}
+			case VSCodeOscPt.SetMark: {
+				this._createOrGetBufferMarkDetection(this._terminal).addMark(parseMarkSequence(args));
+				return true;
 			}
 		}
 
 		// Unrecognized sequence
 		return false;
+	}
+
+	private _updateCwd(value: string) {
+		this._createOrGetCwdDetection().updateCwd(value);
+		const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+		commandDetection?.setCwd(value);
 	}
 
 	private _doHandleITermSequence(data: string): boolean {
@@ -369,9 +396,67 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		const [command] = data.split(';');
 		switch (command) {
 			case ITermOscPt.SetMark: {
-				this._createOrGetCommandDetection(this._terminal).handleGenericCommand({ genericMarkProperties: { disableCommandStorage: true } });
+				this._createOrGetBufferMarkDetection(this._terminal).addMark();
+			}
+			default: {
+				// Checking for known `<key>=<value>` pairs.
+				const { key, value } = parseKeyValueAssignment(command);
+
+				if (value === undefined) {
+					// No '=' was found, so it's not a property assignment.
+					return true;
+				}
+
+				switch (key) {
+					case ITermOscPt.CurrentDir:
+						// Encountered: `OSC 1337 ; CurrentDir=<Cwd> ST`
+						this._updateCwd(value);
+						return true;
+				}
 			}
 		}
+
+		// Unrecognized sequence
+		return false;
+	}
+
+	private _doHandleSetWindowsFriendlyCwd(data: string): boolean {
+		if (!this._terminal) {
+			return false;
+		}
+
+		const [command, ...args] = data.split(';');
+		switch (command) {
+			case '9':
+				// Encountered `OSC 9 ; 9 ; <cwd> ST`
+				if (args.length) {
+					this._updateCwd(args[0]);
+				}
+				return true;
+		}
+
+		// Unrecognized sequence
+		return false;
+	}
+
+	/**
+	 * Handles the sequence: `OSC 7 ; scheme://cwd ST`
+	 */
+	private _doHandleSetCwd(data: string): boolean {
+		if (!this._terminal) {
+			return false;
+		}
+
+		const [command] = data.split(';');
+
+		if (command.match(/^file:\/\/.*\//)) {
+			const uri = URI.parse(command);
+			if (uri.path && uri.path.length > 0) {
+				this._updateCwd(uri.path);
+				return true;
+			}
+		}
+
 		// Unrecognized sequence
 		return false;
 	}
@@ -412,16 +497,52 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		return commandDetection;
 	}
 
-	private _deserializeMessage(message: string): string {
-		let result = message.replace(/\\\\/g, '\\');
-		const deserializeRegex = /\\x([0-9a-f]{2})/i;
-		while (true) {
-			const match = result.match(deserializeRegex);
-			if (!match?.index || match.length < 2) {
-				break;
-			}
-			result = result.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + result.slice(match.index + 4);
+	protected _createOrGetBufferMarkDetection(terminal: Terminal): IBufferMarkCapability {
+		let bufferMarkDetection = this.capabilities.get(TerminalCapability.BufferMarkDetection);
+		if (!bufferMarkDetection) {
+			bufferMarkDetection = new BufferMarkCapability(terminal);
+			this.capabilities.add(TerminalCapability.BufferMarkDetection, bufferMarkDetection);
 		}
-		return result;
+		return bufferMarkDetection;
 	}
+}
+
+export function deserializeMessage(message: string): string {
+	let result = message.replace(/\\\\/g, '\\');
+	const deserializeRegex = /\\x([0-9a-f]{2})/i;
+	while (true) {
+		const match = result.match(deserializeRegex);
+		if (!match?.index || match.length < 2) {
+			break;
+		}
+		result = result.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + result.slice(match.index + 4);
+	}
+	return result;
+}
+
+export function parseKeyValueAssignment(message: string): { key: string; value: string | undefined } {
+	const deserialized = deserializeMessage(message);
+	const separatorIndex = deserialized.indexOf('=');
+	if (separatorIndex === -1) {
+		return { key: deserialized, value: undefined }; // No '=' was found.
+	}
+	return {
+		key: deserialized.substring(0, separatorIndex),
+		value: deserialized.substring(1 + separatorIndex)
+	};
+}
+
+
+export function parseMarkSequence(sequence: string[]): { id?: string; hidden?: boolean } {
+	let id = undefined;
+	let hidden = false;
+	for (const property of sequence) {
+		if (property === 'Hidden') {
+			hidden = true;
+		}
+		if (property.startsWith('Id=')) {
+			id = property.substring(3);
+		}
+	}
+	return { id, hidden };
 }
