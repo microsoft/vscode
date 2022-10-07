@@ -254,7 +254,7 @@ export abstract class SimpleFindWidget extends Widget {
 		return this._domNode;
 	}
 
-	public reveal(initialInput?: string): void {
+	public reveal(initialInput?: string, animated = true): void {
 		if (initialInput) {
 			this._findInput.setValue(initialInput);
 		}
@@ -269,9 +269,16 @@ export abstract class SimpleFindWidget extends Widget {
 		this.layout();
 
 		setTimeout(() => {
+			this._innerDomNode.classList.toggle('suppress-transition', !animated);
 			this._innerDomNode.classList.add('visible', 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
 			this._findInput.select();
+
+			if (!animated) {
+				setTimeout(() => {
+					this._innerDomNode.classList.remove('suppress-transition');
+				}, 0);
+			}
 		}, 0);
 	}
 
@@ -285,20 +292,22 @@ export abstract class SimpleFindWidget extends Widget {
 
 		setTimeout(() => {
 			this._innerDomNode.classList.add('visible', 'visible-transition');
+
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
 		}, 0);
 	}
 
-	public hide(): void {
+	public hide(animated = true): void {
 		if (this._isVisible) {
+			this._innerDomNode.classList.toggle('suppress-transition', !animated);
 			this._innerDomNode.classList.remove('visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'true');
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
 				this.updateButtons(this._foundMatch);
-				this._innerDomNode.classList.remove('visible');
-			}, 200);
+				this._innerDomNode.classList.remove('visible', 'suppress-transition');
+			}, animated ? 200 : 0);
 		}
 	}
 

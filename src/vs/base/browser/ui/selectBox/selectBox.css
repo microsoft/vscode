@@ -6,6 +6,7 @@
 .monaco-select-box {
 	width: 100%;
 	cursor: pointer;
+	border-radius: 2px;
 }
 
 .monaco-select-box-dropdown-container {

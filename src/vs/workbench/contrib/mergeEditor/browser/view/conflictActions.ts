@@ -117,7 +117,7 @@ export class ConflictActionsFactory extends Disposable {
 									tx
 								);
 							});
-						})
+						}, localize('acceptTooltip', "Accept {0} in the result document.", inputData.title))
 						: command(localize('remove', "Remove {0}", inputData.title), async () => {
 							transaction((tx) => {
 								model.setState(
@@ -127,7 +127,7 @@ export class ConflictActionsFactory extends Disposable {
 									tx
 								);
 							});
-						}),
+						}, localize('removeTooltip', "Remove {0} from the result document.", inputData.title)),
 				);
 
 				if (modifiedBaseRange.canBeCombined && state.isEmpty) {
@@ -142,7 +142,7 @@ export class ConflictActionsFactory extends Disposable {
 										tx
 									);
 								});
-							})
+							}, localize('removeBothTooltip', "Remove both changes from the result document."))
 							: command(localize('acceptBoth', "Accept Both"), async () => {
 								transaction((tx) => {
 									model.setState(
@@ -154,7 +154,7 @@ export class ConflictActionsFactory extends Disposable {
 										tx
 									);
 								});
-							}, localize('acceptBothTooltip', "Both changes can be combined automatically")),
+							}, localize('acceptBothTooltip', "Accept an automatic combination of both sides in the result document.")),
 					);
 				}
 			}
@@ -165,10 +165,11 @@ export class ConflictActionsFactory extends Disposable {
 
 	createResultWidget(lineNumber: number, viewModel: MergeEditorViewModel, modifiedBaseRange: ModifiedBaseRange): IContentWidget {
 
-		function command(title: string, action: () => Promise<void>): IContentWidgetAction {
+		function command(title: string, action: () => Promise<void>, tooltip?: string): IContentWidgetAction {
 			return {
 				text: title,
-				action
+				action,
+				tooltip
 			};
 		}
 
@@ -182,12 +183,15 @@ export class ConflictActionsFactory extends Disposable {
 			if (state.conflicting) {
 				result.push({
 					text: localize('manualResolution', "Manual Resolution"),
-					tooltip: localize('manualResolutionTooltip', "This conflict has been resolved manually"),
+					tooltip: localize('manualResolutionTooltip', "This conflict has been resolved manually."),
 				});
 			} else if (state.isEmpty) {
 				result.push({
 					text: localize('noChangesAccepted', 'No Changes Accepted'),
-					tooltip: localize('noChangesAcceptedTooltip', "The current resolution of this conflict equals the common ancestor of both the right and left changes."),
+					tooltip: localize(
+						'noChangesAcceptedTooltip',
+						'The current resolution of this conflict equals the common ancestor of both the right and left changes.'
+					),
 				});
 
 			} else {
@@ -217,7 +221,7 @@ export class ConflictActionsFactory extends Disposable {
 							tx
 						);
 					});
-				}),
+				}, localize('removeTooltip', "Remove {0} from the result document.", model.input1.title)),
 				);
 			}
 			if (state.input2) {
@@ -230,7 +234,7 @@ export class ConflictActionsFactory extends Disposable {
 							tx
 						);
 					});
-				}),
+				}, localize('removeTooltip', "Remove {0} from the result document.", model.input2.title)),
 				);
 			}
 			if (state.input2First) {
@@ -251,7 +255,7 @@ export class ConflictActionsFactory extends Disposable {
 								tx
 							);
 						});
-					})
+					}, localize('resetToBaseTooltip', "Reset this conflict to the common ancestor of both the right and left changes.")),
 				);
 			}
 			return result;
@@ -316,6 +320,15 @@ class ActionsContentWidget extends Disposable implements IContentWidget {
 	}
 
 	getPosition(): IContentWidgetPosition | null {
+		// We cannot put the content widget after line 0, as line 0 gets normalized to line 1.
+		// Thus, we put the content widget before line 1 to make it slightly less buggy.
+		// TODO: Fix this properly.
+		if (this.lineNumber === 0) {
+			return {
+				position: { lineNumber: 1, column: 1, },
+				preference: [ContentWidgetPositionPreference.ABOVE],
+			};
+		}
 		return {
 			position: { lineNumber: this.lineNumber, column: 1, },
 			preference: [ContentWidgetPositionPreference.BELOW],

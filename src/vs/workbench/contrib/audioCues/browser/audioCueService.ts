@@ -152,7 +152,8 @@ export class Sound {
 	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.mp3' });
 	public static readonly break = Sound.register({ fileName: 'break.mp3' });
 	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.mp3' });
-	public static readonly taskEnded = Sound.register({ fileName: 'taskEnded.mp3' });
+	public static readonly taskCompleted = Sound.register({ fileName: 'taskCompleted.mp3' });
+	public static readonly taskFailed = Sound.register({ fileName: 'taskFailed.mp3' });
 	public static readonly terminalBell = Sound.register({ fileName: 'terminalBell.mp3' });
 
 	private constructor(public readonly fileName: string) { }
@@ -219,10 +220,16 @@ export class AudioCue {
 		settingsKey: 'audioCues.noInlayHints'
 	});
 
-	public static readonly taskEnded = AudioCue.register({
-		name: localize('audioCues.taskEnded', 'Task Ended'),
-		sound: Sound.taskEnded,
-		settingsKey: 'audioCues.taskEnded'
+	public static readonly taskCompleted = AudioCue.register({
+		name: localize('audioCues.taskCompleted', 'Task Completed'),
+		sound: Sound.taskCompleted,
+		settingsKey: 'audioCues.taskCompleted'
+	});
+
+	public static readonly taskFailed = AudioCue.register({
+		name: localize('audioCues.taskFailed', 'Task Failed'),
+		sound: Sound.taskFailed,
+		settingsKey: 'audioCues.taskFailed'
 	});
 
 	public static readonly terminalBell = AudioCue.register({

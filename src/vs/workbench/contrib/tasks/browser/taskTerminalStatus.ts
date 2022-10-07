@@ -48,16 +48,9 @@ export class TaskTerminalStatus extends Disposable {
 				case TaskEventKind.Active: this.eventActive(event); break;
 				case TaskEventKind.Inactive: this.eventInactive(event); break;
 				case TaskEventKind.ProcessEnded: this.eventEnd(event); break;
-				case TaskEventKind.End: this._playEndSound(event.exitCode); break;
 			}
 		}));
 	}
-
-	private _playEndSound(exitCode?: number): void {
-		//TODO: determine sound based on exit code
-		this._audioCueService.playAudioCue(AudioCue.taskEnded);
-	}
-
 
 	addTerminal(task: Task, terminal: ITerminalInstance, problemMatcher: AbstractProblemCollector) {
 		const status: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, severity: Severity.Info };
@@ -93,6 +86,7 @@ export class TaskTerminalStatus extends Disposable {
 		terminalData.taskRunEnded = true;
 		terminalData.terminal.statusList.remove(terminalData.status);
 		if ((event.exitCode === 0) && (terminalData.problemMatcher.numberOfMatches === 0)) {
+			this._audioCueService.playAudioCue(AudioCue.taskCompleted);
 			if (terminalData.task.configurationProperties.isBackground) {
 				for (const status of terminalData.terminal.statusList.statuses) {
 					terminalData.terminal.statusList.remove(status);
@@ -101,6 +95,7 @@ export class TaskTerminalStatus extends Disposable {
 				terminalData.terminal.statusList.add(SUCCEEDED_TASK_STATUS);
 			}
 		} else if (event.exitCode || terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Error) {
+			this._audioCueService.playAudioCue(AudioCue.taskFailed);
 			terminalData.terminal.statusList.add(FAILED_TASK_STATUS);
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Warning) {
 			terminalData.terminal.statusList.add(WARNING_TASK_STATUS);
@@ -116,8 +111,10 @@ export class TaskTerminalStatus extends Disposable {
 		}
 		terminalData.terminal.statusList.remove(terminalData.status);
 		if (terminalData.problemMatcher.numberOfMatches === 0) {
+			this._audioCueService.playAudioCue(AudioCue.taskCompleted);
 			terminalData.terminal.statusList.add(SUCCEEDED_INACTIVE_TASK_STATUS);
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Error) {
+			this._audioCueService.playAudioCue(AudioCue.taskFailed);
 			terminalData.terminal.statusList.add(FAILED_INACTIVE_TASK_STATUS);
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Warning) {
 			terminalData.terminal.statusList.add(WARNING_INACTIVE_TASK_STATUS);
