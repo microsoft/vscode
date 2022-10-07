@@ -44,19 +44,19 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'type': 'boolean',
 			'default': true
 		},
-		[OutlineConfigKeys.initialState]: {
-			'description': localize('outline.initialState', "Initial state of outline."),
+		[OutlineConfigKeys.collapseItems]: {
+			'description': localize('outline.initialState', "Controls whether outline items are collapsed or expanded."),
 			'type': 'string',
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			'enum': [
-				'collapsed',
-				'expanded'
+				'alwaysCollapse',
+				'alwaysExpand'
 			],
 			'enumDescriptions': [
-				localize('outline.initialState.collapsed', "Collapse all nodes upon loading."),
-				localize('outline.initialState.expanded', "Expand all nodes upon loading.")
+				localize('outline.initialState.collapsed', "Collapse all items."),
+				localize('outline.initialState.expanded', "Expand all items.")
 			],
-			'default': 'expanded'
+			'default': 'alwaysExpand'
 		},
 		[OutlineConfigKeys.problemsEnabled]: {
 			'description': localize('outline.showProblem', "Show errors and warnings on outline elements."),
