@@ -150,12 +150,13 @@
 
 .quick-input-list {
 	line-height: 22px;
-	margin-top: 8px;
-	padding: 0px 1px 1px 1px;
+	margin-top: 6px;
+	padding: 1px;
 }
 
 .quick-input-widget.hidden-input .quick-input-list {
-	margin-top: 0; /* reduce margins when input box hidden */
+	margin-top: 4px; /* reduce margins when input box hidden */
+	padding-bottom: 4px;
 }
 
 .quick-input-list .monaco-list {
@@ -164,7 +165,7 @@
 }
 
 .quick-input-list .monaco-scrollable-element {
-	padding: 0px 6px;
+	padding: 0px 5px;
 }
 
 .quick-input-list .quick-input-list-entry {
