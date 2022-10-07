@@ -123,50 +123,38 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 			return false;
 		}
 
-		const enum Choice {
-			None = 0,
-			Accept = 1,
-			Reject = 2,
-			Always = 3,
-			Never = 4,
-		}
+		const rejectItem: vscode.MessageItem = {
+			title: localize('reject.title', "No"),
+			isCloseAffordance: true,
+		};
 
-		interface Item extends vscode.MessageItem {
-			readonly choice: Choice;
-		}
+		const acceptItem: vscode.MessageItem = {
+			title: localize('accept.title', "Yes"),
+		};
 
-		const response = await vscode.window.showInformationMessage<Item>(
+		const alwaysItem: vscode.MessageItem = {
+			title: localize('always.title', "Always automatically update Markdown Links"),
+		};
+
+		const neverItem: vscode.MessageItem = {
+			title: localize('never.title', "Never automatically update Markdown Links"),
+		};
+
+		const choice = await vscode.window.showInformationMessage(
 			newResources.length === 1
 				? localize('prompt', "Update Markdown links for '{0}'?", path.basename(newResources[0].fsPath))
 				: this.getConfirmMessage(localize('promptMoreThanOne', "Update Markdown link for the following {0} files?", newResources.length), newResources), {
 			modal: true,
-		}, {
-			title: localize('reject.title', "No"),
-			choice: Choice.Reject,
-			isCloseAffordance: true,
-		}, {
-			title: localize('accept.title', "Yes"),
-			choice: Choice.Accept,
-		}, {
-			title: localize('always.title', "Always automatically update Markdown Links"),
-			choice: Choice.Always,
-		}, {
-			title: localize('never.title', "Never automatically update Markdown Links"),
-			choice: Choice.Never,
-		});
+		}, rejectItem, acceptItem, alwaysItem, neverItem);
 
-		if (!response) {
-			return false;
-		}
-
-		switch (response.choice) {
-			case Choice.Accept: {
+		switch (choice) {
+			case acceptItem: {
 				return true;
 			}
-			case Choice.Reject: {
+			case rejectItem: {
 				return false;
 			}
-			case Choice.Always: {
+			case alwaysItem: {
 				const config = vscode.workspace.getConfiguration('markdown', newResources[0]);
 				config.update(
 					settingNames.enabled,
@@ -174,7 +162,7 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 					this.getConfigTargetScope(config, settingNames.enabled));
 				return true;
 			}
-			case Choice.Never: {
+			case neverItem: {
 				const config = vscode.workspace.getConfiguration('markdown', newResources[0]);
 				config.update(
 					settingNames.enabled,
@@ -182,9 +170,10 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 					this.getConfigTargetScope(config, settingNames.enabled));
 				return false;
 			}
+			default: {
+				return false;
+			}
 		}
-
-		return false;
 	}
 
 	private async getEditsForFileRename(renames: readonly RenameAction[], token: vscode.CancellationToken): Promise<{ edit: vscode.WorkspaceEdit; resourcesBeingRenamed: vscode.Uri[] } | undefined> {

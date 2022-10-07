@@ -24,6 +24,7 @@ import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { denamespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { Emitter } from 'vs/base/common/event';
 
 const testFilterDescriptions: { [K in TestFilterTerm]: string } = {
 	[TestFilterTerm.Failed]: localize('testing.filters.showOnlyFailed', "Show Only Failed Tests"),
@@ -35,6 +36,8 @@ const testFilterDescriptions: { [K in TestFilterTerm]: string } = {
 export class TestingExplorerFilter extends BaseActionViewItem {
 	private input!: SuggestEnabledInputWithHistory;
 	private wrapper!: HTMLDivElement;
+	private readonly focusEmitter = this._register(new Emitter<void>());
+	public readonly onDidFocus = this.focusEmitter.event;
 	private readonly history: StoredValue<{ values: string[]; lastValue: string } | string[]> = this.instantiationService.createInstance(StoredValue, {
 		key: 'testing.filterHistory2',
 		scope: StorageScope.WORKSPACE,
@@ -109,6 +112,10 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 
 		this._register(this.state.onDidRequestInputFocus(() => {
 			input.focus();
+		}));
+
+		this._register(input.onDidFocus(() => {
+			this.focusEmitter.fire();
 		}));
 
 		this._register(input.onInputDidChange(() => updateDelayer.trigger(() => {

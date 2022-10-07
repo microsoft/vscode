@@ -37,7 +37,6 @@ export class RendererProfiling {
 			const eventHistory = new RingBuffer<{ command: string; timestamp: number }>(5);
 			this._disposables.add(commandService.onWillExecuteCommand(e => eventHistory.push({ command: e.commandId, timestamp: Date.now() })));
 
-			const sessionDisposables = this._disposables.add(new DisposableStore());
 
 			const obs = new PerformanceObserver(list => {
 
@@ -51,11 +50,7 @@ export class RendererProfiling {
 					return;
 				}
 
-				// pause observation, we'll take a detailed look
-				obs.disconnect();
-
 				const sessionId = generateUuid();
-				logService.warn(`[perf] Renderer reported VERY LONG TASK (${maxDuration}ms), starting auto profiling session '${sessionId}'`);
 
 				// all visible views
 				const views = viewsDescriptorService.viewContainers.map(container => {
@@ -74,31 +69,34 @@ export class RendererProfiling {
 					editors: JSON.stringify(editors),
 				});
 
-				// start heartbeat monitoring
-				nativeHostService.startHeartbeat(sessionId).then(success => {
-					if (!success) {
-						logService.warn('[perf] FAILED to start heartbeat sending');
-						return;
-					}
+				// // start heartbeat monitoring
+				// const sessionDisposables = this._disposables.add(new DisposableStore());
+				// logService.warn(`[perf] Renderer reported VERY LONG TASK (${maxDuration}ms), starting auto profiling session '${sessionId}'`);
+				// // pause observation, we'll take a detailed look
+				// obs.disconnect();
+				// nativeHostService.startHeartbeat(sessionId).then(success => {
+				// 	if (!success) {
+				// 		logService.warn('[perf] FAILED to start heartbeat sending');
+				// 		return;
+				// 	}
 
-					// start sending a repeated heartbeat which is expected to be received by the main side
-					const handle1 = setInterval(() => nativeHostService.sendHeartbeat(sessionId), 500);
+				// 	// start sending a repeated heartbeat which is expected to be received by the main side
+				// 	const handle1 = setInterval(() => nativeHostService.sendHeartbeat(sessionId), 500);
 
-					// stop heartbeat after 20s
-					const handle2 = setTimeout(() => sessionDisposables.clear(), 20 * 1000);
+				// 	// stop heartbeat after 20s
+				// 	const handle2 = setTimeout(() => sessionDisposables.clear(), 20 * 1000);
 
-					// cleanup
-					// - stop heartbeat
-					// - reconnect perf observer
-					sessionDisposables.add(toDisposable(() => {
-						clearInterval(handle1);
-						clearTimeout(handle2);
-						nativeHostService.stopHeartbeat(sessionId);
-						logService.warn(`[perf] STOPPING to send heartbeat`);
-
-						obs.observe({ entryTypes: ['longtask'] });
-					}));
-				});
+				// 	// cleanup
+				// 	// - stop heartbeat
+				// 	// - reconnect perf observer
+				// 	sessionDisposables.add(toDisposable(() => {
+				// 		clearInterval(handle1);
+				// 		clearTimeout(handle2);
+				// 		nativeHostService.stopHeartbeat(sessionId);
+				// 		logService.warn(`[perf] STOPPING to send heartbeat`);
+				// 		obs.observe({ entryTypes: ['longtask'] });
+				// 	}));
+				// });
 			});
 
 			this._disposables.add(toDisposable(() => obs.disconnect()));
@@ -123,7 +121,7 @@ type TelemetryEventClassification = {
 	owner: 'jrieken';
 	comment: 'Insight about what happened before/while a long task was reported';
 	sessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Session identifier that allows to correlate CPU samples and events' };
-	timestamp: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Unix time at which the long task approximately happened' };
+	timestamp: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Unix time at which the long task approximately happened' };
 	recentCommands: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Events prior to the long task' };
 	views: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Visible views' };
 	editors: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Visible editor' };

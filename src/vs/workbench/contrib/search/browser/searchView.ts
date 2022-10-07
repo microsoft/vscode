@@ -10,7 +10,6 @@ import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
-import { IAction } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
 import * as errors from 'vs/base/common/errors';
@@ -33,8 +32,7 @@ import { CommonFindController } from 'vs/editor/contrib/find/browser/findControl
 import { MultiCursorSelectionController } from 'vs/editor/contrib/multicursor/browser/multicursor';
 import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -122,8 +120,6 @@ export class SearchView extends ViewPane {
 	private hasFilePatternKey: IContextKey<boolean>;
 	private hasSomeCollapsibleResultKey: IContextKey<boolean>;
 
-	private contextMenu: IMenu | null = null;
-
 	private tree!: WorkbenchCompressibleObjectTree<RenderableMatch>;
 	private treeLabels!: ResourceLabels;
 	private viewletState: MementoObject;
@@ -157,6 +153,9 @@ export class SearchView extends ViewPane {
 
 	private treeViewKey: IContextKey<boolean>;
 
+	private _uiRefreshHandle: any;
+	private _visibleMatches: number = 0;
+
 	constructor(
 		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
@@ -179,7 +178,6 @@ export class SearchView extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ISearchHistoryService private readonly searchHistoryService: ISearchHistoryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IMenuService private readonly menuService: IMenuService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService storageService: IStorageService,
@@ -532,7 +530,7 @@ export class SearchView extends ViewPane {
 
 	private refreshAndUpdateCount(event?: IChangeEvent): void {
 		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
-		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors);
+		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, event?.clearingAll);
 		return this.refreshTree(event);
 	}
 
@@ -824,19 +822,15 @@ export class SearchView extends ViewPane {
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<RenderableMatch | null>): void {
-		if (!this.contextMenu) {
-			this.contextMenu = this._register(this.menuService.createMenu(MenuId.SearchContext, this.contextKeyService));
-		}
 
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
-		const actions: IAction[] = [];
-		createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions);
-
 		this.contextMenuService.showContextMenu({
+			menuId: MenuId.SearchContext,
+			menuActionOptions: { shouldForwardArgs: true },
+			contextKeyService: this.contextKeyService,
 			getAnchor: () => e.anchor,
-			getActions: () => actions,
 			getActionsContext: () => e.element,
 		});
 	}
@@ -1597,22 +1591,25 @@ export class SearchView extends ViewPane {
 			}
 		};
 
-		let visibleMatches = 0;
+		this._visibleMatches = 0;
 
 		// Handle UI updates in an interval to show frequent progress and results
-		const uiRefreshHandle: any = setInterval(() => {
-			if (this.state === SearchUIState.Idle) {
-				window.clearInterval(uiRefreshHandle);
-				return;
-			}
+		if (!this._uiRefreshHandle) {
+			this._uiRefreshHandle = setInterval(() => {
+				if (this.state === SearchUIState.Idle) {
+					window.clearInterval(this._uiRefreshHandle);
+					this._uiRefreshHandle = undefined;
+					return;
+				}
 
-			// Search result tree update
-			const fileCount = this.viewModel.searchResult.fileCount();
-			if (visibleMatches !== fileCount) {
-				visibleMatches = fileCount;
-				this.refreshAndUpdateCount();
-			}
-		}, 100);
+				// Search result tree update
+				const fileCount = this.viewModel.searchResult.fileCount();
+				if (this._visibleMatches !== fileCount) {
+					this._visibleMatches = fileCount;
+					this.refreshAndUpdateCount();
+				}
+			}, 100);
+		}
 
 		this.searchWidget.setReplaceAllActionState(false);
 
@@ -1655,14 +1652,14 @@ export class SearchView extends ViewPane {
 		this.inputPatternIncludes.setOnlySearchInOpenEditors(false);
 	}
 
-	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean, onlyOpenEditors?: boolean): void {
+	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean, onlyOpenEditors?: boolean, clear: boolean = false): void {
 		const fileCount = this.viewModel.searchResult.fileCount();
 		this.hasSearchResultsKey.set(fileCount > 0);
 
 		const msgWasHidden = this.messagesElement.style.display === 'none';
 
 		const messageEl = this.clearMessage();
-		const resultMsg = this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount);
+		const resultMsg = clear ? '' : this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount);
 		this.tree.ariaLabel = resultMsg + nls.localize('forTerm', " - Search: {0}", this.searchResult.query?.contentPattern.pattern ?? '');
 		dom.append(messageEl, resultMsg);
 

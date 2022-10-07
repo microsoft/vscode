@@ -15,7 +15,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
-import { ICreateWebViewShowOptions, IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
+import { IWebViewShowOptions, IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -158,14 +158,14 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		showOptions: extHostProtocol.WebviewPanelShowOptions,
 	): void {
 		const targetGroup = this.getTargetGroupFromShowOptions(showOptions);
-		const mainThreadShowOptions: ICreateWebViewShowOptions = showOptions ? {
+		const mainThreadShowOptions: IWebViewShowOptions = showOptions ? {
 			preserveFocus: !!showOptions.preserveFocus,
 			group: targetGroup
 		} : {};
 
 		const extension = reviveWebviewExtension(extensionData);
 
-		const webview = this._webviewWorkbenchService.createWebview({
+		const webview = this._webviewWorkbenchService.openWebview({
 			id: handle,
 			providedViewType: viewType,
 			options: reviveWebviewOptions(initData.panelOptions),

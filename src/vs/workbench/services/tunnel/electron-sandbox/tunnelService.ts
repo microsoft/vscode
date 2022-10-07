@@ -14,6 +14,8 @@ import { ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedPro
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 
 class SharedProcessTunnel extends Disposable implements RemoteTunnel {
 
@@ -59,6 +61,7 @@ export class TunnelService extends AbstractTunnelService {
 		@ISharedProcessTunnelService private readonly _sharedProcessTunnelService: ISharedProcessTunnelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@INativeWorkbenchEnvironmentService private readonly _nativeWorkbenchEnvironmentService: INativeWorkbenchEnvironmentService
 	) {
 		super(logService);
 
@@ -68,6 +71,10 @@ export class TunnelService extends AbstractTunnelService {
 				this._sharedProcessTunnelService.destroyTunnel(id);
 			});
 		});
+	}
+
+	public isPortPrivileged(port: number): boolean {
+		return this.doIsPortPrivileged(port, isWindows, isMacintosh, this._nativeWorkbenchEnvironmentService.os.release);
 	}
 
 	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
