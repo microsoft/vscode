@@ -31,6 +31,7 @@ export interface ISubmenuItem {
 	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
+	isSelection?: boolean;
 	rememberDefaultAction?: boolean;	// for dropdown menu: if true the last executed action is remembered as the default action
 }
 
