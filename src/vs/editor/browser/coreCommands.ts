@@ -121,7 +121,9 @@ export namespace EditorScroll_ {
 	 */
 	export const RawDirection = {
 		Up: 'up',
+		Right: 'right',
 		Down: 'down',
+		Left: 'left'
 	};
 
 	/**
@@ -132,7 +134,8 @@ export namespace EditorScroll_ {
 		WrappedLine: 'wrappedLine',
 		Page: 'page',
 		HalfPage: 'halfPage',
-		Editor: 'editor'
+		Editor: 'editor',
+		Column: 'column'
 	};
 
 	/**
@@ -152,8 +155,14 @@ export namespace EditorScroll_ {
 			case RawDirection.Up:
 				direction = Direction.Up;
 				break;
+			case RawDirection.Right:
+				direction = Direction.Right;
+				break;
 			case RawDirection.Down:
 				direction = Direction.Down;
+				break;
+			case RawDirection.Left:
+				direction = Direction.Left;
 				break;
 			default:
 				// Illegal arguments
@@ -177,6 +186,9 @@ export namespace EditorScroll_ {
 			case RawUnit.Editor:
 				unit = Unit.Editor;
 				break;
+			case RawUnit.Column:
+				unit = Unit.Column;
+				break;
 			default:
 				unit = Unit.WrappedLine;
 		}
@@ -194,21 +206,19 @@ export namespace EditorScroll_ {
 	}
 
 	export interface ParsedArguments {
-		direction: Direction | HorizontalDirection;
-		unit: Unit | HorizontalUnit;
+		direction: Direction;
+		unit: Unit;
 		value: number;
 		revealCursor: boolean;
 		select: boolean;
 	}
 
+
 	export const enum Direction {
 		Up = 1,
-		Down = 2
-	}
-
-	export const enum HorizontalDirection {
-		Left = 1,
-		Right = 2
+		Right = 2,
+		Down = 3,
+		Left = 4
 	}
 
 	export const enum Unit {
@@ -216,11 +226,8 @@ export namespace EditorScroll_ {
 		WrappedLine = 2,
 		Page = 3,
 		HalfPage = 4,
-		Editor = 5
-	}
-
-	export const enum HorizontalUnit {
-		Column = 1
+		Editor = 5,
+		Column = 6
 	}
 }
 
@@ -1303,16 +1310,43 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
+		determineScrollMethod(args: EditorScroll_.ParsedArguments) {
+			const horizontalUnits = [EditorScroll_.Unit.Column];
+			const verticalUnits = [
+				EditorScroll_.Unit.Line,
+				EditorScroll_.Unit.WrappedLine,
+				EditorScroll_.Unit.Page,
+				EditorScroll_.Unit.HalfPage,
+				EditorScroll_.Unit.Editor,
+				EditorScroll_.Unit.Column
+			];
+			const horizontalDirections = [EditorScroll_.Direction.Left, EditorScroll_.Direction.Right];
+			const verticalDirections = [EditorScroll_.Direction.Up, EditorScroll_.Direction.Down];
+
+			if (horizontalUnits.includes(args.unit) && horizontalDirections.includes(args.direction)) {
+				return this._runHorizontalEditorScroll.bind(this);
+			}
+			if (verticalUnits.includes(args.unit) && verticalDirections.includes(args.direction)) {
+				return this._runVerticalEditorScroll.bind(this);
+			}
+			return null;
+		}
+
 		public runCoreEditorCommand(viewModel: IViewModel, args: Partial<EditorScrollCommandOptions>): void {
 			const parsed = EditorScroll_.parse(args);
 			if (!parsed) {
 				// illegal arguments
 				return;
 			}
-			this._runEditorScroll(viewModel, args.source, parsed);
+			const runEditorScroll = this.determineScrollMethod(parsed);
+			if (!runEditorScroll) {
+				// Incompatible unit and direction
+				return;
+			}
+			runEditorScroll(viewModel, args.source, parsed);
 		}
 
-		_runEditorScroll(viewModel: IViewModel, source: string | null | undefined, args: EditorScroll_.ParsedArguments): void {
+		_runVerticalEditorScroll(viewModel: IViewModel, source: string | null | undefined, args: EditorScroll_.ParsedArguments): void {
 
 			const desiredScrollTop = this._computeDesiredScrollTop(viewModel, args);
 
@@ -1377,7 +1411,7 @@ export namespace CoreNavigationCommands {
 		}
 
 		_computeDesiredScrollLeft(viewModel: IViewModel, args: EditorScroll_.ParsedArguments) {
-			const deltaColumns = (args.direction === EditorScroll_.HorizontalDirection.Left ? -1 : 1) * args.value;
+			const deltaColumns = (args.direction === EditorScroll_.Direction.Left ? -1 : 1) * args.value;
 			return viewModel.viewLayout.getCurrentScrollLeft() + deltaColumns * viewModel.cursorConfig.typicalHalfwidthCharacterWidth;
 		}
 	}
@@ -1399,12 +1433,13 @@ export namespace CoreNavigationCommands {
 		}
 
 		runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions>): void {
-			EditorScroll._runEditorScroll(viewModel, args.source, {
-				direction: EditorScroll_.Direction.Up,
-				unit: EditorScroll_.Unit.WrappedLine,
+			EditorScroll.runCoreEditorCommand(viewModel, {
+				to: EditorScroll_.RawDirection.Up,
+				by: EditorScroll_.RawUnit.WrappedLine,
 				value: 1,
 				revealCursor: false,
-				select: false
+				select: false,
+				source: args.source
 			});
 		}
 	});
@@ -1425,12 +1460,13 @@ export namespace CoreNavigationCommands {
 		}
 
 		runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions>): void {
-			EditorScroll._runEditorScroll(viewModel, args.source, {
-				direction: EditorScroll_.Direction.Up,
-				unit: EditorScroll_.Unit.Page,
+			EditorScroll.runCoreEditorCommand(viewModel, {
+				to: EditorScroll_.RawDirection.Up,
+				by: EditorScroll_.RawUnit.Page,
 				value: 1,
 				revealCursor: false,
-				select: false
+				select: false,
+				source: args.source
 			});
 		}
 	});
@@ -1448,12 +1484,13 @@ export namespace CoreNavigationCommands {
 		}
 
 		runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions>): void {
-			EditorScroll._runEditorScroll(viewModel, args.source, {
-				direction: EditorScroll_.Direction.Up,
-				unit: EditorScroll_.Unit.Editor,
+			EditorScroll.runCoreEditorCommand(viewModel, {
+				to: EditorScroll_.RawDirection.Up,
+				by: EditorScroll_.RawUnit.Editor,
 				value: 1,
 				revealCursor: false,
-				select: false
+				select: false,
+				source: args.source
 			});
 		}
 	});
@@ -1473,12 +1510,13 @@ export namespace CoreNavigationCommands {
 		}
 
 		runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions>): void {
-			EditorScroll._runEditorScroll(viewModel, args.source, {
-				direction: EditorScroll_.Direction.Down,
-				unit: EditorScroll_.Unit.WrappedLine,
+			EditorScroll.runCoreEditorCommand(viewModel, {
+				to: EditorScroll_.RawDirection.Down,
+				by: EditorScroll_.RawUnit.WrappedLine,
 				value: 1,
 				revealCursor: false,
-				select: false
+				select: false,
+				source: args.source
 			});
 		}
 	});
@@ -1499,12 +1537,13 @@ export namespace CoreNavigationCommands {
 		}
 
 		runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions>): void {
-			EditorScroll._runEditorScroll(viewModel, args.source, {
-				direction: EditorScroll_.Direction.Down,
-				unit: EditorScroll_.Unit.Page,
+			EditorScroll.runCoreEditorCommand(viewModel, {
+				to: EditorScroll_.RawDirection.Down,
+				by: EditorScroll_.RawUnit.Page,
 				value: 1,
 				revealCursor: false,
-				select: false
+				select: false,
+				source: args.source
 			});
 		}
 	});
@@ -1522,12 +1561,13 @@ export namespace CoreNavigationCommands {
 		}
 
 		runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions>): void {
-			EditorScroll._runEditorScroll(viewModel, args.source, {
-				direction: EditorScroll_.Direction.Down,
-				unit: EditorScroll_.Unit.Editor,
+			EditorScroll.runCoreEditorCommand(viewModel, {
+				to: EditorScroll_.RawDirection.Down,
+				by: EditorScroll_.RawUnit.Editor,
 				value: 1,
 				revealCursor: false,
-				select: false
+				select: false,
+				source: args.source
 			});
 		}
 	});
@@ -1545,12 +1585,13 @@ export namespace CoreNavigationCommands {
 		}
 
 		runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions>): void {
-			EditorScroll._runHorizontalEditorScroll(viewModel, args.source, {
-				direction: EditorScroll_.HorizontalDirection.Left,
-				unit: EditorScroll_.HorizontalUnit.Column,
+			EditorScroll.runCoreEditorCommand(viewModel, {
+				to: EditorScroll_.RawDirection.Left,
+				by: EditorScroll_.RawUnit.Column,
 				value: 2,
 				revealCursor: false,
-				select: false
+				select: false,
+				source: args.source
 			});
 		}
 	});
@@ -1568,12 +1609,13 @@ export namespace CoreNavigationCommands {
 		}
 
 		runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions>): void {
-			EditorScroll._runHorizontalEditorScroll(viewModel, args.source, {
-				direction: EditorScroll_.HorizontalDirection.Right,
-				unit: EditorScroll_.HorizontalUnit.Column,
+			EditorScroll.runCoreEditorCommand(viewModel, {
+				to: EditorScroll_.RawDirection.Right,
+				by: EditorScroll_.RawUnit.Column,
 				value: 2,
 				revealCursor: false,
-				select: false
+				select: false,
+				source: args.source
 			});
 		}
 	});
