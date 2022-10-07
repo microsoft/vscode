@@ -298,7 +298,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 
 	forceRedraw() {
-		this._webglAddon?.clearTextureAtlas();
 		this.raw.clearTextureAtlas();
 	}
 
