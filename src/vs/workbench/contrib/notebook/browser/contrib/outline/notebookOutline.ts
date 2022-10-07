@@ -8,7 +8,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, IDisposable, Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { CellRevealType, IActiveNotebookEditor, ICellViewModel, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRevealType, IActiveNotebookEditor, ICellViewModel, INotebookEditorOptions, INotebookViewCellsUpdateEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
@@ -320,8 +320,16 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 				selectionListener.clear();
 			} else {
 				selectionListener.value = combinedDisposable(
-					notebookEditor.onDidChangeSelection(() => this._recomputeActive()),
-					notebookEditor.onDidChangeViewCells(() => this._recomputeState())
+					Event.debounce<void, void>(
+						notebookEditor.onDidChangeSelection,
+						(last, _current) => last,
+						200
+					)(this._recomputeActive, this),
+					Event.debounce<INotebookViewCellsUpdateEvent, INotebookViewCellsUpdateEvent>(
+						notebookEditor.onDidChangeViewCells,
+						(last, _current) => last ?? _current,
+						200
+					)(this._recomputeState, this)
 				);
 			}
 		};
