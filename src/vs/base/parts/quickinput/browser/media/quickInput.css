@@ -57,7 +57,7 @@
 
 .quick-input-header {
 	display: flex;
-	padding: 8px 8px 0px 8px;
+	padding: 8px 6px 0px 6px;
 	margin-bottom: -2px;
 }
 
@@ -163,6 +163,10 @@
 	max-height: calc(20 * 22px);
 }
 
+.quick-input-list .monaco-scrollable-element {
+	padding: 0px 6px;
+}
+
 .quick-input-list .quick-input-list-entry {
 	box-sizing: border-box;
 	overflow: hidden;
@@ -174,6 +178,10 @@
 .quick-input-list .quick-input-list-entry.quick-input-list-separator-border {
 	border-top-width: 1px;
 	border-top-style: solid;
+}
+
+.quick-input-list .monaco-list-row {
+	border-radius: 3px;
 }
 
 .quick-input-list .monaco-list-row[data-index="0"] .quick-input-list-entry.quick-input-list-separator-border {
@@ -247,7 +255,7 @@
 }
 
 .quick-input-list .quick-input-list-entry .quick-input-list-separator {
-	margin-right: 8px; /* separate from keybindings or actions */
+	margin-right: 4px; /* separate from keybindings or actions */
 }
 
 .quick-input-list .quick-input-list-entry-action-bar {
