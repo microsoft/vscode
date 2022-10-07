@@ -255,7 +255,9 @@ export class TerminalService implements ITerminalService {
 	}
 
 	handleNewRegisteredBackend(backend: ITerminalBackend) {
-		this._primaryBackend = backend;
+		if (backend.remoteAuthority === this._environmentService.remoteAuthority) {
+			this._primaryBackend = backend;
+		}
 		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
 
 		// Connect to the extension host if it's there, set the connection state to connected when
