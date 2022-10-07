@@ -2232,7 +2232,7 @@ export function registerTerminalActions() {
 				id: TerminalCommandId.WriteDataToTerminal,
 				title: { value: localize('workbench.action.terminal.writeDataToTerminal', "Write Data to Terminal"), original: 'Write Data to Terminal' },
 				f1: true,
-				category: Categories.Developer.value
+				category: Categories.Developer
 			});
 		}
 		async run(accessor: ServicesAccessor) {
