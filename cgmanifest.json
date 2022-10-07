@@ -489,8 +489,8 @@
 				"type": "other",
 				"other": {
 					"name": "H.264/AVC Video Standard",
-					"downloadUrl": "https://www.itu.int/rec/T-REC-H.264",
-					"version": "08/21"
+					"downloadUrl": "https://chromium.googlesource.com/chromium/third_party/ffmpeg",
+					"version": "4.4.git"
 				}
 			},
 			"licenseDetail": [
