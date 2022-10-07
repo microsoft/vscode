@@ -337,7 +337,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (this._terminalService.getReconnectedTerminals('Task')?.length) {
 			this._attemptTaskReconnection();
 		} else {
-			this._register(this._terminalService.onDidChangeConnectionState(() => {
+			this._register(once(this._terminalService.onDidChangeConnectionState)(() => {
 				if (this._terminalService.getReconnectedTerminals('Task')?.length) {
 					this._attemptTaskReconnection();
 				}
