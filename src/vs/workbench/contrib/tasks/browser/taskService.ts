@@ -9,7 +9,7 @@ import { ITaskSystem } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { ExecutionEngine } from 'vs/workbench/contrib/tasks/common/tasks';
 import { AbstractTaskService, IWorkspaceFolderConfigurationResult } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
 import { ITaskFilter, ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class TaskService extends AbstractTaskService {
 	private static readonly ProcessTaskSystemSupportMessage = nls.localize('taskService.processTaskSystem', 'Process task system is not support in the web.');
@@ -44,4 +44,4 @@ export class TaskService extends AbstractTaskService {
 	}
 }
 
-registerSingleton(ITaskService, TaskService, true);
+registerSingleton(ITaskService, TaskService, InstantiationType.Delayed);

@@ -476,6 +476,7 @@ export interface IChangeEvent {
 	elements: FileMatch[];
 	added?: boolean;
 	removed?: boolean;
+	clearingAll?: boolean;
 }
 
 export class FolderMatch extends Disposable {
@@ -492,10 +493,14 @@ export class FolderMatch extends Disposable {
 	protected _unDisposedFileMatches: ResourceMap<FileMatch>;
 	protected _unDisposedFolderMatches: ResourceMap<FolderMatchWithResource>;
 	private _replacingAll: boolean = false;
+
+	// if this is compressed in a node with other FolderMatches, then this is set to the parent where compression starts
+	public compressionStartParent: FolderMatch | undefined;
+
 	constructor(
 		protected _resource: URI | null,
 		private _id: string,
-		protected _index: number | null,
+		protected _index: number,
 		protected _query: ITextQuery,
 		private _parent: SearchResult | FolderMatch,
 		private _searchModel: SearchModel,
@@ -537,7 +542,7 @@ export class FolderMatch extends Disposable {
 		return this._resource;
 	}
 
-	index(): number | null {
+	index(): number {
 		return this._index;
 	}
 
@@ -555,13 +560,14 @@ export class FolderMatch extends Disposable {
 		if (fileMatch) {
 			fileMatch.bindModel(model);
 		} else {
-			this.folderMatches().forEach(e => {
-				e.bindModel(model);
-			});
+			const folderMatches = this.folderMatchesIterator();
+			for (const elem of folderMatches) {
+				elem.bindModel(model);
+			}
 		}
 	}
 
-	public createIntermediateFolderMatch(resource: URI, id: string, index: number | null, query: ITextQuery, baseWorkspaceFolder: FolderMatchWorkspaceRoot): FolderMatchWithResource {
+	public createIntermediateFolderMatch(resource: URI, id: string, index: number, query: ITextQuery, baseWorkspaceFolder: FolderMatchWorkspaceRoot): FolderMatchWithResource {
 		const folderMatch = this.instantiationService.createInstance(FolderMatchWithResource, resource, id, index, query, this, this._searchModel, baseWorkspaceFolder);
 		this.configureIntermediateMatch(folderMatch);
 		this.doAddFolder(folderMatch);
@@ -573,10 +579,10 @@ export class FolderMatch extends Disposable {
 		folderMatch.onDispose(() => disposable.dispose());
 	}
 
-	clear(): void {
+	clear(clearingAll = false): void {
 		const changed: FileMatch[] = this.downstreamFileMatches();
 		this.disposeMatches();
-		this._onChange.fire({ elements: changed, removed: true, added: false });
+		this._onChange.fire({ elements: changed, removed: true, added: false, clearingAll });
 	}
 
 	remove(matches: FileMatch | FolderMatchWithResource | (FileMatch | FolderMatchWithResource)[]): void {
@@ -599,15 +605,15 @@ export class FolderMatch extends Disposable {
 	}
 
 	matches(): (FileMatch | FolderMatchWithResource)[] {
-		return [...this.fileMatches(), ...this.folderMatches()];
+		return [...this.fileMatchesIterator(), ...this.folderMatchesIterator()];
 	}
 
-	fileMatches(): FileMatch[] {
-		return [...this._fileMatches.values()];
+	fileMatchesIterator(): IterableIterator<FileMatch> {
+		return this._fileMatches.values();
 	}
 
-	folderMatches(): FolderMatchWithResource[] {
-		return [...this._folderMatches.values()];
+	folderMatchesIterator(): IterableIterator<FolderMatchWithResource> {
+		return this._folderMatches.values();
 	}
 
 	isEmpty(): boolean {
@@ -619,8 +625,10 @@ export class FolderMatch extends Disposable {
 		if (directChildFileMatch) {
 			return directChildFileMatch;
 		}
-		for (let i = 0; i < this.folderMatches().length; i++) {
-			const match = this.folderMatches()[i].hasFileUriDownstream(uri);
+
+		const folderMatches = this.folderMatchesIterator();
+		for (const elem of folderMatches) {
+			const match = elem.hasFileUriDownstream(uri);
 			if (match) {
 				return match;
 			}
@@ -629,8 +637,13 @@ export class FolderMatch extends Disposable {
 	}
 
 	downstreamFileMatches(): FileMatch[] {
-		const recursiveChildren = this.folderMatches().map(e => e.downstreamFileMatches()).flat();
-		return [...this.fileMatches(), ...recursiveChildren];
+		let recursiveChildren: FileMatch[] = [];
+		const iterator = this.folderMatchesIterator();
+		for (const elem of iterator) {
+			recursiveChildren = recursiveChildren.concat(elem.downstreamFileMatches());
+		}
+
+		return [...this.fileMatchesIterator(), ...recursiveChildren];
 	}
 
 	private fileCount(): number {
@@ -708,7 +721,7 @@ export class FolderMatch extends Disposable {
 		return false;
 	}
 
-	private getFolderMatch(resource: URI): FolderMatchWithResource | undefined {
+	public getFolderMatch(resource: URI): FolderMatchWithResource | undefined {
 		const folderMatch = this._folderMatchesMap.findSubstr(resource);
 		return folderMatch;
 	}
@@ -766,7 +779,7 @@ export class FolderMatch extends Disposable {
 
 		const removed = [];
 		for (const match of fileMatches as FileMatch[]) {
-			if (this.fileMatches().includes(match)) {
+			if (this._fileMatches.get(match.resource)) {
 				this._fileMatches.delete(match.resource);
 				if (dispose) {
 					match.dispose();
@@ -809,7 +822,7 @@ export class FolderMatch extends Disposable {
 
 export class FolderMatchWithResource extends FolderMatch {
 
-	constructor(_resource: URI, _id: string, _index: number | null, _query: ITextQuery, _parent: SearchResult | FolderMatch, _searchModel: SearchModel, _closestRoot: FolderMatchWorkspaceRoot | null,
+	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: SearchResult | FolderMatch, _searchModel: SearchModel, _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
@@ -873,18 +886,14 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		const root = this.closestRoot ?? this;
 		let parent: FolderMatch = this;
 		for (let i = 0; i < fileMatchParentParts.length; i++) {
-			let folderMatch: FolderMatchWithResource | undefined = parent.folderMatches().find(e => e.resource && (this.uriEquals(e.resource, fileMatchParentParts[i])));
+			let folderMatch: FolderMatchWithResource | undefined = parent.getFolderMatch(fileMatchParentParts[i]);
 			if (!folderMatch) {
-				folderMatch = parent.createIntermediateFolderMatch(fileMatchParentParts[i], fileMatchParentParts[i].toString(), null, this._query, root);
+				folderMatch = parent.createIntermediateFolderMatch(fileMatchParentParts[i], fileMatchParentParts[i].toString(), -1, this._query, root);
 			}
 			parent = folderMatch;
 		}
 
 		return this.createFileMatch(this._query.contentPattern, this._query.previewOptions, this._query.maxResults, parent, rawFileMatch, root);
-	}
-
-	override index(): number {
-		return this._index!;
 	}
 }
 
@@ -911,16 +920,44 @@ export class FolderMatchNoRoot extends FolderMatch {
 	}
 }
 
+let elemAIndex: number = -1;
+let elemBIndex: number = -1;
 /**
  * Compares instances of the same match type. Different match types should not be siblings
  * and their sort order is undefined.
  */
 export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch, sortOrder: SearchSortOrder = SearchSortOrder.Default): number {
+
+	if (elementA instanceof FileMatch && elementB instanceof FolderMatch) {
+		return 1;
+	}
+
+	if (elementB instanceof FileMatch && elementA instanceof FolderMatch) {
+		return -1;
+	}
+
 	if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
-		const elemAIndex = elementA.index();
-		const elemBIndex = elementB.index();
-		if (elemAIndex !== null && elemBIndex !== null) {
+		elemAIndex = elementA.index();
+		elemBIndex = elementB.index();
+		if (elemAIndex !== -1 && elemBIndex !== -1) {
 			return elemAIndex - elemBIndex;
+		}
+
+		switch (sortOrder) {
+			case SearchSortOrder.CountDescending:
+				return elementB.count() - elementA.count();
+			case SearchSortOrder.CountAscending:
+				return elementA.count() - elementB.count();
+			case SearchSortOrder.Type:
+				return compareFileExtensions(elementA.name(), elementB.name());
+			case SearchSortOrder.FileNames:
+				return compareFileNames(elementA.name(), elementB.name());
+			// Fall through otherwise
+			default:
+				if (!elementA.resource || !elementB.resource) {
+					return 0;
+				}
+				return comparePaths(elementA.resource.fsPath, elementB.resource.fsPath) || compareFileNames(elementA.name(), elementB.name());
 		}
 	}
 
@@ -935,12 +972,11 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 			case SearchSortOrder.FileNames:
 				return compareFileNames(elementA.name(), elementB.name());
 			case SearchSortOrder.Modified: {
-				if (!(elementA instanceof FolderMatch) || !(elementB instanceof FolderMatch)) {
-					const fileStatA = elementA.fileStat;
-					const fileStatB = elementB.fileStat;
-					if (fileStatA && fileStatB) {
-						return fileStatB.mtime - fileStatA.mtime;
-					}
+				const fileStatA = elementA.fileStat;
+				const fileStatB = elementB.fileStat;
+				if (fileStatA && fileStatB) {
+					return fileStatB.mtime - fileStatA.mtime;
+
 				}
 			}
 			// Fall through otherwise
@@ -1154,7 +1190,7 @@ export class SearchResult extends Disposable {
 	}
 
 	clear(): void {
-		this.folderMatches().forEach((folderMatch) => folderMatch.clear());
+		this.folderMatches().forEach((folderMatch) => folderMatch.clear(true));
 		this.disposeMatches();
 		this._folderMatches = [];
 		this._otherFilesMatch = null;
@@ -1328,7 +1364,7 @@ export class SearchModel extends Disposable {
 	private _replacePattern: ReplacePattern | null = null;
 	private _preserveCase: boolean = false;
 	private _startStreamDelay: Promise<void> = Promise.resolve();
-	private _resultQueue: IFileMatch[] = [];
+	private readonly _resultQueue: IFileMatch[] = [];
 
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
 	readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
@@ -1444,7 +1480,7 @@ export class SearchModel extends Disposable {
 		}
 
 		this._searchResult.add(this._resultQueue);
-		this._resultQueue = [];
+		this._resultQueue.length = 0;
 
 		const options: IPatternInfo = Object.assign({}, this._searchQuery.contentPattern);
 		delete (options as any).pattern;
@@ -1498,7 +1534,7 @@ export class SearchModel extends Disposable {
 			await this._startStreamDelay;
 			if (this._resultQueue.length) {
 				this._searchResult.add(this._resultQueue, true);
-				this._resultQueue = [];
+				this._resultQueue.length = 0;
 			}
 		}
 	}

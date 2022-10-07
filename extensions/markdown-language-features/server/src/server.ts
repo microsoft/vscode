@@ -93,6 +93,7 @@ export async function startServer(connection: Connection, serverConfig: {
 				completionProvider: { triggerCharacters: ['.', '/', '#'] },
 				definitionProvider: true,
 				documentLinkProvider: { resolveProvider: true },
+				documentHighlightProvider: false, // TODO: Disabling for now
 				documentSymbolProvider: true,
 				foldingRangeProvider: true,
 				referencesProvider: true,
@@ -230,6 +231,14 @@ export async function startServer(connection: Connection, serverConfig: {
 		}
 
 		return codeAction;
+	});
+
+	connection.onDocumentHighlight(async (params, token) => {
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return undefined;
+		}
+		return mdLs!.getDocumentHighlights(document, params.position, token);
 	});
 
 	connection.onRequest(protocol.getReferencesToFileInWorkspace, (async (params: { uri: string }, token: CancellationToken) => {

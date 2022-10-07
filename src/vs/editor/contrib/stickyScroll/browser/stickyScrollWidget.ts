@@ -152,7 +152,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 					this._editor.revealPosition({ lineNumber: this._hoverOnLine, column: 1 });
 				}
 				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor } as Location);
-			} else {
+			} else if (!e.hasRightClick) {
 				// Normal click
 				this._editor.revealPosition({ lineNumber: this._hoverOnLine, column: 1 });
 			}
@@ -275,7 +275,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				const mouseOverEvent = new StandardMouseEvent(e);
 				const text = mouseOverEvent.target.innerText;
 				this._hoverOnLine = line;
-				// TODO: workaround to find the column index, perhaps need more solid solution
+				// TODO: workaround to find the column index, perhaps need a more solid solution
 				this._hoverOnColumn = this._editor.getModel().getLineContent(line).indexOf(text) + 1 || -1;
 			}
 		}));
@@ -296,8 +296,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
 		if (minimapSide === 'left') {
 			this._rootDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
-		} else if (minimapSide === 'right') {
-			this._rootDomNode.style.marginLeft = '0px';
+		}
+		else if (minimapSide === 'right') {
+			this._rootDomNode.style.marginLeft = '1px';
 		}
 		this._rootDomNode.style.zIndex = '11';
 	}

@@ -57,12 +57,44 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		})();
 
 		const alignments: RangeMapping[] = [];
+
+		const scanForWhitespaceChanges = (equalLinesCount: number) => {
+			for (let i = 0; i < equalLinesCount; i++) {
+				const seq1Offset = seq1LastStart + i;
+				const seq2Offset = seq2LastStart + i;
+				if (originalLines[seq1Offset] !== modifiedLines[seq2Offset]) {
+					// This is because of whitespace changes, diff these lines
+					const characterDiffs = this.refineDiff(originalLines, modifiedLines, new SequenceDiff(
+						new OffsetRange(seq1Offset, seq1Offset + 1),
+						new OffsetRange(seq2Offset, seq2Offset + 1)
+					));
+					for (const a of characterDiffs) {
+						alignments.push(a);
+					}
+				}
+			}
+		};
+
+		let seq1LastStart = 0;
+		let seq2LastStart = 0;
+
 		for (const diff of lineAlignments) {
+			assertFn(() => diff.seq1Range.start - seq1LastStart === diff.seq2Range.start - seq2LastStart);
+
+			const equalLinesCount = diff.seq1Range.start - seq1LastStart;
+
+			scanForWhitespaceChanges(equalLinesCount);
+
+			seq1LastStart = diff.seq1Range.endExclusive;
+			seq2LastStart = diff.seq2Range.endExclusive;
+
 			const characterDiffs = this.refineDiff(originalLines, modifiedLines, diff);
 			for (const a of characterDiffs) {
 				alignments.push(a);
 			}
 		}
+
+		scanForWhitespaceChanges(originalLines.length - seq1LastStart);
 
 		const changes: LineRangeMapping[] = lineRangeMappingFromRangeMappings(alignments);
 

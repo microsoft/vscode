@@ -100,7 +100,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContribution, 'SearchEditorContribution', LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContribution, LifecyclePhase.Starting);
 //#endregion
 
 //#region Input Serializer
@@ -592,5 +592,5 @@ class SearchEditorWorkingCopyEditorHandler extends Disposable implements IWorkbe
 	}
 }
 
-workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorWorkingCopyEditorHandler, 'SearchEditorWorkingCopyEditorHandler', LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorWorkingCopyEditorHandler, LifecyclePhase.Ready);
 //#endregion

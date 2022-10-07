@@ -62,12 +62,15 @@ do {
 		if($set.Add($artifactName)) {
 			Write-Host "Processing artifact: '$artifactName. Downloading from: $($_.resource.downloadUrl)"
 
+			$extractPath = "$env:AGENT_TEMPDIRECTORY/$artifactName.zip"
 			try {
-				Invoke-RestMethod $_.resource.downloadUrl -OutFile "$env:AGENT_TEMPDIRECTORY/$artifactName.zip" -Headers @{
+				Invoke-RestMethod $_.resource.downloadUrl -OutFile $extractPath -Headers @{
 					Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
-				} -MaximumRetryCount 5 -RetryIntervalSec 1  | Out-Null
+				} -MaximumRetryCount 5 -RetryIntervalSec 1 -TimeoutSec 300 | Out-Null
 
-				Expand-Archive -Path "$env:AGENT_TEMPDIRECTORY/$artifactName.zip" -DestinationPath $env:AGENT_TEMPDIRECTORY | Out-Null
+				Write-Host "Extracting artifact: '$extractPath'"
+
+				Expand-Archive -Path $extractPath -DestinationPath $env:AGENT_TEMPDIRECTORY | Out-Null
 			} catch {
 				Write-Warning $_
 				$set.Remove($artifactName) | Out-Null
@@ -76,6 +79,13 @@ do {
 
 			$null,$product,$os,$arch,$type = $artifactName -split '_'
 			$asset = Get-ChildItem -rec "$env:AGENT_TEMPDIRECTORY/$artifactName"
+
+			if ($asset.Size -ne $_.resource.properties.artifactsize) {
+				Write-Warning "Artifact size mismatch for '$artifactName'. Expected: $($_.resource.properties.artifactsize). Actual: $($asset.Size)"
+				$set.Remove($artifactName) | Out-Null
+				continue
+			}
+
 			Write-Host "Processing artifact with the following values:"
 			# turning in into an object just to log nicely
 			@{

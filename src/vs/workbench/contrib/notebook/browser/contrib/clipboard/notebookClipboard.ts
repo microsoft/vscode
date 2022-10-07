@@ -26,7 +26,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { rendererLogChannelId } from 'vs/workbench/contrib/logs/common/logConstants';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -400,7 +400,7 @@ export class NotebookClipboardContribution extends Disposable {
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookClipboardContribution, 'NotebookClipboardContribution', LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookClipboardContribution, LifecyclePhase.Ready);
 
 const COPY_CELL_COMMAND_ID = 'notebook.cell.copy';
 const CUT_CELL_COMMAND_ID = 'notebook.cell.cut';
@@ -550,7 +550,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.toggleNotebookClipboardLog',
 			title: { value: localize('toggleNotebookClipboardLog', "Toggle Notebook Clipboard Troubleshooting"), original: 'Toggle Notebook Clipboard Troubleshooting' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}

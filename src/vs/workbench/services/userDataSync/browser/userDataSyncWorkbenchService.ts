@@ -381,7 +381,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 					if (status === SyncStatus.HasConflicts) {
 						progress.report({ message: localize('resolving conflicts', "Resolving conflicts...") });
 					} else {
-						progress.report({ message: localize('syncing...', "Turnin on...") });
+						progress.report({ message: localize('syncing...', "Turning on...") });
 					}
 				}));
 				await manualSyncTask.merge();

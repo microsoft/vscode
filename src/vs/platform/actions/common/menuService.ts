@@ -10,7 +10,7 @@ import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuCreateOptions, IMenuI
 import { ICommandAction, ILocalizedString } from 'vs/platform/action/common/action';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAction, Separator, toAction } from 'vs/base/common/actions';
+import { Separator, toAction } from 'vs/base/common/actions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { removeFastWithoutKeepingOrder } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
@@ -32,8 +32,8 @@ export class MenuService implements IMenuService {
 		return new MenuImpl(id, this._hiddenStates, { emitEventsForSubmenuChanges: false, eventDebounceDelay: 50, ...options }, this._commandService, contextKeyService);
 	}
 
-	resetHiddenStates(id?: MenuId): void {
-		this._hiddenStates.reset(id);
+	resetHiddenStates(ids?: MenuId[]): void {
+		this._hiddenStates.reset(ids);
 	}
 }
 
@@ -108,17 +108,19 @@ class PersistedMenuHideState {
 		this._persist();
 	}
 
-	reset(menu?: MenuId): void {
-		if (menu === undefined) {
+	reset(menus?: MenuId[]): void {
+		if (menus === undefined) {
 			// reset all
 			this._data = Object.create(null);
 			this._persist();
 		} else {
 			// reset only for a specific menu
-			if (this._data[menu.id]) {
-				delete this._data[menu.id];
-				this._persist();
+			for (const { id } of menus) {
+				if (this._data[id]) {
+					delete this._data[id];
+				}
 			}
+			this._persist();
 		}
 	}
 
@@ -215,12 +217,9 @@ class MenuInfo {
 
 	createActionGroups(options: IMenuActionOptions | undefined): [string, Array<MenuItemAction | SubmenuItemAction>][] {
 		const result: [string, Array<MenuItemAction | SubmenuItemAction>][] = [];
-		const allToggleActions: IAction[][] = [];
 
 		for (const group of this._menuGroups) {
 			const [id, items] = group;
-
-			const toggleActions: IAction[] = [];
 
 			const activeActions: Array<MenuItemAction | SubmenuItemAction> = [];
 			for (const item of items) {
@@ -229,7 +228,8 @@ class MenuInfo {
 					const menuHide = createMenuHide(this._id, isMenuItem ? item.command : item, this._hiddenStates);
 					if (isMenuItem) {
 						// MenuItemAction
-						activeActions.push(new MenuItemAction(item.command, item.alt, options, menuHide, this._contextKeyService, this._commandService));
+						const actualMenuHide = item.command._isFakeAction ? undefined : menuHide;
+						activeActions.push(new MenuItemAction(item.command, item.alt, options, actualMenuHide, this._contextKeyService, this._commandService));
 
 					} else {
 						// SubmenuItemAction
@@ -243,9 +243,6 @@ class MenuInfo {
 			}
 			if (activeActions.length > 0) {
 				result.push([id, activeActions]);
-			}
-			if (toggleActions.length > 0) {
-				allToggleActions.push(toggleActions);
 			}
 		}
 		return result;

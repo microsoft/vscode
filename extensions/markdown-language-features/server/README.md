@@ -64,8 +64,12 @@ The server supports the following settings:
 			- `enabled` — Enable/disable validation of links to fragments in the current files: `[text](#head)`
 		- `fileLinks`
 			- `enabled` — Enable/disable validation of links to file in the workspace.
-			- `markdownFragmentLinks` — Enable/disable validation of links to headers in other Markdown files.
+			- `markdownFragmentLinks` — Enable/disable validation of links to headers in other Markdown files. Use `inherit` to inherit the `fragmentLinks` setting.
 		- `ignoredLinks` — Array of glob patterns for files that should not be validated.
+		- `unusedLinkDefinitions`
+			- `enabled` — Enable/disable validation of unused link definitions.
+		- `duplicateLinkDefinitions`
+			- `enabled` — Enable/disable validation of duplicated link definitions.
 
 ### Custom requests
 

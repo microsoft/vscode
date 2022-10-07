@@ -20,7 +20,7 @@ import { CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/e
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -369,40 +369,44 @@ export class CodeActionWidget extends Disposable {
 		readonly container: HTMLElement | undefined;
 		readonly codeActions: CodeActionSet;
 		readonly delegate: CodeActionWidgetDelegate;
+		readonly contextKeyService: IContextKeyService;
 	};
-
-	private readonly _ctxMenuWidgetVisible: IContextKey<boolean>;
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
-
-		this._ctxMenuWidgetVisible = Context.Visible.bindTo(this._contextKeyService);
 	}
 
 	get isVisible(): boolean {
 		return !!this.currentShowingContext;
 	}
 
-	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, anchor: IAnchor, container: HTMLElement | undefined, options: CodeActionShowOptions, delegate: CodeActionWidgetDelegate): Promise<void> {
+	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, anchor: IAnchor, container: HTMLElement | undefined, options: CodeActionShowOptions, delegate: CodeActionWidgetDelegate, contextKeyService: IContextKeyService): Promise<void> {
 		this.currentShowingContext = undefined;
+		const visibleContext = Context.Visible.bindTo(contextKeyService);
 
 		const actionsToShow = options.includeDisabledActions && (showDisabled || codeActions.validActions.length === 0) ? codeActions.allActions : codeActions.validActions;
 		if (!actionsToShow.length) {
+			visibleContext.reset();
 			return;
 		}
 
-		this.currentShowingContext = { trigger, codeActions, anchor, container, delegate, options };
+		this.currentShowingContext = { trigger, codeActions, anchor, container, delegate, options, contextKeyService };
 
 		this._contextViewService.showContextView({
 			getAnchor: () => anchor,
-			render: (container: HTMLElement) => this.renderWidget(container, trigger, codeActions, options, actionsToShow, delegate),
-			onHide: (didCancel: boolean) => this.onWidgetClosed(trigger, options, codeActions, didCancel, delegate),
+			render: (container: HTMLElement) => {
+				visibleContext.set(true);
+				return this.renderWidget(container, trigger, codeActions, options, actionsToShow, delegate);
+			},
+			onHide: (didCancel: boolean) => {
+				visibleContext.reset();
+				return this.onWidgetClosed(trigger, options, codeActions, didCancel, delegate);
+			},
 		}, container, false);
 	}
 
@@ -419,7 +423,6 @@ export class CodeActionWidget extends Disposable {
 	}
 
 	public hide() {
-		this._ctxMenuWidgetVisible.reset();
 		this.codeActionList.clear();
 		this._contextViewService.hideContextView();
 	}
@@ -488,8 +491,6 @@ export class CodeActionWidget extends Disposable {
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
 		renderDisposables.add(focusTracker.onDidBlur(() => this.hide()));
 
-		this._ctxMenuWidgetVisible.set(true);
-
 		return renderDisposables;
 	}
 
@@ -504,7 +505,7 @@ export class CodeActionWidget extends Disposable {
 		showDisabled = newShowDisabled;
 
 		if (previousCtx) {
-			this.show(previousCtx.trigger, previousCtx.codeActions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.delegate);
+			this.show(previousCtx.trigger, previousCtx.codeActions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.delegate, previousCtx.contextKeyService);
 		}
 	}
 
@@ -530,6 +531,7 @@ export class CodeActionWidget extends Disposable {
 		});
 
 		this.currentShowingContext = undefined;
+
 		delegate.onHide(cancelled);
 	}
 

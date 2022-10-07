@@ -15,6 +15,8 @@ const defaultDiagnosticOptions: md.DiagnosticOptions = {
 	validateReferences: md.DiagnosticLevel.ignore,
 	validateFragmentLinks: md.DiagnosticLevel.ignore,
 	validateMarkdownFileLinkFragments: md.DiagnosticLevel.ignore,
+	validateUnusedLinkDefinitions: md.DiagnosticLevel.ignore,
+	validateDuplicateLinkDefinitions: md.DiagnosticLevel.ignore,
 	ignoreLinks: [],
 };
 
@@ -23,6 +25,7 @@ function convertDiagnosticLevel(enabled: ValidateEnabled): md.DiagnosticLevel | 
 		case 'error': return md.DiagnosticLevel.error;
 		case 'warning': return md.DiagnosticLevel.warning;
 		case 'ignore': return md.DiagnosticLevel.ignore;
+		case 'hint': return md.DiagnosticLevel.hint;
 		default: return md.DiagnosticLevel.ignore;
 	}
 }
@@ -33,11 +36,14 @@ function getDiagnosticsOptions(config: ConfigurationManager): md.DiagnosticOptio
 		return defaultDiagnosticOptions;
 	}
 
+	const validateFragmentLinks = convertDiagnosticLevel(settings.markdown.validate.fragmentLinks.enabled);
 	return {
 		validateFileLinks: convertDiagnosticLevel(settings.markdown.validate.fileLinks.enabled),
 		validateReferences: convertDiagnosticLevel(settings.markdown.validate.referenceLinks.enabled),
 		validateFragmentLinks: convertDiagnosticLevel(settings.markdown.validate.fragmentLinks.enabled),
-		validateMarkdownFileLinkFragments: convertDiagnosticLevel(settings.markdown.validate.fileLinks.markdownFragmentLinks),
+		validateMarkdownFileLinkFragments: settings.markdown.validate.fileLinks.markdownFragmentLinks === 'inherit' ? validateFragmentLinks : convertDiagnosticLevel(settings.markdown.validate.fileLinks.markdownFragmentLinks),
+		validateUnusedLinkDefinitions: convertDiagnosticLevel(settings.markdown.validate.unusedLinkDefinitions.enabled),
+		validateDuplicateLinkDefinitions: convertDiagnosticLevel(settings.markdown.validate.duplicateLinkDefinitions.enabled),
 		ignoreLinks: settings.markdown.validate.ignoredLinks,
 	};
 }

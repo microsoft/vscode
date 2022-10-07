@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -82,13 +82,13 @@ class WebviewPanelContribution extends Disposable implements IWorkbenchContribut
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(WebviewPanelContribution, 'WebviewPanelContribution', LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(WebviewPanelContribution, LifecyclePhase.Starting);
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
 	WebviewEditorInputSerializer.ID,
 	WebviewEditorInputSerializer);
 
-registerSingleton(IWebviewWorkbenchService, WebviewEditorService, true);
+registerSingleton(IWebviewWorkbenchService, WebviewEditorService, InstantiationType.Delayed);
 
 registerAction2(ShowWebViewEditorFindWidgetAction);
 registerAction2(HideWebViewEditorFindCommand);

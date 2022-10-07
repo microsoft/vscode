@@ -391,16 +391,14 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	async resetLocal(): Promise<void> {
 		this.checkEnablement();
 		this.storageService.remove(LAST_SYNC_TIME_KEY, StorageScope.APPLICATION);
-		if (this.activeProfileSynchronizers) {
-			for (const [synchronizer] of this.activeProfileSynchronizers.values()) {
-				try {
-					await synchronizer.resetLocal();
-				} catch (e) {
-					this.logService.error(e);
-				}
+		for (const [synchronizer] of this.activeProfileSynchronizers.values()) {
+			try {
+				await synchronizer.resetLocal();
+			} catch (e) {
+				this.logService.error(e);
 			}
-			this.clearActiveProfileSynchronizers();
 		}
+		this.clearActiveProfileSynchronizers();
 		this._onDidResetLocal.fire();
 		this.logService.info('Did reset the local sync state.');
 	}
@@ -420,7 +418,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				return isUndefined(result) ? null : result;
 			}
 
-			if (this.environmentService.isBuilt && !this.productService.enableSyncingProfiles) {
+			if (this.environmentService.isBuilt && (!this.productService.enableSyncingProfiles || isEqual(this.userDataSyncStoreManagementService.userDataSyncStore?.url, this.userDataSyncStoreManagementService.userDataSyncStore?.stableUrl))) {
 				return null;
 			}
 
@@ -592,7 +590,7 @@ class ProfileSynchronizer extends Disposable {
 			if (!this._profile.isDefault) {
 				return;
 			}
-			if (this.environmentService.isBuilt && !this.productService.enableSyncingProfiles) {
+			if (this.environmentService.isBuilt && (!this.productService.enableSyncingProfiles || isEqual(this.userDataSyncStoreManagementService.userDataSyncStore?.url, this.userDataSyncStoreManagementService.userDataSyncStore?.stableUrl))) {
 				this.logService.debug('Skipping profiles sync');
 				return;
 			}

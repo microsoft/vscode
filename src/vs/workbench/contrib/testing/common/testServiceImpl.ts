@@ -241,6 +241,18 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
+	public async syncTests(): Promise<void> {
+		const cts = new CancellationTokenSource();
+		try {
+			await Promise.all([...this.testControllers.values()].map(c => c.syncTests(cts.token)));
+		} finally {
+			cts.dispose(true);
+		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
 	public async refreshTests(controllerId?: string): Promise<void> {
 		const cts = new CancellationTokenSource();
 		this.testRefreshCancellations.add(cts);
@@ -255,7 +267,7 @@ export class TestService extends Disposable implements ITestService {
 		} finally {
 			this.testRefreshCancellations.delete(cts);
 			this.isRefreshingTests.set(this.testRefreshCancellations.size > 0);
-			cts.dispose();
+			cts.dispose(true);
 		}
 	}
 
@@ -305,7 +317,7 @@ export class TestService extends Disposable implements ITestService {
 		if (req.isUiTriggered === false) {
 			return;
 		}
-		const saveBeforeTest: boolean = getTestingConfiguration(this.configurationService, TestingConfigKeys.SaveBeforeTest);
+		const saveBeforeTest = getTestingConfiguration(this.configurationService, TestingConfigKeys.SaveBeforeTest);
 		if (saveBeforeTest) {
 			await editorService.saveAll();
 		}

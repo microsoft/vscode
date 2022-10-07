@@ -12,6 +12,7 @@ import { NodeRenderDirective } from 'vs/workbench/contrib/testing/browser/explor
 import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 
 /**
  * Type of test element in the list.
@@ -97,7 +98,8 @@ export class HierarchicalByNameProjection extends HierarchicalByLocationProjecti
 	 * @override
 	 */
 	protected override createItem(item: InternalTestItem): ByLocationTestItemElement {
-		const actualParent = item.parent ? this.items.get(item.parent) as ByNameTestItemElement : undefined;
+		const parentId = TestId.parentId(item.item.extId);
+		const actualParent = parentId ? this.items.get(parentId.toString()) as ByNameTestItemElement : undefined;
 		if (!actualParent) {
 			return new ByNameTestItemElement(item, null, r => this.changes.addedOrRemoved(r));
 		}
