@@ -121,6 +121,14 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 	get target(): TerminalLocation | undefined { return this._target; }
 
+	get textureAtlas(): Promise<ImageBitmap> | undefined {
+		const canvas = this._webglAddon?.textureAtlas || this._canvasAddon?.textureAtlas;
+		if (!canvas) {
+			return undefined;
+		}
+		return createImageBitmap(canvas);
+	}
+
 	/**
 	 * @param xtermCtor The xterm.js constructor, this is passed in so it can be fetched lazily
 	 * outside of this class such that {@link raw} is not nullable.

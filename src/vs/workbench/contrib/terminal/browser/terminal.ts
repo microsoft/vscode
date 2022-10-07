@@ -988,6 +988,11 @@ export interface IXtermTerminal {
 	readonly onDidChangeSelection: Event<void>;
 
 	/**
+	 * Gets a view of the current texture atlas used by the renderers.
+	 */
+	readonly textureAtlas: Promise<ImageBitmap> | undefined;
+
+	/**
 	 * The position of the terminal.
 	 */
 	target?: TerminalLocation;
