@@ -16,7 +16,7 @@ import { append, $, Dimension, hide, show, DragAndDropObserver } from 'vs/base/b
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, AutoCheckUpdatesConfigurationKey, OUTDATED_EXTENSIONS_VIEW_ID } from '../common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, AutoCheckUpdatesConfigurationKey, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY } from '../common/extensions';
 import { InstallLocalExtensionsInRemoteAction, InstallRemoteExtensionsInLocalAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -212,7 +212,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			id: 'workbench.views.extensions.popular',
 			name: localize('popularExtensions', "Popular"),
 			ctorDescriptor: new SyncDescriptor(DefaultPopularExtensionsView, [{ hideBadge: true }]),
-			when: ContextKeyExpr.and(DefaultViewsContext, ContextKeyExpr.not('hasInstalledExtensions')),
+			when: ContextKeyExpr.and(DefaultViewsContext, ContextKeyExpr.not('hasInstalledExtensions'), CONTEXT_HAS_GALLERY),
 			weight: 60,
 			order: 2,
 			canToggleVisibility: false
@@ -227,7 +227,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			id: 'extensions.recommendedList',
 			name: localize('recommendedExtensions', "Recommended"),
 			ctorDescriptor: new SyncDescriptor(DefaultRecommendedExtensionsView, [{ flexibleHeight: true }]),
-			when: ContextKeyExpr.and(DefaultViewsContext, SortByUpdateDateContext.negate(), ContextKeyExpr.not('config.extensions.showRecommendationsOnlyOnDemand')),
+			when: ContextKeyExpr.and(DefaultViewsContext, SortByUpdateDateContext.negate(), ContextKeyExpr.not('config.extensions.showRecommendationsOnlyOnDemand'), CONTEXT_HAS_GALLERY),
 			weight: 40,
 			order: 3,
 			canToggleVisibility: true
@@ -812,13 +812,13 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 		if (newBadgeNumber > 0) {
 			let msg = '';
 			if (outdated) {
-				msg += outdated === 1 ? localize('extensionToUpdate', '{0} Extension requires update', outdated) : localize('extensionsToUpdate', '{0} Extensions require update', outdated);
+				msg += outdated === 1 ? localize('extensionToUpdate', '{0} requires update', outdated) : localize('extensionsToUpdate', '{0} require update', outdated);
 			}
 			if (outdated > 0 && extensionsReloadRequired.length > 0) {
 				msg += ', ';
 			}
 			if (extensionsReloadRequired.length) {
-				msg += extensionsReloadRequired.length === 1 ? localize('extensionToReload', '{0} Extension requires reload', extensionsReloadRequired.length) : localize('extensionsToReload', '{0} Extensions require reload', extensionsReloadRequired.length);
+				msg += extensionsReloadRequired.length === 1 ? localize('extensionToReload', '{0} requires reload', extensionsReloadRequired.length) : localize('extensionsToReload', '{0} require reload', extensionsReloadRequired.length);
 			}
 			const badge = new NumberBadge(newBadgeNumber, () => msg);
 			this.badgeHandle.value = this.activityService.showViewContainerActivity(VIEWLET_ID, { badge, clazz: 'extensions-badge count-badge' });
