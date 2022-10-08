@@ -16,8 +16,8 @@ export const IRemoteTunnelService = createDecorator<IRemoteTunnelService>('IRemo
 export interface IRemoteTunnelService {
 	readonly _serviceBrand: undefined;
 
-	readonly onTokenFailed: Event<boolean>;
-	readonly onTunnelFailed: Event<void>;
+	readonly onDidTokenFailed: Event<boolean>;
+	readonly onDidChangeTunnelStatus: Event<TunnelStatus>;
 
 	getAccount(): Promise<IRemoteTunnelAccount | undefined>;
 	readonly onDidChangeAccount: Event<IRemoteTunnelAccount | undefined>;
@@ -25,8 +25,9 @@ export interface IRemoteTunnelService {
 
 }
 
-export const enum AccountStatus {
+export const enum TunnelStatus {
 	Uninitialized = 'uninitialized',
-	Unavailable = 'unavailable',
-	Available = 'available',
+	Disconnected = 'disconnected',
+	Connecting = 'connecting',
+	Connected = 'connected',
 }

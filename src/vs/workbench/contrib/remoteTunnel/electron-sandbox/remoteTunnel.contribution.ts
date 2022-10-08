@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Emitter } from 'vs/base/common/event';
+
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { AccountStatus, IRemoteTunnelService } from 'vs/platform/remoteTunnel/common/remoteTunnel';
+import { IRemoteTunnelService, TunnelStatus } from 'vs/platform/remoteTunnel/common/remoteTunnel';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { localize } from 'vs/nls';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -51,9 +51,6 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 	private readonly logger: ILogger;
 
-	private readonly _onDidChangeAccountStatus = this._register(new Emitter<AccountStatus>());
-	readonly onDidChangeAccountStatus = this._onDidChangeAccountStatus.event;
-
 	constructor(
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -87,13 +84,15 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		}
 		this.serverConfiguration = serverConfiguration;
 
-		this._register(this.remoteTunnelService.onTokenFailed(() => {
+		this._register(this.remoteTunnelService.onDidTokenFailed(() => {
 			this.logger.info('Clearing authentication preference because of successive token failures.');
 			this.clearAuthenticationPreference();
 		}));
-		this._register(this.remoteTunnelService.onTunnelFailed(() => {
-			this.logger.info('Clearing authentication preference because of tunnel failure.');
-			this.clearAuthenticationPreference();
+		this._register(this.remoteTunnelService.onDidChangeTunnelStatus(status => {
+			if (status === TunnelStatus.Disconnected) {
+				this.logger.info('Clearing authentication preference because of tunnel disconnected.');
+				this.clearAuthenticationPreference();
+			}
 		}));
 
 		// If the user signs out of the current session, reset our cached auth state in memory and on disk

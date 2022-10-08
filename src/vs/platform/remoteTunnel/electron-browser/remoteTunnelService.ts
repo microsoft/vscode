@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRemoteTunnelAccount, IRemoteTunnelService } from 'vs/platform/remoteTunnel/common/remoteTunnel';
+import { IRemoteTunnelAccount, IRemoteTunnelService, TunnelStatus } from 'vs/platform/remoteTunnel/common/remoteTunnel';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -16,6 +16,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { isWindows } from 'vs/base/common/platform';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { ISharedProcessLifecycleService } from 'vs/platform/lifecycle/electron-browser/sharedProcessLifecycleService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 
 type RemoteTunnelEnablementClassification = {
@@ -36,11 +37,11 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onTokenFailedEmitter = new Emitter<boolean>();
-	public readonly onTokenFailed = this._onTokenFailedEmitter.event;
+	private readonly _onDidTokenFailedEmitter = new Emitter<boolean>();
+	public readonly onDidTokenFailed = this._onDidTokenFailedEmitter.event;
 
-	private readonly _onTunnelFailedEmitter = new Emitter<void>();
-	public readonly onTunnelFailed = this._onTunnelFailedEmitter.event;
+	private readonly _onDidChangeTunnelStatusEmitter = new Emitter<TunnelStatus>();
+	public readonly onDidChangeTunnelStatus = this._onDidChangeTunnelStatusEmitter.event;
 
 	private readonly _onDidChangeAccountEmitter = new Emitter<IRemoteTunnelAccount | undefined>();
 	public readonly onDidChangeAccount = this._onDidChangeAccountEmitter.event;
@@ -48,8 +49,9 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 	private readonly _logger: ILogger;
 
 	private _account: IRemoteTunnelAccount | undefined;
-
 	private _tunnelProcess: CancelablePromise<void> | undefined;
+
+	private _tunnelStatus: TunnelStatus = TunnelStatus.Disconnected;
 
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -57,6 +59,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILoggerService loggerService: ILoggerService,
 		@ISharedProcessLifecycleService sharedProcessLifecycleService: ISharedProcessLifecycleService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 		const logFileUri = URI.file(join(dirname(environmentService.logsPath), 'remoteTunnel.log'));
@@ -99,19 +102,23 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			this._tunnelProcess = undefined;
 		}
 		if (!this._account) {
+			this.setTunnelStatus(TunnelStatus.Disconnected);
 			return;
 		}
-		const loginProcess = this.runCodeTunneCommand('login', 'tunnel', 'user', 'login', '--provider', this._account.authenticationProviderId, '--access-token', this._account.token);
+		this.setTunnelStatus(TunnelStatus.Connecting);
+		const loginProcess = this.runCodeTunneCommand('login', ['user', 'login', '--provider', this._account.authenticationProviderId, '--access-token', this._account.token]);
 		this._tunnelProcess = loginProcess;
 		try {
 			await loginProcess;
 		} catch (e) {
 			this._logger.error(e);
 			this._tunnelProcess = undefined;
-			this._onTokenFailedEmitter.fire(true);
+			this._onDidTokenFailedEmitter.fire(true);
+			this.setTunnelStatus(TunnelStatus.Disconnected);
 		}
 		if (this._tunnelProcess === loginProcess) {
-			const serveCommand = this.runCodeTunneCommand('tunnel', 'tunnel', '--random-name');
+			const serveCommand = this.runCodeTunneCommand('tunnel', ['--random-name'], (message: string) => {
+			});
 			this._tunnelProcess = serveCommand;
 			serveCommand.finally(() => {
 				if (serveCommand === this._tunnelProcess) {
@@ -120,14 +127,22 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 					this._tunnelProcess = undefined;
 					this._account = undefined;
 
-					this._onTunnelFailedEmitter.fire();
+					this.setTunnelStatus(TunnelStatus.Disconnected);
 				}
 			});
 
 		}
 	}
 
-	private runCodeTunneCommand(logLabel: string, ...commandArgs: string[]): CancelablePromise<void> {
+	private setTunnelStatus(tunnelStatus: TunnelStatus) {
+		if (tunnelStatus !== this._tunnelStatus) {
+			this._tunnelStatus = tunnelStatus;
+			this._onDidChangeTunnelStatusEmitter.fire(tunnelStatus);
+		}
+	}
+
+
+	private runCodeTunneCommand(logLabel: string, commandArgs: string[], onOutput: (message: string, isError: boolean) => void = () => { }): CancelablePromise<void> {
 		return createCancelablePromise<void>(token => {
 			return new Promise((resolve, reject) => {
 				if (token.isCancellationRequested) {
@@ -141,8 +156,8 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 					}
 				});
 				if (process.env['VSCODE_DEV']) {
-					this._logger.info(`${logLabel} Spawning: cargo run -- ${commandArgs.join(' ')}`);
-					tunnelProcess = spawn('cargo', ['run', '--', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli') });
+					this._logger.info(`${logLabel} Spawning: cargo run --bin code-tunnel -- ${commandArgs.join(' ')}`);
+					tunnelProcess = spawn('cargo', ['run', '--bin', 'code-tunnel', '--', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli') });
 				} else {
 					const tunnelCommand = join(dirname(process.execPath), 'bin', `${this.productService.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
 					this._logger.info(`${logLabel} Spawning: ${tunnelCommand} ${commandArgs.join(' ')}`);
@@ -151,12 +166,16 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 				tunnelProcess.stdout!.on('data', data => {
 					if (tunnelProcess) {
-						this._logger.info(`${logLabel} stdout (${tunnelProcess.pid}):  + ${data.toString()}`);
+						const message = data.toString();
+						onOutput(message, false);
+						this._logger.info(`${logLabel} stdout (${tunnelProcess.pid}):  + ${message}`);
 					}
 				});
 				tunnelProcess.stderr!.on('data', data => {
 					if (tunnelProcess) {
-						this._logger.info(`${logLabel} stderr (${tunnelProcess.pid}):  + ${data.toString()}`);
+						const message = data.toString();
+						onOutput(message, true);
+						this._logger.info(`${logLabel} stderr (${tunnelProcess.pid}):  + ${message}`);
 					}
 				});
 				tunnelProcess.on('exit', e => {
