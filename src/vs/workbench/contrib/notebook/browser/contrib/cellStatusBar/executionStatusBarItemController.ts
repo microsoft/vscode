@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, DisposableMap, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
