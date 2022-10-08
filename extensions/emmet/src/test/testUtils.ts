@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as fs from 'fs';
 import * as os from 'os';
 import { join } from 'path';
+import assert = require('assert');
 
 export function rndName() {
 	let name = '';
@@ -17,17 +17,11 @@ export function rndName() {
 	return name;
 }
 
-export function createRandomFile(contents = '', fileExtension = 'txt'): Thenable<vscode.Uri> {
-	return new Promise((resolve, reject) => {
-		const tmpFile = join(os.tmpdir(), rndName() + '.' + fileExtension);
-		fs.writeFile(tmpFile, contents, (error) => {
-			if (error) {
-				return reject(error);
-			}
-
-			resolve(vscode.Uri.file(tmpFile));
-		});
-	});
+export async function createRandomFile(contents = '', fileExtension = 'txt'): Promise<vscode.Uri> {
+	const tmpFile = join(os.tmpdir(), rndName() + '.' + fileExtension);
+	const fileUri = vscode.Uri.file(tmpFile);
+	await vscode.workspace.fs.writeFile(fileUri, Buffer.from(contents));
+	return fileUri;
 }
 
 export function pathEquals(path1: string, path2: string): boolean {
@@ -40,35 +34,28 @@ export function pathEquals(path1: string, path2: string): boolean {
 }
 
 export function deleteFile(file: vscode.Uri): Thenable<boolean> {
-	return new Promise((resolve, reject) => {
-		fs.unlink(file.fsPath, (err) => {
-			if (err) {
-				reject(err);
-			} else {
-				resolve(true);
-			}
-		});
+	return vscode.workspace.fs.delete(file).then(() => {
+		return true;
+	}, (reason) => {
+		return !reason; // assume deletion failed if there is a reason
 	});
 }
 
-export function closeAllEditors(): Thenable<any> {
-	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
+export function closeAllEditors(): Thenable<unknown> {
+	return vscode.commands.executeCommand<unknown>('workbench.action.closeAllEditors');
 }
 
-export function withRandomFileEditor(initialContents: string, fileExtension: string = 'txt', run: (editor: vscode.TextEditor, doc: vscode.TextDocument) => Thenable<void>): Thenable<boolean> {
-	return createRandomFile(initialContents, fileExtension).then(file => {
-		return vscode.workspace.openTextDocument(file).then(doc => {
-			return vscode.window.showTextDocument(doc).then((editor) => {
-				return run(editor, doc).then(_ => {
-					if (doc.isDirty) {
-						return doc.save().then(() => {
-							return deleteFile(file);
-						});
-					} else {
-						return deleteFile(file);
-					}
-				});
-			});
-		});
-	});
+export async function withRandomFileEditor(initialContents: string, fileExtension: string = 'txt', run: (editor: vscode.TextEditor, doc: vscode.TextDocument) => Thenable<void>): Promise<boolean> {
+	const file = await createRandomFile(initialContents, fileExtension);
+	const doc = await vscode.workspace.openTextDocument(file);
+	const editor = await vscode.window.showTextDocument(doc);
+	await run(editor, doc);
+	if (doc.isDirty) {
+		const saved = await doc.save();
+		assert.ok(saved);
+		assert.ok(!doc.isDirty);
+		return deleteFile(file);
+	} else {
+		return deleteFile(file);
+	}
 }
