@@ -165,7 +165,7 @@ else
 		__vsc_preexec_all() {
 			if [ "$__vsc_in_command_execution" = "0" ]; then
 				__vsc_in_command_execution="1"
-				builtin eval ${__vsc_dbg_trap}
+				builtin eval "${__vsc_dbg_trap}"
 				__vsc_preexec
 			fi
 		}
