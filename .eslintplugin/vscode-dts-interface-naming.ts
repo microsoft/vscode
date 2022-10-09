@@ -16,20 +16,20 @@ export = new class ApiInterfaceNaming implements eslint.Rule.RuleModule {
 		}
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	// create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		return {
-			['TSInterfaceDeclaration Identifier']: (node: any) => {
+	// 	return {
+	// 		['TSInterfaceDeclaration Identifier']: (node: any) => {
 
-				const name = (<TSESTree.Identifier>node).name;
-				if (ApiInterfaceNaming._nameRegExp.test(name)) {
-					context.report({
-						node,
-						messageId: 'naming'
-					});
-				}
-			}
-		};
-	}
+	// 			const name = (<TSESTree.Identifier>node).name;
+	// 			if (ApiInterfaceNaming._nameRegExp.test(name)) {
+	// 				context.report({
+	// 					node,
+	// 					messageId: 'naming'
+	// 				});
+	// 			}
+	// 		}
+	// 	};
+	// }
 };
 
