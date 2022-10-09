@@ -13,11 +13,11 @@ export = new class TranslationRemind implements eslint.Rule.RuleModule {
 
 	private static NLS_MODULE = 'vs/nls';
 
-	readonly meta: eslint.Rule.RuleMetaData = {
-		messages: {
-			missing: 'Please add \'{{resource}}\' to ./build/lib/i18n.resources.json file to use translations here.'
-		}
-	};
+	// readonly meta: eslint.Rule.RuleMetaData = {
+	// 	messages: {
+	// 		missing: 'Please add \'{{resource}}\' to ./build/lib/i18n.resources.json file to use translations here.'
+	// 	}
+	// };
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		return createImportRuleListener((node, path) => this._checkImport(context, node, path));
