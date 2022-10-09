@@ -81,17 +81,17 @@ export = new class ApiEventNaming implements eslint.Rule.RuleModule {
 		};
 	}
 
-	private getIdent(def: TSESTree.Node | undefined): TSESTree.Identifier | undefined {
-		if (!def) {
-			return;
-		}
+// 	private getIdent(def: TSESTree.Node | undefined): TSESTree.Identifier | undefined {
+// 		if (!def) {
+// 			return;
+// 		}
 
-		if (def.type === AST_NODE_TYPES.Identifier) {
-			return def;
-		} else if ((def.type === AST_NODE_TYPES.TSPropertySignature || def.type === AST_NODE_TYPES.PropertyDefinition) && def.key.type === AST_NODE_TYPES.Identifier) {
-			return def.key;
-		}
+// 		if (def.type === AST_NODE_TYPES.Identifier) {
+// 			return def;
+// 		} else if ((def.type === AST_NODE_TYPES.TSPropertySignature || def.type === AST_NODE_TYPES.PropertyDefinition) && def.key.type === AST_NODE_TYPES.Identifier) {
+// 			return def.key;
+// 		}
 
-		return this.getIdent(def.parent);
-	}
-};
+// 		return this.getIdent(def.parent);
+// 	}
+// };
