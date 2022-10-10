@@ -91,6 +91,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/folding",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/html",
 			"project": "vscode-workbench"
 		},
