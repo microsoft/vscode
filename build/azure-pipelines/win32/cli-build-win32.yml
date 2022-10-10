@@ -1,16 +1,21 @@
 parameters:
-  - name: VSCODE_CLI_TARGETS
-    default: []
-    type: object
+  - name: VSCODE_BUILD_WIN32
+    type: boolean
+  - name: VSCODE_BUILD_WIN32_ARM64
+    type: boolean
   - name: VSCODE_QUALITY
-    type: string
-  - name: VSCODE_CLI_DIR
-    type: string
-  - name: VSCODE_CLI_BINARY_NAME
     type: string
   - name: channel
     type: string
     default: stable
+
+variables:
+  - name: VSCODE_CLI_TARGETS
+    value:
+      - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+        - { target: x86_64-pc-windows-msvc, artifact: unsigned_vscode_cli_win32_x64_cli }
+      - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
+        - { target: aarch64-pc-windows-msvc, artifact: unsigned_vscode_cli_win32_arm64_cli }
 
 steps:
   - task: NodeTool@0
@@ -33,20 +38,20 @@ steps:
     parameters:
       targets: ${{ parameters.VSCODE_CLI_TARGETS }}
 
-  - ${{ each target in parameters.VSCODE_CLI_TARGETS }}:
-    - template: ../vcpkg-install.yml
-      parameters:
-        targets:
-          - ${{ if eq(target.target, 'x86_64-pc-windows-msvc') }}:
-            - x64-windows-static-md
-          - ${{ if eq(target.target, 'aarch64-pc-windows-msvc') }}:
-            - arm64-windows-static-md
-        vcpkgDir: $(Build.SourcesDirectory)/build/azure-pipelines/cli/vcpkg
-        targetDirectory: $(Build.ArtifactStagingDirectory)/deps
+  - template: ../vcpkg-install.yml
+    parameters:
+      targets:
+        - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+          - x64-windows-static-md
+        - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
+          - arm64-windows-static-md
+      vcpkgDir: $(Build.SourcesDirectory)/build/azure-pipelines/cli/vcpkg
+      targetDirectory: $(Build.ArtifactStagingDirectory)/deps
 
-    - script: cargo build --release --target ${{ target.target }} --bin=${{ parameters.VSCODE_CLI_BINARY_NAME }}
+  - ${{ each target in parameters.VSCODE_CLI_TARGETS }}:
+    - script: cargo build --release --target ${{ target.target }} --bin=code-tunnel
       displayName: Compile ${{ target.artifact }}
-      workingDirectory: ${{ parameters.VSCODE_CLI_DIR }}
+      workingDirectory: $(Build.SourcesDirectory)/cli
       env:
         VSCODE_CLI_VERSION: $(VSCODE_CLI_VERSION)
         VSCODE_CLI_REMOTE_LICENSE_TEXT: $(VSCODE_CLI_REMOTE_LICENSE_TEXT)
@@ -63,7 +68,7 @@ steps:
 
     - task: ArchiveFiles@2
       inputs:
-        rootFolderOrFile: ${{ parameters.VSCODE_CLI_DIR }}/target/${{ target.target }}/release/${{ parameters.VSCODE_CLI_BINARY_NAME }}.exe
+        rootFolderOrFile: $(Build.SourcesDirectory)/cli/target/${{ target.target }}/release/code-tunnel.exe
         includeRootFolder: false
         archiveType: zip
         archiveFile: $(Build.ArtifactStagingDirectory)/${{ target.artifact }}.zip
