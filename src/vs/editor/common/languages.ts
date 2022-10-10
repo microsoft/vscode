@@ -1213,6 +1213,8 @@ export interface DocumentRangeFormattingEditProvider {
 
 	readonly displayName?: string;
 
+	readonly multiRange: boolean;
+
 	/**
 	 * Provide formatting edits for a range in a document.
 	 *
@@ -1220,7 +1222,7 @@ export interface DocumentRangeFormattingEditProvider {
 	 * or larger range. Often this is done by adjusting the start and end
 	 * of the range to full syntax nodes.
 	 */
-	provideDocumentRangeFormattingEdits(model: model.ITextModel, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+	provideDocumentRangeFormattingEdits(model: model.ITextModel, range: Range | Range[], options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
 }
 /**
  * The document formatting provider interface defines the contract between extensions and

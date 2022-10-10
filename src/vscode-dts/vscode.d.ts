@@ -4117,7 +4117,7 @@ declare module 'vscode' {
 	 * The document formatting provider interface defines the contract between extensions and
 	 * the formatting-feature.
 	 */
-	export interface DocumentRangeFormattingEditProvider {
+	export interface DocumentRangeFormattingEditProvider<T extends Range | Range[] = Range> {
 
 		/**
 		 * Provide formatting edits for a range in a document.
@@ -4127,13 +4127,23 @@ declare module 'vscode' {
 		 * of the range to full syntax nodes.
 		 *
 		 * @param document The document in which the command was invoked.
-		 * @param range The range which should be formatted.
+		 * @param range The range or ranges which should be formatted.
 		 * @param options Options controlling formatting.
 		 * @param token A cancellation token.
 		 * @return A set of text edits or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+		provideDocumentRangeFormattingEdits(document: TextDocument, range: T, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+	}
+
+	/**
+	 * Metadata about a registered {@linkcode DocumentRangeFormattingEditProvider}.
+	 */
+	export interface DocumentRangeFormattingEditProviderMetadata {
+		/**
+		 * `true` if the range formatting provider supports formatting multiple ranges at once.
+		 */
+		readonly multiRange?: boolean;
 	}
 
 	/**
@@ -13078,9 +13088,10 @@ declare module 'vscode' {
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A document range formatting edit provider.
+		 * @param metadata Metadata about the provider.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerDocumentRangeFormattingEditProvider(selector: DocumentSelector, provider: DocumentRangeFormattingEditProvider): Disposable;
+		export function registerDocumentRangeFormattingEditProvider(selector: DocumentSelector, provider: DocumentRangeFormattingEditProvider, metadata?: DocumentRangeFormattingEditProviderMetadata): Disposable;
 
 		/**
 		 * Register a formatting provider that works on type. The provider is active when the user enables the setting `editor.formatOnType`.

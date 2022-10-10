@@ -547,19 +547,27 @@ class DocumentFormattingAdapter {
 	}
 }
 
-class RangeFormattingAdapter {
+class RangeFormattingAdapter<T extends vscode.Range | vscode.Range[]> {
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.DocumentRangeFormattingEditProvider
+		private readonly _provider: vscode.DocumentRangeFormattingEditProvider<T>,
+		private readonly _multiRange: boolean
 	) { }
 
-	async provideDocumentRangeFormattingEdits(resource: URI, range: IRange, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
+	async provideDocumentRangeFormattingEdits(resource: URI, range: IRange | IRange[], options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
 
 		const document = this._documents.getDocument(resource);
-		const ran = typeConvert.Range.to(range);
+		let ran: Range | Range[];
+		if (this._multiRange) {
+			if (!Array.isArray(range)) { range = [range]; }
+			ran = range.map<Range>(typeConvert.Range.to);
+		} else {
+			if (Array.isArray(range)) { throw new Error('Provided list of ranges to non-multiRange provider'); }
+			ran = typeConvert.Range.to(range);
+		}
 
-		const value = await this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token);
+		const value = await this._provider.provideDocumentRangeFormattingEdits(document, <any>ran, <any>options, token);
 		if (Array.isArray(value)) {
 			return value.map(typeConvert.TextEdit.from);
 		}
@@ -1722,9 +1730,9 @@ class DocumentOnDropEditAdapter {
 	}
 }
 
-type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
+type Adapter<T extends vscode.Range | vscode.Range[] = vscode.Range | vscode.Range[]> = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentPasteEditProvider | DocumentFormattingAdapter
-	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
+	| RangeFormattingAdapter<T> | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| CompletionsAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
 	| SelectionRangeAdapter | CallHierarchyAdapter | TypeHierarchyAdapter
@@ -1815,7 +1823,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return result;
 	}
 
-	private _addNewAdapter(adapter: Adapter, extension: IExtensionDescription): number {
+	private _addNewAdapter<T extends vscode.Range | vscode.Range[]>(adapter: Adapter<T>, extension: IExtensionDescription): number {
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new AdapterData(adapter, extension));
 		return handle;
@@ -2041,13 +2049,13 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, DocumentFormattingAdapter, adapter => adapter.provideDocumentFormattingEdits(URI.revive(resource), options, token), undefined, token);
 	}
 
-	registerDocumentRangeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new RangeFormattingAdapter(this._documents, provider), extension);
-		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector), extension.identifier, extension.displayName || extension.name);
+	registerDocumentRangeFormattingEditProvider<T extends vscode.Range | vscode.Range[]>(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider<T>, metadata?: vscode.DocumentRangeFormattingEditProviderMetadata): vscode.Disposable {
+		const handle = this._addNewAdapter<T>(new RangeFormattingAdapter<T>(this._documents, provider, metadata?.multiRange ?? false), extension);
+		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector), extension.identifier, extension.displayName || extension.name, metadata ?? { multiRange: false });
 		return this._createDisposable(handle);
 	}
 
-	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
+	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange | IRange[], options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
 		return this._withAdapter(handle, RangeFormattingAdapter, adapter => adapter.provideDocumentRangeFormattingEdits(URI.revive(resource), range, options, token), undefined, token);
 	}
 

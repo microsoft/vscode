@@ -7141,6 +7141,7 @@ declare namespace monaco.languages {
 	 */
 	export interface DocumentRangeFormattingEditProvider {
 		readonly displayName?: string;
+		readonly multiRange: boolean;
 		/**
 		 * Provide formatting edits for a range in a document.
 		 *
@@ -7148,7 +7149,7 @@ declare namespace monaco.languages {
 		 * or larger range. Often this is done by adjusting the start and end
 		 * of the range to full syntax nodes.
 		 */
-		provideDocumentRangeFormattingEdits(model: editor.ITextModel, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+		provideDocumentRangeFormattingEdits(model: editor.ITextModel, range: Range | Range[], options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
 	}
 
 	/**
