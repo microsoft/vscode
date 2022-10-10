@@ -429,7 +429,6 @@ export class TextAreaHandler extends ViewPart {
 		}));
 
 		this._register(this._textAreaInput.onCompositionEnd(() => {
-
 			this._visibleTextArea = null;
 			this._render();
 
@@ -714,7 +713,7 @@ export class TextAreaHandler extends ViewPart {
 					bold: presentation.bold,
 					underline: presentation.underline,
 					strikethrough: presentation.strikethrough
-				});
+				}, true);
 			}
 			return;
 		}
@@ -751,7 +750,7 @@ export class TextAreaHandler extends ViewPart {
 				width: (canUseZeroSizeTextarea ? 0 : 1),
 				height: this._lineHeight,
 				useCover: false
-			});
+			}, true);
 			// In case the textarea contains a word, we're going to try to align the textarea's cursor
 			// with our cursor by scrolling the textarea as much as possible
 			this.textArea.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
@@ -796,7 +795,7 @@ export class TextAreaHandler extends ViewPart {
 		});
 	}
 
-	private _doRender(renderData: IRenderData): void {
+	private _doRender(renderData: IRenderData, isIme?: boolean): void {
 		this._lastRenderPosition = renderData.lastRenderPosition;
 
 		const ta = this.textArea;
@@ -805,7 +804,7 @@ export class TextAreaHandler extends ViewPart {
 		applyFontInfo(ta, this._fontInfo);
 		ta.setTop(renderData.top);
 		ta.setLeft(renderData.left);
-		ta.setWidth(this._width);
+		ta.setWidth(isIme ? renderData.width : this._width);
 		ta.setHeight(renderData.height);
 
 		ta.setColor(renderData.color ? Color.Format.CSS.formatHex(renderData.color) : '');
