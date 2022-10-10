@@ -66,7 +66,7 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
 import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
-import { CheckboxStateHandler, TreeItemCheckbox } from 'vs/workbench/browser/checkbox';
+import { CheckboxStateHandler, TreeItemCheckbox } from 'vs/workbench/browser/parts/views/checkbox';
 
 export class TreeViewPane extends ViewPane {
 
@@ -589,6 +589,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private create() {
 		this.domNode = DOM.$('.tree-explorer-viewlet-tree-view');
 		this.messageElement = DOM.append(this.domNode, DOM.$('.message'));
+		this.updateMessage();
 		this.treeContainer = DOM.append(this.domNode, DOM.$('.customview-tree'));
 		this.treeContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 		const focusTracker = this._register(DOM.trackFocus(this.domNode));
@@ -650,7 +651,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				}
 			},
 			expandOnlyOnTwistieClick: (e: ITreeItem) => {
-				return !!e.command || e.checkboxChecked !== undefined || this.configurationService.getValue<'singleClick' | 'doubleClick'>('workbench.tree.expandMode') === 'doubleClick';
+				return !!e.command || !!e.checkbox || this.configurationService.getValue<'singleClick' | 'doubleClick'>('workbench.tree.expandMode') === 'doubleClick';
 			},
 			collapseByDefault: (e: ITreeItem): boolean => {
 				return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
@@ -858,11 +859,17 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	async expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void> {
 		const tree = this.tree;
-		if (tree) {
+		if (!tree) {
+			return;
+		}
+		try {
 			itemOrItems = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
 			await Promise.all(itemOrItems.map(element => {
 				return tree.expand(element, false);
 			}));
+		} catch (e) {
+			// The extension could have changed the tree during the reveal.
+			// Because of that, we ignore errors.
 		}
 	}
 
@@ -1228,7 +1235,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	private renderCheckbox(node: ITreeItem, templateData: ITreeExplorerTemplateData, disposableStore: DisposableStore) {
-		if (node.checkboxChecked !== undefined) {
+		if (node.checkbox) {
 			// The first time we find a checkbox we want to rerender the visible tree to adapt the alignment
 			if (!this._hasCheckbox) {
 				this._hasCheckbox = true;

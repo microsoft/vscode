@@ -62,6 +62,7 @@ import 'vs/workbench/services/tunnel/browser/tunnelService';
 import 'vs/workbench/services/files/browser/elevatedFileService';
 import 'vs/workbench/services/workingCopy/browser/workingCopyHistoryService';
 import 'vs/workbench/services/userDataSync/browser/webUserDataSyncEnablementService';
+import 'vs/workbench/services/userDataSync/browser/userDataSyncProfilesStorageService';
 import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -91,22 +92,22 @@ import { IDiagnosticsService, NullDiagnosticsService } from 'vs/platform/diagnos
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { WebLanguagePacksService } from 'vs/platform/languagePacks/browser/languagePacks';
 
-registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, true);
-registerSingleton(IAccessibilityService, AccessibilityService, true);
-registerSingleton(IContextMenuService, ContextMenuService, true);
-registerSingleton(ILoggerService, FileLoggerService, true);
-registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService, true);
-registerSingleton(IUserDataSyncMachinesService, UserDataSyncMachinesService, true);
-registerSingleton(IUserDataSyncBackupStoreService, UserDataSyncBackupStoreService, true);
-registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService, true);
-registerSingleton(IUserDataSyncService, UserDataSyncService, true);
+registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
+registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
+registerSingleton(IContextMenuService, ContextMenuService, InstantiationType.Delayed);
+registerSingleton(ILoggerService, FileLoggerService, InstantiationType.Delayed);
+registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService, InstantiationType.Delayed);
+registerSingleton(IUserDataSyncMachinesService, UserDataSyncMachinesService, InstantiationType.Delayed);
+registerSingleton(IUserDataSyncBackupStoreService, UserDataSyncBackupStoreService, InstantiationType.Delayed);
+registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService, InstantiationType.Delayed);
+registerSingleton(IUserDataSyncService, UserDataSyncService, InstantiationType.Delayed);
 registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, InstantiationType.Eager /* Eager to start auto sync */);
 registerSingleton(ITitleService, TitlebarPart, InstantiationType.Eager);
-registerSingleton(IExtensionTipsService, ExtensionTipsService, true);
-registerSingleton(ITimerService, TimerService, true);
-registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService, true);
-registerSingleton(IDiagnosticsService, NullDiagnosticsService, true);
-registerSingleton(ILanguagePackService, WebLanguagePacksService, true);
+registerSingleton(IExtensionTipsService, ExtensionTipsService, InstantiationType.Delayed);
+registerSingleton(ITimerService, TimerService, InstantiationType.Delayed);
+registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService, InstantiationType.Delayed);
+registerSingleton(IDiagnosticsService, NullDiagnosticsService, InstantiationType.Delayed);
+registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -177,116 +178,32 @@ import 'vs/workbench/contrib/offline/browser/offline.contribution';
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 import { create, commands, env, window, workspace, logger } from 'vs/workbench/browser/web.factory';
-import { IWorkbench, ICommand, ICommonTelemetryPropertiesResolver, IDefaultEditor, IDefaultLayout, IDefaultView, IDevelopmentOptions, IExternalUriResolver, IExternalURLOpener, IHomeIndicator, IInitialColorTheme, IPosition, IProductQualityChangeHandler, IRange, IResourceUriProvider, ISettingsSyncOptions, IShowPortCandidate, ITunnel, ITunnelFactory, ITunnelOptions, ITunnelProvider, IWelcomeBanner, IWelcomeBannerAction, IWindowIndicator, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
+import { Menu } from 'vs/workbench/browser/web.api';
+import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IProductConfiguration } from 'vs/base/common/product';
-import { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
-// eslint-disable-next-line no-duplicate-imports
-import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
-// eslint-disable-next-line no-duplicate-imports
-import type { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
-// eslint-disable-next-line no-duplicate-imports
-import type { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export {
 
 	// Factory
 	create,
-	IWorkbenchConstructionOptions,
-	IWorkbench,
 
 	// Basic Types
 	URI,
-	UriComponents,
 	Event,
 	Emitter,
-	IDisposable,
 	Disposable,
-
-	// Workspace
-	IWorkspace,
-	IWorkspaceProvider,
-
-	// WebSockets
-	IWebSocketFactory,
-	IWebSocket,
-
-	// Resources
-	IResourceUriProvider,
-
-	// Credentials
-	ICredentialsProvider,
-
-	// Callbacks
-	IURLCallbackProvider,
-
-	// LogLevel
+	GroupOrientation,
 	LogLevel,
 
-	// SettingsSync
-	ISettingsSyncOptions,
-
-	// Updates/Quality
-	IUpdateProvider,
-	IUpdate,
-	IProductQualityChangeHandler,
-
-	// Telemetry
-	ICommonTelemetryPropertiesResolver,
-
-	// External Uris
-	IExternalUriResolver,
-
-	// External URL Opener
-	IExternalURLOpener,
-
-	// Tunnel
-	ITunnelProvider,
-	ITunnelFactory,
-	ITunnel,
-	ITunnelOptions,
-
-	// Ports
-	IShowPortCandidate,
-
-	// Commands
-	ICommand,
-	commands,
-	Menu,
-
-	// Logger
-	logger,
-
-	// Window
-	window,
-
-	// Branding
-	IHomeIndicator,
-	IWelcomeBanner,
-	IWelcomeBannerAction,
-	IProductConfiguration,
-	IWindowIndicator,
-	IInitialColorTheme,
-
-	// Default layout
-	IDefaultView,
-	IDefaultEditor,
-	IDefaultLayout,
-	IPosition,
-	IRange as ISelection,
-
-	// Env
+	// Facade API
 	env,
-
-	// Workspace
+	window,
 	workspace,
-
-	// Development
-	IDevelopmentOptions
+	commands,
+	logger,
+	Menu
 };
-
 
 //#endregion

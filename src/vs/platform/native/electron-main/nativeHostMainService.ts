@@ -41,6 +41,8 @@ import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/worksp
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
+import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -59,7 +61,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -146,7 +149,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private async doOpenWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options: IOpenWindowOptions = Object.create(null)): Promise<void> {
 		if (toOpen.length > 0) {
-			this.windowsMainService.open({
+			await this.windowsMainService.open({
 				context: OpenContext.API,
 				contextWindowId: windowId,
 				urisToOpen: toOpen,
@@ -166,7 +169,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	private async doOpenEmptyWindow(windowId: number | undefined, options?: IOpenEmptyWindowOptions): Promise<void> {
-		this.windowsMainService.openEmptyWindow({
+		await this.windowsMainService.openEmptyWindow({
 			context: OpenContext.API,
 			contextWindowId: windowId
 		}, options);
@@ -384,33 +387,33 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async pickFileFolderAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickFileFolder(options);
 		if (paths) {
-			this.doOpenPicked(await Promise.all(paths.map(async path => (await SymlinkSupport.existsDirectory(path)) ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) })), options, windowId);
+			await this.doOpenPicked(await Promise.all(paths.map(async path => (await SymlinkSupport.existsDirectory(path)) ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) })), options, windowId);
 		}
 	}
 
 	async pickFolderAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickFolder(options);
 		if (paths) {
-			this.doOpenPicked(paths.map(path => ({ folderUri: URI.file(path) })), options, windowId);
+			await this.doOpenPicked(paths.map(path => ({ folderUri: URI.file(path) })), options, windowId);
 		}
 	}
 
 	async pickFileAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickFile(options);
 		if (paths) {
-			this.doOpenPicked(paths.map(path => ({ fileUri: URI.file(path) })), options, windowId);
+			await this.doOpenPicked(paths.map(path => ({ fileUri: URI.file(path) })), options, windowId);
 		}
 	}
 
 	async pickWorkspaceAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickWorkspace(options);
 		if (paths) {
-			this.doOpenPicked(paths.map(path => ({ workspaceUri: URI.file(path) })), options, windowId);
+			await this.doOpenPicked(paths.map(path => ({ workspaceUri: URI.file(path) })), options, windowId);
 		}
 	}
 
-	private doOpenPicked(openable: IWindowOpenable[], options: INativeOpenDialogOptions, windowId: number | undefined): void {
-		this.windowsMainService.open({
+	private async doOpenPicked(openable: IWindowOpenable[], options: INativeOpenDialogOptions, windowId: number | undefined): Promise<void> {
+		await this.windowsMainService.open({
 			context: OpenContext.DIALOG,
 			contextWindowId: windowId,
 			cli: this.environmentMainService.args,
@@ -623,7 +626,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region macOS Touchbar
 
 	async newWindowTab(): Promise<void> {
-		this.windowsMainService.open({
+		await this.windowsMainService.open({
 			context: OpenContext.API,
 			cli: this.environmentMainService.args,
 			forceNewTabbedWindow: true,
@@ -776,6 +779,44 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	//#endregion
+
+	// #region Performance
+
+	private readonly _profilingSessions = new Map<number, WindowProfiler>();
+
+	async startHeartbeat(windowId: number | undefined, sessionId: string): Promise<boolean> {
+		const win = this.windowById(windowId);
+		if (!win || !win.win) {
+			return false;
+		}
+		if (!this._profilingSessions.has(win.id)) {
+			const session = new WindowProfiler(win.win, sessionId, this.logService, this.telemetryService);
+			this._profilingSessions.set(win.id, session);
+			session.start();
+		}
+		return true;
+	}
+
+	async sendHeartbeat(windowId: number | undefined, _sessionId: string): Promise<boolean> {
+		const win = this.windowById(windowId);
+		if (!win || !this._profilingSessions.has(win.id)) {
+			return false;
+		}
+		this._profilingSessions.get(win.id)!.receiveHeartbeat();
+		return false;
+	}
+
+	async stopHeartbeat(windowId: number | undefined, _sessionId: string): Promise<boolean> {
+		const win = this.windowById(windowId);
+		if (!win || !this._profilingSessions.has(win.id)) {
+			return false;
+		}
+		this._profilingSessions.get(win.id)!.stop();
+		this._profilingSessions.delete(win.id);
+		return false;
+	}
+
+	// #endregion
 
 
 	//#region Registry (windows)

@@ -58,7 +58,6 @@ export interface ICreateTerminalProcessResult {
 }
 
 export class RemoteTerminalChannelClient implements IPtyHostController {
-
 	get onPtyHostExit(): Event<number> {
 		return this._channel.listen<number>('$onPtyHostExitEvent');
 	}
@@ -238,7 +237,9 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	sendCommandResult(reqId: number, isError: boolean, payload: any): Promise<void> {
 		return this._channel.call('$sendCommandResult', [reqId, isError, payload]);
 	}
-
+	freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
+		return this._channel.call('$freePortKillProcess', [port]);
+	}
 	installAutoReply(match: string, reply: string): Promise<void> {
 		return this._channel.call('$installAutoReply', [match, reply]);
 	}
@@ -276,8 +277,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		return this._channel.call('$updateTitle', [id, title, titleSource]);
 	}
 
-	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<string> {
-		return this._channel.call('$updateIcon', [id, icon, color]);
+	updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<string> {
+		return this._channel.call('$updateIcon', [id, userInitiated, icon, color]);
 	}
 
 	refreshProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]> {

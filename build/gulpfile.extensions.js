@@ -20,7 +20,6 @@ const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 const plumber = require('gulp-plumber');
 const ext = require('./lib/extensions');
-const product = require('../product.json');
 
 const extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 
@@ -47,7 +46,6 @@ const compilations = [
 	'gulp/tsconfig.json',
 	'html-language-features/client/tsconfig.json',
 	'html-language-features/server/tsconfig.json',
-	'image-preview/tsconfig.json',
 	'ipynb/tsconfig.json',
 	'jake/tsconfig.json',
 	'json-language-features/client/tsconfig.json',
@@ -56,6 +54,7 @@ const compilations = [
 	'markdown-language-features/server/tsconfig.json',
 	'markdown-language-features/tsconfig.json',
 	'markdown-math/tsconfig.json',
+	'media-preview/tsconfig.json',
 	'merge-conflict/tsconfig.json',
 	'microsoft-authentication/tsconfig.json',
 	'npm/tsconfig.json',
@@ -67,7 +66,6 @@ const compilations = [
 	'typescript-language-features/tsconfig.json',
 	'vscode-api-tests/tsconfig.json',
 	'vscode-colorize-tests/tsconfig.json',
-	'vscode-notebook-tests/tsconfig.json',
 	'vscode-test-resolver/tsconfig.json'
 ];
 

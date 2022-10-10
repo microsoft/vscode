@@ -10,14 +10,14 @@ import { MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent
 import { ResourceMap } from 'vs/base/common/map';
 import { Mimes, normalizeMimeType } from 'vs/base/common/mime';
 import { nextCharLength } from 'vs/base/common/strings';
-import { isString, isStringArray } from 'vs/base/common/types';
+import { isNumber, isObject, isString, isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRelativePatternDto } from 'vs/workbench/api/common/extHost.protocol';
-import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
@@ -28,12 +28,21 @@ import type * as vscode from 'vscode';
  * but new ones must not be added
  * */
 function es5ClassCompat(target: Function): any {
-	///@ts-expect-error
-	function _() { return Reflect.construct(target, arguments, this.constructor); }
-	Object.defineProperty(_, 'name', Object.getOwnPropertyDescriptor(target, 'name')!);
-	Object.setPrototypeOf(_, target);
-	Object.setPrototypeOf(_.prototype, target.prototype);
-	return _;
+	const interceptFunctions = {
+		apply: function () {
+			const args = arguments.length === 1 ? [] : arguments[1];
+			return Reflect.construct(target, args, arguments[0].constructor);
+		},
+		call: function () {
+			if (arguments.length === 0) {
+				return Reflect.construct(target, []);
+			} else {
+				const [thisArg, ...restArgs] = arguments;
+				return Reflect.construct(target, restArgs, thisArg.constructor);
+			}
+		}
+	};
+	return Object.assign(target, interceptFunctions);
 }
 
 @es5ClassCompat
@@ -687,11 +696,11 @@ export class SnippetTextEdit implements vscode.SnippetTextEdit {
 }
 
 export interface IFileOperationOptions {
-	overwrite?: boolean;
-	ignoreIfExists?: boolean;
-	ignoreIfNotExists?: boolean;
-	recursive?: boolean;
-	contents?: Uint8Array;
+	readonly overwrite?: boolean;
+	readonly ignoreIfExists?: boolean;
+	readonly ignoreIfNotExists?: boolean;
+	readonly recursive?: boolean;
+	readonly contents?: Uint8Array;
 }
 
 export const enum FileEditType {
@@ -703,43 +712,43 @@ export const enum FileEditType {
 }
 
 export interface IFileOperation {
-	_type: FileEditType.File;
-	from?: URI;
-	to?: URI;
-	options?: IFileOperationOptions;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
+	readonly _type: FileEditType.File;
+	readonly from?: URI;
+	readonly to?: URI;
+	readonly options?: IFileOperationOptions;
+	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
 export interface IFileTextEdit {
-	_type: FileEditType.Text;
-	uri: URI;
-	edit: TextEdit;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
+	readonly _type: FileEditType.Text;
+	readonly uri: URI;
+	readonly edit: TextEdit;
+	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
 export interface IFileSnippetTextEdit {
-	_type: FileEditType.Snippet;
-	uri: URI;
-	range: vscode.Range;
-	edit: vscode.SnippetString;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
+	readonly _type: FileEditType.Snippet;
+	readonly uri: URI;
+	readonly range: vscode.Range;
+	readonly edit: vscode.SnippetString;
+	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
 export interface IFileCellEdit {
-	_type: FileEditType.Cell;
-	uri: URI;
-	edit?: ICellPartialMetadataEdit | IDocumentMetadataEdit;
-	notebookMetadata?: Record<string, any>;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
+	readonly _type: FileEditType.Cell;
+	readonly uri: URI;
+	readonly edit?: ICellPartialMetadataEdit | IDocumentMetadataEdit;
+	readonly notebookMetadata?: Record<string, any>;
+	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
 export interface ICellEdit {
-	_type: FileEditType.CellReplace;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
-	uri: URI;
-	index: number;
-	count: number;
-	cells: vscode.NotebookCellData[];
+	readonly _type: FileEditType.CellReplace;
+	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
+	readonly uri: URI;
+	readonly index: number;
+	readonly count: number;
+	readonly cells: vscode.NotebookCellData[];
 }
 
 
@@ -757,15 +766,15 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	// --- file
 
-	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from, to, options, metadata });
 	}
 
-	createFile(uri: vscode.Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean; contents?: Uint8Array }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	createFile(uri: vscode.Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: undefined, to: uri, options, metadata });
 	}
 
-	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean; ignoreIfNotExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	deleteFile(uri: vscode.Uri, options?: { readonly recursive?: boolean; readonly ignoreIfNotExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: uri, to: undefined, options, metadata });
 	}
 
@@ -808,12 +817,12 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		return this._edits.some(edit => edit._type === FileEditType.Text && edit.uri.toString() === uri.toString());
 	}
 
-	set(uri: URI, edits: (TextEdit | SnippetTextEdit)[]): void;
-	set(uri: URI, edits: [TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata][]): void;
-	set(uri: URI, edits: NotebookEdit[]): void;
-	set(uri: URI, edits: [NotebookEdit, vscode.WorkspaceEditEntryMetadata][]): void;
+	set(uri: URI, edits: ReadonlyArray<TextEdit | SnippetTextEdit>): void;
+	set(uri: URI, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata]>): void;
+	set(uri: URI, edits: readonly NotebookEdit[]): void;
+	set(uri: URI, edits: ReadonlyArray<[NotebookEdit, vscode.WorkspaceEditEntryMetadata]>): void;
 
-	set(uri: URI, edits: null | undefined | (TextEdit | SnippetTextEdit | NotebookEdit | [NotebookEdit, vscode.WorkspaceEditEntryMetadata] | [TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata])[]): void {
+	set(uri: URI, edits: null | undefined | ReadonlyArray<TextEdit | SnippetTextEdit | NotebookEdit | [NotebookEdit, vscode.WorkspaceEditEntryMetadata] | [TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata]>): void {
 		if (!edits) {
 			// remove all text, snippet, or notebook edits for `uri`
 			for (let i = 0; i < this._edits.length; i++) {
@@ -1321,6 +1330,7 @@ export class CodeActionKind {
 	public static Refactor: CodeActionKind;
 	public static RefactorExtract: CodeActionKind;
 	public static RefactorInline: CodeActionKind;
+	public static RefactorMove: CodeActionKind;
 	public static RefactorRewrite: CodeActionKind;
 	public static Source: CodeActionKind;
 	public static SourceOrganizeImports: CodeActionKind;
@@ -1347,6 +1357,7 @@ CodeActionKind.QuickFix = CodeActionKind.Empty.append('quickfix');
 CodeActionKind.Refactor = CodeActionKind.Empty.append('refactor');
 CodeActionKind.RefactorExtract = CodeActionKind.Refactor.append('extract');
 CodeActionKind.RefactorInline = CodeActionKind.Refactor.append('inline');
+CodeActionKind.RefactorMove = CodeActionKind.Refactor.append('move');
 CodeActionKind.RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
 CodeActionKind.Source = CodeActionKind.Empty.append('source');
 CodeActionKind.SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
@@ -2458,6 +2469,22 @@ export enum ProgressLocation {
 	Notification = 15
 }
 
+export namespace ViewBadge {
+	export function isViewBadge(thing: any): thing is vscode.ViewBadge {
+		const viewBadgeThing = thing as vscode.ViewBadge;
+
+		if (!isNumber(viewBadgeThing.value)) {
+			console.log('INVALID view badge, invalid value', viewBadgeThing.value);
+			return false;
+		}
+		if (viewBadgeThing.tooltip && !isString(viewBadgeThing.tooltip)) {
+			console.log('INVALID view badge, invalid tooltip', viewBadgeThing.tooltip);
+			return false;
+		}
+		return true;
+	}
+}
+
 @es5ClassCompat
 export class TreeItem {
 
@@ -2519,7 +2546,10 @@ export class TreeItem {
 		}
 		if (treeItemThing.checkboxState !== undefined) {
 			checkProposedApiEnabled(extension, 'treeItemCheckbox');
-			if (treeItemThing.checkboxState !== TreeItemCheckboxState.Checked && treeItemThing.checkboxState !== TreeItemCheckboxState.Unchecked) {
+			const checkbox = isNumber(treeItemThing.checkboxState) ? treeItemThing.checkboxState :
+				isObject(treeItemThing.checkboxState) && isNumber(treeItemThing.checkboxState.state) ? treeItemThing.checkboxState.state : undefined;
+			const tooltip = !isNumber(treeItemThing.checkboxState) && isObject(treeItemThing.checkboxState) ? treeItemThing.checkboxState.tooltip : undefined;
+			if (checkbox === undefined || (checkbox !== TreeItemCheckboxState.Checked && checkbox !== TreeItemCheckboxState.Unchecked) || (tooltip !== undefined && !isString(tooltip))) {
 				console.log('INVALID tree item, invalid checkboxState', treeItemThing.checkboxState);
 				return false;
 			}
@@ -3515,7 +3545,8 @@ export class NotebookCellOutput {
 		for (let i = 0; i < items.length; i++) {
 			const item = items[i];
 			const normalMime = normalizeMimeType(item.mime);
-			if (!seen.has(normalMime)) {
+			// We can have multiple text stream mime types in the same output.
+			if (!seen.has(normalMime) || isTextStreamMime(normalMime)) {
 				seen.add(normalMime);
 				continue;
 			}
@@ -3584,6 +3615,12 @@ export class NotebookCellStatusBarItem {
 export enum NotebookControllerAffinity {
 	Default = 1,
 	Preferred = 2
+}
+
+export enum NotebookControllerAffinity2 {
+	Default = 1,
+	Preferred = 2,
+	Hidden = -1
 }
 
 export class NotebookRendererScript {

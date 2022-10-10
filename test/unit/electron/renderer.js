@@ -84,7 +84,6 @@ function initLoader(opts) {
 	loader = require(`${_out}/vs/loader`);
 	const loaderConfig = {
 		nodeRequire: require,
-		nodeMain: __filename,
 		catchError: true,
 		baseUrl: bootstrap.fileUriFromPath(path.join(__dirname, '../../../src'), { isWindows: process.platform === 'win32' }),
 		paths: {
@@ -299,7 +298,7 @@ function runTests(opts) {
 			mocha.grep(opts.grep);
 		}
 
-		if (!opts.debug) {
+		if (!opts.dev) {
 			mocha.reporter(IPCReporter);
 		}
 
@@ -309,7 +308,7 @@ function runTests(opts) {
 			});
 		});
 
-		if (opts.debug) {
+		if (opts.dev) {
 			runner.on('fail', (test, err) => {
 
 				console.error(test.fullTitle());

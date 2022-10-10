@@ -158,7 +158,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		this._register(watcher.onDidChange(uri => {
 			if (this.isPreviewOf(uri)) {
 				// Only use the file system event when VS Code does not already know about the file
-				if (!vscode.workspace.textDocuments.some(doc => doc.uri.toString() !== uri.toString())) {
+				if (!vscode.workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString())) {
 					this.refresh();
 				}
 			}
@@ -310,8 +310,16 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		const shouldReloadPage = forceUpdate || !this.currentVersion || this.currentVersion.resource.toString() !== pendingVersion.resource.toString() || !this._webviewPanel.visible;
 		this.currentVersion = pendingVersion;
 
+		let selectedLine: number | undefined = undefined;
+		for (const editor of vscode.window.visibleTextEditors) {
+			if (this.isPreviewOf(editor.document.uri)) {
+				selectedLine = editor.selection.active.line;
+				break;
+			}
+		}
+
 		const content = await (shouldReloadPage
-			? this._contentProvider.renderDocument(document, this, this._previewConfigurations, this.line, this.state, this._disposeCts.token)
+			? this._contentProvider.renderDocument(document, this, this._previewConfigurations, this.line, selectedLine, this.state, this._disposeCts.token)
 			: this._contentProvider.renderBody(document, this));
 
 		// Another call to `doUpdate` may have happened.

@@ -197,7 +197,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		if (!model || !this._isEnabled || model.isTooLargeForTokenization() || !this.hiddenRangeModel) {
 			return;
 		}
-		if (!state || state.lineCount !== model.getLineCount()) {
+		if (!state) {
 			return;
 		}
 

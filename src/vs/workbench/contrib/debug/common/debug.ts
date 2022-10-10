@@ -6,13 +6,14 @@
 import { IAction } from 'vs/base/common/actions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import severity from 'vs/base/common/severity';
 import { URI as uri } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel as EditorIModel } from 'vs/editor/common/model';
 import * as nls from 'vs/nls';
@@ -162,7 +163,7 @@ export interface IDebugger {
 export interface IDebuggerMetadata {
 	label: string;
 	type: string;
-	uiMessages?: { [key in DebuggerUiMessage]: string };
+	strings?: { [key in DebuggerString]: string };
 	interestedInLanguage(languageId: string): boolean;
 }
 
@@ -785,7 +786,7 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 	variables?: { [key: string]: string };
 	when?: string;
 	deprecated?: string;
-	uiMessages?: { [key in DebuggerUiMessage]: string };
+	strings?: { [key in DebuggerString]: string };
 }
 
 export interface IBreakpointContribution {
@@ -861,7 +862,7 @@ export interface IConfigurationManager {
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any, token: CancellationToken): Promise<any>;
 }
 
-export enum DebuggerUiMessage {
+export enum DebuggerString {
 	UnverifiedBreakpoints = 'unverifiedBreakpoints'
 }
 
@@ -1132,7 +1133,7 @@ export const enum BreakpointWidgetContext {
 }
 
 export interface IDebugEditorContribution extends editorCommon.IEditorContribution {
-	showHover(range: Range, focus: boolean): Promise<void>;
+	showHover(range: Position, focus: boolean): Promise<void>;
 	addLaunchConfiguration(): Promise<any>;
 	closeExceptionWidget(): void;
 }
@@ -1141,4 +1142,17 @@ export interface IBreakpointEditorContribution extends editorCommon.IEditorContr
 	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext): void;
 	closeBreakpointWidget(): void;
 	getContextMenuActionsAtPosition(lineNumber: number, model: EditorIModel): IAction[];
+}
+
+export interface IReplConfiguration {
+	readonly fontSize: number;
+	readonly fontFamily: string;
+	readonly lineHeight: number;
+	readonly cssLineHeight: string;
+	readonly backgroundColor: Color | undefined;
+	readonly fontSizeForTwistie: number;
+}
+
+export interface IReplOptions {
+	readonly replConfiguration: IReplConfiguration;
 }

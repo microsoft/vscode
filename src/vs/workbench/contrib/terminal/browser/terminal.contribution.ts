@@ -23,7 +23,7 @@ import { TERMINAL_VIEW_ID, TerminalCommandId, ITerminalProfileService } from 'vs
 import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { setupTerminalCommands } from 'vs/workbench/contrib/terminal/browser/terminalCommands';
 import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService, TerminalDataTransfers, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -54,11 +54,11 @@ import { TerminalMainContribution } from 'vs/workbench/contrib/terminal/browser/
 import { Schemas } from 'vs/base/common/network';
 
 // Register services
-registerSingleton(ITerminalService, TerminalService, true);
-registerSingleton(ITerminalEditorService, TerminalEditorService, true);
-registerSingleton(ITerminalGroupService, TerminalGroupService, true);
-registerSingleton(ITerminalInstanceService, TerminalInstanceService, true);
-registerSingleton(ITerminalProfileService, TerminalProfileService, true);
+registerSingleton(ITerminalService, TerminalService, InstantiationType.Delayed);
+registerSingleton(ITerminalEditorService, TerminalEditorService, InstantiationType.Delayed);
+registerSingleton(ITerminalGroupService, TerminalGroupService, InstantiationType.Delayed);
+registerSingleton(ITerminalInstanceService, TerminalInstanceService, InstantiationType.Delayed);
+registerSingleton(ITerminalProfileService, TerminalProfileService, InstantiationType.Delayed);
 
 // Register quick accesses
 const quickAccessRegistry = (Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess));
@@ -77,8 +77,8 @@ CommandsRegistry.registerCommand({ id: quickAccessNavigatePreviousInTerminalPick
 
 // Register workbench contributions
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(TerminalMainContribution, 'TerminalMainContribution', LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(RemoteTerminalBackendContribution, 'RemoteTerminalBackendContribution', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(TerminalMainContribution, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(RemoteTerminalBackendContribution, LifecyclePhase.Restored);
 
 // Register configurations
 registerTerminalPlatformConfiguration();
@@ -241,10 +241,6 @@ registerSendSequenceKeybinding(String.fromCharCode('A'.charCodeAt(0) - 64), {
 // Move to line end: ctrl+E
 registerSendSequenceKeybinding(String.fromCharCode('E'.charCodeAt(0) - 64), {
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
-});
-// Break: ctrl+C
-registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - 64), {
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.Period }
 });
 // NUL: ctrl+shift+2
 registerSendSequenceKeybinding('\u0000', {

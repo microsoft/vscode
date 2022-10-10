@@ -124,12 +124,14 @@ export interface NotebookCellDefaultCollapseConfig {
 export type InteractiveWindowCollapseCodeCells = 'always' | 'never' | 'fromEditor';
 
 export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
+export type CellContentMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
 export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
 
 export interface TransientOptions {
 	transientOutputs: boolean;
 	transientCellMetadata: TransientCellMetadata;
 	transientDocumentMetadata: TransientDocumentMetadata;
+	cellContentMetadata: CellContentMetadata;
 }
 
 /** Note: enum values are used for sorting */
@@ -947,3 +949,11 @@ export interface NotebookExtensionDescription {
 	readonly id: ExtensionIdentifier;
 	readonly location: UriComponents | undefined;
 }
+
+/**
+ * Whether the provided mime type is a text streamn like `stdout`, `stderr`.
+ */
+export function isTextStreamMime(mimeType: string) {
+	return ['application/vnd.code.notebook.stdout', 'application/x.notebook.stdout', 'application/x.notebook.stream', 'application/vnd.code.notebook.stderr', 'application/x.notebook.stderr'].includes(mimeType);
+}
+

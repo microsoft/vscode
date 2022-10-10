@@ -90,9 +90,9 @@ export class CommentThreadRangeDecorator extends Disposable {
 		});
 	}
 
-	public update(editor: ICodeEditor, commentInfos: ICommentInfo[]) {
-		const model = editor.getModel();
-		if (!model) {
+	public update(editor: ICodeEditor | undefined, commentInfos: ICommentInfo[]) {
+		const model = editor?.getModel();
+		if (!editor || !model) {
 			return;
 		}
 		dispose(this.threadCollapseStateListeners);

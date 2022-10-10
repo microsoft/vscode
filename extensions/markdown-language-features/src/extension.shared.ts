@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { BaseLanguageClient } from 'vscode-languageclient';
+import { MdLanguageClient } from './client/client';
 import { CommandManager } from './commandManager';
 import * as commands from './commands/index';
 import { registerPasteSupport } from './languageFeatures/copyPaste';
@@ -23,7 +23,7 @@ import { MdLinkOpener } from './util/openDocumentLink';
 
 export function activateShared(
 	context: vscode.ExtensionContext,
-	client: BaseLanguageClient,
+	client: MdLanguageClient,
 	engine: MarkdownItEngine,
 	logger: ILogger,
 	contributions: MarkdownContributionProvider,
@@ -49,7 +49,7 @@ export function activateShared(
 }
 
 function registerMarkdownLanguageFeatures(
-	client: BaseLanguageClient,
+	client: MdLanguageClient,
 	commandManager: CommandManager,
 ): vscode.Disposable {
 	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };

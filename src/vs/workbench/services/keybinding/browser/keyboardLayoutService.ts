@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { KeymapInfo, IRawMixedKeyboardMapping, IKeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { DispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
 import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
 import { OS, OperatingSystem, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -618,7 +618,7 @@ export class BrowserKeyboardLayoutService extends Disposable implements IKeyboar
 	}
 }
 
-registerSingleton(IKeyboardLayoutService, BrowserKeyboardLayoutService, true);
+registerSingleton(IKeyboardLayoutService, BrowserKeyboardLayoutService, InstantiationType.Delayed);
 
 // Configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigExtensions.Configuration);

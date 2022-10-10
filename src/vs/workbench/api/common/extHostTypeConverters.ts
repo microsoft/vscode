@@ -569,7 +569,7 @@ export namespace WorkspaceEdit {
 		getNotebookDocumentVersion(uri: URI): number | undefined;
 	}
 
-	export function from(value: vscode.WorkspaceEdit, versionInfo?: IVersionInformationProvider, allowSnippetTextEdit?: boolean): extHostProtocol.IWorkspaceEditDto {
+	export function from(value: vscode.WorkspaceEdit, versionInfo?: IVersionInformationProvider): extHostProtocol.IWorkspaceEditDto {
 		const result: extHostProtocol.IWorkspaceEditDto = {
 			edits: []
 		};
@@ -605,11 +605,6 @@ export namespace WorkspaceEdit {
 						metadata: entry.metadata
 					});
 				} else if (entry._type === types.FileEditType.Snippet) {
-					// snippet text edits
-					if (!allowSnippetTextEdit) {
-						console.warn(`DROPPING snippet text edit because proposal IS NOT ENABLED`, entry);
-						continue;
-					}
 					result.edits.push(<languages.IWorkspaceTextEdit>{
 						resource: entry.uri,
 						textEdit: {
@@ -1139,6 +1134,10 @@ export namespace CompletionItem {
 
 export namespace ParameterInformation {
 	export function from(info: types.ParameterInformation): languages.ParameterInformation {
+		if (typeof info.label !== 'string' && !Array.isArray(info.label)) {
+			throw new TypeError('Invalid label');
+		}
+
 		return {
 			label: info.label,
 			documentation: MarkdownString.fromStrict(info.documentation)
@@ -1710,7 +1709,8 @@ export namespace NotebookDocumentContentOptions {
 		return {
 			transientOutputs: options?.transientOutputs ?? false,
 			transientCellMetadata: options?.transientCellMetadata ?? {},
-			transientDocumentMetadata: options?.transientDocumentMetadata ?? {}
+			transientDocumentMetadata: options?.transientDocumentMetadata ?? {},
+			cellContentMetadata: options?.cellContentMetadata ?? {}
 		};
 	}
 }
@@ -1846,7 +1846,8 @@ export namespace TestResults {
 		const byInternalId = new Map<string, TestResultItem.Serialized>();
 		for (const item of serialized.items) {
 			byInternalId.set(item.item.extId, item);
-			if (serialized.request.targets.some(t => t.controllerId === item.controllerId && t.testIds.includes(item.item.extId))) {
+			const controllerId = TestId.root(item.item.extId);
+			if (serialized.request.targets.some(t => t.controllerId === controllerId && t.testIds.includes(item.item.extId))) {
 				roots.push(item);
 			}
 		}

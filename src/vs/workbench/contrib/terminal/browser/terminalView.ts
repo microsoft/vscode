@@ -301,11 +301,15 @@ export class TerminalViewPane extends ViewPane {
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const panelBackgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
-	collector.addRule(`.monaco-workbench .part.panel .pane-body.integrated-terminal .terminal-outer-container { background-color: ${panelBackgroundColor ? panelBackgroundColor.toString() : ''}; }`);
+	if (panelBackgroundColor) {
+		collector.addRule(`.monaco-workbench .part.panel .pane-body.integrated-terminal .terminal-outer-container { background-color: ${panelBackgroundColor.toString()}; }`);
+	}
 
 	const sidebarBackgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(SIDE_BAR_BACKGROUND);
-	collector.addRule(`.monaco-workbench .part.sidebar .pane-body.integrated-terminal .terminal-outer-container { background-color: ${sidebarBackgroundColor ? sidebarBackgroundColor.toString() : ''}; }`);
-	collector.addRule(`.monaco-workbench .part.auxiliarybar .pane-body.integrated-terminal .terminal-outer-container { background-color: ${sidebarBackgroundColor ? sidebarBackgroundColor.toString() : ''}; }`);
+	if (sidebarBackgroundColor) {
+		collector.addRule(`.monaco-workbench .part.sidebar .pane-body.integrated-terminal .terminal-outer-container { background-color: ${sidebarBackgroundColor.toString()}; }`);
+		collector.addRule(`.monaco-workbench .part.auxiliarybar .pane-body.integrated-terminal .terminal-outer-container { background-color: ${sidebarBackgroundColor.toString()}; }`);
+	}
 
 	const borderColor = theme.getColor(TERMINAL_BORDER_COLOR);
 	if (borderColor) {
@@ -398,8 +402,8 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		// Register listeners to update the tab
 		this._register(this._terminalService.onDidChangeInstancePrimaryStatus(e => this.updateLabel(e)));
 		this._register(this._terminalGroupService.onDidChangeActiveInstance(() => this.updateLabel()));
-		this._register(this._terminalService.onDidChangeInstanceIcon(e => this.updateLabel(e)));
-		this._register(this._terminalService.onDidChangeInstanceColor(e => this.updateLabel(e)));
+		this._register(this._terminalService.onDidChangeInstanceIcon(e => this.updateLabel(e.instance)));
+		this._register(this._terminalService.onDidChangeInstanceColor(e => this.updateLabel(e.instance)));
 		this._register(this._terminalService.onDidChangeInstanceTitle(e => {
 			if (e === this._terminalGroupService.activeInstance) {
 				this._action.tooltip = getSingleTabTooltip(e, this._terminalService.configHelper.config.tabs.separator);

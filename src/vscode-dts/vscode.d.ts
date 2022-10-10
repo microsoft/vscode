@@ -2276,6 +2276,18 @@ declare module 'vscode' {
 		static readonly RefactorInline: CodeActionKind;
 
 		/**
+		 * Base kind for refactoring move actions: `refactor.move`
+		 *
+		 * Example move actions:
+		 *
+		 * - Move a function to a new file
+		 * - Move a property between classes
+		 * - Move method to base class
+		 * - ...
+		 */
+		static readonly RefactorMove: CodeActionKind;
+
+		/**
 		 * Base kind for refactoring rewrite actions: `refactor.rewrite`
 		 *
 		 * Example rewrite actions:
@@ -2284,7 +2296,6 @@ declare module 'vscode' {
 		 * - Add or remove parameter
 		 * - Encapsulate field
 		 * - Make method static
-		 * - Move method to base class
 		 * - ...
 		 */
 		static readonly RefactorRewrite: CodeActionKind;
@@ -3427,6 +3438,54 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A snippet edit represents an interactive edit that is performed by
+	 * the editor.
+	 *
+	 * *Note* that a snippet edit can always be performed as a normal {@link TextEdit text edit}.
+	 * This will happen when no matching editor is open or when a {@link WorkspaceEdit workspace edit}
+	 * contains snippet edits for multiple files. In that case only those that match the active editor
+	 * will be performed as snippet edits and the others as normal text edits.
+	 */
+	export class SnippetTextEdit {
+
+		/**
+		 * Utility to create a replace snippet edit.
+		 *
+		 * @param range A range.
+		 * @param snippet A snippet string.
+		 * @return A new snippet edit object.
+		 */
+		static replace(range: Range, snippet: SnippetString): SnippetTextEdit;
+
+		/**
+		 * Utility to create an insert snippet edit.
+		 *
+		 * @param position A position, will become an empty range.
+		 * @param snippet A snippet string.
+		 * @return A new snippet edit object.
+		 */
+		static insert(position: Position, snippet: SnippetString): SnippetTextEdit;
+
+		/**
+		 * The range this edit applies to.
+		 */
+		range: Range;
+
+		/**
+		 * The {@link SnippetString snippet} this edit will perform.
+		 */
+		snippet: SnippetString;
+
+		/**
+		 * Create a new snippet edit.
+		 *
+		 * @param range A range.
+		 * @param snippet A snippet string.
+		 */
+		constructor(range: Range, snippet: SnippetString);
+	}
+
+	/**
 	 * A notebook edit represents edits that should be applied to the contents of a notebook.
 	 */
 	export class NotebookEdit {
@@ -3521,6 +3580,16 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Additional data about a workspace edit.
+	 */
+	export interface WorkspaceEditMetadata {
+		/**
+		 * Signal to the editor that this edit is a refactoring.
+		 */
+		isRefactoring?: boolean;
+	}
+
+	/**
 	 * A workspace edit is a collection of textual and files changes for
 	 * multiple resources and documents.
 	 *
@@ -3571,12 +3640,36 @@ declare module 'vscode' {
 		has(uri: Uri): boolean;
 
 		/**
-		 * Set (and replace) text edits for a resource.
+		 * Set (and replace) notebook edits for a resource.
 		 *
 		 * @param uri A resource identifier.
 		 * @param edits An array of edits.
 		 */
-		set(uri: Uri, edits: TextEdit[] | NotebookEdit[]): void;
+		set(uri: Uri, edits: readonly NotebookEdit[]): void;
+
+		/**
+		 * Set (and replace) notebook edits with metadata for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: ReadonlyArray<[NotebookEdit, WorkspaceEditEntryMetadata]>): void;
+
+		/**
+		 * Set (and replace) text edits or snippet edits for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: ReadonlyArray<TextEdit | SnippetTextEdit>): void;
+
+		/**
+		 * Set (and replace) text edits or snippet edits with metadata for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, WorkspaceEditEntryMetadata]>): void;
 
 		/**
 		 * Get the text edits for a resource.
@@ -3597,7 +3690,7 @@ declare module 'vscode' {
 		 * the file is being created with.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		createFile(uri: Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean; contents?: Uint8Array }, metadata?: WorkspaceEditEntryMetadata): void;
+		createFile(uri: Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Delete a file or folder.
@@ -3605,7 +3698,7 @@ declare module 'vscode' {
 		 * @param uri The uri of the file that is to be deleted.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		deleteFile(uri: Uri, options?: { recursive?: boolean; ignoreIfNotExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
+		deleteFile(uri: Uri, options?: { readonly recursive?: boolean; readonly ignoreIfNotExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Rename a file or folder.
@@ -3616,7 +3709,7 @@ declare module 'vscode' {
 		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
+		renameFile(oldUri: Uri, newUri: Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Get all text edits grouped by resource.
@@ -10643,7 +10736,7 @@ declare module 'vscode' {
 		 * Whether the terminal process environment should be exactly as provided in
 		 * `TerminalOptions.env`. When this is false (default), the environment will be based on the
 		 * window's environment and also apply configured platform settings like
-		 * `terminal.integrated.windows.env` on top. When this is true, the complete environment
+		 * `terminal.integrated.env.windows` on top. When this is true, the complete environment
 		 * must be provided as nothing will be inherited from the process or any configuration.
 		 */
 		strictEnv?: boolean;
@@ -12082,9 +12175,10 @@ declare module 'vscode' {
 		 * not be attempted, when a single edit fails.
 		 *
 		 * @param edit A workspace edit.
+		 * @param metadata Optional {@link WorkspaceEditMetadata metadata} for the edit.
 		 * @return A thenable that resolves when the edit could be applied.
 		 */
-		export function applyEdit(edit: WorkspaceEdit): Thenable<boolean>;
+		export function applyEdit(edit: WorkspaceEdit, metadata?: WorkspaceEditMetadata): Thenable<boolean>;
 
 		/**
 		 * All text documents currently known to the editor.
@@ -15735,9 +15829,9 @@ declare module 'vscode' {
 
 	/**
 	 * A TestRunRequest is a precursor to a {@link TestRun}, which in turn is
-	 * created by passing a request to {@link tests.runTests}. The TestRunRequest
-	 * contains information about which tests should be run, which should not be
-	 * run, and how they are run (via the {@link TestRunRequest.profile profile}).
+	 * created by passing a request to {@link TestController.createTestRun}. The
+	 * TestRunRequest contains information about which tests should be run, which
+	 * should not be run, and how they are run (via the {@link TestRunRequest.profile profile}).
 	 *
 	 * In general, TestRunRequests are created by the editor and pass to
 	 * {@link TestRunProfile.runHandler}, however you can also create test
@@ -15780,7 +15874,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options given to {@link TestController.runTests}
+	 * A TestRun represents an in-progress or completed test run and
+	 * provides methods to report the state of individual tests in the run.
 	 */
 	export interface TestRun {
 		/**

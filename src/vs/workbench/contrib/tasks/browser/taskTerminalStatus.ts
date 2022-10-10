@@ -15,6 +15,7 @@ import { ITerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalS
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { IMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -39,7 +40,7 @@ const INFO_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID
 export class TaskTerminalStatus extends Disposable {
 	private terminalMap: Map<string, ITerminalData> = new Map();
 	private _marker: IMarker | undefined;
-	constructor(taskService: ITaskService) {
+	constructor(@ITaskService taskService: ITaskService, @IAudioCueService private readonly _audioCueService: IAudioCueService) {
 		super();
 		this._register(taskService.onDidStateChange((event) => {
 			switch (event.kind) {
@@ -85,6 +86,7 @@ export class TaskTerminalStatus extends Disposable {
 		terminalData.taskRunEnded = true;
 		terminalData.terminal.statusList.remove(terminalData.status);
 		if ((event.exitCode === 0) && (terminalData.problemMatcher.numberOfMatches === 0)) {
+			this._audioCueService.playAudioCue(AudioCue.taskCompleted);
 			if (terminalData.task.configurationProperties.isBackground) {
 				for (const status of terminalData.terminal.statusList.statuses) {
 					terminalData.terminal.statusList.remove(status);
@@ -93,6 +95,7 @@ export class TaskTerminalStatus extends Disposable {
 				terminalData.terminal.statusList.add(SUCCEEDED_TASK_STATUS);
 			}
 		} else if (event.exitCode || terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Error) {
+			this._audioCueService.playAudioCue(AudioCue.taskFailed);
 			terminalData.terminal.statusList.add(FAILED_TASK_STATUS);
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Warning) {
 			terminalData.terminal.statusList.add(WARNING_TASK_STATUS);
@@ -108,8 +111,10 @@ export class TaskTerminalStatus extends Disposable {
 		}
 		terminalData.terminal.statusList.remove(terminalData.status);
 		if (terminalData.problemMatcher.numberOfMatches === 0) {
+			this._audioCueService.playAudioCue(AudioCue.taskCompleted);
 			terminalData.terminal.statusList.add(SUCCEEDED_INACTIVE_TASK_STATUS);
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Error) {
+			this._audioCueService.playAudioCue(AudioCue.taskFailed);
 			terminalData.terminal.statusList.add(FAILED_INACTIVE_TASK_STATUS);
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Warning) {
 			terminalData.terminal.statusList.add(WARNING_INACTIVE_TASK_STATUS);

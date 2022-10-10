@@ -26,6 +26,7 @@ import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction } from 'vs/base/common/actions';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 
 export interface IRangeHighlightDecoration {
 	resource: URI;
@@ -224,28 +225,31 @@ export class FloatingClickMenu extends Disposable implements IEditorContribution
 	) {
 		super();
 
-		const menu = menuService.createMenu(MenuId.EditorContent, contextKeyService);
-		const menuDisposables = new DisposableStore();
-		const renderMenuAsFloatingClickBtn = () => {
-			menuDisposables.clear();
-			if (!editor.hasModel() || editor.getOption(EditorOption.inDiffEditor)) {
-				return;
-			}
-			const actions: IAction[] = [];
-			createAndFillInActionBarActions(menu, { renderShortTitle: true, shouldForwardArgs: true }, actions);
-			if (actions.length === 0) {
-				return;
-			}
-			// todo@jrieken find a way to handle N actions, like showing a context menu
-			const [first] = actions;
-			const widget = instantiationService.createInstance(FloatingClickWidget, editor, first.label, first.id);
-			menuDisposables.add(widget);
-			menuDisposables.add(widget.onClick(() => first.run(editor.getModel().uri)));
-			widget.render();
-		};
-		this._store.add(menu);
-		this._store.add(menuDisposables);
-		this._store.add(menu.onDidChange(renderMenuAsFloatingClickBtn));
-		renderMenuAsFloatingClickBtn();
+		// DISABLED for embedded editors. In the future we can use a different MenuId for embedded editors
+		if (!(editor instanceof EmbeddedCodeEditorWidget)) {
+			const menu = menuService.createMenu(MenuId.EditorContent, contextKeyService);
+			const menuDisposables = new DisposableStore();
+			const renderMenuAsFloatingClickBtn = () => {
+				menuDisposables.clear();
+				if (!editor.hasModel() || editor.getOption(EditorOption.inDiffEditor)) {
+					return;
+				}
+				const actions: IAction[] = [];
+				createAndFillInActionBarActions(menu, { renderShortTitle: true, shouldForwardArgs: true }, actions);
+				if (actions.length === 0) {
+					return;
+				}
+				// todo@jrieken find a way to handle N actions, like showing a context menu
+				const [first] = actions;
+				const widget = instantiationService.createInstance(FloatingClickWidget, editor, first.label, first.id);
+				menuDisposables.add(widget);
+				menuDisposables.add(widget.onClick(() => first.run(editor.getModel().uri)));
+				widget.render();
+			};
+			this._store.add(menu);
+			this._store.add(menuDisposables);
+			this._store.add(menu.onDidChange(renderMenuAsFloatingClickBtn));
+			renderMenuAsFloatingClickBtn();
+		}
 	}
 }

@@ -146,8 +146,14 @@ export interface ICommandDetectionCapability {
 	readonly executingCommandObject: ITerminalCommand | undefined;
 	/** The current cwd at the cursor's position. */
 	readonly cwd: string | undefined;
+	/**
+	 * Whether a command is currently being input. If the a command is current not being input or
+	 * the state cannot reliably be detected the fallback of undefined will be used.
+	 */
+	readonly hasInput: boolean | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
+	readonly onCommandExecuted: Event<void>;
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
 	setCwd(value: string): void;
@@ -215,7 +221,33 @@ export interface ITerminalCommand {
 	commandStartLineContent?: string;
 	markProperties?: IMarkProperties;
 	getOutput(): string | undefined;
+	getOutputMatch(outputMatcher: ITerminalOutputMatcher): RegExpMatchArray | undefined;
 	hasOutput(): boolean;
+}
+
+
+/**
+ * A matcher that runs on a sub-section of a terminal command's output
+ */
+export interface ITerminalOutputMatcher {
+	/**
+	 * A string or regex to match against the unwrapped line. If this is a regex with the multiline
+	 * flag, it will scan an amount of lines equal to `\n` instances in the regex + 1.
+	 */
+	lineMatcher: string | RegExp;
+	/**
+	 * Which side of the output to anchor the {@link offset} and {@link length} against.
+	 */
+	anchor: 'top' | 'bottom';
+	/**
+	 * How far from either the top or the bottom of the butter to start matching against.
+	 */
+	offset: number;
+	/**
+	 * The number of rows to match against, this should be as small as possible for performance
+	 * reasons.
+	 */
+	length: number;
 }
 
 /**

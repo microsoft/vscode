@@ -29,7 +29,7 @@ import { ClickLinkGesture, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSym
 import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
 import { goToDefinitionWithLocation, showGoToContextMenu } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
@@ -60,7 +60,7 @@ class InlayHintsCache {
 
 interface IInlayHintsCache extends InlayHintsCache { }
 const IInlayHintsCache = createDecorator<IInlayHintsCache>('IInlayHintsCache');
-registerSingleton(IInlayHintsCache, InlayHintsCache, true);
+registerSingleton(IInlayHintsCache, InlayHintsCache, InstantiationType.Delayed);
 
 // --- rendered label
 

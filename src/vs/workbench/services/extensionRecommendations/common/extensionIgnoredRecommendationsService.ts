@@ -6,7 +6,7 @@
 import { distinct } from 'vs/base/common/arrays';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionIgnoredRecommendationsService, IgnoredRecommendationChangeNotification } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IWorkspaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
@@ -108,4 +108,4 @@ export class ExtensionIgnoredRecommendationsService extends Disposable implement
 
 }
 
-registerSingleton(IExtensionIgnoredRecommendationsService, ExtensionIgnoredRecommendationsService, true);
+registerSingleton(IExtensionIgnoredRecommendationsService, ExtensionIgnoredRecommendationsService, InstantiationType.Delayed);

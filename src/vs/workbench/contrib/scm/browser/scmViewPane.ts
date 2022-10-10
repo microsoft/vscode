@@ -2287,7 +2287,7 @@ export class SCMViewPane extends ViewPane {
 
 		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
 		this._register(actionRunner);
-		this._register(actionRunner.onBeforeRun(() => this.tree.domFocus()));
+		this._register(actionRunner.onWillRun(() => this.tree.domFocus()));
 
 		const renderers: ICompressibleTreeRenderer<any, any, any>[] = [
 			this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService)),
@@ -2502,7 +2502,7 @@ export class SCMViewPane extends ViewPane {
 		}
 
 		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
-		actionRunner.onBeforeRun(() => this.tree.domFocus());
+		actionRunner.onWillRun(() => this.tree.domFocus());
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -2675,9 +2675,6 @@ export class SCMActionButton implements IDisposable {
 				title: button.command.tooltip,
 				supportIcons: true
 			});
-			if (button.description) {
-				(this.button as ButtonWithDropdown).description = button.description;
-			}
 		} else if (button.description) {
 			// ButtonWithDescription
 			this.button = new ButtonWithDescription(this.container, { supportIcons: true, title: button.command.tooltip });

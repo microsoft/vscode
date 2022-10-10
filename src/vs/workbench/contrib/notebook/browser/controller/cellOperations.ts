@@ -123,6 +123,7 @@ export function runDeleteAction(editor: IActiveNotebookEditor, cell: ICellViewMo
 	const targetCellIndex = editor.getCellIndex(cell);
 	const containingSelection = selections.find(selection => selection.start <= targetCellIndex && targetCellIndex < selection.end);
 
+	const computeUndoRedo = !editor.isReadOnly || textModel.viewType === 'interactive';
 	if (containingSelection) {
 		const edits: ICellReplaceEdit[] = selections.reverse().map(selection => ({
 			editType: CellEditType.Replace, index: selection.start, count: selection.end - selection.start, cells: []
@@ -143,7 +144,7 @@ export function runDeleteAction(editor: IActiveNotebookEditor, cell: ICellViewMo
 					return { kind: SelectionStateType.Index, focus: { start: 0, end: 0 }, selections: [{ start: 0, end: 0 }] };
 				}
 			}
-		}, undefined, true);
+		}, undefined, computeUndoRedo);
 	} else {
 		const focus = editor.getFocus();
 		const edits: ICellReplaceEdit[] = [{
@@ -169,14 +170,14 @@ export function runDeleteAction(editor: IActiveNotebookEditor, cell: ICellViewMo
 
 			textModel.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() }, () => ({
 				kind: SelectionStateType.Index, focus: newFocus, selections: finalSelections
-			}), undefined, true);
+			}), undefined, computeUndoRedo);
 		} else {
 			// users decide to delete a cell out of current focus/selection
 			const newFocus = focus.start > targetCellIndex ? { start: focus.start - 1, end: focus.end - 1 } : focus;
 
 			textModel.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() }, () => ({
 				kind: SelectionStateType.Index, focus: newFocus, selections: finalSelections
-			}), undefined, true);
+			}), undefined, computeUndoRedo);
 		}
 	}
 }
@@ -649,6 +650,6 @@ export function insertCellAtIndex(viewModel: NotebookViewModel, index: number, s
 				}
 			]
 		}
-	], synchronous, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => endSelections, undefined, pushUndoStop);
+	], synchronous, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => endSelections, undefined, pushUndoStop && !viewModel.options.isReadOnly);
 	return viewModel.cellAt(index)!;
 }

@@ -42,33 +42,33 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 
 	async getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]> {
 		const windows = this.windowsMainService.getWindows();
-		const diagnostics: Array<IDiagnosticInfo | IRemoteDiagnosticError | undefined> = await Promise.all(windows.map(window => {
-			return new Promise<IDiagnosticInfo | IRemoteDiagnosticError | undefined>((resolve) => {
-				const remoteAuthority = window.remoteAuthority;
-				if (remoteAuthority) {
-					const replyChannel = `vscode:getDiagnosticInfoResponse${window.id}`;
-					const args: IDiagnosticInfoOptions = {
-						includeProcesses: options.includeProcesses,
-						folders: options.includeWorkspaceMetadata ? this.getFolderURIs(window) : undefined
-					};
+		const diagnostics: Array<IDiagnosticInfo | IRemoteDiagnosticError | undefined> = await Promise.all(windows.map(async window => {
+			const remoteAuthority = window.remoteAuthority;
+			if (!remoteAuthority) {
+				return undefined;
+			}
 
-					window.sendWhenReady('vscode:getDiagnosticInfo', CancellationToken.None, { replyChannel, args });
+			const replyChannel = `vscode:getDiagnosticInfoResponse${window.id}`;
+			const args: IDiagnosticInfoOptions = {
+				includeProcesses: options.includeProcesses,
+				folders: options.includeWorkspaceMetadata ? await this.getFolderURIs(window) : undefined
+			};
 
-					validatedIpcMain.once(replyChannel, (_: IpcEvent, data: IRemoteDiagnosticInfo) => {
-						// No data is returned if getting the connection fails.
-						if (!data) {
-							resolve({ hostName: remoteAuthority, errorMessage: `Unable to resolve connection to '${remoteAuthority}'.` });
-						}
+			return new Promise<IDiagnosticInfo | IRemoteDiagnosticError>(resolve => {
+				window.sendWhenReady('vscode:getDiagnosticInfo', CancellationToken.None, { replyChannel, args });
 
-						resolve(data);
-					});
+				validatedIpcMain.once(replyChannel, (_: IpcEvent, data: IRemoteDiagnosticInfo) => {
+					// No data is returned if getting the connection fails.
+					if (!data) {
+						resolve({ hostName: remoteAuthority, errorMessage: `Unable to resolve connection to '${remoteAuthority}'.` });
+					}
 
-					setTimeout(() => {
-						resolve({ hostName: remoteAuthority, errorMessage: `Connection to '${remoteAuthority}' could not be established` });
-					}, 5000);
-				} else {
-					resolve(undefined);
-				}
+					resolve(data);
+				});
+
+				setTimeout(() => {
+					resolve({ hostName: remoteAuthority, errorMessage: `Connection to '${remoteAuthority}' could not be established` });
+				}, 5000);
 			});
 		}));
 
@@ -82,7 +82,7 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 		for (const window of BrowserWindow.getAllWindows()) {
 			const codeWindow = this.windowsMainService.getWindowById(window.id);
 			if (codeWindow) {
-				windows.push(this.codeWindowToInfo(codeWindow));
+				windows.push(await this.codeWindowToInfo(codeWindow));
 			} else {
 				windows.push(this.browserWindowToInfo(window));
 			}
@@ -97,8 +97,8 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 		};
 	}
 
-	private codeWindowToInfo(window: ICodeWindow): IWindowDiagnostics {
-		const folderURIs = this.getFolderURIs(window);
+	private async codeWindowToInfo(window: ICodeWindow): Promise<IWindowDiagnostics> {
+		const folderURIs = await this.getFolderURIs(window);
 		const win = assertIsDefined(window.win);
 
 		return this.browserWindowToInfo(win, folderURIs, window.remoteAuthority);
@@ -113,14 +113,14 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 		};
 	}
 
-	private getFolderURIs(window: ICodeWindow): URI[] {
+	private async getFolderURIs(window: ICodeWindow): Promise<URI[]> {
 		const folderURIs: URI[] = [];
 
 		const workspace = window.openedWorkspace;
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
 			folderURIs.push(workspace.uri);
 		} else if (isWorkspaceIdentifier(workspace)) {
-			const resolvedWorkspace = this.workspacesManagementMainService.resolveLocalWorkspaceSync(workspace.configPath); // workspace folders can only be shown for local (resolved) workspaces
+			const resolvedWorkspace = await this.workspacesManagementMainService.resolveLocalWorkspace(workspace.configPath); // workspace folders can only be shown for local (resolved) workspaces
 			if (resolvedWorkspace) {
 				const rootFolders = resolvedWorkspace.folders;
 				rootFolders.forEach(root => {

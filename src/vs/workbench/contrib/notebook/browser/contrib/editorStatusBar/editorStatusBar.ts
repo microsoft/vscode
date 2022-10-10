@@ -31,7 +31,7 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import { selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookKernel, INotebookKernelService, ISourceAction } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -52,17 +52,13 @@ registerAction2(class extends Action2 {
 				id: MenuId.EditorTitle,
 				when: ContextKeyExpr.and(
 					NOTEBOOK_IS_ACTIVE_EDITOR,
-					ContextKeyExpr.or(NOTEBOOK_KERNEL_COUNT.notEqualsTo(0), NOTEBOOK_KERNEL_SOURCE_COUNT.notEqualsTo(0), NOTEBOOK_MISSING_KERNEL_EXTENSION),
 					ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 				),
 				group: 'navigation',
 				order: -10
 			}, {
 				id: MenuId.NotebookToolbar,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(NOTEBOOK_KERNEL_COUNT.notEqualsTo(0), NOTEBOOK_KERNEL_SOURCE_COUNT.notEqualsTo(0), NOTEBOOK_MISSING_KERNEL_EXTENSION),
-					ContextKeyExpr.equals('config.notebook.globalToolbar', true)
-				),
+				when: ContextKeyExpr.equals('config.notebook.globalToolbar', true),
 				group: 'status',
 				order: -10
 			}, {
@@ -142,7 +138,7 @@ registerAction2(class extends Action2 {
 		}
 
 		const notebook = editor.textModel;
-		const { selected, all, suggestions } = notebookKernelService.getMatchingKernel(notebook);
+		const { selected, all, suggestions, hidden } = notebookKernelService.getMatchingKernel(notebook);
 
 		if (selected && controllerId && selected.id === controllerId && ExtensionIdentifier.equals(selected.extension, extensionId)) {
 			// current kernel is wanted kernel -> done
@@ -200,9 +196,9 @@ registerAction2(class extends Action2 {
 				quickPickItems.push(...suggestions.map(toQuickPick));
 			}
 
-			// Next display all of the kernels grouped by categories or extensions.
+			// Next display all of the kernels not marked as hidden grouped by categories or extensions.
 			// If we don't have a kind, always display those at the bottom.
-			const picks = all.filter(item => !suggestions.includes(item)).map(toQuickPick);
+			const picks = all.filter(item => (!suggestions.includes(item) && !hidden.includes(item))).map(toQuickPick);
 			const kernelsPerCategory = groupBy(picks, (a, b) => compareIgnoreCase(a.kernel.kind || 'z', b.kernel.kind || 'z'));
 			kernelsPerCategory.forEach(items => {
 				quickPickItems.push({
@@ -463,7 +459,8 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		this._kernelInfoElement.clear();
 
 		const { selected, suggestions, all } = this._notebookKernelService.getMatchingKernel(notebook);
-		const suggested = (suggestions.length === 1 && all.length === 1) ? suggestions[0] : undefined;
+		const suggested = (suggestions.length === 1 ? suggestions[0] : undefined)
+			?? (all.length === 1) ? all[0] : undefined;
 		let isSuggested = false;
 
 		if (all.length === 0) {
@@ -516,7 +513,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(KernelStatus, 'KernelStatus', LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(KernelStatus, LifecyclePhase.Restored);
 
 export class ActiveCellStatus extends Disposable implements IWorkbenchContribution {
 
@@ -592,4 +589,4 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ActiveCellStatus, 'ActiveCellStatus', LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ActiveCellStatus, LifecyclePhase.Restored);

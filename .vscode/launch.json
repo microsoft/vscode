@@ -29,7 +29,7 @@
 			"name": "Attach to Shared Process",
 			"timeout": 30000,
 			"port": 9222,
-			"urlFilter": "*sharedProcess.html*",
+			"urlFilter": "*sharedProcess*.html*",
 			"presentation": {
 				"hidden": true
 			}
@@ -230,13 +230,13 @@
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
 			},
 			"port": 9222,
-			"timeout": 20000,
+			"timeout": 0,
 			"env": {
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
 				"VSCODE_SKIP_PRELAUNCH": "1"
 			},
 			"cleanUp": "wholeBrowser",
-			"urlFilter": "*workbench.html*",
+			"urlFilter": "*workbench*.html*",
 			"runtimeArgs": [
 				"--inspect-brk=5875",
 				"--no-cached-data",
@@ -317,6 +317,33 @@
 			"url": "http://localhost:8080?tkn=dev-token",
 			"pauseForSourceMap": false,
 			"preLaunchTask": "Run code server",
+			"presentation": {
+				"group": "0_vscode",
+				"order": 3
+			}
+		},
+		{
+			"type": "chrome",
+			"request": "launch",
+			"outFiles": [],
+			"perScriptSourcemaps": "yes",
+			"name": "VS Code Web (Chrome)",
+			"url": "http://localhost:8080",
+			"preLaunchTask": "Run code web",
+			"presentation": {
+				"group": "0_vscode",
+				"order": 3
+			}
+		},
+		{
+			"type": "msedge",
+			"request": "launch",
+			"outFiles": [],
+			"perScriptSourcemaps": "yes",
+			"name": "VS Code Web (Edge)",
+			"url": "http://localhost:8080",
+			"pauseForSourceMap": false,
+			"preLaunchTask": "Run code web",
 			"presentation": {
 				"group": "0_vscode",
 				"order": 3

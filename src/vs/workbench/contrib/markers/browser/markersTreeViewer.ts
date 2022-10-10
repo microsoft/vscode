@@ -603,15 +603,6 @@ export class MarkerViewModel extends Disposable {
 		this.setQuickFixes(true);
 	}
 
-	showQuickfixes(): void {
-		this.setQuickFixes(false).then(() => this.quickFixAction.run());
-	}
-
-	async getQuickFixes(waitForModel: boolean): Promise<IAction[]> {
-		const codeActions = await this.getCodeActions(waitForModel);
-		return codeActions ? this.toActions(codeActions) : [];
-	}
-
 	private async setQuickFixes(waitForModel: boolean): Promise<void> {
 		const codeActions = await this.getCodeActions(waitForModel);
 		this.quickFixAction.quickFixes = codeActions ? this.toActions(codeActions) : [];

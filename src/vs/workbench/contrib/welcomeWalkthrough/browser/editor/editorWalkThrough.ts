@@ -6,12 +6,13 @@
 import 'vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough';
 import { localize } from 'vs/nls';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Action } from 'vs/base/common/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThroughInput';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IEditorSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { Action2 } from 'vs/platform/actions/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
 const typeId = 'workbench.editors.walkThroughInput';
 const inputOptions: WalkThroughInputOptions = {
@@ -25,24 +26,26 @@ const inputOptions: WalkThroughInputOptions = {
 	telemetryFrom: 'walkThrough'
 };
 
-export class EditorWalkThroughAction extends Action {
+export class EditorWalkThroughAction extends Action2 {
 
 	public static readonly ID = 'workbench.action.showInteractivePlayground';
-	public static readonly LABEL = localize('editorWalkThrough', "Interactive Editor Playground");
+	public static readonly LABEL = { value: localize('editorWalkThrough', "Interactive Editor Playground"), original: 'Interactive Editor Playground' };
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: EditorWalkThroughAction.ID,
+			title: EditorWalkThroughAction.LABEL,
+			category: Categories.Help,
+			f1: true
+		});
 	}
 
-	public override run(): Promise<void> {
-		const input = this.instantiationService.createInstance(WalkThroughInput, inputOptions);
+	public override run(serviceAccessor: ServicesAccessor): Promise<void> {
+		const editorService = serviceAccessor.get(IEditorService);
+		const instantiationService = serviceAccessor.get(IInstantiationService);
+		const input = instantiationService.createInstance(WalkThroughInput, inputOptions);
 		// TODO @lramos15 adopt the resolver here
-		return this.editorService.openEditor(input, { pinned: true })
+		return editorService.openEditor(input, { pinned: true })
 			.then(() => void (0));
 	}
 }

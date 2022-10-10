@@ -273,7 +273,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					options.frame = false;
 				}
 
-				if (useWindowControlsOverlay(this.configurationService, this.environmentMainService)) {
+				if (useWindowControlsOverlay(this.configurationService)) {
 
 					// This logic will not perfectly guess the right colors
 					// to use on initialization, but prefer to keep things
@@ -304,7 +304,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			// Update the window controls immediately based on cached values
-			if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService, this.environmentMainService)) || isMacintosh)) {
+			if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
 				const cachedWindowControlHeight = this.stateMainService.getItem<number>((CodeWindow.windowControlHeightStateStorageKey));
 				if (cachedWindowControlHeight) {
 					this.updateWindowControls({ height: cachedWindowControlHeight });
@@ -666,7 +666,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				// shutdown as much as possible by destroying the window
 				// and then calling the normal `quit` routine.
 				if (this.environmentMainService.args['enable-smoke-test-driver']) {
-					this.destroyWindow(false, false);
+					await this.destroyWindow(false, false);
 					this.lifecycleMainService.quit(); // still allow for an orderly shutdown
 					return;
 				}
@@ -703,7 +703,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					// Handle choice
 					if (result.response !== 1 /* keep waiting */) {
 						const reopen = result.response === 0;
-						this.destroyWindow(reopen, result.checkboxChecked);
+						await this.destroyWindow(reopen, result.checkboxChecked);
 					}
 				}
 
@@ -733,7 +733,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 					// Handle choice
 					const reopen = result.response === 0;
-					this.destroyWindow(reopen, result.checkboxChecked);
+					await this.destroyWindow(reopen, result.checkboxChecked);
 				}
 				break;
 		}
@@ -775,7 +775,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			// Delegate to windows service
-			const [window] = this.windowsMainService.open({
+			const [window] = await this.windowsMainService.open({
 				context: OpenContext.API,
 				userEnv: this._config.userEnv,
 				cli: {
@@ -877,7 +877,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		this._win.loadURL(FileAccess.asBrowserUri('vs/code/electron-sandbox/workbench/workbench.html', require).toString(true));
+		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-sandbox/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`, require).toString(true));
 
 		// Remember that we did load
 		const wasLoaded = this.wasLoaded;
@@ -973,6 +973,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		configuration.isInitialStartup = false; // since this is a reload
 		configuration.policiesData = this.policyService.serialize(); // set policies data again
+		configuration.continueOn = this.environmentMainService.continueOn;
 		configuration.profiles = {
 			all: this.userDataProfilesService.profiles,
 			profile: this.profile || this.userDataProfilesService.defaultProfile

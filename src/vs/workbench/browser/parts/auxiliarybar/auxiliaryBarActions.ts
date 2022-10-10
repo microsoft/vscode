@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
-import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { CATEGORIES, Extensions as WorkbenchExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { AuxiliaryBarVisibleContext } from 'vs/workbench/common/contextkeys';
 import { ViewContainerLocation, ViewContainerLocationToString } from 'vs/workbench/common/views';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 
 const auxiliaryBarRightIcon = registerIcon('auxiliarybar-right-layout-icon', Codicon.layoutSidebarRight, localize('toggleAuxiliaryIconRight', 'Icon to toggle the auxiliary bar off in its right position.'));
@@ -22,50 +21,57 @@ const auxiliaryBarRightOffIcon = registerIcon('auxiliarybar-right-off-layout-ico
 const auxiliaryBarLeftIcon = registerIcon('auxiliarybar-left-layout-icon', Codicon.layoutSidebarLeft, localize('toggleAuxiliaryIconLeft', 'Icon to toggle the auxiliary bar in its left position.'));
 const auxiliaryBarLeftOffIcon = registerIcon('auxiliarybar-left-off-layout-icon', Codicon.layoutSidebarLeftOff, localize('toggleAuxiliaryIconLeftOn', 'Icon to toggle the auxiliary bar on in its left position.'));
 
-export class ToggleAuxiliaryBarAction extends Action {
+export class ToggleAuxiliaryBarAction extends Action2 {
 
 	static readonly ID = 'workbench.action.toggleAuxiliaryBar';
 	static readonly LABEL = localize('toggleAuxiliaryBar', "Toggle Secondary Side Bar Visibility");
 
-	constructor(
-		id: string,
-		name: string,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
-	) {
-		super(id, name, layoutService.isVisible(Parts.AUXILIARYBAR_PART) ? 'auxiliaryBar expanded' : 'auxiliaryBar');
+	constructor() {
+		super({
+			id: ToggleAuxiliaryBarAction.ID,
+			title: { value: ToggleAuxiliaryBarAction.LABEL, original: 'Toggle Secondary Side Bar Visibility' },
+			category: Categories.View,
+			f1: true,
+		});
 	}
 
-	override async run(): Promise<void> {
-		this.layoutService.setPartHidden(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART), Parts.AUXILIARYBAR_PART);
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		layoutService.setPartHidden(layoutService.isVisible(Parts.AUXILIARYBAR_PART), Parts.AUXILIARYBAR_PART);
 	}
 }
 
-class FocusAuxiliaryBarAction extends Action {
+registerAction2(ToggleAuxiliaryBarAction);
+
+registerAction2(class FocusAuxiliaryBarAction extends Action2 {
 
 	static readonly ID = 'workbench.action.focusAuxiliaryBar';
 	static readonly LABEL = localize('focusAuxiliaryBar', "Focus into Secondary Side Bar");
 
-	constructor(
-		id: string,
-		label: string,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
-	) {
-		super(id, label);
+
+	constructor() {
+		super({
+			id: FocusAuxiliaryBarAction.ID,
+			title: { value: FocusAuxiliaryBarAction.LABEL, original: 'Focus into Secondary Side Bar' },
+			category: Categories.View,
+			f1: true,
+		});
 	}
 
-	override async run(): Promise<void> {
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
 
 		// Show auxiliary bar
-		if (!this.layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
-			this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		if (!layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 		}
 
 		// Focus into active composite
-		const composite = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
+		const composite = paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
 		composite?.focus();
 	}
-}
+});
 
 MenuRegistry.appendMenuItems([
 	{
@@ -132,7 +138,3 @@ MenuRegistry.appendMenuItems([
 		}
 	}
 ]);
-
-const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleAuxiliaryBarAction), 'View: Toggle Secondary Side Bar Visibility', CATEGORIES.View.value);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusAuxiliaryBarAction), 'View: Focus into Secondary Side Bar', CATEGORIES.View.value);
