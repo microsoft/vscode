@@ -750,7 +750,7 @@ export class TextAreaHandler extends ViewPart {
 				width: (canUseZeroSizeTextarea ? 0 : 1),
 				height: this._lineHeight,
 				useCover: false
-			}, true);
+			});
 			// In case the textarea contains a word, we're going to try to align the textarea's cursor
 			// with our cursor by scrolling the textarea as much as possible
 			this.textArea.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
@@ -804,6 +804,8 @@ export class TextAreaHandler extends ViewPart {
 		applyFontInfo(ta, this._fontInfo);
 		ta.setTop(renderData.top);
 		ta.setLeft(renderData.left);
+		const info = this._context.configuration.options.get(EditorOption.layoutInfo);
+		this._width = info.contentWidth - info.verticalScrollbarWidth - 2;
 		ta.setWidth(isIme ? renderData.width : this._width);
 		ta.setHeight(renderData.height);
 

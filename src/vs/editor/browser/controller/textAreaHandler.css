@@ -17,16 +17,16 @@
 	background-color: transparent;
 }
 .monaco-editor .inputarea {
-	/* position: fixed !important;
+	position: fixed !important;
 	height: 500px !important;
 	top: initial !important;
 	left: initial !important;
 	bottom: 0 !important;
 	right: 0 !important;
-	/* color: black !important; */
-	/* background: white !important; */
-	/* line-height: 15px !important; */
-	background-color: transparent;
+	color: black !important;
+		background: white !important;
+		line-height: 15px !important;
+		/* background-color: transparent; */
 }
 .monaco-editor .inputarea.ime-input {
 	z-index: 10;
