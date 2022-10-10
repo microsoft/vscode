@@ -2462,6 +2462,37 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 //#endregion
 
+//#region WrappingStrategy
+class WrappingStrategy extends BaseEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced', 'simple' | 'advanced'> {
+
+	constructor() {
+		super(EditorOption.wrappingStrategy, 'wrappingStrategy', 'simple',
+			{
+				enumDescriptions: [
+					nls.localize('wrappingStrategy.simple', "Assumes that all characters are of the same width. This is a fast algorithm that works correctly for monospace fonts and certain scripts (like Latin characters) where glyphs are of equal width."),
+					nls.localize('wrappingStrategy.advanced', "Delegates wrapping points computation to the browser. This is a slow algorithm, that might cause freezes for large files, but it works correctly in all cases.")
+				],
+				type: 'string',
+				enum: ['simple', 'advanced'],
+				default: 'simple',
+				description: nls.localize('wrappingStrategy', "Controls the algorithm that computes wrapping points. Note that when in accessibility mode, advanced will be used for the best experience.")
+			}
+		);
+	}
+
+	public validate(input: any): 'simple' | 'advanced' {
+		if (input === 'simple' || input === 'advanced') {
+			return input;
+		}
+		return 'simple';
+	}
+
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: 'simple' | 'advanced'): 'simple' | 'advanced' {
+		return options.get(EditorOption.accessibilitySupport) ? 'advanced' : 'simple';
+	}
+}
+//#endregion
+
 //#region lightbulb
 
 /**
@@ -5352,25 +5383,14 @@ export const EditorOptions = {
 			description: nls.localize('wrappingIndent', "Controls the indentation of wrapped lines."),
 		}
 	)),
-	wrappingStrategy: register(new EditorStringEnumOption(
-		EditorOption.wrappingStrategy, 'wrappingStrategy',
-		'simple' as 'simple' | 'advanced',
-		['simple', 'advanced'] as const,
-		{
-			enumDescriptions: [
-				nls.localize('wrappingStrategy.simple', "Assumes that all characters are of the same width. This is a fast algorithm that works correctly for monospace fonts and certain scripts (like Latin characters) where glyphs are of equal width."),
-				nls.localize('wrappingStrategy.advanced', "Delegates wrapping points computation to the browser. This is a slow algorithm, that might cause freezes for large files, but it works correctly in all cases.")
-			],
-			description: nls.localize('wrappingStrategy', "Controls the algorithm that computes wrapping points.")
-		}
-	)),
 
 	// Leave these at the end (because they have dependencies!)
 	editorClassName: register(new EditorClassName()),
 	pixelRatio: register(new EditorPixelRatio()),
 	tabFocusMode: register(new EditorTabFocusMode()),
 	layoutInfo: register(new EditorLayoutInfoComputer()),
-	wrappingInfo: register(new EditorWrappingInfoComputer())
+	wrappingInfo: register(new EditorWrappingInfoComputer()),
+	wrappingStrategy: register(new WrappingStrategy())
 };
 
 type EditorOptionsType = typeof EditorOptions;
