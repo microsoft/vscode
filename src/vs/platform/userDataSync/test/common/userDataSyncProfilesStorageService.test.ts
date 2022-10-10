@@ -11,6 +11,7 @@ import { InMemoryStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Stor
 import { AbstractUserDataSyncProfilesStorageService, IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
 import { InMemoryStorageService, loadKeyTargets, StorageTarget, TARGET_KEY } from 'vs/platform/storage/common/storage';
 import { IUserDataProfile, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 
 class TestStorageDatabase extends InMemoryStorageDatabase {
 
@@ -56,13 +57,13 @@ suite('ProfileStorageService', () => {
 
 	teardown(() => disposables.clear());
 
-	test('read empty storage', async () => {
+	test('read empty storage', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const actual = await testObject.readStorageData(profile);
 
 		assert.strictEqual(actual.size, 0);
-	});
+	}));
 
-	test('read storage with data', async () => {
+	test('read storage with data', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		storage.set('foo', 'bar');
 		storage.set(TARGET_KEY, JSON.stringify({ foo: StorageTarget.USER }));
 		await storage.flush();
@@ -71,9 +72,9 @@ suite('ProfileStorageService', () => {
 
 		assert.strictEqual(actual.size, 1);
 		assert.deepStrictEqual(actual.get('foo'), { 'value': 'bar', 'target': StorageTarget.USER });
-	});
+	}));
 
-	test('write in empty storage', async () => {
+	test('write in empty storage', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const data = new Map<string, string>();
 		data.set('foo', 'bar');
 		await testObject.updateStorageData(profile, data, StorageTarget.USER);
@@ -81,9 +82,9 @@ suite('ProfileStorageService', () => {
 		assert.strictEqual(storage.items.size, 2);
 		assert.deepStrictEqual(loadKeyTargets(storage), { foo: StorageTarget.USER });
 		assert.strictEqual(storage.get('foo'), 'bar');
-	});
+	}));
 
-	test('write in storage with data', async () => {
+	test('write in storage with data', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		storage.set('foo', 'bar');
 		storage.set(TARGET_KEY, JSON.stringify({ foo: StorageTarget.USER }));
 		await storage.flush();
@@ -96,9 +97,9 @@ suite('ProfileStorageService', () => {
 		assert.deepStrictEqual(loadKeyTargets(storage), { foo: StorageTarget.USER, abc: StorageTarget.MACHINE });
 		assert.strictEqual(storage.get('foo'), 'bar');
 		assert.strictEqual(storage.get('abc'), 'xyz');
-	});
+	}));
 
-	test('write in storage with data (insert, update, remove)', async () => {
+	test('write in storage with data (insert, update, remove)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		storage.set('foo', 'bar');
 		storage.set('abc', 'xyz');
 		storage.set(TARGET_KEY, JSON.stringify({ foo: StorageTarget.USER, abc: StorageTarget.MACHINE }));
@@ -114,6 +115,6 @@ suite('ProfileStorageService', () => {
 		assert.deepStrictEqual(loadKeyTargets(storage), { abc: StorageTarget.USER, var: StorageTarget.USER });
 		assert.strictEqual(storage.get('abc'), 'def');
 		assert.strictEqual(storage.get('var'), 'const');
-	});
+	}));
 
 });
