@@ -7,6 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { IModelLanguageChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
@@ -99,6 +100,8 @@ export interface ITokenizationTextModelPart {
 
 	readonly backgroundTokenizationState: BackgroundTokenizationState;
 	readonly onBackgroundTokenizationStateChanged: Event<void>;
+	readonly onDidChangeTokens: Event<IModelTokensChangedEvent>;
+	readonly onDidChangeLanguage: Event<IModelLanguageChangedEvent>;
 }
 
 export const enum BackgroundTokenizationState {

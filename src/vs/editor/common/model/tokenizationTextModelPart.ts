@@ -21,7 +21,6 @@ import { ContiguousTokensStore } from 'vs/editor/common/tokens/contiguousTokensS
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
 import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
-import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
 import { BackgroundTokenizationState, ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
@@ -43,7 +42,6 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		private readonly _languageService: ILanguageService,
 		private readonly _languageConfigurationService: ILanguageConfigurationService,
 		private readonly _textModel: TextModel,
-		private readonly bracketPairsTextModelPart: BracketPairsTextModelPart,
 		private _languageId: string,
 	) {
 		super();
@@ -126,7 +124,6 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		const newState = completed ? BackgroundTokenizationState.Completed : BackgroundTokenizationState.InProgress;
 		if (this._backgroundTokenizationState !== newState) {
 			this._backgroundTokenizationState = newState;
-			this.bracketPairsTextModelPart.handleDidChangeBackgroundTokenizationState();
 			this._onBackgroundTokenizationStateChanged.fire();
 		}
 	}
@@ -290,7 +287,6 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 
 	private _emitModelTokensChangedEvent(e: IModelTokensChangedEvent): void {
 		if (!this._textModel._isDisposing()) {
-			this.bracketPairsTextModelPart.handleDidChangeTokens(e);
 			this._onDidChangeTokens.fire(e);
 		}
 	}
@@ -499,7 +495,6 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 
 		this._languageId = languageId;
 
-		this.bracketPairsTextModelPart.handleDidChangeLanguage(e);
 		this._tokenization.handleDidChangeLanguage(e);
 		this._onDidChangeLanguage.fire(e);
 		this._onDidChangeLanguageConfiguration.fire({});

@@ -16,6 +16,7 @@ import { BracketPairsTree } from 'vs/editor/common/model/bracketPairsTextModelPa
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { BracketInfo, BracketPairInfo, BracketPairWithMinIndentationInfo, IBracketPairsTextModelPart, IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
 import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
+import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 
 export class BracketPairsTextModelPart extends Disposable implements IBracketPairsTextModelPart {
@@ -33,7 +34,8 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 
 	public constructor(
 		private readonly textModel: TextModel,
-		private readonly languageConfigurationService: ILanguageConfigurationService
+		private readonly languageConfigurationService: ILanguageConfigurationService,
+		tokenizationTextModelPart: ITokenizationTextModelPart
 	) {
 		super();
 
@@ -45,6 +47,9 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 				}
 			})
 		);
+		this._register(tokenizationTextModelPart.onBackgroundTokenizationStateChanged(() => this.handleDidChangeBackgroundTokenizationState()));
+		this._register(tokenizationTextModelPart.onDidChangeTokens(e => this.handleDidChangeTokens(e)));
+		this._register(tokenizationTextModelPart.onDidChangeLanguage(e => this.handleDidChangeLanguage(e)));
 	}
 
 	//#region TextModel events
