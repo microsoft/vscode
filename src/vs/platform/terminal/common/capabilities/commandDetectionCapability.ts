@@ -7,7 +7,8 @@ import { timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedCommand, ISerializedCommandDetectionCapability, ITerminalOutputMatcher } from 'vs/platform/terminal/common/capabilities/capabilities';
+
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
 import type { IBuffer, IBufferLine, IDisposable, IMarker, Terminal } from 'xterm-headless';
@@ -96,6 +97,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	readonly onBeforeCommandFinished = this._onBeforeCommandFinished.event;
 	private readonly _onCommandFinished = new Emitter<ITerminalCommand>();
 	readonly onCommandFinished = this._onCommandFinished.event;
+	private readonly _onCommandExecuted = new Emitter<void>();
+	readonly onCommandExecuted = this._onCommandExecuted.event;
 	private readonly _onCommandInvalidated = new Emitter<ITerminalCommand[]>();
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
 	private readonly _onCurrentCommandInvalidated = new Emitter<ICommandInvalidationRequest>();
@@ -421,6 +424,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		if (y === commandExecutedLine) {
 			this._currentCommand.command += this._terminal.buffer.active.getLine(commandExecutedLine)?.translateToString(true, undefined, this._currentCommand.commandExecutedX) || '';
 		}
+		this._onCommandExecuted.fire();
 	}
 
 	private _handleCommandExecutedWindows(): void {
@@ -430,6 +434,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._onCursorMoveListener = undefined;
 		this._evaluateCommandMarkersWindows();
 		this._currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
+		this._onCommandExecuted.fire();
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
 	}
 
@@ -485,6 +490,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
+				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
 				markProperties: options?.markProperties
 			};
 			this._commands.push(newCommand);
@@ -609,6 +615,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: e.exitCode,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
+				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
 				markProperties: e.markProperties
 			};
 			this._commands.push(newCommand);
@@ -638,4 +645,85 @@ function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMa
 		output += line.translateToString(!line.isWrapped) + (line.isWrapped ? '' : '\n');
 	}
 	return output === '' ? undefined : output;
+}
+
+export function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: ITerminalOutputMatcher): RegExpMatchArray | undefined {
+	if (!executedMarker || !endMarker) {
+		return undefined;
+	}
+	const startLine = executedMarker.line;
+	const endLine = endMarker.line;
+
+	const matcher = outputMatcher.lineMatcher;
+	const linesToCheck = typeof matcher === 'string' ? 1 : outputMatcher.length || countNewLines(matcher);
+	const lines: string[] = [];
+	if (outputMatcher.anchor === 'bottom') {
+		for (let i = endLine - (outputMatcher.offset || 0); i >= startLine; i--) {
+			let wrappedLineStart = i;
+			const wrappedLineEnd = i;
+			while (wrappedLineStart >= startLine && buffer.getLine(wrappedLineStart)?.isWrapped) {
+				wrappedLineStart--;
+			}
+			i = wrappedLineStart;
+			lines.unshift(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
+			if (lines.length > linesToCheck) {
+				lines.pop();
+			}
+			const match = lines.join('\n').match(matcher);
+			if (match) {
+				return match;
+			}
+		}
+	} else {
+		for (let i = startLine + (outputMatcher.offset || 0); i < endLine; i++) {
+			const wrappedLineStart = i;
+			let wrappedLineEnd = i;
+			while (wrappedLineEnd + 1 < endLine && buffer.getLine(wrappedLineEnd + 1)?.isWrapped) {
+				wrappedLineEnd++;
+			}
+			i = wrappedLineEnd;
+			lines.push(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
+			if (lines.length === linesToCheck) {
+				lines.shift();
+			}
+			if (outputMatcher) {
+				const match = lines.join('\n').match(matcher);
+				if (match) {
+					return match;
+				}
+			}
+		}
+	}
+	return undefined;
+}
+
+function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
+	// Cap the maximum number of lines generated to prevent potential performance problems. This is
+	// more of a sanity check as the wrapped line should already be trimmed down at this point.
+	const maxLineLength = Math.max(2048 / cols * 2);
+	lineEnd = Math.min(lineEnd, lineStart + maxLineLength);
+	let content = '';
+	for (let i = lineStart; i <= lineEnd; i++) {
+		// Make sure only 0 to cols are considered as resizing when windows mode is enabled will
+		// retain buffer data outside of the terminal width as reflow is disabled.
+		const line = buffer.getLine(i);
+		if (line) {
+			content += line.translateToString(true, 0, cols);
+		}
+	}
+	return content;
+}
+
+function countNewLines(regex: RegExp): number {
+	if (!regex.multiline) {
+		return 1;
+	}
+	const source = regex.source;
+	let count = 1;
+	let i = source.indexOf('\\n');
+	while (i !== -1) {
+		count++;
+		i = source.indexOf('\\n', i + 1);
+	}
+	return count;
 }

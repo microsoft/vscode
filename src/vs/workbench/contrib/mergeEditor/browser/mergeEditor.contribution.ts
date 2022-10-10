@@ -11,10 +11,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { AcceptAllInput1, AcceptAllInput2, CompareInput1WithBaseCommand, CompareInput2WithBaseCommand, GoToNextUnhandledConflict, GoToPreviousUnhandledConflict, OpenBaseFile, OpenMergeEditor, OpenResultResource, ResetDirtyConflictsToBaseCommand, ResetToBaseAndAutoMergeCommand, SetColumnLayout, SetMixedLayout, ShowHideBase, ToggleActiveConflictInput1, ToggleActiveConflictInput2 } from 'vs/workbench/contrib/mergeEditor/browser/commands/commands';
-import { MergeEditorCopyContentsToJSON, MergeEditorSaveContentsToFolder, MergeEditorLoadContentsFromFolder } from 'vs/workbench/contrib/mergeEditor/browser/commands/devCommands';
+import { AcceptAllInput1, AcceptAllInput2, AcceptMerge, CompareInput1WithBaseCommand, CompareInput2WithBaseCommand, GoToNextUnhandledConflict, GoToPreviousUnhandledConflict, OpenBaseFile, OpenMergeEditor, OpenResultResource, ResetToBaseAndAutoMergeCommand, SetColumnLayout, SetMixedLayout, ShowHideAtTopBase, ShowHideBase, ShowNonConflictingChanges, ToggleActiveConflictInput1, ToggleActiveConflictInput2 } from 'vs/workbench/contrib/mergeEditor/browser/commands/commands';
+import { MergeEditorCopyContentsToJSON, MergeEditorLoadContentsFromFolder, MergeEditorSaveContentsToFolder } from 'vs/workbench/contrib/mergeEditor/browser/commands/devCommands';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
-import { MergeEditor, MergeEditorResolverContribution, MergeEditorOpenHandlerContribution } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
+import { MergeEditor, MergeEditorOpenHandlerContribution, MergeEditorResolverContribution } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { MergeEditorSerializer } from './mergeEditorSerializer';
 
@@ -39,7 +39,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		'mergeEditor.diffAlgorithm': {
 			type: 'string',
 			enum: ['smart', 'experimental'],
-			default: 'smart',
+			default: 'experimental',
 			markdownEnumDescriptions: [
 				localize('diffAlgorithm.smart', "Uses the default diffing algorithm."),
 				localize('diffAlgorithm.experimental', "Uses an experimental diffing algorithm."),
@@ -52,8 +52,10 @@ registerAction2(OpenResultResource);
 registerAction2(SetMixedLayout);
 registerAction2(SetColumnLayout);
 registerAction2(ShowHideBase);
+registerAction2(ShowHideAtTopBase);
 registerAction2(OpenMergeEditor);
 registerAction2(OpenBaseFile);
+registerAction2(ShowNonConflictingChanges);
 
 registerAction2(GoToNextUnhandledConflict);
 registerAction2(GoToPreviousUnhandledConflict);
@@ -68,7 +70,8 @@ registerAction2(AcceptAllInput1);
 registerAction2(AcceptAllInput2);
 
 registerAction2(ResetToBaseAndAutoMergeCommand);
-registerAction2(ResetDirtyConflictsToBaseCommand);
+
+registerAction2(AcceptMerge);
 
 // Dev Commands
 registerAction2(MergeEditorCopyContentsToJSON);
@@ -77,8 +80,8 @@ registerAction2(MergeEditorLoadContentsFromFolder);
 
 Registry
 	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MergeEditorOpenHandlerContribution, 'MergeEditorOpenHandlerContribution', LifecyclePhase.Restored);
+	.registerWorkbenchContribution(MergeEditorOpenHandlerContribution, LifecyclePhase.Restored);
 
 Registry
 	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MergeEditorResolverContribution, 'MergeEditorResolverContribution', LifecyclePhase.Starting);
+	.registerWorkbenchContribution(MergeEditorResolverContribution, LifecyclePhase.Starting);

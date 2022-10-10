@@ -174,7 +174,14 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			await timeout(0);
 			const instance = this.activeInstance;
 			if (instance) {
-				await instance.focusWhenReady(true);
+				// HACK: Ensure the panel is still visible at this point as there may have been
+				// a request since it was opened to show a different panel
+				if (pane && !pane.isVisible()) {
+					await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
+				}
+				// Do not await the focus as setVisible must be called immediately to ensure
+				// something else didn't steal focus
+				instance.focusWhenReady(true);
 				// HACK: as a workaround for https://github.com/microsoft/vscode/issues/134692,
 				// this will trigger a forced refresh of the viewport to sync the viewport and scroll bar.
 				// This can likely be removed after https://github.com/xtermjs/xterm.js/issues/291 is

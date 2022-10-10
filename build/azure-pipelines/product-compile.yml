@@ -126,10 +126,17 @@ steps:
 
   - script: |
       set -e
-      yarn npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check
+      yarn npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Compile & Hygiene
+
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        yarn --cwd build compile
+        ./.github/workflows/check-clean-git-state.sh
+      displayName: Check /build/ folder
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |

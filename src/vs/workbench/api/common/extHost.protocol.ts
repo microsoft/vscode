@@ -2195,18 +2195,20 @@ export interface ExtHostTestingShape {
 	$configureRunProfile(controllerId: string, configId: number): void;
 	/** Asks the controller to refresh its tests */
 	$refreshTests(controllerId: string, token: CancellationToken): Promise<void>;
+	/** Ensures any pending test diffs are flushed */
+	$syncTests(): Promise<void>;
 }
 
 export interface ExtHostLocalizationShape {
 	getMessage(extensionId: string, details: IStringDetails): string;
-	getBundle(extensionId: string): { [key: string]: string };
+	getBundle(extensionId: string): { [key: string]: string } | undefined;
 	getBundleUri(extensionId: string): URI | undefined;
 	initializeLocalizedMessages(extension: IExtensionDescription): Promise<void>;
 }
 
 export interface IStringDetails {
 	message: string;
-	args?: string[];
+	args?: Record<string | number, any>;
 	comment?: string[];
 }
 

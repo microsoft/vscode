@@ -5,10 +5,12 @@
 
 import * as fs from 'fs';
 import * as vscode from 'vscode';
+import VsCodeTelemetryReporter from '@vscode/extension-telemetry';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
 import { registerBaseCommands } from './commands/index';
 import { ExperimentationService } from './experimentationService';
+import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
@@ -20,6 +22,7 @@ import { ElectronServiceConfigurationProvider } from './utils/configuration.elec
 import { onCaseInsensitiveFileSystem } from './utils/fileSystem.electron';
 import { PluginManager } from './utils/plugins';
 import * as temp from './utils/temp.electron';
+import { getPackageInfo } from './utils/packageInfo';
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -42,6 +45,19 @@ export function activate(
 	const jsWalkthroughState = new JsWalkthroughState();
 	context.subscriptions.push(jsWalkthroughState);
 
+	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
+	const packageInfo = getPackageInfo(context);
+	if (packageInfo) {
+		const { name: id, version, aiKey } = packageInfo;
+		const vscTelemetryReporter = new VsCodeTelemetryReporter(id, version, aiKey);
+		experimentTelemetryReporter = new ExperimentationTelemetryReporter(vscTelemetryReporter);
+		context.subscriptions.push(experimentTelemetryReporter);
+
+		// Currently we have no experiments, but creating the service adds the appropriate
+		// shared properties to the ExperimentationTelemetryReporter we just created.
+		new ExperimentationService(experimentTelemetryReporter, id, version, context.globalState);
+	}
+
 	const lazyClientHost = createLazyClientHost(context, onCaseInsensitiveFileSystem(), {
 		pluginManager,
 		commandManager,
@@ -51,15 +67,13 @@ export function activate(
 		processFactory: new ElectronServiceProcessFactory(),
 		activeJsTsEditorTracker,
 		serviceConfigurationProvider: new ElectronServiceConfigurationProvider(),
+		experimentTelemetryReporter,
 	}, item => {
 		onCompletionAccepted.fire(item);
 	});
 
 	registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker);
 	registerJsNodeWalkthrough(commandManager, jsWalkthroughState);
-
-	// Currently no variables in use.
-	context.subscriptions.push(new ExperimentationService(context));
 
 	import('./task/taskProvider').then(module => {
 		context.subscriptions.push(module.register(lazyClientHost.map(x => x.serviceClient)));

@@ -593,13 +593,33 @@ stages:
             steps:
               - template: product-publish.yml
 
+      - ${{ if and(parameters.VSCODE_RELEASE, eq(parameters.VSCODE_DISTRO_REF, ' ')) }}:
+          - stage: ApproveRelease
+            dependsOn: [] # run in parallel to compile stage
+            pool: vscode-1es-linux
+            jobs:
+              - deployment: ApproveRelease
+                displayName: "Approve Release"
+                environment: "vscode"
+                variables:
+                  skipComponentGovernanceDetection: true
+                strategy:
+                  runOnce:
+                    deploy:
+                      steps:
+                        - checkout: none
+
       - ${{ if or(and(parameters.VSCODE_RELEASE, eq(parameters.VSCODE_DISTRO_REF, ' ')), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
           - stage: Release
             dependsOn:
               - Publish
+              - ${{ if and(parameters.VSCODE_RELEASE, eq(parameters.VSCODE_DISTRO_REF, ' ')) }}:
+                  - ApproveRelease
             pool: vscode-1es-linux
             jobs:
               - job: ReleaseBuild
                 displayName: Release Build
                 steps:
                   - template: product-release.yml
+                    parameters:
+                      VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}

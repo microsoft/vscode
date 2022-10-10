@@ -89,11 +89,11 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 			for (const child of queue.pop()!) {
 				const item = this.items.get(child)!;
 				ops.push({
-					op: TestDiffOpType.Add, item: {
+					op: TestDiffOpType.Add,
+					item: {
 						controllerId: item.controllerId,
 						expand: item.expand,
 						item: item.item,
-						parent: item.parent,
 					}
 				});
 				queue.push(item.children);

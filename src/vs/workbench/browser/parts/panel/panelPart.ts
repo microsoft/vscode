@@ -45,7 +45,8 @@ import { IPartOptions } from 'vs/workbench/browser/part';
 import { StringSHA1 } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
 import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
-import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 interface ICachedPanel {
 	id: string;
@@ -110,7 +111,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	private compositeBar: CompositeBar;
 	private readonly compositeActions = new Map<string, { activityAction: PanelActivityAction; pinnedAction: ToggleCompositePinnedAction }>();
 
-	private globalToolBar: WorkbenchToolBar | undefined;
+	private globalToolBar: ToolBar | undefined;
 	private globalActions: CompositeMenuActions;
 
 	private readonly panelDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
@@ -549,13 +550,12 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		const globalTitleActionsContainer = element.appendChild($('.global-actions'));
 
 		// Global Actions Toolbar
-		this.globalToolBar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, globalTitleActionsContainer, {
+		this.globalToolBar = this._register(new ToolBar(globalTitleActionsContainer, this.contextMenuService, {
 			actionViewItemProvider: action => this.actionViewItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
-			toggleMenuTitle: localize('moreActions', "More Actions..."),
-			resetMenu: this.globalActions.menuId
+			toggleMenuTitle: localize('moreActions', "More Actions...")
 		}));
 
 		this.updateGlobalToolbarActions();
@@ -928,6 +928,7 @@ export class PanelPart extends BasePanelPart {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
+		@ICommandService private commandService: ICommandService,
 	) {
 		super(
 			notificationService,
@@ -985,7 +986,7 @@ export class PanelPart extends BasePanelPart {
 				// show the contextual menu item if it is not in that position
 				.filter(({ when }) => this.contextKeyService.contextMatchesRules(when))
 				.map(({ id, title }) => this.instantiationService.createInstance(SetPanelPositionAction, id, title.value)),
-			this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
+			toAction({ id: TogglePanelAction.ID, label: localize('hidePanel', "Hide Panel"), run: () => this.commandService.executeCommand(TogglePanelAction.ID) })
 		]);
 	}
 

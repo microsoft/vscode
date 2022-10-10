@@ -419,7 +419,8 @@ class NewExtensionsInitializer implements IUserDataInitializer {
 	}
 
 	private async areExtensionsRunning(extensions: ILocalExtension[]): Promise<boolean> {
-		const runningExtensions = await this.extensionService.getExtensions();
+		await this.extensionService.whenInstalledExtensionsRegistered();
+		const runningExtensions = this.extensionService.extensions;
 		return extensions.every(e => runningExtensions.some(r => areSameExtensions({ id: r.identifier.value }, e.identifier)));
 	}
 }
@@ -444,5 +445,5 @@ class InitializeOtherResourcesContribution implements IWorkbenchContribution {
 
 if (isWeb) {
 	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-	workbenchRegistry.registerWorkbenchContribution(InitializeOtherResourcesContribution, 'InitializeOtherResourcesContribution', LifecyclePhase.Restored);
+	workbenchRegistry.registerWorkbenchContribution(InitializeOtherResourcesContribution, LifecyclePhase.Restored);
 }

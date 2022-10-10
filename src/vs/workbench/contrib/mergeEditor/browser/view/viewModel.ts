@@ -27,6 +27,7 @@ export class MergeEditorViewModel extends Disposable {
 		public readonly inputCodeEditorView2: InputCodeEditorView,
 		public readonly resultCodeEditorView: ResultCodeEditorView,
 		public readonly baseCodeEditorView: IObservable<BaseCodeEditorView | undefined>,
+		public readonly showNonConflictingChanges: IObservable<boolean>,
 	) {
 		super();
 
@@ -122,6 +123,10 @@ export class MergeEditorViewModel extends Disposable {
 			});
 		}
 	);
+
+	public setActiveModifiedBaseRange(range: ModifiedBaseRange | undefined, tx: ITransaction): void {
+		this.manuallySetActiveModifiedBaseRange.set({ range, counter: this.counter++ }, tx);
+	}
 
 	public setState(
 		baseRange: ModifiedBaseRange,

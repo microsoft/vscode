@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -36,6 +36,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Schemas } from 'vs/base/common/network';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { coalesce } from 'vs/base/common/arrays';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -258,7 +259,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 				// Support mergeMode
 				if (options?.mergeMode && fileOpenables.length === 4) {
-					const editors = await pathsToEditors(fileOpenables, this.fileService);
+					const editors = coalesce(await pathsToEditors(fileOpenables, this.fileService));
 					if (editors.length !== 4 || !isResourceEditorInput(editors[0]) || !isResourceEditorInput(editors[1]) || !isResourceEditorInput(editors[2]) || !isResourceEditorInput(editors[3])) {
 						return; // invalid resources
 					}
@@ -288,7 +289,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 				// Support diffMode
 				if (options?.diffMode && fileOpenables.length === 2) {
-					const editors = await pathsToEditors(fileOpenables, this.fileService);
+					const editors = coalesce(await pathsToEditors(fileOpenables, this.fileService));
 					if (editors.length !== 2 || !isResourceEditorInput(editors[0]) || !isResourceEditorInput(editors[1])) {
 						return; // invalid resources
 					}
@@ -333,7 +334,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 								openables = [openable];
 							}
 
-							editorService.openEditors(await pathsToEditors(openables, this.fileService), undefined, { validateTrust: true });
+							editorService.openEditors(coalesce(await pathsToEditors(openables, this.fileService)), undefined, { validateTrust: true });
 						}
 
 						// New Window: open into empty window
@@ -530,4 +531,4 @@ export class BrowserHostService extends Disposable implements IHostService {
 	//#endregion
 }
 
-registerSingleton(IHostService, BrowserHostService, true);
+registerSingleton(IHostService, BrowserHostService, InstantiationType.Delayed);

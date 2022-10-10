@@ -5,24 +5,23 @@
 
 import 'vs/css!./media/welcomeOverlay';
 import * as dom from 'vs/base/browser/dom';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShowAllCommandsAction } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { localize } from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
-import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { textPreformatForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
 import { Codicon } from 'vs/base/common/codicons';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const $ = dom.$;
 
@@ -109,38 +108,49 @@ const OVERLAY_VISIBLE = new RawContextKey<boolean>('interfaceOverviewVisible', f
 
 let welcomeOverlay: WelcomeOverlay;
 
-export class WelcomeOverlayAction extends Action {
+export class WelcomeOverlayAction extends Action2 {
 
 	public static readonly ID = 'workbench.action.showInterfaceOverview';
-	public static readonly LABEL = localize('welcomeOverlay', "User Interface Overview");
+	public static readonly LABEL = { value: localize('welcomeOverlay', "User Interface Overview"), original: 'User Interface Overview' };
 
 	constructor(
-		id: string,
-		label: string,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
-		super(id, label);
+		super({
+			id: WelcomeOverlayAction.ID,
+			title: WelcomeOverlayAction.LABEL,
+			category: Categories.Help,
+			f1: true
+		});
 	}
 
-	public override run(): Promise<void> {
+	public override run(accessor: ServicesAccessor): Promise<void> {
+		const instantiationService = accessor.get(IInstantiationService);
 		if (!welcomeOverlay) {
-			welcomeOverlay = this.instantiationService.createInstance(WelcomeOverlay);
+			welcomeOverlay = instantiationService.createInstance(WelcomeOverlay);
 		}
 		welcomeOverlay.show();
 		return Promise.resolve();
 	}
 }
 
-export class HideWelcomeOverlayAction extends Action {
+export class HideWelcomeOverlayAction extends Action2 {
 
 	public static readonly ID = 'workbench.action.hideInterfaceOverview';
-	public static readonly LABEL = localize('hideWelcomeOverlay', "Hide Interface Overview");
+	public static readonly LABEL = { value: localize('hideWelcomeOverlay', "Hide Interface Overview"), original: 'Hide Interface Overview' };
 
-	constructor(
-		id: string,
-		label: string
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: HideWelcomeOverlayAction.ID,
+			title: HideWelcomeOverlayAction.LABEL,
+			category: Categories.Help,
+			f1: true,
+			keybinding: {
+				primary: KeyCode.Escape,
+				when: OVERLAY_VISIBLE,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			precondition: OVERLAY_VISIBLE
+		});
 	}
 
 	public override run(): Promise<void> {
@@ -256,11 +266,8 @@ class WelcomeOverlay extends Disposable {
 	}
 }
 
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(SyncActionDescriptor.from(WelcomeOverlayAction), 'Help: User Interface Overview', CATEGORIES.Help.value);
-
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(SyncActionDescriptor.from(HideWelcomeOverlayAction, { primary: KeyCode.Escape }, OVERLAY_VISIBLE), 'Help: Hide Interface Overview', CATEGORIES.Help.value);
+registerAction2(WelcomeOverlayAction);
+registerAction2(HideWelcomeOverlayAction);
 
 // theming
 

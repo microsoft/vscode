@@ -18,6 +18,7 @@ import { TestDiffOpType, TestItemExpandState, TestMessageType, TestsDiff } from 
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import type { TestItem, TestRunRequest } from 'vscode';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import * as editorRange from 'vs/editor/common/core/range';
 
 const simplify = (item: TestItem) => ({
 	id: item.id,
@@ -101,19 +102,19 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				{
 					op: TestDiffOpType.Add,
-					item: { controllerId: 'ctrlId', parent: null, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(single.root) } }
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(single.root) } }
 				},
 				{
 					op: TestDiffOpType.Add,
-					item: { controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(a) } }
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(a) } }
 				},
 				{
 					op: TestDiffOpType.Add,
-					item: { controllerId: 'ctrlId', parent: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(a.children.get('id-aa') as TestItemImpl) }
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(a.children.get('id-aa') as TestItemImpl) }
 				},
 				{
 					op: TestDiffOpType.Add,
-					item: { controllerId: 'ctrlId', parent: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(a.children.get('id-ab') as TestItemImpl) }
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(a.children.get('id-ab') as TestItemImpl) }
 				},
 				{
 					op: TestDiffOpType.Update,
@@ -121,7 +122,7 @@ suite('ExtHost Testing', () => {
 				},
 				{
 					op: TestDiffOpType.Add,
-					item: { controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(b) }
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(b) }
 				},
 				{
 					op: TestDiffOpType.Update,
@@ -140,6 +141,19 @@ suite('ExtHost Testing', () => {
 			assert.strictEqual(ab.parent, a);
 		});
 
+		test('can add an item with same ID as root', () => {
+			single.collectDiff();
+
+			const child = new TestItemImpl('ctrlId', 'ctrlId', 'c', undefined);
+			single.root.children.add(child);
+			assert.deepStrictEqual(single.collectDiff(), [
+				{
+					op: TestDiffOpType.Add,
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(child) },
+				}
+			]);
+		});
+
 		test('no-ops if items not changed', () => {
 			single.collectDiff();
 			assert.deepStrictEqual(single.collectDiff(), []);
@@ -153,7 +167,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				{
 					op: TestDiffOpType.Update,
-					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), docv: undefined, item: { description: 'Hello world' } },
+					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), item: { description: 'Hello world' } },
 				}
 			]);
 		});
@@ -183,7 +197,6 @@ suite('ExtHost Testing', () => {
 				{
 					op: TestDiffOpType.Add, item: {
 						controllerId: 'ctrlId',
-						parent: new TestId(['ctrlId', 'id-a']).toString(),
 						expand: TestItemExpandState.NotExpandable,
 						item: convert.TestItem.from(child),
 					}
@@ -212,7 +225,6 @@ suite('ExtHost Testing', () => {
 				{
 					op: TestDiffOpType.Add, item: {
 						controllerId: 'ctrlId',
-						parent: new TestId(['ctrlId', 'id-a']).toString(),
 						expand: TestItemExpandState.NotExpandable,
 						item: convert.TestItem.from(child),
 					}
@@ -254,7 +266,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				{
 					op: TestDiffOpType.Update,
-					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.Expanded, docv: undefined, item: { label: 'Hello world' } },
+					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.Expanded, item: { label: 'Hello world' } },
 				},
 			]);
 
@@ -262,7 +274,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				{
 					op: TestDiffOpType.Update,
-					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), docv: undefined, item: { label: 'still connected' } }
+					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), item: { label: 'still connected' } }
 				},
 			]);
 
@@ -289,7 +301,7 @@ suite('ExtHost Testing', () => {
 				},
 				{
 					op: TestDiffOpType.Update,
-					item: { extId: TestId.fromExtHostTestItem(oldAB, 'ctrlId').toString(), docv: undefined, item: { label: 'Hello world' } },
+					item: { extId: TestId.fromExtHostTestItem(oldAB, 'ctrlId').toString(), item: { label: 'Hello world' } },
 				},
 			]);
 
@@ -299,11 +311,11 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				{
 					op: TestDiffOpType.Update,
-					item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), docv: undefined, item: { label: 'still connected1' } }
+					item: { extId: new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), item: { label: 'still connected1' } }
 				},
 				{
 					op: TestDiffOpType.Update,
-					item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), docv: undefined, item: { label: 'still connected2' } }
+					item: { extId: new TestId(['ctrlId', 'id-a', 'id-ab']).toString(), item: { label: 'still connected2' } }
 				},
 			]);
 
@@ -325,7 +337,7 @@ suite('ExtHost Testing', () => {
 				},
 				{
 					op: TestDiffOpType.Add,
-					item: { controllerId: 'ctrlId', parent: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(b) }
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(b) }
 				},
 			]);
 
@@ -333,12 +345,64 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				{
 					op: TestDiffOpType.Update,
-					item: { extId: new TestId(['ctrlId', 'id-a', 'id-b']).toString(), docv: undefined, item: { label: 'still connected' } }
+					item: { extId: new TestId(['ctrlId', 'id-a', 'id-b']).toString(), item: { label: 'still connected' } }
 				},
 			]);
 
 			assert.deepStrictEqual([...single.root.children].map(([_, item]) => item), [single.root.children.get('id-a')]);
 			assert.deepStrictEqual(b.parent, a);
+		});
+
+		test('sends document sync events', async () => {
+			await single.expand(single.root.id, 0);
+			single.collectDiff();
+
+			const a = single.root.children.get('id-a') as TestItemImpl;
+			a.range = new Range(new Position(0, 0), new Position(1, 0));
+
+			assert.deepStrictEqual(single.collectDiff(), [
+				{
+					op: TestDiffOpType.DocumentSynced,
+					docv: undefined,
+					uri: URI.file('/')
+				},
+				{
+					op: TestDiffOpType.Update,
+					item: {
+						extId: new TestId(['ctrlId', 'id-a']).toString(),
+						item: {
+							range: editorRange.Range.lift({
+								endColumn: 1,
+								endLineNumber: 2,
+								startColumn: 1,
+								startLineNumber: 1
+							})
+						}
+					},
+				},
+			]);
+
+			// sends on replace even if it's a no-op
+			a.range = a.range;
+			assert.deepStrictEqual(single.collectDiff(), [
+				{
+					op: TestDiffOpType.DocumentSynced,
+					docv: undefined,
+					uri: URI.file('/')
+				},
+			]);
+
+			// sends on a child replacement
+			const a2 = new TestItemImpl('ctrlId', 'id-a', 'a', URI.file('/'));
+			a2.range = a.range;
+			single.root.children.replace([a2, single.root.children.get('id-b')!]);
+			assert.deepStrictEqual(single.collectDiff(), [
+				{
+					op: TestDiffOpType.DocumentSynced,
+					docv: undefined,
+					uri: URI.file('/')
+				},
+			]);
 		});
 	});
 

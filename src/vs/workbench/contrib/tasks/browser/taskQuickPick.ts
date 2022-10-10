@@ -273,7 +273,6 @@ export class TaskQuickPick extends Disposable {
 			firstLevelTask = await this._doPickerFirstLevel(picker, taskQuickPickEntries);
 		}
 		do {
-
 			if (Types.isString(firstLevelTask)) {
 				if (name) {
 					await this._doPickerFirstLevel(picker, (await this.getTopLevelEntries(defaultEntry)).entries);
