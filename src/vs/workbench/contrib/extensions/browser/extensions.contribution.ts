@@ -586,7 +586,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER))
 			}, {
 				id: MenuId.ViewContainerTitle,
-				when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), CONTEXT_HAS_GALLERY),
 				group: '1_updates',
 				order: 1
 			}],
@@ -605,7 +605,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
 			submenu: autoUpdateExtensionsSubMenu,
 			title: localize('configure auto updating extensions', "Auto Update Extensions"),
-			when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
+			when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), CONTEXT_HAS_GALLERY),
 			group: '1_updates',
 			order: 5,
 		});
@@ -681,6 +681,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			title: { value: localize('disableAutoUpdate', "Disable Auto Update for all extensions"), original: 'Disable Auto Update for all extensions' },
 			category: ExtensionsLocalizedLabel,
 			f1: true,
+			precondition: CONTEXT_HAS_GALLERY,
 			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, false)
 		});
 
@@ -689,6 +690,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			title: { value: localize('enableAutoUpdate', "Enable Auto Update for all extensions"), original: 'Enable Auto Update for all extensions' },
 			category: ExtensionsLocalizedLabel,
 			f1: true,
+			precondition: CONTEXT_HAS_GALLERY,
 			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, true)
 		});
 
@@ -991,11 +993,13 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			id: 'workbench.extensions.action.extensionUpdates',
 			title: { value: localize('extensionUpdates', "Show Extension Updates"), original: 'Show Extension Updates' },
 			category: ExtensionsLocalizedLabel,
+			precondition: CONTEXT_HAS_GALLERY,
 			menu: [{
 				id: MenuId.CommandPalette,
 			}, {
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
+				when: CONTEXT_HAS_GALLERY,
 				order: 1,
 			}],
 			menuTitles: {

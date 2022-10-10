@@ -34,6 +34,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { showLoadedScriptMenu } from 'vs/workbench/contrib/debug/common/loadedScriptsPicker';
 import { showDebugSessionMenu } from 'vs/workbench/contrib/debug/browser/debugSessionPicker';
 import { TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -72,7 +73,7 @@ export const CALLSTACK_BOTTOM_ID = 'workbench.action.debug.callStackBottom';
 export const CALLSTACK_UP_ID = 'workbench.action.debug.callStackUp';
 export const CALLSTACK_DOWN_ID = 'workbench.action.debug.callStackDown';
 
-export const DEBUG_COMMAND_CATEGORY = 'Debug';
+export const DEBUG_COMMAND_CATEGORY: ILocalizedString = { original: 'Debug', value: nls.localize('debug', 'Debug') };
 export const RESTART_LABEL = { value: nls.localize('restartDebug', "Restart"), original: 'Restart' };
 export const STEP_OVER_LABEL = { value: nls.localize('stepOverDebug', "Step Over"), original: 'Step Over' };
 export const STEP_INTO_LABEL = { value: nls.localize('stepIntoDebug', "Step Into"), original: 'Step Into' };
@@ -407,7 +408,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	command: {
 		id: JUMP_TO_CURSOR_ID,
 		title: nls.localize('jumpToCursor', "Jump to Cursor"),
-		category: { value: nls.localize('debug', "Debug"), original: 'Debug' }
+		category: DEBUG_COMMAND_CATEGORY
 	},
 	when: ContextKeyExpr.and(CONTEXT_JUMP_TO_CURSOR_SUPPORTED, EditorContextKeys.editorTextFocus),
 	group: 'debug',
@@ -920,7 +921,7 @@ registerAction2(class AddConfigurationAction extends Action2 {
 	constructor() {
 		super({
 			id: ADD_CONFIGURATION_ID,
-			title: nls.localize('addConfiguration', "Add Configuration..."),
+			title: { value: nls.localize('addConfiguration', "Add Configuration..."), original: 'Add Configuration...' },
 			category: DEBUG_COMMAND_CATEGORY,
 			f1: true,
 			menu: {
@@ -978,7 +979,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	command: {
 		id: TOGGLE_INLINE_BREAKPOINT_ID,
 		title: nls.localize('addInlineBreakpoint', "Add Inline Breakpoint"),
-		category: { value: nls.localize('debug', "Debug"), original: 'Debug' }
+		category: DEBUG_COMMAND_CATEGORY
 	},
 	when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), EditorContextKeys.editorTextFocus),
 	group: 'debug',

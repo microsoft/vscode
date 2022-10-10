@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -83,9 +83,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 
 	private readonly _webviewInputs = new WebviewInputStore();
 
-	private readonly _editorProviders = new Map<string, IDisposable>();
-
-	private readonly _revivers = new Map<string, IDisposable>();
+	private readonly _revivers = this._register(new DisposableMap<string>());
 
 	constructor(
 		context: IExtHostContext,
@@ -125,16 +123,6 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 			},
 			resolveWebview: () => { throw new Error('not implemented'); }
 		}));
-	}
-
-	override dispose() {
-		super.dispose();
-
-		dispose(this._editorProviders.values());
-		this._editorProviders.clear();
-
-		dispose(this._revivers.values());
-		this._revivers.clear();
 	}
 
 	public get webviewInputs(): Iterable<WebviewInput> { return this._webviewInputs; }
@@ -295,13 +283,11 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	}
 
 	public $unregisterSerializer(viewType: string): void {
-		const reviver = this._revivers.get(viewType);
-		if (!reviver) {
+		if (!this._revivers.has(viewType)) {
 			throw new Error(`No reviver for ${viewType} registered`);
 		}
 
-		reviver.dispose();
-		this._revivers.delete(viewType);
+		this._revivers.deleteAndDispose(viewType);
 	}
 
 	private updateWebviewViewStates(activeEditorInput: EditorInput | undefined) {

@@ -121,6 +121,14 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 	get target(): TerminalLocation | undefined { return this._target; }
 
+	get textureAtlas(): Promise<ImageBitmap> | undefined {
+		const canvas = this._webglAddon?.textureAtlas || this._canvasAddon?.textureAtlas;
+		if (!canvas) {
+			return undefined;
+		}
+		return createImageBitmap(canvas);
+	}
+
 	/**
 	 * @param xtermCtor The xterm.js constructor, this is passed in so it can be fetched lazily
 	 * outside of this class such that {@link raw} is not nullable.
@@ -239,12 +247,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		if (!this._container) {
 			this.raw.open(container);
 		}
-		this._container = container;
+		// TODO: Move before open to the DOM renderer doesn't initialize
 		if (this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
 		} else if (this._shouldLoadCanvas()) {
 			this._enableCanvasRenderer();
 		}
+		this._container = container;
 		// Screen must be created at this point as xterm.open is called
 		return this._container.querySelector('.xterm-screen')!;
 	}
@@ -289,7 +298,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 
 	forceRedraw() {
-		this._webglAddon?.clearTextureAtlas();
 		this.raw.clearTextureAtlas();
 	}
 

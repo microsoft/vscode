@@ -176,6 +176,17 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/**
 	 * @inheritdoc
 	 */
+	$syncTests(): Promise<void> {
+		for (const { collection } of this.controllers.values()) {
+			collection.flushDiff();
+		}
+
+		return Promise.resolve();
+	}
+
+	/**
+	 * @inheritdoc
+	 */
 	$provideFileCoverage(runId: string, taskId: string, token: CancellationToken): Promise<IFileCoverage[]> {
 		const coverage = mapFind(this.runTracker.trackers, t => t.id === runId ? t.getCoverage(taskId) : undefined);
 		return coverage?.provideFileCoverage(token) ?? Promise.resolve([]);

@@ -677,6 +677,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 
 		if (!targetInstance) {
 			this._terminalGroupService.moveGroupToEnd(sourceInstances[0]);
+			this._terminalService.setActiveInstance(sourceInstances[0]);
 			return;
 		}
 
