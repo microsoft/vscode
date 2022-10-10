@@ -140,7 +140,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 				registeredChannels.set(channel.id, registerAction2(class extends Action2 {
 					constructor() {
 						super({
-							id: channel.id,
+							id: `workbench.action.output.show.${channel.id}`,
 							title,
 							toggled: ACTIVE_OUTPUT_CHANNEL_CONTEXT.isEqualTo(channel.id),
 							menu: {
@@ -150,7 +150,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						});
 					}
 					async run(accessor: ServicesAccessor): Promise<void> {
-						return accessor.get(IOutputService).showChannel(this.desc.id, true);
+						return accessor.get(IOutputService).showChannel(channel.id, true);
 					}
 				}));
 			}
