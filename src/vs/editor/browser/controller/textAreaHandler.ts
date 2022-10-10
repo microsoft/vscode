@@ -165,7 +165,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea = createFastDomNode(document.createElement('textarea'));
 		PartFingerprints.write(this.textArea, PartFingerprint.TextArea);
 		this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-		// this.textArea.setAttribute('wrap', 'off');
+		this.textArea.setAttribute('wrap', options.get(EditorOption.wordWrap));
 		this.textArea.setAttribute('autocorrect', 'off');
 		this.textArea.setAttribute('autocapitalize', 'off');
 		this.textArea.setAttribute('autocomplete', 'off');
@@ -178,10 +178,9 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('aria-haspopup', 'false');
 		this.textArea.setAttribute('aria-autocomplete', 'both');
 
-		// if (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly)) {
-		// 	this.textArea.setAttribute('readonly', 'true');
-		// }
-		// console.log($('.editor-instance').clientWidth);
+		if (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly)) {
+			this.textArea.setAttribute('readonly', 'true');
+		}
 		this.textArea.setWidth(this._width);
 		this.textAreaCover = createFastDomNode(document.createElement('div'));
 		this.textAreaCover.setPosition('absolute');
