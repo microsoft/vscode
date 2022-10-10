@@ -113,7 +113,6 @@ export class View extends ViewEventHandler {
 		// Keyboard handler
 		this._textAreaHandler = new TextAreaHandler(this._context, viewController, this._createTextAreaHandlerHelper());
 		this._viewParts.push(this._textAreaHandler);
-		// this.onDidRender(r => this._textAreaHandler.render(this._context));
 
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
 		this._linesContent = createFastDomNode(document.createElement('div'));
