@@ -699,7 +699,7 @@ var requirejs = (function() {
 							}
 							case 'github-issues.authNow':
 							case 'workbench.extensions.search':
-							case 'workbench.extensions.openSettings': {
+							case 'workbench.action.openSettings': {
 								this.openerService.open(data.href, { fromUserGesture: true, allowCommands: true, fromWorkspace: true });
 								return;
 							}
