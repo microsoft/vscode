@@ -6,6 +6,7 @@
 **/extensions/css-language-features/server/test/pathCompletionFixtures/**
 **/extensions/html-language-features/server/lib/jquery.d.ts
 **/extensions/html-language-features/server/src/test/pathCompletionFixtures/**
+**/extensions/ipynb/notebook-out/**
 **/extensions/markdown-language-features/media/**
 **/extensions/markdown-language-features/notebook-out/**
 **/extensions/markdown-math/notebook-out/**
@@ -27,4 +28,5 @@
 **/src/vs/base/test/common/filters.perf.data.js
 **/src/vs/loader.js
 **/test/unit/assert.js
+**/test/automation/out/**
 **/typings/**

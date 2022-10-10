@@ -124,7 +124,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	]
 );
 
-const category = localize('getStarted', "Get Started");
+const category = { value: localize('getStarted', "Get Started"), original: 'Get Started' };
 
 registerAction2(class extends Action2 {
 	constructor() {

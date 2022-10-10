@@ -950,12 +950,12 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this._onDidStopFind.fire();
 	}
 
-	public showFind() {
-		this._webviewFindWidget?.reveal();
+	public showFind(animated = true) {
+		this._webviewFindWidget?.reveal(undefined, animated);
 	}
 
-	public hideFind() {
-		this._webviewFindWidget?.hide();
+	public hideFind(animated = true) {
+		this._webviewFindWidget?.hide(animated);
 	}
 
 	public runFindAction(previous: boolean) {
