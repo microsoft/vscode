@@ -231,10 +231,7 @@
 }
 
 .merge-editor-conflict-actions {
-	margin: -4px 3px;
-}
-
-.merge-editor-conflict-actions {
+	margin: 0px 3px;
 	overflow: hidden;
 	display: inline-block;
 	text-overflow: ellipsis;
@@ -247,7 +244,6 @@
 	user-select: none;
 	-webkit-user-select: none;
 	white-space: nowrap;
-	vertical-align: sub;
 }
 
 .merge-editor-conflict-actions>a {
@@ -271,4 +267,8 @@
 
 .merge-editor-conflict-actions>a:hover .codicon::before {
 	cursor: pointer;
+}
+
+.fixed-zone-widget {
+	width: 100%;
 }
