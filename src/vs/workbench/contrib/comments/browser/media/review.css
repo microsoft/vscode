@@ -326,6 +326,9 @@
 	font-size: 13px;
 	margin-left: 20px;
 	cursor: default;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .review-widget .head .review-title .dirname:not(:empty) {
