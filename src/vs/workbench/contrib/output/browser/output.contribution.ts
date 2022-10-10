@@ -240,9 +240,6 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
 						group: 'navigation',
 						order: 4
-					}, {
-						id: MenuId.CommandPalette,
-						when: CONTEXT_ACTIVE_LOG_OUTPUT,
 					}],
 					icon: Codicon.goToFile,
 					precondition: CONTEXT_ACTIVE_LOG_OUTPUT
