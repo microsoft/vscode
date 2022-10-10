@@ -452,9 +452,14 @@ export class DisposableMap<K, V extends IDisposable = IDisposable> implements ID
 	private readonly _store = new Map<K, V>();
 	private _isDisposed = false;
 
+	constructor() {
+		trackDisposable(this);
+	}
+
 	dispose() {
-		this.clearAndDisposeAll();
+		markAsDisposed(this);
 		this._isDisposed = true;
+		this.clearAndDisposeAll();
 	}
 
 	clearAndDisposeAll() {
