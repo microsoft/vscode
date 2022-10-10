@@ -110,10 +110,10 @@ export class View extends ViewEventHandler {
 		this._context.addEventHandler(this);
 
 		this._viewParts = [];
-		// this.onDidRender(r => this._textAreaHandler.render(this._context));
 		// Keyboard handler
-		this._textAreaHandler = new TextAreaHandler(this._context, viewController, this._createTextAreaHandlerHelper(), this._context.viewLayout.getCurrentViewport().width);
+		this._textAreaHandler = new TextAreaHandler(this._context, viewController, this._createTextAreaHandlerHelper());
 		this._viewParts.push(this._textAreaHandler);
+		// this.onDidRender(r => this._textAreaHandler.render(this._context));
 
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
 		this._linesContent = createFastDomNode(document.createElement('div'));
@@ -289,7 +289,7 @@ export class View extends ViewEventHandler {
 
 		this._overflowGuardContainer.setWidth(layoutInfo.width);
 		this._overflowGuardContainer.setHeight(layoutInfo.height);
-		this._textAreaHandler.render(undefined, this._context.viewLayout.getCurrentViewport().width);
+		this._textAreaHandler.render();
 		this._linesContent.setWidth(1000000);
 		this._linesContent.setHeight(1000000);
 	}

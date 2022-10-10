@@ -16,9 +16,8 @@
 	color: transparent;
 	background-color: transparent;
 }
-/*.monaco-editor .inputarea {
+.monaco-editor .inputarea {
 	position: fixed !important;
-	width: 800px !important;
 	height: 500px !important;
 	top: initial !important;
 	left: initial !important;
@@ -27,8 +26,7 @@
 	color: black !important;
 	background: white !important;
 	line-height: 15px !important;
-	font-size: 14px !important;
-}*/
+}
 .monaco-editor .inputarea.ime-input {
 	z-index: 10;
 }

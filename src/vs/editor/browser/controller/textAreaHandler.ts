@@ -137,19 +137,18 @@ export class TextAreaHandler extends ViewPart {
 	private readonly _textAreaInput: TextAreaInput;
 	private _width: number;
 
-	constructor(context: ViewContext, viewController: ViewController, visibleRangeProvider: IVisibleRangeProvider, width: number) {
+	constructor(context: ViewContext, viewController: ViewController, visibleRangeProvider: IVisibleRangeProvider) {
 		super(context);
 		this._viewController = viewController;
 		this._visibleRangeProvider = visibleRangeProvider;
 		this._scrollLeft = 0;
 		this._scrollTop = 0;
-		this._width = width;
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
 		this._setAccessibilityOptions(options);
 		this._contentLeft = layoutInfo.contentLeft;
-		this._contentWidth = width || layoutInfo.contentWidth;
+		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
@@ -160,6 +159,8 @@ export class TextAreaHandler extends ViewPart {
 		this._selections = [new Selection(1, 1, 1, 1)];
 		this._modelSelections = [new Selection(1, 1, 1, 1)];
 		this._lastRenderPosition = null;
+
+		this._width = layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth - 2;
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
 		this.textArea = createFastDomNode(document.createElement('textarea'));
 		PartFingerprints.write(this.textArea, PartFingerprint.TextArea);
@@ -181,10 +182,10 @@ export class TextAreaHandler extends ViewPart {
 		// 	this.textArea.setAttribute('readonly', 'true');
 		// }
 		// console.log($('.editor-instance').clientWidth);
-		this.textArea.setWidth(width);
+		this.textArea.setWidth(this._width);
 		this.textAreaCover = createFastDomNode(document.createElement('div'));
 		this.textAreaCover.setPosition('absolute');
-		this.textAreaCover.setWidth(width);
+		this.textAreaCover.setWidth(this._width);
 		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
 				return this._context.viewModel.getLineCount();
@@ -648,10 +649,7 @@ export class TextAreaHandler extends ViewPart {
 		this._visibleTextArea?.prepareRender(ctx);
 	}
 
-	public render(ctx?: RestrictedRenderingContext, width?: number): void {
-		if (width) {
-			this._width = width;
-		}
+	public render(ctx?: RestrictedRenderingContext): void {
 		this._textAreaInput.writeScreenReaderContent('render');
 		this._render();
 	}
@@ -709,7 +707,7 @@ export class TextAreaHandler extends ViewPart {
 					lastRenderPosition: null,
 					top: top,
 					left: left,
-					width: width,
+					width: this._context.configuration.options.get(EditorOption.layoutInfo).contentWidth - this._context.configuration.options.get(EditorOption.layoutInfo).verticalScrollbarWidth - 2,
 					height: this._lineHeight,
 					useCover: false,
 					color: (TokenizationRegistry.getColorMap() || [])[presentation.foreground],
