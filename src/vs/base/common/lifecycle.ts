@@ -456,15 +456,22 @@ export class DisposableMap<K, V extends IDisposable = IDisposable> implements ID
 		trackDisposable(this);
 	}
 
-	dispose() {
+	dispose(): void {
 		markAsDisposed(this);
 		this._isDisposed = true;
 		this.clearAndDisposeAll();
 	}
 
-	clearAndDisposeAll() {
-		dispose(this._store.values());
-		this._store.clear();
+	clearAndDisposeAll(): void {
+		if (!this._store.size) {
+			return;
+		}
+
+		try {
+			dispose(this._store.values());
+		} finally {
+			this._store.clear();
+		}
 	}
 
 	has(key: K): boolean {
