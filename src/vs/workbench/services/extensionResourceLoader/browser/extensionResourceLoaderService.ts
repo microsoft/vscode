@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { AbstractExtensionResourceLoaderService, IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { FileAccess, Schemas } from 'vs/base/common/network';
@@ -52,4 +52,4 @@ class ExtensionResourceLoaderService extends AbstractExtensionResourceLoaderServ
 	}
 }
 
-registerSingleton(IExtensionResourceLoaderService, ExtensionResourceLoaderService, true);
+registerSingleton(IExtensionResourceLoaderService, ExtensionResourceLoaderService, InstantiationType.Delayed);

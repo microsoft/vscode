@@ -108,6 +108,7 @@ export interface IBulkEditOptions {
 
 export interface IBulkEditResult {
 	ariaSummary: string;
+	isApplied: boolean;
 }
 
 export type IBulkEditPreviewHandler = (edits: ResourceEdit[], options?: IBulkEditOptions) => Promise<ResourceEdit[]>;

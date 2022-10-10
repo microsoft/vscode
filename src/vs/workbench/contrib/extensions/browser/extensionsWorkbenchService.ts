@@ -275,7 +275,7 @@ export class Extension implements IExtension {
 	}
 
 	get preview(): boolean {
-		return this.gallery ? this.gallery.preview : false;
+		return this.local?.manifest.preview ?? this.gallery?.preview ?? false;
 	}
 
 	get hasPreReleaseVersion(): boolean {
@@ -894,38 +894,38 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
 	async queryGallery(arg1: any, arg2?: any): Promise<IPager<IExtension>> {
+		if (!this.galleryService.isEnabled()) {
+			return singlePagePager([]);
+		}
+
 		const options: IQueryOptions = CancellationToken.isCancellationToken(arg1) ? {} : arg1;
 		const token: CancellationToken = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2;
 		options.text = options.text ? this.resolveQueryText(options.text) : options.text;
 		options.includePreRelease = isUndefined(options.includePreRelease) ? this.preferPreReleases : options.includePreRelease;
 
 		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
-		try {
-			const pager = await this.galleryService.query(options, token);
-			this.syncInstalledExtensionsWithGallery(pager.firstPage);
-			return {
-				firstPage: pager.firstPage.map(gallery => this.fromGallery(gallery, extensionsControlManifest)),
-				total: pager.total,
-				pageSize: pager.pageSize,
-				getPage: async (pageIndex, token) => {
-					const page = await pager.getPage(pageIndex, token);
-					this.syncInstalledExtensionsWithGallery(page);
-					return page.map(gallery => this.fromGallery(gallery, extensionsControlManifest));
-				}
-			};
-		} catch (error) {
-			if (/No extension gallery service configured/.test(error.message)) {
-				return Promise.resolve(singlePagePager([]));
+		const pager = await this.galleryService.query(options, token);
+		this.syncInstalledExtensionsWithGallery(pager.firstPage);
+		return {
+			firstPage: pager.firstPage.map(gallery => this.fromGallery(gallery, extensionsControlManifest)),
+			total: pager.total,
+			pageSize: pager.pageSize,
+			getPage: async (pageIndex, token) => {
+				const page = await pager.getPage(pageIndex, token);
+				this.syncInstalledExtensionsWithGallery(page);
+				return page.map(gallery => this.fromGallery(gallery, extensionsControlManifest));
 			}
-			throw error;
-		}
+		};
 	}
 
 	getExtensions(extensionInfos: IExtensionInfo[], token: CancellationToken): Promise<IExtension[]>;
 	getExtensions(extensionInfos: IExtensionInfo[], options: IExtensionQueryOptions, token: CancellationToken): Promise<IExtension[]>;
 	async getExtensions(extensionInfos: IExtensionInfo[], arg1: any, arg2?: any): Promise<IExtension[]> {
-		extensionInfos.forEach(e => e.preRelease = e.preRelease ?? this.preferPreReleases);
+		if (!this.galleryService.isEnabled()) {
+			return [];
+		}
 
+		extensionInfos.forEach(e => e.preRelease = e.preRelease ?? this.preferPreReleases);
 		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
 		const galleryExtensions = await this.galleryService.getExtensions(extensionInfos, arg1, arg2);
 		this.syncInstalledExtensionsWithGallery(galleryExtensions);
@@ -1030,12 +1030,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 						const extensionInOtherServer = this.installed.filter(e => areSameExtensions(e.identifier, extension!.identifier) && e.server !== extension!.server)[0];
 						if (extensionInOtherServer) {
 							// This extension prefers to run on UI/Local side but is running in remote
-							if (runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer && this.extensionManifestPropertiesService.prefersExecuteOnUI(extension.local!.manifest)) {
+							if (runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer && this.extensionManifestPropertiesService.prefersExecuteOnUI(extension.local!.manifest) && extensionInOtherServer.server === this.extensionManagementServerService.localExtensionManagementServer) {
 								return nls.localize('enable locally', "Please reload Visual Studio Code to enable this extension locally.");
 							}
 
 							// This extension prefers to run on Workspace/Remote side but is running in local
-							if (runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer && this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(extension.local!.manifest)) {
+							if (runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer && this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(extension.local!.manifest) && extensionInOtherServer.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
 								return nls.localize('enable remote', "Please reload Visual Studio Code to enable this extension in {0}.", this.extensionManagementServerService.remoteExtensionManagementServer?.label);
 							}
 						}
@@ -1215,6 +1215,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	async checkForUpdates(onlyBuiltin?: boolean): Promise<void> {
+		if (!this.galleryService.isEnabled()) {
+			return;
+		}
 		const extensions: Extensions[] = [];
 		if (this.localExtensions) {
 			extensions.push(this.localExtensions);

@@ -6,13 +6,9 @@
 import * as assert from 'assert';
 import * as uuid from 'vs/base/common/uuid';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Action } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keybindings';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -22,18 +18,13 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IKeybindingItemEntry } from 'vs/workbench/services/preferences/common/preferences';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 
 interface Modifiers {
 	metaKey?: boolean;
 	ctrlKey?: boolean;
 	altKey?: boolean;
 	shiftKey?: boolean;
-}
-
-class AnAction extends Action {
-	constructor(id: string) {
-		super(id);
-	}
 }
 
 suite('KeybindingsEditorModel', () => {
@@ -677,8 +668,16 @@ suite('KeybindingsEditorModel', () => {
 	}
 
 	function registerCommandWithTitle(command: string, title: string): void {
-		const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-		registry.registerWorkbenchAction(SyncActionDescriptor.create(AnAction, command, title, { primary: 0 }), '');
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: command,
+					title,
+					f1: true
+				});
+			}
+			async run(): Promise<void> { }
+		});
 	}
 
 	function assertKeybindingItems(actual: ResolvedKeybindingItem[], expected: ResolvedKeybindingItem[]) {

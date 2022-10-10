@@ -268,6 +268,7 @@ export interface IRelaxedExtensionManifest {
 	description?: string;
 	main?: string;
 	browser?: string;
+	preview?: boolean;
 	// For now this only supports pointing to l10n bundle files
 	// but it will be used for package.l10n.json files in the future
 	l10n?: string;

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IAction } from 'vs/base/common/actions';
 import { coalesce } from 'vs/base/common/arrays';
 import { decodeBase64 } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -21,8 +20,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
 import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import * as nls from 'vs/nls';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -47,6 +45,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, ToWebviewMessage } from './webviewMessages';
 import { compressOutputItemStreams } from 'vs/workbench/contrib/notebook/browser/view/renderers/stdOutErrorPreProcessor';
+import { DeferredPromise } from 'vs/base/common/async';
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -110,9 +109,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private readonly _onMessage = this._register(new Emitter<INotebookWebviewMessage>());
 	private readonly _preloadsCache = new Set<string>();
 	public readonly onMessage: Event<INotebookWebviewMessage> = this._onMessage.event;
-	private _initialized?: Promise<void>;
 	private _disposed = false;
 	private _currentKernel?: INotebookKernel;
+
+	private _initialized?: DeferredPromise<void>;
+	private _webviewPreloadInitialized?: DeferredPromise<void>;
+	private firstInit = true;
+	private initializeMarkupPromise?: { readonly requestId: string; readonly p: DeferredPromise<void>; readonly isFirstInit: boolean };
 
 	private readonly nonce = UUID.generateUuid();
 
@@ -130,7 +133,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFileService private readonly fileService: IFileService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -452,11 +454,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		}
 
 		let coreDependencies = '';
-		let resolveFunc: () => void;
 
-		this._initialized = new Promise<void>((resolve) => {
-			resolveFunc = resolve;
-		});
+		this._initialized = new DeferredPromise();
+		this._webviewPreloadInitialized = new DeferredPromise();
 
 		if (!isWeb) {
 			const loaderUri = FileAccess.asFileUri('vs/loader.js', require);
@@ -469,7 +469,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			</script>`;
 			const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
 			this._initialize(htmlContent);
-			resolveFunc!();
+			this._initialized.complete();
 		} else {
 			const loaderUri = FileAccess.asBrowserUri('vs/loader.js', require);
 
@@ -493,16 +493,16 @@ var requirejs = (function() {
 
 				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
 				this._initialize(htmlContent);
-				resolveFunc!();
+				this._initialized!.complete();
 			}, error => {
 				// the fetch request is rejected
 				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
 				this._initialize(htmlContent);
-				resolveFunc!();
+				this._initialized!.complete();
 			});
 		}
 
-		await this._initialized;
+		await this._initialized.p;
 	}
 
 	private getNotebookBaseUri() {
@@ -590,7 +590,15 @@ var requirejs = (function() {
 
 			switch (data.type) {
 				case 'initialized': {
+					this._webviewPreloadInitialized?.complete();
 					this.initializeWebViewState();
+					break;
+				}
+				case 'initializedMarkup': {
+					if (this.initializeMarkupPromise?.requestId === data.requestId) {
+						this.initializeMarkupPromise?.p.complete();
+						this.initializeMarkupPromise = undefined;
+					}
 					break;
 				}
 				case 'dimension': {
@@ -766,13 +774,8 @@ var requirejs = (function() {
 						// Then show the context menu
 						const webviewRect = this.element.getBoundingClientRect();
 						this.contextMenuService.showContextMenu({
-							getActions: () => {
-								const result: IAction[] = [];
-								const menu = this.menuService.createMenu(MenuId.NotebookCellTitle, this.contextKeyService);
-								createAndFillInContextMenuActions(menu, undefined, result);
-								menu.dispose();
-								return result;
-							},
+							menuId: MenuId.NotebookCellTitle,
+							contextKeyService: this.contextKeyService,
 							getAnchor: () => ({
 								x: webviewRect.x + data.clientX,
 								y: webviewRect.y + data.clientY
@@ -932,8 +935,6 @@ var requirejs = (function() {
 		];
 	}
 
-	private firstInit = true;
-
 	private initializeWebViewState() {
 		this._preloadsCache.clear();
 		if (this._currentKernel) {
@@ -944,9 +945,9 @@ var requirejs = (function() {
 			this._sendMessageToWebview({ ...inset.cachedCreation, initiallyHidden: this.hiddenInsetMapping.has(output) });
 		}
 
-		if (this.firstInit) {
+		if (this.initializeMarkupPromise?.isFirstInit) {
 			// On first run the contents have already been initialized so we don't need to init them again
-			this.firstInit = false;
+			// no op
 		} else {
 			const mdCells = [...this.markupPreviewMapping.values()];
 			this.markupPreviewMapping.clear();
@@ -1160,15 +1161,16 @@ var requirejs = (function() {
 			return;
 		}
 
-		// TODO: use proper handler
-		const p = new Promise<void>(resolve => {
-			const sub = this.webview?.onMessage(e => {
-				if (e.message.type === 'initializedMarkup') {
-					resolve();
-					sub?.dispose();
-				}
-			});
-		});
+		this.initializeMarkupPromise?.p.complete();
+		const requestId = UUID.generateUuid();
+		this.initializeMarkupPromise = { p: new DeferredPromise(), requestId, isFirstInit: this.firstInit };
+
+		if (this._webviewPreloadInitialized) {
+			// wait for webview preload script module to be loaded
+			await this._webviewPreloadInitialized.p;
+		}
+
+		this.firstInit = false;
 
 		for (const cell of cells) {
 			this.markupPreviewMapping.set(cell.cellId, cell);
@@ -1177,9 +1179,10 @@ var requirejs = (function() {
 		this._sendMessageToWebview({
 			type: 'initializeMarkup',
 			cells,
+			requestId,
 		});
 
-		await p;
+		return this.initializeMarkupPromise.p.p;
 	}
 
 	/**
@@ -1529,4 +1532,3 @@ function getTokenizationCss() {
 	const tokenizationCss = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 	return tokenizationCss;
 }
-

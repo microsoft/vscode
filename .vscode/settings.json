@@ -70,7 +70,7 @@
 	],
 	"git.branchProtectionPrompt": "alwaysCommitToNewBranch",
 	"git.branchRandomName.enable": true,
-	"git.fetchBeforeCheckout": true,
+	"git.pullBeforeCheckout": true,
 	"git.mergeEditor": true,
 	"remote.extensionKind": {
 		"msjsdiag.debugger-for-chrome": "workspace"
@@ -105,11 +105,6 @@
 		"git",
 		"sash"
 	],
-	"editor.quickSuggestions": {
-		"other": "inline",
-		"comments": "inline",
-		"strings": "inline"
-	},
 	"githubPullRequests.assignCreated": "${user}",
 	"githubPullRequests.defaultMergeMethod": "squash"
 }

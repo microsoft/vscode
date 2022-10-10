@@ -46,6 +46,7 @@ import { StringSHA1 } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
 import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 interface ICachedPanel {
 	id: string;
@@ -927,6 +928,7 @@ export class PanelPart extends BasePanelPart {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
+		@ICommandService private commandService: ICommandService,
 	) {
 		super(
 			notificationService,
@@ -984,7 +986,7 @@ export class PanelPart extends BasePanelPart {
 				// show the contextual menu item if it is not in that position
 				.filter(({ when }) => this.contextKeyService.contextMatchesRules(when))
 				.map(({ id, title }) => this.instantiationService.createInstance(SetPanelPositionAction, id, title.value)),
-			this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
+			toAction({ id: TogglePanelAction.ID, label: localize('hidePanel', "Hide Panel"), run: () => this.commandService.executeCommand(TogglePanelAction.ID) })
 		]);
 	}
 

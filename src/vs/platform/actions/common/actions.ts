@@ -9,6 +9,7 @@ import { Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from 'vs/platform/action/common/action';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { CommandsRegistry, ICommandHandlerDescription, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor, SyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
@@ -31,6 +32,7 @@ export interface ISubmenuItem {
 	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
+	isSelection?: boolean;
 	rememberDefaultAction?: boolean;	// for dropdown menu: if true the last executed action is remembered as the default action
 }
 
@@ -103,6 +105,7 @@ export class MenuId {
 	static readonly SearchContext = new MenuId('SearchContext');
 	static readonly StatusBarWindowIndicatorMenu = new MenuId('StatusBarWindowIndicatorMenu');
 	static readonly StatusBarRemoteIndicatorMenu = new MenuId('StatusBarRemoteIndicatorMenu');
+	static readonly StickyScrollContext = new MenuId('StickyScrollContext');
 	static readonly TestItem = new MenuId('TestItem');
 	static readonly TestItemGutter = new MenuId('TestItemGutter');
 	static readonly TestPeekElement = new MenuId('TestPeekElement');
@@ -397,6 +400,12 @@ export interface IMenuItemHide {
 // subscribes to events of Action or modified properties
 export class MenuItemAction implements IAction {
 
+	static label(action: ICommandAction, options?: IMenuActionOptions): string {
+		return options?.renderShortTitle && action.shortTitle
+			? (typeof action.shortTitle === 'string' ? action.shortTitle : action.shortTitle.value)
+			: (typeof action.title === 'string' ? action.title : action.title.value);
+	}
+
 	readonly item: ICommandAction;
 	readonly alt: MenuItemAction | undefined;
 
@@ -418,9 +427,7 @@ export class MenuItemAction implements IAction {
 		@ICommandService private _commandService: ICommandService
 	) {
 		this.id = item.id;
-		this.label = options?.renderShortTitle && item.shortTitle
-			? (typeof item.shortTitle === 'string' ? item.shortTitle : item.shortTitle.value)
-			: (typeof item.title === 'string' ? item.title : item.title.value);
+		this.label = MenuItemAction.label(item, options);
 		this.tooltip = (typeof item.tooltip === 'string' ? item.tooltip : item.tooltip?.value) ?? '';
 		this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
 		this.checked = undefined;
@@ -561,6 +568,11 @@ export interface IAction2Options extends ICommandAction {
 	 * inside a specific toolbar
 	 */
 	_isFakeAction?: true;
+}
+
+export interface IAction2F1RequiredOptions {
+	title: ICommandActionTitle;
+	category?: keyof typeof Categories | ILocalizedString;
 }
 
 export abstract class Action2 {

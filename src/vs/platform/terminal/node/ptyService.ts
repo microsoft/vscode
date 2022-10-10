@@ -105,64 +105,29 @@ export class PtyService extends Disposable implements IPtyService {
 		this._detachInstanceRequestStore.acceptReply(requestId, processDetails);
 	}
 
-	async freePortKillProcess(id: number, port: string): Promise<{ port: string; processId: string }> {
-		let result: { port: string; processId: string } | undefined;
-		if (!isWindows) {
-			const stdout = await new Promise<string>((resolve, reject) => {
-				exec(`lsof -nP -iTCP -sTCP:LISTEN | grep ${port}`, {}, (err, stdout) => {
-					if (err) {
-						return reject('Problem occurred when listing active processes');
-					}
-					resolve(stdout);
-				});
-			});
-			const processesForPort = stdout.split('\n');
-			if (processesForPort.length >= 1) {
-				const capturePid = /\s+(\d+)\s+/;
-				const processId = processesForPort[0].match(capturePid)?.[1];
-				if (processId) {
-					await new Promise<string>((resolve, reject) => {
-						exec(`kill ${processId}`, {}, (err, stdout) => {
-							if (err) {
-								return reject(`Problem occurred when killing the process with PID: ${processId}`);
-							}
-							resolve(stdout);
-						});
-						result = { port, processId };
-					});
+	async freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
+		const stdout = await new Promise<string>((resolve, reject) => {
+			exec(isWindows ? `netstat -ano | findstr "${port}"` : `lsof -nP -iTCP -sTCP:LISTEN | grep ${port}`, {}, (err, stdout) => {
+				if (err) {
+					return reject('Problem occurred when listing active processes');
 				}
-			}
-		} else {
-			const stdout = await new Promise<string>((resolve, reject) => {
-				exec(`netstat -ano | findstr "${port}"`, {}, (err, stdout) => {
-					if (err) {
-						return reject('Problem occurred when listing active processes');
-					}
-					resolve(stdout);
-				});
+				resolve(stdout);
 			});
-			const processesForPort = stdout.split('\n');
-			if (processesForPort.length >= 1) {
-				const capturePid = /LISTENING\s+(\d+)/;
-				const processId = processesForPort[0].match(capturePid)?.[1];
-				if (processId) {
-					await new Promise<string>((resolve, reject) => {
-						exec(`Taskkill /F /PID ${processId}`, {}, (err, stdout) => {
-							if (err) {
-								return reject(`Problem occurred when killing the process with PID: ${processId}`);
-							}
-							resolve(stdout);
-						});
-						result = { port, processId };
-					});
-				}
+		});
+		const processesForPort = stdout.split('\n');
+		if (processesForPort.length >= 1) {
+			const capturePid = /\s+(\d+)\s+/;
+			const processId = processesForPort[0].match(capturePid)?.[1];
+			if (processId) {
+				try {
+					process.kill(Number.parseInt(processId));
+				} catch { }
+			} else {
+				throw new Error(`Processes for port ${port} were not found`);
 			}
+			return { port, processId };
 		}
-
-		if (result) {
-			return result;
-		}
-		throw new Error(`Processes for port ${port} were not found`);
+		throw new Error(`Could not kill process with port ${port}`);
 	}
 
 	async serializeTerminalState(ids: number[]): Promise<string> {

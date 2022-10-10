@@ -35,7 +35,7 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 interface IExtensionProfileInformation {
@@ -491,7 +491,7 @@ export class ShowRuntimeExtensionsAction extends Action2 {
 		super({
 			id: 'workbench.action.showRuntimeExtensions',
 			title: { value: nls.localize('showRuntimeExtensions', "Show Running Extensions"), original: 'Show Running Extensions' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true,
 			menu: {
 				id: MenuId.ViewContainerTitle,

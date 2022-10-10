@@ -675,7 +675,7 @@ export class ExtensionEditor extends EditorPane {
 
 	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, container: HTMLElement, webviewIndex: WebviewIndex, token: CancellationToken): Promise<IActiveElement | null> {
 		try {
-			const body = await this.renderMarkdown(cacheResult, container);
+			const body = await this.renderMarkdown(cacheResult, container, token);
 			if (token.isCancellationRequested) {
 				return Promise.resolve(null);
 			}
@@ -742,13 +742,21 @@ export class ExtensionEditor extends EditorPane {
 		}
 	}
 
-	private async renderMarkdown(cacheResult: CacheResult<string>, container: HTMLElement) {
+	private async renderMarkdown(cacheResult: CacheResult<string>, container: HTMLElement, token?: CancellationToken): Promise<string> {
 		const contents = await this.loadContents(() => cacheResult, container);
-		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService);
+		if (token?.isCancellationRequested) {
+			return '';
+		}
+
+		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, true, false, token);
+		if (token?.isCancellationRequested) {
+			return '';
+		}
+
 		return this.renderBody(content);
 	}
 
-	private async renderBody(body: string): Promise<string> {
+	private renderBody(body: string): string {
 		const nonce = generateUuid();
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';

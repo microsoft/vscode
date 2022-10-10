@@ -72,8 +72,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'description': localize('audioCues.noInlayHints', "Plays a sound when trying to read a line with inlay hints that has no inlay hints."),
 			...audioCueFeatureBase,
 		},
-		'audioCues.taskEnded': {
-			'description': localize('audioCues.taskEnded', "Plays a sound when a task ends."),
+		'audioCues.taskCompleted': {
+			'description': localize('audioCues.taskCompleted', "Plays a sound when a task completed."),
+			...audioCueFeatureBase,
+		},
+		'audioCues.taskFailed': {
+			'description': localize('audioCues.taskFailed', "Plays a sound when a task fails (non-zero exit code)."),
 			...audioCueFeatureBase,
 		},
 		'audioCues.terminalQuickFix': {
