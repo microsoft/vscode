@@ -25,8 +25,11 @@ function Global:__VSCode-Escape-Value([string]$value) {
 		if ($match.Value -eq '\') {
 			'\\'
 		} else {
-			# Any other character is encoded as hex.
-			'\x{0:x2}' -f [int][char]$match.Value
+			# Any other characters are encoded as their UTF-8 hex values.
+			-Join (
+				[System.Text.Encoding]::UTF8.GetBytes($match.Value)
+				| ForEach-Object { '\x{0:x2}' -f $_ }
+			)
 		}
 	})
 }
