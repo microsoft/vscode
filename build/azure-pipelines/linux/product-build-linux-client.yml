@@ -9,12 +9,8 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
-  - name: VSCODE_CLI_ARTIFACT
-    type: string
-    default: ''
-  - name: VSCODE_CLI_BINARY_NAME
-    type: string
-    default: ''
+  - name: VSCODE_BUILD_TUNNEL_CLI
+    type: boolean
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -258,10 +254,13 @@ steps:
           yarn gulp "transpile-client-swc" "transpile-extensions"
       displayName: Transpile
 
-  - ${{ if ne(parameters.VSCODE_CLI_ARTIFACT, '') }}:
+  - ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
     - task: DownloadPipelineArtifact@2
       inputs:
-        artifact: ${{ parameters.VSCODE_CLI_ARTIFACT }}
+        ${{ if eq(variables.VSCODE_ARCH, 'x64') }}:
+          artifact: vscode_cli_linux_x64_cli
+        ${{ if eq(variables.VSCODE_ARCH, 'arm64') }}:
+          artifact: vscode_cli_linux_arm64_cli
         patterns: '**'
         path: $(Build.ArtifactStagingDirectory)
       displayName: Download VS Code CLI
@@ -270,7 +269,7 @@ steps:
         set -e
         tar -xzvf $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.tar.gz -C $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin
         if [ "$(VSCODE_QUALITY)" != "stable" ]; then
-          mv "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$(VSCODE_CLI_BINARY_NAME)" "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$(VSCODE_CLI_BINARY_NAME)-$(VSCODE_QUALITY)"
+          mv "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/code-tunnel" "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/code-tunnel-$(VSCODE_QUALITY)"
         fi
       displayName: Make CLI executable
 

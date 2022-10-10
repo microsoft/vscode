@@ -2,11 +2,6 @@ parameters:
   - name: VSCODE_CLI_TARGETS
     default: []
     type: object
-  - name: VSCODE_CLI_DIR
-    type: string
-    default: './'
-  - name: VSCODE_CLI_BINARY_NAME
-    type: string
   - name: VSCODE_CLI_RUST_CHANNEL
     type: string
     default: stable
