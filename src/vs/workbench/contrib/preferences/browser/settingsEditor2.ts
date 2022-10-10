@@ -753,7 +753,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		this.noResultsMessage = DOM.append(this.bodyContainer, $('.no-results-message'));
 
-		this.noResultsMessage.innerText = localize('noResults', "No Settings Found");
+		this.noResultsMessage.innerText = localize('noResultsWithDetails', "No Settings Found. Settings might be available under a different tab.");
 
 		this.clearFilterLinkContainer = $('span.clear-search-filters');
 
@@ -1616,6 +1616,10 @@ export class SettingsEditor2 extends EditorPane {
 			this.searchResultLabel = resultString;
 			this.updateInputAriaLabel();
 			this.countElement.innerText = resultString;
+
+			if (count === 0) {
+				resultString = localize('noResultsWithDetails', "No Settings Found. Settings might be available under a different tab.");
+			}
 			aria.status(resultString);
 
 			if (this.countElement.style.display !== 'block') {
