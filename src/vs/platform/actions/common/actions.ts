@@ -82,6 +82,7 @@ export class MenuId {
 	static readonly MenubarGoMenu = new MenuId('MenubarGoMenu');
 	static readonly MenubarHelpMenu = new MenuId('MenubarHelpMenu');
 	static readonly MenubarLayoutMenu = new MenuId('MenubarLayoutMenu');
+	static readonly MenubarEditorFeaturesMenu = new MenuId('MenubarEditorFeaturesMenu');
 	static readonly MenubarNewBreakpointMenu = new MenuId('MenubarNewBreakpointMenu');
 	static readonly MenubarPanelAlignmentMenu = new MenuId('MenubarPanelAlignmentMenu');
 	static readonly MenubarPanelPositionMenu = new MenuId('MenubarPanelPositionMenu');
