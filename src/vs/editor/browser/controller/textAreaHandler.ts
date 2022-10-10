@@ -713,7 +713,7 @@ export class TextAreaHandler extends ViewPart {
 					bold: presentation.bold,
 					underline: presentation.underline,
 					strikethrough: presentation.strikethrough
-				}, true);
+				});
 			}
 			return;
 		}
@@ -795,7 +795,7 @@ export class TextAreaHandler extends ViewPart {
 		});
 	}
 
-	private _doRender(renderData: IRenderData, isIme?: boolean): void {
+	private _doRender(renderData: IRenderData): void {
 		this._lastRenderPosition = renderData.lastRenderPosition;
 
 		const ta = this.textArea;
@@ -806,7 +806,7 @@ export class TextAreaHandler extends ViewPart {
 		ta.setLeft(renderData.left);
 		const info = this._context.configuration.options.get(EditorOption.layoutInfo);
 		this._width = info.contentWidth - info.verticalScrollbarWidth - 2;
-		ta.setWidth(isIme ? renderData.width : this._width);
+		ta.setWidth(this._width);
 		ta.setHeight(renderData.height);
 
 		ta.setColor(renderData.color ? Color.Format.CSS.formatHex(renderData.color) : '');
