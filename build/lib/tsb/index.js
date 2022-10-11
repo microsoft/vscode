@@ -13,7 +13,7 @@ const stream_1 = require("stream");
 const path_1 = require("path");
 const utils_1 = require("./utils");
 const fs_1 = require("fs");
-const log = require("fancy-log");
+const fancy_log_1 = require("fancy-log");
 const colors = require("ansi-colors");
 const transpiler_1 = require("./transpiler");
 class EmptyDuplex extends stream_1.Duplex {
@@ -48,7 +48,7 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
     }
     function logFn(topic, message) {
         if (config.verbose) {
-            log(colors.cyan(topic), message);
+            (0, fancy_log_1.default)(colors.cyan(topic), message);
         }
     }
     // FULL COMPILE stream doing transpile, syntax and semantic diagnostics
