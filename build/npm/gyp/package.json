@@ -6,6 +6,5 @@
   "devDependencies": {
     "node-gyp": "^9.3.0"
   },
-  "scripts": {
-  }
+  "scripts": {}
 }
