@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vfs from 'vinyl-fs';
-import * as filter from 'gulp-filter';
+import filter from 'gulp-filter';
 import * as _ from 'underscore';
 import * as util from './util';
 
