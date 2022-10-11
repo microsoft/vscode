@@ -55,7 +55,8 @@
           "**/User/snippets/*.json",
           "**/User/profiles/*/snippets/*.json"
         ]
-      }, {
+      },
+      {
         "id": "json",
         "extensions": [
           ".code-profile"
