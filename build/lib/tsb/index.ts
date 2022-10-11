@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as Vinyl from 'vinyl';
-import * as through from 'through';
+import through from 'through';
 import * as builder from './builder';
 import * as ts from 'typescript';
 import { Readable, Writable, Duplex } from 'stream';
