@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as json from 'gulp-json-editor';
+import json from 'gulp-json-editor';
 const buffer = require('gulp-buffer');
 import filter from 'gulp-filter';
 import * as es from 'event-stream';
