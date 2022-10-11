@@ -9,7 +9,7 @@ import * as cp from 'child_process';
 import * as glob from 'glob';
 import * as gulp from 'gulp';
 import * as path from 'path';
-import * as through2 from 'through2';
+import through2 from 'through2';
 import got from 'got';
 import { Stream } from 'stream';
 import File from 'vinyl';
