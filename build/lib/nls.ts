@@ -399,7 +399,7 @@ module _nls {
 		}, null, sm.SourceMapConsumer.GENERATED_ORDER);
 
 		if (source) {
-			smg.setSourceContent(source, smc.sourceContentFor(source));
+			smg.setSourceContent(source, smc.sourceContentFor(source) || '');
 		}
 
 		return JSON.parse(smg.toString());
