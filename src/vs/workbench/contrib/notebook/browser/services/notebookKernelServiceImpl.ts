@@ -71,7 +71,11 @@ class SourceAction extends Disposable implements ISourceAction {
 	}
 
 	private async _runAction(): Promise<void> {
-		await this.action.run();
+		try {
+			await this.action.run();
+		} catch (error) {
+			console.warn(`Kernel source command failed: ${error}`);
+		}
 	}
 }
 

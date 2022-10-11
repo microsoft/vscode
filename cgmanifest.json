@@ -486,6 +486,32 @@
 		},
 		{
 			"component": {
+				"type": "other",
+				"other": {
+					"name": "H.264/AVC Video Standard",
+					"downloadUrl": "https://chromium.googlesource.com/chromium/third_party/ffmpeg",
+					"version": "4.4.git"
+				}
+			},
+			"licenseDetail": [
+				"This product is licensed under the AVC patent portfolio license for the personal",
+				"and non-commercial use of a consumer to (i) encode video in compliance with the AVC standard (\"AVC VIDEO\")",
+				"and/or (ii) decode AVC video that was encoded by a consumer",
+				"engaged in a personal and non-commercial activity and/or was obtained from a video provider",
+				"licensed to provide AVC video. No license is granted or shall be implied for any other use.",
+				"Additional information may be obtained from MPEG LA LLC. See http://www.MPEGLA.COM.",
+				"",
+				"For clarification purposes, this notice does not limit or inhibit the use of the product",
+				"for normal business uses that are personal to that business which do not include",
+				"(i) redistribution of the product to third parties, or",
+				"(ii) creation of content with AVC Standard compliant technologies for distribution to third parties."
+			],
+			"version": "H.264 (08/21)",
+			"isOnlyProductionDependency": true,
+			"license": "OTHER"
+		},
+		{
+			"component": {
 				"type": "git",
 				"git": {
 					"name": "nodejs",

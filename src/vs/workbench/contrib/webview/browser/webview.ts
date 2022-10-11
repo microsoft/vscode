@@ -192,8 +192,8 @@ export interface IWebview extends IDisposable {
 	focus(): void;
 	reload(): void;
 
-	showFind(): void;
-	hideFind(): void;
+	showFind(animated?: boolean): void;
+	hideFind(animated?: boolean): void;
 	runFindAction(previous: boolean): void;
 
 	selectAll(): void;

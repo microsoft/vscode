@@ -25,7 +25,7 @@ import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/co
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { cellRangesToIndexes, ICellRange, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 //#region Shared commands
@@ -323,8 +323,8 @@ export interface INotebookEditorContributionDescription {
 export interface INotebookEditorCreationOptions {
 	readonly isEmbedded?: boolean;
 	readonly isReadOnly?: boolean;
-	readonly contributions?: INotebookEditorContributionDescription[];
-	readonly cellEditorContributions?: IEditorContributionDescription[];
+	readonly contributions?: Iterable<INotebookEditorContributionDescription>;
+	readonly cellEditorContributions?: Iterable<IEditorContributionDescription>;
 	readonly menuIds: {
 		notebookToolbar: MenuId;
 		cellTitleToolbar: MenuId;
@@ -441,7 +441,7 @@ export interface INotebookEditor {
 	hasModel(): this is IActiveNotebookEditor;
 	dispose(): void;
 	getDomNode(): HTMLElement;
-	getInnerWebview(): IWebview | undefined;
+	getInnerWebview(): IWebviewElement | undefined;
 	getSelectionViewModels(): ICellViewModel[];
 
 	/**

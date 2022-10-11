@@ -7,7 +7,7 @@ import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import * as nls from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -25,7 +25,7 @@ import 'vs/workbench/contrib/snippets/browser/tabCompletion';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
 
 // service
-registerSingleton(ISnippetsService, SnippetsService, true);
+registerSingleton(ISnippetsService, SnippetsService, InstantiationType.Delayed);
 
 // actions
 registerAction2(InsertSnippetAction);
