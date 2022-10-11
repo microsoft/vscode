@@ -4455,12 +4455,42 @@ export const enum WrappingIndent {
 	DeepIndent = 3
 }
 
-function _wrappingIndentFromString(wrappingIndent: 'none' | 'same' | 'indent' | 'deepIndent'): WrappingIndent {
-	switch (wrappingIndent) {
-		case 'none': return WrappingIndent.None;
-		case 'same': return WrappingIndent.Same;
-		case 'indent': return WrappingIndent.Indent;
-		case 'deepIndent': return WrappingIndent.DeepIndent;
+class WrappingIndentOption extends BaseEditorOption<EditorOption.wrappingIndent, 'none' | 'same' | 'indent' | 'deepIndent', WrappingIndent> {
+
+	constructor() {
+		super(EditorOption.wrappingIndent, 'wrappingIndent', WrappingIndent.Same,
+			{
+				'editor.wrappingIndent': {
+					enumDescriptions: [
+						nls.localize('wrappingIndent.none', "No indentation. Wrapped lines begin at column 1."),
+						nls.localize('wrappingIndent.same', "Wrapped lines get the same indentation as the parent."),
+						nls.localize('wrappingIndent.indent', "Wrapped lines get +1 indentation toward the parent."),
+						nls.localize('wrappingIndent.deepIndent', "Wrapped lines get +2 indentation toward the parent."),
+					],
+					description: nls.localize('wrappingIndent', "Controls the indentation of wrapped lines."),
+				}
+			}
+		);
+	}
+
+	public validate(input: any): WrappingIndent {
+		switch (input) {
+			case 'none': return WrappingIndent.None;
+			case 'same': return WrappingIndent.Same;
+			case 'indent': return WrappingIndent.Indent;
+			case 'deepIndent': return WrappingIndent.DeepIndent;
+		}
+		return WrappingIndent.Same;
+	}
+
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: WrappingIndent): WrappingIndent {
+		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		if (accessibilitySupport === AccessibilitySupport.Enabled) {
+			// if we know for a fact that a screen reader is attached, we use no indent wrapping to
+			// help that the editor's wrapping points match the textarea's wrapping points
+			return WrappingIndent.None;
+		}
+		return value;
 	}
 }
 
@@ -5373,21 +5403,6 @@ export const EditorOptions = {
 		'inherit' as 'off' | 'on' | 'inherit',
 		['off', 'on', 'inherit'] as const
 	)),
-	wrappingIndent: register(new EditorEnumOption(
-		EditorOption.wrappingIndent, 'wrappingIndent',
-		WrappingIndent.Same, 'same',
-		['none', 'same', 'indent', 'deepIndent'],
-		_wrappingIndentFromString,
-		{
-			enumDescriptions: [
-				nls.localize('wrappingIndent.none', "No indentation. Wrapped lines begin at column 1."),
-				nls.localize('wrappingIndent.same', "Wrapped lines get the same indentation as the parent."),
-				nls.localize('wrappingIndent.indent', "Wrapped lines get +1 indentation toward the parent."),
-				nls.localize('wrappingIndent.deepIndent', "Wrapped lines get +2 indentation toward the parent."),
-			],
-			description: nls.localize('wrappingIndent', "Controls the indentation of wrapped lines."),
-		}
-	)),
 
 	// Leave these at the end (because they have dependencies!)
 	editorClassName: register(new EditorClassName()),
@@ -5395,6 +5410,7 @@ export const EditorOptions = {
 	tabFocusMode: register(new EditorTabFocusMode()),
 	layoutInfo: register(new EditorLayoutInfoComputer()),
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
+	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy())
 };
 
