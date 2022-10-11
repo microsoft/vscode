@@ -8,7 +8,7 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import File from 'vinyl';
 import * as es from 'event-stream';
-import * as filter from 'gulp-filter';
+import filter from 'gulp-filter';
 import { Stream } from 'stream';
 
 const watcherPath = path.join(__dirname, 'watcher.exe');
