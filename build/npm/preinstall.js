@@ -14,7 +14,7 @@ if (majorNodeVersion < 16 || (majorNodeVersion === 16 && minorNodeVersion < 14))
 	err = true;
 }
 if (majorNodeVersion >= 17) {
-	console.warn('\033[1;31m*** Warning: Versions of node.js >= 17 have not been tested.\033[0;0m')
+	console.warn('\033[1;33m*** Warning: Versions of node.js >= 17 have not been tested.\033[0;0m')
 }
 
 const path = require('path');
