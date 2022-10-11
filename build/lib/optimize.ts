@@ -5,7 +5,7 @@
 
 import * as es from 'event-stream';
 import * as gulp from 'gulp';
-import * as concat from 'gulp-concat';
+import concat from 'gulp-concat';
 import * as filter from 'gulp-filter';
 import fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
