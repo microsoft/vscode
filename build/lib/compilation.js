@@ -13,7 +13,7 @@ const monacodts = require("./monaco-api");
 const nls = require("./nls");
 const reporter_1 = require("./reporter");
 const util = require("./util");
-const fancyLog = require("fancy-log");
+const fancy_log_1 = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const os = require("os");
 const File = require("vinyl");
@@ -172,7 +172,7 @@ class MonacoGenerator {
         return r;
     }
     _log(message, ...rest) {
-        fancyLog(ansiColors.cyan('[monaco.d.ts]'), message, ...rest);
+        (0, fancy_log_1.default)(ansiColors.cyan('[monaco.d.ts]'), message, ...rest);
     }
     execute() {
         const startTime = Date.now();

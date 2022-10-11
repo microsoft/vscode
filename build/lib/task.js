@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.define = exports.parallel = exports.series = void 0;
-const fancyLog = require("fancy-log");
+const fancy_log_1 = require("fancy-log");
 const ansiColors = require("ansi-colors");
 function _isPromise(p) {
     if (typeof p.then === 'function') {
@@ -19,14 +19,14 @@ function _renderTime(time) {
 async function _execute(task) {
     const name = task.taskName || task.displayName || `<anonymous>`;
     if (!task._tasks) {
-        fancyLog('Starting', ansiColors.cyan(name), '...');
+        (0, fancy_log_1.default)('Starting', ansiColors.cyan(name), '...');
     }
     const startTime = process.hrtime();
     await _doExecute(task);
     const elapsedArr = process.hrtime(startTime);
     const elapsedNanoseconds = (elapsedArr[0] * 1e9 + elapsedArr[1]);
     if (!task._tasks) {
-        fancyLog(`Finished`, ansiColors.cyan(name), 'after', ansiColors.magenta(_renderTime(elapsedNanoseconds / 1e6)));
+        (0, fancy_log_1.default)(`Finished`, ansiColors.cyan(name), 'after', ansiColors.magenta(_renderTime(elapsedNanoseconds / 1e6)));
     }
 }
 async function _doExecute(task) {

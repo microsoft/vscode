@@ -152,7 +152,7 @@ async function main() {
     const blobClient = containerClient.getBlockBlobClient(blobName);
     const blobOptions = {
         blobHTTPHeaders: {
-            blobContentType: mime.lookup(filePath),
+            blobContentType: mime.getType(filePath) || undefined,
             blobContentDisposition: `attachment; filename="${fileName}"`,
             blobCacheControl: 'max-age=31536000, public'
         }

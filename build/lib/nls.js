@@ -8,7 +8,7 @@ exports.nls = void 0;
 const lazy = require("lazy.js");
 const event_stream_1 = require("event-stream");
 const File = require("vinyl");
-const sm = require("source-map");
+const sm = require("source-map-sync");
 const path = require("path");
 var CollectStepResult;
 (function (CollectStepResult) {
@@ -92,6 +92,10 @@ var _nls;
         return { source, line: lc.line + 1, column: lc.character };
     }
     function lcFrom(position) {
+        if (position.line == null || position.column == null) {
+            // TODO better?
+            throw new Error(`position not found`);
+        }
         return { line: position.line - 1, character: position.column };
     }
     class SingleFileServiceHost {
@@ -298,7 +302,7 @@ var _nls;
             smg.addMapping({ source, name: m.name, original, generated });
         }, null, sm.SourceMapConsumer.GENERATED_ORDER);
         if (source) {
-            smg.setSourceContent(source, smc.sourceContentFor(source));
+            smg.setSourceContent(source, smc.sourceContentFor(source) || '');
         }
         return JSON.parse(smg.toString());
     }

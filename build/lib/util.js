@@ -8,7 +8,7 @@ exports.buildWebNodePaths = exports.createExternalLoaderConfig = exports.acquire
 const es = require("event-stream");
 const _debounce = require("debounce");
 const _filter = require("gulp-filter");
-const rename = require("gulp-rename");
+const gulp_rename_1 = require("gulp-rename");
 const path = require("path");
 const fs = require("fs");
 const _rimraf = require("rimraf");
@@ -164,10 +164,11 @@ function loadSourcemaps() {
         }
         if (!lastMatch) {
             f.sourceMap = {
-                version: '3',
+                version: 3,
                 names: [],
                 mappings: '',
                 sources: [f.relative],
+                file: '',
                 sourcesContent: [contents]
             };
             cb(undefined, f);
@@ -262,7 +263,7 @@ function getVersion(root) {
 }
 exports.getVersion = getVersion;
 function rebase(count) {
-    return rename(f => {
+    return (0, gulp_rename_1.default)(f => {
         const parts = f.dirname ? f.dirname.split(/[\/\\]/) : [];
         f.dirname = parts.slice(count).join(path.sep);
     });

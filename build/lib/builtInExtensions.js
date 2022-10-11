@@ -10,10 +10,10 @@ const path = require("path");
 const os = require("os");
 const rimraf = require("rimraf");
 const es = require("event-stream");
-const rename = require("gulp-rename");
+const gulp_rename_1 = require("gulp-rename");
 const vfs = require("vinyl-fs");
 const ext = require("./extensions");
-const fancyLog = require("fancy-log");
+const fancy_log_1 = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const mkdirp = require('mkdirp');
 const root = path.dirname(path.dirname(__dirname));
@@ -24,7 +24,7 @@ const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions',
 const ENABLE_LOGGING = !process.env['VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE'];
 function log(...messages) {
     if (ENABLE_LOGGING) {
-        fancyLog(...messages);
+        (0, fancy_log_1.default)(...messages);
     }
 }
 function getExtensionPath(extension) {
@@ -47,14 +47,14 @@ function isUpToDate(extension) {
 function getExtensionDownloadStream(extension) {
     const galleryServiceUrl = productjson.extensionsGallery?.serviceUrl;
     return (galleryServiceUrl ? ext.fromMarketplace(galleryServiceUrl, extension) : ext.fromGithub(extension))
-        .pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`));
+        .pipe((0, gulp_rename_1.default)(p => { p.dirname = `${extension.name}/${p.dirname}`; }));
 }
 function getExtensionStream(extension) {
     // if the extension exists on disk, use those files instead of downloading anew
     if (isUpToDate(extension)) {
         log('[extensions]', `${extension.name}@${extension.version} up to date`, ansiColors.green('✔︎'));
         return vfs.src(['**'], { cwd: getExtensionPath(extension), dot: true })
-            .pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`));
+            .pipe((0, gulp_rename_1.default)(p => { p.dirname = `${extension.name}/${p.dirname}`; }));
     }
     return getExtensionDownloadStream(extension);
 }

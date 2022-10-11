@@ -19,7 +19,7 @@ const util2 = require("./util");
 const vzip = require('gulp-vinyl-zip');
 const filter = require("gulp-filter");
 const rename = require("gulp-rename");
-const fancyLog = require("fancy-log");
+const fancy_log_1 = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const buffer = require('gulp-buffer');
 const jsoncParser = require("jsonc-parser");
@@ -106,7 +106,7 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName) {
         const webpackConfigLocations = glob.sync(path.join(extensionPath, '**', webpackConfigFileName), { ignore: ['**/node_modules'] });
         const webpackStreams = webpackConfigLocations.map(webpackConfigPath => {
             const webpackDone = (err, stats) => {
-                fancyLog(`Bundled extension: ${ansiColors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath)))}...`);
+                (0, fancy_log_1.default)(`Bundled extension: ${ansiColors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath)))}...`);
                 if (err) {
                     result.emit('error', err);
                 }
@@ -183,7 +183,7 @@ function fromMarketplace(serviceUrl, { name: extensionName, version, metadata })
     const json = require('gulp-json-editor');
     const [publisher, name] = extensionName.split('.');
     const url = `${serviceUrl}/publishers/${publisher}/vsextensions/${name}/${version}/vspackage`;
-    fancyLog('Downloading extension:', ansiColors.yellow(`${extensionName}@${version}`), '...');
+    (0, fancy_log_1.default)('Downloading extension:', ansiColors.yellow(`${extensionName}@${version}`), '...');
     const options = {
         base: url,
         requestOptions: {
@@ -195,7 +195,7 @@ function fromMarketplace(serviceUrl, { name: extensionName, version, metadata })
     return remote('', options)
         .pipe(vzip.src())
         .pipe(filter('extension/**'))
-        .pipe(rename(p => p.dirname = p.dirname.replace(/^extension\/?/, '')))
+        .pipe(rename(p => { p.dirname = p.dirname.replace(/^extension\/?/, ''); }))
         .pipe(packageJsonFilter)
         .pipe(buffer())
         .pipe(json({ __metadata: metadata }))
@@ -216,7 +216,7 @@ const ghDownloadHeaders = {
 function fromGithub({ name, version, repo, metadata }) {
     const remote = require('gulp-remote-retry-src');
     const json = require('gulp-json-editor');
-    fancyLog('Downloading extension from GH:', ansiColors.yellow(`${name}@${version}`), '...');
+    (0, fancy_log_1.default)('Downloading extension from GH:', ansiColors.yellow(`${name}@${version}`), '...');
     const packageJsonFilter = filter('package.json', { restore: true });
     return remote([`/repos${new URL(repo).pathname}/releases/tags/v${version}`], {
         base: 'https://api.github.com',
@@ -233,7 +233,7 @@ function fromGithub({ name, version, repo, metadata }) {
         .pipe(buffer())
         .pipe(vzip.src())
         .pipe(filter('extension/**'))
-        .pipe(rename(p => p.dirname = p.dirname.replace(/^extension\/?/, '')))
+        .pipe(rename(p => { p.dirname = p.dirname.replace(/^extension\/?/, ''); }))
         .pipe(packageJsonFilter)
         .pipe(buffer())
         .pipe(json({ __metadata: metadata }))
@@ -296,7 +296,7 @@ function packageLocalExtensionsStream(forWeb) {
         .filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true)));
     const localExtensionsStream = minifyExtensionResources(es.merge(...localExtensionsDescriptions.map(extension => {
         return fromLocal(extension.path, forWeb)
-            .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+            .pipe(rename(p => { p.dirname = `extensions/${extension.name}/${p.dirname}`; }));
     })));
     let result;
     if (forWeb) {
@@ -319,7 +319,7 @@ function packageMarketplaceExtensionsStream(forWeb) {
     ];
     const marketplaceExtensionsStream = minifyExtensionResources(es.merge(...marketplaceExtensionsDescriptions
         .map(extension => {
-        const src = (0, builtInExtensions_1.getExtensionStream)(extension).pipe(rename(p => p.dirname = `extensions/${p.dirname}`));
+        const src = (0, builtInExtensions_1.getExtensionStream)(extension).pipe(rename(p => { p.dirname = `extensions/${p.dirname}`; }));
         return updateExtensionPackageJSON(src, (data) => {
             delete data.scripts;
             delete data.dependencies;
@@ -437,16 +437,16 @@ async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
                 if (outputPath) {
                     const relativePath = path.relative(extensionsPath, outputPath).replace(/\\/g, '/');
                     const match = relativePath.match(/[^\/]+(\/server|\/client)?/);
-                    fancyLog(`Finished ${ansiColors.green(taskName)} ${ansiColors.cyan(match[0])} with ${stats.errors.length} errors.`);
+                    (0, fancy_log_1.default)(`Finished ${ansiColors.green(taskName)} ${ansiColors.cyan(match[0])} with ${stats.errors.length} errors.`);
                 }
                 if (Array.isArray(stats.errors)) {
                     stats.errors.forEach((error) => {
-                        fancyLog.error(error);
+                        fancy_log_1.default.error(error);
                     });
                 }
                 if (Array.isArray(stats.warnings)) {
                     stats.warnings.forEach((warning) => {
-                        fancyLog.warn(warning);
+                        fancy_log_1.default.warn(warning);
                     });
                 }
             }
@@ -466,7 +466,7 @@ async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
         else {
             webpack(webpackConfigs).run((err, stats) => {
                 if (err) {
-                    fancyLog.error(err);
+                    fancy_log_1.default.error(err);
                     reject();
                 }
                 else {
@@ -481,9 +481,9 @@ exports.webpackExtensions = webpackExtensions;
 async function esbuildExtensions(taskName, isWatch, scripts) {
     function reporter(stdError, script) {
         const matches = (stdError || '').match(/\> (.+): error: (.+)?/g);
-        fancyLog(`Finished ${ansiColors.green(taskName)} ${script} with ${matches ? matches.length : 0} errors.`);
+        (0, fancy_log_1.default)(`Finished ${ansiColors.green(taskName)} ${script} with ${matches ? matches.length : 0} errors.`);
         for (const match of matches || []) {
-            fancyLog.error(match);
+            fancy_log_1.default.error(match);
         }
     }
     const tasks = scripts.map(({ script, outputRoot }) => {
@@ -506,7 +506,7 @@ async function esbuildExtensions(taskName, isWatch, scripts) {
                 return resolve();
             });
             proc.stdout.on('data', (data) => {
-                fancyLog(`${ansiColors.green(taskName)}: ${data.toString('utf8')}`);
+                (0, fancy_log_1.default)(`${ansiColors.green(taskName)}: ${data.toString('utf8')}`);
             });
         });
     });

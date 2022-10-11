@@ -9,7 +9,7 @@ const es = require("event-stream");
 const gulp = require("gulp");
 const concat = require("gulp-concat");
 const filter = require("gulp-filter");
-const fancyLog = require("fancy-log");
+const fancy_log_1 = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const path = require("path");
 const pump = require("pump");
@@ -20,7 +20,7 @@ const stats_1 = require("./stats");
 const util = require("./util");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
-    fancyLog(ansiColors.cyan('[' + prefix + ']'), message);
+    (0, fancy_log_1.default)(ansiColors.cyan('[' + prefix + ']'), message);
 }
 function loaderConfig() {
     const result = {

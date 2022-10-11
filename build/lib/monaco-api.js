@@ -7,7 +7,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.execute = exports.run3 = exports.DeclarationResolver = exports.FSProvider = exports.RECIPE_PATH = void 0;
 const fs = require("fs");
 const path = require("path");
-const fancyLog = require("fancy-log");
+const fancy_log_1 = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const dtsv = '3';
 const tsfmt = require('../../tsfmt.json');
@@ -15,7 +15,7 @@ const SRC = path.join(__dirname, '../../src');
 exports.RECIPE_PATH = path.join(__dirname, '../monaco/monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 function logErr(message, ...rest) {
-    fancyLog(ansiColors.yellow(`[monaco.d.ts]`), message, ...rest);
+    (0, fancy_log_1.default)(ansiColors.yellow(`[monaco.d.ts]`), message, ...rest);
 }
 function isDeclaration(ts, a) {
     return (a.kind === ts.SyntaxKind.InterfaceDeclaration

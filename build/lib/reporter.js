@@ -7,7 +7,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createReporter = void 0;
 const es = require("event-stream");
 const _ = require("underscore");
-const fancyLog = require("fancy-log");
+const fancy_log_1 = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const fs = require("fs");
 const path = require("path");
@@ -23,7 +23,7 @@ class ErrorLog {
             return;
         }
         this.startTime = new Date().getTime();
-        fancyLog(`Starting ${ansiColors.green('compilation')}${this.id ? ansiColors.blue(` ${this.id}`) : ''}...`);
+        (0, fancy_log_1.default)(`Starting ${ansiColors.green('compilation')}${this.id ? ansiColors.blue(` ${this.id}`) : ''}...`);
     }
     onEnd() {
         if (--this.count > 0) {
@@ -37,10 +37,10 @@ class ErrorLog {
         errors.map(err => {
             if (!seen.has(err)) {
                 seen.add(err);
-                fancyLog(`${ansiColors.red('Error')}: ${err}`);
+                (0, fancy_log_1.default)(`${ansiColors.red('Error')}: ${err}`);
             }
         });
-        fancyLog(`Finished ${ansiColors.green('compilation')}${this.id ? ansiColors.blue(` ${this.id}`) : ''} with ${errors.length} errors after ${ansiColors.magenta((new Date().getTime() - this.startTime) + ' ms')}`);
+        (0, fancy_log_1.default)(`Finished ${ansiColors.green('compilation')}${this.id ? ansiColors.blue(` ${this.id}`) : ''} with ${errors.length} errors after ${ansiColors.magenta((new Date().getTime() - this.startTime) + ' ms')}`);
         const regex = /^([^(]+)\((\d+),(\d+)\): (.*)$/s;
         const messages = errors
             .map(err => regex.exec(err))

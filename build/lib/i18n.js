@@ -13,12 +13,12 @@ const Is = require("is");
 const xml2js = require("xml2js");
 const https = require("https");
 const gulp = require("gulp");
-const fancyLog = require("fancy-log");
+const fancy_log_1 = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const iconv = require("@vscode/iconv-lite-umd");
 const NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
 function log(message, ...rest) {
-    fancyLog(ansiColors.green('[i18n]'), message, ...rest);
+    (0, fancy_log_1.default)(ansiColors.green('[i18n]'), message, ...rest);
 }
 exports.defaultLanguages = [
     { id: 'zh-tw', folderName: 'cht', translationId: 'zh-hant' },

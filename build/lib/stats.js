@@ -6,7 +6,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createStatsStream = void 0;
 const es = require("event-stream");
-const fancyLog = require("fancy-log");
+const fancy_log_1 = require("fancy-log");
 const ansiColors = require("ansi-colors");
 class Entry {
     constructor(name, totalCount, totalSize) {
@@ -58,13 +58,13 @@ function createStatsStream(group, log) {
     }, function () {
         if (log) {
             if (entry.totalCount === 1) {
-                fancyLog(`Stats for '${ansiColors.grey(entry.name)}': ${Math.round(entry.totalSize / 1204)}KB`);
+                (0, fancy_log_1.default)(`Stats for '${ansiColors.grey(entry.name)}': ${Math.round(entry.totalSize / 1204)}KB`);
             }
             else {
                 const count = entry.totalCount < 100
                     ? ansiColors.green(entry.totalCount.toString())
                     : ansiColors.red(entry.totalCount.toString());
-                fancyLog(`Stats for '${ansiColors.grey(entry.name)}': ${count} files, ${Math.round(entry.totalSize / 1204)}KB`);
+                (0, fancy_log_1.default)(`Stats for '${ansiColors.grey(entry.name)}': ${count} files, ${Math.round(entry.totalSize / 1204)}KB`);
             }
         }
         this.emit('end');
