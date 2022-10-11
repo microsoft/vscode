@@ -1038,13 +1038,24 @@ export class DebugService implements IDebugService {
 	}
 
 	async sendAllBreakpoints(session?: IDebugSession): Promise<any> {
-		await Promise.all([
-			...distinct(this.model.getBreakpoints(), bp => bp.uri.toString()).map(bp => this.sendBreakpoints(bp.uri, false, session)),
-			this.sendFunctionBreakpoints(session),
-			this.sendDataBreakpoints(session),
-			this.sendInstructionBreakpoints(session),
-			this.sendExceptionBreakpoints(session),
-		]);
+		// If sending breakpoints to one session which we know supports the configurationDone request, can make all requests in parallel
+		if (session?.capabilities.supportsConfigurationDoneRequest) {
+			await Promise.all([
+				...distinct(this.model.getBreakpoints(), bp => bp.uri.toString()).map(bp => this.sendBreakpoints(bp.uri, false, session)),
+				this.sendFunctionBreakpoints(session),
+				this.sendDataBreakpoints(session),
+				this.sendInstructionBreakpoints(session),
+				this.sendExceptionBreakpoints(session),
+			]);
+		} else {
+			await Promise.all(distinct(this.model.getBreakpoints(), bp => bp.uri.toString()).map(bp => this.sendBreakpoints(bp.uri, false, session)));
+			await this.sendFunctionBreakpoints(session);
+			await this.sendDataBreakpoints(session);
+			await this.sendInstructionBreakpoints(session);
+			// send exception breakpoints at the end since some debug adapters may rely on the order - this was the case before
+			// the configurationDone request was introduced.
+			await this.sendExceptionBreakpoints(session);
+		}
 	}
 
 	private async sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): Promise<void> {
