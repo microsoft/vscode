@@ -958,13 +958,13 @@ export function isTextStreamMime(mimeType: string) {
 }
 
 
+const textDecoder = new TextDecoder();
 
 /**
  * Given a stream of individual stdout outputs, this function will return the compressed lines, escaping some of the common terminal escape codes.
  * E.g. some terminal escape codes would result in the previous line getting cleared, such if we had 3 lines and
  * last line contained such a code, then the result string would be just the first two lines.
  */
-const textDecoder = new TextDecoder();
 export function compressOutputItemStreams(outputs: Uint8Array[]) {
 	const buffers: Uint8Array[] = [];
 	let startAppending = false;
@@ -1005,9 +1005,11 @@ function compressStreamBuffer(streams: Uint8Array[]) {
 
 
 
-// Took this from jupyter/notebook
-// https://github.com/jupyter/notebook/blob/b8b66332e2023e83d2ee04f83d8814f567e01a4e/notebook/static/base/js/utils.js
-// Remove characters that are overridden by backspace characters
+/**
+ * Took this from jupyter/notebook
+ * https://github.com/jupyter/notebook/blob/b8b66332e2023e83d2ee04f83d8814f567e01a4e/notebook/static/base/js/utils.js
+ * Remove characters that are overridden by backspace characters
+ */
 function fixBackspace(txt: string) {
 	let tmp = txt;
 	do {
@@ -1018,9 +1020,10 @@ function fixBackspace(txt: string) {
 	return txt;
 }
 
-// Remove chunks that should be overridden by the effect of
-// carriage return characters
-// From https://github.com/jupyter/notebook/blob/master/notebook/static/base/js/utils.js
+/**
+ * Remove chunks that should be overridden by the effect of carriage return characters
+ * From https://github.com/jupyter/notebook/blob/master/notebook/static/base/js/utils.js
+ */
 function fixCarriageReturn(txt: string) {
 	txt = txt.replace(/\r+\n/gm, '\n'); // \r followed by \n --> newline
 	while (txt.search(/\r[^$]/g) > -1) {
