@@ -5,7 +5,7 @@
 
 import { Promises } from 'vs/base/common/async';
 import { getErrorMessage } from 'vs/base/common/errors';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
@@ -18,18 +18,13 @@ import { ExtensionKey, groupByExtension } from 'vs/platform/extensionManagement/
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 
-export interface IExtensionsDownloader extends IDisposable {
-	delete(location: URI): Promise<void>;
-	downloadExtension(extension: IGalleryExtension, operation: InstallOperation): Promise<{ extensionLocation: URI; signatureArchiveLocation?: URI }>;
-}
+export class ExtensionsDownloader extends Disposable {
 
-export class ExtensionsDownloader extends Disposable implements IExtensionsDownloader {
+	private static readonly SignatureArchiveExtension = '.sigzip';
 
 	readonly extensionsDownloadDir: URI;
 	private readonly cache: number;
 	private readonly cleanUpPromise: Promise<void>;
-
-	private static readonly SignatureArchiveExtension = '.sigzip';
 
 	constructor(
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
@@ -43,44 +38,46 @@ export class ExtensionsDownloader extends Disposable implements IExtensionsDownl
 		this.cleanUpPromise = this.cleanUp();
 	}
 
-	async downloadExtension(extension: IGalleryExtension, operation: InstallOperation): Promise<{ extensionLocation: URI; signatureArchiveLocation?: URI }> {
+	async downloadVSIX(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {
 		await this.cleanUpPromise;
-		const vsixName = this.getName(extension);
-		const extensionLocation = joinPath(this.extensionsDownloadDir, vsixName);
-		let signatureArchiveLocation: URI | undefined;
 
-		await this.downloadFile(extensionLocation, extension, operation, 'vsix', this.extensionGalleryService.download);
-
-		if (extension.assets.signature) {
-			signatureArchiveLocation = ExtensionsDownloader.getSignatureArchiveLocation(extensionLocation);
-
-			await this.downloadFile(signatureArchiveLocation, extension, operation, 'signature archive', this.extensionGalleryService.downloadSignatureArchive);
-		}
-
-		return { extensionLocation, signatureArchiveLocation };
+		const location = joinPath(this.extensionsDownloadDir, this.getName(extension));
+		await this.downloadFile(extension, location, location => this.extensionGalleryService.download(extension, location, operation));
+		return location;
 	}
 
-	private async downloadFile(location: URI, extension: IGalleryExtension, operation: InstallOperation, fileType: string, download: (extension: IGalleryExtension, location: URI, operation: InstallOperation) => Promise<void>) {
-		if (!await this.fileService.exists(location)) {
-			// Download to temporary location first only if file does not exist
-			const tempLocation = joinPath(this.extensionsDownloadDir, `.${generateUuid()}`);
-			if (!await this.fileService.exists(tempLocation)) {
-				await download(extension, tempLocation, operation);
-			}
+	async downloadSignatureArchive(extension: IGalleryExtension): Promise<URI> {
+		await this.cleanUpPromise;
 
+		const location = joinPath(this.extensionsDownloadDir, `${this.getName(extension)}${ExtensionsDownloader.SignatureArchiveExtension}`);
+		await this.downloadFile(extension, location, location => this.extensionGalleryService.downloadSignatureArchive(extension, location));
+		return location;
+	}
+
+	private async downloadFile(extension: IGalleryExtension, location: URI, downloadFn: (location: URI) => Promise<void>): Promise<void> {
+		// Do not download if exists
+		if (await this.fileService.exists(location)) {
+			return;
+		}
+
+		// Download to temporary location first only if file does not exist
+		const tempLocation = joinPath(this.extensionsDownloadDir, `.${generateUuid()}`);
+		if (!await this.fileService.exists(tempLocation)) {
+			await downloadFn(tempLocation);
+		}
+
+		try {
+			// Rename temp location to original
+			await this.rename(tempLocation, location, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+		} catch (error) {
 			try {
-				// Rename temp location to original
-				await this.rename(tempLocation, location, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
-			} catch (error) {
-				try {
-					await this.fileService.del(tempLocation);
-				} catch (e) { /* ignore */ }
-				if (error.code === 'ENOTEMPTY') {
-					this.logService.info(`Rename failed because ${fileType} was downloaded by another source. So ignoring renaming.`, extension.identifier.id);
-				} else {
-					this.logService.info(`Rename failed because of ${getErrorMessage(error)}. Deleted the ${fileType} from downloaded location`, tempLocation.path);
-					throw error;
-				}
+				await this.fileService.del(tempLocation);
+			} catch (e) { /* ignore */ }
+			if (error.code === 'ENOTEMPTY') {
+				this.logService.info(`Rename failed because the file was downloaded by another source. So ignoring renaming.`, extension.identifier.id, location.path);
+			} else {
+				this.logService.info(`Rename failed because of ${getErrorMessage(error)}. Deleted the file from downloaded location`, tempLocation.path);
+				throw error;
 			}
 		}
 	}
@@ -111,24 +108,21 @@ export class ExtensionsDownloader extends Disposable implements IExtensionsDownl
 			const folderStat = await this.fileService.resolve(this.extensionsDownloadDir, { resolveMetadata: true });
 			if (folderStat.children) {
 				const toDelete: URI[] = [];
-				const all: [ExtensionKey, IFileStatWithMetadata][] = [];
-				const signatureArchives = new Set<string>();
+				const vsixs: [ExtensionKey, IFileStatWithMetadata][] = [];
+				const signatureArchives: URI[] = [];
 
 				for (const stat of folderStat.children) {
-					const name = stat.name;
-
-					if (ExtensionsDownloader.isSignatureArchive(name)) {
-						const extensionPath = ExtensionsDownloader.getExtensionPath(name);
-						signatureArchives.add(extensionPath);
-						continue;
-					}
-
-					const extension = ExtensionKey.parse(name);
-					if (extension) {
-						all.push([extension, stat]);
+					if (stat.name.endsWith(ExtensionsDownloader.SignatureArchiveExtension)) {
+						signatureArchives.push(stat.resource);
+					} else {
+						const extension = ExtensionKey.parse(stat.name);
+						if (extension) {
+							vsixs.push([extension, stat]);
+						}
 					}
 				}
-				const byExtension = groupByExtension(all, ([extension]) => extension);
+
+				const byExtension = groupByExtension(vsixs, ([extension]) => extension);
 				const distinct: IFileStatWithMetadata[] = [];
 				for (const p of byExtension) {
 					p.sort((a, b) => semver.rcompare(a[0].version, b[0].version));
@@ -137,38 +131,16 @@ export class ExtensionsDownloader extends Disposable implements IExtensionsDownl
 				}
 				distinct.sort((a, b) => a.mtime - b.mtime); // sort by modified time
 				toDelete.push(...distinct.slice(0, Math.max(0, distinct.length - this.cache)).map(s => s.resource)); // Retain minimum cacheSize and delete the rest
+				toDelete.push(...signatureArchives); // Delete all signature archives
 
 				await Promises.settled(toDelete.map(resource => {
-					this.logService.trace('Deleting vsix from cache', resource.path);
-
-					let promise = Promise.resolve();
-
-					if (signatureArchives.has(resource.fsPath)) {
-						const signatureArchiveLocation = ExtensionsDownloader.getSignatureArchiveLocation(resource);
-
-						promise = promise.then(() => this.fileService.del(signatureArchiveLocation));
-					}
-
-					promise = promise.then(() => this.fileService.del(resource));
-
-					return promise;
+					this.logService.trace('Deleting from cache', resource.path);
+					return this.fileService.del(resource);
 				}));
 			}
 		} catch (e) {
 			this.logService.error(e);
 		}
-	}
-
-	private static getExtensionPath(signatureArchivePath: string): string {
-		return signatureArchivePath.substring(0, signatureArchivePath.length - ExtensionsDownloader.SignatureArchiveExtension.length);
-	}
-
-	private static getSignatureArchiveLocation(extensionLocation: URI): URI {
-		return URI.file(extensionLocation.fsPath + ExtensionsDownloader.SignatureArchiveExtension);
-	}
-
-	private static isSignatureArchive(name: string): boolean {
-		return name.endsWith(ExtensionsDownloader.SignatureArchiveExtension);
 	}
 
 	private getName(extension: IGalleryExtension): string {

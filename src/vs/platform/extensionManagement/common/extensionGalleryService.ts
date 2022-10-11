@@ -507,7 +507,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		download: getDownloadAsset(version),
 		icon: getVersionAsset(version, AssetType.Icon),
 		signature: getVersionAsset(version, AssetType.Signature),
-		coreTranslations: getCoreTranslationAssets(version),
+		coreTranslations: getCoreTranslationAssets(version)
 	};
 
 	return {
@@ -1036,7 +1036,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 	async downloadSignatureArchive(extension: IGalleryExtension, location: URI): Promise<void> {
 		if (!extension.assets.signature) {
-			return;
+			throw new Error('No signature asset found');
 		}
 
 		this.logService.trace('ExtensionGalleryService#downloadSignatureArchive', extension.identifier.id);

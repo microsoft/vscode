@@ -28,7 +28,7 @@ export interface IInstallExtensionTask {
 	readonly identifier: IExtensionIdentifier;
 	readonly source: IGalleryExtension | URI;
 	readonly operation: InstallOperation;
-	wasVerified?: boolean;
+	readonly wasVerified?: boolean;
 	run(): Promise<{ local: ILocalExtension; metadata: Metadata }>;
 	waitUntilTaskIsFinished(): Promise<{ local: ILocalExtension; metadata: Metadata }>;
 	cancel(): void;

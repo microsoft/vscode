@@ -5,8 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const EXTENSION_SIGNATURE_VERIFICATION_SERVICE_ID = 'extensionSignatureVerificationService';
-export const IExtensionSignatureVerificationService = createDecorator<IExtensionSignatureVerificationService>(EXTENSION_SIGNATURE_VERIFICATION_SERVICE_ID);
+export const IExtensionSignatureVerificationService = createDecorator<IExtensionSignatureVerificationService>('IExtensionSignatureVerificationService');
 
 /**
  * A service for verifying signed extensions.
@@ -34,7 +33,7 @@ declare module vsceSign {
  * An error raised during extension signature verification.
  */
 export interface ExtensionSignatureVerificationError extends Error {
-	code: string;
+	readonly code: string;
 }
 
 export class ExtensionSignatureVerificationService implements IExtensionSignatureVerificationService {
