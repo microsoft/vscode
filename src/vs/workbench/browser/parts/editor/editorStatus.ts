@@ -349,7 +349,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!this.screenReaderNotification) {
 			this.screenReaderNotification = this.notificationService.prompt(
 				Severity.Info,
-				localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code? (word wrap is disabled when using a screen reader)"),
+				localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code?"),
 				[{
 					label: localize('screenReaderDetectedExplanation.answerYes', "Yes"),
 					run: () => {
