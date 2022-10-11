@@ -7,7 +7,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 import { through, readable, ThroughStream } from 'event-stream';
-import * as File from 'vinyl';
+import File from 'vinyl';
 import * as Is from 'is';
 import * as xml2js from 'xml2js';
 import * as https from 'https';
