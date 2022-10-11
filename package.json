@@ -191,7 +191,7 @@
     "npm-run-all": "^4.1.5",
     "opn": "^6.0.0",
     "optimist": "0.6.1",
-    "p-all": "^4.0.0",
+    "p-all": "^3.0.0",
     "path-browserify": "^1.0.1",
     "pump": "^3.0.0",
     "queue": "6.0.2",
