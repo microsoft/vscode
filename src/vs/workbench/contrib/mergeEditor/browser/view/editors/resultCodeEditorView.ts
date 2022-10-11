@@ -206,6 +206,6 @@ export class ResultCodeEditorView extends CodeEditorView {
 	});
 
 	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
-		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeLensContribution.ID);
+		return Array.from(EditorExtensionsRegistry.getEditorContributions()).filter(c => c.id !== CodeLensContribution.ID);
 	}
 }
