@@ -20,17 +20,15 @@ async function main() {
 	const appName = product.nameLong + '.app';
 	const x64AppPath = path.join(buildDir, 'VSCode-darwin-x64', appName);
 	const arm64AppPath = path.join(buildDir, 'VSCode-darwin-arm64', appName);
-	const x64AsarPath = path.join(x64AppPath, 'Contents', 'Resources', 'app', 'node_modules.asar');
-	const arm64AsarPath = path.join(arm64AppPath, 'Contents', 'Resources', 'app', 'node_modules.asar');
+	const asarPath = path.join(x64AppPath, 'Contents', 'Resources', 'app', 'node_modules.asar');
 	const outAppPath = path.join(buildDir, `VSCode-darwin-${arch}`, appName);
 	const productJsonPath = path.resolve(outAppPath, 'Contents', 'Resources', 'app', 'product.json');
 
 	await makeUniversalApp({
 		x64AppPath,
 		arm64AppPath,
-		x64AsarPath,
-		arm64AsarPath,
-		filesToSkip: [
+		asarPath,
+		filesToSkipComparison: (file) => [
 			'product.json',
 			'Credits.rtf',
 			'CodeResources',
@@ -38,7 +36,7 @@ async function main() {
 			'Info.plist', // TODO@deepak1556: regressed with 11.4.2 internal builds
 			'MainMenu.nib', // Generated sequence is not deterministic with Xcode 13
 			'.npmrc'
-		],
+		].includes(file),
 		outAppPath,
 		force: true
 	});
