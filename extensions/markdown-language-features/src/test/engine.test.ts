@@ -30,7 +30,7 @@ suite('markdown.engine', () => {
 		});
 	});
 
-	suite.only('image-caching', () => {
+	suite('image-caching', () => {
 		const input = '![](img.png) [](no-img.png) ![](http://example.org/img.png) ![](img.png) ![](./img2.png)';
 
 		test('Extracts all images', async () => {
