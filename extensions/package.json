@@ -3,9 +3,6 @@
   "version": "0.0.1",
   "license": "MIT",
   "description": "Dependencies shared by all extensions",
-  "dependencies": {
-    "typescript": "4.8.4"
-  },
   "scripts": {
     "postinstall": "node ./postinstall.mjs"
   },
