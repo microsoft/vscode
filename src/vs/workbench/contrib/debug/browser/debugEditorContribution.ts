@@ -223,8 +223,8 @@ export class LazyDebugEditorContribution extends Disposable implements IDebugEdi
 		});
 	}
 
-	showHover(range: Range, focus: boolean): Promise<void> {
-		return this._contrib ? this._contrib.showHover(range, focus) : Promise.resolve();
+	showHover(position: Position, focus: boolean): Promise<void> {
+		return this._contrib ? this._contrib.showHover(position, focus) : Promise.resolve();
 	}
 
 	addLaunchConfiguration(): Promise<any> {
