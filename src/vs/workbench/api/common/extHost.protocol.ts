@@ -2209,7 +2209,7 @@ export interface ExtHostLocalizationShape {
 export interface IStringDetails {
 	message: string;
 	args?: Record<string | number, any>;
-	comment?: string[];
+	comment?: string | string[];
 }
 
 export interface ITestControllerPatch {
