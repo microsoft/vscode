@@ -233,6 +233,7 @@
     "windows-process-tree": "^0.3.4"
   },
   "resolutions": {
+    "p-all": "^3.0.0",
     "elliptic": "^6.5.3",
     "nwmatcher": "^1.4.4"
   }
