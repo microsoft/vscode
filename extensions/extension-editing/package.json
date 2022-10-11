@@ -28,7 +28,7 @@
   "dependencies": {
     "jsonc-parser": "^3.2.0",
     "markdown-it": "^13.0.1",
-    "parse5": "^7.1.1",
+    "parse5-sax-parser": "^7.0.0",
     "vscode-nls": "^5.2.0"
   },
   "contributes": {

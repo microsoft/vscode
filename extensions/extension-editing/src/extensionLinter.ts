@@ -62,7 +62,7 @@ export class ExtensionLinter {
 	private readmeQ = new Set<TextDocument>();
 	private timer: NodeJS.Timer | undefined;
 	private markdownIt: MarkdownItType | undefined;
-	private parse5: typeof import('parse5') | undefined;
+	private parse5: typeof import('parse5-sax-parser') | undefined;
 
 	constructor() {
 		this.disposables.push(
@@ -225,10 +225,11 @@ export class ExtensionLinter {
 			for (const tnp of tokensAndPositions) {
 				if (tnp.token.type === 'text' && tnp.token.content) {
 					if (!this.parse5) {
-						this.parse5 = await import('parse5');
+						this.parse5 = await import('parse5-sax-parser');
 					}
-					const parser = new this.parse5.SAXParser({ locationInfo: true });
-					parser.on('startTag', (name, attrs, _selfClosing, location) => {
+					const parser = new this.parse5.SAXParser({ sourceCodeLocationInfo: true });
+					parser.on('startTag', (startTag) => {
+						const { tagName: name, attrs, sourceCodeLocation: location } = startTag;
 						if (name === 'img') {
 							const src = attrs.find(a => a.name === 'src');
 							if (src && src.value && location) {
@@ -245,7 +246,8 @@ export class ExtensionLinter {
 							diagnostics.push(svgStart);
 						}
 					});
-					parser.on('endTag', (name, location) => {
+					parser.on('endTag', (endTag) => {
+						const { tagName: name, sourceCodeLocation: location } = endTag;
 						if (name === 'svg' && svgStart && location) {
 							const end = tnp.begin + location.endOffset;
 							svgStart.range = new Range(svgStart.range.start, document.positionAt(end));
