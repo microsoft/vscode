@@ -49,7 +49,7 @@
     "esbuild": "0.15.10",
     "extract-zip": "^2.0.1",
     "fs-extra": "^10.1.0",
-    "got": "12.5.1",
+    "got": "11.8.5",
     "gulp-merge-json": "^2.1.2",
     "gulp-shell": "^0.8.0",
     "jsonc-parser": "^3.2.0",
