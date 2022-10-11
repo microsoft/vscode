@@ -33,7 +33,7 @@
     "taskPresentationGroup",
     "terminalDataWriteEvent",
     "terminalDimensions",
-	"tunnels",
+    "tunnels",
     "envShellEvent",
     "testCoverage",
     "testObserver",
