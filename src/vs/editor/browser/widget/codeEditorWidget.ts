@@ -74,7 +74,7 @@ export interface ICodeEditorWidgetOptions {
 	 * Contributions to instantiate.
 	 * Defaults to EditorExtensionsRegistry.getEditorContributions().
 	 */
-	contributions?: IEditorContributionDescription[];
+	contributions?: Iterable<IEditorContributionDescription>;
 
 	/**
 	 * Telemetry data associated with this CodeEditorWidget.
@@ -329,12 +329,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._contentWidgets = {};
 		this._overlayWidgets = {};
 
-		let contributions: IEditorContributionDescription[];
-		if (Array.isArray(codeEditorWidgetOptions.contributions)) {
-			contributions = codeEditorWidgetOptions.contributions;
-		} else {
-			contributions = EditorExtensionsRegistry.getEditorContributions();
-		}
+		const contributions = codeEditorWidgetOptions.contributions ?? EditorExtensionsRegistry.getEditorContributions();
 		for (const desc of contributions) {
 			if (this._contributions[desc.id]) {
 				onUnexpectedError(new Error(`Cannot have two contributions with the same id ${desc.id}`));
