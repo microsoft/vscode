@@ -11,7 +11,7 @@ import * as _ from 'underscore';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as _rimraf from 'rimraf';
-import * as VinylFile from 'vinyl';
+import VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
 import * as sm from 'source-map-sync';
 import * as git from './git';
