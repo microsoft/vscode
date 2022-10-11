@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as es from 'event-stream';
-import * as Vinyl from 'vinyl';
+import Vinyl from 'vinyl';
 import * as vfs from 'vinyl-fs';
 import filter from 'gulp-filter';
 import gzip from 'gulp-gzip';
