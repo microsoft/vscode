@@ -10,7 +10,8 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 import { parseTree, findNodeAtLocation, Node as JsonNode, getNodeValue } from 'jsonc-parser';
-import * as MarkdownItType from 'markdown-it';
+import type MarkdownItType from 'markdown-it';
+import type MarkdownItTokenType from 'markdown-it/lib/token';
 
 import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env } from 'vscode';
 
@@ -39,7 +40,7 @@ enum Context {
 }
 
 interface TokenAndPosition {
-	token: MarkdownItType.Token;
+	token: MarkdownItTokenType;
 	begin: number;
 	end: number;
 }
@@ -60,7 +61,7 @@ export class ExtensionLinter {
 	private packageJsonQ = new Set<TextDocument>();
 	private readmeQ = new Set<TextDocument>();
 	private timer: NodeJS.Timer | undefined;
-	private markdownIt: MarkdownItType.MarkdownIt | undefined;
+	private markdownIt: MarkdownItType | undefined;
 	private parse5: typeof import('parse5') | undefined;
 
 	constructor() {
@@ -177,7 +178,7 @@ export class ExtensionLinter {
 				this.markdownIt = new (await import('markdown-it'));
 			}
 			const tokens = this.markdownIt.parse(text, {});
-			const tokensAndPositions: TokenAndPosition[] = (function toTokensAndPositions(this: ExtensionLinter, tokens: MarkdownItType.Token[], begin = 0, end = text.length): TokenAndPosition[] {
+			const tokensAndPositions: TokenAndPosition[] = (function toTokensAndPositions(this: ExtensionLinter, tokens: MarkdownItTokenType[], begin = 0, end = text.length): TokenAndPosition[] {
 				const tokensAndPositions = tokens.map<TokenAndPosition>(token => {
 					if (token.map) {
 						const tokenBegin = document.offsetAt(new Position(token.map[0], 0));
@@ -258,7 +259,7 @@ export class ExtensionLinter {
 		}
 	}
 
-	private locateToken(text: string, begin: number, end: number, token: MarkdownItType.Token, content: string | null) {
+	private locateToken(text: string, begin: number, end: number, token: MarkdownItTokenType, content: string | null) {
 		if (content) {
 			const tokenBegin = text.indexOf(content, begin);
 			if (tokenBegin !== -1) {
