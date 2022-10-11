@@ -200,7 +200,7 @@ export class ExtensionLinter {
 				});
 				return tokensAndPositions.concat(
 					...tokensAndPositions.filter(tnp => tnp.token.children && tnp.token.children.length)
-						.map(tnp => toTokensAndPositions.call(this, tnp.token.children, tnp.begin, tnp.end))
+						.map(tnp => toTokensAndPositions.call(this, (tnp.token.children || []), tnp.begin, tnp.end))
 				);
 			}).call(this, tokens);
 
