@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as ts from 'typescript';
-import * as lazy from 'lazy.js';
+import lazy from 'lazy.js';
 import { duplex, through } from 'event-stream';
 import File from 'vinyl';
 import * as sm from 'source-map-sync';
