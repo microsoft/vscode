@@ -6,7 +6,7 @@
 import * as es from 'event-stream';
 import _debounce = require('debounce');
 import * as _filter from 'gulp-filter';
-import * as rename from 'gulp-rename';
+import rename from 'gulp-rename';
 import * as _ from 'underscore';
 import * as path from 'path';
 import * as fs from 'fs';
