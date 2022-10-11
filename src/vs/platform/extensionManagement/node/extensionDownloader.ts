@@ -6,15 +6,18 @@
 import { Promises } from 'vs/base/common/async';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { isWindows } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Promises as FSPromises } from 'vs/base/node/pfs';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionKey, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ExtensionSignatureVerificationError, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -30,23 +33,42 @@ export class ExtensionsDownloader extends Disposable {
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionSignatureVerificationService private readonly extensionSignatureVerificationService: IExtensionSignatureVerificationService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		this.extensionsDownloadDir = URI.file(environmentService.extensionsDownloadPath);
+		this.extensionsDownloadDir = environmentService.extensionsDownloadLocation;
 		this.cache = 20; // Cache 20 downloaded VSIX files
 		this.cleanUpPromise = this.cleanUp();
 	}
 
-	async downloadVSIX(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {
+	async download(extension: IGalleryExtension, operation: InstallOperation): Promise<{ readonly location: URI; verified: boolean }> {
 		await this.cleanUpPromise;
 
 		const location = joinPath(this.extensionsDownloadDir, this.getName(extension));
-		await this.downloadFile(extension, location, location => this.extensionGalleryService.download(extension, location, operation));
-		return location;
+		try {
+			await this.downloadFile(extension, location, location => this.extensionGalleryService.download(extension, location, operation));
+		} catch (error) {
+			throw new ExtensionManagementError(error.message, ExtensionManagementErrorCode.Download);
+		}
+
+		let verified: boolean = false;
+		if (extension.isSigned && this.configurationService.getValue('extensions.verifySignature') === true) {
+			const signatureArchiveLocation = await this.downloadSignatureArchive(extension);
+			try {
+				verified = await this.extensionSignatureVerificationService.verify(location.fsPath, signatureArchiveLocation.fsPath);
+			} catch (error) {
+				await this.delete(signatureArchiveLocation);
+				await this.delete(location);
+				throw new ExtensionManagementError((error as ExtensionSignatureVerificationError).code, ExtensionManagementErrorCode.Signature);
+			}
+		}
+
+		return { location, verified };
 	}
 
-	async downloadSignatureArchive(extension: IGalleryExtension): Promise<URI> {
+	private async downloadSignatureArchive(extension: IGalleryExtension): Promise<URI> {
 		await this.cleanUpPromise;
 
 		const location = joinPath(this.extensionsDownloadDir, `${this.getName(extension)}${ExtensionsDownloader.SignatureArchiveExtension}`);
@@ -57,6 +79,12 @@ export class ExtensionsDownloader extends Disposable {
 	private async downloadFile(extension: IGalleryExtension, location: URI, downloadFn: (location: URI) => Promise<void>): Promise<void> {
 		// Do not download if exists
 		if (await this.fileService.exists(location)) {
+			return;
+		}
+
+		// Download directly if locaiton is not file scheme
+		if (location.scheme !== Schemas.file) {
+			await downloadFn(location);
 			return;
 		}
 

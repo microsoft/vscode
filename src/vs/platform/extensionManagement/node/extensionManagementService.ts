@@ -44,8 +44,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ExtensionSignatureVerificationError, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface InstallableExtension {
 	zipPath: string;
@@ -80,9 +78,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		@IFileService private readonly fileService: IFileService,
 		@IProductService productService: IProductService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExtensionSignatureVerificationService private readonly extensionSignatureVerificationService: IExtensionSignatureVerificationService
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService
 	) {
 		super(galleryService, telemetryService, logService, productService, userDataProfilesService);
 		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
@@ -181,6 +177,11 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return this.extensionsScanner.cleanUp(removeOutdated);
 	}
 
+	async download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {
+		const { location } = await this.extensionsDownloader.download(extension, operation);
+		return location;
+	}
+
 	private async downloadVsix(vsix: URI): Promise<{ location: URI; cleanup: () => Promise<void> }> {
 		if (vsix.scheme === Schemas.file) {
 			return { location: vsix, async cleanup() { } };
@@ -207,7 +208,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			const key = ExtensionKey.create(extension).toString();
 			installExtensionTask = this.installGalleryExtensionsTasks.get(key);
 			if (!installExtensionTask) {
-				this.installGalleryExtensionsTasks.set(key, installExtensionTask = new InstallGalleryExtensionTask(manifest, extension, options, this.extensionsDownloader, this.extensionsScanner, this.logService, this.configurationService, this.extensionSignatureVerificationService));
+				this.installGalleryExtensionsTasks.set(key, installExtensionTask = new InstallGalleryExtensionTask(manifest, extension, options, this.extensionsDownloader, this.extensionsScanner, this.logService));
 				installExtensionTask.waitUntilTaskIsFinished().then(() => this.installGalleryExtensionsTasks.delete(key));
 			}
 		}
@@ -600,8 +601,6 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 		private readonly extensionsDownloader: ExtensionsDownloader,
 		extensionsScanner: ExtensionsScanner,
 		logService: ILogService,
-		private readonly configurationService: IConfigurationService,
-		private readonly extensionVerificationService: IExtensionSignatureVerificationService
 	) {
 		super(gallery.identifier, gallery, options, extensionsScanner, logService);
 	}
@@ -637,17 +636,22 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 			return { local, metadata };
 		}
 
-		const zipPath = await this.downloadVSIX(this.gallery, this._operation);
+		const { location, verified } = await this.extensionsDownloader.download(this.gallery, this._operation);
 		try {
-			this.wasVerified = await this.verifyExtensionSignature(zipPath);
-			this.validateManifest(zipPath);
-			const local = await this.installExtension({ zipPath, key: ExtensionKey.create(this.gallery), metadata }, token);
+			this.wasVerified = !!verified;
+			this.validateManifest(location.fsPath);
+			const local = await this.installExtension({ zipPath: location.fsPath, key: ExtensionKey.create(this.gallery), metadata }, token);
 			if (existingExtension && !this.options.profileLocation && (existingExtension.targetPlatform !== local.targetPlatform || semver.neq(existingExtension.manifest.version, local.manifest.version))) {
 				await this.extensionsScanner.setUninstalled(existingExtension);
 			}
 			return { local, metadata };
 		} catch (error) {
-			await this.deleteDownloadedFile(zipPath);
+			try {
+				await this.extensionsDownloader.delete(location);
+			} catch (error) {
+				/* Ignore */
+				this.logService.warn(`Error while deleting the downloaded file`, location.toString(), getErrorMessage(error));
+			}
 			throw error;
 		}
 	}
@@ -658,43 +662,6 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 		} catch (error) {
 			throw new ExtensionManagementError(joinErrors(error).message, ExtensionManagementErrorCode.Invalid);
 		}
-	}
-
-	private async verifyExtensionSignature(zipPath: string): Promise<boolean> {
-		if (!this.gallery.isSigned) {
-			return false;
-		}
-		if (!this.configurationService.getValue('extensions.verifySignature')) {
-			return false;
-		}
-		const signatureArchivePath = (await this.extensionsDownloader.downloadSignatureArchive(this.gallery)).fsPath;
-		try {
-			return await this.extensionVerificationService.verify(zipPath, signatureArchivePath);
-		} catch (error) {
-			await this.deleteDownloadedFile(signatureArchivePath);
-			throw new ExtensionManagementError((error as ExtensionSignatureVerificationError).code, ExtensionManagementErrorCode.Signature);
-		}
-	}
-
-	private async deleteDownloadedFile(filePath: string): Promise<void> {
-		try {
-			await this.extensionsDownloader.delete(URI.file(filePath));
-		} catch (error) {
-			/* Ignore */
-			this.logService.warn(`Error while deleting the downloaded file`, filePath.toString(), getErrorMessage(error));
-		}
-	}
-
-	private async downloadVSIX(extension: IGalleryExtension, operation: InstallOperation): Promise<string> {
-		let zipPath: string | undefined;
-		try {
-			this.logService.trace('Started downloading extension:', extension.identifier.id);
-			zipPath = (await this.extensionsDownloader.downloadVSIX(extension, operation)).fsPath;
-			this.logService.info('Downloaded extension:', extension.identifier.id, zipPath);
-		} catch (error) {
-			throw new ExtensionManagementError(joinErrors(error).message, ExtensionManagementErrorCode.Download);
-		}
-		return zipPath;
 	}
 
 }

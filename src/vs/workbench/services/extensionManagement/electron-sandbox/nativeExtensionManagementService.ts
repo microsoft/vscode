@@ -92,7 +92,7 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 			return { location: vsix, async cleanup() { } };
 		}
 		this.logService.trace('Downloading extension from', vsix.toString());
-		const location = joinPath(URI.file(this.nativeEnvironmentService.extensionsDownloadPath), generateUuid());
+		const location = joinPath(this.nativeEnvironmentService.extensionsDownloadLocation, generateUuid());
 		await this.downloadService.download(vsix, location);
 		this.logService.info('Downloaded extension to', location.toString());
 		const cleanup = async () => {
