@@ -661,7 +661,7 @@ async function parsePolicies(): Promise<Policy[]> {
 
 	const files = await getFiles(process.cwd());
 	const base = path.join(process.cwd(), 'src');
-	const policies = [];
+	const policies: Policy[] = [];
 
 	for (const file of files) {
 		const moduleName = path.relative(base, file).replace(/\.ts$/i, '').replace(/\\/g, '/');
