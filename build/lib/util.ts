@@ -216,7 +216,7 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 
 			if (!lastMatch) {
 				f.sourceMap = {
-					version: '3',
+					version: 3,
 					names: [],
 					mappings: '',
 					sources: [f.relative],
