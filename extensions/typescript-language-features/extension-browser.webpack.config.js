@@ -12,6 +12,7 @@ const fs = require('fs');
 const path = require('path');
 
 const defaultConfig = require('../shared.webpack.config');
+const { fromBuffer } = require('yauzl');
 const withBrowserDefaults = defaultConfig.browser;
 const browserPlugins = defaultConfig.browserPlugins;
 
@@ -81,6 +82,9 @@ module.exports = withBrowserDefaults({
 							'./protocol': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'common', 'protocol.js'),
 							'browser--./connection': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'browser', 'connection.js'), // referenced from connection.js, main.js, ril.js
 							'./ril': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'browser', 'ril.js'),
+							'./messageCancellation': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'common', 'messageCancellation.js'),
+							'common--./messageConnection': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'common', 'messageConnection.js'),
+							'browser--./messageConnection': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'browser', 'messageConnection.js'),
 							'../common/api': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'common', 'api.js'),
 							'@vscode/sync-api-common': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'lib', 'browser', 'main.js'),
 							'@vscode/sync-api-common/browser': path.join(__dirname, 'node_modules', '@vscode/sync-api-common', 'browser.js'),
@@ -91,20 +95,25 @@ module.exports = withBrowserDefaults({
 							'./lib/common/ral': './ral',
 							'../common/ral': './ral',
 							'../common/connection': 'common--./connection',
+							'../common/messageConnection': 'common--./messageConnection',
 						};
 						const connectionReplacements = {
-							'@vscode/sync-api-common': 'require("browser--./connection")',
-							'./ril': 'require("browser--./connection")',
-							'common--./connection': 'require("browser--./connection")',
-							'../common/api': 'require("common--./connection")',
-							'./protocol': 'require("common--./connection")',
+							'@vscode/sync-api-common': [['require("./connection")', 'require("browser--./connection")'],
+								['require("./messageConnection")', 'require("browser--./messageConnection")']],
+							'./ril': [['require("./connection")', 'require("browser--./connection")']],
+							'common--./connection': [['require("./connection")', 'require("browser--./connection")']],
+							'../common/api': [['require("./connection")', 'require("common--./connection")'],
+								['require("./messageConnection")', 'require("common--./messageConnection")']],
+							'./protocol': [['require("./connection")', 'require("common--./connection")']],
 						};
 						/** @type {Record<string, string>} */
 						const modules = {};
 						for (const name in filenames) {
 							modules[name] = fs.readFileSync(filenames[name], 'utf8');
 							if (name in connectionReplacements) {
-								modules[name] = modules[name].replace('require("./connection")', connectionReplacements[name]);
+								for (const [fro,to] of connectionReplacements[name]) {
+									modules[name] = modules[name].replace(fro, to);
+								}
 							}
 						}
 						return prefix + '\n' + cheat + '\n' + wrapper(modules, redirect);

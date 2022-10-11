@@ -56,25 +56,25 @@
     "@microsoft/1ds-core-js" "^3.2.3"
     "@microsoft/1ds-post-js" "^3.2.3"
 
-"@vscode/sync-api-client@^0.2.0":
-  version "0.2.1"
-  resolved "https://registry.yarnpkg.com/@vscode/sync-api-client/-/sync-api-client-0.2.1.tgz#a4cd76a47c2b4b80f1c329e715843c55251ca8f2"
-  integrity sha512-uZuRT9uay10H2NEh0hoB5M06QjicGhj6NROU5gUE6zVx+gvgUzuYZc0kpbD3ZLX3w1BrOkgOe6WQQgcMzO1q7A==
+"@vscode/sync-api-client@^0.7.2":
+  version "0.7.2"
+  resolved "https://registry.yarnpkg.com/@vscode/sync-api-client/-/sync-api-client-0.7.2.tgz#0644bff66a5eff636bcd8eb483d34796b9f90d2d"
+  integrity sha512-HQHz57RVKmR8sTEen1Y/T3r6mzDX7IaUJz/O2RJkn0Qu9ThvCsakLP0N+1iiwPnPfUfmNSwQXbSw8bEQFPcpYQ==
   dependencies:
-    "@vscode/sync-api-common" "0.2.0"
+    "@vscode/sync-api-common" "0.7.2"
     vscode-uri "3.0.3"
 
-"@vscode/sync-api-common@0.2.0", "@vscode/sync-api-common@^0.2.0":
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/@vscode/sync-api-common/-/sync-api-common-0.2.0.tgz#a519fef482aded401d680dc9b79b8a9dcd7fa33f"
-  integrity sha512-LDR61SuAla4+KuM17wF/6fcRbxK5k15H244nF+r719joMTXLRtow7wXZP8OvbDIiw9H7xVAACFqE3XOAMExaUg==
+"@vscode/sync-api-common@0.7.2", "@vscode/sync-api-common@^0.7.2":
+  version "0.7.2"
+  resolved "https://registry.yarnpkg.com/@vscode/sync-api-common/-/sync-api-common-0.7.2.tgz#705060ee6a0108c24e145e687613becdb4292b33"
+  integrity sha512-ne1XEeDIYA3mp4oo1QoF1fqFedd0Vf4ybMmLb9HixbTyXy/qwMNL2p6OjXjOsmx6w2q9eqzGA5W/OPRSJxTTIQ==
 
-"@vscode/sync-api-service@^0.2.0":
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/@vscode/sync-api-service/-/sync-api-service-0.2.0.tgz#195228afe0eec8749b0a4b39255bbde9fb04b7a4"
-  integrity sha512-O34szvmhCfu4veiIW/DjZEO0gNoTBDkpa8APAC0A8t1nkzFABm+PCkA3mXGMI4jGmRhXv8dlZSzDPGrJ29cNmg==
+"@vscode/sync-api-service@^0.7.3":
+  version "0.7.3"
+  resolved "https://registry.yarnpkg.com/@vscode/sync-api-service/-/sync-api-service-0.7.3.tgz#6cb7bd23c4a7378e4b92ca3638501a9be1937152"
+  integrity sha512-m2AmmfG4uzfjLMgWRHQ3xnBkdwCiUTO68vdw1XuzMsOb39Jwm9xr5bVVxwOFR9lPC0FfO1H6FUxBhZQvg7itPA==
   dependencies:
-    "@vscode/sync-api-common" "0.2.0"
+    "@vscode/sync-api-common" "0.7.2"
     vscode-uri "3.0.3"
 
 axios@^0.26.1:
@@ -128,13 +128,13 @@ vscode-uri@3.0.3, vscode-uri@^3.0.3:
   resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-3.0.3.tgz#a95c1ce2e6f41b7549f86279d19f47951e4f4d84"
   integrity sha512-EcswR2S8bpR7fD0YPeS7r2xXExrScVMxg4MedACaWHEtx9ftCF/qHG1xGkolzTPcEmjTavCQgbVzHUIdTMzFGA==
 
-vscode-wasm-typescript@0.1.2:
-  version "0.1.2"
-  resolved "https://registry.yarnpkg.com/vscode-wasm-typescript/-/vscode-wasm-typescript-0.1.2.tgz#ac42c65ec9060d65d8130eb6f8ab0789342b3465"
-  integrity sha512-3TgJcjx79eMXQeYc2+dsLfKZsDM25y0FejaC//HGO6/ZSa+TiyuwKIQKLWfqCxQelZKtDzPpTaA/reHuIdSQoQ==
+vscode-wasm-typescript@0.1.3:
+  version "0.1.3"
+  resolved "https://registry.yarnpkg.com/vscode-wasm-typescript/-/vscode-wasm-typescript-0.1.3.tgz#e82d12c618ef1da193910a49e444e226e308af6e"
+  integrity sha512-Y7J2s7HLtDEziqgi9lunJZUF2pDU/S7Zxk8CBeMq63jCa32j/pY8fmCp9pizZTcodbaDqJ5/e2htogW5tExitA==
   dependencies:
-    "@vscode/sync-api-client" "^0.2.0"
-    "@vscode/sync-api-common" "^0.2.0"
-    "@vscode/sync-api-service" "^0.2.0"
+    "@vscode/sync-api-client" "^0.7.2"
+    "@vscode/sync-api-common" "^0.7.2"
+    "@vscode/sync-api-service" "^0.7.3"
     typescript "^4.8.2"
     vscode-uri "^3.0.3"

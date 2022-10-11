@@ -11,7 +11,7 @@ import { TsServerProcess, TsServerProcessKind } from './server';
 import { TypeScriptVersion } from './versionProvider';
 // NIEUW
 import { ServiceConnection } from '@vscode/sync-api-common/browser';
-import { APIRequests, ApiService } from '@vscode/sync-api-service';
+import { Requests, ApiService } from '@vscode/sync-api-service';
 
 const localize = nls.loadMessageBundle();
 
@@ -68,7 +68,7 @@ export class WorkerServerProcess implements TsServerProcess {
 				return;
 			}
 
-			this.output.append(JSON.stringify(msg.data) + '\n');
+			this.output.append('extn got: ' + JSON.stringify(msg.data) + '\n');
 			for (const handler of this._onDataHandlers) {
 				handler(msg.data);
 			}
@@ -82,10 +82,9 @@ export class WorkerServerProcess implements TsServerProcess {
 		this.output.append('creating new MessageChannel and posting its port2 + args: ' + args.join(' '));
 		const syncChannel = new MessageChannel();
 		worker.postMessage({ args, port: syncChannel.port2 }, [syncChannel.port2]);
-		const connection = new ServiceConnection<APIRequests>(syncChannel.port1);
+		const connection = new ServiceConnection<Requests>(syncChannel.port1);
 		this.output.append('\ncreating new ApiService with connection\n');
-		new ApiService('TypeScript???', connection, _rval => worker.terminate());
-		// TODO: not sure whether ApiService's exitHandler should worker.terminate()
+		new ApiService('vscode-wasm-typescript', connection);
 		this.output.append('about to signalReady\n');
 		connection.signalReady();
 		this.output.append('done constructing WorkerServerProcess\n');
