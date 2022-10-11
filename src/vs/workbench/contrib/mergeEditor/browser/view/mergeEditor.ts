@@ -607,10 +607,21 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		});
 	}
 
-	public toggleShowBaseAtTop(): void {
+	public toggleShowBaseTop(): void {
+		const showBaseTop = this._layoutMode.value.showBase && this._layoutMode.value.showBaseAtTop;
 		this.setLayout({
 			...this._layoutMode.value,
-			showBaseAtTop: !this._layoutMode.value.showBaseAtTop,
+			showBaseAtTop: true,
+			showBase: !showBaseTop,
+		});
+	}
+
+	public toggleShowBaseCenter(): void {
+		const showBaseCenter = this._layoutMode.value.showBase && !this._layoutMode.value.showBaseAtTop;
+		this.setLayout({
+			...this._layoutMode.value,
+			showBaseAtTop: false,
+			showBase: !showBaseCenter,
 		});
 	}
 
