@@ -203,11 +203,11 @@ export interface IDebugSessionOptions {
 	repl?: IDebugSessionReplMode;
 	compoundRoot?: DebugCompoundRoot;
 	compact?: boolean;
-	debugUI?: {
-		simple?: boolean;
-	};
 	startedByUser?: boolean;
 	saveBeforeRestart?: boolean;
+	suppressDebugToolbar?: boolean;
+	suppressDebugStatusbar?: boolean;
+	suppressDebugView?: boolean;
 }
 
 export interface IDataBreakpointInfoResponse {
@@ -300,8 +300,10 @@ export interface IDebugSession extends ITreeElement {
 	readonly compoundRoot: DebugCompoundRoot | undefined;
 	readonly saveBeforeRestart: boolean;
 	readonly name: string;
-	readonly isSimpleUI: boolean;
 	readonly autoExpandLazyVariables: boolean;
+	readonly suppressDebugToolbar: boolean;
+	readonly suppressDebugStatusbar: boolean;
+	readonly suppressDebugView: boolean;
 
 	setSubId(subId: string | undefined): void;
 

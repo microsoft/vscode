@@ -1227,9 +1227,9 @@ export interface IStartDebuggingOptions {
 	repl?: IDebugSessionReplMode;
 	noDebug?: boolean;
 	compact?: boolean;
-	debugUI?: {
-		simple?: boolean;
-	};
+	suppressDebugToolbar?: boolean;
+	suppressDebugStatusbar?: boolean;
+	suppressDebugView?: boolean;
 	suppressSaveBeforeStart?: boolean;
 }
 
