@@ -40,6 +40,7 @@ import { IsMacNativeContext, IsWebContext } from 'vs/platform/contextkey/common/
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
+import { isICommandActionToggleInfo } from 'vs/platform/action/common/action';
 
 export type IOpenRecentAction = IAction & { uri: URI; remoteAuthority?: string };
 
@@ -701,7 +702,7 @@ export class CustomMenubarControl extends MenubarControl {
 					this.insertActionsBefore(action, target);
 
 					// use mnemonicTitle whenever possible
-					const title = typeof action.item.title === 'string'
+					let title = typeof action.item.title === 'string'
 						? action.item.title
 						: action.item.title.mnemonicTitle ?? action.item.title.value;
 
@@ -727,6 +728,10 @@ export class CustomMenubarControl extends MenubarControl {
 							target.push(new SubmenuAction(action.id, mnemonicMenuLabel(title), submenuActions));
 						}
 					} else {
+						if (isICommandActionToggleInfo(action.item.toggled)) {
+							title = action.item.toggled.mnemonicTitle ?? action.item.toggled.title ?? title;
+						}
+
 						const newAction = new Action(action.id, mnemonicMenuLabel(title), action.class, action.enabled, () => this.commandService.executeCommand(action.id));
 						newAction.tooltip = action.tooltip;
 						newAction.checked = action.checked;
