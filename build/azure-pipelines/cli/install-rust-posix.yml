@@ -17,7 +17,8 @@ steps:
       RUSTUP_TOOLCHAIN: ${{ parameters.channel }}
     displayName: "Install Rust"
 
-  - bash: |
+  - script: |
+      set -e
       rustup default $RUSTUP_TOOLCHAIN
       rustup update $RUSTUP_TOOLCHAIN
     env:
@@ -29,6 +30,7 @@ steps:
       displayName: "Adding Rust target '${{ target }}'"
 
   - script: |
+      set -e
       rustc --version
       cargo --version
       rustup --version

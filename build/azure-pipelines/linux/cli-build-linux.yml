@@ -20,6 +20,7 @@ parameters:
 steps:
   # inspired by: https://github.com/emk/rust-musl-builder/blob/main/Dockerfile
   - bash: |
+      set -e
       sudo apt-get update
       sudo apt-get install -yq build-essential cmake curl file git graphviz musl-dev musl-tools linux-libc-dev pkgconf unzip xutils-dev
       sudo ln -s "/usr/bin/g++" "/usr/bin/musl-g++" || echo "link exists"

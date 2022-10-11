@@ -102,10 +102,7 @@ jobs:
   - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
     - job: LinuxCLI
       displayName: Linux (CLI)
-      pool:
-        name: vscode-1es-vscode-linux-20.04
-        demands:
-          - ImageVersionOverride -equals 40.0.0
+      pool: vscode-1es-vscode-linux-20.04
       timeoutInMinutes: 30
       steps:
         - template: cli/test.yml

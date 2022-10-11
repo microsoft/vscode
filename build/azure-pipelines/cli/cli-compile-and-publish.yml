@@ -24,9 +24,9 @@ steps:
   - ${{ if or(contains(parameters.VSCODE_CLI_TARGET, '-windows-'), contains(parameters.VSCODE_CLI_TARGET, '-darwin')) }}:
     - task: ArchiveFiles@2
       inputs:
-        ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-')}}:
+        ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
           rootFolderOrFile: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code-tunnel.exe
-        ${{ if contains(parameters.VSCODE_CLI_TARGET, '-darwin')}}:
+        ${{ if contains(parameters.VSCODE_CLI_TARGET, '-darwin') }}:
           rootFolderOrFile: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code-tunnel
         includeRootFolder: false
         archiveType: zip
@@ -36,7 +36,7 @@ steps:
       artifact: ${{ parameters.VSCODE_CLI_ARTIFACT }}
       displayName: Publish ${{ parameters.VSCODE_CLI_ARTIFACT }} artifact
 
-  - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-linux-') }}:
+  - ${{ else }}:
     - task: ArchiveFiles@2
       inputs:
         rootFolderOrFile: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code-tunnel
