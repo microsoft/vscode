@@ -13,7 +13,8 @@
 		"diffContentOptions"
 	],
 	"activationEvents": [
-		"*"
+		"onNotebook:jupyter-notebook",
+		"onCommand:ipynb.newUntitledIpynb"
 	],
 	"extensionKind": [
 		"workspace",

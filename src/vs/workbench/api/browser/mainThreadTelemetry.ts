@@ -5,7 +5,6 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
@@ -19,25 +18,13 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 
 	private static readonly _name = 'pluginHostTelemetry';
 
-	private readonly _extensionTelemetryLog: ILogger;
-
 	constructor(
 		extHostContext: IExtHostContext,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
-		@ILoggerService loggerService: ILoggerService,
 	) {
 		super();
-
-		const logger = loggerService.getLogger(this._environmentService.extensionTelemetryLogResource);
-		if (logger) {
-			this._extensionTelemetryLog = this._register(logger);
-		} else {
-			this._extensionTelemetryLog = this._register(loggerService.createLogger(this._environmentService.extensionTelemetryLogResource));
-			this._extensionTelemetryLog.info('Below are logs for extension telemetry events sent to the telemetry output channel API once the log level is set to trace.');
-			this._extensionTelemetryLog.info('===========================================================');
-		}
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTelemetry);
 
@@ -66,11 +53,6 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 
 	$publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
 		this.$publicLog(eventName, data as any);
-	}
-
-	$logTelemetryToOutputChannel(eventName: string, data: Record<string, any>) {
-		this._extensionTelemetryLog.trace(eventName, data);
-		this._extensionTelemetryLog.flush();
 	}
 }
 

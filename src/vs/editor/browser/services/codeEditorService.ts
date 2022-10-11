@@ -41,6 +41,7 @@ export interface ICodeEditorService {
 	getFocusedCodeEditor(): ICodeEditor | null;
 
 	registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void;
+	listDecorationTypes(): string[];
 	removeDecorationType(key: string): void;
 	resolveDecorationOptions(typeKey: string, writable: boolean): IModelDecorationOptions;
 	resolveDecorationCSSRules(decorationTypeKey: string): CSSRuleList | null;

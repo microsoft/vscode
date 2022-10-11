@@ -24,6 +24,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Iterable } from 'vs/base/common/iterator';
 
 
 export type ServicesAccessor = InstantiationServicesAccessor;
@@ -486,19 +487,19 @@ export namespace EditorExtensionsRegistry {
 		return EditorContributionRegistry.INSTANCE.getEditorCommand(commandId);
 	}
 
-	export function getEditorActions(): EditorAction[] {
+	export function getEditorActions(): Iterable<EditorAction> {
 		return EditorContributionRegistry.INSTANCE.getEditorActions();
 	}
 
-	export function getEditorContributions(): IEditorContributionDescription[] {
+	export function getEditorContributions(): Iterable<IEditorContributionDescription> {
 		return EditorContributionRegistry.INSTANCE.getEditorContributions();
 	}
 
-	export function getSomeEditorContributions(ids: string[]): IEditorContributionDescription[] {
-		return EditorContributionRegistry.INSTANCE.getEditorContributions().filter(c => ids.indexOf(c.id) >= 0);
+	export function getSomeEditorContributions(ids: string[]): Iterable<IEditorContributionDescription> {
+		return Iterable.filter(EditorContributionRegistry.INSTANCE.getEditorContributions(), c => ids.indexOf(c.id) >= 0);
 	}
 
-	export function getDiffEditorContributions(): IDiffEditorContributionDescription[] {
+	export function getDiffEditorContributions(): Iterable<IDiffEditorContributionDescription> {
 		return EditorContributionRegistry.INSTANCE.getDiffEditorContributions();
 	}
 }
@@ -528,16 +529,16 @@ class EditorContributionRegistry {
 		this.editorContributions.push({ id, ctor: ctor as IEditorContributionCtor });
 	}
 
-	public getEditorContributions(): IEditorContributionDescription[] {
-		return this.editorContributions.slice(0);
+	public getEditorContributions(): Iterable<IEditorContributionDescription> {
+		return this.editorContributions;
 	}
 
 	public registerDiffEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: IDiffEditor, ...services: Services): IEditorContribution }): void {
 		this.diffEditorContributions.push({ id, ctor: ctor as IDiffEditorContributionCtor });
 	}
 
-	public getDiffEditorContributions(): IDiffEditorContributionDescription[] {
-		return this.diffEditorContributions.slice(0);
+	public getDiffEditorContributions(): Iterable<IDiffEditorContributionDescription> {
+		return this.diffEditorContributions;
 	}
 
 	public registerEditorAction(action: EditorAction) {
@@ -545,8 +546,8 @@ class EditorContributionRegistry {
 		this.editorActions.push(action);
 	}
 
-	public getEditorActions(): EditorAction[] {
-		return this.editorActions.slice(0);
+	public getEditorActions(): Iterable<EditorAction> {
+		return this.editorActions;
 	}
 
 	public registerEditorCommand(editorCommand: EditorCommand) {

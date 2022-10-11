@@ -188,8 +188,8 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				try {
 					await this._proxyCustomEditors.$resolveWebviewEditor(resource, handle, viewType, {
 						title: webviewInput.getTitle(),
-						webviewOptions: webviewInput.webview.contentOptions,
-						panelOptions: webviewInput.webview.options,
+						contentOptions: webviewInput.webview.contentOptions,
+						options: webviewInput.webview.options,
 					}, editorGroupToColumn(this._editorGroupService, webviewInput.group || 0), cancellation);
 				} catch (error) {
 					onUnexpectedError(error);

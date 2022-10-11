@@ -43,7 +43,6 @@ export class ConflictActionsFactory extends Disposable {
 	}
 
 	private _updateLensStyle(): void {
-
 		const { codeLensHeight, fontSize } = this._getLayoutInfo();
 		const fontFamily = this._editor.getOption(EditorOption.codeLensFontFamily);
 		const editorFontInfo = this._editor.getOption(EditorOption.fontInfo);
@@ -172,7 +171,9 @@ export class ConflictActionsFactory extends Disposable {
 			return result;
 		});
 
-		return new ActionsContentWidget(this._editor, viewZoneChangeAccessor, lineNumber, 16, this._styleClassName, items);
+		const layoutInfo = this._getLayoutInfo();
+
+		return new ActionsContentWidget(this._editor, viewZoneChangeAccessor, lineNumber, layoutInfo.codeLensHeight + 2, this._styleClassName, items);
 	}
 
 	addContentWidget(viewZoneChangeAccessor: IViewZoneChangeAccessor, lineNumber: number, viewModel: MergeEditorViewModel, modifiedBaseRange: ModifiedBaseRange, inputNumber: 1 | 2): IDisposable {
@@ -259,7 +260,10 @@ export class ConflictActionsFactory extends Disposable {
 			}
 			return result;
 		});
-		return new ActionsContentWidget(this._editor, viewZoneChangeAccessor, lineNumber, 16, this._styleClassName, items);
+
+		const layoutInfo = this._getLayoutInfo();
+
+		return new ActionsContentWidget(this._editor, viewZoneChangeAccessor, lineNumber, layoutInfo.codeLensHeight + 2, this._styleClassName, items);
 	}
 }
 
