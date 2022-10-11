@@ -37,6 +37,24 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
+__vsc_get_trap() {
+	# 'trap -p DEBUG' outputs a shell command like `trap -- '…shellcode…' DEBUG`.
+	# The terms are quoted literals, but are not guaranteed to be on a single line.
+	# (Consider a trap like $'echo foo\necho \'bar\'').
+	# To parse, we splice those terms into an expression capturing them into an array.
+	# This preserves the quoting of those terms: when we `eval` that expression, they are preserved exactly.
+	# This is different than simply exploding the string, which would split everything on IFS, oblivious to quoting.
+	builtin local -a terms
+	builtin eval "terms=( $(trap -p "${1:-DEBUG}") )"
+	#                    └───────┬────────────────┘
+	#        ┌───────────────────┴────────────────────┐
+	# terms=( trap  --  '…arbitrary shellcode…'  DEBUG )
+	#        └─┬──┘└┬─┘ └────────┬────────────┘ └─┬───┘
+	#          0    1            2                3
+	#                   ┌────────┴────┐
+	builtin printf '%s' "${terms[2]:-}"
+}
+
 # Send the IsWindows property if the environment looks like Windows
 if [[ "$(uname -s)" =~ ^CYGWIN*|MINGW*|MSYS* ]]; then
 	builtin printf "\x1b]633;P;IsWindows=True\x07"
@@ -143,23 +161,7 @@ if [[ -n "${bash_preexec_imported:-}" ]]; then
 	precmd_functions+=(__vsc_prompt_cmd)
 	preexec_functions+=(__vsc_preexec_only)
 else
-	# 'trap -p DEBUG' outputs a shell command like `trap -- '…shellcode…' DEBUG`.
-	# The terms are quoted literals, but are not guaranteed to be on a single line.
-	# (Consider a trap like $'echo foo\necho \'bar\'').
-	# To parse, we splice those terms into an expression capturing them into an array.
-	# This preserves the quoting of those terms: when we `eval` that expression, they are preserved exactly.
-	# This is different than simply exploding the string, which would split everything on IFS, oblivious to quoting.
-	builtin declare -a __vsc_tmp_trap_terms
-	builtin eval "__vsc_tmp_trap_terms=( $(trap -p DEBUG) )"
-	#                                   └───────┬────────┘
-	#                       ╭───────────────────╯
-	# ┌─────────────────────┴────────────────────┐
-	# │ trap  --  '…arbitrary shellcode…'  DEBUG │
-	# └─┬───┘└┬─┘ └───────┬─────────────┘ └──┬───┘
-	#   0     1           2                  3
-	#                     ╰────────────────╮
-	__vsc_dbg_trap="${__vsc_tmp_trap_terms[2]:-}"
-	builtin unset __vsc_tmp_trap_terms
+	__vsc_dbg_trap="$(__vsc_get_trap DEBUG)"
 
 	if [[ -z "$__vsc_dbg_trap" ]]; then
 		__vsc_preexec_only() {
