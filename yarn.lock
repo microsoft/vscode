@@ -3053,11 +3053,6 @@ each-props@^1.3.2:
     is-plain-object "^2.0.1"
     object.defaults "^1.1.0"
 
-easy-transform-stream@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/easy-transform-stream/-/easy-transform-stream-1.0.0.tgz#bdc34218421e981a6fb9cc68b442dae0cd09d728"
-  integrity sha512-kIEXvPNtqUQ/lrgkULIP0/l2m88Ahlk2ySZhmuLdRidXBIEPyHuDgDt04b9DvnCy+nIQDjpygVft+Op3PZFUQg==
-
 ecc-jsbn@~0.1.1:
   version "0.1.2"
   resolved "https://registry.yarnpkg.com/ecc-jsbn/-/ecc-jsbn-0.1.2.tgz#3a83a904e54353287874c564b7549386849a98c9"
@@ -4362,13 +4357,13 @@ gulp-azure-storage@^0.12.1:
     vinyl-fs "^3.0.3"
     yargs "^15.3.0"
 
-gulp-bom@^4.0.0:
-  version "4.0.0"
-  resolved "https://registry.yarnpkg.com/gulp-bom/-/gulp-bom-4.0.0.tgz#cf3160c827677b4f1f5909b0bf7ded78dd21604d"
-  integrity sha512-0PLElDcn0WmAvwf97LhBqooFs1DBfplOFhstf0SIqtMb1tDVj6J6HaIX6R49A4uLx+kQsrq5mlNeKSVphbhpEA==
+gulp-bom@^3.0.0:
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/gulp-bom/-/gulp-bom-3.0.0.tgz#b2f1ab0ef304ff5e593665b776ba517ef7ffb4ad"
+  integrity sha512-iw/J94F+MVlxG64Q17BSkHsyjpY17qHl3N3A/jDdrL77zQBkhKtTiKLqM4di9CUX/qFToyyeDsOWwH+rESBgmA==
   dependencies:
-    easy-transform-stream "^1.0.0"
     plugin-error "^1.0.1"
+    through2 "^3.0.1"
 
 gulp-buffer@0.0.2:
   version "0.0.2"
