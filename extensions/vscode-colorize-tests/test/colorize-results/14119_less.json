@@ -40,9 +40,9 @@
 		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -52,9 +52,9 @@
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}

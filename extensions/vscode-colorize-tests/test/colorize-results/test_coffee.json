@@ -354,7 +354,7 @@
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
 			"dark_vs": "source.coffee.embedded: #9CDCFE",
-			"light_vs": "source.coffee.embedded: #FF0000",
+			"light_vs": "source.coffee.embedded: #E50000",
 			"hc_black": "variable: #9CDCFE",
 			"hc_light": "variable: #001080"
 		}
@@ -642,7 +642,7 @@
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
 			"dark_vs": "source.coffee.embedded: #9CDCFE",
-			"light_vs": "source.coffee.embedded: #FF0000",
+			"light_vs": "source.coffee.embedded: #E50000",
 			"hc_black": "variable: #9CDCFE",
 			"hc_light": "variable: #001080"
 		}
