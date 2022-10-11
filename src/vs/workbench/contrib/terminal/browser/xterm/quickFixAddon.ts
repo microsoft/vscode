@@ -27,6 +27,7 @@ import { IDecoration, Terminal } from 'xterm';
 // eslint-disable-next-line local/code-import-patterns
 import type { ITerminalAddon } from 'xterm-headless';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ILogService } from 'vs/platform/log/common/log';
 
 
 const quickFixSelectors = [DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration];
@@ -89,7 +90,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
@@ -131,18 +133,22 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			if (this._fixesAvailable) {
 				if (this._fixesShown) {
 					if (this._expectedCommands?.includes(command.command)) {
+						this._logService.debug(QuickFixCommandResultTelemetryEvent.QuickFixExecutedManually);
 						this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(QuickFixCommandResultTelemetryEvent.QuickFixExecutedManually);
 					} else {
+						this._logService.debug(QuickFixCommandResultTelemetryEvent.QuickFixWrong);
 						this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(QuickFixCommandResultTelemetryEvent.QuickFixWrong);
 					}
+					this._fixesShown = false;
 				} else {
+					this._logService.debug(QuickFixCommandResultTelemetryEvent.QuickFixIgnored);
 					this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(QuickFixCommandResultTelemetryEvent.QuickFixIgnored);
 				}
+			} else {
+				this._expectedCommands = undefined;
 			}
 			this._resolveQuickFixes(command);
 			this._fixesAvailable = false;
-			this._fixesShown = false;
-			this._expectedCommands = undefined;
 		}));
 		// The buffer is not ready by the time command finish
 		// is called. Add the decoration on command start if there are corresponding quick fixes
@@ -164,15 +170,20 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (!result) {
 			return;
 		}
-		const { fixes, onDidRunQuickFix } = result;
+		const { fixes, onDidRunQuickFix, expectedCommands } = result;
+		this._expectedCommands = expectedCommands;
 		this._quickFixes = fixes;
-		this.onDidRequestRerunCommand(() => {
+		this._register(this.onDidRequestRerunCommand(() => {
+			this._logService.debug(QuickFixCommandResultTelemetryEvent.QuickFixExecuted);
 			this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(QuickFixCommandResultTelemetryEvent.QuickFixExecuted);
-		});
-		onDidRunQuickFix(() => {
+			this._fixesAvailable = false;
+		}));
+		this._register(onDidRunQuickFix(() => {
+			this._logService.debug(QuickFixCommandResultTelemetryEvent.QuickFixExecuted);
 			this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(QuickFixCommandResultTelemetryEvent.QuickFixExecuted);
 			this._disposeQuickFix();
-		});
+			this._fixesAvailable = false;
+		}));
 	}
 
 	private _disposeQuickFix(): void {
@@ -309,7 +320,7 @@ export function getQuickFixesForCommand(
 			}
 		}
 	}
-	return fixes.length > 0 ? { fixes, onDidRunQuickFix } : undefined;
+	return fixes.length > 0 ? { fixes, onDidRunQuickFix, expectedCommands } : undefined;
 }
 
 
