@@ -100,7 +100,15 @@ export interface ITokenizationTextModelPart {
 
 	readonly backgroundTokenizationState: BackgroundTokenizationState;
 	readonly onBackgroundTokenizationStateChanged: Event<void>;
+
+	/**
+	 * @internal
+	 */
 	readonly onDidChangeTokens: Event<IModelTokensChangedEvent>;
+
+	/**
+	 * @internal
+	 */
 	readonly onDidChangeLanguage: Event<IModelLanguageChangedEvent>;
 }
 
