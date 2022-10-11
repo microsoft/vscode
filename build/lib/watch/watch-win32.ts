@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as cp from 'child_process';
 import * as fs from 'fs';
-import * as File from 'vinyl';
+import File from 'vinyl';
 import * as es from 'event-stream';
 import * as filter from 'gulp-filter';
 import { Stream } from 'stream';
