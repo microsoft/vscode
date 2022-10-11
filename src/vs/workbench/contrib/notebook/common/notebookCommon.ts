@@ -75,7 +75,7 @@ export const RENDERER_EQUIVALENT_EXTENSIONS: ReadonlyMap<string, ReadonlySet<str
 
 export const RENDERER_NOT_AVAILABLE = '_notAvailable';
 
-export type NotebookRendererEntrypoint = string | { readonly extends: string; readonly path: string };
+export type ContributedNotebookRendererEntrypoint = string | { readonly extends: string; readonly path: string };
 
 export enum NotebookRunState {
 	Running = 1,
@@ -158,19 +158,17 @@ export const enum RendererMessagingSpec {
 	Optional = 'optional',
 }
 
+export type NotebookRendererEntrypoint = { readonly extends: string | undefined; readonly path: URI };
+
 export interface INotebookRendererInfo {
-	id: string;
-	displayName: string;
-	extends?: string;
-	entrypoint: URI;
-	preloads: ReadonlyArray<URI>;
-	extensionLocation: URI;
-	extensionId: ExtensionIdentifier;
-	messaging: RendererMessagingSpec;
+	readonly id: string;
+	readonly displayName: string;
+	readonly entrypoint: NotebookRendererEntrypoint;
+	readonly extensionLocation: URI;
+	readonly extensionId: ExtensionIdentifier;
+	readonly messaging: RendererMessagingSpec;
 
 	readonly mimeTypes: readonly string[];
-
-	readonly dependencies: readonly string[];
 
 	readonly isBuiltin: boolean;
 
