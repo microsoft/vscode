@@ -181,6 +181,9 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private readonly _onDidDispose: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
+	protected readonly _onDidChangeModel: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeModel: Event<void> = this._onDidChangeModel.event;
+
 	private readonly _onDidUpdateDiff: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidUpdateDiff: Event<void> = this._onDidUpdateDiff.event;
 
@@ -830,6 +833,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}
 
 		this._layoutOverviewViewport();
+
+		this._onDidChangeModel.fire();
 	}
 
 	public getContainerDomNode(): HTMLElement {
