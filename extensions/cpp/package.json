@@ -104,15 +104,15 @@
       }
     ],
     "problemMatchers": [
-        {
-            "name": "nvcc",
-            "owner": "cuda-cpp",
-            "fileLocation": [
-                "relative",
-                "${workspaceFolder}"
-            ],
-            "pattern": "$nvcc-location"
-        }
+      {
+        "name": "nvcc",
+        "owner": "cuda-cpp",
+        "fileLocation": [
+          "relative",
+          "${workspaceFolder}"
+        ],
+        "pattern": "$nvcc-location"
+      }
     ],
     "snippets": [
       {
