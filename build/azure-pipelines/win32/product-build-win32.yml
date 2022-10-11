@@ -180,17 +180,24 @@ steps:
   - ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
     - task: DownloadPipelineArtifact@2
       inputs:
-        ${{ if eq(variables.VSCODE_ARCH, 'x64') }}:
-          artifact: unsigned_vscode_cli_win32_x64_cli
-        ${{ if eq(variables.VSCODE_ARCH, 'arm64') }}:
-          artifact: unsigned_vscode_cli_win32_arm64_cli
+        artifact: unsigned_vscode_cli_win32_arm64_cli
         patterns: '**'
-        path: $(Build.ArtifactStagingDirectory)
+        path: $(Build.ArtifactStagingDirectory)/cli
       displayName: Download VS Code CLI
+      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
+
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: unsigned_vscode_cli_win32_x64_cli
+        patterns: '**'
+        path: $(Build.ArtifactStagingDirectory)/cli
+      displayName: Download VS Code CLI
+      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
-        Expand-Archive -Path "$(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip" -DestinationPath "$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin"
+        $ArtifactName = (gci -Path "$(Build.ArtifactStagingDirectory)/cli" | Select-Object -last 1).FullName
+        Expand-Archive -Path $ArtifactName -DestinationPath "$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin"
 
         if ("$(VSCODE_QUALITY)" -ne "stable")
         {
