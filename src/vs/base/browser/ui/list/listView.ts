@@ -1035,6 +1035,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			setTimeout(() => document.body.removeChild(dragImage), 0);
 		}
 
+		this.domNode.classList.add('dragging');
 		this.currentDragData = new ElementsDragAndDropData(elements);
 		StaticDND.CurrentDragAndDropData = new ExternalElementsDragAndDropData(elements);
 
@@ -1150,6 +1151,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const dragData = this.currentDragData;
 		this.teardownDragAndDropScrollTopAnimation();
 		this.clearDragOverFeedback();
+		this.domNode.classList.remove('dragging');
 		this.currentDragData = undefined;
 		StaticDND.CurrentDragAndDropData = undefined;
 
@@ -1166,6 +1168,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.canDrop = false;
 		this.teardownDragAndDropScrollTopAnimation();
 		this.clearDragOverFeedback();
+		this.domNode.classList.remove('dragging');
 		this.currentDragData = undefined;
 		StaticDND.CurrentDragAndDropData = undefined;
 

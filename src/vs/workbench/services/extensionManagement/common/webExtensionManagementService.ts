@@ -93,7 +93,7 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 			const userExtensions = await this.webExtensionsScannerService.scanUserExtensions(profileLocation ?? this.userDataProfileService.currentProfile.extensionsResource);
 			extensions.push(...userExtensions);
 		}
-		return Promise.all(extensions.map(e => toLocalExtension(e)));
+		return extensions.map(e => toLocalExtension(e));
 	}
 
 	async install(location: URI, options: InstallOptions = {}): Promise<ILocalExtension> {

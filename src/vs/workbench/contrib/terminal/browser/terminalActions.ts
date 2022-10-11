@@ -52,9 +52,11 @@ import { ITerminalQuickPickItem } from 'vs/workbench/contrib/terminal/browser/te
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIconId, getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { clearShellFileHistory, getCommandHistory } from 'vs/workbench/contrib/terminal/common/history';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IFileService } from 'vs/platform/files/common/files';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -2229,10 +2231,47 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.ShowTextureAtlas,
+				title: { value: localize('workbench.action.terminal.showTextureAtlas', "Show Terminal Texture Atlas"), original: 'Show Terminal Texture Atlas' },
+				f1: true,
+				category: Categories.Developer.value,
+				precondition: ContextKeyExpr.or(TerminalContextKeys.isOpen)
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			const fileService = accessor.get(IFileService);
+			const openerService = accessor.get(IOpenerService);
+			const workspaceContextService = accessor.get(IWorkspaceContextService);
+			const bitmap = await terminalService.activeInstance?.xterm?.textureAtlas;
+			if (!bitmap) {
+				return;
+			}
+			const cwdUri = workspaceContextService.getWorkspace().folders[0].uri;
+			const fileUri = URI.joinPath(cwdUri, 'textureAtlas.png');
+			const canvas = document.createElement('canvas');
+			canvas.width = bitmap.width;
+			canvas.height = bitmap.height;
+			const ctx = canvas.getContext('bitmaprenderer');
+			if (!ctx) {
+				return;
+			}
+			ctx.transferFromImageBitmap(bitmap);
+			const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res));
+			if (!blob) {
+				return;
+			}
+			await fileService.writeFile(fileUri, VSBuffer.wrap(new Uint8Array(await blob.arrayBuffer())));
+			openerService.open(fileUri);
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.WriteDataToTerminal,
 				title: { value: localize('workbench.action.terminal.writeDataToTerminal', "Write Data to Terminal"), original: 'Write Data to Terminal' },
 				f1: true,
-				category: CATEGORIES.Developer.value
+				category: Categories.Developer
 			});
 		}
 		async run(accessor: ServicesAccessor) {

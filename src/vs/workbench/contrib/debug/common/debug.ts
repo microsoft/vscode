@@ -13,7 +13,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import severity from 'vs/base/common/severity';
 import { URI as uri } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel as EditorIModel } from 'vs/editor/common/model';
 import * as nls from 'vs/nls';
@@ -1133,7 +1133,7 @@ export const enum BreakpointWidgetContext {
 }
 
 export interface IDebugEditorContribution extends editorCommon.IEditorContribution {
-	showHover(range: Range, focus: boolean): Promise<void>;
+	showHover(range: Position, focus: boolean): Promise<void>;
 	addLaunchConfiguration(): Promise<any>;
 	closeExceptionWidget(): void;
 }

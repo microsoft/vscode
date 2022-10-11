@@ -13,7 +13,7 @@ import { IssueType } from 'vs/platform/issue/common/issue';
 import { IIssueService } from 'vs/platform/issue/electron-sandbox/issue';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 
 export class OpenProcessExplorer extends Action2 {
@@ -24,7 +24,7 @@ export class OpenProcessExplorer extends Action2 {
 		super({
 			id: OpenProcessExplorer.ID,
 			title: { value: localize('openProcessExplorer', "Open Process Explorer"), original: 'Open Process Explorer' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}
@@ -44,7 +44,7 @@ export class ReportPerformanceIssueUsingReporterAction extends Action2 {
 		super({
 			id: ReportPerformanceIssueUsingReporterAction.ID,
 			title: { value: localize({ key: 'reportPerformanceIssue', comment: [`Here, 'issue' means problem or bug`] }, "Report Performance Issue..."), original: 'Report Performance Issue' },
-			category: CATEGORIES.Help,
+			category: Categories.Help,
 			f1: true
 		});
 	}
@@ -64,7 +64,7 @@ export class StopTracing extends Action2 {
 		super({
 			id: StopTracing.ID,
 			title: { value: localize('stopTracing', "Stop Tracing"), original: 'Stop Tracing' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}

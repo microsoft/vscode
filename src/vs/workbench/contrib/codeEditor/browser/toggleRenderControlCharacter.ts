@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { CATEGORIES, } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export class ToggleRenderControlCharacterAction extends Action2 {
@@ -22,12 +22,11 @@ export class ToggleRenderControlCharacterAction extends Action2 {
 				mnemonicTitle: localize({ key: 'miToggleRenderControlCharacters', comment: ['&& denotes a mnemonic'] }, "Render &&Control Characters"),
 				original: 'Toggle Control Characters'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true,
 			toggled: ContextKeyExpr.equals('config.editor.renderControlCharacters', true),
 			menu: {
-				id: MenuId.MenubarViewMenu,
-				group: '5_editor',
+				id: MenuId.MenubarEditorFeaturesMenu,
 				order: 5
 			}
 		});
