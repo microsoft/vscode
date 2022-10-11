@@ -163,7 +163,7 @@ export async function openProjectConfigForFile(
 		return;
 	}
 
-	let res: ServerResponse.Response<protocol.ProjectInfoResponse> | undefined;
+	let res: ServerResponse.Response<Proto.ProjectInfoResponse> | undefined;
 	try {
 		res = await client.execute('projectInfo', { file, needFileNameList: false }, nulToken);
 	} catch {
