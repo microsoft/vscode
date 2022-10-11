@@ -141,7 +141,11 @@ module _nls {
 		return { source, line: lc.line + 1, column: lc.character };
 	}
 
-	function lcFrom(position: sm.Position): ts.LineAndCharacter {
+	function lcFrom(position: sm.NullablePosition): ts.LineAndCharacter {
+		if (position.line == null || position.column == null) {
+			// TODO better?
+			throw new Error(`position not found`);
+		}
 		return { line: position.line - 1, character: position.column };
 	}
 
