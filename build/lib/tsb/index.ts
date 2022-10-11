@@ -11,7 +11,7 @@ import { Readable, Writable, Duplex } from 'stream';
 import { dirname } from 'path';
 import { strings } from './utils';
 import { readFileSync, statSync } from 'fs';
-import * as log from 'fancy-log';
+import fancyLog from 'fancy-log';
 import colors = require('ansi-colors');
 import { ITranspiler, SwcTranspiler, TscTranspiler } from './transpiler';
 
@@ -69,7 +69,7 @@ export function create(
 
 	function logFn(topic: string, message: string): void {
 		if (config.verbose) {
-			log(colors.cyan(topic), message);
+			fancyLog(colors.cyan(topic), message);
 		}
 	}
 
