@@ -7,7 +7,7 @@ import * as es from 'event-stream';
 import * as Vinyl from 'vinyl';
 import * as vfs from 'vinyl-fs';
 import filter from 'gulp-filter';
-import * as gzip from 'gulp-gzip';
+import gzip from 'gulp-gzip';
 import { ClientSecretCredential } from '@azure/identity';
 const azure = require('gulp-azure-storage');
 
