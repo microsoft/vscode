@@ -31,7 +31,7 @@
           ".jslintrc",
           ".jsonld",
           ".geojson",
-		  ".ipynb"
+          ".ipynb"
         ],
         "filenames": [
           "composer.lock",
