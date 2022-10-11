@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
-import { OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK } from 'vs/workbench/services/output/common/output';
+import { OUTPUT_VIEW_ID, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_OUTPUT_SCROLL_LOCK } from 'vs/workbench/services/output/common/output';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -51,7 +51,6 @@ export class OutputViewPane extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IOutputService private readonly outputService: IOutputService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -80,15 +79,14 @@ export class OutputViewPane extends ViewPane {
 		this.editorPromise?.then(() => this.editor.focus());
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 		this.editor.create(container);
 		container.classList.add('output-view');
 		const codeEditor = <ICodeEditor>this.editor.getControl();
 		codeEditor.setAriaOptions({ role: 'document', activeDescendant: undefined });
 		this._register(codeEditor.onDidChangeModelContent(() => {
-			const activeChannel = this.outputService.getActiveChannel();
-			if (activeChannel && !this.scrollLock) {
+			if (!this.scrollLock) {
 				this.editor.revealLastLine();
 			}
 		}));
@@ -118,21 +116,13 @@ export class OutputViewPane extends ViewPane {
 
 	private onDidChangeVisibility(visible: boolean): void {
 		this.editor.setVisible(visible);
-		let channel: IOutputChannel | undefined = undefined;
-		if (visible) {
-			channel = this.channelId ? this.outputService.getChannel(this.channelId) : this.outputService.getActiveChannel();
-		}
-		if (channel) {
-			this.setInput(channel);
-		} else {
+		if (!visible) {
 			this.clearInput();
 		}
 	}
 
 	private setInput(channel: IOutputChannel): void {
 		this.channelId = channel.id;
-		const descriptor = this.outputService.getChannelDescriptor(channel.id);
-		CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(!!descriptor?.file && descriptor?.log);
 
 		const input = this.createInput(channel);
 		if (!this.editor.input || !input.matches(this.editor.input)) {
@@ -144,7 +134,7 @@ export class OutputViewPane extends ViewPane {
 	}
 
 	private clearInput(): void {
-		CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(false);
+		this.channelId = undefined;
 		this.editor.clearInput();
 		this.editorPromise = null;
 	}
@@ -155,7 +145,7 @@ export class OutputViewPane extends ViewPane {
 
 }
 
-export class OutputEditor extends AbstractTextResourceEditor {
+class OutputEditor extends AbstractTextResourceEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -164,7 +154,6 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@IOutputService private readonly outputService: IOutputService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IFileService fileService: IFileService
@@ -215,9 +204,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 	}
 
 	protected getAriaLabel(): string {
-		const channel = this.outputService.getActiveChannel();
-
-		return channel ? nls.localize('outputViewWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputViewAriaLabel', "Output panel");
+		return this.input ? this.input.getAriaLabel() : nls.localize('outputViewAriaLabel', "Output panel");
 	}
 
 	override async setInput(input: TextResourceEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {

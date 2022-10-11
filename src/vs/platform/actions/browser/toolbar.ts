@@ -264,7 +264,7 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 		super(container, { resetMenu: menuId, ...options }, menuService, contextKeyService, contextMenuService, keybindingService, telemetryService);
 
 		// update logic
-		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService));
+		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		const updateToolbar = () => {
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];
