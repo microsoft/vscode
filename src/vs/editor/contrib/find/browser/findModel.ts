@@ -187,20 +187,6 @@ export class FindModelBoundToEditorModel {
 		} else {
 			findScopes = this._decorations.getFindScopes();
 		}
-		if (findScopes !== null) {
-			findScopes = findScopes.map(findScope => {
-				if (findScope.startLineNumber !== findScope.endLineNumber) {
-					let endLineNumber = findScope.endLineNumber;
-
-					if (findScope.endColumn === 1) {
-						endLineNumber = endLineNumber - 1;
-					}
-
-					return new Range(findScope.startLineNumber, 1, endLineNumber, this._editor.getModel().getLineMaxColumn(endLineNumber));
-				}
-				return findScope;
-			});
-		}
 
 		const findMatches = this._findMatches(findScopes, false, MATCHES_LIMIT);
 		this._decorations.set(findMatches, findScopes);
