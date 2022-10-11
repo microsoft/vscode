@@ -285,10 +285,12 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 			repl: options.consoleMode === DebugConsoleMode.MergeWithParent ? 'mergeWithParent' : 'separate',
 			noDebug: options.noDebug,
 			compact: options.compact,
-			suppressDebugStatusbar: options.suppressDebugStatusbar,
-			suppressDebugToolbar: options.suppressDebugToolbar,
-			suppressDebugView: options.suppressDebugView,
-			suppressSaveBeforeStart: options.suppressSaveBeforeStart
+			suppressSaveBeforeStart: options.suppressSaveBeforeStart,
+
+			// Check debugUI for back-compat, #147264
+			suppressDebugStatusbar: options.suppressDebugStatusbar ?? (options as any).debugUI?.simple,
+			suppressDebugToolbar: options.suppressDebugToolbar ?? (options as any).debugUI?.simple,
+			suppressDebugView: options.suppressDebugView ?? (options as any).debugUI?.simple,
 		});
 	}
 
