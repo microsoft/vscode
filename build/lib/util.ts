@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as _rimraf from 'rimraf';
 import * as VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
-import * as sm from 'source-map';
+import * as sm from 'source-map-sync';
 import * as git from './git';
 
 const root = path.dirname(path.dirname(__dirname));

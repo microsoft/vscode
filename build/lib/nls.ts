@@ -7,7 +7,7 @@ import type * as ts from 'typescript';
 import * as lazy from 'lazy.js';
 import { duplex, through } from 'event-stream';
 import * as File from 'vinyl';
-import * as sm from 'source-map';
+import * as sm from 'source-map-sync';
 import * as  path from 'path';
 
 declare class FileSourceMap extends File {
