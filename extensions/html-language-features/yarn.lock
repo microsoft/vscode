@@ -2,28 +2,28 @@
 # yarn lockfile v1
 
 
-"@microsoft/1ds-core-js@3.2.6", "@microsoft/1ds-core-js@^3.2.3":
-  version "3.2.6"
-  resolved "https://registry.yarnpkg.com/@microsoft/1ds-core-js/-/1ds-core-js-3.2.6.tgz#8a77909f89f991aa2f0b4ae8825c75042962e68e"
-  integrity sha512-6OpppYCEA+rXjcs2w0KnWji3Y6ZDx0wykY7ZL3QF68NS323C45GHSpkDpVRT/lDU6Xbau/PvQm2zTYAzLcperA==
+"@microsoft/1ds-core-js@3.2.7", "@microsoft/1ds-core-js@^3.2.3":
+  version "3.2.7"
+  resolved "https://registry.yarnpkg.com/@microsoft/1ds-core-js/-/1ds-core-js-3.2.7.tgz#443a78312f7077102d6a0d3869ed61cbf9a51c5a"
+  integrity sha512-Tc8K/IYIBFdFTUH87eSxWlIBTI5HRbx/v6lbH1xX5CS+DB6HW5v142FtSYFihQ7m+23I8YSxP9BW7dAicGqZCg==
   dependencies:
-    "@microsoft/applicationinsights-core-js" "2.8.6"
+    "@microsoft/applicationinsights-core-js" "2.8.8"
     "@microsoft/applicationinsights-shims" "^2.0.1"
     "@microsoft/dynamicproto-js" "^1.1.6"
 
 "@microsoft/1ds-post-js@^3.2.3":
-  version "3.2.6"
-  resolved "https://registry.yarnpkg.com/@microsoft/1ds-post-js/-/1ds-post-js-3.2.6.tgz#cdfa74acfc3205c0a5b79925284d6d166aa43901"
-  integrity sha512-Zdyl3FU6kU/a7TlVVSTBZg+hSECTT65iI99FsjMOx88HudyVyk9M/0lVbA+FVXvGaxzmtBW6Lw0qRHYp4tBMSA==
+  version "3.2.7"
+  resolved "https://registry.yarnpkg.com/@microsoft/1ds-post-js/-/1ds-post-js-3.2.7.tgz#bf28187c41601e4ce3c7ca538219af16e322056d"
+  integrity sha512-MC1qukJMLC0ABq9Pwwd6ojZVXOz80ZBtTT7dDDM58Bx+kfdr7Owko3AJHYV0/V93HOLThU1laztoBEK1fqkzcA==
   dependencies:
-    "@microsoft/1ds-core-js" "3.2.6"
+    "@microsoft/1ds-core-js" "3.2.7"
     "@microsoft/applicationinsights-shims" "^2.0.1"
     "@microsoft/dynamicproto-js" "^1.1.6"
 
-"@microsoft/applicationinsights-core-js@2.8.6":
-  version "2.8.6"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-core-js/-/applicationinsights-core-js-2.8.6.tgz#4f0f9ad809aacfc96cb882139b69b3625519c51a"
-  integrity sha512-rL+ceda1Y6HaHBe1vIbNT/f5JGuHiD5Ydq+DoAfu56o13wyJu4sao3QKaabgaIM59pPO+3BMeGsK8NNUGYaT3w==
+"@microsoft/applicationinsights-core-js@2.8.8":
+  version "2.8.8"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-core-js/-/applicationinsights-core-js-2.8.8.tgz#07e7e805ff27efdf124e14c42376145553bae185"
+  integrity sha512-SuEkiqXFRWoptonfLxBd/kV9VYz+RbW+cBR/AHL3W6D9DyhctAyrxrtTHd2r6oxZlndAi2L3gHXANSjF/ahqyg==
   dependencies:
     "@microsoft/applicationinsights-shims" "2.0.1"
     "@microsoft/dynamicproto-js" "^1.1.6"
@@ -34,9 +34,9 @@
   integrity sha512-G0MXf6R6HndRbDy9BbEj0zrLeuhwt2nsXk2zKtF0TnYo39KgYqhYC2ayIzKPTm2KAE+xzD7rgyLdZnrcRvt9WQ==
 
 "@microsoft/dynamicproto-js@^1.1.6":
-  version "1.1.6"
-  resolved "https://registry.yarnpkg.com/@microsoft/dynamicproto-js/-/dynamicproto-js-1.1.6.tgz#6fe03468862861f5f88ac4c3959a652b3797f1bc"
-  integrity sha512-D1Oivw1A4bIXhzBIy3/BBPn3p2On+kpO2NiYt9shICDK7L/w+cR6FFBUsBZ05l6iqzTeL+Jm8lAYn0g6G7DmDg==
+  version "1.1.7"
+  resolved "https://registry.yarnpkg.com/@microsoft/dynamicproto-js/-/dynamicproto-js-1.1.7.tgz#ede48dd3f85af14ee369c805e5ed5b84222b9fe2"
+  integrity sha512-SK3D3aVt+5vOOccKPnGaJWB5gQ8FuKfjboUJHedMP7gu54HqSCXX5iFXhktGD8nfJb0Go30eDvs/UDoTnR2kOA==
 
 "@types/node@18.x":
   version "18.8.4"
@@ -52,9 +52,9 @@
     "@microsoft/1ds-post-js" "^3.2.3"
 
 balanced-match@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/balanced-match/-/balanced-match-1.0.0.tgz#89b4d199ab2bee49de164ea02b89ce462d71b767"
-  integrity sha1-ibTRmasr7kneFk6gK4nORi1xt2c=
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/balanced-match/-/balanced-match-1.0.2.tgz#e83e3a7e3f300b34cb9d87f615fa0cbf357690ee"
+  integrity sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==
 
 brace-expansion@^2.0.1:
   version "2.0.1"
@@ -78,9 +78,9 @@ minimatch@^5.1.0:
     brace-expansion "^2.0.1"
 
 semver@^7.3.7:
-  version "7.3.7"
-  resolved "https://registry.yarnpkg.com/semver/-/semver-7.3.7.tgz#12c5b649afdbf9049707796e22a4028814ce523f"
-  integrity sha512-QlYTucUYOews+WeEujDoEGziz4K6c47V/Bd+LjSSYcA94p+DmINdf7ncaUinThfvZyu13lN9OY1XDxt8C0Tw0g==
+  version "7.3.8"
+  resolved "https://registry.yarnpkg.com/semver/-/semver-7.3.8.tgz#07a78feafb3f7b32347d725e33de7e2a2df67798"
+  integrity sha512-NB1ctGL5rlHrPJtFDVIVzTyQylMLu9N9VICA6HSFJo8MCGVTMW6gfpicwKmmK/dAjTOrqu5l63JJOpDSrAis3A==
   dependencies:
     lru-cache "^6.0.0"
 
