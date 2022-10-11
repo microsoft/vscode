@@ -38,9 +38,25 @@ export class TogglePanelAction extends Action2 {
 		super({
 			id: TogglePanelAction.ID,
 			title: { value: TogglePanelAction.LABEL, original: 'Toggle Panel Visibility' },
+			toggled: {
+				condition: PanelVisibleContext,
+				title: localize('toggle panel', "Panel"),
+				mnemonicTitle: localize('toggle panel mnemonic', "&&Panel"),
+			},
 			f1: true,
 			category: Categories.View,
 			keybinding: { primary: KeyMod.CtrlCmd | KeyCode.KeyJ, weight: KeybindingWeight.WorkbenchContrib },
+			menu: [
+				{
+					id: MenuId.MenubarAppearanceMenu,
+					group: '2_workbench_layout',
+					order: 5
+				}, {
+					id: MenuId.LayoutControlMenuSubmenu,
+					group: '0_workbench_layout',
+					order: 4
+				},
+			]
 		});
 	}
 
@@ -408,28 +424,6 @@ registerAction2(class extends Action2 {
 
 MenuRegistry.appendMenuItems([
 	{
-		id: MenuId.MenubarAppearanceMenu,
-		item: {
-			group: '2_workbench_layout',
-			command: {
-				id: TogglePanelAction.ID,
-				title: localize({ key: 'miPanel', comment: ['&& denotes a mnemonic'] }, "&&Panel"),
-				toggled: PanelVisibleContext
-			},
-			order: 5
-		}
-	}, {
-		id: MenuId.LayoutControlMenuSubmenu,
-		item: {
-			group: '0_workbench_layout',
-			command: {
-				id: TogglePanelAction.ID,
-				title: localize('miPanelNoMnemonic', "Panel"),
-				toggled: PanelVisibleContext
-			},
-			order: 4
-		}
-	}, {
 		id: MenuId.LayoutControlMenu,
 		item: {
 			group: '0_workbench_toggles',

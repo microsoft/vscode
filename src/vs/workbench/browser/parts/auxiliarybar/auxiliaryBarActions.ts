@@ -30,8 +30,26 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 		super({
 			id: ToggleAuxiliaryBarAction.ID,
 			title: { value: ToggleAuxiliaryBarAction.LABEL, original: 'Toggle Secondary Side Bar Visibility' },
+			toggled: {
+				condition: AuxiliaryBarVisibleContext,
+				title: localize('secondary sidebar', "Secondary Side Bar"),
+				mnemonicTitle: localize('secondary sidebar mnemonic', "Secondary Si&&de Bar"),
+			},
+
 			category: Categories.View,
 			f1: true,
+			menu: [
+				{
+					id: MenuId.LayoutControlMenuSubmenu,
+					group: '0_workbench_layout',
+					order: 1
+				},
+				{
+					id: MenuId.MenubarAppearanceMenu,
+					group: '2_workbench_layout',
+					order: 2
+				}
+			]
 		});
 	}
 
@@ -75,18 +93,6 @@ registerAction2(class FocusAuxiliaryBarAction extends Action2 {
 
 MenuRegistry.appendMenuItems([
 	{
-		id: MenuId.LayoutControlMenuSubmenu,
-		item: {
-			group: '0_workbench_layout',
-			command: {
-				id: ToggleAuxiliaryBarAction.ID,
-				title: localize('miAuxiliaryBarNoMnemonic', "Secondary Side Bar"),
-				toggled: AuxiliaryBarVisibleContext
-			},
-			order: 2
-		}
-	},
-	{
 		id: MenuId.LayoutControlMenu,
 		item: {
 			group: '0_workbench_toggles',
@@ -99,8 +105,7 @@ MenuRegistry.appendMenuItems([
 			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')),
 			order: 0
 		}
-	},
-	{
+	}, {
 		id: MenuId.LayoutControlMenu,
 		item: {
 			group: '0_workbench_toggles',
@@ -111,18 +116,6 @@ MenuRegistry.appendMenuItems([
 				icon: auxiliaryBarRightOffIcon,
 			},
 			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'left')),
-			order: 2
-		}
-	},
-	{
-		id: MenuId.MenubarAppearanceMenu,
-		item: {
-			group: '2_workbench_layout',
-			command: {
-				id: ToggleAuxiliaryBarAction.ID,
-				title: localize({ key: 'miAuxiliaryBar', comment: ['&& denotes a mnemonic'] }, "Secondary Si&&de Bar"),
-				toggled: AuxiliaryBarVisibleContext
-			},
 			order: 2
 		}
 	}, {
