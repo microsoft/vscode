@@ -1122,6 +1122,12 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	readonly onDidUpdateDiff: Event<void>;
 
 	/**
+	 * An event emitted when the diff model is changed (i.e. the diff editor shows new content).
+	 * @event
+	 */
+	readonly onDidChangeModel: Event<void>;
+
+	/**
 	 * Saves current view state of the editor in a serializable object.
 	 */
 	saveViewState(): editorCommon.IDiffEditorViewState | null;

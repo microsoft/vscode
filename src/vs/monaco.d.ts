@@ -5510,6 +5510,11 @@ declare namespace monaco.editor {
 		 */
 		readonly onDidUpdateDiff: IEvent<void>;
 		/**
+		 * An event emitted when the diff model is changed (i.e. the diff editor shows new content).
+		 * @event
+		 */
+		readonly onDidChangeModel: IEvent<void>;
+		/**
 		 * Saves current view state of the editor in a serializable object.
 		 */
 		saveViewState(): IDiffEditorViewState | null;
