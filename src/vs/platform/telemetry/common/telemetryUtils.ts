@@ -339,7 +339,7 @@ function removePropertiesWithPossibleUserInfo(property: string): string {
 		{ label: 'Google API Key', regex: /AIza[A-Za-z0-9_\\\-]{35}/ },
 		{ label: 'Slack Token', regex: /xox[pbar]\-[A-Za-z0-9]/ },
 		{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/ },
-		{ label: 'Email', regex: /@[a-zA-Z0-9-.]+/ } // Regex which matches @*.site
+		{ label: 'Email', regex: /@[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+/ } // Regex which matches @*.site
 	];
 
 	// Check for common user data in the telemetry events
