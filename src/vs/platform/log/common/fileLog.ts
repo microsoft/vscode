@@ -21,7 +21,7 @@ export class FileLogger extends AbstractLogger implements ILogger {
 	private backupIndex: number = 1;
 
 	constructor(
-		private readonly name: string,
+		name: string,
 		private readonly resource: URI,
 		level: LogLevel,
 		private readonly donotUseFormatters: boolean,
