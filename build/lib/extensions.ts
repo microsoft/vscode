@@ -230,7 +230,7 @@ export function fromMarketplace(serviceUrl: string, { name: extensionName, versi
 	return remote('', options)
 		.pipe(vzip.src())
 		.pipe(filter('extension/**'))
-		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
+		.pipe(rename(p => { p.dirname = p.dirname!.replace(/^extension\/?/, ''); }))
 		.pipe(packageJsonFilter)
 		.pipe(buffer())
 		.pipe(json({ __metadata: metadata }))
@@ -273,7 +273,7 @@ export function fromGithub({ name, version, repo, metadata }: IBuiltInExtension)
 		.pipe(buffer())
 		.pipe(vzip.src())
 		.pipe(filter('extension/**'))
-		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
+		.pipe(rename(p => { p.dirname = p.dirname!.replace(/^extension\/?/, ''); }))
 		.pipe(packageJsonFilter)
 		.pipe(buffer())
 		.pipe(json({ __metadata: metadata }))
@@ -360,7 +360,7 @@ export function packageLocalExtensionsStream(forWeb: boolean): Stream {
 		es.merge(
 			...localExtensionsDescriptions.map(extension => {
 				return fromLocal(extension.path, forWeb)
-					.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+					.pipe(rename(p => { p.dirname = `extensions/${extension.name}/${p.dirname}`; }));
 			})
 		)
 	);
@@ -390,7 +390,7 @@ export function packageMarketplaceExtensionsStream(forWeb: boolean): Stream {
 		es.merge(
 			...marketplaceExtensionsDescriptions
 				.map(extension => {
-					const src = getExtensionStream(extension).pipe(rename(p => p.dirname = `extensions/${p.dirname}`));
+					const src = getExtensionStream(extension).pipe(rename(p => { p.dirname = `extensions/${p.dirname}`; }));
 					return updateExtensionPackageJSON(src, (data: any) => {
 						delete data.scripts;
 						delete data.dependencies;

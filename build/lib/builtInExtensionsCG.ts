@@ -25,9 +25,9 @@ async function downloadExtensionDetails(extension: IExtensionDefinition): Promis
 	const repository = url.parse(extension.repo).path!.substr(1);
 	const repositoryContentBaseUrl = `https://${token ? `${token}@` : ''}${contentBasePath}/${repository}/v${extension.version}`;
 
-	const promises = [];
+	const promises: Promise<{ fileName: string; body: Buffer | undefined | null }>[] = [];
 	for (const fileName of contentFileNames) {
-		promises.push(new Promise<{ fileName: string; body: Buffer | undefined | null }>(resolve => {
+		promises.push(new Promise(resolve => {
 			got(`${repositoryContentBaseUrl}/${fileName}`)
 				.then(response => {
 					resolve({ fileName, body: response.rawBody });
