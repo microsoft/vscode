@@ -42,7 +42,7 @@ function asYarnDependency(prefix: string, tree: Tree): Dependency | null {
 	const name = parseResult.name;
 	const version = parseResult.version;
 	const dependencyPath = path.join(prefix, name);
-	const children = [];
+	const children: Dependency[] = [];
 
 	for (const child of (tree.children || [])) {
 		const dep = asYarnDependency(path.join(prefix, name, 'node_modules'), child);
