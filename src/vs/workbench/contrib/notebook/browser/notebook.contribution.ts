@@ -697,8 +697,8 @@ workbenchContributionsRegistry.registerWorkbenchContribution(NotebookLanguageSel
 workbenchContributionsRegistry.registerWorkbenchContribution(SimpleNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(ComplexNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
 
-registerSingleton(INotebookService, NotebookService, false);
-registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl, false);
+registerSingleton(INotebookService, NotebookService, InstantiationType.Delayed);
+registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl, InstantiationType.Delayed);
 registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverServiceImpl, InstantiationType.Delayed);
 registerSingleton(INotebookCellStatusBarService, NotebookCellStatusBarService, InstantiationType.Delayed);
 registerSingleton(INotebookEditorService, NotebookEditorWidgetService, InstantiationType.Delayed);
