@@ -10,7 +10,7 @@ import { IListEvent, IListGestureEvent, IListMouseEvent } from 'vs/base/browser/
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { CancelablePromise, createCancelablePromise, disposableTimeout, TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import * as strings from 'vs/base/common/strings';
@@ -130,8 +130,8 @@ export class SuggestWidget implements IDisposable {
 	private readonly _disposables = new DisposableStore();
 
 
-	private readonly _onDidSelect = new Emitter<ISelectedSuggestion>();
-	private readonly _onDidFocus = new Emitter<ISelectedSuggestion>();
+	private readonly _onDidSelect = new PauseableEmitter<ISelectedSuggestion>();
+	private readonly _onDidFocus = new PauseableEmitter<ISelectedSuggestion>();
 	private readonly _onDidHide = new Emitter<this>();
 	private readonly _onDidShow = new Emitter<this>();
 
@@ -540,11 +540,23 @@ export class SuggestWidget implements IDisposable {
 		}
 
 		this._focusedItem = undefined;
-		this._list.splice(0, this._list.length, this._completionModel.items);
-		this._setState(isFrozen ? State.Frozen : State.Open);
-		if (selectionIndex >= 0) {
-			this._list.reveal(selectionIndex, 0);
-			this._list.setFocus([selectionIndex]);
+
+		// calling list.splice triggers focus event which this widget forwards. That can lead to
+		// suggestions being cancelled and the widget being cleared (and hidden). All this happens
+		// before revealing and focusing is done which means revealing and focusing will fail when
+		// they get run.
+		this._onDidFocus.pause();
+		this._onDidSelect.pause();
+		try {
+			this._list.splice(0, this._list.length, this._completionModel.items);
+			this._setState(isFrozen ? State.Frozen : State.Open);
+			if (selectionIndex >= 0) {
+				this._list.reveal(selectionIndex, 0);
+				this._list.setFocus([selectionIndex]);
+			}
+		} finally {
+			this._onDidFocus.resume();
+			this._onDidSelect.resume();
 		}
 
 		this._layout(this.element.size);
