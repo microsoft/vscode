@@ -343,10 +343,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			}
 		}
 
-		EditorExtensionsRegistry.getEditorActions().forEach((action) => {
+		for (const action of EditorExtensionsRegistry.getEditorActions()) {
 			if (this._actions[action.id]) {
 				onUnexpectedError(new Error(`Cannot have two actions with the same id ${action.id}`));
-				return;
+				continue;
 			}
 			const internalAction = new InternalEditorAction(
 				action.id,
@@ -361,7 +361,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				this._contextKeyService
 			);
 			this._actions[internalAction.id] = internalAction;
-		});
+		}
 
 		const isDropIntoEnabled = () => {
 			return !this._configuration.options.get(EditorOption.readOnly)
