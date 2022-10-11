@@ -6,7 +6,7 @@
 // Can be removed once https://github.com/electron/electron-rebuild/pull/703 is available.
 
 import debug from 'debug';
-import * as extract from 'extract-zip';
+import extract from 'extract-zip';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as packageJSON from '../../package.json';
