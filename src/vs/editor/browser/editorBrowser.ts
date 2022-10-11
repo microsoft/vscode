@@ -801,7 +801,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @id Unique identifier of the contribution.
 	 * @return The action or null if action not found.
 	 */
-	getAction(id: string): editorCommon.IEditorAction;
+	getAction(id: string): editorCommon.IEditorAction | null;
 
 	/**
 	 * Execute a command on the editor.
