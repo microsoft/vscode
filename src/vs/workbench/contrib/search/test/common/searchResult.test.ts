@@ -449,7 +449,7 @@ suite('SearchResult', () => {
 		testObject.onChange(target);
 		testObject.remove(folderMatch);
 		assert.ok(target.calledOnce);
-		assert.deepStrictEqual([{ elements: expectedArrayResult, removed: true, added: false }], target.args[0]);
+		assert.deepStrictEqual([{ elements: expectedArrayResult, removed: true, added: false, clearingAll: false }], target.args[0]);
 	});
 
 	test('Replacing an intermediate folder should remove all downstream folders and file matches', async function () {

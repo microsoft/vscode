@@ -6,7 +6,7 @@
 import 'vs/workbench/contrib/markers/browser/markersFileDecorations';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
@@ -32,6 +32,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { viewFilterSubmenu } from 'vs/workbench/browser/parts/views/viewFilter';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Markers.MARKER_OPEN_ACTION_ID,
@@ -196,12 +197,137 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	}
 });
 
+registerAction2(class extends ViewAction<IMarkersView> {
+	constructor() {
+		super({
+			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleErrors`,
+			title: localize('toggle errors', "Toggle Errors"),
+			category: localize('problems', "Problems"),
+			toggled: {
+				condition: MarkersContextKeys.ShowErrorsFilterContextKey,
+				title: localize('errors', "Show Errors")
+			},
+			menu: {
+				id: viewFilterSubmenu,
+				group: '1_filter',
+				when: ContextKeyExpr.equals('view', Markers.MARKERS_VIEW_ID),
+				order: 1
+			},
+			viewId: Markers.MARKERS_VIEW_ID
+		});
+	}
+
+	async runInView(serviceAccessor: ServicesAccessor, view: IMarkersView): Promise<void> {
+		view.filters.showErrors = !view.filters.showErrors;
+	}
+});
+
+registerAction2(class extends ViewAction<IMarkersView> {
+	constructor() {
+		super({
+			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleWarnings`,
+			title: localize('toggle warnings', "Toggle Warnings"),
+			category: localize('problems', "Problems"),
+			toggled: {
+				condition: MarkersContextKeys.ShowWarningsFilterContextKey,
+				title: localize('warnings', "Show Warnings")
+			},
+			menu: {
+				id: viewFilterSubmenu,
+				group: '1_filter',
+				when: ContextKeyExpr.equals('view', Markers.MARKERS_VIEW_ID),
+				order: 2
+			},
+			viewId: Markers.MARKERS_VIEW_ID
+		});
+	}
+
+	async runInView(serviceAccessor: ServicesAccessor, view: IMarkersView): Promise<void> {
+		view.filters.showWarnings = !view.filters.showWarnings;
+	}
+});
+
+registerAction2(class extends ViewAction<IMarkersView> {
+	constructor() {
+		super({
+			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleInfos`,
+			title: localize('toggle infos', "Toggle Infos"),
+			category: localize('problems', "Problems"),
+			toggled: {
+				condition: MarkersContextKeys.ShowInfoFilterContextKey,
+				title: localize('Infos', "Show Infos")
+			},
+			menu: {
+				id: viewFilterSubmenu,
+				group: '1_filter',
+				when: ContextKeyExpr.equals('view', Markers.MARKERS_VIEW_ID),
+				order: 3
+			},
+			viewId: Markers.MARKERS_VIEW_ID
+		});
+	}
+
+	async runInView(serviceAccessor: ServicesAccessor, view: IMarkersView): Promise<void> {
+		view.filters.showInfos = !view.filters.showInfos;
+	}
+});
+
+registerAction2(class extends ViewAction<IMarkersView> {
+	constructor() {
+		super({
+			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleActiveFile`,
+			title: localize('toggle active file', "Toggle Active File"),
+			category: localize('problems', "Problems"),
+			toggled: {
+				condition: MarkersContextKeys.ShowActiveFileFilterContextKey,
+				title: localize('Active File', "Show Active File Only")
+			},
+			menu: {
+				id: viewFilterSubmenu,
+				group: '2_filter',
+				when: ContextKeyExpr.equals('view', Markers.MARKERS_VIEW_ID),
+				order: 1
+			},
+			viewId: Markers.MARKERS_VIEW_ID
+		});
+	}
+
+	async runInView(serviceAccessor: ServicesAccessor, view: IMarkersView): Promise<void> {
+		view.filters.activeFile = !view.filters.activeFile;
+	}
+});
+
+registerAction2(class extends ViewAction<IMarkersView> {
+	constructor() {
+		super({
+			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleExcludedFiles`,
+			title: localize('toggle Excluded Files', "Toggle Excluded Files"),
+			category: localize('problems', "Problems"),
+			toggled: {
+				condition: MarkersContextKeys.ShowExcludedFilesFilterContextKey,
+				title: localize('Excluded Files', "Hide Excluded Files")
+			},
+			menu: {
+				id: viewFilterSubmenu,
+				group: '2_filter',
+				when: ContextKeyExpr.equals('view', Markers.MARKERS_VIEW_ID),
+				order: 2
+			},
+			viewId: Markers.MARKERS_VIEW_ID
+		});
+	}
+
+	async runInView(serviceAccessor: ServicesAccessor, view: IMarkersView): Promise<void> {
+		view.filters.excludedFiles = !view.filters.excludedFiles;
+	}
+});
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.problems.focus',
 			title: { value: Messages.MARKERS_PANEL_SHOW_LABEL, original: 'Focus Problems (Errors, Warnings, Infos)' },
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true,
 		});
 	}
@@ -404,23 +530,6 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	async runInView(serviceAccessor: ServicesAccessor, view: IMarkersView): Promise<void> {
 		return view.collapseAll();
 	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			_isFakeAction: true,
-			id: `workbench.actions.treeView.${Markers.MARKERS_VIEW_ID}.filter`,
-			title: localize('filter', "Filter"),
-			menu: {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', Markers.MARKERS_VIEW_ID), MarkersContextKeys.MarkersViewSmallLayoutContextKey.negate()),
-				group: 'navigation',
-				order: 1,
-			},
-		});
-	}
-	async run(): Promise<void> { }
 });
 
 registerAction2(class extends Action2 {

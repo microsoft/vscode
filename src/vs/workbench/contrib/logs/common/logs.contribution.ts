@@ -5,8 +5,8 @@
 
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { Action2, registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { SetLogLevelAction } from 'vs/workbench/contrib/logs/common/logsActions';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -16,13 +16,24 @@ import { IOutputService, registerLogChannel } from 'vs/workbench/services/output
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { URI } from 'vs/base/common/uri';
 
-const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SetLogLevelAction), 'Developer: Set Log Level...', CATEGORIES.Developer.value);
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: SetLogLevelAction.ID,
+			title: SetLogLevelAction.TITLE,
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+	run(servicesAccessor: ServicesAccessor): Promise<void> {
+		return servicesAccessor.get(IInstantiationService).createInstance(SetLogLevelAction, SetLogLevelAction.ID, SetLogLevelAction.TITLE.value).run();
+	}
+});
 
 class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
@@ -62,7 +73,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 				super({
 					id: Constants.showWindowLogActionId,
 					title: { value: nls.localize('show window log', "Show Window Log"), original: 'Show Window Log' },
-					category: CATEGORIES.Developer,
+					category: Categories.Developer,
 					f1: true
 				});
 			}

@@ -18,8 +18,12 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const enum HiddenItemStrategy {
+	/** This toolbar doesn't support hiding*/
+	NoHide = -1,
+	/** Hidden items aren't shown anywhere */
 	Ignore = 0,
-	RenderInSecondaryGroup = 1
+	/** Hidden items move into the secondary group */
+	RenderInSecondaryGroup = 1,
 }
 
 export type IWorkbenchToolBarOptions = IToolBarOptions & {
@@ -104,32 +108,33 @@ export class WorkbenchToolBar extends ToolBar {
 		const toggleActions: IAction[] = [];
 
 		let someAreHidden = false;
+		// unless disabled, move all hidden items to secondary group or ignore them
+		if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.NoHide) {
+			let shouldPrependSeparator = secondary.length > 0;
+			for (let i = 0; i < primary.length; i++) {
+				const action = primary[i];
+				if (!(action instanceof MenuItemAction) && !(action instanceof SubmenuItemAction)) {
+					// console.warn(`Action ${action.id}/${action.label} is not a MenuItemAction`);
+					continue;
+				}
+				if (!action.hideActions) {
+					continue;
+				}
 
-		// move all hidden items to secondary group or ignore them
-		let shouldPrependSeparator = secondary.length > 0;
-		for (let i = 0; i < primary.length; i++) {
-			const action = primary[i];
-			if (!(action instanceof MenuItemAction) && !(action instanceof SubmenuItemAction)) {
-				// console.warn(`Action ${action.id}/${action.label} is not a MenuItemAction`);
-				continue;
-			}
-			if (!action.hideActions) {
-				continue;
-			}
+				// collect all toggle actions
+				toggleActions.push(action.hideActions.toggle);
 
-			// collect all toggle actions
-			toggleActions.push(action.hideActions.toggle);
-
-			// hidden items move into overflow or ignore
-			if (action.hideActions.isHidden) {
-				someAreHidden = true;
-				primary[i] = undefined!;
-				if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.Ignore) {
-					if (shouldPrependSeparator) {
-						shouldPrependSeparator = false;
-						secondary.unshift(new Separator());
+				// hidden items move into overflow or ignore
+				if (action.hideActions.isHidden) {
+					someAreHidden = true;
+					primary[i] = undefined!;
+					if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.Ignore) {
+						if (shouldPrependSeparator) {
+							shouldPrependSeparator = false;
+							secondary.unshift(new Separator());
+						}
+						secondary.unshift(action);
 					}
-					secondary.unshift(action);
 				}
 			}
 		}
@@ -259,7 +264,7 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 		super(container, { resetMenu: menuId, ...options }, menuService, contextKeyService, contextMenuService, keybindingService, telemetryService);
 
 		// update logic
-		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService));
+		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		const updateToolbar = () => {
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];

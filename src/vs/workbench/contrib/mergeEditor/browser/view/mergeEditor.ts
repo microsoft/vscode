@@ -408,43 +408,21 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		let lastModifiedBaseRange: ModifiedBaseRange | undefined = undefined;
 		let lastBaseResultDiff: DetailedLineRangeMapping | undefined = undefined;
 		for (const m of baseRangeWithStoreAndTouchingDiffs) {
-
 			if (shouldShowCodeLenses && m.left && (m.left.isConflicting || showNonConflictingChanges || !model.isHandled(m.left).read(reader))) {
-
-				input1ViewZoneIds.push(input1ViewZoneAccessor.addZone({
-					afterLineNumber: m.left.input1Range.startLineNumber - 1,
-					heightInPx: 16,
-					domNode: $('div.conflict-actions-placeholder'),
-				}));
-				const w1 = this.conflictActionsFactoryInput1.createContentWidget(m.left.input1Range.startLineNumber - 1, viewModel, m.left, this.input1View.inputNumber);
-				input1Editor.addContentWidget(w1);
-				disposableStore.add(toDisposable(() => {
-					input1Editor.removeContentWidget(w1);
-				}));
-
-
-				input2ViewZoneIds.push(input2ViewZoneAccessor.addZone({
-					afterLineNumber: m.left.input2Range.startLineNumber - 1,
-					heightInPx: 16,
-					domNode: $('div.conflict-actions-placeholder'),
-				}));
-				const w2 = this.conflictActionsFactoryInput2.createContentWidget(m.left.input2Range.startLineNumber - 1, viewModel, m.left, this.input2View.inputNumber);
-				input2Editor.addContentWidget(w2);
-				disposableStore.add(toDisposable(() => {
-					input2Editor.removeContentWidget(w2);
-				}));
+				disposableStore.add(
+					this.conflictActionsFactoryInput1.addContentWidget(
+						input1ViewZoneAccessor, m.left.input1Range.startLineNumber - 1, viewModel, m.left, this.input1View.inputNumber
+					)
+				);
+				disposableStore.add(
+					this.conflictActionsFactoryInput2.addContentWidget(
+						input2ViewZoneAccessor, m.left.input2Range.startLineNumber - 1, viewModel, m.left, this.input2View.inputNumber
+					)
+				);
 
 				const afterLineNumber = m.left.baseRange.startLineNumber + (lastBaseResultDiff?.resultingDeltaFromOriginalToModified ?? 0) - 1;
-				resultViewZoneIds.push(resultViewZoneAccessor.addZone({
-					afterLineNumber,
-					heightInPx: 16,
-					domNode: $('div.conflict-actions-placeholder'),
-				}));
-				const w3 = this.conflictActionsFactoryResult.createResultWidget(afterLineNumber, viewModel, m.left);
-				resultEditor.addContentWidget(w3);
-				disposableStore.add(toDisposable(() => {
-					resultEditor.removeContentWidget(w3);
-				}));
+
+				disposableStore.add(this.conflictActionsFactoryResult.addResultWidget(resultViewZoneAccessor, afterLineNumber, viewModel, m.left));
 
 				if (shouldAlignBase && baseViewZoneAccessor) {
 					baseViewZoneIds.push(baseViewZoneAccessor.addZone({
@@ -629,10 +607,21 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		});
 	}
 
-	public toggleShowBaseAtTop(): void {
+	public toggleShowBaseTop(): void {
+		const showBaseTop = this._layoutMode.value.showBase && this._layoutMode.value.showBaseAtTop;
 		this.setLayout({
 			...this._layoutMode.value,
-			showBaseAtTop: !this._layoutMode.value.showBaseAtTop,
+			showBaseAtTop: true,
+			showBase: !showBaseTop,
+		});
+	}
+
+	public toggleShowBaseCenter(): void {
+		const showBaseCenter = this._layoutMode.value.showBase && !this._layoutMode.value.showBaseAtTop;
+		this.setLayout({
+			...this._layoutMode.value,
+			showBaseAtTop: false,
+			showBase: !showBaseCenter,
 		});
 	}
 

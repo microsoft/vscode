@@ -11,7 +11,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { IProductService } from 'vs/platform/product/common/productService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { FileAccess } from 'vs/base/common/network';
 import { IChecksumService } from 'vs/platform/checksum/common/checksumService';
@@ -163,4 +163,4 @@ export class IntegrityService implements IIntegrityService {
 	}
 }
 
-registerSingleton(IIntegrityService, IntegrityService, true);
+registerSingleton(IIntegrityService, IntegrityService, InstantiationType.Delayed);

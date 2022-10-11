@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LANGUAGE_DEFAULT } from 'vs/base/common/platform';
-import { format } from 'vs/base/common/strings';
+import { format2 } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -35,7 +35,7 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 	getMessage(extensionId: string, details: IStringDetails): string {
 		const { message, args, comment } = details;
 		if (this.isDefaultLanguage) {
-			return format(message, ...(args ?? []));
+			return format2(message, (args ?? {}));
 		}
 
 		let key = message;
@@ -46,11 +46,11 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 		if (!str) {
 			this.logService.warn(`Using default string since no string found in i18n bundle that has the key: ${key}`);
 		}
-		return format(str ?? key, ...(args ?? []));
+		return format2(str ?? key, (args ?? {}));
 	}
 
-	getBundle(extensionId: string): { [key: string]: string } {
-		return this.bundleCache.get(extensionId)?.contents ?? {};
+	getBundle(extensionId: string): { [key: string]: string } | undefined {
+		return this.bundleCache.get(extensionId)?.contents;
 	}
 
 	getBundleUri(extensionId: string): URI | undefined {

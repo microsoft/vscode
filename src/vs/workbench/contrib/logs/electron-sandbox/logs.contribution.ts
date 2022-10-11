@@ -5,8 +5,8 @@
 
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { OpenLogsFolderAction, OpenExtensionLogsFolderAction } from 'vs/workbench/contrib/logs/electron-sandbox/logsActions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
@@ -18,6 +18,8 @@ import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/path';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { registerLogChannel } from 'vs/workbench/services/output/common/output';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 class NativeLogOutputChannels extends Disposable implements IWorkbenchContribution {
 
@@ -42,8 +44,32 @@ class NativeLogOutputChannels extends Disposable implements IWorkbenchContributi
 
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NativeLogOutputChannels, LifecyclePhase.Restored);
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: OpenLogsFolderAction.ID,
+			title: OpenLogsFolderAction.TITLE,
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+	run(servicesAccessor: ServicesAccessor): Promise<void> {
+		return servicesAccessor.get(IInstantiationService).createInstance(OpenLogsFolderAction, OpenLogsFolderAction.ID, OpenLogsFolderAction.TITLE.value).run();
+	}
+});
 
-const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(OpenLogsFolderAction), 'Developer: Open Logs Folder', CATEGORIES.Developer.value);
-workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(OpenExtensionLogsFolderAction), 'Developer: Open Extension Logs Folder', CATEGORIES.Developer.value);
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: OpenExtensionLogsFolderAction.ID,
+			title: OpenExtensionLogsFolderAction.TITLE,
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+	run(servicesAccessor: ServicesAccessor): Promise<void> {
+		return servicesAccessor.get(IInstantiationService).createInstance(OpenExtensionLogsFolderAction, OpenExtensionLogsFolderAction.ID, OpenExtensionLogsFolderAction.TITLE.value).run();
+	}
+});
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NativeLogOutputChannels, LifecyclePhase.Restored);

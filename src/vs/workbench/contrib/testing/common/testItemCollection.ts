@@ -16,7 +16,6 @@ import { URI } from 'vs/base/common/uri';
  */
 interface CollectionItem<T> {
 	readonly fullId: TestId;
-	readonly parent: TestId | null;
 	actual: T;
 	expand: TestItemExpandState;
 	/**
@@ -351,7 +350,6 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 			internal = {
 				fullId,
 				actual,
-				parent: parent ? fullId.parentId : null,
 				expandLevels: parent?.expandLevels /* intentionally undefined or 0 */ ? parent.expandLevels - 1 : undefined,
 				expand: TestItemExpandState.NotExpandable, // updated by `connectItemAndChildren`
 			};
@@ -362,7 +360,6 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 			this.pushDiff({
 				op: TestDiffOpType.Add,
 				item: {
-					parent: internal.parent && internal.parent.toString(),
 					controllerId: this.options.controllerId,
 					expand: internal.expand,
 					item: this.options.toITestItem(actual),

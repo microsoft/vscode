@@ -17,7 +17,7 @@ import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/s
 import * as nls from 'vs/nls';
 import { Extensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -699,14 +699,14 @@ workbenchContributionsRegistry.registerWorkbenchContribution(ComplexNotebookWork
 
 registerSingleton(INotebookService, NotebookService, false);
 registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl, false);
-registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverServiceImpl, true);
-registerSingleton(INotebookCellStatusBarService, NotebookCellStatusBarService, true);
-registerSingleton(INotebookEditorService, NotebookEditorWidgetService, true);
-registerSingleton(INotebookKernelService, NotebookKernelService, true);
-registerSingleton(INotebookExecutionService, NotebookExecutionService, true);
-registerSingleton(INotebookExecutionStateService, NotebookExecutionStateService, true);
-registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingService, true);
-registerSingleton(INotebookKeymapService, NotebookKeymapService, true);
+registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverServiceImpl, InstantiationType.Delayed);
+registerSingleton(INotebookCellStatusBarService, NotebookCellStatusBarService, InstantiationType.Delayed);
+registerSingleton(INotebookEditorService, NotebookEditorWidgetService, InstantiationType.Delayed);
+registerSingleton(INotebookKernelService, NotebookKernelService, InstantiationType.Delayed);
+registerSingleton(INotebookExecutionService, NotebookExecutionService, InstantiationType.Delayed);
+registerSingleton(INotebookExecutionStateService, NotebookExecutionStateService, InstantiationType.Delayed);
+registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingService, InstantiationType.Delayed);
+registerSingleton(INotebookKeymapService, NotebookKeymapService, InstantiationType.Delayed);
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {
