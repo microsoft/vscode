@@ -25,7 +25,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference } from 'vs/editor/common/model';
-import { RenderingContext, HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext, HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -34,6 +34,7 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { ColorId, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
 import { Color } from 'vs/base/common/color';
+
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
 }
@@ -139,10 +140,12 @@ export class TextAreaHandler extends ViewPart {
 
 	constructor(context: ViewContext, viewController: ViewController, visibleRangeProvider: IVisibleRangeProvider) {
 		super(context);
+
 		this._viewController = viewController;
 		this._visibleRangeProvider = visibleRangeProvider;
 		this._scrollLeft = 0;
 		this._scrollTop = 0;
+
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
@@ -429,6 +432,7 @@ export class TextAreaHandler extends ViewPart {
 		}));
 
 		this._register(this._textAreaInput.onCompositionEnd(() => {
+
 			this._visibleTextArea = null;
 			this._render();
 
@@ -647,7 +651,7 @@ export class TextAreaHandler extends ViewPart {
 		this._visibleTextArea?.prepareRender(ctx);
 	}
 
-	public render(): void {
+	public render(ctx: RestrictedRenderingContext): void {
 		this._textAreaInput.writeScreenReaderContent('render');
 		this._render();
 	}

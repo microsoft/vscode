@@ -244,6 +244,7 @@ export class TextAreaInput extends Disposable {
 			if (_debugComposition) {
 				console.log(`[compositionstart]`, e);
 			}
+
 			const currentComposition = new CompositionContext();
 			if (this._currentComposition) {
 				// simply reset the composition context

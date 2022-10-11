@@ -110,6 +110,7 @@ export class View extends ViewEventHandler {
 		this._context.addEventHandler(this);
 
 		this._viewParts = [];
+
 		// Keyboard handler
 		this._textAreaHandler = new TextAreaHandler(this._context, viewController, this._createTextAreaHandlerHelper());
 		this._viewParts.push(this._textAreaHandler);
@@ -288,7 +289,7 @@ export class View extends ViewEventHandler {
 
 		this._overflowGuardContainer.setWidth(layoutInfo.width);
 		this._overflowGuardContainer.setHeight(layoutInfo.height);
-		this._textAreaHandler.render();
+
 		this._linesContent.setWidth(1000000);
 		this._linesContent.setHeight(1000000);
 	}
