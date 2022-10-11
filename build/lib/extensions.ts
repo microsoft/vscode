@@ -12,7 +12,7 @@ import * as path from 'path';
 import * as through2 from 'through2';
 import got from 'got';
 import { Stream } from 'stream';
-import * as File from 'vinyl';
+import File from 'vinyl';
 import { createStatsStream } from './stats';
 import * as util2 from './util';
 const vzip = require('gulp-vinyl-zip');
