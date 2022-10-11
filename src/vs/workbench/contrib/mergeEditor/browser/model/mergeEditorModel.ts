@@ -181,7 +181,7 @@ export class MergeEditorModel extends EditorModel {
 
 		appendLinesToResult(baseLines, LineRange.fromLineNumbers(baseStartLineNumber, baseLines.length + 1));
 
-		return resultLines.join('\n');
+		return resultLines.join(this.resultTextModel.getEOL());
 	}
 
 	public hasBaseRange(baseRange: ModifiedBaseRange): boolean {
