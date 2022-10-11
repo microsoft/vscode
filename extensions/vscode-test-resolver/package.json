@@ -33,7 +33,7 @@
   ],
   "main": "./out/extension",
   "devDependencies": {
-    "@types/node": "16.x"
+    "@types/node": "18.x"
   },
   "capabilities": {
     "untrustedWorkspaces": {

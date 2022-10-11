@@ -410,6 +410,6 @@
     "vscode-nls": "^5.2.0"
   },
   "devDependencies": {
-    "@types/node": "16.x"
+    "@types/node": "18.x"
   }
 }

@@ -62,16 +62,16 @@
     "vscode:prepublish": "npm run compile"
   },
   "dependencies": {
-    "node-fetch": "2.6.7",
-    "uuid": "8.1.0",
+    "node-fetch": "3.2.10",
+    "uuid": "9.0.0",
     "@vscode/extension-telemetry": "0.6.2",
     "vscode-nls": "^5.2.0",
-    "vscode-tas-client": "^0.1.47"
+    "vscode-tas-client": "^0.1.63"
   },
   "devDependencies": {
-    "@types/node": "16.x",
-    "@types/node-fetch": "^2.5.7",
-    "@types/uuid": "8.0.0"
+    "@types/node": "18.x",
+    "@types/node-fetch": "^2.6.2",
+    "@types/uuid": "8.3.4"
   },
   "repository": {
     "type": "git",

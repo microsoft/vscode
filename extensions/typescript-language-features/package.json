@@ -36,15 +36,15 @@
   ],
   "dependencies": {
     "@vscode/extension-telemetry": "0.6.2",
-    "jsonc-parser": "^2.2.1",
-    "semver": "5.5.1",
+    "jsonc-parser": "^3.2.0",
+    "semver": "7.3.8",
     "vscode-nls": "^5.2.0",
     "vscode-tas-client": "^0.1.63",
-    "vscode-uri": "^3.0.3"
+    "vscode-uri": "^3.0.6"
   },
   "devDependencies": {
-    "@types/node": "16.x",
-    "@types/semver": "^5.5.0"
+    "@types/node": "18.x",
+    "@types/semver": "^7.3.12"
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript-language-features",

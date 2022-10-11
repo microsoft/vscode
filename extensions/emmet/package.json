@@ -507,16 +507,16 @@
     "deps": "yarn add @vscode/emmet-helper"
   },
   "devDependencies": {
-    "@types/node": "16.x"
+    "@types/node": "18.x"
   },
   "dependencies": {
-    "@emmetio/abbreviation": "^2.2.0",
+    "@emmetio/abbreviation": "^2.2.3",
     "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
-    "@emmetio/html-matcher": "^0.3.3",
+    "@emmetio/html-matcher": "^1.3.0",
     "@emmetio/math-expression": "^1.0.4",
-    "@vscode/emmet-helper": "^2.3.0",
-    "image-size": "~1.0.0",
-    "vscode-languageserver-textdocument": "^1.0.1"
+    "@vscode/emmet-helper": "^2.8.4",
+    "image-size": "~1.0.2",
+    "vscode-languageserver-textdocument": "^1.0.7"
   },
   "capabilities": {
     "virtualWorkspaces": true,

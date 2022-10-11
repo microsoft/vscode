@@ -603,26 +603,26 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "0.6.2",
-    "dompurify": "^2.3.3",
-    "highlight.js": "^11.4.0",
-    "markdown-it": "^12.3.2",
-    "markdown-it-front-matter": "^0.2.1",
+    "dompurify": "^2.4.0",
+    "highlight.js": "^11.6.0",
+    "markdown-it": "^13.0.1",
+    "markdown-it-front-matter": "^0.2.3",
     "morphdom": "^2.6.1",
     "picomatch": "^2.3.1",
     "vscode-languageclient": "^8.0.2",
     "vscode-nls": "^5.2.0",
-    "vscode-uri": "^3.0.3"
+    "vscode-uri": "^3.0.6"
   },
   "devDependencies": {
-    "@types/dompurify": "^2.3.1",
-    "@types/lodash.throttle": "^4.1.3",
+    "@types/dompurify": "^2.3.4",
+    "@types/lodash.throttle": "^4.1.7",
     "@types/markdown-it": "12.2.3",
     "@types/picomatch": "^2.3.0",
-    "@types/vscode-notebook-renderer": "^1.60.0",
+    "@types/vscode-notebook-renderer": "^1.72.0",
     "@types/vscode-webview": "^1.57.0",
     "lodash.throttle": "^4.1.1",
     "vscode-languageserver-types": "^3.17.2",
-    "vscode-markdown-languageservice": "^0.0.0-alpha.10"
+    "vscode-markdown-languageservice": "^0.2.0-alpha.1"
   },
   "repository": {
     "type": "git",

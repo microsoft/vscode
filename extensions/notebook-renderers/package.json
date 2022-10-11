@@ -48,7 +48,7 @@
 	"dependencies": {
 	},
 	"devDependencies": {
-		"@types/vscode-notebook-renderer": "^1.60.0"
+		"@types/vscode-notebook-renderer": "^1.72.0"
 	},
 	"repository": {
 		"type": "git",
