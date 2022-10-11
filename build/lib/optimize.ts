@@ -10,7 +10,7 @@ import filter from 'gulp-filter';
 import fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 import * as path from 'path';
-import * as pump from 'pump';
+import pump from 'pump';
 import VinylFile from 'vinyl';
 import * as bundle from './bundle';
 import { Language, processNlsFiles } from './i18n';
