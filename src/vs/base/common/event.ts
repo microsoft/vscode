@@ -53,6 +53,44 @@ export namespace Event {
 		}
 	}
 
+	// TODO: This boolean will go away once it's stable
+	/**
+	 * Whether to enable the {@link Event.defer}.
+	 */
+	// eslint-disable-next-line prefer-const
+	export let enableDefer: boolean = false;
+
+	/**
+	 * Given an event, returns another event which defers the listener to a later task via a shared `setTimeout`. This
+	 * is useful for deferring non-critical work (eg. general UI updates) to ensure it does not block critical work (eg.
+	 * latency of keypress to text rendered).
+	 *
+	 * *NOTE* when using this it's important to consider race conditions that could arise when using related deferred
+	 * and non-deferred events.
+	 */
+	export function defer<T>(event: Event<T>): Event<T> {
+		const listeners: { listener: (e: T) => any; thisArgs?: any; disposables?: IDisposable[] | DisposableStore }[] = [];
+		let primaryListener: IDisposable | undefined;
+		return (listener, thisArgs = null, disposables?) => {
+			listeners.push({ listener, thisArgs, disposables });
+			if (!primaryListener) {
+				primaryListener = event(e => {
+					if (enableDefer) {
+						setTimeout(() => {
+							for (const l of listeners) {
+								l.listener.call(l.thisArgs, e);
+							}
+						}, 0);
+					} else {
+						for (const l of listeners) {
+							l.listener.call(l.thisArgs, e);
+						}
+					}
+				});
+			}
+			return primaryListener;
+		};
+	}
 
 	/**
 	 * Given an event, returns another event which only fires once.
