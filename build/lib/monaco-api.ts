@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import type * as ts from 'typescript';
 import * as path from 'path';
-import * as fancyLog from 'fancy-log';
+import fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 
 const dtsv = '3';

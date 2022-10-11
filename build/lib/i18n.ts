@@ -12,7 +12,7 @@ import * as Is from 'is';
 import * as xml2js from 'xml2js';
 import * as https from 'https';
 import * as gulp from 'gulp';
-import * as fancyLog from 'fancy-log';
+import fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 import * as iconv from '@vscode/iconv-lite-umd';
 

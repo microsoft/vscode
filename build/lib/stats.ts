@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as es from 'event-stream';
-import * as fancyLog from 'fancy-log';
+import fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 import * as File from 'vinyl';
 
