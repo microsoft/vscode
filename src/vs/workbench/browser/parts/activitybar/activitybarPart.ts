@@ -939,7 +939,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 				state.push({
 					id: compositeItem.id,
 					name: viewContainerModel.title,
-					icon: URI.isUri(viewContainerModel.icon) && this.environmentService.remoteAuthority && isNative ? undefined : viewContainerModel.icon, /* Donot cache uri icons in desktop with remote connection */
+					icon: URI.isUri(viewContainerModel.icon) && this.environmentService.remoteAuthority ? undefined : viewContainerModel.icon, /* Donot cache uri icons with remote connection */
 					views,
 					pinned: compositeItem.pinned,
 					order: compositeItem.order,
