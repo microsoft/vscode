@@ -175,7 +175,8 @@ export class ExtensionLinter {
 
 			const text = document.getText();
 			if (!this.markdownIt) {
-				this.markdownIt = new (await import('markdown-it'));
+				const MarkdownIt = (await import('markdown-it')).default;
+				this.markdownIt = new MarkdownIt();
 			}
 			const tokens = this.markdownIt.parse(text, {});
 			const tokensAndPositions: TokenAndPosition[] = (function toTokensAndPositions(this: ExtensionLinter, tokens: MarkdownItTokenType[], begin = 0, end = text.length): TokenAndPosition[] {
