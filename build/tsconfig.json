@@ -5,6 +5,7 @@
 		"module": "commonjs",
 		"moduleResolution": "node16",
 		"allowSyntheticDefaultImports": true,
+		"noImplicitAny": false,
 		"alwaysStrict": true,
 		"removeComments": false,
 		"preserveConstEnums": true,
