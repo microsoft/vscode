@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as picomatch from 'picomatch';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, LogOutputChannel } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
@@ -15,9 +15,8 @@ import { debounce, memoize, throttle } from './decorators';
 import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
-import { LogLevel, OutputChannelLogger } from './log';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
@@ -509,38 +508,38 @@ class ProgressManager {
 	}
 }
 
-class FileEventLogger {
+// class FileEventLogger {
 
-	private eventDisposable: IDisposable = EmptyDisposable;
-	private logLevelDisposable: IDisposable = EmptyDisposable;
+// 	private eventDisposable: IDisposable = EmptyDisposable;
+// 	private logLevelDisposable: IDisposable = EmptyDisposable;
 
-	constructor(
-		private onWorkspaceWorkingTreeFileChange: Event<Uri>,
-		private onDotGitFileChange: Event<Uri>,
-		private outputChannelLogger: OutputChannelLogger
-	) {
-		this.logLevelDisposable = outputChannelLogger.onDidChangeLogLevel(this.onDidChangeLogLevel, this);
-		this.onDidChangeLogLevel(outputChannelLogger.currentLogLevel);
-	}
+// 	constructor(
+// 		private onWorkspaceWorkingTreeFileChange: Event<Uri>,
+// 		private onDotGitFileChange: Event<Uri>,
+// 		private outputChannelLogger: LogOutputChannel
+// 	) {
+// 		this.logLevelDisposable = outputChannelLogger.onDidChangeLogLevel(this.onDidChangeLogLevel, this);
+// 		this.onDidChangeLogLevel(outputChannelLogger.currentLogLevel);
+// 	}
 
-	private onDidChangeLogLevel(level: LogLevel): void {
-		this.eventDisposable.dispose();
+// 	private onDidChangeLogLevel(level: LogLevel): void {
+// 		this.eventDisposable.dispose();
 
-		if (level > LogLevel.Debug) {
-			return;
-		}
+// 		if (level > LogLevel.Debug) {
+// 			return;
+// 		}
 
-		this.eventDisposable = combinedDisposable([
-			this.onWorkspaceWorkingTreeFileChange(uri => this.outputChannelLogger.logDebug(`[wt] Change: ${uri.fsPath}`)),
-			this.onDotGitFileChange(uri => this.outputChannelLogger.logDebug(`[.git] Change: ${uri.fsPath}`))
-		]);
-	}
+// 		this.eventDisposable = combinedDisposable([
+// 			this.onWorkspaceWorkingTreeFileChange(uri => this.outputChannelLogger.logDebug(`[wt] Change: ${uri.fsPath}`)),
+// 			this.onDotGitFileChange(uri => this.outputChannelLogger.logDebug(`[.git] Change: ${uri.fsPath}`))
+// 		]);
+// 	}
 
-	dispose(): void {
-		this.eventDisposable.dispose();
-		this.logLevelDisposable.dispose();
-	}
-}
+// 	dispose(): void {
+// 		this.eventDisposable.dispose();
+// 		this.logLevelDisposable.dispose();
+// 	}
+// }
 
 class DotGitWatcher implements IFileWatcher {
 
@@ -552,7 +551,7 @@ class DotGitWatcher implements IFileWatcher {
 
 	constructor(
 		private repository: Repository,
-		private outputChannelLogger: OutputChannelLogger
+		private outputChannelLogger: LogOutputChannel
 	) {
 		const rootWatcher = watch(repository.dotGit.path);
 		this.disposables.push(rootWatcher);
@@ -583,7 +582,7 @@ class DotGitWatcher implements IFileWatcher {
 			this.transientDisposables.push(upstreamWatcher);
 			upstreamWatcher.event(this.emitter.fire, this.emitter, this.transientDisposables);
 		} catch (err) {
-			this.outputChannelLogger.logWarning(`Failed to watch ref '${upstreamPath}', is most likely packed.`);
+			this.outputChannelLogger.warn(`Failed to watch ref '${upstreamPath}', is most likely packed.`);
 		}
 	}
 
@@ -899,7 +898,7 @@ export class Repository implements Disposable {
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
 		globalState: Memento,
-		outputChannelLogger: OutputChannelLogger,
+		outputChannelLogger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
 	) {
 		const repositoryWatcher = workspace.createFileSystemWatcher(new RelativePattern(Uri.file(repository.root), '**'));
@@ -915,7 +914,7 @@ export class Repository implements Disposable {
 			onRepositoryDotGitFileChange = dotGitFileWatcher.event;
 			this.disposables.push(dotGitFileWatcher);
 		} catch (err) {
-			outputChannelLogger.logError(`Failed to watch path:'${this.dotGit.path}' or commonPath:'${this.dotGit.commonPath}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
+			outputChannelLogger.error(`Failed to watch path:'${this.dotGit.path}' or commonPath:'${this.dotGit.commonPath}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
 
 			onRepositoryDotGitFileChange = filterEvent(onRepositoryFileChange, uri => /\.git($|\/)/.test(uri.path));
 		}
@@ -929,7 +928,8 @@ export class Repository implements Disposable {
 		// Relevate repository changes should trigger virtual document change events
 		onRepositoryDotGitFileChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
 
-		this.disposables.push(new FileEventLogger(onRepositoryWorkingTreeFileChange, onRepositoryDotGitFileChange, outputChannelLogger));
+		// TODO - to implement the FileEventLogger we need an event when the log level changes (ex: onDidChangeLogLevel)
+		// this.disposables.push(new FileEventLogger(onRepositoryWorkingTreeFileChange, onRepositoryDotGitFileChange, outputChannelLogger));
 
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);

@@ -11,6 +11,7 @@
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
 		"../../src/vscode-dts/vscode.proposed.diffCommand.d.ts",
+		"../../src/vscode-dts/vscode.proposed.extensionLog.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmActionButton.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmSelectedProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmValidation.d.ts",
