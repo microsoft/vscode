@@ -516,7 +516,7 @@
             "error"
           ]
         },
-        "markdown.experimental.updateLinksOnFileMove.enabled": {
+        "markdown.updateLinksOnFileMove.enabled": {
           "type": "string",
           "enum": [
             "prompt",
@@ -524,30 +524,30 @@
             "never"
           ],
           "markdownEnumDescriptions": [
-            "%configuration.markdown.experimental.updateLinksOnFileMove.enabled.prompt%",
-            "%configuration.markdown.experimental.updateLinksOnFileMove.enabled.always%",
-            "%configuration.markdown.experimental.updateLinksOnFileMove.enabled.never%"
+            "%configuration.markdown.updateLinksOnFileMove.enabled.prompt%",
+            "%configuration.markdown.updateLinksOnFileMove.enabled.always%",
+            "%configuration.markdown.updateLinksOnFileMove.enabled.never%"
           ],
           "default": "never",
-          "markdownDescription": "%configuration.markdown.experimental.updateLinksOnFileMove.enabled%",
+          "markdownDescription": "%configuration.markdown.updateLinksOnFileMove.enabled%",
           "scope": "resource",
           "tags": [
             "experimental"
           ]
         },
-        "markdown.experimental.updateLinksOnFileMove.externalFileGlobs": {
+        "markdown.updateLinksOnFileMove.externalFileGlobs": {
           "type": "string",
           "default": "**/*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif,tiff,svg,mp4}",
-          "description": "%configuration.markdown.experimental.updateLinksOnFileMove.fileGlobs%",
+          "description": "%configuration.markdown.updateLinksOnFileMove.fileGlobs%",
           "scope": "resource",
           "tags": [
             "experimental"
           ]
         },
-        "markdown.experimental.updateLinksOnFileMove.enableForDirectories": {
+        "markdown.updateLinksOnFileMove.enableForDirectories": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.markdown.experimental.updateLinksOnFileMove.enableForDirectories%",
+          "description": "%configuration.markdown.updateLinksOnFileMove.enableForDirectories%",
           "scope": "resource",
           "tags": [
             "experimental"
