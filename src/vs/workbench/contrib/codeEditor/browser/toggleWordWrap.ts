@@ -305,8 +305,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 
 
 // View menu
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '5_editor',
+MenuRegistry.appendMenuItem(MenuId.MenubarEditorFeaturesMenu, {
 	command: {
 		id: TOGGLE_WORD_WRAP_ID,
 		title: nls.localize({ key: 'miToggleWordWrap', comment: ['&& denotes a mnemonic'] }, "&&Word Wrap"),
