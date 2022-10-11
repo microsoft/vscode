@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as Vinyl from 'vinyl';
+import Vinyl from 'vinyl';
 import through from 'through';
 import * as builder from './builder';
 import * as ts from 'typescript';
