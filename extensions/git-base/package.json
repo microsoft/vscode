@@ -8,7 +8,7 @@
   "engines": {
     "vscode": "0.10.x"
   },
-	"categories": [
+  "categories": [
     "Other"
   ],
   "activationEvents": [
