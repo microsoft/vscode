@@ -5347,7 +5347,7 @@ declare namespace monaco.editor {
 		 * @id Unique identifier of the contribution.
 		 * @return The action or null if action not found.
 		 */
-		getAction(id: string): IEditorAction;
+		getAction(id: string): IEditorAction | null;
 		/**
 		 * Execute a command on the editor.
 		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
