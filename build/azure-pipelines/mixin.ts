@@ -5,7 +5,7 @@
 
 import * as json from 'gulp-json-editor';
 const buffer = require('gulp-buffer');
-import * as filter from 'gulp-filter';
+import filter from 'gulp-filter';
 import * as es from 'event-stream';
 import * as Vinyl from 'vinyl';
 import * as vfs from 'vinyl-fs';
