@@ -220,6 +220,7 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 					names: [],
 					mappings: '',
 					sources: [f.relative],
+					file: '',
 					sourcesContent: [contents]
 				};
 
