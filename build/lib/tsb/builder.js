@@ -3,15 +3,41 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createTypeScriptBuilder = exports.CancellationToken = void 0;
 const fs_1 = require("fs");
-const path = require("path");
-const crypto = require("crypto");
-const utils = require("./utils");
-const colors = require("ansi-colors");
-const ts = require("typescript");
-const Vinyl = require("vinyl");
+const path = __importStar(require("path"));
+const crypto = __importStar(require("crypto"));
+const utils = __importStar(require("./utils"));
+const colors = __importStar(require("ansi-colors"));
+const ts = __importStar(require("typescript"));
+const vinyl_1 = __importDefault(require("vinyl"));
 var CancellationToken;
 (function (CancellationToken) {
     CancellationToken.None = {
@@ -113,7 +139,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                                 continue;
                             }
                         }
-                        const vinyl = new Vinyl({
+                        const vinyl = new vinyl_1.default({
                             path: file.name,
                             contents: Buffer.from(file.text),
                             base: !config._emitWithoutBasePath && baseFor(host.getScriptSnapshot(fileName)) || undefined
@@ -375,7 +401,7 @@ class LanguageServiceHost {
         let result = this._snapshots[filename];
         if (!result && resolve) {
             try {
-                result = new VinylScriptSnapshot(new Vinyl({
+                result = new VinylScriptSnapshot(new vinyl_1.default({
                     path: filename,
                     contents: (0, fs_1.readFileSync)(filename),
                     base: this.getCompilationSettings().outDir,

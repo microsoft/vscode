@@ -3,21 +3,47 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.minifyTask = exports.optimizeTask = exports.optimizeLoaderTask = exports.loaderConfig = void 0;
-const es = require("event-stream");
-const gulp = require("gulp");
-const concat = require("gulp-concat");
-const filter = require("gulp-filter");
-const fancy_log_1 = require("fancy-log");
-const ansiColors = require("ansi-colors");
-const path = require("path");
-const pump = require("pump");
-const VinylFile = require("vinyl");
-const bundle = require("./bundle");
+const es = __importStar(require("event-stream"));
+const gulp = __importStar(require("gulp"));
+const gulp_concat_1 = __importDefault(require("gulp-concat"));
+const gulp_filter_1 = __importDefault(require("gulp-filter"));
+const fancy_log_1 = __importDefault(require("fancy-log"));
+const ansiColors = __importStar(require("ansi-colors"));
+const path = __importStar(require("path"));
+const pump_1 = __importDefault(require("pump"));
+const vinyl_1 = __importDefault(require("vinyl"));
+const bundle = __importStar(require("./bundle"));
 const i18n_1 = require("./i18n");
 const stats_1 = require("./stats");
-const util = require("./util");
+const util = __importStar(require("./util"));
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
     (0, fancy_log_1.default)(ansiColors.cyan('[' + prefix + ']'), message);
@@ -72,13 +98,13 @@ function loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo) {
         files.sort((a, b) => {
             return order(a) - order(b);
         });
-        files.unshift(new VinylFile({
+        files.unshift(new vinyl_1.default({
             path: 'fake',
             base: '.',
             contents: Buffer.from(bundledFileHeader)
         }));
         if (externalLoaderInfo !== undefined) {
-            files.push(new VinylFile({
+            files.push(new vinyl_1.default({
                 path: 'fake2',
                 base: '.',
                 contents: Buffer.from(`require.config(${JSON.stringify(externalLoaderInfo, undefined, 2)});`)
@@ -89,7 +115,7 @@ function loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo) {
         }
         this.emit('end');
     }))
-        .pipe(concat('vs/loader.js')));
+        .pipe((0, gulp_concat_1.default)('vs/loader.js')));
 }
 function toConcatStream(src, bundledFileHeader, sources, dest, fileContentMapper) {
     const useSourcemaps = /\.js$/.test(dest) && !/\.nls\.js$/.test(dest);
@@ -114,7 +140,7 @@ function toConcatStream(src, bundledFileHeader, sources, dest, fileContentMapper
         const base = source.path ? root + `/${src}` : '.';
         const path = source.path ? root + '/' + source.path.replace(/\\/g, '/') : 'fake';
         const contents = source.path ? fileContentMapper(source.contents, path) : source.contents;
-        return new VinylFile({
+        return new vinyl_1.default({
             path: path,
             base: base,
             contents: Buffer.from(contents)
@@ -122,7 +148,7 @@ function toConcatStream(src, bundledFileHeader, sources, dest, fileContentMapper
     });
     return es.readArray(treatedSources)
         .pipe(useSourcemaps ? util.loadSourcemaps() : es.through())
-        .pipe(concat(dest))
+        .pipe((0, gulp_concat_1.default)(dest))
         .pipe((0, stats_1.createStatsStream)(dest));
 }
 function toBundleStream(src, bundledFileHeader, bundles, fileContentMapper) {
@@ -162,7 +188,7 @@ function optimizeAMDTask(opts) {
         gulp.src(filteredResources, { base: `${src}`, allowEmpty: true }).pipe(resourcesStream);
         const bundleInfoArray = [];
         if (opts.bundleInfo) {
-            bundleInfoArray.push(new VinylFile({
+            bundleInfoArray.push(new vinyl_1.default({
                 path: 'bundleInfo.json',
                 base: '.',
                 contents: Buffer.from(JSON.stringify(result.bundleData, null, '\t'))
@@ -205,7 +231,7 @@ function optimizeManualTask(options) {
     const concatenations = options.map(opt => {
         return gulp
             .src(opt.src)
-            .pipe(concat(opt.out));
+            .pipe((0, gulp_concat_1.default)(opt.out));
     });
     return es.merge(...concatenations);
 }
@@ -234,10 +260,10 @@ function minifyTask(src, sourceMapBaseUrl) {
         const postcss = require('gulp-postcss');
         const sourcemaps = require('gulp-sourcemaps');
         const svgmin = require('gulp-svgmin');
-        const jsFilter = filter('**/*.js', { restore: true });
-        const cssFilter = filter('**/*.css', { restore: true });
-        const svgFilter = filter('**/*.svg', { restore: true });
-        pump(gulp.src([src + '/**', '!' + src + '/**/*.map']), jsFilter, sourcemaps.init({ loadMaps: true }), es.map((f, cb) => {
+        const jsFilter = (0, gulp_filter_1.default)('**/*.js', { restore: true });
+        const cssFilter = (0, gulp_filter_1.default)('**/*.css', { restore: true });
+        const svgFilter = (0, gulp_filter_1.default)('**/*.svg', { restore: true });
+        (0, pump_1.default)(gulp.src([src + '/**', '!' + src + '/**/*.map']), jsFilter, sourcemaps.init({ loadMaps: true }), es.map((f, cb) => {
             esbuild.build({
                 entryPoints: [f.path],
                 minify: true,

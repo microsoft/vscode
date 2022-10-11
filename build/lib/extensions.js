@@ -3,26 +3,52 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildExtensionMedia = exports.webpackExtensions = exports.translatePackageJSON = exports.scanBuiltinExtensions = exports.packageMarketplaceExtensionsStream = exports.packageLocalExtensionsStream = exports.fromGithub = exports.fromMarketplace = void 0;
-const es = require("event-stream");
-const fs = require("fs");
-const cp = require("child_process");
-const glob = require("glob");
-const gulp = require("gulp");
-const path = require("path");
-const through2 = require("through2");
-const got_1 = require("got");
-const File = require("vinyl");
+const es = __importStar(require("event-stream"));
+const fs = __importStar(require("fs"));
+const cp = __importStar(require("child_process"));
+const glob = __importStar(require("glob"));
+const gulp = __importStar(require("gulp"));
+const path = __importStar(require("path"));
+const through2_1 = __importDefault(require("through2"));
+const got_1 = __importDefault(require("got"));
+const vinyl_1 = __importDefault(require("vinyl"));
 const stats_1 = require("./stats");
-const util2 = require("./util");
+const util2 = __importStar(require("./util"));
 const vzip = require('gulp-vinyl-zip');
 const filter = require("gulp-filter");
 const rename = require("gulp-rename");
-const fancy_log_1 = require("fancy-log");
-const ansiColors = require("ansi-colors");
+const fancy_log_1 = __importDefault(require("fancy-log"));
+const ansiColors = __importStar(require("ansi-colors"));
 const buffer = require('gulp-buffer');
-const jsoncParser = require("jsonc-parser");
+const jsoncParser = __importStar(require("jsonc-parser"));
 const dependencies_1 = require("./dependencies");
 const _ = require("underscore");
 const builtInExtensions_1 = require("./builtInExtensions");
@@ -95,7 +121,7 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName) {
     vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn, packagedDependencies }).then(fileNames => {
         const files = fileNames
             .map(fileName => path.join(extensionPath, fileName))
-            .map(filePath => new File({
+            .map(filePath => new vinyl_1.default({
             path: filePath,
             stat: fs.statSync(filePath),
             base: extensionPath,
@@ -161,7 +187,7 @@ function fromLocalNormal(extensionPath) {
         .then(fileNames => {
         const files = fileNames
             .map(fileName => path.join(extensionPath, fileName))
-            .map(filePath => new File({
+            .map(filePath => new vinyl_1.default({
             path: filePath,
             stat: fs.statSync(filePath),
             base: extensionPath,
@@ -221,13 +247,13 @@ function fromGithub({ name, version, repo, metadata }) {
     return remote([`/repos${new URL(repo).pathname}/releases/tags/v${version}`], {
         base: 'https://api.github.com',
         requestOptions: { headers: ghApiHeaders }
-    }).pipe(through2.obj(function (file, _enc, callback) {
+    }).pipe(through2_1.default.obj(function (file, _enc, callback) {
         const asset = JSON.parse(file.contents.toString()).assets.find((a) => a.name.endsWith('.vsix'));
         if (!asset) {
             return callback(new Error(`Could not find vsix in release of ${repo} @ ${version}`));
         }
         const res = got_1.default.stream(asset.url, { headers: ghDownloadHeaders, followRedirect: true });
-        file.contents = res.pipe(through2());
+        file.contents = res.pipe((0, through2_1.default)());
         callback(null, file);
     }))
         .pipe(buffer())

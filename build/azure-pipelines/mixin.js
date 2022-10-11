@@ -3,27 +3,53 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-const json = require("gulp-json-editor");
+const gulp_json_editor_1 = __importDefault(require("gulp-json-editor"));
 const buffer = require('gulp-buffer');
-const filter = require("gulp-filter");
-const es = require("event-stream");
-const vfs = require("vinyl-fs");
-const fancy_log_1 = require("fancy-log");
-const ansiColors = require("ansi-colors");
-const fs = require("fs");
-const path = require("path");
+const gulp_filter_1 = __importDefault(require("gulp-filter"));
+const es = __importStar(require("event-stream"));
+const vfs = __importStar(require("vinyl-fs"));
+const fancy_log_1 = __importDefault(require("fancy-log"));
+const ansiColors = __importStar(require("ansi-colors"));
+const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
 async function mixinClient(quality) {
-    const productJsonFilter = filter(f => f.relative === 'product.json', { restore: true });
+    const productJsonFilter = (0, gulp_filter_1.default)(f => f.relative === 'product.json', { restore: true });
     (0, fancy_log_1.default)(ansiColors.blue('[mixin]'), `Mixing in client:`);
     return new Promise((c, e) => {
         vfs
             .src(`quality/${quality}/**`, { base: `quality/${quality}` })
-            .pipe(filter(f => !f.isDirectory()))
-            .pipe(filter(f => f.relative !== 'product.server.json'))
+            .pipe((0, gulp_filter_1.default)(f => !f.isDirectory()))
+            .pipe((0, gulp_filter_1.default)(f => f.relative !== 'product.server.json'))
             .pipe(productJsonFilter)
             .pipe(buffer())
-            .pipe(json((o) => {
+            .pipe((0, gulp_json_editor_1.default)((o) => {
             const originalProduct = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'product.json'), 'utf8'));
             let builtInExtensions = originalProduct.builtInExtensions;
             if (Array.isArray(o.builtInExtensions)) {

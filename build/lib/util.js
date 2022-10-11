@@ -3,17 +3,43 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildWebNodePaths = exports.createExternalLoaderConfig = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.getVersion = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.debounce = exports.incremental = void 0;
-const es = require("event-stream");
+const es = __importStar(require("event-stream"));
 const _debounce = require("debounce");
-const _filter = require("gulp-filter");
-const gulp_rename_1 = require("gulp-rename");
-const path = require("path");
-const fs = require("fs");
-const _rimraf = require("rimraf");
-const VinylFile = require("vinyl");
-const git = require("./git");
+const gulp_filter_1 = __importDefault(require("gulp-filter"));
+const gulp_rename_1 = __importDefault(require("gulp-rename"));
+const path = __importStar(require("path"));
+const fs = __importStar(require("fs"));
+const rimraf_1 = __importDefault(require("rimraf"));
+const vinyl_1 = __importDefault(require("vinyl"));
+const git = __importStar(require("./git"));
 const root = path.dirname(path.dirname(__dirname));
 const NoCancellationToken = { isCancellationRequested: () => false };
 function incremental(streamProvider, initial, supportsCancellation) {
@@ -107,7 +133,7 @@ function setExecutableBit(pattern) {
         return setBit;
     }
     const input = es.through();
-    const filter = _filter(pattern, { restore: true });
+    const filter = (0, gulp_filter_1.default)(pattern, { restore: true });
     const output = input
         .pipe(filter)
         .pipe(setBit)
@@ -139,7 +165,7 @@ function cleanNodeModules(rulePath) {
     const excludes = rules.filter(line => !/^!/.test(line)).map(line => `!**/node_modules/${line}`);
     const includes = rules.filter(line => /^!/.test(line)).map(line => `**/node_modules/${line.substr(1)}`);
     const input = es.through();
-    const output = es.merge(input.pipe(_filter(['**', ...excludes])), input.pipe(_filter(includes)));
+    const output = es.merge(input.pipe((0, gulp_filter_1.default)(['**', ...excludes])), input.pipe((0, gulp_filter_1.default)(includes)));
     return es.duplex(input, output);
 }
 exports.cleanNodeModules = cleanNodeModules;
@@ -213,7 +239,7 @@ function rimraf(dir) {
     const result = () => new Promise((c, e) => {
         let retries = 0;
         const retry = () => {
-            _rimraf(dir, { maxBusyTries: 1 }, (err) => {
+            (0, rimraf_1.default)(dir, { maxBusyTries: 1 }, (err) => {
                 if (!err) {
                     return c();
                 }

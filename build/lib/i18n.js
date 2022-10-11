@@ -3,19 +3,45 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.prepareIslFiles = exports.prepareI18nPackFiles = exports.prepareI18nFiles = exports.pullSetupXlfFiles = exports.findObsoleteResources = exports.pushXlfFiles = exports.createXlfFilesForIsl = exports.createXlfFilesForExtensions = exports.createXlfFilesForCoreBundle = exports.getResource = exports.processNlsFiles = exports.Limiter = exports.XLF = exports.Line = exports.externalExtensionsWithTranslations = exports.extraLanguages = exports.defaultLanguages = void 0;
-const path = require("path");
-const fs = require("fs");
+const path = __importStar(require("path"));
+const fs = __importStar(require("fs"));
 const event_stream_1 = require("event-stream");
-const File = require("vinyl");
-const Is = require("is");
-const xml2js = require("xml2js");
-const https = require("https");
-const gulp = require("gulp");
-const fancy_log_1 = require("fancy-log");
-const ansiColors = require("ansi-colors");
-const iconv = require("@vscode/iconv-lite-umd");
+const vinyl_1 = __importDefault(require("vinyl"));
+const Is = __importStar(require("is"));
+const xml2js = __importStar(require("xml2js"));
+const https = __importStar(require("https"));
+const gulp = __importStar(require("gulp"));
+const fancy_log_1 = __importDefault(require("fancy-log"));
+const ansiColors = __importStar(require("ansi-colors"));
+const iconv = __importStar(require("@vscode/iconv-lite-umd"));
 const NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
 function log(message, ...rest) {
     (0, fancy_log_1.default)(ansiColors.green('[i18n]'), message, ...rest);
@@ -457,7 +483,7 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
                 contents.push(index < modules.length - 1 ? '\t],' : '\t]');
             });
             contents.push('});');
-            emitter.queue(new File({ path: bundle + '.nls.' + language.id + '.js', contents: Buffer.from(contents.join('\n'), 'utf-8') }));
+            emitter.queue(new vinyl_1.default({ path: bundle + '.nls.' + language.id + '.js', contents: Buffer.from(contents.join('\n'), 'utf-8') }));
         });
     });
     Object.keys(statistics).forEach(key => {
@@ -555,7 +581,7 @@ function createXlfFilesForCoreBundle() {
                 for (const resource in xlfs) {
                     const xlf = xlfs[resource];
                     const filePath = `${xlf.project}/${resource.replace(/\//g, '_')}.xlf`;
-                    const xlfFile = new File({
+                    const xlfFile = new vinyl_1.default({
                         path: filePath,
                         contents: Buffer.from(xlf.toString(), 'utf8')
                     });
@@ -639,7 +665,7 @@ function createXlfFilesForExtensions() {
             }
         }, function () {
             if (_xlf) {
-                const xlfFile = new File({
+                const xlfFile = new vinyl_1.default({
                     path: path.join(extensionsProject, extensionName + '.xlf'),
                     contents: Buffer.from(_xlf.toString(), 'utf8')
                 });
@@ -707,7 +733,7 @@ function createXlfFilesForIsl() {
         xlf.addFile(originalPath, keys, messages);
         // Emit only upon all ISL files combined into single XLF instance
         const newFilePath = path.join(projectName, resourceFile);
-        const xlfFile = new File({ path: newFilePath, contents: Buffer.from(xlf.toString(), 'utf-8') });
+        const xlfFile = new vinyl_1.default({ path: newFilePath, contents: Buffer.from(xlf.toString(), 'utf-8') });
         this.queue(xlfFile);
     });
 }
@@ -968,7 +994,7 @@ function retrieveResource(language, resource, apiHostname, credentials) {
             res.on('data', (chunk) => xlfBuffer.push(chunk));
             res.on('end', () => {
                 if (res.statusCode === 200) {
-                    resolve(new File({ contents: Buffer.concat(xlfBuffer), path: `${project}/${slug}.xlf` }));
+                    resolve(new vinyl_1.default({ contents: Buffer.concat(xlfBuffer), path: `${project}/${slug}.xlf` }));
                 }
                 else if (res.statusCode === 404) {
                     console.log(`[transifex] ${slug} in ${project} returned no data.`);
@@ -1020,7 +1046,7 @@ function createI18nFile(originalFilePath, messages) {
     if (process.platform === 'win32') {
         content = content.replace(/\n/g, '\r\n');
     }
-    return new File({
+    return new vinyl_1.default({
         path: path.join(originalFilePath + '.i18n.json'),
         contents: Buffer.from(content, 'utf8')
     });
@@ -1146,7 +1172,7 @@ function createIslFile(originalFilePath, messages, language, innoSetup) {
     const basename = path.basename(originalFilePath);
     const filePath = `${basename}.${language.id}.isl`;
     const encoded = iconv.encode(Buffer.from(content.join('\r\n'), 'utf8').toString(), innoSetup.codePage);
-    return new File({
+    return new vinyl_1.default({
         path: filePath,
         contents: Buffer.from(encoded),
     });

@@ -3,14 +3,40 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const child_process_1 = require("child_process");
 const fs_1 = require("fs");
-const path = require("path");
-const byline = require("byline");
+const path = __importStar(require("path"));
+const byline_1 = __importDefault(require("byline"));
 const ripgrep_1 = require("@vscode/ripgrep");
-const Parser = require("tree-sitter");
-const node_fetch_1 = require("node-fetch");
+const tree_sitter_1 = __importDefault(require("tree-sitter"));
+const node_fetch_1 = __importDefault(require("node-fetch"));
 const { typescript } = require('tree-sitter-typescript');
 const product = require('../../product.json');
 const packageJson = require('../../package.json');
@@ -232,7 +258,7 @@ const StringArrayQ = {
     }
 };
 function getProperty(qtype, node, key) {
-    const query = new Parser.Query(typescript, `(
+    const query = new tree_sitter_1.default.Query(typescript, `(
 			(pair
 				key: [(property_identifier)(string)] @key
 				value: ${qtype.Q}
@@ -304,7 +330,7 @@ function getPolicy(moduleName, configurationNode, settingNode, policyNode, categ
     return result;
 }
 function getPolicies(moduleName, node) {
-    const query = new Parser.Query(typescript, `
+    const query = new tree_sitter_1.default.Query(typescript, `
 		(
 			(call_expression
 				function: (member_expression property: (property_identifier) @registerConfigurationFn) (#eq? @registerConfigurationFn registerConfiguration)
@@ -333,7 +359,7 @@ async function getFiles(root) {
     return new Promise((c, e) => {
         const result = [];
         const rg = (0, child_process_1.spawn)(ripgrep_1.rgPath, ['-l', 'registerConfiguration\\(', '-g', 'src/**/*.ts', '-g', '!src/**/test/**', root]);
-        const stream = byline(rg.stdout.setEncoding('utf8'));
+        const stream = (0, byline_1.default)(rg.stdout.setEncoding('utf8'));
         stream.on('data', path => result.push(path));
         stream.on('error', err => e(err));
         stream.on('end', () => c(result));
@@ -467,7 +493,7 @@ async function getNLS(extensionGalleryServiceUrl, resourceUrlTemplate, languageI
     return await getSpecificNLS(resourceUrlTemplate, languageId, latestCompatibleVersion);
 }
 async function parsePolicies() {
-    const parser = new Parser();
+    const parser = new tree_sitter_1.default();
     parser.setLanguage(typescript);
     const files = await getFiles(process.cwd());
     const base = path.join(process.cwd(), 'src');

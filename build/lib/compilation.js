@@ -3,21 +3,47 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.watchApiProposalNamesTask = exports.compileApiProposalNamesTask = exports.watchTask = exports.compileTask = exports.transpileTask = void 0;
-const es = require("event-stream");
-const fs = require("fs");
-const gulp = require("gulp");
-const path = require("path");
-const monacodts = require("./monaco-api");
-const nls = require("./nls");
+const es = __importStar(require("event-stream"));
+const fs = __importStar(require("fs"));
+const gulp = __importStar(require("gulp"));
+const path = __importStar(require("path"));
+const monacodts = __importStar(require("./monaco-api"));
+const nls = __importStar(require("./nls"));
 const reporter_1 = require("./reporter");
-const util = require("./util");
-const fancy_log_1 = require("fancy-log");
-const ansiColors = require("ansi-colors");
-const os = require("os");
-const File = require("vinyl");
-const task = require("./task");
+const util = __importStar(require("./util"));
+const fancy_log_1 = __importDefault(require("fancy-log"));
+const ansiColors = __importStar(require("ansi-colors"));
+const os = __importStar(require("os"));
+const vinyl_1 = __importDefault(require("vinyl"));
+const task = __importStar(require("./task"));
 const watch = require('./watch');
 // --- gulp-tsb: compile and transpile --------------------------------
 const reporter = (0, reporter_1.createReporter)();
@@ -229,7 +255,7 @@ function generateApiProposalNames() {
             'export type ApiProposalName = keyof typeof allApiProposals;',
             '',
         ].join(eol);
-        this.emit('data', new File({
+        this.emit('data', new vinyl_1.default({
             path: 'vs/workbench/services/extensions/common/extensionsApiProposals.ts',
             contents: Buffer.from(contents)
         }));

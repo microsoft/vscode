@@ -3,17 +3,43 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.create = void 0;
-const Vinyl = require("vinyl");
-const through = require("through");
-const builder = require("./builder");
-const ts = require("typescript");
+const vinyl_1 = __importDefault(require("vinyl"));
+const through_1 = __importDefault(require("through"));
+const builder = __importStar(require("./builder"));
+const ts = __importStar(require("typescript"));
 const stream_1 = require("stream");
 const path_1 = require("path");
 const utils_1 = require("./utils");
 const fs_1 = require("fs");
-const fancy_log_1 = require("fancy-log");
+const fancy_log_1 = __importDefault(require("fancy-log"));
 const colors = require("ansi-colors");
 const transpiler_1 = require("./transpiler");
 class EmptyDuplex extends stream_1.Duplex {
@@ -53,7 +79,7 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
     }
     // FULL COMPILE stream doing transpile, syntax and semantic diagnostics
     function createCompileStream(builder, token) {
-        return through(function (file) {
+        return (0, through_1.default)(function (file) {
             // give the file to the compiler
             if (file.isStream()) {
                 this.emit('error', 'no support for streams');
@@ -67,7 +93,7 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
     }
     // TRANSPILE ONLY stream doing just TS to JS conversion
     function createTranspileStream(transpiler) {
-        return through(function (file) {
+        return (0, through_1.default)(function (file) {
             // give the file to the compiler
             if (file.isStream()) {
                 this.emit('error', 'no support for streams');
@@ -113,7 +139,7 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
                 let path;
                 for (; more && _pos < _fileNames.length; _pos++) {
                     path = _fileNames[_pos];
-                    more = this.push(new Vinyl({
+                    more = this.push(new vinyl_1.default({
                         path,
                         contents: (0, fs_1.readFileSync)(path),
                         stat: (0, fs_1.statSync)(path),
