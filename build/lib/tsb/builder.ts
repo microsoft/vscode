@@ -9,7 +9,7 @@ import * as crypto from 'crypto';
 import * as utils from './utils';
 import * as colors from 'ansi-colors';
 import * as ts from 'typescript';
-import * as Vinyl from 'vinyl';
+import Vinyl from 'vinyl';
 
 export interface IConfiguration {
 	logFn: (topic: string, message: string) => void;
