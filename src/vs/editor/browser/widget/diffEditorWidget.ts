@@ -1246,6 +1246,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (options.originalAriaLabel) {
 			result.ariaLabel = options.originalAriaLabel;
 		}
+		result.ariaLabel += ' use Shift + F7 to navigate changes';
 		result.readOnly = !this._options.originalEditable;
 		result.dropIntoEditor = { enabled: !result.readOnly };
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
@@ -1263,7 +1264,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (options.modifiedAriaLabel) {
 			result.ariaLabel = options.modifiedAriaLabel;
 		}
-
+		result.ariaLabel += ' use Shift + F7 to navigate changes';
 		result.wordWrapOverride1 = this._options.diffWordWrap;
 		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar!.verticalHasArrows = false;
