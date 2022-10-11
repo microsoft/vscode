@@ -6,7 +6,7 @@
 import * as es from 'event-stream';
 import * as Vinyl from 'vinyl';
 import * as vfs from 'vinyl-fs';
-import * as merge from 'gulp-merge-json';
+import merge from 'gulp-merge-json';
 import * as gzip from 'gulp-gzip';
 import { ClientSecretCredential } from '@azure/identity';
 import path = require('path');
