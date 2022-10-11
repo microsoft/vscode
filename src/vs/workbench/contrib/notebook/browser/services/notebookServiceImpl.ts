@@ -513,7 +513,7 @@ export class NotebookService extends Disposable implements INotebookService {
 
 		let decorationTriggeredAdjustment = false;
 		const decorationCheckSet = new Set<string>();
-		this._register(this._codeEditorService.onDecorationTypeRegistered(e => {
+		const onDidAddDecorationType = (e: string) => {
 			if (decorationTriggeredAdjustment) {
 				return;
 			}
@@ -544,7 +544,9 @@ export class NotebookService extends Disposable implements INotebookService {
 			}
 
 			decorationCheckSet.add(e);
-		}));
+		};
+		this._register(this._codeEditorService.onDecorationTypeRegistered(onDidAddDecorationType));
+		this._codeEditorService.listDecorationTypes().forEach(onDidAddDecorationType);
 	}
 
 

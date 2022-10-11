@@ -40,7 +40,7 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 
 		let key = message;
 		if (comment && comment.length > 0) {
-			key += `/${comment.join()}`;
+			key += `/${Array.isArray(comment) ? comment.join() : comment}`;
 		}
 		const str = this.bundleCache.get(extensionId)?.contents[key];
 		if (!str) {

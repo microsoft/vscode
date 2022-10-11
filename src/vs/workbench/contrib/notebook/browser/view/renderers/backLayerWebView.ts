@@ -35,7 +35,7 @@ import { NOTEBOOK_WEBVIEW_BOUNDARY } from 'vs/workbench/contrib/notebook/browser
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { CellUri, INotebookRendererInfo, isTextStreamMime, NotebookSetting, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, INotebookRendererInfo, NotebookSetting, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -44,7 +44,6 @@ import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/w
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, ToWebviewMessage } from './webviewMessages';
-import { compressOutputItemStreams } from 'vs/workbench/contrib/notebook/browser/view/renderers/stdOutErrorPreProcessor';
 import { DeferredPromise } from 'vs/base/common/async';
 
 export interface ICachedInset<K extends ICommonCellInfo> {
@@ -557,24 +556,8 @@ var requirejs = (function() {
 				return;
 			}
 
-			if (matchesScheme(link, Schemas.command)) {
-				const ret = /command\:workbench\.action\.openLargeOutput\?(.*)/.exec(link);
-				if (ret && ret.length === 2) {
-					const outputId = ret[1];
-					this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
-					return;
-				}
-				console.warn('Command links are deprecated and will be removed, use message passing instead: https://github.com/microsoft/vscode/issues/123601');
-			}
-
-			if (matchesScheme(link, Schemas.command)) {
-				if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
-					this.openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: true });
-				} else {
-					console.warn('Command links are disabled in untrusted workspaces');
-				}
-			} else if (matchesSomeScheme(link, Schemas.vscodeNotebookCell, Schemas.http, Schemas.https, Schemas.mailto)) {
-				this.openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: true });
+			if (matchesSomeScheme(link, Schemas.vscodeNotebookCell, Schemas.http, Schemas.https, Schemas.mailto)) {
+				this.openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: false });
 			}
 		}));
 
@@ -693,23 +676,35 @@ var requirejs = (function() {
 				}
 				case 'clicked-link': {
 					let linkToOpen: URI | string | undefined;
+
 					if (matchesScheme(data.href, Schemas.command)) {
-						const ret = /command\:workbench\.action\.openLargeOutput\?(.*)/.exec(data.href);
-						if (ret && ret.length === 2) {
-							const outputId = ret[1];
-							const group = this.editorGroupService.activeGroup;
-
-							if (group) {
-								if (group.activeEditor) {
-									group.pinEditor(group.activeEditor);
+						// We allow a very limited set of commands
+						const uri = URI.parse(data.href);
+						switch (uri.path) {
+							case 'workbench.action.openLargeOutput': {
+								const outputId = uri.query;
+								const group = this.editorGroupService.activeGroup;
+								if (group) {
+									if (group.activeEditor) {
+										group.pinEditor(group.activeEditor);
+									}
 								}
-							}
 
-							this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
-							return;
+								this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
+								return;
+							}
+							case 'github-issues.authNow':
+							case 'workbench.extensions.search':
+							case 'workbench.action.openSettings': {
+								this.openerService.open(data.href, { fromUserGesture: true, allowCommands: true, fromWorkspace: true });
+								return;
+							}
 						}
+
+						return;
 					}
-					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.command, Schemas.vscodeNotebookCell, Schemas.vscodeNotebook)) {
+
+					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.vscodeNotebookCell, Schemas.vscodeNotebook)) {
 						linkToOpen = data.href;
 					} else if (!/^[\w\-]+:/.test(data.href)) {
 						const fragmentStartIndex = data.href.lastIndexOf('#');
@@ -740,7 +735,7 @@ var requirejs = (function() {
 					}
 
 					if (linkToOpen) {
-						this.openerService.open(linkToOpen, { fromUserGesture: true, allowCommands: true, fromWorkspace: true });
+						this.openerService.open(linkToOpen, { fromUserGesture: true, allowCommands: false, fromWorkspace: true });
 					}
 					break;
 				}
@@ -1281,14 +1276,12 @@ var requirejs = (function() {
 		let updatedContent: ICreationContent | undefined = undefined;
 		if (content.type === RenderOutputType.Extension) {
 			const output = content.source.model;
-			const firstBuffer = isTextStreamMime(content.mimeType) ?
-				compressOutputItemStreams(content.mimeType, output.outputs) :
-				output.outputs.find(op => op.mime === content.mimeType)!.data.buffer;
+			const firstBuffer = output.outputs.find(op => op.mime === content.mimeType)!.data;
 			updatedContent = {
 				type: RenderOutputType.Extension,
 				outputId: outputCache.outputId,
 				mimeType: content.mimeType,
-				valueBytes: firstBuffer,
+				valueBytes: firstBuffer.buffer,
 				metadata: output.metadata,
 			};
 		}

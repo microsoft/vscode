@@ -47,15 +47,6 @@ class RequestStore {
 	}
 
 	/**
-	 * @param {number} requestId
-	 * @return {Promise<T> | undefined}
-	 */
-	get(requestId) {
-		const entry = this.map.get(requestId);
-		return entry && entry.promise;
-	}
-
-	/**
 	 * @returns {{ requestId: number, promise: Promise<T> }}
 	 */
 	create() {
