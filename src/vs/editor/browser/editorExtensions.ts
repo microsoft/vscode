@@ -487,7 +487,7 @@ export namespace EditorExtensionsRegistry {
 		return EditorContributionRegistry.INSTANCE.getEditorCommand(commandId);
 	}
 
-	export function getEditorActions(): EditorAction[] {
+	export function getEditorActions(): Iterable<EditorAction> {
 		return EditorContributionRegistry.INSTANCE.getEditorActions();
 	}
 
@@ -546,8 +546,8 @@ class EditorContributionRegistry {
 		this.editorActions.push(action);
 	}
 
-	public getEditorActions(): EditorAction[] {
-		return this.editorActions.slice(0);
+	public getEditorActions(): Iterable<EditorAction> {
+		return this.editorActions;
 	}
 
 	public registerEditorCommand(editorCommand: EditorCommand) {
