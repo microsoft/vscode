@@ -112,6 +112,8 @@ export class TextAreaHandler extends ViewPart {
 
 	private _accessibilitySupport!: AccessibilitySupport;
 	private _accessibilityPageSize!: number;
+	private _textAreaWrapping!: boolean;
+	private _textAreaWidth!: number;
 	private _contentLeft: number;
 	private _contentWidth: number;
 	private _contentHeight: number;
@@ -136,7 +138,6 @@ export class TextAreaHandler extends ViewPart {
 	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
 	public readonly textAreaCover: FastDomNode<HTMLElement>;
 	private readonly _textAreaInput: TextAreaInput;
-	private _width: number;
 
 	constructor(context: ViewContext, viewController: ViewController, visibleRangeProvider: IVisibleRangeProvider) {
 		super(context);
@@ -163,12 +164,11 @@ export class TextAreaHandler extends ViewPart {
 		this._modelSelections = [new Selection(1, 1, 1, 1)];
 		this._lastRenderPosition = null;
 
-		this._width = layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth - 2;
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
 		this.textArea = createFastDomNode(document.createElement('textarea'));
 		PartFingerprints.write(this.textArea, PartFingerprint.TextArea);
 		this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-		this.textArea.setAttribute('wrap', options.get(EditorOption.wordWrap));
+		this.textArea.setAttribute('wrap', this._textAreaWrapping ? 'on' : 'off');
 		this.textArea.setAttribute('autocorrect', 'off');
 		this.textArea.setAttribute('autocapitalize', 'off');
 		this.textArea.setAttribute('autocomplete', 'off');
@@ -184,10 +184,10 @@ export class TextAreaHandler extends ViewPart {
 		if (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly)) {
 			this.textArea.setAttribute('readonly', 'true');
 		}
-		this.textArea.setWidth(this._width);
+
 		this.textAreaCover = createFastDomNode(document.createElement('div'));
 		this.textAreaCover.setPosition('absolute');
-		this.textAreaCover.setWidth(this._width);
+
 		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
 				return this._context.viewModel.getLineCount();
@@ -541,6 +541,21 @@ export class TextAreaHandler extends ViewPart {
 		} else {
 			this._accessibilityPageSize = accessibilityPageSize;
 		}
+
+		// When wrapping is enabled and a screen reader might be attached,
+		// we will size the textarea to match the width used for wrapping points computation (see `domLineBreaksComputer.ts`).
+		// This is because screen readers will read the text in the textarea and we'd like that the
+		// wrapping points in the textarea match the wrapping points in the editor.
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const wrappingColumn = layoutInfo.wrappingColumn;
+		if (wrappingColumn !== -1 && this._accessibilitySupport !== AccessibilitySupport.Disabled) {
+			const fontInfo = options.get(EditorOption.fontInfo);
+			this._textAreaWrapping = true;
+			this._textAreaWidth = Math.round(wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
+		} else {
+			this._textAreaWrapping = false;
+			this._textAreaWidth = (canUseZeroSizeTextarea ? 0 : 1);
+		}
 	}
 
 	// --- begin event handlers
@@ -557,6 +572,7 @@ export class TextAreaHandler extends ViewPart {
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
+		this.textArea.setAttribute('wrap', this._textAreaWrapping ? 'on' : 'off');
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
 		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 
@@ -709,7 +725,7 @@ export class TextAreaHandler extends ViewPart {
 					lastRenderPosition: null,
 					top: top,
 					left: left,
-					width: this._context.configuration.options.get(EditorOption.layoutInfo).contentWidth - this._context.configuration.options.get(EditorOption.layoutInfo).verticalScrollbarWidth - 2,
+					width: width,
 					height: this._lineHeight,
 					useCover: false,
 					color: (TokenizationRegistry.getColorMap() || [])[presentation.foreground],
@@ -751,7 +767,7 @@ export class TextAreaHandler extends ViewPart {
 				lastRenderPosition: this._primaryCursorPosition,
 				top: top,
 				left: left,
-				width: (canUseZeroSizeTextarea ? 0 : 1),
+				width: this._textAreaWidth,
 				height: this._lineHeight,
 				useCover: false
 			});
@@ -767,7 +783,7 @@ export class TextAreaHandler extends ViewPart {
 			lastRenderPosition: this._primaryCursorPosition,
 			top: top,
 			left: left,
-			width: (canUseZeroSizeTextarea ? 0 : 1),
+			width: this._textAreaWidth,
 			height: (canUseZeroSizeTextarea ? 0 : 1),
 			useCover: false
 		});
@@ -793,7 +809,7 @@ export class TextAreaHandler extends ViewPart {
 			lastRenderPosition: null,
 			top: 0,
 			left: 0,
-			width: (canUseZeroSizeTextarea ? 0 : 1),
+			width: this._textAreaWidth,
 			height: (canUseZeroSizeTextarea ? 0 : 1),
 			useCover: true
 		});
@@ -808,9 +824,7 @@ export class TextAreaHandler extends ViewPart {
 		applyFontInfo(ta, this._fontInfo);
 		ta.setTop(renderData.top);
 		ta.setLeft(renderData.left);
-		const info = this._context.configuration.options.get(EditorOption.layoutInfo);
-		this._width = info.contentWidth - info.verticalScrollbarWidth - 2;
-		ta.setWidth(this._width);
+		ta.setWidth(renderData.width);
 		ta.setHeight(renderData.height);
 
 		ta.setColor(renderData.color ? Color.Format.CSS.formatHex(renderData.color) : '');
