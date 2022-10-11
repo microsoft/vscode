@@ -2483,14 +2483,17 @@ class WrappingStrategy extends BaseEditorOption<EditorOption.wrappingStrategy, '
 	}
 
 	public validate(input: any): 'simple' | 'advanced' {
-		if (input === 'simple' || input === 'advanced') {
-			return input;
-		}
-		return 'simple';
+		return stringSet<'simple' | 'advanced'>(input, 'simple', ['simple', 'advanced']);
 	}
 
 	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: 'simple' | 'advanced'): 'simple' | 'advanced' {
-		return options.get(EditorOption.accessibilitySupport) ? 'advanced' : 'simple';
+		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		if (accessibilitySupport === AccessibilitySupport.Enabled) {
+			// if we know for a fact that a screen reader is attached, we switch our strategy to advanced to
+			// help that the editor's wrapping points match the textarea's wrapping points
+			return 'advanced';
+		}
+		return value;
 	}
 }
 //#endregion
