@@ -18,6 +18,8 @@ flakySuite('Native Modules (all platforms)', () => {
 		const isElevated = await import('native-is-elevated');
 		assert.ok(typeof isElevated === 'function', testErrorMessage('native-is-elevated '));
 
+		// quickfix: This expression is not callable.
+		// @ts-ignore
 		const result = isElevated();
 		assert.ok(typeof result === 'boolean', testErrorMessage('native-is-elevated'));
 	});
