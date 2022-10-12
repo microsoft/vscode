@@ -235,10 +235,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}
 
 	function createKernelContext(): KernelPreloadContext {
-		return {
+		return Object.freeze({
 			onDidReceiveKernelMessage: onDidReceiveKernelMessage.event,
 			postKernelMessage: (data: unknown) => postNotebookMessage('customKernelMessage', { message: data }),
-		};
+		});
 	}
 
 	const invokeSourceWithGlobals = (functionSrc: string, globals: { [name: string]: unknown }) => {
