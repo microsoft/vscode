@@ -325,6 +325,7 @@ export const enum Operation {
 	Reset = 'Reset',
 	Remote = 'Remote',
 	Fetch = 'Fetch',
+	FetchNoProgress = 'FetchNoProgress',
 	Pull = 'Pull',
 	Push = 'Push',
 	CherryPick = 'CherryPick',
@@ -377,7 +378,7 @@ function isReadOnly(operation: Operation): boolean {
 
 function shouldShowProgress(operation: Operation): boolean {
 	switch (operation) {
-		case Operation.Fetch:
+		case Operation.FetchNoProgress:
 		case Operation.CheckIgnore:
 		case Operation.GetObjectDetails:
 		case Operation.Show:
@@ -1469,8 +1470,8 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async fetchAll(cancellationToken?: CancellationToken): Promise<void> {
-		await this._fetch({ all: true, cancellationToken });
+	async fetchAll(options: { silent?: boolean } = {}, cancellationToken?: CancellationToken): Promise<void> {
+		await this._fetch({ all: true, silent: options.silent, cancellationToken });
 	}
 
 	async fetch(options: FetchOptions): Promise<void> {
@@ -1484,7 +1485,8 @@ export class Repository implements Disposable {
 			options.prune = prune;
 		}
 
-		await this.run(Operation.Fetch, async () => this.repository.fetch(options));
+		const operation = options.silent === true ? Operation.FetchNoProgress : Operation.Fetch;
+		await this.run(operation, async () => this.repository.fetch(options));
 	}
 
 	@throttle
@@ -1588,7 +1590,7 @@ export class Repository implements Disposable {
 				const fn = async (cancellationToken?: CancellationToken) => {
 					// When fetchOnPull is enabled, fetch all branches when pulling
 					if (fetchOnPull) {
-						await this.fetchAll(cancellationToken);
+						await this.fetchAll({}, cancellationToken);
 					}
 
 					if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
@@ -2035,7 +2037,7 @@ export class Repository implements Disposable {
 		if (sort !== 'alphabetically' && sort !== 'committerdate') {
 			sort = 'alphabetically';
 		}
-		const [refs, remotes, submodules, rebaseCommit, mergeInProgress] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit(), this.isMergeInProgress()]);
+		const [refs, remotes, submodules, rebaseCommit, mergeInProgress, commitTemplate] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit(), this.isMergeInProgress(), this.getInputTemplate()]);
 
 		this._HEAD = HEAD;
 		this._refs = refs!;
@@ -2103,7 +2105,7 @@ export class Repository implements Disposable {
 
 		this._onDidChangeStatus.fire();
 
-		this._sourceControl.commitTemplate = await this.getInputTemplate();
+		this._sourceControl.commitTemplate = commitTemplate;
 	}
 
 	private setCountBadge(): void {

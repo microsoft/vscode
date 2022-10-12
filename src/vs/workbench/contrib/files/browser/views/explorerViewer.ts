@@ -255,9 +255,9 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 }
 
 export interface IFileTemplateData {
-	elementDisposable: IDisposable;
-	label: IResourceLabel;
-	container: HTMLElement;
+	readonly elementDisposables: DisposableStore;
+	readonly label: IResourceLabel;
+	readonly container: HTMLElement;
 }
 
 export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IListAccessibilityProvider<ExplorerItem>, IDisposable {
@@ -312,14 +312,12 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	}
 
 	renderTemplate(container: HTMLElement): IFileTemplateData {
-		const elementDisposable = Disposable.None;
 		const label = this.labels.create(container, { supportHighlights: true });
 
-		return { elementDisposable, label, container };
+		return { elementDisposables: new DisposableStore(), label, container };
 	}
 
 	renderElement(node: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
-		templateData.elementDisposable.dispose();
 		const stat = node.element;
 		const editableData = this.explorerService.getEditableData(stat);
 
@@ -328,19 +326,17 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		// File Label
 		if (!editableData) {
 			templateData.label.element.style.display = 'flex';
-			templateData.elementDisposable = this.renderStat(stat, stat.name, undefined, node.filterData, templateData);
+			this.renderStat(stat, stat.name, undefined, node.filterData, templateData);
 		}
 
 		// Input Box
 		else {
 			templateData.label.element.style.display = 'none';
-			templateData.elementDisposable = this.renderInputBox(templateData.container, stat, editableData);
+			templateData.elementDisposables.add(this.renderInputBox(templateData.container, stat, editableData));
 		}
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ExplorerItem>, FuzzyScore>, index: number, templateData: IFileTemplateData, height: number | undefined): void {
-		templateData.elementDisposable.dispose();
-
 		const stat = node.element.elements[node.element.elements.length - 1];
 		const editable = node.element.elements.filter(e => this.explorerService.isEditable(e));
 		const editableData = editable.length === 0 ? undefined : this.explorerService.getEditableData(editable[0]);
@@ -350,20 +346,19 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			templateData.label.element.classList.add('compressed');
 			templateData.label.element.style.display = 'flex';
 
-			const disposables = new DisposableStore();
 			const id = `compressed-explorer_${CompressedNavigationController.ID++}`;
 
 			const label = node.element.elements.map(e => e.name);
-			disposables.add(this.renderStat(stat, label, id, node.filterData, templateData));
+			this.renderStat(stat, label, id, node.filterData, templateData);
 
 			const compressedNavigationController = new CompressedNavigationController(id, node.element.elements, templateData, node.depth, node.collapsed);
-			disposables.add(compressedNavigationController);
+			templateData.elementDisposables.add(compressedNavigationController);
 			this.compressedNavigationControllers.set(stat, compressedNavigationController);
 
 			// accessibility
-			disposables.add(this._onDidChangeActiveDescendant.add(compressedNavigationController.onDidChange));
+			templateData.elementDisposables.add(this._onDidChangeActiveDescendant.add(compressedNavigationController.onDidChange));
 
-			disposables.add(DOM.addDisposableListener(templateData.container, 'mousedown', e => {
+			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.container, 'mousedown', e => {
 				const result = getIconLabelNameFromHTMLElement(e.target);
 
 				if (result) {
@@ -371,68 +366,52 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				}
 			}));
 
-			disposables.add(toDisposable(() => this.compressedNavigationControllers.delete(stat)));
-
-			templateData.elementDisposable = disposables;
+			templateData.elementDisposables.add(toDisposable(() => this.compressedNavigationControllers.delete(stat)));
 		}
 
 		// Input Box
 		else {
 			templateData.label.element.classList.remove('compressed');
 			templateData.label.element.style.display = 'none';
-			templateData.elementDisposable = this.renderInputBox(templateData.container, editable[0], editableData);
+			templateData.elementDisposables.add(this.renderInputBox(templateData.container, editable[0], editableData));
 		}
 	}
 
-	private renderStat(stat: ExplorerItem, label: string | string[], domId: string | undefined, filterData: FuzzyScore | undefined, templateData: IFileTemplateData): IDisposable {
-		const elementDisposables = new DisposableStore();
+	private renderStat(stat: ExplorerItem, label: string | string[], domId: string | undefined, filterData: FuzzyScore | undefined, templateData: IFileTemplateData): void {
 		templateData.label.element.style.display = 'flex';
 		const extraClasses = ['explorer-item'];
 		if (this.explorerService.isCut(stat)) {
 			extraClasses.push('cut');
 		}
 
-		const setResourceData = () => {
-			// Offset nested children unless folders have both chevrons and icons, otherwise alignment breaks
-			const theme = this.themeService.getFileIconTheme();
+		// Offset nested children unless folders have both chevrons and icons, otherwise alignment breaks
+		const theme = this.themeService.getFileIconTheme();
 
-			// Hack to always render chevrons for file nests, or else may not be able to identify them.
-			const twistieContainer = (templateData.container.parentElement?.parentElement?.querySelector('.monaco-tl-twistie') as HTMLElement);
-			if (twistieContainer) {
-				if (stat.hasNests && theme.hidesExplorerArrows) {
-					twistieContainer.classList.add('force-twistie');
-				} else {
-					twistieContainer.classList.remove('force-twistie');
-				}
-			}
+		// Hack to always render chevrons for file nests, or else may not be able to identify them.
+		const twistieContainer = templateData.container.parentElement?.parentElement?.querySelector('.monaco-tl-twistie');
+		twistieContainer?.classList.toggle('force-twistie', stat.hasNests && theme.hidesExplorerArrows);
 
-			// when explorer arrows are hidden or there are no folder icons, nests get misaligned as they are forced to have arrows and files typically have icons
-			// Apply some CSS magic to get things looking as reasonable as possible.
-			const themeIsUnhappyWithNesting = theme.hasFileIcons && (theme.hidesExplorerArrows || !theme.hasFolderIcons);
-			const realignNestedChildren = stat.nestedParent && themeIsUnhappyWithNesting;
+		// when explorer arrows are hidden or there are no folder icons, nests get misaligned as they are forced to have arrows and files typically have icons
+		// Apply some CSS magic to get things looking as reasonable as possible.
+		const themeIsUnhappyWithNesting = theme.hasFileIcons && (theme.hidesExplorerArrows || !theme.hasFolderIcons);
+		const realignNestedChildren = stat.nestedParent && themeIsUnhappyWithNesting;
 
-			templateData.label.setResource({ resource: stat.resource, name: label }, {
-				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
-				extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
-				fileDecorations: this.config.explorer.decorations,
-				matches: createMatches(filterData),
-				separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
-				domId
-			});
-		};
+		templateData.label.setResource({ resource: stat.resource, name: label }, {
+			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
+			extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
+			fileDecorations: this.config.explorer.decorations,
+			matches: createMatches(filterData),
+			separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
+			domId
+		});
 
-		elementDisposables.add(this.themeService.onDidFileIconThemeChange(() => setResourceData()));
-		setResourceData();
-
-		elementDisposables.add(templateData.label.onDidRender(() => {
+		templateData.elementDisposables.add(templateData.label.onDidRender(() => {
 			try {
 				this.updateWidth(stat);
 			} catch (e) {
 				// noop since the element might no longer be in the tree, no update of width necessary
 			}
 		}));
-
-		return elementDisposables;
 	}
 
 	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: IEditableData): IDisposable {
@@ -560,15 +539,15 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	}
 
 	disposeElement(element: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
-		templateData.elementDisposable.dispose();
+		templateData.elementDisposables.clear();
 	}
 
 	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<ExplorerItem>, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
-		templateData.elementDisposable.dispose();
+		templateData.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: IFileTemplateData): void {
-		templateData.elementDisposable.dispose();
+		templateData.elementDisposables.dispose();
 		templateData.label.dispose();
 	}
 

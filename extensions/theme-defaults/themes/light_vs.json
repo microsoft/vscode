@@ -104,7 +104,7 @@
 		{
 			"scope": "entity.other.attribute-name",
 			"settings": {
-				"foreground": "#ff0000"
+				"foreground": "#e50000"
 			}
 		},
 		{
@@ -329,7 +329,7 @@
 				"source.coffee.embedded"
 			],
 			"settings": {
-				"foreground": "#ff0000"
+				"foreground": "#e50000"
 			}
 		},
 		{

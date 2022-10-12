@@ -695,10 +695,6 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 		templateData.elementDisposable.clear();
 	}
 
-	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<IThread>, FuzzyScore>, index: number, templateData: IThreadTemplateData, height: number | undefined): void {
-		templateData.elementDisposable.clear();
-	}
-
 	disposeTemplate(templateData: IThreadTemplateData): void {
 		templateData.templateDisposable.dispose();
 	}

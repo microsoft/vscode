@@ -92,12 +92,12 @@ export interface INotebookCellList {
 }
 
 export interface BaseCellRenderTemplate {
-	rootContainer: HTMLElement;
-	editorPart: HTMLElement;
-	cellInputCollapsedContainer: HTMLElement;
-	instantiationService: IInstantiationService;
-	container: HTMLElement;
-	cellContainer: HTMLElement;
+	readonly rootContainer: HTMLElement;
+	readonly editorPart: HTMLElement;
+	readonly cellInputCollapsedContainer: HTMLElement;
+	readonly instantiationService: IInstantiationService;
+	readonly container: HTMLElement;
+	readonly cellContainer: HTMLElement;
 	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 	currentRenderedCell?: ICellViewModel;
@@ -106,8 +106,8 @@ export interface BaseCellRenderTemplate {
 }
 
 export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
-	editorContainer: HTMLElement;
-	foldingIndicator: HTMLElement;
+	readonly editorContainer: HTMLElement;
+	readonly foldingIndicator: HTMLElement;
 	currentEditor?: ICodeEditor;
 }
 
