@@ -22,6 +22,8 @@ const enum Arch {
 let processArch: Arch;
 switch (process.arch) {
 	case 'ia32':
+	// fix: Type '"x32"' is not comparable to type 'Architecture'.
+	// @ts-ignore
 	case 'x32':
 		processArch = Arch.x86;
 		break;
