@@ -399,6 +399,9 @@ export class TerminalService implements ITerminalService {
 		this._connectionState = TerminalConnectionState.Connected;
 		this._onDidChangeConnectionState.fire();
 		this._logService.trace('Reconnected to terminals');
+		if (this._terminalGroupService.groups.length === 0 && this.isProcessSupportRegistered) {
+			this.createTerminal({ location: TerminalLocation.Panel });
+		}
 	}
 
 	private async _reconnectToRemoteTerminals(): Promise<void> {
@@ -733,16 +736,11 @@ export class TerminalService implements ITerminalService {
 		return this.instances.some(term => term.processId === remoteTerm.pid);
 	}
 
-	private async _initializeTerminals(): Promise<void> {
+	private _initializeTerminals(): void {
 		if (this._remoteTerminalsInitPromise) {
-			await this._remoteTerminalsInitPromise;
-			this._setConnected();
+			this._remoteTerminalsInitPromise.then(() => this._setConnected());
 		} else if (this._localTerminalsInitPromise) {
-			await this._localTerminalsInitPromise;
-			this._setConnected();
-		}
-		if (this._terminalGroupService.groups.length === 0 && this.isProcessSupportRegistered) {
-			this.createTerminal({ location: TerminalLocation.Panel });
+			this._localTerminalsInitPromise.then(() => this._setConnected());
 		}
 	}
 
