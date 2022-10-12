@@ -1312,9 +1312,9 @@
 		"t": "text.html.cshtml meta.tag.metadata.doctype.html entity.other.attribute-name.html",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -1372,9 +1372,9 @@
 		"t": "text.html.cshtml meta.tag.structure.html.start.html meta.attribute.lang.html entity.other.attribute-name.html",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -1636,9 +1636,9 @@
 		"t": "text.html.cshtml meta.tag.metadata.meta.void.html meta.attribute.charset.html entity.other.attribute-name.html",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -2044,9 +2044,9 @@
 		"t": "text.html.cshtml meta.tag.structure.form.start.html meta.attribute.action.html entity.other.attribute-name.html",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -2104,9 +2104,9 @@
 		"t": "text.html.cshtml meta.tag.structure.form.start.html meta.attribute.method.html entity.other.attribute-name.html",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -2260,9 +2260,9 @@
 		"t": "text.html.cshtml meta.tag.structure.label.start.html meta.attribute.for.html entity.other.attribute-name.html",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -2428,9 +2428,9 @@
 		"t": "text.html.cshtml meta.tag.structure.input.void.html meta.attribute.type.html entity.other.attribute-name.html",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -2500,9 +2500,9 @@
 		"t": "text.html.cshtml meta.tag.structure.input.void.html meta.attribute.name.html entity.other.attribute-name.html",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -2716,9 +2716,9 @@
 		"t": "text.html.cshtml meta.tag.structure.label.start.html meta.attribute.for.html entity.other.attribute-name.html",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -2884,9 +2884,9 @@
 		"t": "text.html.cshtml meta.tag.structure.input.void.html meta.attribute.type.html entity.other.attribute-name.html",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -2956,9 +2956,9 @@
 		"t": "text.html.cshtml meta.tag.structure.input.void.html meta.attribute.name.html entity.other.attribute-name.html",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -3172,9 +3172,9 @@
 		"t": "text.html.cshtml meta.tag.structure.input.void.html meta.attribute.type.html entity.other.attribute-name.html",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -3244,9 +3244,9 @@
 		"t": "text.html.cshtml meta.tag.structure.input.void.html meta.attribute.value.html entity.other.attribute-name.html",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
