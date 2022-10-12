@@ -156,7 +156,7 @@ export class GitHubServer implements IGitHubServer {
 
 		// Used for showing a friendlier message to the user when the explicitly cancel a flow.
 		let userCancelled: boolean | undefined;
-		const yes = localize('yes', "Yes");
+		const yes = vscode.l10n.t('Yes');
 		const no = localize('no', "No");
 		const promptToContinue = async () => {
 			if (userCancelled === undefined) {
