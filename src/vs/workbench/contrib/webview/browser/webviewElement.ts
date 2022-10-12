@@ -545,15 +545,17 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			parent.appendChild(this._webviewFindWidget.getDomNode());
 		}
 
-		[EventType.MOUSE_DOWN, EventType.MOUSE_MOVE, EventType.DROP].forEach(eventName => {
+		for (const eventName of [EventType.MOUSE_DOWN, EventType.MOUSE_MOVE, EventType.DROP]) {
 			this._register(addDisposableListener(parent, eventName, () => {
 				this.stopBlockingIframeDragEvents();
 			}));
-		});
+		}
 
-		[parent, window].forEach(node => this._register(addDisposableListener(node as HTMLElement, EventType.DRAG_END, () => {
-			this.stopBlockingIframeDragEvents();
-		})));
+		for (const node of [parent, window]) {
+			this._register(addDisposableListener(node, EventType.DRAG_END, () => {
+				this.stopBlockingIframeDragEvents();
+			}));
+		}
 
 		parent.appendChild(this.element);
 	}
