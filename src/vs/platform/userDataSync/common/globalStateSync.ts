@@ -133,7 +133,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			local,
 			remote,
 			localChange: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0 ? Change.Modified : Change.None,
-			remoteChange: remote !== null ? Change.Modified : Change.None,
+			remoteChange: remote.all !== null ? Change.Modified : Change.None,
 		};
 
 		const localContent = stringify(localGlobalState, false);
@@ -162,7 +162,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		const localGlobalState = await this.getLocalGlobalState();
 		const storageKeys = await this.getStorageKeys(lastSyncGlobalState);
 		const { remote } = merge(localGlobalState.storage, lastSyncGlobalState.storage, lastSyncGlobalState.storage, storageKeys, this.logService);
-		return remote !== null;
+		return remote.all !== null;
 	}
 
 	protected async getMergeResult(resourcePreview: IGlobalStateResourcePreview, token: CancellationToken): Promise<IMergeResult> {
