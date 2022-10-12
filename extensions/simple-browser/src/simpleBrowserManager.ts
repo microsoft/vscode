@@ -19,7 +19,8 @@ export class SimpleBrowserManager {
 		this._activeView = undefined;
 	}
 
-	public show(url: string, options?: ShowOptions): void {
+	public show(inputUri: string | vscode.Uri, options?: ShowOptions): void {
+		const url = typeof inputUri === 'string' ? inputUri : inputUri.toString(true);
 		if (this._activeView) {
 			this._activeView.show(url, options);
 		} else {
