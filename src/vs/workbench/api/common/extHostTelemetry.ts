@@ -10,7 +10,7 @@ import { ExtHostTelemetryShape } from 'vs/workbench/api/common/extHost.protocol'
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { cleanData, cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -106,6 +106,15 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 			this._onDidChangeTelemetryEnabled.fire(this.getTelemetryConfiguration());
 		}
 		this._onDidChangeTelemetryConfiguration.fire(this.getTelemetryDetails());
+	}
+
+	onExtensionError(extension: ExtensionIdentifier, error: Error): boolean {
+		const logger = this._telemetryLoggers.get(extension.value);
+		if (!logger) {
+			return false;
+		}
+		logger.logError(error);
+		return true;
 	}
 }
 
