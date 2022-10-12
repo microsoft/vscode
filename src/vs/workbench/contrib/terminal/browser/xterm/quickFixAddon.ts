@@ -6,12 +6,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import * as dom from 'vs/base/browser/dom';
-import { IAction } from 'vs/base/common/actions';
 import { asArray } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
@@ -26,6 +24,13 @@ import { IDecoration, Terminal } from 'xterm';
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
 import type { ITerminalAddon } from 'xterm-headless';
+import { CodeActionWidget } from 'vs/editor/contrib/codeAction/browser/codeActionWidget';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
+import { CodeActionTriggerType } from 'vs/editor/common/languages';
+import { CodeActionItem } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { ProviderResult } from 'vs/workbench/services/search/common/searchExtTypes';
 
 
 const quickFixSelectors = [DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration];
@@ -50,16 +55,16 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _commandListeners: Map<string, ITerminalQuickFixOptions[]> = new Map();
 
-	private _quickFixes: IAction[] | undefined;
+	private _quickFixes: CodeActionItem[] | undefined;
 
 	private _decoration: IDecoration | undefined;
 
 	private readonly _terminalDecorationHoverService: TerminalDecorationHoverManager;
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService
@@ -75,7 +80,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				}
 			});
 		}
-		this._terminalDecorationHoverService = instantiationService.createInstance(TerminalDecorationHoverManager);
+		this._terminalDecorationHoverService = _instantiationService.createInstance(TerminalDecorationHoverManager);
 	}
 
 	activate(terminal: Terminal): void {
@@ -157,6 +162,11 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			decoration.dispose();
 			return;
 		}
+		const delegate = {
+			applyCodeAction: async (action: CodeActionItem) => {
+				action.resolve(CancellationToken.None);
+			}
+		};
 		decoration?.onRender((e: HTMLElement) => {
 			if (e.classList.contains(DecorationSelector.QuickFix)) {
 				return;
@@ -165,22 +175,42 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			updateLayout(this._configurationService, e);
 			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 			this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
-				this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => fixes, autoSelectFirstItem: true });
+				const elementPosition = dom.getDomNodePagePosition(e);
+				CodeActionWidget.getOrCreateInstance(this._instantiationService).show(terminalQuickFixTrigger, { validActions: fixes, allActions: fixes, hasAutoFix: true, documentation: [], dispose: () => { } }, {
+					x: elementPosition.left + 6,
+					y: elementPosition.top + elementPosition.height + 6,
+					width: elementPosition.width,
+					height: elementPosition.height
+				}, e, {
+					includeDisabledActions: false
+				}, {
+					onSelectCodeAction: async (action) => {
+						delegate.applyCodeAction(action);
+					},
+					onHide: () => {
+						this._terminal?.focus();
+					},
+				}, this._contextKeyService);
 			}));
 			this._register(this._terminalDecorationHoverService.createHover(e, undefined, hoverLabel));
 		});
 	}
 }
+const terminalQuickFixTrigger: CodeActionTrigger = {
+	type: CodeActionTriggerType.Invoke,
+	filter: { include: CodeActionKind.QuickFix },
+	triggerAction: CodeActionTriggerSource.QuickFixHover
+};
 
 export function getQuickFixesForCommand(
 	command: ITerminalCommand,
 	quickFixOptions: Map<string, ITerminalQuickFixOptions[]>,
 	openerService: IOpenerService,
 	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>
-): { fixes: IAction[]; onDidRunQuickFix: Event<void> } | undefined {
+): { fixes: CodeActionItem[]; onDidRunQuickFix: Event<void> } | undefined {
 	const onDidRunQuickFixEmitter = new Emitter<void>();
 	const onDidRunQuickFix = onDidRunQuickFixEmitter.event;
-	const fixes: IAction[] = [];
+	const fixes: CodeActionItem[] = [];
 	const newCommand = command.command;
 	for (const options of quickFixOptions.values()) {
 		for (const option of options) {
@@ -199,55 +229,89 @@ export function getQuickFixesForCommand(
 			const quickFixes = option.getQuickFixes({ commandLineMatch, outputMatch }, command);
 			if (quickFixes) {
 				for (const quickFix of asArray(quickFixes)) {
-					let action: IAction | undefined;
+					let action: CodeActionItem | undefined;
 					if ('type' in quickFix) {
 						switch (quickFix.type) {
 							case 'command': {
 								const label = localize('quickFix.command', 'Run: {0}', quickFix.command);
 								action = {
-									id: `quickFix.command`,
-									label,
-									class: undefined,
-									enabled: true,
-									run: () => {
+									title: label,
+									action: {
+										title: label,
+										command: {
+											title: label,
+											id: `quickFix.command`,
+
+										},
+									},
+									provider: {
+										provideCodeActions(): ProviderResult<CodeActionItem> {
+											return action;
+										}
+									},
+									resolve: (() => {
 										onDidRequestRerunCommand?.fire({
 											command: quickFix.command,
 											addNewLine: quickFix.addNewLine
 										});
-									},
-									tooltip: label,
-									command: quickFix.command
-								} as IAction;
+										return Promise.resolve(action);
+									})
+								} as CodeActionItem;
 								break;
 							}
 							case 'opener': {
 								const label = localize('quickFix.opener', 'Open: {0}', quickFix.uri.toString());
 								action = {
-									id: `quickFix.opener`,
-									label,
-									class: undefined,
-									enabled: true,
-									run: () => {
+									title: label,
+									action: {
+										title: label,
+										command: {
+											title: label,
+											id: `quickFix.opener`,
+
+										},
+									},
+									provider: {
+										provideCodeActions(): ProviderResult<CodeActionItem> {
+											return action;
+										}
+									},
+									resolve: (() => {
 										openerService.open(quickFix.uri);
 										// since no command gets run here, need to
 										// clear the decoration and quick fix
 										onDidRunQuickFixEmitter.fire();
-									},
-									tooltip: label,
-									uri: quickFix.uri
-								} as IAction;
+										return Promise.resolve(action);
+									})
+								} as CodeActionItem;
 								break;
 							}
 						}
 					} else {
+						const label = localize('quickFix.run', 'Run: {0}', quickFix.label);
 						action = {
-							id: quickFix.id,
-							label: quickFix.label,
-							class: quickFix.class,
-							enabled: quickFix.enabled,
-							run: () => quickFix.run(),
-							tooltip: quickFix.tooltip
-						};
+							title: label,
+							action: {
+								title: label,
+								command: {
+									title: label,
+									id: `quickFix.${label}`,
+								},
+							},
+							provider: {
+								provideCodeActions(): ProviderResult<CodeActionItem> {
+									return action;
+								}
+							},
+							resolve: (() => {
+								// since no command gets run here, need to
+								// clear the decoration and quick fix
+								quickFix.run();
+								onDidRunQuickFixEmitter.fire();
+								return Promise.resolve(action);
+							})
+						} as CodeActionItem;
+						break;
 					}
 					if (action) {
 						fixes.push(action);
