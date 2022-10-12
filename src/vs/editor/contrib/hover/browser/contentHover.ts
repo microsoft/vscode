@@ -24,6 +24,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { Constants } from 'vs/base/common/uint';
 
 const $ = dom.$;
 
@@ -240,7 +241,7 @@ export class ContentHoverController extends Disposable {
 	}
 
 	private _renderMessages(anchor: HoverAnchor, messages: IHoverPart[]): void {
-		const { showAtPosition, showAtRange, highlightRange } = ContentHoverController.computeHoverRanges(anchor.range, messages);
+		const { showAtPosition, showAtRange, highlightRange } = ContentHoverController.computeHoverRanges(this._editor, anchor.range, messages);
 
 		const disposables = new DisposableStore();
 		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
@@ -301,7 +302,19 @@ export class ContentHoverController extends Disposable {
 		className: 'hoverHighlight'
 	});
 
-	public static computeHoverRanges(anchorRange: Range, messages: IHoverPart[]) {
+	public static computeHoverRanges(editor: ICodeEditor, anchorRange: Range, messages: IHoverPart[]) {
+		let startColumnBoundary = 1;
+		let endColumnBoundary = Constants.MAX_SAFE_SMALL_INTEGER;
+		if (editor.hasModel()) {
+			// Ensure the range is on the current view line
+			const viewModel = editor._getViewModel();
+			const coordinatesConverter = viewModel.coordinatesConverter;
+			const anchorViewRange = coordinatesConverter.convertModelRangeToViewRange(anchorRange);
+			const anchorViewRangeStart = new Position(anchorViewRange.startLineNumber, viewModel.getLineMinColumn(anchorViewRange.startLineNumber));
+			const anchorViewRangeEnd = new Position(anchorViewRange.endLineNumber, viewModel.getLineMaxColumn(anchorViewRange.endLineNumber));
+			startColumnBoundary = coordinatesConverter.convertViewPositionToModelPosition(anchorViewRangeStart).column;
+			endColumnBoundary = coordinatesConverter.convertViewPositionToModelPosition(anchorViewRangeEnd).column;
+		}
 		// The anchor range is always on a single line
 		const anchorLineNumber = anchorRange.startLineNumber;
 		let renderStartColumn = anchorRange.startColumn;
@@ -313,8 +326,8 @@ export class ContentHoverController extends Disposable {
 			highlightRange = Range.plusRange(highlightRange, msg.range);
 			if (msg.range.startLineNumber === anchorLineNumber && msg.range.endLineNumber === anchorLineNumber) {
 				// this message has a range that is completely sitting on the line of the anchor
-				renderStartColumn = Math.min(renderStartColumn, msg.range.startColumn);
-				renderEndColumn = Math.max(renderEndColumn, msg.range.endColumn);
+				renderStartColumn = Math.max(Math.min(renderStartColumn, msg.range.startColumn), startColumnBoundary);
+				renderEndColumn = Math.min(Math.max(renderEndColumn, msg.range.endColumn), endColumnBoundary);
 			}
 			if (msg.forceShowAtRange) {
 				forceShowAtRange = msg.range;
