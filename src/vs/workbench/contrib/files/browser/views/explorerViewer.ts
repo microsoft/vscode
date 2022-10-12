@@ -255,9 +255,9 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 }
 
 export interface IFileTemplateData {
-	elementDisposable: IDisposable;
-	label: IResourceLabel;
-	container: HTMLElement;
+	readonly elementDisposables: DisposableStore;
+	readonly label: IResourceLabel;
+	readonly container: HTMLElement;
 }
 
 export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IListAccessibilityProvider<ExplorerItem>, IDisposable {
@@ -312,14 +312,12 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	}
 
 	renderTemplate(container: HTMLElement): IFileTemplateData {
-		const elementDisposable = Disposable.None;
 		const label = this.labels.create(container, { supportHighlights: true });
 
-		return { elementDisposable, label, container };
+		return { elementDisposables: new DisposableStore(), label, container };
 	}
 
 	renderElement(node: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
-		templateData.elementDisposable.dispose();
 		const stat = node.element;
 		const editableData = this.explorerService.getEditableData(stat);
 
@@ -328,19 +326,17 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		// File Label
 		if (!editableData) {
 			templateData.label.element.style.display = 'flex';
-			templateData.elementDisposable = this.renderStat(stat, stat.name, undefined, node.filterData, templateData);
+			this.renderStat(stat, stat.name, undefined, node.filterData, templateData);
 		}
 
 		// Input Box
 		else {
 			templateData.label.element.style.display = 'none';
-			templateData.elementDisposable = this.renderInputBox(templateData.container, stat, editableData);
+			templateData.elementDisposables.add(this.renderInputBox(templateData.container, stat, editableData));
 		}
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ExplorerItem>, FuzzyScore>, index: number, templateData: IFileTemplateData, height: number | undefined): void {
-		templateData.elementDisposable.dispose();
-
 		const stat = node.element.elements[node.element.elements.length - 1];
 		const editable = node.element.elements.filter(e => this.explorerService.isEditable(e));
 		const editableData = editable.length === 0 ? undefined : this.explorerService.getEditableData(editable[0]);
@@ -350,20 +346,19 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			templateData.label.element.classList.add('compressed');
 			templateData.label.element.style.display = 'flex';
 
-			const disposables = new DisposableStore();
 			const id = `compressed-explorer_${CompressedNavigationController.ID++}`;
 
 			const label = node.element.elements.map(e => e.name);
-			disposables.add(this.renderStat(stat, label, id, node.filterData, templateData));
+			this.renderStat(stat, label, id, node.filterData, templateData);
 
 			const compressedNavigationController = new CompressedNavigationController(id, node.element.elements, templateData, node.depth, node.collapsed);
-			disposables.add(compressedNavigationController);
+			templateData.elementDisposables.add(compressedNavigationController);
 			this.compressedNavigationControllers.set(stat, compressedNavigationController);
 
 			// accessibility
-			disposables.add(this._onDidChangeActiveDescendant.add(compressedNavigationController.onDidChange));
+			templateData.elementDisposables.add(this._onDidChangeActiveDescendant.add(compressedNavigationController.onDidChange));
 
-			disposables.add(DOM.addDisposableListener(templateData.container, 'mousedown', e => {
+			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.container, 'mousedown', e => {
 				const result = getIconLabelNameFromHTMLElement(e.target);
 
 				if (result) {
@@ -371,21 +366,18 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				}
 			}));
 
-			disposables.add(toDisposable(() => this.compressedNavigationControllers.delete(stat)));
-
-			templateData.elementDisposable = disposables;
+			templateData.elementDisposables.add(toDisposable(() => this.compressedNavigationControllers.delete(stat)));
 		}
 
 		// Input Box
 		else {
 			templateData.label.element.classList.remove('compressed');
 			templateData.label.element.style.display = 'none';
-			templateData.elementDisposable = this.renderInputBox(templateData.container, editable[0], editableData);
+			templateData.elementDisposables.add(this.renderInputBox(templateData.container, editable[0], editableData));
 		}
 	}
 
-	private renderStat(stat: ExplorerItem, label: string | string[], domId: string | undefined, filterData: FuzzyScore | undefined, templateData: IFileTemplateData): IDisposable {
-		const elementDisposables = new DisposableStore();
+	private renderStat(stat: ExplorerItem, label: string | string[], domId: string | undefined, filterData: FuzzyScore | undefined, templateData: IFileTemplateData): void {
 		templateData.label.element.style.display = 'flex';
 		const extraClasses = ['explorer-item'];
 		if (this.explorerService.isCut(stat)) {
@@ -421,18 +413,16 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			});
 		};
 
-		elementDisposables.add(this.themeService.onDidFileIconThemeChange(() => setResourceData()));
+		templateData.elementDisposables.add(this.themeService.onDidFileIconThemeChange(() => setResourceData()));
 		setResourceData();
 
-		elementDisposables.add(templateData.label.onDidRender(() => {
+		templateData.elementDisposables.add(templateData.label.onDidRender(() => {
 			try {
 				this.updateWidth(stat);
 			} catch (e) {
 				// noop since the element might no longer be in the tree, no update of width necessary
 			}
 		}));
-
-		return elementDisposables;
 	}
 
 	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: IEditableData): IDisposable {
@@ -560,15 +550,15 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	}
 
 	disposeElement(element: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
-		templateData.elementDisposable.dispose();
+		templateData.elementDisposables.clear();
 	}
 
 	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<ExplorerItem>, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
-		templateData.elementDisposable.dispose();
+		templateData.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: IFileTemplateData): void {
-		templateData.elementDisposable.dispose();
+		templateData.elementDisposables.dispose();
 		templateData.label.dispose();
 	}
 
