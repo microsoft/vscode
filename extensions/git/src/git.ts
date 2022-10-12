@@ -1981,33 +1981,34 @@ export class Repository {
 
 	async getHEAD(): Promise<Ref> {
 		try {
-			// Parse the HEAD file
+			// Attempt to parse the HEAD file
 			const result = await this.getHEADFS();
 			return result;
 		}
 		catch (err) {
 			this.outputChannelLogger.logWarning(err.message);
-
-			try {
-				// Fallback to using git to determine HEAD
-				const result = await this.exec(['symbolic-ref', '--short', 'HEAD']);
-
-				if (!result.stdout) {
-					throw new Error('Not in a branch');
-				}
-
-				return { name: result.stdout.trim(), commit: undefined, type: RefType.Head };
-			}
-			catch (err) {
-				const result = await this.exec(['rev-parse', 'HEAD']);
-
-				if (!result.stdout) {
-					throw new Error('Error parsing HEAD');
-				}
-
-				return { name: undefined, commit: result.stdout.trim(), type: RefType.Head };
-			}
 		}
+
+		try {
+			// Fallback to using git to determine HEAD
+			const result = await this.exec(['symbolic-ref', '--short', 'HEAD']);
+
+			if (!result.stdout) {
+				throw new Error('Not in a branch');
+			}
+
+			return { name: result.stdout.trim(), commit: undefined, type: RefType.Head };
+		}
+		catch (err) { }
+
+		// Detached HEAD
+		const result = await this.exec(['rev-parse', 'HEAD']);
+
+		if (!result.stdout) {
+			throw new Error('Error parsing HEAD');
+		}
+
+		return { name: undefined, commit: result.stdout.trim(), type: RefType.Head };
 	}
 
 	async getHEADFS(): Promise<Ref> {
