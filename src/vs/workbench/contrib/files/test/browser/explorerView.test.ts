@@ -84,6 +84,7 @@ suite('Files - ExplorerView', () => {
 
 		const navigationController = new CompressedNavigationController('id', [s1, s2, s3], {
 			container,
+			templateDisposables: new DisposableStore(),
 			elementDisposables: new DisposableStore(),
 			label: <any>{
 				container: label,
