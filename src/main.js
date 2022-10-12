@@ -588,12 +588,6 @@ async function resolveNlsConfiguration() {
 			// See above the comment about the loader and case sensitiveness
 			appLocale = appLocale.toLowerCase();
 
-			if (!appLocale.startsWith('pt') && !appLocale.startsWith('zh')) {
-				// Trim off the country code to help with the language pack recommender.
-				// If '-' isn't in the string, the following code leaves appLocale unchanged.
-				appLocale = appLocale.split('-')[0];
-			}
-
 			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
 			if (!nlsConfiguration) {
