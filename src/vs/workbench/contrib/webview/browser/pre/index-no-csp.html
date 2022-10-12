@@ -512,8 +512,8 @@
 				}
 
 				// Re-add new properties
-				for (const variable of Object.keys(initData.styles)) {
-					documentStyle.setProperty(`--${variable}`, initData.styles[variable]);
+				for (const [variable, value] of Object.entries(initData.styles)) {
+					documentStyle.setProperty(`--${variable}`, value);
 				}
 			}
 		};

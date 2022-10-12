@@ -133,11 +133,17 @@ suite('Debug - Base Debug View', () => {
 	test('statusbar in debug mode', () => {
 		const model = createMockDebugModel();
 		const session = createMockSession(model);
-		assert.strictEqual(isStatusbarInDebugMode(State.Inactive, undefined), false);
-		assert.strictEqual(isStatusbarInDebugMode(State.Initializing, session), false);
-		assert.strictEqual(isStatusbarInDebugMode(State.Running, session), true);
-		assert.strictEqual(isStatusbarInDebugMode(State.Stopped, session), true);
+		const session2 = createMockSession(model, undefined, { suppressDebugStatusbar: true });
+		assert.strictEqual(isStatusbarInDebugMode(State.Inactive, []), false);
+		assert.strictEqual(isStatusbarInDebugMode(State.Initializing, [session]), false);
+		assert.strictEqual(isStatusbarInDebugMode(State.Running, [session]), true);
+		assert.strictEqual(isStatusbarInDebugMode(State.Stopped, [session]), true);
+
+		assert.strictEqual(isStatusbarInDebugMode(State.Running, [session2]), false);
+		assert.strictEqual(isStatusbarInDebugMode(State.Running, [session, session2]), true);
+
 		session.configuration.noDebug = true;
-		assert.strictEqual(isStatusbarInDebugMode(State.Running, session), false);
+		assert.strictEqual(isStatusbarInDebugMode(State.Running, [session]), false);
+		assert.strictEqual(isStatusbarInDebugMode(State.Running, [session, session2]), false);
 	});
 });

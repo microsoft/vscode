@@ -114,6 +114,19 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerSwitchOutputAction(): void {
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.output.action.switchBetweenOutputs`,
+					title: nls.localize('switchBetweenOutputs.label', "Switch Output"),
+				});
+			}
+			async run(accessor: ServicesAccessor, channelId: string): Promise<void> {
+				if (channelId) {
+					accessor.get(IOutputService).showChannel(channelId, true);
+				}
+			}
+		}));
 		const switchOutputMenu = new MenuId('workbench.output.menu.switchOutput');
 		this._register(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 			submenu: switchOutputMenu,
@@ -140,7 +153,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 				registeredChannels.set(channel.id, registerAction2(class extends Action2 {
 					constructor() {
 						super({
-							id: channel.id,
+							id: `workbench.action.output.show.${channel.id}`,
 							title,
 							toggled: ACTIVE_OUTPUT_CHANNEL_CONTEXT.isEqualTo(channel.id),
 							menu: {
@@ -150,7 +163,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						});
 					}
 					async run(accessor: ServicesAccessor): Promise<void> {
-						return accessor.get(IOutputService).showChannel(this.desc.id, true);
+						return accessor.get(IOutputService).showChannel(channel.id, true);
 					}
 				}));
 			}
@@ -240,9 +253,6 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
 						group: 'navigation',
 						order: 4
-					}, {
-						id: MenuId.CommandPalette,
-						when: CONTEXT_ACTIVE_LOG_OUTPUT,
 					}],
 					icon: Codicon.goToFile,
 					precondition: CONTEXT_ACTIVE_LOG_OUTPUT

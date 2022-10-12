@@ -69,7 +69,7 @@ export class StatusBarColorProvider implements IWorkbenchContribution {
 	}
 
 	protected update(): void {
-		this.enabled = isStatusbarInDebugMode(this.debugService.state, this.debugService.getViewModel().focusedSession);
+		this.enabled = isStatusbarInDebugMode(this.debugService.state, this.debugService.getModel().getSessions());
 	}
 
 	dispose(): void {
@@ -78,12 +78,8 @@ export class StatusBarColorProvider implements IWorkbenchContribution {
 	}
 }
 
-export function isStatusbarInDebugMode(state: State, session: IDebugSession | undefined): boolean {
-	if (state === State.Inactive || state === State.Initializing || session?.isSimpleUI) {
-		return false;
-	}
-	const isRunningWithoutDebug = session?.configuration?.noDebug;
-	if (isRunningWithoutDebug) {
+export function isStatusbarInDebugMode(state: State, sessions: IDebugSession[]): boolean {
+	if (state === State.Inactive || state === State.Initializing || sessions.every(s => s.suppressDebugStatusbar || s.configuration?.noDebug)) {
 		return false;
 	}
 

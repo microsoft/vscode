@@ -86,7 +86,7 @@ export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 	}
 	public registerAndInstantiateContribution<T extends IEditorContribution>(id: string, ctor: new (editor: ICodeEditor, ...services: BrandedService[]) => T): T {
 		const r: T = this._instantiationService.createInstance(ctor, this);
-		this._contributions[id] = r;
+		this._contributions.set(id, r);
 		return r;
 	}
 	public registerDisposable(disposable: IDisposable): void {

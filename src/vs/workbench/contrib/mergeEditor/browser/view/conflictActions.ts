@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h, $, reset, createStyleSheet, isInShadowDOM } from 'vs/base/browser/dom';
+import { $, createStyleSheet, h, isInShadowDOM, reset } from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { hash } from 'vs/base/common/hash';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { autorun, derived, IObservable, transaction } from 'vs/base/common/observable';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { localize } from 'vs/nls';
 import { ModifiedBaseRange, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
+import { FixedZoneWidget } from 'vs/workbench/contrib/mergeEditor/browser/view/fixedZoneWidget';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 
 export class ConflictActionsFactory extends Disposable {
-	private id = 0;
 	private readonly _styleClassName: string;
 	private readonly _styleElement: HTMLStyleElement;
 
@@ -43,7 +43,6 @@ export class ConflictActionsFactory extends Disposable {
 	}
 
 	private _updateLensStyle(): void {
-
 		const { codeLensHeight, fontSize } = this._getLayoutInfo();
 		const fontFamily = this._editor.getOption(EditorOption.codeLensFontFamily);
 		const editorFontInfo = this._editor.getOption(EditorOption.fontInfo);
@@ -75,96 +74,7 @@ export class ConflictActionsFactory extends Disposable {
 		};
 	}
 
-	createContentWidget(lineNumber: number, viewModel: MergeEditorViewModel, modifiedBaseRange: ModifiedBaseRange, inputNumber: 1 | 2): IContentWidget {
-
-		function command(title: string, action: () => Promise<void>, tooltip?: string): IContentWidgetAction {
-			return {
-				text: title,
-				action,
-				tooltip,
-			};
-		}
-
-		const items = derived('items', reader => {
-			if (!viewModel.model.hasBaseRange(modifiedBaseRange)) {
-				return [];
-			}
-
-			const state = viewModel.model.getState(modifiedBaseRange).read(reader);
-			const handled = viewModel.model.isHandled(modifiedBaseRange).read(reader);
-			const model = viewModel.model;
-
-			const result: IContentWidgetAction[] = [];
-
-			const inputData = inputNumber === 1 ? viewModel.model.input1 : viewModel.model.input2;
-			const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
-
-			if (!modifiedBaseRange.isConflicting && handled && !showNonConflictingChanges) {
-				return [];
-			}
-
-			const otherInputNumber = inputNumber === 1 ? 2 : 1;
-
-			if (!state.conflicting && !state.isInputIncluded(inputNumber)) {
-				result.push(
-					!state.isInputIncluded(inputNumber)
-						? command(localize('accept', "Accept {0}", inputData.title), async () => {
-							transaction((tx) => {
-								model.setState(
-									modifiedBaseRange,
-									state.withInputValue(inputNumber, true),
-									true,
-									tx
-								);
-							});
-						}, localize('acceptTooltip', "Accept {0} in the result document.", inputData.title))
-						: command(localize('remove', "Remove {0}", inputData.title), async () => {
-							transaction((tx) => {
-								model.setState(
-									modifiedBaseRange,
-									state.withInputValue(inputNumber, false),
-									true,
-									tx
-								);
-							});
-						}, localize('removeTooltip', "Remove {0} from the result document.", inputData.title)),
-				);
-
-				if (modifiedBaseRange.canBeCombined && state.isEmpty) {
-					result.push(
-						state.input1 && state.input2
-							? command(localize('removeBoth', "Remove Both"), async () => {
-								transaction((tx) => {
-									model.setState(
-										modifiedBaseRange,
-										ModifiedBaseRangeState.default,
-										true,
-										tx
-									);
-								});
-							}, localize('removeBothTooltip', "Remove both changes from the result document."))
-							: command(localize('acceptBoth', "Accept Both"), async () => {
-								transaction((tx) => {
-									model.setState(
-										modifiedBaseRange,
-										state
-											.withInputValue(inputNumber, true)
-											.withInputValue(otherInputNumber, true),
-										true,
-										tx
-									);
-								});
-							}, localize('acceptBothTooltip', "Accept an automatic combination of both sides in the result document.")),
-					);
-				}
-			}
-			return result;
-		});
-		return new ActionsContentWidget((this.id++).toString(), this._styleClassName, lineNumber, items);
-	}
-
-	createResultWidget(lineNumber: number, viewModel: MergeEditorViewModel, modifiedBaseRange: ModifiedBaseRange): IContentWidget {
-
+	addResultWidget(viewZoneChangeAccessor: IViewZoneChangeAccessor, lineNumber: number, viewModel: MergeEditorViewModel, modifiedBaseRange: ModifiedBaseRange): IDisposable {
 		function command(title: string, action: () => Promise<void>, tooltip?: string): IContentWidgetAction {
 			return {
 				text: title,
@@ -260,7 +170,100 @@ export class ConflictActionsFactory extends Disposable {
 			}
 			return result;
 		});
-		return new ActionsContentWidget((this.id++).toString(), this._styleClassName, lineNumber, items);
+
+		const layoutInfo = this._getLayoutInfo();
+
+		return new ActionsContentWidget(this._editor, viewZoneChangeAccessor, lineNumber, layoutInfo.codeLensHeight + 2, this._styleClassName, items);
+	}
+
+	addContentWidget(viewZoneChangeAccessor: IViewZoneChangeAccessor, lineNumber: number, viewModel: MergeEditorViewModel, modifiedBaseRange: ModifiedBaseRange, inputNumber: 1 | 2): IDisposable {
+		function command(title: string, action: () => Promise<void>, tooltip?: string): IContentWidgetAction {
+			return {
+				text: title,
+				action,
+				tooltip,
+			};
+		}
+
+		const items = derived('items', reader => {
+			if (!viewModel.model.hasBaseRange(modifiedBaseRange)) {
+				return [];
+			}
+
+			const state = viewModel.model.getState(modifiedBaseRange).read(reader);
+			const handled = viewModel.model.isHandled(modifiedBaseRange).read(reader);
+			const model = viewModel.model;
+
+			const result: IContentWidgetAction[] = [];
+
+			const inputData = inputNumber === 1 ? viewModel.model.input1 : viewModel.model.input2;
+			const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
+
+			if (!modifiedBaseRange.isConflicting && handled && !showNonConflictingChanges) {
+				return [];
+			}
+
+			const otherInputNumber = inputNumber === 1 ? 2 : 1;
+
+			if (!state.conflicting && !state.isInputIncluded(inputNumber)) {
+				result.push(
+					!state.isInputIncluded(inputNumber)
+						? command(localize('accept', "Accept {0}", inputData.title), async () => {
+							transaction((tx) => {
+								model.setState(
+									modifiedBaseRange,
+									state.withInputValue(inputNumber, true),
+									true,
+									tx
+								);
+							});
+						}, localize('acceptTooltip', "Accept {0} in the result document.", inputData.title))
+						: command(localize('remove', "Remove {0}", inputData.title), async () => {
+							transaction((tx) => {
+								model.setState(
+									modifiedBaseRange,
+									state.withInputValue(inputNumber, false),
+									true,
+									tx
+								);
+							});
+						}, localize('removeTooltip', "Remove {0} from the result document.", inputData.title)),
+				);
+
+				if (modifiedBaseRange.canBeCombined && state.isEmpty) {
+					result.push(
+						state.input1 && state.input2
+							? command(localize('removeBoth', "Remove Both"), async () => {
+								transaction((tx) => {
+									model.setState(
+										modifiedBaseRange,
+										ModifiedBaseRangeState.default,
+										true,
+										tx
+									);
+								});
+							}, localize('removeBothTooltip', "Remove both changes from the result document."))
+							: command(localize('acceptBoth', "Accept Both"), async () => {
+								transaction((tx) => {
+									model.setState(
+										modifiedBaseRange,
+										state
+											.withInputValue(inputNumber, true)
+											.withInputValue(otherInputNumber, true),
+										true,
+										tx
+									);
+								});
+							}, localize('acceptBothTooltip', "Accept an automatic combination of both sides in the result document.")),
+					);
+				}
+			}
+			return result;
+		});
+
+		const layoutInfo = this._getLayoutInfo();
+
+		return new ActionsContentWidget(this._editor, viewZoneChangeAccessor, lineNumber, layoutInfo.codeLensHeight + 2, this._styleClassName, items);
 	}
 }
 
@@ -271,16 +274,21 @@ interface IContentWidgetAction {
 	action?: () => Promise<void>;
 }
 
-class ActionsContentWidget extends Disposable implements IContentWidget {
+class ActionsContentWidget extends FixedZoneWidget {
 	private readonly _domNode = h('div.merge-editor-conflict-actions').root;
 
 	constructor(
-		private readonly id: string,
+		editor: ICodeEditor,
+		viewZoneAccessor: IViewZoneChangeAccessor,
+		afterLineNumber: number,
+		height: number,
+
 		className: string,
-		private readonly lineNumber: number,
 		items: IObservable<IContentWidgetAction[]>,
 	) {
-		super();
+		super(editor, viewZoneAccessor, afterLineNumber, height);
+
+		this.widgetDomNode.appendChild(this._domNode);
 
 		this._domNode.classList.add(className);
 
@@ -309,29 +317,5 @@ class ActionsContentWidget extends Disposable implements IContentWidget {
 		}
 
 		reset(this._domNode, ...children);
-	}
-
-	getId(): string {
-		return this.id;
-	}
-
-	getDomNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	getPosition(): IContentWidgetPosition | null {
-		// We cannot put the content widget after line 0, as line 0 gets normalized to line 1.
-		// Thus, we put the content widget before line 1 to make it slightly less buggy.
-		// TODO: Fix this properly.
-		if (this.lineNumber === 0) {
-			return {
-				position: { lineNumber: 1, column: 1, },
-				preference: [ContentWidgetPositionPreference.ABOVE],
-			};
-		}
-		return {
-			position: { lineNumber: this.lineNumber, column: 1, },
-			preference: [ContentWidgetPositionPreference.BELOW],
-		};
 	}
 }

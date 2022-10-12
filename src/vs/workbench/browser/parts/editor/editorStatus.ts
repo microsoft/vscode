@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { format, compare, splitLines } from 'vs/base/common/strings';
 import { extname, basename, isEqual } from 'vs/base/common/resources';
-import { areFunctions, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { areFunctions, assertIsDefined, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
@@ -379,12 +379,12 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 
 		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
-			activeTextEditorControl.getAction(IndentUsingSpaces.ID),
-			activeTextEditorControl.getAction(IndentUsingTabs.ID),
-			activeTextEditorControl.getAction(DetectIndentation.ID),
-			activeTextEditorControl.getAction(IndentationToSpacesAction.ID),
-			activeTextEditorControl.getAction(IndentationToTabsAction.ID),
-			activeTextEditorControl.getAction(TrimTrailingWhitespaceAction.ID)
+			assertIsDefined(activeTextEditorControl.getAction(IndentUsingSpaces.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(IndentUsingTabs.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(DetectIndentation.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(IndentationToSpacesAction.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(IndentationToTabsAction.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(TrimTrailingWhitespaceAction.ID))
 		].map((a: IEditorAction) => {
 			return {
 				id: a.id,
