@@ -1166,7 +1166,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private pathReadonly: boolean | null = null;
 
 	// stable/semantic 'readonly'; typically based on filetype or directory.
-	// latest value of files.readonlyInclude/Exclude for this resource.path
+	// latest value derived from files.readonlyInclude/Exclude for this resource.path
 	private globReadonly: boolean = false;
 
 	private oldReadonly = false;
