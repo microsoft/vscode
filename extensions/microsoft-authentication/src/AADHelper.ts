@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as randomBytes from 'randombytes';
+import randomBytes from 'randombytes';
 import * as querystring from 'querystring';
 import { Buffer } from 'buffer';
 import * as vscode from 'vscode';
