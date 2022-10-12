@@ -57,7 +57,6 @@ export class TerminalViewPane extends ViewPane {
 	private readonly _dropdownMenu: IMenu;
 	private readonly _singleTabMenu: IMenu;
 	private _viewShowing: IContextKey<boolean>;
-	private _terminalsInitialized: boolean = false;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -162,13 +161,6 @@ export class TerminalViewPane extends ViewPane {
 			}
 		}));
 
-		this._register(this._terminalService.onDidChangeConnectionState(() => {
-			if (!this._terminalService.isProcessSupportRegistered) {
-				return;
-			}
-			this._terminalsInitialized = true;
-		}));
-
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			this._viewShowing.set(visible);
 			if (visible) {
@@ -176,16 +168,9 @@ export class TerminalViewPane extends ViewPane {
 					this._onDidChangeViewWelcomeState.fire();
 					return;
 				}
+				await this._terminalService.primaryBackendRegistered;
 				if (this._terminalGroupService.groups.length === 0) {
-					if (this._terminalsInitialized) {
-						this._terminalService.createTerminal({ location: TerminalLocation.Panel });
-					} else {
-						await this._terminalService.primaryBackendRegistered;
-						this._terminalsInitialized = true;
-						if (this._terminalGroupService.groups.length === 0) {
-							this._terminalService.createTerminal({ location: TerminalLocation.Panel });
-						}
-					}
+					this._terminalService.createTerminal({ location: TerminalLocation.Panel });
 				}
 				// we don't know here whether or not it should be focused, so
 				// defer focusing the panel to the focus() call

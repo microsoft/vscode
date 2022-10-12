@@ -280,8 +280,7 @@ export class TerminalService implements ITerminalService {
 				this._connectionState = TerminalConnectionState.Connected;
 			}
 
-			this._primaryBackendRegistered.open();
-			this._initializeTerminals();
+			this._initializeTerminals().then(() => this._primaryBackendRegistered.open());
 
 			backend.onDidRequestDetach(async (e) => {
 				const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
@@ -734,11 +733,13 @@ export class TerminalService implements ITerminalService {
 		return this.instances.some(term => term.processId === remoteTerm.pid);
 	}
 
-	private _initializeTerminals(): void {
+	private async _initializeTerminals(): Promise<void> {
 		if (this._remoteTerminalsInitPromise) {
-			this._remoteTerminalsInitPromise.then(() => this._setConnected());
+			await this._remoteTerminalsInitPromise;
+			this._setConnected();
 		} else if (this._localTerminalsInitPromise) {
-			this._localTerminalsInitPromise.then(() => this._setConnected());
+			await this._localTerminalsInitPromise;
+			this._setConnected();
 		}
 	}
 
