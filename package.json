@@ -16,6 +16,7 @@
     "preinstall": "node build/npm/preinstall.js",
     "postinstall": "node build/npm/postinstall.js",
     "compile": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile",
+    "fast-compile": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js transpile-client-swc transpile-extensions",
     "watch": "npm-run-all -lp watch-client watch-extensions",
     "watchd": "deemon yarn watch",
     "watch-webd": "deemon yarn watch-web",
