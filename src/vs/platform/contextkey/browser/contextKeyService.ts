@@ -10,12 +10,14 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { MarshalledObject } from 'vs/base/common/marshalling';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { cloneAndChange, distinct } from 'vs/base/common/objects';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpression, ContextKeyInfo, ContextKeyValue, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, RawContextKey, SET_CONTEXT_COMMAND_ID } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
@@ -225,6 +227,9 @@ class SimpleContextKeyChangeEvent implements IContextKeyChangeEvent {
 	affectsSome(keys: IReadableSet<string>): boolean {
 		return keys.has(this.key);
 	}
+	allKeysContainedIn(keys: IReadableSet<string>): boolean {
+		return this.affectsSome(keys);
+	}
 }
 
 class ArrayContextKeyChangeEvent implements IContextKeyChangeEvent {
@@ -236,6 +241,9 @@ class ArrayContextKeyChangeEvent implements IContextKeyChangeEvent {
 			}
 		}
 		return false;
+	}
+	allKeysContainedIn(keys: IReadableSet<string>): boolean {
+		return this.keys.every(key => keys.has(key));
 	}
 }
 
@@ -249,12 +257,13 @@ class CompositeContextKeyChangeEvent implements IContextKeyChangeEvent {
 		}
 		return false;
 	}
+	allKeysContainedIn(keys: IReadableSet<string>): boolean {
+		return this.events.every(evt => evt.allKeysContainedIn(keys));
+	}
 }
 
 function allEventKeysInContext(event: IContextKeyChangeEvent, context: Record<string, any>): boolean {
-	return (event instanceof ArrayContextKeyChangeEvent && event.keys.every(key => key in context)) ||
-		(event instanceof SimpleContextKeyChangeEvent && event.key in context) ||
-		(event instanceof CompositeContextKeyChangeEvent && event.events.every(e => allEventKeysInContext(e, context)));
+	return event.allKeysContainedIn(new Set(Object.keys(context)));
 }
 
 export abstract class AbstractContextKeyService implements IContextKeyService {
@@ -596,7 +605,27 @@ function findContextAttr(domNode: IContextKeyServiceTarget | null): number {
 }
 
 export function setContext(accessor: ServicesAccessor, contextKey: any, contextValue: any) {
-	accessor.get(IContextKeyService).createKey(String(contextKey), stringifyURIs(contextValue));
+	const contextKeyService = accessor.get(IContextKeyService);
+	const telemetryService = accessor.get(ITelemetryService);
+
+	const sw = new StopWatch(true);
+	contextKeyService.createKey(String(contextKey), stringifyURIs(contextValue));
+	const duration = sw.elapsed();
+
+	type TelemetryData = {
+		duration: number;
+		contextKey: string;
+	};
+	type TelemetryClassification = {
+		owner: 'jrieken';
+		comment: 'Performance numbers of the setContext-API command';
+		duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The time it took to set the context key' };
+		contextKey: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The context key that got set' };
+	};
+	telemetryService.publicLog2<TelemetryData, TelemetryClassification>('command.setContext', {
+		contextKey: String(contextKey),
+		duration
+	});
 }
 
 function stringifyURIs(contextValue: any): any {

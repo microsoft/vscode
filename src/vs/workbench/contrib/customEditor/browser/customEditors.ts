@@ -65,10 +65,12 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._focusedCustomEditorIsEditable = CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE.bindTo(contextKeyService);
 
 		this._contributedEditors = this._register(new ContributedCustomEditors(storageService));
-		this.registerContributionPoints();
+		// Register the contribution points only emitting one change from the resolver
+		this.editorResolverService.bufferChangeEvents(this.registerContributionPoints.bind(this));
 
 		this._register(this._contributedEditors.onChange(() => {
-			this.registerContributionPoints();
+			// Register the contribution points only emitting one change from the resolver
+			this.editorResolverService.bufferChangeEvents(this.registerContributionPoints.bind(this));
 			this.updateContexts();
 			this._onDidChangeEditorTypes.fire();
 		}));
@@ -116,6 +118,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				if (!globPattern.filenamePattern) {
 					continue;
 				}
+
 				this._editorResolverDisposables.add(this.editorResolverService.registerEditor(
 					globPattern.filenamePattern,
 					{
@@ -127,14 +130,16 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 					{
 						singlePerResource: () => !this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? true
 					},
-					({ resource }, group) => {
-						return { editor: CustomEditorInput.create(this.instantiationService, resource, contributedEditor.id, group.id) };
-					},
-					({ resource }, group) => {
-						return { editor: CustomEditorInput.create(this.instantiationService, resource ?? URI.from({ scheme: Schemas.untitled, authority: `Untitled-${this._untitledCounter++}` }), contributedEditor.id, group.id) };
-					},
-					(diffEditorInput, group) => {
-						return { editor: this.createDiffEditorInput(diffEditorInput, contributedEditor.id, group) };
+					{
+						createEditorInput: ({ resource }, group) => {
+							return { editor: CustomEditorInput.create(this.instantiationService, resource, contributedEditor.id, group.id) };
+						},
+						createUntitledEditorInput: ({ resource }, group) => {
+							return { editor: CustomEditorInput.create(this.instantiationService, resource ?? URI.from({ scheme: Schemas.untitled, authority: `Untitled-${this._untitledCounter++}` }), contributedEditor.id, group.id) };
+						},
+						createDiffEditorInput: (diffEditorInput, group) => {
+							return { editor: this.createDiffEditorInput(diffEditorInput, contributedEditor.id, group) };
+						},
 					}
 				));
 			}

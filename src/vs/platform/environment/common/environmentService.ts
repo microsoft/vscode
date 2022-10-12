@@ -81,6 +81,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get userDataSyncLogResource(): URI { return URI.file(join(this.logsPath, 'userDataSync.log')); }
 
 	@memoize
+	get editSessionsLogResource(): URI { return URI.file(join(this.logsPath, 'editSessions.log')); }
+
+	@memoize
 	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
 
 	@memoize
@@ -242,6 +245,14 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	}
 
 	editSessionId: string | undefined = this.args['editSessionId'];
+
+	get continueOn(): string | undefined {
+		return this.args['continueOn'];
+	}
+
+	set continueOn(value: string | undefined) {
+		this.args['continueOn'] = value;
+	}
 
 	get args(): NativeParsedArgs { return this._args; }
 

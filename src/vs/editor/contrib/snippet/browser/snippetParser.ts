@@ -601,6 +601,14 @@ export class SnippetParser {
 		return value.replace(/\$|}|\\/g, '\\$&');
 	}
 
+	/**
+	 * Takes a snippet and returns the insertable string, e.g return the snippet-string
+	 * without any placeholder, tabstop, variables etc...
+	 */
+	static asInsertText(value: string): string {
+		return new SnippetParser().parse(value).toString();
+	}
+
 	static guessNeedsClipboard(template: string): boolean {
 		return /\${?CLIPBOARD/.test(template);
 	}
@@ -608,16 +616,18 @@ export class SnippetParser {
 	private _scanner: Scanner = new Scanner();
 	private _token: Token = { type: TokenType.EOF, pos: 0, len: 0 };
 
-	text(value: string): string {
-		return this.parse(value).toString();
+	parse(value: string, insertFinalTabstop?: boolean, enforceFinalTabstop?: boolean): TextmateSnippet {
+		const snippet = new TextmateSnippet();
+		this.parseFragment(value, snippet);
+		this.ensureFinalTabstop(snippet, enforceFinalTabstop ?? false, insertFinalTabstop ?? false);
+		return snippet;
 	}
 
-	parse(value: string, insertFinalTabstop?: boolean, enforceFinalTabstop?: boolean): TextmateSnippet {
+	parseFragment(value: string, snippet: TextmateSnippet): readonly Marker[] {
 
+		const offset = snippet.children.length;
 		this._scanner.text(value);
 		this._token = this._scanner.next();
-
-		const snippet = new TextmateSnippet();
 		while (this._parse(snippet)) {
 			// nothing
 		}
@@ -626,10 +636,8 @@ export class SnippetParser {
 		// that has a value defines the value for all placeholders with that index
 		const placeholderDefaultValues = new Map<number, Marker[] | undefined>();
 		const incompletePlaceholders: Placeholder[] = [];
-		let placeholderCount = 0;
 		snippet.walk(marker => {
 			if (marker instanceof Placeholder) {
-				placeholderCount += 1;
 				if (marker.isFinalTabstop) {
 					placeholderDefaultValues.set(0, undefined);
 				} else if (!placeholderDefaultValues.has(marker.index) && marker.children.length > 0) {
@@ -640,6 +648,7 @@ export class SnippetParser {
 			}
 			return true;
 		});
+
 		for (const placeholder of incompletePlaceholders) {
 			const defaultValues = placeholderDefaultValues.get(placeholder.index);
 			if (defaultValues) {
@@ -652,17 +661,20 @@ export class SnippetParser {
 			}
 		}
 
-		if (!enforceFinalTabstop) {
-			enforceFinalTabstop = placeholderCount > 0 && insertFinalTabstop;
+		return snippet.children.slice(offset);
+	}
+
+	ensureFinalTabstop(snippet: TextmateSnippet, enforceFinalTabstop: boolean, insertFinalTabstop: boolean) {
+
+		if (enforceFinalTabstop || insertFinalTabstop && snippet.placeholders.length > 0) {
+			const finalTabstop = snippet.placeholders.find(p => p.index === 0);
+			if (!finalTabstop) {
+				// the snippet uses placeholders but has no
+				// final tabstop defined -> insert at the end
+				snippet.appendChild(new Placeholder(0));
+			}
 		}
 
-		if (!placeholderDefaultValues.has(0) && enforceFinalTabstop) {
-			// the snippet uses placeholders but has no
-			// final tabstop defined -> insert at the end
-			snippet.appendChild(new Placeholder(0));
-		}
-
-		return snippet;
 	}
 
 	private _accept(type?: TokenType): boolean;

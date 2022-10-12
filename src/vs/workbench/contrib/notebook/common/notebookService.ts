@@ -22,8 +22,6 @@ export interface INotebookContentProvider {
 	options: TransientOptions;
 
 	open(uri: URI, backupId: string | VSBuffer | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<{ data: NotebookData; transientOptions: TransientOptions }>;
-	save(uri: URI, token: CancellationToken): Promise<boolean>;
-	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
 	backup(uri: URI, token: CancellationToken): Promise<string | VSBuffer>;
 }
 
@@ -59,7 +57,7 @@ export interface INotebookService {
 	canResolve(viewType: string): Promise<boolean>;
 
 	readonly onWillRemoveViewType: Event<string>;
-
+	readonly onDidChangeOutputRenderers: Event<void>;
 	readonly onWillAddNotebookDocument: Event<NotebookTextModel>;
 	readonly onDidAddNotebookDocument: Event<NotebookTextModel>;
 

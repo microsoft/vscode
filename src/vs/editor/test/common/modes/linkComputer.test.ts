@@ -258,4 +258,11 @@ suite('Editor Modes - Link Computer', () => {
 			'https://site.web/page.html                '
 		);
 	});
+
+	test('issue #151631: Link parsing stoped where comments include a single quote ', () => {
+		assertLink(
+			`aa https://regexper.com/#%2F''%2F aa`,
+			`   https://regexper.com/#%2F''%2F   `,
+		);
+	});
 });

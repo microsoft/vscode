@@ -20,11 +20,15 @@ export interface IExtensionDescriptionDelta {
 export interface IExtensionHostInitData {
 	version: string;
 	commit?: string;
-	parentPid: number;
+	/**
+	 * When set to `0`, no polling for the parent process still running will happen.
+	 */
+	parentPid: number | 0;
 	environment: IEnvironment;
 	workspace?: IStaticWorkspaceData | null;
 	allExtensions: IExtensionDescription[];
 	myExtensions: ExtensionIdentifier[];
+	nlsBaseUrl?: URI;
 	telemetryInfo: ITelemetryInfo;
 	logLevel: LogLevel;
 	logsLocation: URI;
@@ -42,6 +46,7 @@ export interface IEnvironment {
 	appHost: string;
 	appRoot?: URI;
 	appLanguage: string;
+	extensionTelemetryLogResource: URI;
 	appUriScheme: string;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;

@@ -24,6 +24,7 @@ import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/comme
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditorFocused', false);
 
@@ -75,11 +76,11 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 		return this._parentThread;
 	}
 
-	protected _getActions(): EditorAction[] {
+	protected _getActions(): Iterable<EditorAction> {
 		return EditorExtensionsRegistry.getEditorActions();
 	}
 
-	public static getEditorOptions(): IEditorOptions {
+	public static getEditorOptions(configurationService: IConfigurationService): IEditorOptions {
 		return {
 			wordWrap: 'on',
 			glyphMargin: false,
@@ -103,6 +104,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 			minimap: {
 				enabled: false
 			},
+			autoClosingBrackets: configurationService.getValue('editor.autoClosingBrackets'),
 			quickSuggestions: false
 		};
 	}

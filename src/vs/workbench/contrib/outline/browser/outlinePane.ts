@@ -35,11 +35,13 @@ import { EditorResourceAccessor, IEditorPane } from 'vs/workbench/common/editor'
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { AbstractTreeViewState, IAbstractTreeViewState } from 'vs/base/browser/ui/tree/abstractTree';
+import { AbstractTreeViewState, IAbstractTreeViewState, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
+import { URI } from 'vs/base/common/uri';
 
-const _ctxFollowsCursor = new RawContextKey('outlineFollowsCursor', false);
-const _ctxFilterOnType = new RawContextKey('outlineFiltersOnType', false);
+const _ctxFollowsCursor = new RawContextKey<boolean>('outlineFollowsCursor', false);
+const _ctxFilterOnType = new RawContextKey<boolean>('outlineFiltersOnType', false);
 const _ctxSortMode = new RawContextKey<OutlineSortOrder>('outlineSortMode', OutlineSortOrder.ByPosition);
+const _ctxAllCollapsed = new RawContextKey<boolean>('outlineAllCollapsed', false);
 
 class OutlineTreeSorter<E> implements ITreeSorter<E> {
 
@@ -82,6 +84,7 @@ export class OutlinePane extends ViewPane {
 	private _ctxFollowsCursor!: IContextKey<boolean>;
 	private _ctxFilterOnType!: IContextKey<boolean>;
 	private _ctxSortMode!: IContextKey<OutlineSortOrder>;
+	private _ctxAllCollapsed!: IContextKey<boolean>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -107,6 +110,7 @@ export class OutlinePane extends ViewPane {
 			this._ctxFollowsCursor = _ctxFollowsCursor.bindTo(contextKeyService);
 			this._ctxFilterOnType = _ctxFilterOnType.bindTo(contextKeyService);
 			this._ctxSortMode = _ctxSortMode.bindTo(contextKeyService);
+			this._ctxAllCollapsed = _ctxAllCollapsed.bindTo(contextKeyService);
 		});
 
 		const updateContext = () => {
@@ -170,6 +174,10 @@ export class OutlinePane extends ViewPane {
 		this._tree?.collapseAll();
 	}
 
+	expandAll(): void {
+		this._tree?.expandAll();
+	}
+
 	get outlineViewState() {
 		return this._outlineViewState;
 	}
@@ -180,11 +188,14 @@ export class OutlinePane extends ViewPane {
 		this._message.innerText = message;
 	}
 
-	private _captureViewState(): boolean {
+	private _captureViewState(uri?: URI): boolean {
 		if (this._tree) {
 			const oldOutline = this._tree.getInput();
-			if (oldOutline && oldOutline.uri) {
-				this._treeStates.set(`${oldOutline.outlineKind}/${oldOutline.uri}`, this._tree.getViewState());
+			if (!uri) {
+				uri = oldOutline?.uri;
+			}
+			if (oldOutline && uri) {
+				this._treeStates.set(`${oldOutline.outlineKind}/${uri}`, this._tree.getViewState());
 				return true;
 			}
 		}
@@ -259,7 +270,7 @@ export class OutlinePane extends ViewPane {
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
 				hideTwistiesOfChildlessElements: true,
-				filterOnType: this._outlineViewState.filterOnType,
+				defaultFindMode: this._outlineViewState.filterOnType ? TreeFindMode.Filter : TreeFindMode.Highlight,
 				overrideStyles: { listBackground: this.getBackgroundColor() }
 			}
 		);
@@ -269,13 +280,13 @@ export class OutlinePane extends ViewPane {
 			if (newOutline.isEmpty) {
 				// no more elements
 				this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", basename(resource)));
-				this._captureViewState();
+				this._captureViewState(resource);
 				tree.setInput(undefined);
 
 			} else if (!tree.getInput()) {
 				// first: init tree
 				this._domNode.classList.remove('message');
-				const state = this._treeStates.get(`${newOutline.outlineKind}/${resource}`);
+				const state = this._treeStates.get(`${newOutline.outlineKind}/${newOutline.uri}`);
 				tree.setInput(newOutline, state && AbstractTreeViewState.lift(state));
 
 			} else {
@@ -286,6 +297,7 @@ export class OutlinePane extends ViewPane {
 		};
 		updateTree();
 		this._editorControlDisposables.add(newOutline.onDidChange(updateTree));
+		tree.findMode = this._outlineViewState.filterOnType ? TreeFindMode.Filter : TreeFindMode.Highlight;
 
 		// feature: apply panel background to tree
 		this._editorControlDisposables.add(this.viewDescriptorService.onDidChangeLocation(({ views }) => {
@@ -295,7 +307,7 @@ export class OutlinePane extends ViewPane {
 		}));
 
 		// feature: filter on type - keep tree and menu in sync
-		this._editorControlDisposables.add(tree.onDidUpdateOptions(e => this._outlineViewState.filterOnType = Boolean(e.filterOnType)));
+		this._editorControlDisposables.add(tree.onDidChangeFindMode(mode => this._outlineViewState.filterOnType = mode === TreeFindMode.Filter));
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
@@ -328,7 +340,7 @@ export class OutlinePane extends ViewPane {
 		this._editorControlDisposables.add(this._outlineViewState.onDidChange((e: { followCursor?: boolean; sortBy?: boolean; filterOnType?: boolean }) => {
 			this._outlineViewState.persist(this._storageService);
 			if (e.filterOnType) {
-				tree.updateOptions({ filterOnType: this._outlineViewState.filterOnType });
+				tree.findMode = this._outlineViewState.filterOnType ? TreeFindMode.Filter : TreeFindMode.Highlight;
 			}
 			if (e.followCursor) {
 				revealActiveElement();
@@ -341,8 +353,8 @@ export class OutlinePane extends ViewPane {
 
 		// feature: expand all nodes when filtering (not when finding)
 		let viewState: AbstractTreeViewState | undefined;
-		this._editorControlDisposables.add(tree.onDidChangeTypeFilterPattern(pattern => {
-			if (!tree.options.filterOnType) {
+		this._editorControlDisposables.add(tree.onDidChangeFindPattern(pattern => {
+			if (tree.findMode === TreeFindMode.Highlight) {
 				return;
 			}
 			if (!viewState && pattern) {
@@ -354,7 +366,15 @@ export class OutlinePane extends ViewPane {
 			}
 		}));
 
-		// last: set tree property
+		// feature: update all-collapsed context key
+		const updateAllCollapsedCtx = () => {
+			this._ctxAllCollapsed.set(tree.getNode(null).children.every(node => !node.collapsible || node.collapsed));
+		};
+		this._editorControlDisposables.add(tree.onDidChangeCollapseState(updateAllCollapsedCtx));
+		this._editorControlDisposables.add(tree.onDidChangeModel(updateAllCollapsedCtx));
+		updateAllCollapsedCtx();
+
+		// last: set tree property and wire it up to one of our context keys
 		tree.layout(this._treeDimensions?.height, this._treeDimensions?.width);
 		this._tree = tree;
 		this._editorControlDisposables.add(toDisposable(() => {
@@ -378,12 +398,32 @@ registerAction2(class Collapse extends ViewAction<OutlinePane> {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyExpr.equals('view', OutlinePane.Id)
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', OutlinePane.Id), _ctxAllCollapsed.isEqualTo(false))
 			}
 		});
 	}
 	runInView(_accessor: ServicesAccessor, view: OutlinePane) {
 		view.collapseAll();
+	}
+});
+
+registerAction2(class Collapse extends ViewAction<OutlinePane> {
+	constructor() {
+		super({
+			viewId: OutlinePane.Id,
+			id: 'outline.expand',
+			title: localize('expand', "Expand All"),
+			f1: false,
+			icon: Codicon.expandAll,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', OutlinePane.Id), _ctxAllCollapsed.isEqualTo(true))
+			}
+		});
+	}
+	runInView(_accessor: ServicesAccessor, view: OutlinePane) {
+		view.expandAll();
 	}
 });
 

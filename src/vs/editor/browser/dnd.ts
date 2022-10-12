@@ -41,8 +41,8 @@ const INTERNAL_DND_MIME_TYPES = Object.freeze([
 	DataTransfers.RESOURCES,
 ]);
 
-export function addExternalEditorsDropData(dataTransfer: VSDataTransfer, dragEvent: DragEvent) {
-	if (dragEvent.dataTransfer && !dataTransfer.has(Mimes.uriList)) {
+export function addExternalEditorsDropData(dataTransfer: VSDataTransfer, dragEvent: DragEvent, overwriteUriList = false) {
+	if (dragEvent.dataTransfer && (overwriteUriList || !dataTransfer.has(Mimes.uriList))) {
 		const editorData = extractEditorsDropData(dragEvent)
 			.filter(input => input.resource)
 			.map(input => input.resource!.toString());

@@ -108,14 +108,6 @@ export function markAsSingleton<T extends IDisposable>(singleton: T): T {
 	return singleton;
 }
 
-export class MultiDisposeError extends Error {
-	constructor(
-		public readonly errors: any[]
-	) {
-		super(`Encountered errors while disposing of store. Errors: [${errors.join(', ')}]`);
-	}
-}
-
 export interface IDisposable {
 	dispose(): void;
 }
@@ -126,10 +118,10 @@ export function isDisposable<E extends object>(thing: E): thing is E & IDisposab
 
 export function dispose<T extends IDisposable>(disposable: T): T;
 export function dispose<T extends IDisposable>(disposable: T | undefined): T | undefined;
-export function dispose<T extends IDisposable, A extends IterableIterator<T> = IterableIterator<T>>(disposables: IterableIterator<T>): A;
+export function dispose<T extends IDisposable, A extends Iterable<T> = Iterable<T>>(disposables: A): A;
 export function dispose<T extends IDisposable>(disposables: Array<T>): Array<T>;
 export function dispose<T extends IDisposable>(disposables: ReadonlyArray<T>): ReadonlyArray<T>;
-export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | undefined): any {
+export function dispose<T extends IDisposable>(arg: T | Iterable<T> | undefined): any {
 	if (Iterable.is(arg)) {
 		const errors: any[] = [];
 
@@ -146,7 +138,7 @@ export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | un
 		if (errors.length === 1) {
 			throw errors[0];
 		} else if (errors.length > 1) {
-			throw new MultiDisposeError(errors);
+			throw new AggregateError(errors, 'Encountered errors while disposing of store');
 		}
 
 		return Array.isArray(arg) ? [] : arg;
@@ -156,6 +148,14 @@ export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | un
 	}
 }
 
+export function disposeIfDisposable<T extends IDisposable | object>(disposables: Array<T>): Array<T> {
+	for (const d of disposables) {
+		if (isDisposable(d)) {
+			d.dispose();
+		}
+	}
+	return [];
+}
 
 export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 	const parent = toDisposable(() => dispose(disposables));
@@ -177,7 +177,7 @@ export class DisposableStore implements IDisposable {
 
 	static DISABLE_DISPOSED_WARNING = false;
 
-	private _toDispose = new Set<IDisposable>();
+	private readonly _toDispose = new Set<IDisposable>();
 	private _isDisposed = false;
 
 	constructor() {
@@ -210,8 +210,12 @@ export class DisposableStore implements IDisposable {
 	 * Dispose of all registered disposables but do not mark this object as disposed.
 	 */
 	public clear(): void {
+		if (this._toDispose.size === 0) {
+			return;
+		}
+
 		try {
-			dispose(this._toDispose.values());
+			dispose(this._toDispose);
 		} finally {
 			this._toDispose.clear();
 		}
@@ -437,5 +441,65 @@ export function disposeOnReturn(fn: (store: DisposableStore) => void): void {
 		fn(store);
 	} finally {
 		store.dispose();
+	}
+}
+
+/**
+ * A map the manages the lifecycle of the values that it stores.
+ */
+export class DisposableMap<K, V extends IDisposable = IDisposable> implements IDisposable {
+
+	private readonly _store = new Map<K, V>();
+	private _isDisposed = false;
+
+	constructor() {
+		trackDisposable(this);
+	}
+
+	dispose(): void {
+		markAsDisposed(this);
+		this._isDisposed = true;
+		this.clearAndDisposeAll();
+	}
+
+	clearAndDisposeAll(): void {
+		if (!this._store.size) {
+			return;
+		}
+
+		try {
+			dispose(this._store.values());
+		} finally {
+			this._store.clear();
+		}
+	}
+
+	has(key: K): boolean {
+		return this._store.has(key);
+	}
+
+	get(key: K): V | undefined {
+		return this._store.get(key);
+	}
+
+	set(key: K, value: V, skipDisposeOnOverwrite = false): void {
+		if (this._isDisposed) {
+			console.warn(new Error('Trying to add a disposable to a DisposableMap that has already been disposed of. The added object will be leaked!').stack);
+		}
+
+		if (!skipDisposeOnOverwrite) {
+			this._store.get(key)?.dispose();
+		}
+
+		this._store.set(key, value);
+	}
+
+	deleteAndDispose(key: K): void {
+		this._store.get(key)?.dispose();
+		this._store.delete(key);
+	}
+
+	[Symbol.iterator](): IterableIterator<[K, V]> {
+		return this._store[Symbol.iterator]();
 	}
 }

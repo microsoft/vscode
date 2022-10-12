@@ -61,6 +61,7 @@ import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchM
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { UnusualLineTerminatorsDetector } from 'vs/editor/contrib/unusualLineTerminators/browser/unusualLineTerminators';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
+import { Iterable } from 'vs/base/common/iterator';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -225,9 +226,9 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		}
 	}
 
-	private _getContributions(): IEditorContributionDescription[] {
+	private _getContributions(): Iterable<IEditorContributionDescription> {
 		const skipContributions = [UnusualLineTerminatorsDetector.ID];
-		return EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
+		return Iterable.filter(EditorExtensionsRegistry.getEditorContributions(), c => skipContributions.indexOf(c.id) === -1);
 	}
 
 	protected override getCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
@@ -273,6 +274,20 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 	focusSearchInput() {
 		this.queryEditorWidget.searchInput.focus();
+	}
+
+	focusFilesToIncludeInput() {
+		if (!this.showingIncludesExcludes) {
+			this.toggleIncludesExcludes(true);
+		}
+		this.inputPatternIncludes.focus();
+	}
+
+	focusFilesToExcludeInput() {
+		if (!this.showingIncludesExcludes) {
+			this.toggleIncludesExcludes(true);
+		}
+		this.inputPatternExcludes.focus();
 	}
 
 	focusNextInput() {

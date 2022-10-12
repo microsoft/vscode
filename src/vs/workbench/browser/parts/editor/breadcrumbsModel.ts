@@ -17,6 +17,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IOutline, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { IEditorPane } from 'vs/workbench/common/editor';
+import { matchesSomeScheme } from 'vs/platform/opener/common/opener';
 
 export class FileElement {
 	constructor(
@@ -37,7 +38,7 @@ export class OutlineElement2 {
 export class BreadcrumbsModel {
 
 	private readonly _disposables = new DisposableStore();
-	private readonly _fileInfo: FileInfo;
+	private _fileInfo: FileInfo;
 
 	private readonly _cfgFilePath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 	private readonly _cfgSymbolPath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
@@ -60,6 +61,7 @@ export class BreadcrumbsModel {
 
 		this._disposables.add(this._cfgFilePath.onDidChange(_ => this._onDidUpdate.fire(this)));
 		this._disposables.add(this._cfgSymbolPath.onDidChange(_ => this._onDidUpdate.fire(this)));
+		this._workspaceService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspaceFolders, this, this._disposables);
 		this._fileInfo = this._initFilePathInfo(resource);
 
 		if (editor) {
@@ -115,7 +117,7 @@ export class BreadcrumbsModel {
 
 	private _initFilePathInfo(uri: URI): FileInfo {
 
-		if (uri.scheme === Schemas.untitled) {
+		if (matchesSomeScheme(uri, Schemas.untitled, Schemas.data)) {
 			return {
 				folder: undefined,
 				path: []
@@ -144,6 +146,11 @@ export class BreadcrumbsModel {
 			info.path.unshift(new FileElement(info.folder.uri, FileKind.ROOT_FOLDER));
 		}
 		return info;
+	}
+
+	private _onDidChangeWorkspaceFolders() {
+		this._fileInfo = this._initFilePathInfo(this.resource);
+		this._onDidUpdate.fire(this);
 	}
 
 	private _bindToEditor(editor: IEditorPane): void {

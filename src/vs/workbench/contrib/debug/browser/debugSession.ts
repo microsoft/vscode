@@ -164,13 +164,26 @@ export class DebugSession implements IDebugSession {
 		return !!this._options.compact;
 	}
 
+	get saveBeforeRestart(): boolean {
+		return this._options.saveBeforeRestart ?? !this._options?.parentSession;
+	}
+
 	get compoundRoot(): DebugCompoundRoot | undefined {
 		return this._options.compoundRoot;
 	}
 
-	get isSimpleUI(): boolean {
-		return this._options.debugUI?.simple ?? false;
+	get suppressDebugStatusbar(): boolean {
+		return this._options.suppressDebugStatusbar ?? false;
 	}
+
+	get suppressDebugToolbar(): boolean {
+		return this._options.suppressDebugToolbar ?? false;
+	}
+
+	get suppressDebugView(): boolean {
+		return this._options.suppressDebugView ?? false;
+	}
+
 
 	get autoExpandLazyVariables(): boolean {
 		// This tiny helper avoids converting the entire debug model to use service injection
@@ -292,7 +305,8 @@ export class DebugSession implements IDebugSession {
 				locale: platform.locale,
 				supportsProgressReporting: true, // #92253
 				supportsInvalidatedEvent: true, // #106745
-				supportsMemoryReferences: true //#129684
+				supportsMemoryReferences: true, //#129684
+				supportsArgsCanBeInterpretedByShell: true // #149910
 			});
 
 			this.initialized = true;
@@ -955,7 +969,7 @@ export class DebugSession implements IDebugSession {
 			if (thread) {
 				// Call fetch call stack twice, the first only return the top stack frame.
 				// Second retrieves the rest of the call stack. For performance reasons #25605
-				const promises = this.model.fetchCallStack(<Thread>thread);
+				const promises = this.model.refreshTopOfCallstack(<Thread>thread);
 				const focus = async () => {
 					if (focusedThreadDoesNotExist || (!event.body.preserveFocusHint && thread.getCallStack().length)) {
 						const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
@@ -966,7 +980,7 @@ export class DebugSession implements IDebugSession {
 						}
 
 						if (thread.stoppedDetails) {
-							if (thread.stoppedDetails.reason === 'breakpoint' && this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak' && !this.isSimpleUI) {
+							if (thread.stoppedDetails.reason === 'breakpoint' && this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak' && !this.suppressDebugView) {
 								await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
 							}
 

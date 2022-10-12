@@ -100,7 +100,7 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 		}
 
 		const webview = reviveWebview(this._webviewService, data);
-		const customInput = this._instantiationService.createInstance(CustomEditorInput, data.editorResource, data.viewType, data.id, webview, { startsDirty: data.dirty, backupId: data.backupId });
+		const customInput = this._instantiationService.createInstance(CustomEditorInput, { resource: data.editorResource, viewType: data.viewType, id: data.id }, webview, { startsDirty: data.dirty, backupId: data.backupId });
 		if (typeof data.group === 'number') {
 			customInput.updateGroup(data.group);
 		}
@@ -108,14 +108,15 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 	}
 }
 
-function reviveWebview(webviewService: IWebviewService, data: { id: string; origin: string | undefined; state: any; webviewOptions: WebviewOptions; contentOptions: WebviewContentOptions; extension?: WebviewExtensionDescription }) {
+function reviveWebview(webviewService: IWebviewService, data: { id: string; origin: string | undefined; viewType: string; state: any; webviewOptions: WebviewOptions; contentOptions: WebviewContentOptions; extension?: WebviewExtensionDescription }) {
 	const webview = webviewService.createWebviewOverlay({
 		id: data.id,
+		providedViewType: data.viewType,
 		origin: data.origin,
 		options: {
 			purpose: WebviewContentPurpose.CustomEditor,
 			enableFindWidget: data.webviewOptions.enableFindWidget,
-			retainContextWhenHidden: data.webviewOptions.retainContextWhenHidden
+			retainContextWhenHidden: data.webviewOptions.retainContextWhenHidden,
 		},
 		contentOptions: data.contentOptions,
 		extension: data.extension,
@@ -187,6 +188,7 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 				const extension = reviveWebviewExtensionDescription(backupData.extension?.id, backupData.extension?.location);
 				const webview = reviveWebview(this._webviewService, {
 					id,
+					viewType: backupData.viewType,
 					origin: backupData.webview.origin,
 					webviewOptions: restoreWebviewOptions(backupData.webview.options),
 					contentOptions: restoreWebviewContentOptions(backupData.webview.options),
@@ -194,7 +196,7 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 					extension,
 				});
 
-				const editor = this._instantiationService.createInstance(CustomEditorInput, URI.revive(backupData.editorResource), backupData.viewType, id, webview, { backupId: backupData.backupId });
+				const editor = this._instantiationService.createInstance(CustomEditorInput, { resource: URI.revive(backupData.editorResource), viewType: backupData.viewType, id }, webview, { backupId: backupData.backupId });
 				editor.updateGroup(0);
 				return editor;
 			}

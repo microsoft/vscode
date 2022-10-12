@@ -625,6 +625,26 @@ export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.for
 	hcLight: Color.white
 }, localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
+export const ACTIVITY_BAR_SETTINGS_PROFILE_FOREGROUND = registerColor('activityBarItem.settingsProfilesForeground', {
+	dark: ACTIVITY_BAR_INACTIVE_FOREGROUND,
+	light: ACTIVITY_BAR_INACTIVE_FOREGROUND,
+	hcDark: ACTIVITY_BAR_INACTIVE_FOREGROUND,
+	hcLight: ACTIVITY_BAR_INACTIVE_FOREGROUND
+}, localize('statusBarItemSettingsProfileForeground', "Foreground color for the settings profile entry on the activity bar."));
+
+export const ACTIVITY_BAR_SETTINGS_PROFILE_HOVER_FOREGROUND = registerColor('activityBarItem.settingsProfilesHoverForeground', {
+	dark: ACTIVITY_BAR_FOREGROUND,
+	light: ACTIVITY_BAR_FOREGROUND,
+	hcDark: ACTIVITY_BAR_FOREGROUND,
+	hcLight: ACTIVITY_BAR_FOREGROUND
+}, localize('activityBarItem.settingsProfilesHoverForeground', "Foreground color for the settings profile entry on the activity bar when hovering."));
+
+export const ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND = registerColor('activityBarItem.settingsProfilesBackground', {
+	dark: lighten(ACTIVITY_BAR_BACKGROUND, 0.5),
+	light: darken(ACTIVITY_BAR_BACKGROUND, 0.12),
+	hcDark: null,
+	hcLight: null
+}, localize('statusBarItemSettingsProfileBackground', "Background color for the settings profile entry on the activity bar."));
 
 // < --- Remote --- >
 
@@ -860,11 +880,11 @@ export const WINDOW_ACTIVE_BORDER = registerColor('window.activeBorder', {
 	light: null,
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
-}, localize('windowActiveBorder', "The color used for the border of the window when it is active. Only supported in the desktop client when using the custom title bar."));
+}, localize('windowActiveBorder', "The color used for the border of the window when it is active. Only supported in the macOS and Linux desktop client when using the custom title bar."));
 
 export const WINDOW_INACTIVE_BORDER = registerColor('window.inactiveBorder', {
 	dark: null,
 	light: null,
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
-}, localize('windowInactiveBorder', "The color used for the border of the window when it is inactive. Only supported in the desktop client when using the custom title bar."));
+}, localize('windowInactiveBorder', "The color used for the border of the window when it is inactive. Only supported in the macOS and Linux desktop client when using the custom title bar."));

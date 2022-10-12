@@ -10,7 +10,7 @@ import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { mock } from 'vs/base/test/common/mock';
-import { IModelAddedData, MainContext, MainThreadCommandsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IModelAddedData, MainContext, MainThreadCommandsShape, MainThreadNotebookShape, NotebookCellsChangedEventDto, NotebookOutputItemDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
 import { CellKind, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -19,8 +19,6 @@ import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { isEqual } from 'vs/base/common/resources';
-import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { generateUuid } from 'vs/base/common/uuid';
 import { Event } from 'vs/base/common/event';
 import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
@@ -54,12 +52,7 @@ suite('NotebookCell#Document', function () {
 		});
 		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
-		const extHostStoragePaths = new class extends mock<IExtensionStoragePaths>() {
-			override workspaceValue() {
-				return URI.from({ scheme: 'test', path: generateUuid() });
-			}
-		};
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments, extHostStoragePaths);
+		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments);
 		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
 
 		const reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
@@ -548,5 +541,78 @@ suite('NotebookCell#Document', function () {
 		assert.ok(cellChange.executionSummary === undefined);
 		assert.ok(cellChange.metadata === undefined);
 		assert.ok(cellChange.outputs === undefined);
+	});
+
+	async function replaceOutputs(cellIndex: number, outputId: string, outputItems: NotebookOutputItemDto[]) {
+		const changeEvent = Event.toPromise(extHostNotebookDocuments.onDidChangeNotebookDocument);
+		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers<NotebookCellsChangedEventDto>({
+			versionId: notebook.apiNotebook.version + 1,
+			rawEvents: [{
+				kind: NotebookCellsChangeType.Output,
+				index: cellIndex,
+				outputs: [{ outputId, items: outputItems }]
+			}]
+		}), false);
+		await changeEvent;
+	}
+	async function appendOutputItem(cellIndex: number, outputId: string, outputItems: NotebookOutputItemDto[]) {
+		const changeEvent = Event.toPromise(extHostNotebookDocuments.onDidChangeNotebookDocument);
+		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers<NotebookCellsChangedEventDto>({
+			versionId: notebook.apiNotebook.version + 1,
+			rawEvents: [{
+				kind: NotebookCellsChangeType.OutputItem,
+				index: cellIndex,
+				append: true,
+				outputId,
+				outputItems
+			}]
+		}), false);
+		await changeEvent;
+	}
+	test('Append multiple text/plain output items', async function () {
+		await replaceOutputs(1, '1', [{ mime: 'text/plain', valueBytes: VSBuffer.fromString('foo') }]);
+		await appendOutputItem(1, '1', [{ mime: 'text/plain', valueBytes: VSBuffer.fromString('bar') }]);
+		await appendOutputItem(1, '1', [{ mime: 'text/plain', valueBytes: VSBuffer.fromString('baz') }]);
+
+
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs.length, 1);
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs[0].items.length, 3);
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs[0].items[0].mime, 'text/plain');
+		assert.strictEqual(VSBuffer.wrap(notebook.apiNotebook.cellAt(1).outputs[0].items[0].data).toString(), 'foo');
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs[0].items[1].mime, 'text/plain');
+		assert.strictEqual(VSBuffer.wrap(notebook.apiNotebook.cellAt(1).outputs[0].items[1].data).toString(), 'bar');
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs[0].items[2].mime, 'text/plain');
+		assert.strictEqual(VSBuffer.wrap(notebook.apiNotebook.cellAt(1).outputs[0].items[2].data).toString(), 'baz');
+	});
+	test('Append multiple stdout stream output items to an output with another mime', async function () {
+		await replaceOutputs(1, '1', [{ mime: 'text/plain', valueBytes: VSBuffer.fromString('foo') }]);
+		await appendOutputItem(1, '1', [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: VSBuffer.fromString('bar') }]);
+		await appendOutputItem(1, '1', [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: VSBuffer.fromString('baz') }]);
+
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs.length, 1);
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs[0].items.length, 3);
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs[0].items[0].mime, 'text/plain');
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs[0].items[1].mime, 'application/vnd.code.notebook.stdout');
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs[0].items[2].mime, 'application/vnd.code.notebook.stdout');
+	});
+	test('Compress multiple stdout stream output items', async function () {
+		await replaceOutputs(1, '1', [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: VSBuffer.fromString('foo') }]);
+		await appendOutputItem(1, '1', [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: VSBuffer.fromString('bar') }]);
+		await appendOutputItem(1, '1', [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: VSBuffer.fromString('baz') }]);
+
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs.length, 1);
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs[0].items.length, 1);
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs[0].items[0].mime, 'application/vnd.code.notebook.stdout');
+		assert.strictEqual(VSBuffer.wrap(notebook.apiNotebook.cellAt(1).outputs[0].items[0].data).toString(), 'foobarbaz');
+	});
+	test('Compress multiple stderr stream output items', async function () {
+		await replaceOutputs(1, '1', [{ mime: 'application/vnd.code.notebook.stderr', valueBytes: VSBuffer.fromString('foo') }]);
+		await appendOutputItem(1, '1', [{ mime: 'application/vnd.code.notebook.stderr', valueBytes: VSBuffer.fromString('bar') }]);
+		await appendOutputItem(1, '1', [{ mime: 'application/vnd.code.notebook.stderr', valueBytes: VSBuffer.fromString('baz') }]);
+
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs.length, 1);
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs[0].items.length, 1);
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs[0].items[0].mime, 'application/vnd.code.notebook.stderr');
+		assert.strictEqual(VSBuffer.wrap(notebook.apiNotebook.cellAt(1).outputs[0].items[0].data).toString(), 'foobarbaz');
 	});
 });

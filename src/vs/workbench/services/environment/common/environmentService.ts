@@ -25,6 +25,7 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	// --- Paths
 	readonly logFile: URI;
 	readonly extHostLogsPath: URI;
+	readonly extHostTelemetryLogFile: URI;
 
 	// --- Extensions
 	readonly extensionEnabledProposedApi?: string[];
@@ -44,6 +45,7 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	// --- Editors to open
 	readonly filesToOpenOrCreate?: IPath[] | undefined;
 	readonly filesToDiff?: IPath[] | undefined;
+	readonly filesToMerge?: IPath[] | undefined;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:

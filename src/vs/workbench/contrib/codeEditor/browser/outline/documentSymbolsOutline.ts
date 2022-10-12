@@ -103,6 +103,11 @@ class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<Document
 	}
 }
 
+export const enum DocumentSymbolsOutlineInitialState {
+	Collapsed = 'alwaysCollapse',
+	Expanded = 'alwaysExpand'
+}
+
 class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 	private readonly _disposables = new DisposableStore();
@@ -156,8 +161,9 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			}
 		};
 		const comparator = new DocumentSymbolComparator();
+		const initialState = textResourceConfigurationService.getValue<DocumentSymbolsOutlineInitialState>(_editor.getModel()?.uri, OutlineConfigKeys.collapseItems);
 		const options = {
-			collapseByDefault: target === OutlineTarget.Breadcrumbs,
+			collapseByDefault: target === OutlineTarget.Breadcrumbs || (target === OutlineTarget.OutlinePane && initialState === DocumentSymbolsOutlineInitialState.Collapsed),
 			expandOnlyOnTwistieClick: true,
 			multipleSelectionSupport: false,
 			identityProvider: new DocumentSymbolIdentityProvider(),
@@ -403,8 +409,7 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 	readonly dispose: () => void;
 
 	constructor(
-		@IOutlineService outlineService: IOutlineService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IOutlineService outlineService: IOutlineService
 	) {
 		const reg = outlineService.registerOutlineCreator(this);
 		this.dispose = () => reg.dispose();
@@ -427,7 +432,7 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 			return undefined;
 		}
 		const firstLoadBarrier = new Barrier();
-		const result = this._instantiationService.createInstance(DocumentSymbolsOutline, editor, target, firstLoadBarrier);
+		const result = editor.invokeWithinContext(accessor => accessor.get(IInstantiationService).createInstance(DocumentSymbolsOutline, editor!, target, firstLoadBarrier));
 		await firstLoadBarrier.wait();
 		return result;
 	}

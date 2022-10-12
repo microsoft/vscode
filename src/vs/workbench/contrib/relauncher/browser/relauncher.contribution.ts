@@ -26,14 +26,15 @@ interface IConfiguration extends IWindowsConfiguration {
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
-	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean } } };
-	workbench?: { experimental?: { settingsProfiles?: { enabled?: boolean } } };
+	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean } };
+	workbench?: { experimental?: { settingsProfiles?: { enabled?: boolean } }; enableExperiments?: boolean };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
 
 	private titleBarStyle: 'native' | 'custom' | undefined;
 	private windowControlsOverlayEnabled: boolean | undefined;
+	private windowSandboxEnabled: boolean | undefined;
 	private nativeTabs: boolean | undefined;
 	private nativeFullScreen: boolean | undefined;
 	private clickThroughInactive: boolean | undefined;
@@ -41,6 +42,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 	private workspaceTrustEnabled: boolean | undefined;
 	private settingsProfilesEnabled: boolean | undefined;
+	private experimentsEnabled: boolean | undefined;
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -66,11 +68,16 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			}
 
 			// Windows: Window Controls Overlay
-			if (isWindows && typeof config.window?.experimental?.windowControlsOverlay?.enabled === 'boolean' && config.window?.experimental?.windowControlsOverlay?.enabled !== this.windowControlsOverlayEnabled) {
+			if (isWindows && typeof config.window?.experimental?.windowControlsOverlay?.enabled === 'boolean' && config.window.experimental.windowControlsOverlay.enabled !== this.windowControlsOverlayEnabled) {
 				this.windowControlsOverlayEnabled = config.window.experimental.windowControlsOverlay.enabled;
 				changed = true;
 			}
 
+			// Windows: Sandbox
+			if (typeof config.window?.experimental?.useSandbox === 'boolean' && config.window.experimental.useSandbox !== this.windowSandboxEnabled) {
+				this.windowSandboxEnabled = config.window.experimental.useSandbox;
+				changed = true;
+			}
 
 			// macOS: Native tabs
 			if (isMacintosh && typeof config.window?.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
@@ -96,12 +103,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 				changed = true;
 			}
 
-			// Profiles
-			if (typeof config.workbench?.experimental?.settingsProfiles?.enabled === 'boolean' && config.workbench.experimental.settingsProfiles.enabled !== this.settingsProfilesEnabled) {
-				this.settingsProfilesEnabled = config.workbench.experimental.settingsProfiles.enabled;
-				changed = true;
-			}
-
 			// On linux turning on accessibility support will also pass this flag to the chrome renderer, thus a restart is required
 			if (isLinux && typeof config.editor?.accessibilitySupport === 'string' && config.editor.accessibilitySupport !== this.accessibilitySupport) {
 				this.accessibilitySupport = config.editor.accessibilitySupport;
@@ -115,6 +116,18 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 				this.workspaceTrustEnabled = config.security.workspace.trust.enabled;
 				changed = true;
 			}
+		}
+
+		// Profiles
+		if (this.productService.quality === 'stable' && typeof config.workbench?.experimental?.settingsProfiles?.enabled === 'boolean' && config.workbench.experimental.settingsProfiles.enabled !== this.settingsProfilesEnabled) {
+			this.settingsProfilesEnabled = config.workbench.experimental.settingsProfiles.enabled;
+			changed = true;
+		}
+
+		// Experiments
+		if (typeof config.workbench?.enableExperiments === 'boolean' && config.workbench.enableExperiments !== this.experimentsEnabled) {
+			this.experimentsEnabled = config.workbench.enableExperiments;
+			changed = true;
 		}
 
 		// Notify only when changed and we are the focused window (avoids notification spam across windows)
@@ -179,9 +192,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 			});
 
 		this._register(toDisposable(() => {
-			if (this.onDidChangeWorkspaceFoldersUnbind) {
-				this.onDidChangeWorkspaceFoldersUnbind.dispose();
-			}
+			this.onDidChangeWorkspaceFoldersUnbind?.dispose();
 		}));
 	}
 

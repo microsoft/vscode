@@ -92,6 +92,7 @@ export interface IOutline<E> {
 
 export const enum OutlineConfigKeys {
 	'icons' = 'outline.icons',
+	'collapseItems' = 'outline.collapseItems',
 	'problemsEnabled' = 'outline.problems.enabled',
 	'problemsColors' = 'outline.problems.colors',
 	'problemsBadges' = 'outline.problems.badges'

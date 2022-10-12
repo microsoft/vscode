@@ -20,7 +20,6 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { DeletedElement, fixedDiffEditorOptions, fixedEditorOptions, getOptimizedNestedCodeEditorWidgetOptions, InsertElement, ModifiedElement } from 'vs/workbench/contrib/notebook/browser/diff/diffComponents';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -29,6 +28,7 @@ import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { PixelRatio } from 'vs/base/browser/browser';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<DiffElementViewModelBase> {
 	private readonly lineHeight: number;
@@ -147,6 +147,7 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 	disposeTemplate(templateData: CellDiffSingleSideRenderTemplate): void {
 		templateData.container.innerText = '';
 		templateData.sourceEditor.dispose();
+		templateData.elementDisposables.dispose();
 	}
 
 	disposeElement(element: SingleSideDiffElementViewModel, index: number, templateData: CellDiffSingleSideRenderTemplate): void {
@@ -184,10 +185,10 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 
 		const inputToolbarContainer = DOM.append(sourceContainer, DOM.$('.editor-input-toolbar-container'));
 		const cellToolbarContainer = DOM.append(inputToolbarContainer, DOM.$('div.property-toolbar'));
-		const toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
+		const toolbar = this.instantiationService.createInstance(WorkbenchToolBar, cellToolbarContainer, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService);
+					const item = new CodiconActionViewItem(action, undefined, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService);
 					return item;
 				}
 
@@ -275,9 +276,13 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 		templateData.container.innerText = '';
 		templateData.sourceEditor.dispose();
 		templateData.toolbar?.dispose();
+		templateData.elementDisposables.dispose();
 	}
 
 	disposeElement(element: SideBySideDiffElementViewModel, index: number, templateData: CellDiffSideBySideRenderTemplate): void {
+		if (templateData.toolbar) {
+			templateData.toolbar.context = undefined;
+		}
 		templateData.elementDisposables.clear();
 	}
 }
@@ -310,8 +315,8 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService) {
-		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
+		@IInstantiationService instantiationService: IInstantiationService) {
+		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, instantiationService);
 	}
 
 	protected override createMouseController(options: IListOptions<DiffElementViewModelBase>): MouseController<DiffElementViewModelBase> {
@@ -333,7 +338,11 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 	}
 
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
-		this.view.triggerScrollFromMouseWheelEvent(browserEvent);
+		this.view.delegateScrollFromMouseWheelEvent(browserEvent);
+	}
+
+	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent) {
+		this.view.delegateVerticalScrollbarPointerDown(browserEvent);
 	}
 
 	clear() {
@@ -443,22 +452,6 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows.drop-target,
 				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
 			`);
-		}
-
-		if (styles.listFilterWidgetBackground) {
-			content.push(`.monaco-list-type-filter { background-color: ${styles.listFilterWidgetBackground} }`);
-		}
-
-		if (styles.listFilterWidgetOutline) {
-			content.push(`.monaco-list-type-filter { border: 1px solid ${styles.listFilterWidgetOutline}; }`);
-		}
-
-		if (styles.listFilterWidgetNoMatchesOutline) {
-			content.push(`.monaco-list-type-filter.no-matches { border: 1px solid ${styles.listFilterWidgetNoMatchesOutline}; }`);
-		}
-
-		if (styles.listMatchesShadow) {
-			content.push(`.monaco-list-type-filter { box-shadow: 1px 1px 1px ${styles.listMatchesShadow}; }`);
 		}
 
 		const newStyles = content.join('\n');

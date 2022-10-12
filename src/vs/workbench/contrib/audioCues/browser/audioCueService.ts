@@ -9,9 +9,9 @@ import { FileAccess } from 'vs/base/common/network';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { observableFromEvent, IObservable, LazyDerived } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
+import { IObservable, observableFromEvent, derived } from 'vs/base/common/observable';
 
 export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 
@@ -29,7 +29,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 
 	private readonly screenReaderAttached = observableFromEvent(
 		this.accessibilityService.onDidChangeScreenReaderOptimized,
-		() => this.accessibilityService.isScreenReaderOptimized()
+		() => /** @description accessibilityService.onDidChangeScreenReaderOptimized */ this.accessibilityService.isScreenReaderOptimized()
 	);
 
 	constructor(
@@ -85,7 +85,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
 			e.affectsConfiguration('audioCues.enabled')
 		),
-		() => this.configurationService.getValue<'on' | 'off' | 'auto'>('audioCues.enabled')
+		() => /** @description config: audioCues.enabled */ this.configurationService.getValue<'on' | 'off' | 'auto'>('audioCues.enabled')
 	);
 
 	private readonly isEnabledCache = new Cache((cue: AudioCue) => {
@@ -95,7 +95,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 			),
 			() => this.configurationService.getValue<'on' | 'off' | 'auto'>(cue.settingsKey)
 		);
-		return new LazyDerived(reader => {
+		return derived('audio cue enabled', reader => {
 			const setting = settingObservable.read(reader);
 			if (
 				setting === 'on' ||
@@ -113,7 +113,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 			}
 
 			return false;
-		}, 'audio cue enabled');
+		});
 	});
 
 	public isEnabled(cue: AudioCue): IObservable<boolean> {
@@ -147,11 +147,14 @@ export class Sound {
 	}
 
 
-	public static readonly error = Sound.register({ fileName: 'error.opus' });
-	public static readonly warning = Sound.register({ fileName: 'warning.opus' });
-	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.opus' });
-	public static readonly break = Sound.register({ fileName: 'break.opus' });
-	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.opus' });
+	public static readonly error = Sound.register({ fileName: 'error.mp3' });
+	public static readonly warning = Sound.register({ fileName: 'warning.mp3' });
+	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.mp3' });
+	public static readonly break = Sound.register({ fileName: 'break.mp3' });
+	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.mp3' });
+	public static readonly taskCompleted = Sound.register({ fileName: 'taskCompleted.mp3' });
+	public static readonly taskFailed = Sound.register({ fileName: 'taskFailed.mp3' });
+	public static readonly terminalBell = Sound.register({ fileName: 'terminalBell.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -199,6 +202,12 @@ export class AudioCue {
 		settingsKey: 'audioCues.lineHasInlineSuggestion',
 	});
 
+	public static readonly terminalQuickFix = AudioCue.register({
+		name: localize('audioCues.terminalQuickFix.name', 'Terminal Quick Fix'),
+		sound: Sound.quickFixes,
+		settingsKey: 'audioCues.terminalQuickFix',
+	});
+
 	public static readonly onDebugBreak = AudioCue.register({
 		name: localize('audioCues.onDebugBreak.name', 'Debugger Stopped on Breakpoint'),
 		sound: Sound.break,
@@ -209,6 +218,24 @@ export class AudioCue {
 		name: localize('audioCues.noInlayHints', 'No Inlay Hints on Line'),
 		sound: Sound.error,
 		settingsKey: 'audioCues.noInlayHints'
+	});
+
+	public static readonly taskCompleted = AudioCue.register({
+		name: localize('audioCues.taskCompleted', 'Task Completed'),
+		sound: Sound.taskCompleted,
+		settingsKey: 'audioCues.taskCompleted'
+	});
+
+	public static readonly taskFailed = AudioCue.register({
+		name: localize('audioCues.taskFailed', 'Task Failed'),
+		sound: Sound.taskFailed,
+		settingsKey: 'audioCues.taskFailed'
+	});
+
+	public static readonly terminalBell = AudioCue.register({
+		name: localize('audioCues.terminalBell', 'Terminal Bell'),
+		sound: Sound.terminalBell,
+		settingsKey: 'audioCues.terminalBell'
 	});
 
 	private constructor(

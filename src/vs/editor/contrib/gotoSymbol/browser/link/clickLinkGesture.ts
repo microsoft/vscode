@@ -25,9 +25,11 @@ export class ClickLinkMouseEvent {
 	public readonly hasTriggerModifier: boolean;
 	public readonly hasSideBySideModifier: boolean;
 	public readonly isNoneOrSingleMouseDown: boolean;
+	public readonly hasRightClick: boolean;
 
 	constructor(source: IEditorMouseEvent, opts: ClickLinkOptions) {
 		this.target = source.target;
+		this.hasRightClick = source.event.rightButton;
 		this.hasTriggerModifier = hasModifier(source.event, opts.triggerModifier);
 		this.hasSideBySideModifier = hasModifier(source.event, opts.triggerSideBySideModifier);
 		this.isNoneOrSingleMouseDown = (source.event.detail <= 1);
@@ -106,16 +108,18 @@ export class ClickLinkGesture extends Disposable {
 	public readonly onCancel: Event<void> = this._onCancel.event;
 
 	private readonly _editor: ICodeEditor;
+	private readonly _alwaysFireExecuteOnMouseUp?: boolean;
 	private _opts: ClickLinkOptions;
 
 	private _lastMouseMoveEvent: ClickLinkMouseEvent | null;
 	private _hasTriggerKeyOnMouseDown: boolean;
 	private _lineNumberOnMouseDown: number;
 
-	constructor(editor: ICodeEditor) {
+	constructor(editor: ICodeEditor, alwaysFireOnMouseUp?: boolean) {
 		super();
 
 		this._editor = editor;
+		this._alwaysFireExecuteOnMouseUp = alwaysFireOnMouseUp;
 		this._opts = createOptions(this._editor.getOption(EditorOption.multiCursorModifier));
 
 		this._lastMouseMoveEvent = null;
@@ -175,7 +179,7 @@ export class ClickLinkGesture extends Disposable {
 
 	private _onEditorMouseUp(mouseEvent: ClickLinkMouseEvent): void {
 		const currentLineNumber = mouseEvent.target.position ? mouseEvent.target.position.lineNumber : 0;
-		if (this._hasTriggerKeyOnMouseDown && this._lineNumberOnMouseDown && this._lineNumberOnMouseDown === currentLineNumber) {
+		if (this._hasTriggerKeyOnMouseDown && this._lineNumberOnMouseDown && this._lineNumberOnMouseDown === currentLineNumber || this._alwaysFireExecuteOnMouseUp) {
 			this._onExecute.fire(mouseEvent);
 		}
 	}

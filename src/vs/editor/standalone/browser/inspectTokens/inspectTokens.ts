@@ -89,9 +89,7 @@ class InspectTokens extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const controller = InspectTokensController.get(editor);
-		if (controller) {
-			controller.launch();
-		}
+		controller?.launch();
 	}
 }
 

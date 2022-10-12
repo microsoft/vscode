@@ -11,6 +11,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { IOpenEmptyWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
@@ -22,12 +23,14 @@ export interface IWindowsMainService {
 
 	readonly onDidOpenWindow: Event<ICodeWindow>;
 	readonly onDidSignalReadyWindow: Event<ICodeWindow>;
+	readonly onDidTriggerSystemContextMenu: Event<{ window: ICodeWindow; x: number; y: number }>;
 	readonly onDidDestroyWindow: Event<ICodeWindow>;
 
-	open(openConfig: IOpenConfiguration): ICodeWindow[];
-	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[];
+	open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
+	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): Promise<ICodeWindow[]>;
+	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
+
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void;
-	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): ICodeWindow[];
 
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
@@ -84,6 +87,7 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	readonly forceReuseWindow?: boolean;
 	readonly forceEmpty?: boolean;
 	readonly diffMode?: boolean;
+	readonly mergeMode?: boolean;
 	addMode?: boolean;
 	readonly gotoLineMode?: boolean;
 	readonly initialStartup?: boolean;
@@ -94,6 +98,7 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	 * - a workspace that is neither `file://` nor `vscode-remote://`
 	 */
 	readonly remoteAuthority?: string;
+	readonly profile?: IUserDataProfile;
 }
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }

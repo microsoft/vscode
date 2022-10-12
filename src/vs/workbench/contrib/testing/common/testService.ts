@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, ITestItemContext, ResolvedTestRunRequest, RunTestForControllerRequest, TestItemExpandState, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
+import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, ITestItemContext, ResolvedTestRunRequest, RunTestForControllerRequest, RunTestForControllerResult, TestItemExpandState, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
@@ -23,10 +23,11 @@ export interface IMainThreadTestController {
 	readonly id: string;
 	readonly label: IObservableValue<string>;
 	readonly canRefresh: IObservableValue<boolean>;
+	syncTests(token: CancellationToken): Promise<void>;
 	refreshTests(token: CancellationToken): Promise<void>;
 	configureRunProfile(profileId: number): void;
 	expandTest(id: string, levels: number): Promise<void>;
-	runTests(request: RunTestForControllerRequest, token: CancellationToken): Promise<void>;
+	runTests(request: RunTestForControllerRequest[], token: CancellationToken): Promise<RunTestForControllerResult[]>;
 }
 
 export type TestDiffListener = (diff: TestsDiff) => void;
@@ -77,10 +78,8 @@ export interface IMainThreadTestCollection extends AbstractIncrementalTestCollec
  * Iterates through the item and its parents to the root.
  */
 export const getCollectionItemParents = function* (collection: IMainThreadTestCollection, item: InternalTestItem) {
-	let i: InternalTestItem | undefined = item;
-	while (i) {
-		yield i;
-		i = i.parent ? collection.getNodeById(i.parent) : undefined;
+	for (const id of TestId.fromString(item.item.extId).idsToRoot()) {
+		yield collection.getNodeById(id.toString())!;
 	}
 };
 
@@ -159,11 +158,29 @@ export const getAllTestsInHierarchy = async (collection: IMainThreadTestCollecti
 };
 
 /**
+ * Waits for the test to no longer be in the "busy" state.
+ */
+export const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCollectionItem) => {
+	if (!test.item.busy) {
+		return;
+	}
+
+	return new Promise<void>(resolve => {
+		const l = testService.onDidProcessDiff(() => {
+			if (testService.collection.getNodeById(test.item.extId)?.item.busy !== true) {
+				resolve(); // removed, or no longer busy
+				l.dispose();
+			}
+		});
+	});
+};
+
+/**
  * Iterator that expands to and iterates through tests in the file. Iterates
  * in strictly descending order.
  */
-export const testsInFile = async function* (collection: IMainThreadTestCollection, ident: IUriIdentityService, uri: URI): AsyncIterable<IncrementalTestCollectionItem> {
-	for (const test of collection.all) {
+export const testsInFile = async function* (testService: ITestService, ident: IUriIdentityService, uri: URI, waitForIdle = true): AsyncIterable<IncrementalTestCollectionItem> {
+	for (const test of testService.collection.all) {
 		if (!test.item.uri) {
 			continue;
 		}
@@ -172,8 +189,13 @@ export const testsInFile = async function* (collection: IMainThreadTestCollectio
 			yield test;
 		}
 
-		if (ident.extUri.isEqualOrParent(uri, test.item.uri) && test.expand === TestItemExpandState.Expandable) {
-			await collection.expand(test.item.extId, 1);
+		if (ident.extUri.isEqualOrParent(uri, test.item.uri)) {
+			if (test.expand === TestItemExpandState.Expandable) {
+				await testService.collection.expand(test.item.extId, 1);
+			}
+			if (waitForIdle) {
+				await waitForTestToBeIdle(testService, test);
+			}
 		}
 	}
 };
@@ -263,6 +285,12 @@ export interface ITestService {
 	 * Requests that tests be executed.
 	 */
 	runResolvedTests(req: ResolvedTestRunRequest, token?: CancellationToken): Promise<ITestResult>;
+
+	/**
+	 * Ensures the test diff from the remote ext host is flushed and waits for
+	 * any "busy" tests to become idle before resolving.
+	 */
+	syncTests(): Promise<void>;
 
 	/**
 	 * Cancels an ongoing test run by its ID, or all runs if no ID is given.

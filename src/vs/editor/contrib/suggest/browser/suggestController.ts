@@ -226,8 +226,11 @@ export class SuggestController implements IEditorContribution {
 			this._lineSuffix.value = new LineSuffix(this.editor.getModel()!, e.position);
 		}));
 		this._toDispose.add(this.model.onDidSuggest(e => {
-			if (!e.shy) {
-				let index = -1;
+			if (e.shy) {
+				return;
+			}
+			let index = -1;
+			if (!e.noSelect) {
 				for (const selector of this._selectors.itemsOrderedByPriorityDesc) {
 					index = selector.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
 					if (index !== -1) {
@@ -237,8 +240,8 @@ export class SuggestController implements IEditorContribution {
 				if (index === -1) {
 					index = this._memoryService.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
 				}
-				this.widget.value.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
 			}
+			this.widget.value.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
 		}));
 		this._toDispose.add(this.model.onDidCancel(e => {
 			if (!e.retrigger) {
@@ -400,7 +403,7 @@ export class SuggestController implements IEditorContribution {
 
 		} else if (item.completion.command.id === TriggerSuggestAction.id) {
 			// retigger
-			this.model.trigger({ auto: true, shy: false }, true);
+			this.model.trigger({ auto: true, shy: false, noSelect: false }, true);
 
 		} else {
 			// exec command, done
@@ -494,9 +497,9 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>, auto?: boolean, noFilter?: boolean): void {
+	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>, auto?: boolean, noFilter?: boolean, noSelect?: boolean): void {
 		if (this.editor.hasModel()) {
-			this.model.trigger({ auto: auto ?? false, shy: false }, false, onlyFrom, undefined, noFilter);
+			this.model.trigger({ auto: auto ?? false, shy: false, noSelect: noSelect ?? false }, false, onlyFrom, undefined, noFilter);
 			this.editor.revealPosition(this.editor.getPosition(), ScrollType.Smooth);
 			this.editor.focus();
 		}
@@ -565,7 +568,7 @@ export class SuggestController implements IEditorContribution {
 			}, undefined, listener);
 		});
 
-		this.model.trigger({ auto: false, shy: true });
+		this.model.trigger({ auto: false, shy: true, noSelect: false });
 		this.editor.revealPosition(positionNow, ScrollType.Smooth);
 		this.editor.focus();
 	}
@@ -706,15 +709,19 @@ export class TriggerSuggestAction extends EditorAction {
 			return;
 		}
 
-		type TriggerArgs = { auto: boolean };
+		type TriggerArgs = { auto: boolean; noSelection: boolean };
 		let auto: boolean | undefined;
+		let noSelect: boolean | undefined;
 		if (args && typeof args === 'object') {
 			if ((<TriggerArgs>args).auto === true) {
 				auto = true;
 			}
+			if ((<TriggerArgs>args).noSelection === true) {
+				noSelect = true;
+			}
 		}
 
-		controller.triggerSuggest(undefined, auto);
+		controller.triggerSuggest(undefined, auto, undefined, noSelect);
 	}
 }
 
@@ -728,7 +735,7 @@ const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(Sugge
 
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestion',
-	precondition: SuggestContext.Visible,
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.HasFocusedSuggestion),
 	handler(x) {
 		x.acceptSelectedSuggestion(true, false);
 	},
@@ -766,7 +773,7 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptAlternativeSelectedSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus, SuggestContext.HasFocusedSuggestion),
 	kbOpts: {
 		weight: weight,
 		kbExpr: EditorContextKeys.textInputFocus,

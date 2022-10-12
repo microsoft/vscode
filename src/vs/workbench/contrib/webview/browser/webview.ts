@@ -161,6 +161,11 @@ export interface IWebview extends IDisposable {
 	 */
 	readonly origin: string;
 
+	/**
+	 * The original view type of the webview.
+	 */
+	readonly providedViewType?: string;
+
 	html: string;
 	contentOptions: WebviewContentOptions;
 	localResourcesRoot: readonly URI[];
@@ -187,8 +192,8 @@ export interface IWebview extends IDisposable {
 	focus(): void;
 	reload(): void;
 
-	showFind(): void;
-	hideFind(): void;
+	showFind(animated?: boolean): void;
+	hideFind(animated?: boolean): void;
 	runFindAction(previous: boolean): void;
 
 	selectAll(): void;

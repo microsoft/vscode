@@ -245,6 +245,9 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			}
 		} else {
 			path = untitledWorkspace.configPath;
+			if (!this.userDataProfileService.currentProfile.isDefault) {
+				await this.userDataProfilesService.setProfileForWorkspace(untitledWorkspace, this.userDataProfileService.currentProfile);
+			}
 		}
 
 		return this.enterWorkspace(path);
@@ -282,7 +285,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		const isNotUntitledWorkspace = !isUntitledWorkspace(targetConfigPathURI, this.environmentService);
 		if (isNotUntitledWorkspace && !this.userDataProfileService.currentProfile.isDefault) {
 			const newWorkspace = await this.workspacesService.getWorkspaceIdentifier(targetConfigPathURI);
-			await this.userDataProfilesService.setProfileForWorkspace(this.userDataProfileService.currentProfile, newWorkspace);
+			await this.userDataProfilesService.setProfileForWorkspace(newWorkspace, this.userDataProfileService.currentProfile);
 		}
 
 		// Return early if target is same as source

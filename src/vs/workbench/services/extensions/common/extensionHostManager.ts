@@ -20,7 +20,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHost, ExtensionHostKind, ActivationKind, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService, ExtensionRunningLocation, ExtensionHostExtensions } from 'vs/workbench/services/extensions/common/extensions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Barrier } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -66,12 +66,12 @@ export function createExtensionHostManager(instantiationService: IInstantiationS
 export type ExtensionHostStartupClassification = {
 	owner: 'alexdima';
 	comment: 'The startup state of the extension host';
-	time: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	action: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	kind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	errorName?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	errorMessage?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-	errorStack?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+	time: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The time reported by Date.now().' };
+	action: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The action: starting, success or error.' };
+	kind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The extension host kind: LocalProcess, LocalWebWorker or Remote.' };
+	errorName?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error name.' };
+	errorMessage?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error message.' };
+	errorStack?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error stack.' };
 };
 
 export type ExtensionHostStartupEvent = {
@@ -131,7 +131,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		};
 		this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', startingTelemetryEvent);
 
-		this._proxy = this._extensionHost.start()!.then(
+		this._proxy = this._extensionHost.start().then(
 			(protocol) => {
 				this._hasStarted = true;
 
@@ -708,7 +708,7 @@ registerAction2(class MeasureExtHostLatencyAction extends Action2 {
 				value: nls.localize('measureExtHostLatency', "Measure Extension Host Latency"),
 				original: 'Measure Extension Host Latency'
 			},
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}

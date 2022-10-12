@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/better-cpp-syntax/commit/ddcaa65af8a578881e0d38f3c1cf5259a1128ab5",
+	"version": "https://github.com/jeff-hykin/better-cpp-syntax/commit/32be139c7d3cdf07195af4b3a5c639ebf4e3b356",
 	"name": "C++",
 	"scopeName": "source.cpp",
 	"patterns": [
@@ -1650,10 +1650,10 @@
 									]
 								},
 								"6": {
-									"name": "keyword.other.default.constructor.cpp"
+									"name": "keyword.other.default.function.cpp keyword.other.default.constructor.cpp"
 								},
 								"7": {
-									"name": "keyword.other.delete.constructor.cpp"
+									"name": "keyword.other.delete.function.cpp keyword.other.delete.constructor.cpp"
 								}
 							}
 						},
@@ -2025,10 +2025,10 @@
 									]
 								},
 								"6": {
-									"name": "keyword.other.default.constructor.cpp"
+									"name": "keyword.other.default.function.cpp keyword.other.default.constructor.cpp"
 								},
 								"7": {
-									"name": "keyword.other.delete.constructor.cpp"
+									"name": "keyword.other.delete.function.cpp keyword.other.delete.constructor.cpp"
 								}
 							}
 						},
@@ -3296,10 +3296,10 @@
 									]
 								},
 								"6": {
-									"name": "keyword.other.default.constructor.cpp"
+									"name": "keyword.other.default.function.cpp keyword.other.default.constructor.cpp keyword.other.default.destructor.cpp"
 								},
 								"7": {
-									"name": "keyword.other.delete.constructor.cpp"
+									"name": "keyword.other.delete.function.cpp keyword.other.delete.constructor.cpp keyword.other.delete.destructor.cpp"
 								}
 							}
 						},
@@ -3587,10 +3587,10 @@
 									]
 								},
 								"6": {
-									"name": "keyword.other.default.constructor.cpp"
+									"name": "keyword.other.default.function.cpp keyword.other.default.constructor.cpp keyword.other.default.destructor.cpp"
 								},
 								"7": {
-									"name": "keyword.other.delete.constructor.cpp"
+									"name": "keyword.other.delete.function.cpp keyword.other.delete.constructor.cpp keyword.other.delete.destructor.cpp"
 								}
 							}
 						},
@@ -6174,19 +6174,16 @@
 			]
 		},
 		"goto_statement": {
-			"match": "((?<!\\w)goto(?!\\w))((?:((?:(?>(?:\\s)+)|\\/\\*(?:[^\\*]|(?:\\*)++[^\\/])*+(?:\\*)++\\/)+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)",
+			"match": "((?:((?:(?>(?:\\s)+)|\\/\\*(?:[^\\*]|(?:\\*)++[^\\/])*+(?:\\*)++\\/)+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)goto(?!\\w))((?:((?:(?>(?:\\s)+)|\\/\\*(?:[^\\*]|(?:\\*)++[^\\/])*+(?:\\*)++\\/)+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)",
 			"captures": {
 				"1": {
-					"name": "keyword.control.goto.cpp"
-				},
-				"2": {
 					"patterns": [
 						{
 							"include": "#inline_comment"
 						}
 					]
 				},
-				"3": {
+				"2": {
 					"patterns": [
 						{
 							"match": "(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))",
@@ -6213,7 +6210,44 @@
 						}
 					]
 				},
+				"3": {
+					"name": "keyword.control.goto.cpp"
+				},
 				"4": {
+					"patterns": [
+						{
+							"include": "#inline_comment"
+						}
+					]
+				},
+				"5": {
+					"patterns": [
+						{
+							"match": "(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))",
+							"captures": {
+								"1": {
+									"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
+								},
+								"2": {
+									"name": "comment.block.cpp"
+								},
+								"3": {
+									"patterns": [
+										{
+											"match": "\\*\\/",
+											"name": "comment.block.cpp punctuation.definition.comment.end.cpp"
+										},
+										{
+											"match": "\\*",
+											"name": "comment.block.cpp"
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				"6": {
 					"name": "entity.name.label.call.cpp"
 				}
 			}
@@ -6910,15 +6944,23 @@
 					"name": "storage.modifier.lambda.$0.cpp"
 				},
 				{
-					"match": "(->)((?:.+?(?=\\{|$))?)",
-					"captures": {
-						"1": {
+					"begin": "->",
+					"end": "(?=\\{)",
+					"beginCaptures": {
+						"0": {
 							"name": "punctuation.definition.lambda.return-type.cpp"
+						}
+					},
+					"endCaptures": {},
+					"patterns": [
+						{
+							"include": "#comments"
 						},
-						"2": {
+						{
+							"match": "\\S+",
 							"name": "storage.type.return-type.lambda.cpp"
 						}
-					}
+					]
 				},
 				{
 					"begin": "\\{",
@@ -8701,6 +8743,45 @@
 						},
 						{
 							"include": "#qualifiers_and_specifiers_post_parameters"
+						},
+						{
+							"match": "(\\=)((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?:(default)|(delete))",
+							"captures": {
+								"1": {
+									"name": "keyword.operator.assignment.cpp"
+								},
+								"2": {
+									"patterns": [
+										{
+											"include": "#inline_comment"
+										}
+									]
+								},
+								"3": {
+									"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
+								},
+								"4": {
+									"name": "comment.block.cpp"
+								},
+								"5": {
+									"patterns": [
+										{
+											"match": "\\*\\/",
+											"name": "comment.block.cpp punctuation.definition.comment.end.cpp"
+										},
+										{
+											"match": "\\*",
+											"name": "comment.block.cpp"
+										}
+									]
+								},
+								"6": {
+									"name": "keyword.other.default.function.cpp"
+								},
+								"7": {
+									"name": "keyword.other.delete.function.cpp"
+								}
+							}
 						},
 						{
 							"include": "$self"
@@ -13008,27 +13089,27 @@
 			"name": "meta.qualified_type.cpp"
 		},
 		"qualifiers_and_specifiers_post_parameters": {
-			"match": "((?:((?:(?>(?:\\s)+)|\\/\\*(?:[^\\*]|(?:\\*)++[^\\/])*+(?:\\*)++\\/)+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?:((?:((?:(?>(?:\\s)+)|\\/\\*(?:[^\\*]|(?:\\*)++[^\\/])*+(?:\\*)++\\/)+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?<!\\w)(?:(?:override)|(?:volatile)|(?:noexcept)|(?:final)|(?:const))(?!\\w))+(?=\\s*(?:(?:\\{|;)|[\\n\\r])))",
+			"match": "((?:(?:(?:(?:(?>(?:\\s)+)|\\/\\*(?:[^\\*]|(?:\\*)++[^\\/])*+(?:\\*)++\\/)+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z))(?<!\\w)(?:(?:override)|(?:volatile)|(?:noexcept)|(?:final)|(?:const))(?!\\w))+)(?=\\s*(?:(?:\\{|;)|[\\n\\r]))",
 			"captures": {
 				"1": {
 					"patterns": [
 						{
-							"include": "#inline_comment"
-						}
-					]
-				},
-				"2": {
-					"patterns": [
-						{
-							"match": "(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))",
+							"match": "((?:(?:(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))((?<!\\w)(?:(?:override)|(?:volatile)|(?:noexcept)|(?:final)|(?:const))(?!\\w))",
 							"captures": {
 								"1": {
-									"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
+									"patterns": [
+										{
+											"include": "#inline_comment"
+										}
+									]
 								},
 								"2": {
-									"name": "comment.block.cpp"
+									"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
 								},
 								"3": {
+									"name": "comment.block.cpp"
+								},
+								"4": {
 									"patterns": [
 										{
 											"match": "\\*\\/",
@@ -13039,43 +13120,9 @@
 											"name": "comment.block.cpp"
 										}
 									]
-								}
-							}
-						}
-					]
-				},
-				"3": {
-					"name": "storage.modifier.specifier.functional.post-parameters.$3.cpp"
-				},
-				"4": {
-					"patterns": [
-						{
-							"include": "#inline_comment"
-						}
-					]
-				},
-				"5": {
-					"patterns": [
-						{
-							"match": "(?:(?>(?:\\s)+)|(\\/\\*)((?:[^\\*]|(?:\\*)++[^\\/])*+((?:\\*)++\\/)))",
-							"captures": {
-								"1": {
-									"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
 								},
-								"2": {
-									"name": "comment.block.cpp"
-								},
-								"3": {
-									"patterns": [
-										{
-											"match": "\\*\\/",
-											"name": "comment.block.cpp punctuation.definition.comment.end.cpp"
-										},
-										{
-											"match": "\\*",
-											"name": "comment.block.cpp"
-										}
-									]
+								"5": {
+									"name": "storage.modifier.specifier.functional.post-parameters.$5.cpp"
 								}
 							}
 						}
@@ -16126,10 +16173,10 @@
 			]
 		},
 		"template_argument_defaulted": {
-			"match": "(?<=<|,)(?:(?:\\s)+)?((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*(?:\\s)+)*)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)(?:(?:\\s)+)?([=])",
+			"match": "(?<=<|,)(?:(?:\\s)+)?((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)(?:\\s)+((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)?)(?:(?:\\s)+)?(\\=)",
 			"captures": {
 				"1": {
-					"name": "storage.type.template.cpp"
+					"name": "storage.type.template.argument.$1.cpp"
 				},
 				"2": {
 					"name": "entity.name.type.template.cpp"
@@ -16214,7 +16261,7 @@
 					"name": "storage.type.template.cpp"
 				},
 				"2": {
-					"name": "punctuation.section.angle-brackets.start.template.definition.cpp"
+					"name": "punctuation.section.angle-brackets.begin.template.definition.cpp"
 				}
 			},
 			"endCaptures": {
@@ -16234,7 +16281,7 @@
 					},
 					"endCaptures": {
 						"0": {
-							"name": "punctuation.section.angle-brackets.begin.template.call.cpp"
+							"name": "punctuation.section.angle-brackets.end.template.call.cpp"
 						}
 					},
 					"patterns": [
@@ -16249,7 +16296,7 @@
 			]
 		},
 		"template_definition_argument": {
-			"match": "((?:((?:(?>(?:\\s)+)|\\/\\*(?:[^\\*]|(?:\\*)++[^\\/])*+(?:\\*)++\\/)+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?:(?:((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)|((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*(?:\\s)+)+)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*))|((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)(?:(?:\\s)+)?(\\.\\.\\.)(?:(?:\\s)+)?((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*))(?:(?:\\s)+)?(?:(,)|(?=>|$))",
+			"match": "((?:((?:(?>(?:\\s)+)|\\/\\*(?:[^\\*]|(?:\\*)++[^\\/])*+(?:\\*)++\\/)+)|(?:\\b)|(?=\\W)|(?<=\\W)|(?:\\A)|(?:\\Z)))(?:(?:(?:((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)|((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*(?:\\s)+)+)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*))|((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)(?:(?:\\s)+)?(\\.\\.\\.)(?:(?:\\s)+)?((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*))|(?<!\\w)(template)(?:(?:\\s)+)?(<)(?:(?:\\s)+)?((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)(?:(?:\\s)+)?((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)?)(?:(?:\\s)+)?(>)(?:(?:\\s)+)?(class|typename)(?:(?:\\s)+((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*))?)(?:(?:\\s)+)?(?:(\\=)(?:(?:\\s)+)?(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*)?(?:(,)|(?=>|$))",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -16300,7 +16347,7 @@
 					"name": "entity.name.type.template.cpp"
 				},
 				"6": {
-					"name": "storage.type.template.cpp"
+					"name": "storage.type.template.argument.$6.cpp"
 				},
 				"7": {
 					"name": "punctuation.vararg-ellipses.template.definition.cpp"
@@ -16309,6 +16356,30 @@
 					"name": "entity.name.type.template.cpp"
 				},
 				"9": {
+					"name": "storage.type.template.cpp"
+				},
+				"10": {
+					"name": "punctuation.section.angle-brackets.begin.template.definition.cpp"
+				},
+				"11": {
+					"name": "storage.type.template.argument.$11.cpp"
+				},
+				"12": {
+					"name": "entity.name.type.template.cpp"
+				},
+				"13": {
+					"name": "punctuation.section.angle-brackets.end.template.definition.cpp"
+				},
+				"14": {
+					"name": "storage.type.template.argument.$14.cpp"
+				},
+				"15": {
+					"name": "entity.name.type.template.cpp"
+				},
+				"16": {
+					"name": "keyword.operator.assignment.cpp"
+				},
+				"17": {
 					"name": "punctuation.separator.delimiter.comma.template.argument.cpp"
 				}
 			}
@@ -16333,13 +16404,13 @@
 			]
 		},
 		"template_isolated_definition": {
-			"match": "(?<!\\w)(template)(?:(?:\\s)+)?(<)(.*)(>(?:(?:\\s)+)?$)",
+			"match": "(?<!\\w)(template)(?:(?:\\s)+)?(<)(.*)(>)(?:(?:\\s)+)?$",
 			"captures": {
 				"1": {
 					"name": "storage.type.template.cpp"
 				},
 				"2": {
-					"name": "punctuation.section.angle-brackets.start.template.definition.cpp"
+					"name": "punctuation.section.angle-brackets.begin.template.definition.cpp"
 				},
 				"3": {
 					"name": "meta.template.definition.cpp",

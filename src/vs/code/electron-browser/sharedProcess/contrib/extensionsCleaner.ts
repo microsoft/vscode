@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IExtensionGalleryService, IExtensionIdentifier, IGlobalExtensionEnablementService, ServerDidUninstallExtensionEvent, ServerInstallExtensionResult, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionIdentifier, IGlobalExtensionEnablementService, DidUninstallExtensionEvent, InstallExtensionResult, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
@@ -34,12 +34,11 @@ export class ExtensionsCleaner extends Disposable {
 	) {
 		super();
 
-		extensionManagementService.removeUninstalledExtensions(this.userDataProfilesService.profiles.length > 1);
+		extensionManagementService.removeUninstalledExtensions(this.userDataProfilesService.profiles.length === 1);
 		migrateUnsupportedExtensions(extensionManagementService, extensionGalleryService, extensionStorageService, extensionEnablementService, logService);
 		ExtensionStorageService.removeOutdatedExtensionVersions(extensionManagementService, storageService);
 		this._register(instantiationService.createInstance(ProfileExtensionsCleaner));
 	}
-
 }
 
 class ProfileExtensionsCleaner extends Disposable {
@@ -59,14 +58,14 @@ class ProfileExtensionsCleaner extends Disposable {
 		this.onDidChangeProfiles({ added: this.userDataProfilesService.profiles, removed: [], all: this.userDataProfilesService.profiles });
 	}
 
-	private async onDidChangeProfiles({ added, removed, all }: DidChangeProfilesEvent): Promise<void> {
+	private async onDidChangeProfiles({ added, removed, all }: Omit<DidChangeProfilesEvent, 'updated'>): Promise<void> {
 		try {
 			await Promise.all(removed.map(profile => profile.extensionsResource ? this.removeExtensionsFromProfile(profile.extensionsResource) : Promise.resolve()));
 		} catch (error) {
 			this.logService.error(error);
 		}
 
-		if (all.length === 0) {
+		if (all.length === 1) {
 			// Exit profile mode
 			this.profileModeDisposables.clear();
 			// Listen for entering into profile mode
@@ -97,13 +96,13 @@ class ProfileExtensionsCleaner extends Disposable {
 
 	private async uninstallExtensionsNotInProfiles(): Promise<void> {
 		const installed = await this.extensionManagementService.getAllUserInstalled();
-		const toUninstall = installed.filter(installedExtension => !this.profileExtensionsLocations.has(this.getKey(installedExtension.identifier, installedExtension.manifest.version)));
+		const toUninstall = installed.filter(installedExtension => installedExtension.installedTimestamp /* Installed by VS Code */ && !this.profileExtensionsLocations.has(this.getKey(installedExtension.identifier, installedExtension.manifest.version)));
 		if (toUninstall.length) {
 			await Promise.all(toUninstall.map(extension => this.extensionManagementService.uninstall(extension, uninstalOptions)));
 		}
 	}
 
-	private async onDidInstallExtensions(installedExtensions: readonly ServerInstallExtensionResult[]): Promise<void> {
+	private async onDidInstallExtensions(installedExtensions: readonly InstallExtensionResult[]): Promise<void> {
 		for (const { local, profileLocation } of installedExtensions) {
 			if (!local || !profileLocation) {
 				continue;
@@ -112,7 +111,7 @@ class ProfileExtensionsCleaner extends Disposable {
 		}
 	}
 
-	private async onDidUninstallExtension(e: ServerDidUninstallExtensionEvent): Promise<void> {
+	private async onDidUninstallExtension(e: DidUninstallExtensionEvent): Promise<void> {
 		if (!e.profileLocation || !e.version) {
 			return;
 		}
@@ -170,7 +169,7 @@ class ProfileExtensionsCleaner extends Disposable {
 
 	private async uninstallExtensions(extensionsToRemove: { identifier: IExtensionIdentifier; version: string }[]): Promise<void> {
 		const installed = await this.extensionManagementService.getAllUserInstalled();
-		const toUninstall = installed.filter(installedExtension => extensionsToRemove.some(e => this.getKey(installedExtension.identifier, installedExtension.manifest.version) === this.getKey(e.identifier, e.version)));
+		const toUninstall = installed.filter(installedExtension => installedExtension.installedTimestamp /* Installed by VS Code */ && extensionsToRemove.some(e => this.getKey(installedExtension.identifier, installedExtension.manifest.version) === this.getKey(e.identifier, e.version)));
 		if (toUninstall.length) {
 			await Promise.all(toUninstall.map(extension => this.extensionManagementService.uninstall(extension, uninstalOptions)));
 		}
@@ -184,5 +183,4 @@ class ProfileExtensionsCleaner extends Disposable {
 		const [id, version] = getIdAndVersion(key);
 		return version ? { identifier: { id }, version } : undefined;
 	}
-
 }
