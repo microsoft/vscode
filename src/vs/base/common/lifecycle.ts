@@ -186,7 +186,7 @@ export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 }
 
 /**
- * Turn a function that implements dispose into a {@link IDisposable}.
+ * Turn a function that implements dispose into an {@link IDisposable}.
  */
 export function toDisposable(fn: () => void): IDisposable {
 	const self = trackDisposable({
@@ -201,9 +201,9 @@ export function toDisposable(fn: () => void): IDisposable {
 /**
  * Manages a collection of disposable values.
  *
- * This is the preferred way to manage multiple disposables. A `DisposableStore` is safer to work with than a
- * `IDisposable[]` as it considers edge cases, such as registering the same value multiple times or what happens
- * if you try adding an item to a store that has already been disposed of.
+ * This is the preferred way to manage multiple disposables. A `DisposableStore` is safer to work with than an
+ * `IDisposable[]` as it considers edge cases, such as registering the same value multiple times or adding an item to a
+ * store that has already been disposed of.
  */
 export class DisposableStore implements IDisposable {
 
