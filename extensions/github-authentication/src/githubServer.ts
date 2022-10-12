@@ -598,7 +598,7 @@ export class GitHubServer implements IGitHubServer {
 				return;
 			}
 
-			const json: { verifiable_password_authentication: boolean; installed_version: string } = await result.json();
+			const json = await result.json() as { verifiable_password_authentication: boolean; installed_version: string };
 
 			/* __GDPR__
 				"ghe-session" : {
