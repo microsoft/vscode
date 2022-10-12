@@ -82,15 +82,15 @@
 	},
 	"[typescript]": {
 		"editor.defaultFormatter": "vscode.typescript-language-features",
-		"editor.formatOnSave": true
+		"editor.formatOnSave": false
 	},
 	"[javascript]": {
 		"editor.defaultFormatter": "vscode.typescript-language-features",
-		"editor.formatOnSave": true
+		"editor.formatOnSave": false
 	},
 	"[rust]": {
 		"editor.defaultFormatter": "rust-lang.rust-analyzer",
-		"editor.formatOnSave": true,
+		"editor.formatOnSave": false,
 		"editor.insertSpaces": true
 	},
 	"typescript.tsc.autoDetect": "off",
