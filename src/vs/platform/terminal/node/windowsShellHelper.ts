@@ -9,7 +9,14 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isWindows, platform } from 'vs/base/common/platform';
 import { TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import type * as WindowsProcessTreeType from 'windows-process-tree';
+
+// note: @types/windows-process-tree is deprecated
+// types are bundled in windows-process-tree
+// but that package is installed only on windows
+// https://github.com/DefinitelyTyped/DefinitelyTyped/pull/53335
+// fix: Cannot find module 'windows-process-tree' or its corresponding type declarations
+//import type * as WindowsProcessTree from 'windows-process-tree';
+import type * as WindowsProcessTree from '../../../../../node_modules/@types/windows-process-tree';
 
 export interface IWindowsShellHelper extends IDisposable {
 	readonly onShellNameChanged: Event<string>;
@@ -32,7 +39,7 @@ const SHELL_EXECUTABLES = [
 	'sles-12.exe'
 ];
 
-let windowsProcessTree: typeof WindowsProcessTreeType;
+let windowsProcessTree: typeof WindowsProcessTree;
 
 export class WindowsShellHelper extends Disposable implements IWindowsShellHelper {
 	private _isDisposed: boolean;
@@ -129,6 +136,9 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 			return this._currentRequest;
 		}
 		if (!windowsProcessTree) {
+			// optional module
+			// fix: Cannot find module 'windows-process-tree'
+			// @ts-ignore
 			windowsProcessTree = await import('windows-process-tree');
 		}
 		this._currentRequest = new Promise<string>(resolve => {
