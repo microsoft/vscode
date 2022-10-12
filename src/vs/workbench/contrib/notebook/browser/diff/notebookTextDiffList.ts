@@ -147,6 +147,7 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 	disposeTemplate(templateData: CellDiffSingleSideRenderTemplate): void {
 		templateData.container.innerText = '';
 		templateData.sourceEditor.dispose();
+		templateData.elementDisposables.dispose();
 	}
 
 	disposeElement(element: SingleSideDiffElementViewModel, index: number, templateData: CellDiffSingleSideRenderTemplate): void {
@@ -275,6 +276,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 		templateData.container.innerText = '';
 		templateData.sourceEditor.dispose();
 		templateData.toolbar?.dispose();
+		templateData.elementDisposables.dispose();
 	}
 
 	disposeElement(element: SideBySideDiffElementViewModel, index: number, templateData: CellDiffSideBySideRenderTemplate): void {

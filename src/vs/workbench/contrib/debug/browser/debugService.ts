@@ -84,6 +84,7 @@ export class DebugService implements IDebugService {
 	private sessionCancellationTokens = new Map<string, CancellationTokenSource>();
 	private activity: IDisposable | undefined;
 	private chosenEnvironments: { [key: string]: string };
+	private haveDoneLazySetup = false;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -140,7 +141,6 @@ export class DebugService implements IDebugService {
 		this.viewModel = new ViewModel(contextKeyService);
 		this.taskRunner = this.instantiationService.createInstance(DebugTaskRunner);
 
-		this.disposables.add(this.fileService.registerProvider(DEBUG_MEMORY_SCHEME, new DebugMemoryFileSystemProvider(this)));
 		this.disposables.add(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
 		this.disposables.add(this.lifecycleService.onWillShutdown(this.dispose, this));
 
@@ -304,6 +304,15 @@ export class DebugService implements IDebugService {
 		return this._onDidEndSession.event;
 	}
 
+	private lazySetup() {
+		if (!this.haveDoneLazySetup) {
+			// Registering fs providers is slow
+			// https://github.com/microsoft/vscode/issues/159886
+			this.disposables.add(this.fileService.registerProvider(DEBUG_MEMORY_SCHEME, new DebugMemoryFileSystemProvider(this)));
+			this.haveDoneLazySetup = true;
+		}
+	}
+
 	//---- life cycle management
 
 	/**
@@ -316,6 +325,9 @@ export class DebugService implements IDebugService {
 		if (!trust) {
 			return false;
 		}
+
+		this.lazySetup();
+
 		this.startInitializingState(options);
 		try {
 			// make sure to save all files and that the configuration is up to date
@@ -559,7 +571,7 @@ export class DebugService implements IDebugService {
 
 		const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
 		// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
-		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug !== 'neverOpen' && this.viewModel.firstSessionStart)) && !session.isSimpleUI) {
+		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug !== 'neverOpen' && this.viewModel.firstSessionStart)) && !session.suppressDebugView) {
 			await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
 		}
 
@@ -1038,12 +1050,27 @@ export class DebugService implements IDebugService {
 	}
 
 	async sendAllBreakpoints(session?: IDebugSession): Promise<any> {
-		await Promise.all(distinct(this.model.getBreakpoints(), bp => bp.uri.toString()).map(bp => this.sendBreakpoints(bp.uri, false, session)));
-		await this.sendFunctionBreakpoints(session);
-		await this.sendDataBreakpoints(session);
-		await this.sendInstructionBreakpoints(session);
-		// send exception breakpoints at the end since some debug adapters rely on the order
-		await this.sendExceptionBreakpoints(session);
+		const setBreakpointsPromises = distinct(this.model.getBreakpoints(), bp => bp.uri.toString())
+			.map(bp => this.sendBreakpoints(bp.uri, false, session));
+
+		// If sending breakpoints to one session which we know supports the configurationDone request, can make all requests in parallel
+		if (session?.capabilities.supportsConfigurationDoneRequest) {
+			await Promise.all([
+				...setBreakpointsPromises,
+				this.sendFunctionBreakpoints(session),
+				this.sendDataBreakpoints(session),
+				this.sendInstructionBreakpoints(session),
+				this.sendExceptionBreakpoints(session),
+			]);
+		} else {
+			await Promise.all(setBreakpointsPromises);
+			await this.sendFunctionBreakpoints(session);
+			await this.sendDataBreakpoints(session);
+			await this.sendInstructionBreakpoints(session);
+			// send exception breakpoints at the end since some debug adapters may rely on the order - this was the case before
+			// the configurationDone request was introduced.
+			await this.sendExceptionBreakpoints(session);
+		}
 	}
 
 	private async sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): Promise<void> {
