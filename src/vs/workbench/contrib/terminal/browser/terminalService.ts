@@ -399,9 +399,6 @@ export class TerminalService implements ITerminalService {
 		this._connectionState = TerminalConnectionState.Connected;
 		this._onDidChangeConnectionState.fire();
 		this._logService.trace('Reconnected to terminals');
-		if (this._terminalGroupService.groups.length === 0 && this.isProcessSupportRegistered) {
-			this.createTerminal({ location: TerminalLocation.Panel });
-		}
 	}
 
 	private async _reconnectToRemoteTerminals(): Promise<void> {
