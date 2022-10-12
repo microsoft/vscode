@@ -275,8 +275,9 @@ export interface IUpdateControllerPreloadsMessage {
 
 export interface RendererMetadata {
 	readonly id: string;
-	readonly entrypoint: { readonly extends: string | undefined; readonly path: string };
+	readonly entrypoint: string;
 	readonly mimeTypes: readonly string[];
+	readonly extends: string | undefined;
 	readonly messaging: boolean;
 	readonly isBuiltin: boolean;
 }

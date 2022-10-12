@@ -1314,7 +1314,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		/** Inner function cached in the _loadPromise(). */
 		private async _load(): Promise<rendererApi.RendererApi | undefined> {
-			const module: RendererModule = await __import(this.data.entrypoint.path);
+			const module: RendererModule = await __import(this.data.entrypoint);
 			if (!module) {
 				return;
 			}
@@ -1324,7 +1324,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			// Load all renderers that extend this renderer
 			await Promise.all(
 				ctx.rendererData
-					.filter(d => d.entrypoint.extends === this.data.id)
+					.filter(d => d.extends === this.data.id)
 					.map(async d => {
 						const renderer = renderers.getRenderer(d.id);
 						if (!renderer) {
@@ -1436,7 +1436,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		private rendererEqual(a: webviewMessages.RendererMetadata, b: webviewMessages.RendererMetadata) {
-			if (a.id !== b.id || a.entrypoint.path !== b.entrypoint.path || a.entrypoint.extends !== b.entrypoint.extends || a.messaging !== b.messaging) {
+			if (a.entrypoint !== b.entrypoint || a.id !== b.id || a.extends !== b.extends || a.messaging !== b.messaging) {
 				return false;
 			}
 
@@ -1497,7 +1497,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					.find((renderer) => renderer.data.id === preferredRendererId);
 			} else {
 				const renderers = Array.from(this._renderers.values())
-					.filter((renderer) => renderer.data.mimeTypes.includes(info.mime) && !renderer.data.entrypoint.extends);
+					.filter((renderer) => renderer.data.mimeTypes.includes(info.mime) && !renderer.data.extends);
 
 				if (renderers.length) {
 					// De-prioritize built-in renderers

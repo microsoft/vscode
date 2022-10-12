@@ -8,7 +8,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { INotebookRendererInfo, ContributedNotebookRendererEntrypoint, NotebookRendererMatch, RendererMessagingSpec, NotebookRendererEntrypoint } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookRendererInfo, NotebookRendererEntrypoint, NotebookRendererMatch, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 class DependencyList {
 	private readonly value: ReadonlySet<string>;
@@ -17,6 +17,10 @@ class DependencyList {
 	constructor(value: Iterable<string>) {
 		this.value = new Set(value);
 		this.defined = this.value.size > 0;
+	}
+
+	public values(): string[] {
+		return Array.from(this.value);
 	}
 
 	/** Gets whether any of the 'available' dependencies match the ones in this list */
@@ -30,13 +34,17 @@ class DependencyList {
 export class NotebookOutputRendererInfo implements INotebookRendererInfo {
 
 	readonly id: string;
-	readonly entrypoint: NotebookRendererEntrypoint;
+	readonly extends?: string;
+	readonly entrypoint: URI;
 	readonly displayName: string;
 	readonly extensionLocation: URI;
 	readonly extensionId: ExtensionIdentifier;
 	readonly hardDependencies: DependencyList;
 	readonly optionalDependencies: DependencyList;
+	/** @see RendererMessagingSpec */
 	readonly messaging: RendererMessagingSpec;
+	// todo: re-add preloads in pure renderer API
+	readonly preloads: ReadonlyArray<URI> = [];
 
 	readonly mimeTypes: readonly string[];
 	private readonly mimeTypeGlobs: glob.ParsedPattern[];
@@ -46,7 +54,7 @@ export class NotebookOutputRendererInfo implements INotebookRendererInfo {
 	constructor(descriptor: {
 		readonly id: string;
 		readonly displayName: string;
-		readonly entrypoint: ContributedNotebookRendererEntrypoint;
+		readonly entrypoint: NotebookRendererEntrypoint;
 		readonly mimeTypes: readonly string[];
 		readonly extension: IExtensionDescription;
 		readonly dependencies: readonly string[] | undefined;
@@ -59,15 +67,10 @@ export class NotebookOutputRendererInfo implements INotebookRendererInfo {
 		this.isBuiltin = descriptor.extension.isBuiltin;
 
 		if (typeof descriptor.entrypoint === 'string') {
-			this.entrypoint = {
-				extends: undefined,
-				path: joinPath(this.extensionLocation, descriptor.entrypoint)
-			};
+			this.entrypoint = joinPath(this.extensionLocation, descriptor.entrypoint);
 		} else {
-			this.entrypoint = {
-				extends: descriptor.entrypoint.extends,
-				path: joinPath(this.extensionLocation, descriptor.entrypoint.path)
-			};
+			this.extends = descriptor.entrypoint.extends;
+			this.entrypoint = joinPath(this.extensionLocation, descriptor.entrypoint.path);
 		}
 
 		this.displayName = descriptor.displayName;
@@ -76,6 +79,10 @@ export class NotebookOutputRendererInfo implements INotebookRendererInfo {
 		this.hardDependencies = new DependencyList(descriptor.dependencies ?? Iterable.empty());
 		this.optionalDependencies = new DependencyList(descriptor.optionalDependencies ?? Iterable.empty());
 		this.messaging = descriptor.requiresMessaging ?? RendererMessagingSpec.Never;
+	}
+
+	public get dependencies(): string[] {
+		return this.hardDependencies.values();
 	}
 
 	public matchesWithoutKernel(mimeType: string) {
@@ -111,7 +118,7 @@ export class NotebookOutputRendererInfo implements INotebookRendererInfo {
 	}
 
 	private matchesMimeTypeOnly(mimeType: string) {
-		if (!URI.isUri(this.entrypoint)) { // We're extending another renderer
+		if (this.extends !== undefined) {
 			return false;
 		}
 
