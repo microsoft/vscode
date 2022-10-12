@@ -49,7 +49,7 @@ class Node {
 	}
 
 	toString() {
-		return `${this.callFrame.url}#${this.callFrame.functionName}@${this.callFrame.lineNumber}:${this.callFrame.columnNumber}`;
+		return `${this.callFrame.url}/${this.callFrame.functionName}#${this.callFrame.lineNumber}:${this.callFrame.columnNumber}`;
 	}
 
 	static makeTotals(call: Node) {
