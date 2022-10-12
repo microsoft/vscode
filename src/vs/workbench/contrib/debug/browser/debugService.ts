@@ -121,22 +121,10 @@ export class DebugService implements IDebugService {
 		this.disposables.add(this.configurationManager);
 		this.debugStorage = this.instantiationService.createInstance(DebugStorage);
 
-		contextKeyService.bufferChangeEvents(() => {
-			this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
-			this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
-			this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
-			this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
-			this.debugUx.set(this.debugStorage.loadDebugUxState());
-			this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
-			// Need to set disassemblyViewFocus here to make it in the same context as the debug event handlers
-			this.disassemblyViewFocus = CONTEXT_DISASSEMBLY_VIEW_FOCUS.bindTo(contextKeyService);
-		});
 		this.chosenEnvironments = this.debugStorage.loadChosenEnvironments();
 
 		this.model = this.instantiationService.createInstance(DebugModel, this.debugStorage);
 		this.telemetry = this.instantiationService.createInstance(DebugTelemetry, this.model);
-		const setBreakpointsExistContext = () => this.breakpointsExist.set(!!(this.model.getBreakpoints().length || this.model.getDataBreakpoints().length || this.model.getFunctionBreakpoints().length));
-		setBreakpointsExistContext();
 
 		this.viewModel = new ViewModel(contextKeyService);
 		this.taskRunner = this.instantiationService.createInstance(DebugTaskRunner);
@@ -182,7 +170,6 @@ export class DebugService implements IDebugService {
 				}
 			}
 		}));
-		this.disposables.add(this.model.onDidChangeBreakpoints(() => setBreakpointsExistContext()));
 
 		this.disposables.add(editorService.onDidActiveEditorChange(() => {
 			this.contextKeyService.bufferChangeEvents(() => {
@@ -202,6 +189,27 @@ export class DebugService implements IDebugService {
 				}
 			}
 		}));
+
+		this.initContextKeys(contextKeyService);
+	}
+
+	private initContextKeys(contextKeyService: IContextKeyService): void {
+		queueMicrotask(() => {
+			contextKeyService.bufferChangeEvents(() => {
+				this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
+				this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
+				this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
+				this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
+				this.debugUx.set(this.debugStorage.loadDebugUxState());
+				this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
+				// Need to set disassemblyViewFocus here to make it in the same context as the debug event handlers
+				this.disassemblyViewFocus = CONTEXT_DISASSEMBLY_VIEW_FOCUS.bindTo(contextKeyService);
+			});
+
+			const setBreakpointsExistContext = () => this.breakpointsExist.set(!!(this.model.getBreakpoints().length || this.model.getDataBreakpoints().length || this.model.getFunctionBreakpoints().length));
+			setBreakpointsExistContext();
+			this.disposables.add(this.model.onDidChangeBreakpoints(() => setBreakpointsExistContext()));
+		});
 	}
 
 	getModel(): IDebugModel {
