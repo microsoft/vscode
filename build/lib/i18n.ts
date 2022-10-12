@@ -919,7 +919,3 @@ function encodeEntities(value: string): string {
 function decodeEntities(value: string): string {
 	return value.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 }
-
-function pseudify(message: string) {
-	return '\uFF3B' + message.replace(/[aouei]/g, '$&$&') + '\uFF3D';
-}
