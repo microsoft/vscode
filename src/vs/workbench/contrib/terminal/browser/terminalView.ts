@@ -163,6 +163,9 @@ export class TerminalViewPane extends ViewPane {
 		}));
 
 		this._register(this._terminalService.onDidChangeConnectionState(() => {
+			if (!this._terminalService.isProcessSupportRegistered) {
+				return;
+			}
 			this._terminalsInitialized = true;
 			if (this._terminalGroupService.groups.length === 0 && this._viewShowing.get()) {
 				this._terminalService.createTerminal({ location: TerminalLocation.Panel });
@@ -174,6 +177,7 @@ export class TerminalViewPane extends ViewPane {
 			if (visible) {
 				if (!this._terminalService.isProcessSupportRegistered) {
 					this._onDidChangeViewWelcomeState.fire();
+					return;
 				}
 				if (this._terminalsInitialized && this._terminalGroupService.groups.length === 0) {
 					this._terminalService.createTerminal({ location: TerminalLocation.Panel });
