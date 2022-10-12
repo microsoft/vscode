@@ -406,7 +406,7 @@ export class GitHubServer implements IGitHubServer {
 					continue;
 				}
 
-				const accessTokenJson = await accessTokenResult.json();
+				const accessTokenJson: any = await accessTokenResult.json();
 
 				if (accessTokenJson.error === 'authorization_pending') {
 					continue;
