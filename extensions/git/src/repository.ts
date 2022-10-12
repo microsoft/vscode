@@ -2035,7 +2035,7 @@ export class Repository implements Disposable {
 		if (sort !== 'alphabetically' && sort !== 'committerdate') {
 			sort = 'alphabetically';
 		}
-		const [refs, remotes, submodules, rebaseCommit, mergeInProgress] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit(), this.isMergeInProgress()]);
+		const [refs, remotes, submodules, rebaseCommit, mergeInProgress, commitTemplate] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit(), this.isMergeInProgress(), this.getInputTemplate()]);
 
 		this._HEAD = HEAD;
 		this._refs = refs!;
@@ -2103,7 +2103,7 @@ export class Repository implements Disposable {
 
 		this._onDidChangeStatus.fire();
 
-		this._sourceControl.commitTemplate = await this.getInputTemplate();
+		this._sourceControl.commitTemplate = commitTemplate;
 	}
 
 	private setCountBadge(): void {
