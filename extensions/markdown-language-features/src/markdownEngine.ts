@@ -137,13 +137,9 @@ export class MarkdownItEngine implements IMdParser {
 				const frontMatterPlugin = (await import('markdown-it-front-matter')).default;
 				// Extract rules from front matter plugin and apply at a lower precedence
 				let fontMatterRule: any;
-				frontMatterPlugin({
-					block: {
-						ruler: {
-							before: (_id: any, _id2: any, rule: any) => { fontMatterRule = rule; }
-						}
-					}
-				}, () => { /* noop */ });
+				const tempMd = new markdownIt();
+				tempMd.block.ruler.before = (_id: any, _id2: any, rule: any) => { fontMatterRule = rule; };
+				frontMatterPlugin(tempMd, () => { /* noop */ });
 
 				md.block.ruler.before('fence', 'front_matter', fontMatterRule, {
 					alt: ['paragraph', 'reference', 'blockquote', 'list']
