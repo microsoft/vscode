@@ -573,15 +573,23 @@ async function resolveNlsConfiguration() {
 		// The ternary and ts-ignore can both be removed once Electron
 		// officially adopts the getSystemLocale API.
 		// Ref https://github.com/electron/electron/pull/35697
+		/**
+		 * @type string
+		 */
 		let appLocale = (product.quality === 'insider' || product.quality === 'exploration') ?
 			// @ts-ignore API not yet available in the official Electron
 			app.getSystemLocale() : app.getLocale();
 		if (!appLocale) {
 			nlsConfiguration = { locale: 'en', availableLanguages: {} };
 		} else {
-
 			// See above the comment about the loader and case sensitiveness
 			appLocale = appLocale.toLowerCase();
+
+			if (!appLocale.startsWith('pt') && !appLocale.startsWith('zh')) {
+				// Trim off the country code to help with the recommender.
+				// If - isn't in the string, the following code leaves appLocale unchanged.
+				appLocale = appLocale.split('-')[0];
+			}
 
 			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
