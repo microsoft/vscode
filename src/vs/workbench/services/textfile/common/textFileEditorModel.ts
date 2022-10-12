@@ -1149,7 +1149,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	// stable/semantic 'readonly'; typically based on filetype or directory.
-	// latest value of files.readonlyInclude/Exclude for this resource.path
+	// latest value derived from files.readonlyInclude/Exclude for this resource.path
 	private globReadonly: boolean = false;
 
 	private oldReadonly = false; // fileEditorInput.test.ts counts changes from 'false' not 'undefined'
