@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as fs from 'fs';
-import * as minimist from 'minimist';
+import minimist from 'minimist';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as path from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';

@@ -8,7 +8,7 @@ import { gracefulify } from 'graceful-fs';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
-import * as minimist from 'minimist';
+import minimist from 'minimist';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
 import * as vscodetest from '@vscode/test-electron';

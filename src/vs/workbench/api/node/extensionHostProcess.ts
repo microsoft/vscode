@@ -5,7 +5,7 @@
 
 import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
-import * as minimist from 'minimist';
+import minimist from 'minimist';
 import * as performance from 'vs/base/common/performance';
 import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
