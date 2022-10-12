@@ -170,31 +170,6 @@ class XLF {
     }
 }
 exports.XLF = XLF;
-XLF.parsePseudo = function (xlfString) {
-    return new Promise((resolve) => {
-        const parser = new xml2js.Parser();
-        const files = [];
-        parser.parseString(xlfString, function (_err, result) {
-            const fileNodes = result['xliff']['file'];
-            fileNodes.forEach(file => {
-                const name = file.$.original;
-                const messages = {};
-                const transUnits = file.body[0]['trans-unit'];
-                if (transUnits) {
-                    transUnits.forEach((unit) => {
-                        const key = unit.$.id;
-                        const val = pseudify(unit.source[0]['_'].toString());
-                        if (key && val) {
-                            messages[key] = decodeEntities(val);
-                        }
-                    });
-                    files.push({ messages, name, language: 'ps' });
-                }
-            });
-            resolve(files);
-        });
-    });
-};
 XLF.parse = function (xlfString) {
     return new Promise((resolve, reject) => {
         const parser = new xml2js.Parser();
@@ -836,7 +811,4 @@ function encodeEntities(value) {
 }
 function decodeEntities(value) {
     return value.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-}
-function pseudify(message) {
-    return '\uFF3B' + message.replace(/[aouei]/g, '$&$&') + '\uFF3D';
 }
