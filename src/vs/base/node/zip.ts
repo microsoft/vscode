@@ -173,7 +173,7 @@ function openZip(zipFile: string, lazy: boolean = false): Promise<ZipFile> {
 
 function openZipStream(zipFile: ZipFile, entry: Entry): Promise<Readable> {
 	return new Promise<Readable>((resolve, reject) => {
-		zipFile.openReadStream(entry, (error?: Error, stream?: Readable) => {
+		zipFile.openReadStream(entry, (error, stream) => {
 			if (error) {
 				reject(toExtractError(error));
 			} else {
