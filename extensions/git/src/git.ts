@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url';
 import which from 'which';
 import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
-import * as filetype from 'file-type';
+import filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows } from './util';
 import { CancellationToken, ConfigurationChangeEvent, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
@@ -1128,7 +1128,7 @@ export class Repository {
 		}
 
 		if (!isText) {
-			const result = await filetype.fromBuffer(buffer);
+			const result = await filetype.fileTypeFromBuffer(buffer);
 
 			if (!result) {
 				return { mimetype: 'application/octet-stream' };
