@@ -563,7 +563,7 @@ export class GitHubServer implements IGitHubServer {
 			});
 
 			if (result.ok) {
-				const json: { student: boolean; faculty: boolean } = await result.json();
+				const json = await result.json() as { student: boolean; faculty: boolean };
 
 				/* __GDPR__
 					"session" : {
