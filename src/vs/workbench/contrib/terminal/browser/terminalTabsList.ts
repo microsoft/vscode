@@ -261,7 +261,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			element,
 			label,
 			actionBar,
-			context
+			context,
+			elementDisposables: new DisposableStore(),
 		};
 	}
 
@@ -331,10 +332,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 
 		if (!hasActionbar) {
 			template.actionBar.clear();
-		}
-
-		if (!template.elementDisposables) {
-			template.elementDisposables = new DisposableStore();
 		}
 
 		// Kill terminal on middle click
@@ -456,16 +453,14 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	disposeElement(instance: ITerminalInstance, index: number, templateData: ITerminalTabEntryTemplate): void {
-		templateData.elementDisposables?.dispose();
-		templateData.elementDisposables = undefined;
+		templateData.elementDisposables.clear();
 		templateData.actionBar.clear();
 	}
 
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
-		templateData.elementDisposables?.dispose();
-		templateData.elementDisposables = undefined;
+		templateData.elementDisposables.dispose();
 		templateData.label.dispose();
-		templateData.actionBar.clear();
+		templateData.actionBar.dispose();
 	}
 
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
@@ -504,13 +499,13 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 }
 
 interface ITerminalTabEntryTemplate {
-	element: HTMLElement;
-	label: IResourceLabel;
-	actionBar: ActionBar;
+	readonly element: HTMLElement;
+	readonly label: IResourceLabel;
+	readonly actionBar: ActionBar;
 	context: {
 		hoverActions?: IHoverAction[];
 	};
-	elementDisposables?: DisposableStore;
+	readonly elementDisposables: DisposableStore;
 }
 
 
