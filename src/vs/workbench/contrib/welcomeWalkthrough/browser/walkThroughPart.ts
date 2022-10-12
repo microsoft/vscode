@@ -220,8 +220,7 @@ export class WalkThroughPart extends EditorPane {
 	private updateSizeClasses() {
 		const innerContent = this.content.firstElementChild;
 		if (this.size && innerContent) {
-			const classList = innerContent.classList;
-			classList[this.size.height <= 685 ? 'add' : 'remove']('max-height-685px');
+			innerContent.classList.toggle('max-height-685px', this.size.height <= 685);
 		}
 	}
 
