@@ -119,7 +119,7 @@ export class GitHubServer implements IGitHubServer {
 			const result = await fetch(this.getServerUri('/meta').toString(true));
 			if (result.ok) {
 				try {
-					const json: { installed_version: string } = await result.json();
+					const json = await result.json() as { installed_version: string };
 					const [majorStr, minorStr, _patch] = json.installed_version.split('.');
 					const major = Number(majorStr);
 					const minor = Number(minorStr);
