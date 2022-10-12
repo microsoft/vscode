@@ -621,6 +621,10 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 	disposeElement(_element: ITreeNode<IDebugSession, FuzzyScore>, _: number, templateData: ISessionTemplateData): void {
 		templateData.elementDisposable.clear();
 	}
+
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<IDebugSession>, FuzzyScore>, index: number, templateData: ISessionTemplateData, height: number | undefined): void {
+		templateData.elementDisposable.clear();
+	}
 }
 
 function getThreadContextOverlay(thread: IThread): [string, any][] {

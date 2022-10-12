@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -56,7 +56,7 @@ export class UserDataProfileImportExportService implements IUserDataProfileImpor
 
 		await this.progressService.withProgress({
 			location: ProgressLocation.Notification,
-			title: localize('profiles.importing', "{0}: Importing...", PROFILES_CATEGORY),
+			title: localize('profiles.importing', "{0}: Importing...", PROFILES_CATEGORY.value),
 		}, async progress => {
 			await this.userDataProfileManagementService.createAndEnterProfile(name);
 			if (profileTemplate.settings) {
@@ -70,13 +70,13 @@ export class UserDataProfileImportExportService implements IUserDataProfileImpor
 			}
 		});
 
-		this.notificationService.info(localize('imported profile', "{0}: Imported successfully.", PROFILES_CATEGORY));
+		this.notificationService.info(localize('imported profile', "{0}: Imported successfully.", PROFILES_CATEGORY.value));
 	}
 
 	async setProfile(profile: IUserDataProfileTemplate): Promise<void> {
 		await this.progressService.withProgress({
 			location: ProgressLocation.Notification,
-			title: localize('profiles.applying', "{0}: Applying...", PROFILES_CATEGORY),
+			title: localize('profiles.applying', "{0}: Applying...", PROFILES_CATEGORY.value),
 		}, async progress => {
 			if (profile.settings) {
 				await this.settingsProfile.applyProfile(profile.settings);
@@ -88,9 +88,9 @@ export class UserDataProfileImportExportService implements IUserDataProfileImpor
 				await this.extensionsProfile.applyProfile(profile.extensions);
 			}
 		});
-		this.notificationService.info(localize('applied profile', "{0}: Applied successfully.", PROFILES_CATEGORY));
+		this.notificationService.info(localize('applied profile', "{0}: Applied successfully.", PROFILES_CATEGORY.value));
 	}
 
 }
 
-registerSingleton(IUserDataProfileImportExportService, UserDataProfileImportExportService, true);
+registerSingleton(IUserDataProfileImportExportService, UserDataProfileImportExportService, InstantiationType.Delayed);

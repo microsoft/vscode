@@ -19,6 +19,7 @@ import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions,
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 import { OutputChannelLogger } from './log';
+import TelemetryReporter from '@vscode/extension-telemetry';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
@@ -374,11 +375,14 @@ export class Git {
 	private _onOutput = new EventEmitter();
 	get onOutput(): EventEmitter { return this._onOutput; }
 
-	constructor(options: IGitOptions) {
+	private readonly telemetryReporter: TelemetryReporter;
+
+	constructor(options: IGitOptions, telemetryReporter: TelemetryReporter) {
 		this.path = options.gitPath;
 		this.version = options.version;
 		this.userAgent = options.userAgent;
 		this.env = options.env || {};
+		this.telemetryReporter = telemetryReporter;
 
 		const onConfigurationChanged = (e?: ConfigurationChangeEvent) => {
 			if (e !== undefined && !e.affectsConfiguration('git.commandsToLog')) {
@@ -556,7 +560,9 @@ export class Git {
 	}
 
 	private async _exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
+		const startSpawn = Date.now();
 		const child = this.spawn(args, options);
+		const durSpawn = Date.now() - startSpawn;
 
 		options.onSpawn?.(child);
 
@@ -564,12 +570,13 @@ export class Git {
 			child.stdin!.end(options.input, 'utf8');
 		}
 
-		const startTime = Date.now();
+		const startExec = Date.now();
 		const bufferResult = await exec(child, options.cancellationToken);
+		const durExec = Date.now() - startExec;
 
 		if (options.log !== false) {
 			// command
-			this.log(`> git ${args.join(' ')} [${Date.now() - startTime}ms]\n`);
+			this.log(`> git ${args.join(' ')} [${durExec}ms]\n`);
 
 			// stdout
 			if (bufferResult.stdout.length > 0 && args.find(a => this.commandsToLog.includes(a))) {
@@ -581,6 +588,16 @@ export class Git {
 				this.log(`${bufferResult.stderr}\n`);
 			}
 		}
+
+		/* __GDPR__
+			"git.execDuration" : {
+				"owner": "lszomoru",
+				"comment": "Time it takes to spawn and execute a git command",
+				"durSpawn": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth","isMeasurement": true, "comment": "Time it took to run spawn git" },
+				"durExec": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth","isMeasurement": true, "comment": "Time git took" }
+			}
+		*/
+		this.telemetryReporter.sendTelemetryEvent('git.execDuration', undefined, { durSpawn, durExec });
 
 		let encoding = options.encoding || 'utf8';
 		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';

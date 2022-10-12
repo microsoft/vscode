@@ -6,18 +6,16 @@
 import { isFirefox } from 'vs/base/browser/browser';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IAction } from 'vs/base/common/actions';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { streamToBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { COI, Schemas } from 'vs/base/common/network';
+import { COI } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -32,7 +30,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
 import { parentOriginHash } from 'vs/workbench/browser/webview';
-import { asWebviewUri, decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/common/webview';
+import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/common/webview';
 import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib/webview/browser/resourceLoading';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
@@ -340,19 +338,14 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				return;
 			}
 			const elementBox = this.element.getBoundingClientRect();
+			const contextKeyService = this._contextKeyService!.createOverlay([
+				...Object.entries(data.context),
+				[webviewIdContext, this.providedViewType],
+			]);
 			contextMenuService.showContextMenu({
-				getActions: () => {
-					const contextKeyService = this._contextKeyService!.createOverlay([
-						...Object.entries(data.context),
-						[webviewIdContext, this.providedViewType],
-					]);
-
-					const result: IAction[] = [];
-					const menu = menuService.createMenu(MenuId.WebviewContext, contextKeyService);
-					createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result);
-					menu.dispose();
-					return result;
-				},
+				menuId: MenuId.WebviewContext,
+				menuActionOptions: { shouldForwardArgs: true },
+				contextKeyService,
 				getActionsContext: (): WebviewActionContext => ({ ...data.context, webview: this.providedViewType }),
 				getAnchor: () => ({
 					x: elementBox.x + data.clientX,
@@ -652,35 +645,12 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	}
 
 	public set html(value: string) {
-		const rewrittenHtml = this.rewriteVsCodeResourceUrls(value);
 		this.doUpdateContent({
-			html: rewrittenHtml,
+			html: value,
 			options: this.content.options,
 			state: this.content.state,
 		});
 		this._onDidHtmlChange.fire(value);
-	}
-
-	private rewriteVsCodeResourceUrls(value: string): string {
-		const isRemote = this.extension?.location?.scheme === Schemas.vscodeRemote;
-		const remoteAuthority = this.extension?.location?.scheme === Schemas.vscodeRemote ? this.extension.location.authority : undefined;
-		return value
-			.replace(/(["'])(?:vscode-resource):(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
-				const uri = URI.from({
-					scheme: scheme || 'file',
-					path: decodeURIComponent(path),
-				});
-				const webviewUri = asWebviewUri(uri, { isRemote, authority: remoteAuthority }).toString();
-				return `${startQuote}${webviewUri}${endQuote}`;
-			})
-			.replace(/(["'])(?:vscode-webview-resource):(\/\/[^\s\/'"]+\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
-				const uri = URI.from({
-					scheme: scheme || 'file',
-					path: decodeURIComponent(path),
-				});
-				const webviewUri = asWebviewUri(uri, { isRemote, authority: remoteAuthority }).toString();
-				return `${startQuote}${webviewUri}${endQuote}`;
-			});
 	}
 
 	public set contentOptions(options: WebviewContentOptions) {
@@ -957,12 +927,12 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this._onDidStopFind.fire();
 	}
 
-	public showFind() {
-		this._webviewFindWidget?.reveal();
+	public showFind(animated = true) {
+		this._webviewFindWidget?.reveal(undefined, animated);
 	}
 
-	public hideFind() {
-		this._webviewFindWidget?.hide();
+	public hideFind(animated = true) {
+		this._webviewFindWidget?.hide(animated);
 	}
 
 	public runFindAction(previous: boolean) {

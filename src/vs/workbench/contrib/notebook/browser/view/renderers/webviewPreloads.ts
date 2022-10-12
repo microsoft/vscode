@@ -1048,7 +1048,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					await Promise.all(event.data.cells.map(info => viewModel.ensureMarkupCell(info)));
 				} finally {
 					dimensionUpdater.updateImmediately();
-					postNotebookMessage('initializedMarkup', {});
+					postNotebookMessage('initializedMarkup', { requestId: event.data.requestId });
 				}
 				break;
 			}

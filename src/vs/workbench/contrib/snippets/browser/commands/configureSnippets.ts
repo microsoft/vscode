@@ -214,8 +214,8 @@ export class ConfigureSnippets extends SnippetsAction {
 				mnemonicTitle: nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets"),
 				original: 'User Snippets'
 			},
+			f1: true,
 			menu: [
-				{ id: MenuId.CommandPalette },
 				{ id: MenuId.MenubarPreferencesMenu, group: '3_snippets', order: 1 },
 				{ id: MenuId.GlobalActivity, group: '3_snippets', order: 1 },
 			]

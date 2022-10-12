@@ -6,6 +6,7 @@
 import { reset } from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { Iterable } from 'vs/base/common/iterator';
 import { autorun, autorunWithStore, derived, IObservable } from 'vs/base/common/observable';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
@@ -67,6 +68,7 @@ export class BaseCodeEditorView extends CodeEditorView {
 			return [];
 		}
 		const model = viewModel.model;
+		const textModel = model.base;
 
 		const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
 		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
@@ -98,6 +100,7 @@ export class BaseCodeEditorView extends CodeEditorView {
 				options: {
 					showIfCollapsed: true,
 					blockClassName: blockClassNames.join(' '),
+					blockIsAfterEnd: range.startLineNumber > textModel.getLineCount(),
 					description: 'Merge Editor',
 					minimap: {
 						position: MinimapPosition.Gutter,
@@ -113,7 +116,7 @@ export class BaseCodeEditorView extends CodeEditorView {
 		return result;
 	});
 
-	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
-		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeLensContribution.ID);
+	protected override getEditorContributions(): Iterable<IEditorContributionDescription> | undefined {
+		return Iterable.filter(EditorExtensionsRegistry.getEditorContributions(), c => c.id !== CodeLensContribution.ID);
 	}
 }

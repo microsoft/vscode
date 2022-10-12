@@ -598,7 +598,6 @@ export interface MainThreadStorageShape extends IDisposable {
 export interface MainThreadTelemetryShape extends IDisposable {
 	$publicLog(eventName: string, data?: any): void;
 	$publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void;
-	$logTelemetryToOutputChannel(eventName: string, data: Record<string, any>): void;
 }
 
 export interface MainThreadEditorInsetsShape extends IDisposable {
@@ -903,8 +902,8 @@ export interface ExtHostCustomEditorsShape {
 		viewType: string,
 		initData: {
 			title: string;
-			webviewOptions: IWebviewContentOptions;
-			panelOptions: IWebviewPanelOptions;
+			contentOptions: IWebviewContentOptions;
+			options: IWebviewPanelOptions;
 		},
 		position: EditorGroupColumn,
 		cancellation: CancellationToken
@@ -1227,9 +1226,9 @@ export interface IStartDebuggingOptions {
 	repl?: IDebugSessionReplMode;
 	noDebug?: boolean;
 	compact?: boolean;
-	debugUI?: {
-		simple?: boolean;
-	};
+	suppressDebugToolbar?: boolean;
+	suppressDebugStatusbar?: boolean;
+	suppressDebugView?: boolean;
 	suppressSaveBeforeStart?: boolean;
 }
 
@@ -2195,19 +2194,21 @@ export interface ExtHostTestingShape {
 	$configureRunProfile(controllerId: string, configId: number): void;
 	/** Asks the controller to refresh its tests */
 	$refreshTests(controllerId: string, token: CancellationToken): Promise<void>;
+	/** Ensures any pending test diffs are flushed */
+	$syncTests(): Promise<void>;
 }
 
 export interface ExtHostLocalizationShape {
 	getMessage(extensionId: string, details: IStringDetails): string;
-	getBundle(extensionId: string): { [key: string]: string };
+	getBundle(extensionId: string): { [key: string]: string } | undefined;
 	getBundleUri(extensionId: string): URI | undefined;
 	initializeLocalizedMessages(extension: IExtensionDescription): Promise<void>;
 }
 
 export interface IStringDetails {
 	message: string;
-	args?: any[];
-	comment?: string[];
+	args?: Record<string | number, any>;
+	comment?: string | string[];
 }
 
 export interface ITestControllerPatch {

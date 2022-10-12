@@ -15,7 +15,7 @@ import { QuickPickItem, IQuickInputService, IQuickPickItem } from 'vs/platform/q
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
 import { IUserDataProfileTemplate, isUserDataProfileTemplate, IUserDataProfileManagementService, IUserDataProfileImportExportService, PROFILES_CATEGORY, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT, MANAGE_PROFILES_ACTION_ID, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { compare } from 'vs/base/common/strings';
@@ -149,7 +149,7 @@ registerAction2(class CreateProfileAction extends Action2 {
 			}, {
 				id: CreateTransientProfileAction.ID,
 				label: CreateTransientProfileAction.TITLE.value,
-			}], { hideInput: true, canPickMany: false, title: localize('create settings profile', "{0}: Create...", PROFILES_CATEGORY) });
+			}], { hideInput: true, canPickMany: false, title: localize('create settings profile', "{0}: Create...", PROFILES_CATEGORY.value) });
 		if (pick?.id) {
 			return commandService.executeCommand(pick.id);
 		}
@@ -342,7 +342,7 @@ registerAction2(class ManageSettingsProfileAction extends Action2 {
 					label: `${action.label}${action.checked ? ` $(${Codicon.check.id})` : ''}`,
 				};
 			});
-			const pick = await quickInputService.pick(picks, { canPickMany: false, title: PROFILES_CATEGORY });
+			const pick = await quickInputService.pick(picks, { canPickMany: false, title: PROFILES_CATEGORY.value });
 			if (pick?.id) {
 				await commandService.executeCommand(pick.id);
 			}
@@ -518,7 +518,7 @@ registerAction2(class CleanupProfilesAction extends Action2 {
 				value: localize('cleanup profile', "Cleanup Settings Profiles"),
 				original: 'Cleanup Profiles'
 			},
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true,
 			precondition: PROFILES_ENABLEMENT_CONTEXT,
 		});
@@ -537,7 +537,7 @@ registerAction2(class ResetWorkspacesAction extends Action2 {
 				value: localize('reset workspaces', "Reset Workspace Settings Profiles Associations"),
 				original: 'Reset Workspace Settings Profiles Associations'
 			},
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true,
 			precondition: PROFILES_ENABLEMENT_CONTEXT,
 		});

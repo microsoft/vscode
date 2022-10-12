@@ -26,6 +26,7 @@ import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/envir
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class BrowserWindow extends Disposable {
 
@@ -36,7 +37,8 @@ export class BrowserWindow extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@IProductService private readonly productService: IProductService,
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 
@@ -204,34 +206,45 @@ export class BrowserWindow extends Disposable {
 					invokeProtocolHandler();
 
 					const showProtocolUrlOpenedDialog = async () => {
+						const { downloadUrl } = this.productService;
+						let detail = localize(
+							'openExternalDialogDetail.v2',
+							"We launched {0} on your computer.\n\nIf {1} did not launch, try again or install it below.",
+							this.productService.nameLong,
+							this.productService.nameLong
+						);
+						const options = [
+							localize('openExternalDialogButtonClose', "Close tab"),
+							localize('openExternalDialogButtonRetry', "Try again"),
+							localize('openExternalDialogButtonInstall.v3', "Install"),
+							localize('openExternalDialogButtonCancel', "Cancel")
+						];
+						if (downloadUrl === undefined) {
+							options.splice(2, 1);
+							detail = localize(
+								'openExternalDialogDetailNoInstall',
+								"We launched {0} on your computer.\n\nIf {1} did not launch, try again below.",
+								this.productService.nameLong,
+								this.productService.nameLong
+							);
+						}
+
 						const showResult = await this.dialogService.show(
 							Severity.Info,
 							localize('openExternalDialogTitle', "All done. You can close this tab now."),
-							[
-								localize('openExternalDialogButtonRetry', "Try again"),
-								localize('openExternalDialogButtonInstall', "Install {0}", this.productService.nameLong),
-								localize('openExternalDialogButtonCancel', "Cancel")
-							],
+							options,
 							{
-								cancelId: 2,
-								detail: localize(
-									'openExternalDialogDetail.v2',
-									"We launched {0} on your computer.\n\nIf {1} did not launch, try again or install it below.",
-									this.productService.nameLong,
-									this.productService.nameLong,
-								)
+								cancelId: downloadUrl === undefined ? 2 : 3,
+								detail
 							},
 						);
 
 						if (showResult.choice === 0) {
-							invokeProtocolHandler();
+							this.hostService.close();
 						} else if (showResult.choice === 1) {
-							// Route the user to the appropriate install link
-							await this.openerService.open(URI.parse(
-								this.productService.quality === 'stable'
-									? `http://aka.ms/vscode-install`
-									: `http://aka.ms/vscode-install-insiders`
-							));
+							invokeProtocolHandler();
+						} else if (showResult.choice === 2 && downloadUrl !== undefined) {
+							await this.openerService.open(URI.parse(downloadUrl));
 
 							// Re-show the dialog so that the user can come back after installing and try again
 							showProtocolUrlOpenedDialog();
