@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { mock } from 'vs/base/test/common/mock';
 import { NotebookClipboardContribution, runCopyCells, runCutCells } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
 import { CellKind, NOTEBOOK_EDITOR_ID, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';

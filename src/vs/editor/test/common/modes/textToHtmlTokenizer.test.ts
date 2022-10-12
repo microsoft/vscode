@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
 import { FontStyle, ColorId, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';

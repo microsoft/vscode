@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, PositionAffinity } from 'vs/editor/common/model';
 import { testViewModel } from 'vs/editor/test/browser/viewModel/testViewModel';

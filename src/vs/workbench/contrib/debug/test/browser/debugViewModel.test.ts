@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
 import { StackFrame, Expression, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { MockSession, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';

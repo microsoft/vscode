@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { formatOptions, Option } from 'vs/platform/environment/node/argv';
 import { addArg } from 'vs/platform/environment/node/argvHelper';
 

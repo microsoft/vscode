@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { IDiffChange, LcsDiff, StringDiffSequence } from 'vs/base/common/diff/diff';
 
 function createArray<T>(length: number, value: T): T[] {

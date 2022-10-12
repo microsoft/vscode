@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { range } from 'vs/base/common/arrays';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';

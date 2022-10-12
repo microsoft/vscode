@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { findExpressionInStackFrame } from 'vs/workbench/contrib/debug/browser/debugHover';
 import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
 import { StackFrame, Thread, Scope, Variable } from 'vs/workbench/contrib/debug/common/debugModel';

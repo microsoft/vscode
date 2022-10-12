@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { FileAccess } from 'vs/base/common/network';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';

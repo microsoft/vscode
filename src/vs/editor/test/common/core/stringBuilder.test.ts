@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { writeUInt16LE } from 'vs/base/common/buffer';
 import { decodeUTF16LE } from 'vs/editor/common/core/stringBuilder';
 

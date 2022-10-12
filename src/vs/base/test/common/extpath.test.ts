@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { CharCode } from 'vs/base/common/charCode';
 import * as extpath from 'vs/base/common/extpath';
 import { isWindows } from 'vs/base/common/platform';

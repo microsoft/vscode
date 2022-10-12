@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { deepClone } from 'vs/base/common/objects';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';

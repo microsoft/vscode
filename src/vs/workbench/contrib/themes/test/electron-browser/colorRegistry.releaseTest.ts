@@ -8,7 +8,7 @@ import { IColorRegistry, Extensions, ColorContribution } from 'vs/platform/theme
 import { asTextOrError } from 'vs/platform/request/common/request';
 import * as pfs from 'vs/base/node/pfs';
 import * as path from 'vs/base/common/path';
-import * as assert from 'assert';
+import assert from 'assert';
 import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { RequestService } from 'vs/platform/request/node/requestService';

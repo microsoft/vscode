@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { StatusbarViewModel } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';

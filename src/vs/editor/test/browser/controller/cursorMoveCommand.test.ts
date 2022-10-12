@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
 import { CursorMove } from 'vs/editor/common/cursor/cursorMoveCommands';
 import { Position } from 'vs/editor/common/core/position';

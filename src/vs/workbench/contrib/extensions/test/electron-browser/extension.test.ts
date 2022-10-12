@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
 import { Extension } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import { IGalleryExtension, IGalleryExtensionProperties, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
