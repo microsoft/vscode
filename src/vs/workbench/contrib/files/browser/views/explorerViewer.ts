@@ -255,9 +255,12 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 }
 
 export interface IFileTemplateData {
+	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 	readonly label: IResourceLabel;
 	readonly container: HTMLElement;
+
+	currentContext?: ExplorerItem;
 }
 
 export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IListAccessibilityProvider<ExplorerItem>, IDisposable {
@@ -312,13 +315,27 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	}
 
 	renderTemplate(container: HTMLElement): IFileTemplateData {
-		const label = this.labels.create(container, { supportHighlights: true });
+		const templateDisposables = new DisposableStore();
 
-		return { elementDisposables: new DisposableStore(), label, container };
+		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true }));
+		templateDisposables.add(label.onDidRender(() => {
+			try {
+				if (templateData.currentContext) {
+					this.updateWidth(templateData.currentContext);
+				}
+			} catch (e) {
+				// noop since the element might no longer be in the tree, no update of width necessary
+			}
+		}));
+
+		const templateData: IFileTemplateData = { templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), label, container };
+		return templateData;
 	}
 
 	renderElement(node: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
 		const stat = node.element;
+		templateData.currentContext = stat;
+
 		const editableData = this.explorerService.getEditableData(stat);
 
 		templateData.label.element.classList.remove('compressed');
@@ -338,6 +355,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ExplorerItem>, FuzzyScore>, index: number, templateData: IFileTemplateData, height: number | undefined): void {
 		const stat = node.element.elements[node.element.elements.length - 1];
+		templateData.currentContext = stat;
+
 		const editable = node.element.elements.filter(e => this.explorerService.isEditable(e));
 		const editableData = editable.length === 0 ? undefined : this.explorerService.getEditableData(editable[0]);
 
@@ -404,14 +423,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
 			domId
 		});
-
-		templateData.elementDisposables.add(templateData.label.onDidRender(() => {
-			try {
-				this.updateWidth(stat);
-			} catch (e) {
-				// noop since the element might no longer be in the tree, no update of width necessary
-			}
-		}));
 	}
 
 	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: IEditableData): IDisposable {
@@ -539,16 +550,17 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	}
 
 	disposeElement(element: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
+		templateData.currentContext = undefined;
 		templateData.elementDisposables.clear();
 	}
 
 	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<ExplorerItem>, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
+		templateData.currentContext = undefined;
 		templateData.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: IFileTemplateData): void {
-		templateData.elementDisposables.dispose();
-		templateData.label.dispose();
+		templateData.templateDisposables.dispose();
 	}
 
 	getCompressedNavigationController(stat: ExplorerItem): ICompressedNavigationController | undefined {
