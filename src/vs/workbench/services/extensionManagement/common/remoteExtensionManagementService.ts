@@ -52,7 +52,7 @@ export class RemoteExtensionManagementService extends ExtensionManagementChannel
 	private validateProfileLocation<T extends { profileLocation?: URI }>(options?: T): T | undefined {
 		if (options?.profileLocation) {
 			if (!this.uriIdentityService.extUri.isEqual(options?.profileLocation, this.userDataProfileService.defaultProfile.extensionsResource)) {
-				throw new Error('This opertaion is not supported in remote scenario');
+				throw new Error('This operataion is not supported in remote scenario');
 			}
 			options = { ...options, profileLocation: undefined };
 		}
