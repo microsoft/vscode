@@ -448,6 +448,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.reduceMotion.auto', "Render with reduced motion based on OS configuration."),
 				],
 				default: 'auto',
+				tags: ['accessibility'],
 				enum: ['on', 'off', 'auto']
 			},
 			'workbench.layoutControl.enabled': {
