@@ -70,7 +70,6 @@ export function activate(context: vscode.ExtensionContext) {
 			// We have to replace the IPv6 hosts with IPv4 because URL can't handle IPv6.
 			const originalUri = new URL(uri.toString(true));
 			if (enabledHosts.has(originalUri.hostname)) {
-				return vscode.ExternalUriOpenerPriority.Default;
 				return isWeb()
 					? vscode.ExternalUriOpenerPriority.Default
 					: vscode.ExternalUriOpenerPriority.Option;
