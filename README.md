@@ -1,3 +1,7 @@
+<p align="center">
+    <img width="300" src="https://user-images.githubusercontent.com/115484634/195395061-969812b5-20e2-4c2c-990b-a1d50c3824ed.jpg">
+</p>
+
 # Visual Studio Code - Open Source ("Code - OSS")
 [![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
 [![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
