@@ -522,7 +522,7 @@ export class GitHubServer implements IGitHubServer {
 			// either display the response message or the http status text
 			let errorMessage = result.statusText;
 			try {
-				const json = await result.json();
+				const json: any = await result.json();
 				if (json.message) {
 					errorMessage = json.message;
 				}
