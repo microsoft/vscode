@@ -134,7 +134,7 @@ export class MarkdownItEngine implements IMdParser {
 					}
 				}
 
-				const frontMatterPlugin = await import('markdown-it-front-matter');
+				const frontMatterPlugin = (await import('markdown-it-front-matter')).default;
 				// Extract rules from front matter plugin and apply at a lower precedence
 				let fontMatterRule: any;
 				frontMatterPlugin({
