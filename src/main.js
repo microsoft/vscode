@@ -196,8 +196,11 @@ function configureCommandlineSwitchesSync(cliArgs) {
 			// Locale
 			else if (argvKey === 'locale') {
 				if (product.quality === 'insider' || product.quality === 'exploration') {
-					// Pass in the locale to Electron so that the Windows Control Overlay
-					// is rendered correctly.
+					// Pass in the locale to Electron so that the
+					// Windows Control Overlay is rendered correctly.
+					// If the locale is `qps-ploc`, the Microsoft
+					// Pseudo Language Language Pack is being used.
+					// In that case, use `en` as the Electron locale.
 					// The if statement can be removed when Electron officially
 					// adopts the getSystemLocale API.
 					// Ref https://github.com/microsoft/vscode/issues/159813
@@ -586,8 +589,8 @@ async function resolveNlsConfiguration() {
 			appLocale = appLocale.toLowerCase();
 
 			if (!appLocale.startsWith('pt') && !appLocale.startsWith('zh')) {
-				// Trim off the country code to help with the recommender.
-				// If - isn't in the string, the following code leaves appLocale unchanged.
+				// Trim off the country code to help with the language pack recommender.
+				// If '-' isn't in the string, the following code leaves appLocale unchanged.
 				appLocale = appLocale.split('-')[0];
 			}
 
