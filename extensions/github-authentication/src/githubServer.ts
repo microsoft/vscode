@@ -474,7 +474,7 @@ export class GitHubServer implements IGitHubServer {
 		});
 
 		if (result.ok) {
-			const json = await result.json();
+			const json: any = await result.json();
 			this._logger.info('Token exchange success!');
 			return json.access_token;
 		} else {
