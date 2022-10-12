@@ -280,9 +280,7 @@ export class TerminalService implements ITerminalService {
 				this._connectionState = TerminalConnectionState.Connected;
 			}
 
-			// Open the primary backend registered barrier to allow ITerminalService consumers to
-			// start using the backend
-			this._primaryBackendRegistered.open();
+			this._initializeTerminals();
 
 			backend.onDidRequestDetach(async (e) => {
 				const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
@@ -735,7 +733,7 @@ export class TerminalService implements ITerminalService {
 		return this.instances.some(term => term.processId === remoteTerm.pid);
 	}
 
-	async initializeTerminals(): Promise<void> {
+	private async _initializeTerminals(): Promise<void> {
 		if (this._remoteTerminalsInitPromise) {
 			await this._remoteTerminalsInitPromise;
 			this._setConnected();
