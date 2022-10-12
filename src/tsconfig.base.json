@@ -5,6 +5,7 @@
 		"experimentalDecorators": true,
 		"noImplicitReturns": true,
 		"noImplicitOverride": true,
+		"esModuleInterop": true,
 		"noUnusedLocals": true,
 		"allowUnreachableCode": false,
 		"strict": true,
