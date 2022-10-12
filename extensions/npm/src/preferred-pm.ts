@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import findWorkspaceRoot = require('../node_modules/find-yarn-workspace-root');
-import findUp = require('find-up');
+import { findUp } from 'find-up';
 import * as path from 'path';
 import whichPM = require('which-pm');
 import { Uri, workspace } from 'vscode';
