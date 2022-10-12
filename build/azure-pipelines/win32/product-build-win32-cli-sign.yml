@@ -1,0 +1,32 @@
+parameters:
+  - name: VSCODE_BUILD_WIN32
+    type: boolean
+  - name: VSCODE_BUILD_WIN32_ARM64
+    type: boolean
+
+variables:
+  - name: VSCODE_CLI_ARTIFACTS
+    value:
+      - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+        - unsigned_vscode_cli_win32_x64_cli
+      - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
+        - unsigned_vscode_cli_win32_arm64_cli
+steps:
+  - task: NodeTool@0
+    displayName: "Use Node.js"
+    inputs:
+      versionSpec: "16.x"
+
+  - pwsh: |
+      . build/azure-pipelines/win32/exec.ps1
+      cd build
+      exec { yarn }
+    displayName: Install build dependencies
+
+  - template: ../cli/cli-win32-sign.yml
+    parameters:
+      VSCODE_CLI_ARTIFACTS:
+        - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+          - unsigned_vscode_cli_win32_x64_cli
+        - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
+          - unsigned_vscode_cli_win32_arm64_cli

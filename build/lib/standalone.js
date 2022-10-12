@@ -180,7 +180,7 @@ function createESMSourcesAndResources2(options) {
                     + relativePath
                     + fileContents.substring(end + 1));
             }
-            fileContents = fileContents.replace(/import ([a-zA-z0-9]+) = require\(('[^']+')\);/g, function (_, m1, m2) {
+            fileContents = fileContents.replace(/import ([a-zA-Z0-9]+) = require\(('[^']+')\);/g, function (_, m1, m2) {
                 return `import * as ${m1} from ${m2};`;
             });
             write(getDestAbsoluteFilePath(file), fileContents);

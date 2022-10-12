@@ -62,4 +62,5 @@ lto = true
 codegen-units = 1
 
 [features]
+default = []
 vscode-encrypt = []
