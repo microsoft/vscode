@@ -638,7 +638,6 @@ export function createXlfFilesForExtensions(): ThroughStream {
 			gulp.src([`.build/extensions/${extensionName}/package.nls.json`, `.build/extensions/${extensionName}/**/nls.metadata.json`], { allowEmpty: true }),
 			createL10nBundleForExtension(extensionName)
 		).pipe(through(function (file: File) {
-			console.log(file.basename);
 			if (file.isBuffer()) {
 				const buffer: Buffer = file.contents as Buffer;
 				const basename = path.basename(file.path);

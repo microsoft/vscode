@@ -553,7 +553,6 @@ function createXlfFilesForExtensions() {
             return _l10nMap;
         }
         (0, event_stream_1.merge)(gulp.src([`.build/extensions/${extensionName}/package.nls.json`, `.build/extensions/${extensionName}/**/nls.metadata.json`], { allowEmpty: true }), createL10nBundleForExtension(extensionName)).pipe((0, event_stream_1.through)(function (file) {
-            console.log(file.basename);
             if (file.isBuffer()) {
                 const buffer = file.contents;
                 const basename = path.basename(file.path);
