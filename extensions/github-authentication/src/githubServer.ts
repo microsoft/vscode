@@ -511,7 +511,7 @@ export class GitHubServer implements IGitHubServer {
 
 		if (result.ok) {
 			try {
-				const json = await result.json();
+				const json: any = await result.json();
 				this._logger.info('Got account info!');
 				return { id: json.id, accountName: json.login };
 			} catch (e) {
