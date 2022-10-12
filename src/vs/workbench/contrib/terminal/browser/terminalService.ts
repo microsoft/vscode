@@ -280,6 +280,7 @@ export class TerminalService implements ITerminalService {
 				this._connectionState = TerminalConnectionState.Connected;
 			}
 
+			this._primaryBackendRegistered.open();
 			this._initializeTerminals();
 
 			backend.onDidRequestDetach(async (e) => {

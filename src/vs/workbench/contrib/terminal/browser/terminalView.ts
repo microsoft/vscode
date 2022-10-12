@@ -167,9 +167,6 @@ export class TerminalViewPane extends ViewPane {
 				return;
 			}
 			this._terminalsInitialized = true;
-			if (this._terminalGroupService.groups.length === 0 && this._viewShowing.get()) {
-				this._terminalService.createTerminal({ location: TerminalLocation.Panel });
-			}
 		}));
 
 		this._register(this.onDidChangeBodyVisibility(async visible => {
@@ -179,8 +176,16 @@ export class TerminalViewPane extends ViewPane {
 					this._onDidChangeViewWelcomeState.fire();
 					return;
 				}
-				if (this._terminalsInitialized && this._terminalGroupService.groups.length === 0) {
-					this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+				if (this._terminalGroupService.groups.length === 0) {
+					if (this._terminalsInitialized) {
+						this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+					} else {
+						await this._terminalService.primaryBackendRegistered;
+						this._terminalsInitialized = true;
+						if (this._terminalGroupService.groups.length === 0) {
+							this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+						}
+					}
 				}
 				// we don't know here whether or not it should be focused, so
 				// defer focusing the panel to the focus() call
