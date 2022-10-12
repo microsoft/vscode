@@ -384,37 +384,26 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			extraClasses.push('cut');
 		}
 
-		const setResourceData = () => {
-			// Offset nested children unless folders have both chevrons and icons, otherwise alignment breaks
-			const theme = this.themeService.getFileIconTheme();
+		// Offset nested children unless folders have both chevrons and icons, otherwise alignment breaks
+		const theme = this.themeService.getFileIconTheme();
 
-			// Hack to always render chevrons for file nests, or else may not be able to identify them.
-			const twistieContainer = (templateData.container.parentElement?.parentElement?.querySelector('.monaco-tl-twistie') as HTMLElement);
-			if (twistieContainer) {
-				if (stat.hasNests && theme.hidesExplorerArrows) {
-					twistieContainer.classList.add('force-twistie');
-				} else {
-					twistieContainer.classList.remove('force-twistie');
-				}
-			}
+		// Hack to always render chevrons for file nests, or else may not be able to identify them.
+		const twistieContainer = templateData.container.parentElement?.parentElement?.querySelector('.monaco-tl-twistie');
+		twistieContainer?.classList.toggle('force-twistie', stat.hasNests && theme.hidesExplorerArrows);
 
-			// when explorer arrows are hidden or there are no folder icons, nests get misaligned as they are forced to have arrows and files typically have icons
-			// Apply some CSS magic to get things looking as reasonable as possible.
-			const themeIsUnhappyWithNesting = theme.hasFileIcons && (theme.hidesExplorerArrows || !theme.hasFolderIcons);
-			const realignNestedChildren = stat.nestedParent && themeIsUnhappyWithNesting;
+		// when explorer arrows are hidden or there are no folder icons, nests get misaligned as they are forced to have arrows and files typically have icons
+		// Apply some CSS magic to get things looking as reasonable as possible.
+		const themeIsUnhappyWithNesting = theme.hasFileIcons && (theme.hidesExplorerArrows || !theme.hasFolderIcons);
+		const realignNestedChildren = stat.nestedParent && themeIsUnhappyWithNesting;
 
-			templateData.label.setResource({ resource: stat.resource, name: label }, {
-				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
-				extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
-				fileDecorations: this.config.explorer.decorations,
-				matches: createMatches(filterData),
-				separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
-				domId
-			});
-		};
-
-		templateData.elementDisposables.add(this.themeService.onDidFileIconThemeChange(() => setResourceData()));
-		setResourceData();
+		templateData.label.setResource({ resource: stat.resource, name: label }, {
+			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
+			extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
+			fileDecorations: this.config.explorer.decorations,
+			matches: createMatches(filterData),
+			separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
+			domId
+		});
 
 		templateData.elementDisposables.add(templateData.label.onDidRender(() => {
 			try {
