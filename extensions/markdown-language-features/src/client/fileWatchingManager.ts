@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+// @ts-ignore
 import { disposeAll } from 'vscode-markdown-languageservice/out/util/dispose';
 import { ResourceMap } from 'vscode-markdown-languageservice/out/util/resourceMap';
 import { Utils } from 'vscode-uri';
