@@ -108,6 +108,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 		overrideOptions.inlineSources = Boolean(build);
 		overrideOptions.base = path.dirname(absolutePath);
 
+		// note: always transpile with SWC
 		const compilation = tsb.create(absolutePath, overrideOptions, { verbose: false, transpileOnly, transpileOnlyIncludesDts: transpileOnly, transpileWithSwc: true }, err => reporter(err.toString()));
 
 		const pipeline = function () {
@@ -199,6 +200,8 @@ const tasks = compilations.map(function (tsconfigFile) {
 	return { transpileTask, compileTask, watchTask, compileBuildTask };
 });
 
+
+// note: always transpile with SWC
 const transpileExtensionsTask = task.define('transpile-extensions', task.parallel(...tasks.map(t => t.transpileTask)));
 gulp.task(transpileExtensionsTask);
 
