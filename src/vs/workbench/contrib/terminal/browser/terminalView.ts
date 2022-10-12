@@ -169,9 +169,6 @@ export class TerminalViewPane extends ViewPane {
 					return;
 				}
 				await this._terminalService.primaryBackendRegistered;
-				if (this._terminalGroupService.groups.length === 0) {
-					this._terminalService.createTerminal({ location: TerminalLocation.Panel });
-				}
 				// we don't know here whether or not it should be focused, so
 				// defer focusing the panel to the focus() call
 				// to prevent overriding preserveFocus for extensions

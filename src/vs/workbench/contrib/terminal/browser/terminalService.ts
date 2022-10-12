@@ -741,6 +741,9 @@ export class TerminalService implements ITerminalService {
 			await this._localTerminalsInitPromise;
 			this._setConnected();
 		}
+		if (this._terminalGroupService.groups.length === 0 && this.isProcessSupportRegistered) {
+			this.createTerminal({ location: TerminalLocation.Panel });
+		}
 	}
 
 	moveToEditor(source: ITerminalInstance): void {
