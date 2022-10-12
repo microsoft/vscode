@@ -236,20 +236,23 @@ export class NotebookProviderInfoStore extends Disposable {
 				}
 			}));
 
-			// Register the notebook editor
-			disposables.add(this._editorResolverService.registerEditor(
-				globPattern,
-				notebookEditorInfo,
-				notebookEditorOptions,
-				notebookFactoryObject,
-			));
-			// Then register the schema handler as exclusive for that notebook
-			disposables.add(this._editorResolverService.registerEditor(
-				`${Schemas.vscodeNotebookCell}:/**/${globPattern}`,
-				{ ...notebookEditorInfo, priority: RegisteredEditorPriority.exclusive },
-				notebookEditorOptions,
-				notebookCellFactoryObject
-			));
+			// The interactive editor is registered separately, so don't overwrite it here
+			if (notebookEditorInfo.id !== 'interactive') {
+				// Register the notebook editor
+				disposables.add(this._editorResolverService.registerEditor(
+					globPattern,
+					notebookEditorInfo,
+					notebookEditorOptions,
+					notebookFactoryObject,
+				));
+				// Then register the schema handler as exclusive for that notebook
+				disposables.add(this._editorResolverService.registerEditor(
+					`${Schemas.vscodeNotebookCell}:/**/${globPattern}`,
+					{ ...notebookEditorInfo, priority: RegisteredEditorPriority.exclusive },
+					notebookEditorOptions,
+					notebookCellFactoryObject
+				));
+			}
 		}
 
 		return disposables;
