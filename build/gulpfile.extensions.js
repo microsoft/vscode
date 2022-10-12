@@ -201,14 +201,16 @@ const tasks = compilations.map(function (tsconfigFile) {
 });
 
 
-// note: always transpile with SWC
+// SWC Extensions Transpile
 const transpileExtensionsTask = task.define('transpile-extensions', task.parallel(...tasks.map(t => t.transpileTask)));
 gulp.task(transpileExtensionsTask);
 
+// Typescript Extensions Compile
 const compileExtensionsTask = task.define('compile-extensions', task.parallel(...tasks.map(t => t.compileTask)));
 gulp.task(compileExtensionsTask);
 exports.compileExtensionsTask = compileExtensionsTask;
 
+// Typescript Extensions Watch
 const watchExtensionsTask = task.define('watch-extensions', task.parallel(...tasks.map(t => t.watchTask)));
 gulp.task(watchExtensionsTask);
 exports.watchExtensionsTask = watchExtensionsTask;
