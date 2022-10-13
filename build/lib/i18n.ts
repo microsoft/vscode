@@ -669,7 +669,7 @@ export function createXlfFilesForExtensions(): ThroughStream {
 				}
 			}
 		}, function () {
-			if (_l10nMap) {
+			if (_l10nMap.size) {
 				const xlfFile = new File({
 					path: path.join(extensionsProject, extensionName + '.xlf'),
 					contents: Buffer.from(getL10nXlf(_l10nMap), 'utf8')

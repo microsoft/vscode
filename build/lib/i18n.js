@@ -586,7 +586,7 @@ function createXlfFilesForExtensions() {
                 }
             }
         }, function () {
-            if (_l10nMap) {
+            if (_l10nMap.size) {
                 const xlfFile = new File({
                     path: path.join(extensionsProject, extensionName + '.xlf'),
                     contents: Buffer.from((0, l10n_dev_1.getL10nXlf)(_l10nMap), 'utf8')
