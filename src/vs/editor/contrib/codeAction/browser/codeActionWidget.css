@@ -12,10 +12,8 @@
 	display: block;
 	width: 100%;
 	border: 1px solid var(--vscode-editorWidget-border) !important;
-	border-color: none;
 	background-color: var(--vscode-editorWidget-background);
 	color: var(--vscode-editorWidget-foreground);
-	box-shadow: var(--vscode-widget-shadow) 0 2px 8px;
 }
 
 .codeActionWidget .monaco-list {
@@ -42,7 +40,7 @@
 	width: 100%;
 }
 
-.codeActionWidget .monaco-list .monaco-list-row.code-action.focused:not(.option-disabled)  {
+.codeActionWidget .monaco-list .monaco-list-row.code-action.focused:not(.option-disabled) {
 	background-color: var(--vscode-quickInputList-focusBackground);
 	color: var(--vscode-quickInputList-focusForeground);
 	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
@@ -51,7 +49,7 @@
 
 .codeActionWidget .monaco-list-row.group-header {
 	color: var(--vscode-pickerGroup-foreground);
-	font-weight: bold;
+	font-weight: 600;
 }
 
 .codeActionWidget .monaco-list .group-header,
@@ -72,7 +70,7 @@
 
 .codeActionWidget .monaco-list-row.code-action {
 	display: flex;
-	gap: 10px;
+	gap: 6px;
 	align-items: center;
 }
 
@@ -98,28 +96,30 @@
 
 .codeActionWidget .codeActionWidget-action-bar {
 	margin-top: 4px;
-	margin-bottom: 4px;
+	background-color: var(--vscode-editorHoverWidget-statusBarBackground);
+	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 }
 
 .codeActionWidget .codeActionWidget-action-bar::before {
 	display: block;
 	content: "";
 	width: 100%;
-	margin-bottom: 4px;
-	border-bottom: 1px solid var(--vscode-menu-separatorBackground);
 }
 
 .codeActionWidget .codeActionWidget-action-bar .actions-container {
-	padding: 0 10px;
+	padding: 0 8px;
 }
 
 .codeActionWidget-action-bar .action-label {
 	color: var(--vscode-textLink-activeForeground);
+	font-size: 12px;
+	line-height: 22px;
+	padding: 0;
 	pointer-events: all;
 }
 
 .codeActionWidget-action-bar .action-item {
-	margin-right: 10px;
+	margin-right: 16px;
 	pointer-events: none;
 }
 

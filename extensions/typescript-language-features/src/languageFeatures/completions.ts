@@ -521,7 +521,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 	}
 }
 
-function getScriptKindDetails(tsEntry: protocol.CompletionEntry,): string | undefined {
+function getScriptKindDetails(tsEntry: Proto.CompletionEntry,): string | undefined {
 	if (!tsEntry.kindModifiers || tsEntry.kind !== PConst.Kind.script) {
 		return;
 	}

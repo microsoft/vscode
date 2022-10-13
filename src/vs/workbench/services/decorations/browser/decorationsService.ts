@@ -16,7 +16,7 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { isCancellationError } from 'vs/base/common/errors';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { hash } from 'vs/base/common/hash';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { asArray, distinct } from 'vs/base/common/arrays';
@@ -408,4 +408,4 @@ export class DecorationsService implements IDecorationsService {
 	}
 }
 
-registerSingleton(IDecorationsService, DecorationsService, true);
+registerSingleton(IDecorationsService, DecorationsService, InstantiationType.Delayed);

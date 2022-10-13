@@ -87,6 +87,7 @@ if [[ -o NOUNSET ]]; then
 fi
 __vsc_update_prompt() {
 	__vsc_prior_prompt="$PS1"
+	__vsc_prior_prompt2="$PS2"
 	__vsc_in_command_execution=""
 	PS1="%{$(__vsc_prompt_start)%}$PS1%{$(__vsc_prompt_end)%}"
 	PS2="%{$(__vsc_continuation_start)%}$PS2%{$(__vsc_continuation_end)%}"
@@ -115,6 +116,7 @@ __vsc_precmd() {
 
 __vsc_preexec() {
 	PS1="$__vsc_prior_prompt"
+	PS2="$__vsc_prior_prompt2"
 	if [ -n "$RPROMPT" ]; then
 		RPROMPT="$__vsc_prior_rprompt"
 	fi

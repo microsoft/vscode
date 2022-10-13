@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -57,4 +57,4 @@ export class OutputChannelModelService extends AbstractOutputChannelModelService
 	}
 }
 
-registerSingleton(IOutputChannelModelService, OutputChannelModelService, true);
+registerSingleton(IOutputChannelModelService, OutputChannelModelService, InstantiationType.Delayed);

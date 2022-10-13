@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { registerSharedProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
@@ -17,7 +17,7 @@ import { LocalTerminalBackendContribution } from 'vs/workbench/contrib/terminal/
 
 // Register services
 registerSharedProcessRemoteService(ILocalPtyService, TerminalIpcChannels.LocalPty);
-registerSingleton(ITerminalProfileResolverService, ElectronTerminalProfileResolverService, true);
+registerSingleton(ITerminalProfileResolverService, ElectronTerminalProfileResolverService, InstantiationType.Delayed);
 
 // Register workbench contributions
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);

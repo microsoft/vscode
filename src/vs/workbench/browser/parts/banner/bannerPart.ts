@@ -22,7 +22,7 @@ import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browse
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { BANNER_BACKGROUND, BANNER_FOREGROUND, BANNER_ICON_FOREGROUND } from 'vs/workbench/common/theme';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -318,7 +318,7 @@ class FocusBannerAction extends Action2 {
 		super({
 			id: FocusBannerAction.ID,
 			title: { value: FocusBannerAction.LABEL, original: 'Focus Banner' },
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true
 		});
 	}

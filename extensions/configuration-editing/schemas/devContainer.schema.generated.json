@@ -62,24 +62,6 @@
 						]
 					}
 				},
-				"containerEnv": {
-					"type": "object",
-					"additionalProperties": {
-						"type": "string"
-					},
-					"description": "Container environment variables."
-				},
-				"containerUser": {
-					"type": "string",
-					"description": "The user the container will be started with. The default is the user on the Docker image."
-				},
-				"mounts": {
-					"type": "array",
-					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
-					"items": {
-						"type": "string"
-					}
-				},
 				"runArgs": {
 					"type": "array",
 					"description": "The arguments required when starting in the container.",
@@ -277,6 +259,83 @@
 				"updateRemoteUserUID": {
 					"type": "boolean",
 					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
+				},
+				"containerEnv": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					},
+					"description": "Container environment variables."
+				},
+				"containerUser": {
+					"type": "string",
+					"description": "The user the container will be started with. The default is the user on the Docker image."
+				},
+				"mounts": {
+					"type": "array",
+					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
+					"items": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"type": {
+										"type": "string",
+										"enum": [
+											"bind",
+											"volume"
+										],
+										"description": "Mount type."
+									},
+									"source": {
+										"type": "string",
+										"description": "Mount source."
+									},
+									"target": {
+										"type": "string",
+										"description": "Mount target."
+									}
+								},
+								"required": [
+									"type",
+									"source",
+									"target"
+								],
+								"additionalProperties": false
+							},
+							{
+								"type": "string"
+							}
+						]
+					}
+				},
+				"init": {
+					"type": "boolean",
+					"description": "Passes the --init flag when creating the dev container."
+				},
+				"privileged": {
+					"type": "boolean",
+					"description": "Passes the --privileged flag when creating the dev container."
+				},
+				"capAdd": {
+					"type": "array",
+					"description": "Passes docker capabilities to include when creating the dev container.",
+					"examples": [
+						"SYS_PTRACE"
+					],
+					"items": {
+						"type": "string"
+					}
+				},
+				"securityOpt": {
+					"type": "array",
+					"description": "Passes docker security options to include when creating the dev container.",
+					"examples": [
+						"seccomp=unconfined"
+					],
+					"items": {
+						"type": "string"
+					}
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -679,24 +738,6 @@
 						]
 					}
 				},
-				"containerEnv": {
-					"type": "object",
-					"additionalProperties": {
-						"type": "string"
-					},
-					"description": "Container environment variables."
-				},
-				"containerUser": {
-					"type": "string",
-					"description": "The user the container will be started with. The default is the user on the Docker image."
-				},
-				"mounts": {
-					"type": "array",
-					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
-					"items": {
-						"type": "string"
-					}
-				},
 				"runArgs": {
 					"type": "array",
 					"description": "The arguments required when starting in the container.",
@@ -894,6 +935,83 @@
 				"updateRemoteUserUID": {
 					"type": "boolean",
 					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
+				},
+				"containerEnv": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					},
+					"description": "Container environment variables."
+				},
+				"containerUser": {
+					"type": "string",
+					"description": "The user the container will be started with. The default is the user on the Docker image."
+				},
+				"mounts": {
+					"type": "array",
+					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
+					"items": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"type": {
+										"type": "string",
+										"enum": [
+											"bind",
+											"volume"
+										],
+										"description": "Mount type."
+									},
+									"source": {
+										"type": "string",
+										"description": "Mount source."
+									},
+									"target": {
+										"type": "string",
+										"description": "Mount target."
+									}
+								},
+								"required": [
+									"type",
+									"source",
+									"target"
+								],
+								"additionalProperties": false
+							},
+							{
+								"type": "string"
+							}
+						]
+					}
+				},
+				"init": {
+					"type": "boolean",
+					"description": "Passes the --init flag when creating the dev container."
+				},
+				"privileged": {
+					"type": "boolean",
+					"description": "Passes the --privileged flag when creating the dev container."
+				},
+				"capAdd": {
+					"type": "array",
+					"description": "Passes docker capabilities to include when creating the dev container.",
+					"examples": [
+						"SYS_PTRACE"
+					],
+					"items": {
+						"type": "string"
+					}
+				},
+				"securityOpt": {
+					"type": "array",
+					"description": "Passes docker security options to include when creating the dev container.",
+					"examples": [
+						"seccomp=unconfined"
+					],
+					"items": {
+						"type": "string"
+					}
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -1262,24 +1380,6 @@
 						]
 					}
 				},
-				"containerEnv": {
-					"type": "object",
-					"additionalProperties": {
-						"type": "string"
-					},
-					"description": "Container environment variables."
-				},
-				"containerUser": {
-					"type": "string",
-					"description": "The user the container will be started with. The default is the user on the Docker image."
-				},
-				"mounts": {
-					"type": "array",
-					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
-					"items": {
-						"type": "string"
-					}
-				},
 				"runArgs": {
 					"type": "array",
 					"description": "The arguments required when starting in the container.",
@@ -1477,6 +1577,83 @@
 				"updateRemoteUserUID": {
 					"type": "boolean",
 					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
+				},
+				"containerEnv": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					},
+					"description": "Container environment variables."
+				},
+				"containerUser": {
+					"type": "string",
+					"description": "The user the container will be started with. The default is the user on the Docker image."
+				},
+				"mounts": {
+					"type": "array",
+					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
+					"items": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"type": {
+										"type": "string",
+										"enum": [
+											"bind",
+											"volume"
+										],
+										"description": "Mount type."
+									},
+									"source": {
+										"type": "string",
+										"description": "Mount source."
+									},
+									"target": {
+										"type": "string",
+										"description": "Mount target."
+									}
+								},
+								"required": [
+									"type",
+									"source",
+									"target"
+								],
+								"additionalProperties": false
+							},
+							{
+								"type": "string"
+							}
+						]
+					}
+				},
+				"init": {
+					"type": "boolean",
+					"description": "Passes the --init flag when creating the dev container."
+				},
+				"privileged": {
+					"type": "boolean",
+					"description": "Passes the --privileged flag when creating the dev container."
+				},
+				"capAdd": {
+					"type": "array",
+					"description": "Passes docker capabilities to include when creating the dev container.",
+					"examples": [
+						"SYS_PTRACE"
+					],
+					"items": {
+						"type": "string"
+					}
+				},
+				"securityOpt": {
+					"type": "array",
+					"description": "Passes docker security options to include when creating the dev container.",
+					"examples": [
+						"seccomp=unconfined"
+					],
+					"items": {
+						"type": "string"
+					}
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -2035,6 +2212,83 @@
 					"type": "boolean",
 					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
+				"containerEnv": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					},
+					"description": "Container environment variables."
+				},
+				"containerUser": {
+					"type": "string",
+					"description": "The user the container will be started with. The default is the user on the Docker image."
+				},
+				"mounts": {
+					"type": "array",
+					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
+					"items": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"type": {
+										"type": "string",
+										"enum": [
+											"bind",
+											"volume"
+										],
+										"description": "Mount type."
+									},
+									"source": {
+										"type": "string",
+										"description": "Mount source."
+									},
+									"target": {
+										"type": "string",
+										"description": "Mount target."
+									}
+								},
+								"required": [
+									"type",
+									"source",
+									"target"
+								],
+								"additionalProperties": false
+							},
+							{
+								"type": "string"
+							}
+						]
+					}
+				},
+				"init": {
+					"type": "boolean",
+					"description": "Passes the --init flag when creating the dev container."
+				},
+				"privileged": {
+					"type": "boolean",
+					"description": "Passes the --privileged flag when creating the dev container."
+				},
+				"capAdd": {
+					"type": "array",
+					"description": "Passes docker capabilities to include when creating the dev container.",
+					"examples": [
+						"SYS_PTRACE"
+					],
+					"items": {
+						"type": "string"
+					}
+				},
+				"securityOpt": {
+					"type": "array",
+					"description": "Passes docker security options to include when creating the dev container.",
+					"examples": [
+						"seccomp=unconfined"
+					],
+					"items": {
+						"type": "string"
+					}
+				},
 				"remoteEnv": {
 					"type": "object",
 					"additionalProperties": {
@@ -2556,6 +2810,83 @@
 				"updateRemoteUserUID": {
 					"type": "boolean",
 					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
+				},
+				"containerEnv": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					},
+					"description": "Container environment variables."
+				},
+				"containerUser": {
+					"type": "string",
+					"description": "The user the container will be started with. The default is the user on the Docker image."
+				},
+				"mounts": {
+					"type": "array",
+					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
+					"items": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"type": {
+										"type": "string",
+										"enum": [
+											"bind",
+											"volume"
+										],
+										"description": "Mount type."
+									},
+									"source": {
+										"type": "string",
+										"description": "Mount source."
+									},
+									"target": {
+										"type": "string",
+										"description": "Mount target."
+									}
+								},
+								"required": [
+									"type",
+									"source",
+									"target"
+								],
+								"additionalProperties": false
+							},
+							{
+								"type": "string"
+							}
+						]
+					}
+				},
+				"init": {
+					"type": "boolean",
+					"description": "Passes the --init flag when creating the dev container."
+				},
+				"privileged": {
+					"type": "boolean",
+					"description": "Passes the --privileged flag when creating the dev container."
+				},
+				"capAdd": {
+					"type": "array",
+					"description": "Passes docker capabilities to include when creating the dev container.",
+					"examples": [
+						"SYS_PTRACE"
+					],
+					"items": {
+						"type": "string"
+					}
+				},
+				"securityOpt": {
+					"type": "array",
+					"description": "Passes docker security options to include when creating the dev container.",
+					"examples": [
+						"seccomp=unconfined"
+					],
+					"items": {
+						"type": "string"
+					}
 				},
 				"remoteEnv": {
 					"type": "object",

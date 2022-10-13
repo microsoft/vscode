@@ -121,7 +121,7 @@ type TelemetryEventClassification = {
 	owner: 'jrieken';
 	comment: 'Insight about what happened before/while a long task was reported';
 	sessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Session identifier that allows to correlate CPU samples and events' };
-	timestamp: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Unix time at which the long task approximately happened' };
+	timestamp: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Unix time at which the long task approximately happened' };
 	recentCommands: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Events prior to the long task' };
 	views: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Visible views' };
 	editors: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Visible editor' };

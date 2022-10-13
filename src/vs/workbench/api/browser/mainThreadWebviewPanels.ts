@@ -4,18 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { MainThreadWebviews, reviveWebviewContentOptions, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
-import { ICreateWebViewShowOptions, IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
+import { IWebViewShowOptions, IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -75,6 +79,43 @@ class WebviewViewTypeTransformer {
 	}
 }
 
+/**
+ * Stores the unique origins for webviews.
+ *
+ * These are randomly generated, but keyed on extension and webview viewType.
+ */
+class WebviewOriginStore {
+
+	private readonly memento: Memento;
+	private readonly state: MementoObject;
+
+	constructor(
+		storageKey: string,
+		@IStorageService storageService: IStorageService,
+	) {
+		this.memento = new Memento(storageKey, storageService);
+		this.state = this.memento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	public getOrigin(extId: ExtensionIdentifier, viewType: string): string {
+		const key = this.getKey(extId, viewType);
+
+		const existing = this.state[key];
+		if (existing && typeof existing === 'string') {
+			return existing;
+		}
+
+		const newOrigin = generateUuid();
+		this.state[key] = newOrigin;
+		this.memento.saveMemento();
+		return newOrigin;
+	}
+
+	private getKey(extId: ExtensionIdentifier, viewType: string): string {
+		return JSON.stringify([extId.value, viewType]);
+	}
+}
+
 export class MainThreadWebviewPanels extends Disposable implements extHostProtocol.MainThreadWebviewPanelsShape {
 
 	private readonly webviewPanelViewType = new WebviewViewTypeTransformer('mainThreadWebview-');
@@ -83,9 +124,9 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 
 	private readonly _webviewInputs = new WebviewInputStore();
 
-	private readonly _editorProviders = new Map<string, IDisposable>();
+	private readonly _revivers = this._register(new DisposableMap<string>());
 
-	private readonly _revivers = new Map<string, IDisposable>();
+	private readonly webviewOriginStore: WebviewOriginStore;
 
 	constructor(
 		context: IExtHostContext,
@@ -94,10 +135,13 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IExtensionService extensionService: IExtensionService,
+		@IStorageService storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 	) {
 		super();
+
+		this.webviewOriginStore = new WebviewOriginStore('mainThreadWebviewPanel.origins', storageService);
 
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewPanels);
 
@@ -127,16 +171,6 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		}));
 	}
 
-	override dispose() {
-		super.dispose();
-
-		dispose(this._editorProviders.values());
-		this._editorProviders.clear();
-
-		dispose(this._revivers.values());
-		this._revivers.clear();
-	}
-
 	public get webviewInputs(): Iterable<WebviewInput> { return this._webviewInputs; }
 
 	public addWebviewInput(handle: extHostProtocol.WebviewHandle, input: WebviewInput, options: { serializeBuffersForPostMessage: boolean }): void {
@@ -158,15 +192,17 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		showOptions: extHostProtocol.WebviewPanelShowOptions,
 	): void {
 		const targetGroup = this.getTargetGroupFromShowOptions(showOptions);
-		const mainThreadShowOptions: ICreateWebViewShowOptions = showOptions ? {
+		const mainThreadShowOptions: IWebViewShowOptions = showOptions ? {
 			preserveFocus: !!showOptions.preserveFocus,
 			group: targetGroup
 		} : {};
 
 		const extension = reviveWebviewExtension(extensionData);
+		const origin = this.webviewOriginStore.getOrigin(extension.id, viewType);
 
-		const webview = this._webviewWorkbenchService.createWebview({
+		const webview = this._webviewWorkbenchService.openWebview({
 			id: handle,
+			origin,
 			providedViewType: viewType,
 			options: reviveWebviewOptions(initData.panelOptions),
 			contentOptions: reviveWebviewContentOptions(initData.webviewOptions),
@@ -295,13 +331,11 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	}
 
 	public $unregisterSerializer(viewType: string): void {
-		const reviver = this._revivers.get(viewType);
-		if (!reviver) {
+		if (!this._revivers.has(viewType)) {
 			throw new Error(`No reviver for ${viewType} registered`);
 		}
 
-		reviver.dispose();
-		this._revivers.delete(viewType);
+		this._revivers.deleteAndDispose(viewType);
 	}
 
 	private updateWebviewViewStates(activeEditorInput: EditorInput | undefined) {

@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalISOString } from 'vs/base/common/date';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { AbstractOutputChannelModelService, IOutputChannelModelService } from 'vs/workbench/contrib/output/common/outputChannelModelService';
 
@@ -26,4 +26,4 @@ export class OutputChannelModelService extends AbstractOutputChannelModelService
 
 }
 
-registerSingleton(IOutputChannelModelService, OutputChannelModelService, true);
+registerSingleton(IOutputChannelModelService, OutputChannelModelService, InstantiationType.Delayed);

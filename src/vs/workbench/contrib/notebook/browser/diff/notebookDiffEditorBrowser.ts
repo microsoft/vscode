@@ -75,7 +75,6 @@ export interface CellDiffSingleSideRenderTemplate extends CellDiffCommonRenderTe
 	readonly metadataInfoContainer: HTMLElement;
 	readonly outputHeaderContainer: HTMLElement;
 	readonly outputInfoContainer: HTMLElement;
-
 }
 
 

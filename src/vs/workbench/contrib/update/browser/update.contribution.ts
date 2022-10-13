@@ -7,16 +7,21 @@ import 'vs/platform/update/common/update.config.contribution';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor, MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution, CheckForVSCodeUpdateAction, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution } from 'vs/workbench/contrib/update/browser/update';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, RELEASE_NOTES_URL, showReleaseNotes } from 'vs/workbench/contrib/update/browser/update';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import product from 'vs/platform/product/common/product';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isWindows } from 'vs/base/common/platform';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
+import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { URI } from 'vs/base/common/uri';
 
 const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 
@@ -24,14 +29,68 @@ workbench.registerWorkbenchContribution(ProductContribution, LifecyclePhase.Rest
 workbench.registerWorkbenchContribution(UpdateContribution, LifecyclePhase.Restored);
 workbench.registerWorkbenchContribution(SwitchProductQualityContribution, LifecyclePhase.Restored);
 
-const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+// Release notes
 
-// Editor
-actionRegistry
-	.registerWorkbenchAction(SyncActionDescriptor.from(ShowCurrentReleaseNotesAction), `${product.nameShort}: Show Release Notes`, product.nameShort);
+export class ShowCurrentReleaseNotesAction extends Action2 {
 
-actionRegistry
-	.registerWorkbenchAction(SyncActionDescriptor.from(CheckForVSCodeUpdateAction), `${product.nameShort}: Check for Update`, product.nameShort, CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle));
+	constructor() {
+		super({
+			id: ShowCurrentReleaseNotesActionId,
+			title: {
+				value: localize('showReleaseNotes', "Show Release Notes"),
+				mnemonicTitle: localize('mshowReleaseNotes', "Show &&Release Notes"),
+				original: 'Show Release Notes'
+			},
+			category: { value: product.nameShort, original: product.nameShort },
+			f1: true,
+			precondition: RELEASE_NOTES_URL,
+			menu: [{
+				id: MenuId.MenubarHelpMenu,
+				group: '1_welcome',
+				order: 5,
+				when: RELEASE_NOTES_URL,
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const instantiationService = accessor.get(IInstantiationService);
+		const productService = accessor.get(IProductService);
+		const openerService = accessor.get(IOpenerService);
+
+		try {
+			await showReleaseNotes(instantiationService, productService.version);
+		} catch (err) {
+			if (productService.releaseNotesUrl) {
+				await openerService.open(URI.parse(productService.releaseNotesUrl));
+			} else {
+				throw new Error(localize('update.noReleaseNotesOnline', "This version of {0} does not have release notes online", productService.nameLong));
+			}
+		}
+	}
+}
+
+registerAction2(ShowCurrentReleaseNotesAction);
+
+// Update
+
+export class CheckForUpdateAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'update.checkForUpdate',
+			title: { value: localize('checkForUpdates', "Check for Updates..."), original: 'Check for Updates...' },
+			category: { value: product.nameShort, original: product.nameShort },
+			f1: true,
+			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle),
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const updateService = accessor.get(IUpdateService);
+		return updateService.checkForUpdates(true);
+	}
+}
 
 class DownloadUpdateAction extends Action2 {
 	constructor() {
@@ -81,21 +140,42 @@ class RestartToUpdateAction extends Action2 {
 	}
 }
 
+class DownloadAction extends Action2 {
+
+	static readonly ID = 'workbench.action.download';
+	static readonly AVAILABLE = !!product.downloadUrl;
+
+	constructor() {
+		super({
+			id: DownloadAction.ID,
+			title: {
+				value: localize('openDownloadPage', "Download {0}", product.nameLong),
+				original: `Download ${product.downloadUrl}`
+			},
+			precondition: IsWebContext, // Only show when running in a web browser
+			f1: true,
+			menu: [{
+				id: MenuId.StatusBarWindowIndicatorMenu,
+				when: IsWebContext
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const productService = accessor.get(IProductService);
+		const openerService = accessor.get(IOpenerService);
+
+		if (productService.downloadUrl) {
+			openerService.open(URI.parse(productService.downloadUrl));
+		}
+	}
+}
+
+registerAction2(DownloadAction);
+registerAction2(CheckForUpdateAction);
 registerAction2(DownloadUpdateAction);
 registerAction2(InstallUpdateAction);
 registerAction2(RestartToUpdateAction);
-
-// Menu
-if (ShowCurrentReleaseNotesAction.AVAILABE) {
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: '1_welcome',
-		command: {
-			id: ShowCurrentReleaseNotesAction.ID,
-			title: localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")
-		},
-		order: 5
-	});
-}
 
 if (isWindows) {
 	class DeveloperApplyUpdateAction extends Action2 {
@@ -103,7 +183,7 @@ if (isWindows) {
 			super({
 				id: '_update.applyupdate',
 				title: { value: localize('applyUpdate', "Apply Update..."), original: 'Apply Update...' },
-				category: CATEGORIES.Developer,
+				category: Categories.Developer,
 				f1: true,
 				precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
 			});

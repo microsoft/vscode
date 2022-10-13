@@ -26,7 +26,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { ToggleReactionsAction, ReactionAction, ReactionActionViewItem } from './reactionsAction';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { MenuItemAction, SubmenuItemAction, IMenu } from 'vs/platform/actions/common/actions';
+import { MenuItemAction, SubmenuItemAction, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
@@ -574,13 +574,11 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 
 	private onContextMenu(e: MouseEvent) {
-		const actions = this._commentMenus.getCommentThreadCommentContextActions(this._contextKeyService).getActions({ shouldForwardArgs: true }).map((value) => value[1]).flat();
-		if (!actions.length) {
-			return;
-		}
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e,
-			getActions: () => actions,
+			menuId: MenuId.CommentThreadCommentContext,
+			menuActionOptions: { shouldForwardArgs: true },
+			contextKeyService: this._contextKeyService,
 			actionRunner: new ActionRunner(),
 			getActionsContext: () => {
 				return this.commentNodeContext;

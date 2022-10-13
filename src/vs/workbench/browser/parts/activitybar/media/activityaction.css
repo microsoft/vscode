@@ -183,13 +183,14 @@
 	padding: 0px;
 	justify-content: center;
 	align-items: center;
-	font-size: 14px;
+	font-size: 11px;
+	font-weight: 600;
 	border-radius: 10px;
 }
 
 /* Right aligned */
 
-.monaco-workbench .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-label:not(.codicon) {
+.monaco-workbench .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-label:not(.codicon):not(.profile-activity-item) {
 	margin-left: 0;
 	padding: 0 48px 0 0;
 	background-position: calc(100% - 9px) center;
