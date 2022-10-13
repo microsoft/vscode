@@ -494,8 +494,10 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	readonly onDidChangeModelContent: Event<IModelContentChangedEvent>;
 	/**
-	 * An event emitted when the content of the current model has changed. This is performed
-	 * asynchronously after the change has been rendered.
+	 * An event emitted when the content of the current model has changed.
+	 *
+	 * This is performed asynchronously after the change has been rendered, typically to optimize
+	 * the editor's input latency.
 	 * @event
 	 * @internal
 	 */
@@ -526,8 +528,10 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	readonly onDidChangeCursorPosition: Event<ICursorPositionChangedEvent>;
 	/**
-	 * An event emitted when the cursor position has changed. This is performed asynchronously after
-	 * the change has been rendered.
+	 * An event emitted when the cursor position has changed.
+	 *
+	 * This is performed asynchronously after the change has been rendered, typically to optimize
+	 * the editor's input latency.
 	 * @event
 	 * @internal
 	 */
@@ -584,6 +588,15 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	readonly onDidType: Event<string>;
+	/**
+	 * An event emitted after interpreting typed characters (on the keyboard).
+	 *
+	 * This is performed asynchronously after the change has been rendered, typically to optimize
+	 * the editor's input latency.
+	 * @event
+	 * @internal
+	 */
+	readonly onDidTypeDeferred: Event<void>;
 	/**
 	 * An event emitted after composition has started.
 	 */

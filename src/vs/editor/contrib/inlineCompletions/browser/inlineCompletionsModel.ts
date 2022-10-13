@@ -73,6 +73,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 				]);
 				if (commands.has(e.commandId) && editor.hasTextFocus()) {
 					this.handleUserInput();
+					this._scheduleStartSessionIfTriggered();
 				}
 			})
 		);
@@ -80,6 +81,12 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		this._register(
 			this.editor.onDidType((e) => {
 				this.handleUserInput();
+			})
+		);
+		this._register(
+			this.editor.onDidTypeDeferred(() => {
+				// This is deferred to optimize input latency
+				this._scheduleStartSessionIfTriggered();
 			})
 		);
 
@@ -113,6 +120,9 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		if (this.session && !this.session.isValid) {
 			this.hide();
 		}
+	}
+
+	private _scheduleStartSessionIfTriggered() {
 		setTimeout(() => {
 			if (this.disposed) {
 				return;

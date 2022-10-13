@@ -172,7 +172,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	public readonly onWillType = this._onWillType.event;
 
 	private readonly _onDidType: Emitter<string> = this._register(new Emitter<string>({ deliveryQueue: this._deliveryQueue }));
-	public readonly onDidType = this._onDidType.event;
+	public readonly onDidType: Event<string> = this._onDidType.event;
+	public readonly onDidTypeDeferred: Event<void> = Event.defer(this._onDidType.event);
 
 	private readonly _onDidCompositionStart: Emitter<void> = this._register(new Emitter<void>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidCompositionStart = this._onDidCompositionStart.event;
