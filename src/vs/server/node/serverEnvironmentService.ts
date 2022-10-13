@@ -147,7 +147,7 @@ export interface ServerParsedArgs {
 	'disable-telemetry'?: boolean;
 	'file-watcher-polling'?: string;
 
-	'log'?: string;
+	'log'?: string[];
 	'logsPath'?: string;
 
 	'force-disable-user-env'?: boolean;
