@@ -26,7 +26,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { DiffEditorInputFactoryFunction, EditorInputFactoryFunction, IEditorResolverService, IEditorType, RegisteredEditorPriority, UntitledEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IEditorResolverService, IEditorType, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ContributedCustomEditors } from '../common/contributedCustomEditors';
 import { CustomEditorInput } from './customEditorInput';
@@ -119,16 +119,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 					continue;
 				}
 
-				const editorInputFactory: EditorInputFactoryFunction = ({ resource }, group) => {
-					return { editor: CustomEditorInput.create(this.instantiationService, resource, contributedEditor.id, group.id) };
-				};
-				const untitledEditorInputFactory: UntitledEditorInputFactoryFunction = ({ resource }, group) => {
-					return { editor: CustomEditorInput.create(this.instantiationService, resource ?? URI.from({ scheme: Schemas.untitled, authority: `Untitled-${this._untitledCounter++}` }), contributedEditor.id, group.id) };
-				};
-				const diffEditorInputFactory: DiffEditorInputFactoryFunction = (diffEditorInput, group) => {
-					return { editor: this.createDiffEditorInput(diffEditorInput, contributedEditor.id, group) };
-				};
-
 				this._editorResolverDisposables.add(this.editorResolverService.registerEditor(
 					globPattern.filenamePattern,
 					{
@@ -141,9 +131,15 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 						singlePerResource: () => !this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? true
 					},
 					{
-						createEditorInput: editorInputFactory,
-						createUntitledEditorInput: untitledEditorInputFactory,
-						createDiffEditorInput: diffEditorInputFactory,
+						createEditorInput: ({ resource }, group) => {
+							return { editor: CustomEditorInput.create(this.instantiationService, resource, contributedEditor.id, group.id) };
+						},
+						createUntitledEditorInput: ({ resource }, group) => {
+							return { editor: CustomEditorInput.create(this.instantiationService, resource ?? URI.from({ scheme: Schemas.untitled, authority: `Untitled-${this._untitledCounter++}` }), contributedEditor.id, group.id) };
+						},
+						createDiffEditorInput: (diffEditorInput, group) => {
+							return { editor: this.createDiffEditorInput(diffEditorInput, contributedEditor.id, group) };
+						},
 					}
 				));
 			}

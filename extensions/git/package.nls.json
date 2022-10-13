@@ -128,7 +128,7 @@
 	"config.checkoutType.remote": "Remote branches",
 	"config.branchPrefix": "Prefix used when creating a new branch.",
 	"config.branchProtection": "List of protected branches. By default, a prompt is shown before changes are committed to a protected branch. The prompt can be controlled using the `#git.branchProtectionPrompt#`  setting.",
-	"config.branchProtectionPrompt": "Controls whether a prompt is being before changes are committed to a protected branch.",
+	"config.branchProtectionPrompt": "Controls whether a prompt is being shown before changes are committed to a protected branch.",
 	"config.branchProtectionPrompt.alwaysCommit": "Always commit changes to the protected branch.",
 	"config.branchProtectionPrompt.alwaysCommitToNewBranch": "Always commit changes to a new branch.",
 	"config.branchProtectionPrompt.alwaysPrompt": "Always prompt before changes are committed to a protected branch.",

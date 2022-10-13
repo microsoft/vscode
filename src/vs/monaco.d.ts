@@ -5347,7 +5347,7 @@ declare namespace monaco.editor {
 		 * @id Unique identifier of the contribution.
 		 * @return The action or null if action not found.
 		 */
-		getAction(id: string): IEditorAction;
+		getAction(id: string): IEditorAction | null;
 		/**
 		 * Execute a command on the editor.
 		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
@@ -5509,6 +5509,11 @@ declare namespace monaco.editor {
 		 * @event
 		 */
 		readonly onDidUpdateDiff: IEvent<void>;
+		/**
+		 * An event emitted when the diff model is changed (i.e. the diff editor shows new content).
+		 * @event
+		 */
+		readonly onDidChangeModel: IEvent<void>;
 		/**
 		 * Saves current view state of the editor in a serializable object.
 		 */

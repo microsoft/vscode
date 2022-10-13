@@ -927,7 +927,7 @@ registerAction2(class AddConfigurationAction extends Action2 {
 			menu: {
 				id: MenuId.EditorContent,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.regex(ResourceContextKey.Path.key, /\.vscode\/launch\.json$/),
+					ContextKeyExpr.regex(ResourceContextKey.Path.key, /\.vscode[/\\]launch\.json$/),
 					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID))
 			}
 		});
