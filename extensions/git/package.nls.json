@@ -19,6 +19,7 @@
 	"command.stageAllMerge": "Stage All Merge Changes",
 	"command.stageSelectedRanges": "Stage Selected Ranges",
 	"command.revertSelectedRanges": "Revert Selected Ranges",
+	"command.copyOriginalLinesOfCurrentRange": "Copy Original Lines Of Current Range",
 	"command.stageChange": "Stage Change",
 	"command.revertChange": "Revert Change",
 	"command.unstage": "Unstage Changes",
