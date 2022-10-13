@@ -112,9 +112,6 @@ registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationTy
 
 //#region --- workbench contributions
 
-// Output
-import 'vs/workbench/contrib/output/common/outputChannelModelService';
-
 // Logs
 import 'vs/workbench/contrib/logs/browser/logs.contribution';
 
