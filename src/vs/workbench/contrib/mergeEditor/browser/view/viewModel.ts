@@ -59,6 +59,16 @@ export class MergeEditorViewModel extends Disposable {
 		return view ? { view, counter: this.counter++ } : lastValue || { view: undefined, counter: this.counter++ };
 	});
 
+	public readonly baseShowDiffAgainst = derived<1 | 2 | undefined>('baseShowDiffAgainst', reader => {
+		const lastFocusedEditor = this.lastFocusedEditor.read(reader);
+		if (lastFocusedEditor.view === this.inputCodeEditorView1) {
+			return 1;
+		} else if (lastFocusedEditor.view === this.inputCodeEditorView2) {
+			return 2;
+		}
+		return undefined;
+	});
+
 	public readonly selectionInBase = derived('selectionInBase', (reader) => {
 		const sourceEditor = this.lastFocusedEditor.read(reader).view;
 		if (!sourceEditor) {
