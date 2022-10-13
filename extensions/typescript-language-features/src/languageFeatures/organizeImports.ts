@@ -42,7 +42,7 @@ abstract class BaseOrganizeImportsCommand implements Command {
 		if (!file) {
 			const activeEditor = vscode.window.activeTextEditor;
 			if (!activeEditor) {
-				vscode.window.showErrorMessage(localize('error.noResource', "Organize Imports failed. No resource provided."));
+				vscode.window.showErrorMessage(localize('error.organizeImports.noResource', "Organize Imports failed. No resource provided."));
 				return;
 			}
 
@@ -50,7 +50,7 @@ abstract class BaseOrganizeImportsCommand implements Command {
 			const document = await vscode.workspace.openTextDocument(resource);
 			const openedFiledPath = this.client.toOpenedFilePath(document);
 			if (!openedFiledPath) {
-				vscode.window.showErrorMessage(localize('error.unknownFile', "Organize Imports failed. Unknown file type."));
+				vscode.window.showErrorMessage(localize('error.organizeImports.unknownFile', "Organize Imports failed. Unknown file type."));
 				return;
 			}
 
