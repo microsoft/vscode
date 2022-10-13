@@ -37,9 +37,8 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
-import { AbstractLogger, DEFAULT_LOG_LEVEL, getLogLevel, ILogService, LogLevel, LogService, MultiplexLogService } from 'vs/platform/log/common/log';
+import { AbstractLogger, DEFAULT_LOG_LEVEL, getLogLevel, ILogService, LogLevel, MultiplexLogService } from 'vs/platform/log/common/log';
 import { LogLevelChannel } from 'vs/platform/log/common/logIpc';
-import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
@@ -73,6 +72,9 @@ import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } fro
 import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
+import { LoggerService } from 'vs/platform/log/node/loggerService';
+import { URI } from 'vs/base/common/uri';
+import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -87,15 +89,18 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IEnvironmentService, environmentService);
 	services.set(INativeEnvironmentService, environmentService);
 
-	const spdLogService = new LogService(new SpdLogLogger(RemoteExtensionLogFileName, path.join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`), true, false, getLogLevel(environmentService)));
-	const logService = new MultiplexLogService([new ServerLogService(getLogLevel(environmentService)), spdLogService]);
+	const bufferLogService = new BufferLogService();
+	const logService = new MultiplexLogService([new ServerLogService(getLogLevel(environmentService)), bufferLogService]);
 	services.set(ILogService, logService);
 	setTimeout(() => cleanupOlderLogs(environmentService.logsPath).then(null, err => logService.error(err)), 10000);
+
+	const loggerService = new LoggerService(logService);
+	bufferLogService.logger = loggerService.createLogger(URI.file(path.join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`)), { name: RemoteExtensionLogFileName });
 
 	logService.trace(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
 	logService.trace('process arguments:', environmentService.args);
 	if (Array.isArray(productService.serverGreeting)) {
-		spdLogService.info(`\n\n${productService.serverGreeting.join('\n')}\n\n`);
+		logService.info(`\n\n${productService.serverGreeting.join('\n')}\n\n`);
 	}
 
 	// ExtensionHost Debug broadcast service
@@ -103,7 +108,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 	// TODO: @Sandy @Joao need dynamic context based router
 	const router = new StaticRouter<RemoteAgentConnectionContext>(ctx => ctx.clientId === 'renderer');
-	socketServer.registerChannel('logger', new LogLevelChannel(logService));
+	socketServer.registerChannel('logger', new LogLevelChannel(logService, loggerService));
 
 	// Files
 	const fileService = disposables.add(new FileService(logService));

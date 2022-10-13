@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { AbstractMessageLogger, ILogger, ILoggerService, log, LogLevel } from 'vs/platform/log/common/log';
+import { AbstractMessageLogger, ILogger, ILoggerService, ILogService, log, LogLevel } from 'vs/platform/log/common/log';
 import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
 import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -18,6 +18,9 @@ import { toLocalISOString } from 'vs/base/common/date';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { isString } from 'vs/base/common/types';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from 'vs/platform/files/common/files';
+import { Emitter } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOutputChannel {
 
@@ -36,6 +39,10 @@ class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOu
 	) {
 		super();
 		this._register(logger.onDidChangeLogLevel(level => this.setLevel(level)));
+	}
+
+	get logLevel(): LogLevel {
+		return this.logger.getLevel();
 	}
 
 	appendLine(value: string): void {
@@ -118,6 +125,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		@IExtHostConsumerFileSystem private readonly extHostFileSystem: IExtHostConsumerFileSystem,
 		@IExtHostFileSystemInfo private readonly extHostFileSystemInfo: IExtHostFileSystemInfo,
 		@ILoggerService private readonly loggerService: ILoggerService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		this.proxy = extHostRpc.getProxy(MainContext.MainThreadOutputService);
 		this.outputsLocation = this.extHostFileSystemInfo.extUri.joinPath(initData.logsLocation, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
@@ -136,6 +144,9 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 			throw new Error('illegal argument `name`. must not be falsy');
 		}
 		const log = typeof options === 'object' && options.log;
+		if (log) {
+			checkProposedApiEnabled(extension, 'extensionLog');
+		}
 		const languageId = isString(options) ? options : undefined;
 		if (isString(languageId) && !languageId.trim()) {
 			throw new Error('illegal argument `languageId`. must not be empty');
@@ -226,14 +237,25 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 	}
 
 	private createExtHostLogOutputChannel(name: string, channelPromise: Promise<ExtHostOutputChannel>): vscode.LogOutputChannel {
-		let disposed = false;
+		const disposables = new DisposableStore();
 		const validate = () => {
-			if (disposed) {
+			if (disposables.isDisposed) {
 				throw new Error('Channel has been closed');
 			}
 		};
+		let logLevel = this.logService.getLevel();
+		const onDidChangeLogLevel = disposables.add(new Emitter<LogLevel>());
+		channelPromise.then(channel => {
+			disposables.add(channel);
+			disposables.add(channel.onDidChangeLogLevel(e => {
+				logLevel = e;
+				onDidChangeLogLevel.fire(e);
+			}));
+		});
 		return {
 			...this.createExtHostOutputChannel(name, channelPromise),
+			get logLevel() { return logLevel; },
+			onDidChangeLogLevel: onDidChangeLogLevel.event,
 			trace(value: string, ...args: any[]): void {
 				validate();
 				channelPromise.then(channel => channel.trace(value, ...args));
@@ -255,8 +277,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 				channelPromise.then(channel => channel.error(value, ...args));
 			},
 			dispose(): void {
-				disposed = true;
-				channelPromise.then(channel => channel.dispose());
+				disposables.dispose();
 			}
 		};
 	}
