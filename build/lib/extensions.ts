@@ -26,9 +26,10 @@ import webpack = require('webpack');
 import { getProductionDependencies } from './dependencies';
 import _ = require('underscore');
 import { getExtensionStream } from './builtInExtensions';
-const util = require('./util');
+import { getVersion } from './getVersion';
+
 const root = path.dirname(path.dirname(__dirname));
-const commit = util.getVersion(root);
+const commit = getVersion(root);
 const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
 
 function minifyExtensionResources(input: Stream): Stream {

@@ -4,23 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { formatOptions, Option } from 'vs/platform/environment/node/argv';
+import { formatOptions, Option, OptionDescriptions, Subcommand, parseArgs, ErrorReporter } from 'vs/platform/environment/node/argv';
 import { addArg } from 'vs/platform/environment/node/argvHelper';
 
-suite('formatOptions', () => {
+function o(description: string, type: 'boolean' | 'string' | 'string[]' = 'string'): Option<any> {
+	return {
+		description, type
+	};
+}
+function c(description: string, options: OptionDescriptions<any>): Subcommand<any> {
+	return {
+		description, type: 'subcommand', options
+	};
+}
 
-	function o(description: string): Option<any> {
-		return {
-			description, type: 'string'
-		};
-	}
+suite('formatOptions', () => {
 
 	test('Text should display small columns correctly', () => {
 		assert.deepStrictEqual(
 			formatOptions({
 				'add': o('bar')
 			}, 80),
-			['  --add bar']
+			['  --add        bar']
 		);
 		assert.deepStrictEqual(
 			formatOptions({
@@ -29,9 +34,9 @@ suite('formatOptions', () => {
 				'trace': o('b')
 			}, 80),
 			[
-				'  --add   bar',
-				'  --wait  ba',
-				'  --trace b'
+				'  --add        bar',
+				'  --wait       ba',
+				'  --trace      b'
 			]);
 	});
 
@@ -41,8 +46,8 @@ suite('formatOptions', () => {
 				'add': o((<any>'bar ').repeat(9))
 			}, 40),
 			[
-				'  --add bar bar bar bar bar bar bar bar',
-				'        bar'
+				'  --add        bar bar bar bar bar bar',
+				'               bar bar bar'
 			]);
 	});
 
@@ -64,5 +69,68 @@ suite('formatOptions', () => {
 		assert.deepStrictEqual(addArg(['--wait'], 'bar'), ['--wait', 'bar']);
 		assert.deepStrictEqual(addArg(['--wait', '--', '--foo'], 'bar'), ['--wait', 'bar', '--', '--foo']);
 		assert.deepStrictEqual(addArg(['--', '--foo'], 'bar'), ['bar', '--', '--foo']);
+	});
+
+	test('subcommands', () => {
+		assert.deepStrictEqual(
+			formatOptions({
+				'testcmd': c('A test command', { add: o('A test command option') })
+			}, 30),
+			[
+				'  --testcmd',
+				'      A test command'
+			]);
+	});
+});
+
+suite('parseArgs', () => {
+	function newErrorReporter(result: string[] = [], command = ''): ErrorReporter & { result: string[] } {
+		const commandPrefix = command ? command + '-' : '';
+		return {
+			onDeprecatedOption: (deprecatedId) => result.push(`${commandPrefix}onDeprecatedOption ${deprecatedId}`),
+			onUnknownOption: (id) => result.push(`${commandPrefix}onUnknownOption ${id}`),
+			onEmptyValue: (id) => result.push(`${commandPrefix}onEmptyValue ${id}`),
+			onMultipleValues: (id, usedValue) => result.push(`${commandPrefix}onMultipleValues ${id} ${usedValue}`),
+			getSubcommandReporter: (c) => newErrorReporter(result, commandPrefix + c),
+			result
+		};
+	}
+
+	function assertParse<T>(options: OptionDescriptions<T>, input: string[], expected: T, expectedErrors: string[]) {
+		const errorReporter = newErrorReporter();
+		assert.deepStrictEqual(parseArgs(input, options, errorReporter), expected);
+		assert.deepStrictEqual(errorReporter.result, expectedErrors);
+	}
+
+	test('subcommands', () => {
+		const options1 = {
+			'testcmd': c('A test command', {
+				testArg: o('A test command option')
+			})
+		};
+		assertParse(
+			options1,
+			['testcmd', '--testArg=foo'],
+			{ testcmd: { testArg: 'foo', '_': [] } },
+			[]
+		);
+		assertParse(
+			options1,
+			['testcmd', '--testArg=foo', '--testX'],
+			{ testcmd: { testArg: 'foo', '_': [] } },
+			['testcmd-onUnknownOption testX']
+		);
+		const options2 = {
+			'testcmd': c('A test command', {
+				testArg: o('A test command option')
+			}),
+			testX: { global: true }
+		};
+		assertParse(
+			options2,
+			['testcmd', '--testArg=foo', '--testX'],
+			{ testcmd: { testArg: 'foo', testX: true, '_': [] } },
+			[]
+		);
 	});
 });
