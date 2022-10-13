@@ -23,20 +23,20 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento } from 'vs/workbench/common/memento';
-import { INotebookEditorContribution, notebookRendererExtensionPoint, notebooksExtensionPoint } from 'vs/workbench/contrib/notebook/browser/notebookExtensionPoint';
+import { INotebookEditorContribution, notebookPreloadExtensionPoint, notebookRendererExtensionPoint, notebooksExtensionPoint } from 'vs/workbench/contrib/notebook/browser/notebookExtensionPoint';
 import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/common/notebookDiffEditorInput';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellUri, NotebookSetting, INotebookContributionData, INotebookExclusiveDocumentFilter, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, MimeTypeDisplayOrder, NotebookData, NotebookEditorPriority, NotebookRendererMatch, NOTEBOOK_DISPLAY_ORDER, RENDERER_EQUIVALENT_EXTENSIONS, RENDERER_NOT_AVAILABLE, TransientOptions, NotebookExtensionDescription } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellUri, NotebookSetting, INotebookContributionData, INotebookExclusiveDocumentFilter, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, MimeTypeDisplayOrder, NotebookData, NotebookEditorPriority, NotebookRendererMatch, NOTEBOOK_DISPLAY_ORDER, RENDERER_EQUIVALENT_EXTENSIONS, RENDERER_NOT_AVAILABLE, TransientOptions, NotebookExtensionDescription, INotebookStaticPreloadInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { updateEditorTopPadding } from 'vs/workbench/contrib/notebook/common/notebookOptions';
-import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
+import { NotebookOutputRendererInfo, NotebookStaticPreloadInfo as NotebookStaticPreloadInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { ComplexNotebookProviderInfo, INotebookContentProvider, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { DiffEditorInputFactoryFunction, EditorInputFactoryFunction, EditorInputFactoryObject, IEditorResolverService, IEditorType, RegisteredEditorInfo, RegisteredEditorPriority, UntitledEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 export class NotebookProviderInfoStore extends Disposable {
@@ -422,6 +422,9 @@ export class NotebookService extends Disposable implements INotebookService {
 	private readonly _notebookRenderersInfoStore = this._instantiationService.createInstance(NotebookOutputRendererInfoStore);
 	private readonly _onDidChangeOutputRenderers = this._register(new Emitter<void>());
 	readonly onDidChangeOutputRenderers = this._onDidChangeOutputRenderers.event;
+
+	private readonly _notebookStaticPreloadInfoStore = new Set<NotebookStaticPreloadInfo>();
+
 	private readonly _models = new ResourceMap<ModelData>();
 
 	private readonly _onWillAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
@@ -488,6 +491,35 @@ export class NotebookService extends Disposable implements INotebookService {
 			}
 
 			this._onDidChangeOutputRenderers.fire();
+		});
+
+		notebookPreloadExtensionPoint.setHandler(extensions => {
+			this._notebookStaticPreloadInfoStore.clear();
+
+			for (const extension of extensions) {
+				if (!isProposedApiEnabled(extension.description, 'contribNotebookStaticPreloads')) {
+					continue;
+				}
+
+				for (const notebookContribution of extension.value) {
+					if (!notebookContribution.entrypoint) { // avoid crashing
+						extension.collector.error(`Notebook preload does not specify entry point`);
+						continue;
+					}
+
+					const type = notebookContribution.type;
+					if (!type) {
+						extension.collector.error(`Notebook preload does not specify type-property`);
+						continue;
+					}
+
+					this._notebookStaticPreloadInfoStore.add(new NotebookStaticPreloadInfo({
+						type,
+						extension: extension.description,
+						entrypoint: notebookContribution.entrypoint,
+					}));
+				}
+			}
 		});
 
 		const updateOrder = () => {
@@ -669,6 +701,14 @@ export class NotebookService extends Disposable implements INotebookService {
 
 	getRenderers(): INotebookRendererInfo[] {
 		return this._notebookRenderersInfoStore.getAll();
+	}
+
+	*getStaticPreloads(viewType: string): Iterable<INotebookStaticPreloadInfo> {
+		for (const preload of this._notebookStaticPreloadInfoStore) {
+			if (preload.type === viewType) {
+				yield preload;
+			}
+		}
 	}
 
 	// --- notebook documents: create, destory, retrieve, enumerate

@@ -42,6 +42,16 @@ export interface INotebookRendererContribution {
 	readonly [NotebookRendererContribution.requiresMessaging]: RendererMessagingSpec;
 }
 
+const NotebookPreloadContribution = Object.freeze({
+	type: 'type',
+	entrypoint: 'entrypoint',
+});
+
+export interface INotebookPreloadContribution {
+	readonly [NotebookPreloadContribution.type]: string;
+	readonly [NotebookPreloadContribution.entrypoint]: string;
+}
+
 const notebookProviderContribution: IJSONSchema = {
 	description: nls.localize('contributes.notebook.provider', 'Contributes notebook document provider.'),
 	type: 'array',
@@ -139,7 +149,6 @@ const notebookRendererContribution: IJSONSchema = {
 							'optional',
 							'never',
 						],
-
 						enumDescriptions: [
 							nls.localize('contributes.notebook.renderer.requiresMessaging.always', 'Messaging is required. The renderer will only be used when it\'s part of an extension that can be run in an extension host.'),
 							nls.localize('contributes.notebook.renderer.requiresMessaging.optional', 'The renderer is better with messaging available, but it\'s not requried.'),
@@ -198,14 +207,40 @@ const notebookRendererContribution: IJSONSchema = {
 	}
 };
 
-export const notebooksExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookEditorContribution[]>(
-	{
-		extensionPoint: 'notebooks',
-		jsonSchema: notebookProviderContribution
-	});
+const notebookPreloadContribution: IJSONSchema = {
+	description: nls.localize('contributes.preload.provider', 'Contributes notebook preloads.'),
+	type: 'array',
+	defaultSnippets: [{ body: [{ type: '', entrypoint: '' }] }],
+	items: {
+		type: 'object',
+		required: [
+			NotebookPreloadContribution.type,
+			NotebookPreloadContribution.entrypoint
+		],
+		properties: {
+			[NotebookPreloadContribution.type]: {
+				type: 'string',
+				description: nls.localize('contributes.preload.provider.viewType', 'Type of the notebook.'),
+			},
+			[NotebookPreloadContribution.entrypoint]: {
+				type: 'string',
+				description: nls.localize('contributes.preload.entrypoint', 'Path to file loaded in the webview.'),
+			},
+		}
+	}
+};
 
-export const notebookRendererExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookRendererContribution[]>(
-	{
-		extensionPoint: 'notebookRenderer',
-		jsonSchema: notebookRendererContribution
-	});
+export const notebooksExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookEditorContribution[]>({
+	extensionPoint: 'notebooks',
+	jsonSchema: notebookProviderContribution
+});
+
+export const notebookRendererExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookRendererContribution[]>({
+	extensionPoint: 'notebookRenderer',
+	jsonSchema: notebookRendererContribution
+});
+
+export const notebookPreloadExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookPreloadContribution[]>({
+	extensionPoint: 'notebookPreload',
+	jsonSchema: notebookPreloadContribution,
+});

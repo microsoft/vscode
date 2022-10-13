@@ -7,7 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { Event } from 'vs/base/common/event';
-import { INotebookRendererInfo, NotebookData, TransientOptions, IOrderedMimeType, IOutputDto, INotebookContributionData, NotebookExtensionDescription } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookRendererInfo, NotebookData, TransientOptions, IOrderedMimeType, IOutputDto, INotebookContributionData, NotebookExtensionDescription, INotebookStaticPreloadInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -72,6 +72,8 @@ export interface INotebookService {
 
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
 	getRenderers(): INotebookRendererInfo[];
+
+	getStaticPreloads(viewType: string): Iterable<INotebookStaticPreloadInfo>;
 
 	/** Updates the preferred renderer for the given mimetype in the workspace. */
 	updateMimePreferredRenderer(viewType: string, mimeType: string, rendererId: string, otherMimetypes: readonly string[]): void;
