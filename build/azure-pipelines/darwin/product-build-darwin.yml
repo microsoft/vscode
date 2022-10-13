@@ -9,6 +9,8 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
+  - name: VSCODE_BUILD_TUNNEL_CLI
+    type: boolean
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -172,6 +174,40 @@ steps:
         VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
           yarn gulp "transpile-client-swc" "transpile-extensions"
       displayName: Transpile
+
+  - script: |
+      set -e
+      APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+      APP_NAME="`ls $APP_ROOT | head -n 1`"
+      echo "##vso[task.setvariable variable=APP_PATH]$APP_ROOT/$APP_NAME"
+    displayName: Find application path
+
+  - ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: unsigned_vscode_cli_darwin_arm64_cli
+        patterns: '**'
+        path: $(Build.ArtifactStagingDirectory)/cli
+      displayName: Download VS Code CLI
+      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
+
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: unsigned_vscode_cli_darwin_x64_cli
+        patterns: '**'
+        path: $(Build.ArtifactStagingDirectory)/cli
+      displayName: Download VS Code CLI
+      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+
+    - script: |
+        set -e
+        ARCHIVE_NAME=$(ls "$(Build.ArtifactStagingDirectory)/cli" | head -n 1)
+        unzip "$(Build.ArtifactStagingDirectory)/cli/$ARCHIVE_NAME" -d "$(APP_PATH)/Contents/Resources/app/bin"
+        chmod +x "$(APP_PATH)/Contents/Resources/app/bin/code-tunnel"
+        if [ "$(VSCODE_QUALITY)" != "stable" ]; then
+          mv "$(APP_PATH)/Contents/Resources/app/bin/code-tunnel" "$(APP_PATH)/Contents/Resources/app/bin/code-tunnel-$(VSCODE_QUALITY)"
+        fi
+      displayName: Make CLI executable
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
     - template: product-build-darwin-test.yml

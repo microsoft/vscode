@@ -41,6 +41,12 @@
 	flex-shrink: 0;
 }
 
+.monaco-workbench .part > .title > .title-actions .start-debug-action-item .codicon-debug-start {
+	width: 18px;
+	height: 21px;
+	padding-left: 2px;
+}
+
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {
 	border: none;
 	margin-top: 0px;

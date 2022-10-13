@@ -387,7 +387,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			}
 
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
-			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this, this.globalState, this.outputChannelLogger, this.telemetryReporter);
+			const repository = new Repository(this.git.open(repositoryRoot, dotGit, this.outputChannelLogger), this, this, this, this.globalState, this.outputChannelLogger, this.telemetryReporter);
 
 			this.open(repository);
 			repository.status(); // do not await this, we want SCM to know about the repo asap

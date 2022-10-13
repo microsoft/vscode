@@ -2234,7 +2234,7 @@ export function registerTerminalActions() {
 				id: TerminalCommandId.ShowTextureAtlas,
 				title: { value: localize('workbench.action.terminal.showTextureAtlas', "Show Terminal Texture Atlas"), original: 'Show Terminal Texture Atlas' },
 				f1: true,
-				category: Categories.Developer.value,
+				category: Categories.Developer,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.isOpen)
 			});
 		}

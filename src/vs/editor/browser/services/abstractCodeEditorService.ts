@@ -156,6 +156,10 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		provider.refCount++;
 	}
 
+	public listDecorationTypes(): string[] {
+		return Array.from(this._decorationOptionProviders.keys());
+	}
+
 	public removeDecorationType(key: string): void {
 		const provider = this._decorationOptionProviders.get(key);
 		if (provider) {

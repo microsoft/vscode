@@ -9,7 +9,7 @@ import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, OUTPUT_SCHEME, LOG_SCHEME, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode, IOutputChannelDescriptor, Extensions, IOutputChannelRegistry, ACTIVE_OUTPUT_CHANNEL_CONTEXT } from 'vs/workbench/services/output/common/output';
+import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, OUTPUT_SCHEME, LOG_SCHEME, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode, IOutputChannelDescriptor, Extensions, IOutputChannelRegistry, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/services/output/common/output';
 import { OutputLinkProvider } from 'vs/workbench/contrib/output/browser/outputLinkProvider';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
@@ -73,6 +73,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	readonly onActiveOutputChannel: Event<string> = this._onActiveOutputChannel.event;
 
 	private readonly activeOutputChannelContext: IContextKey<string>;
+	private readonly activeLogOutputChannelContext: IContextKey<boolean>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -88,6 +89,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		this.activeOutputChannelContext = ACTIVE_OUTPUT_CHANNEL_CONTEXT.bindTo(contextKeyService);
 		this.activeOutputChannelContext.set(this.activeChannelIdInStorage);
 		this._register(this.onActiveOutputChannel(channel => this.activeOutputChannelContext.set(channel)));
+
+		this.activeLogOutputChannelContext = CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(contextKeyService);
 
 		// Register as text model content provider for output
 		textModelResolverService.registerTextModelContentProvider(OUTPUT_SCHEME, this);
@@ -105,6 +108,12 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			const channels = this.getChannelDescriptors();
 			this.setActiveChannel(channels && channels.length > 0 ? this.getChannel(channels[0].id) : undefined);
 		}
+
+		this._register(Event.filter(this.viewsService.onDidChangeViewVisibility, e => e.id === OUTPUT_VIEW_ID && e.visible)(() => {
+			if (this.activeChannel) {
+				this.viewsService.getActiveViewWithId<OutputViewPane>(OUTPUT_VIEW_ID)?.showChannel(this.activeChannel, true);
+			}
+		}));
 
 		this._register(this.lifecycleService.onDidShutdown(() => this.dispose()));
 	}
@@ -187,6 +196,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 
 	private setActiveChannel(channel: OutputChannel | undefined): void {
 		this.activeChannel = channel;
+		this.activeLogOutputChannelContext.set(!!channel?.outputChannelDescriptor?.file && channel?.outputChannelDescriptor?.log);
 
 		if (this.activeChannel) {
 			this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE, StorageTarget.USER);
