@@ -62,11 +62,17 @@ export class WorkerServerProcess implements TsServerProcess {
 		private readonly worker: Worker,
 		args: readonly string[],
 	) {
+		// TODO: Create a messagechannel for listening and addEventListener/onerror on that instead.
+		// Only send the initial setup via worker
 		worker.addEventListener('message', (msg: any) => {
 			if (msg.data.type === 'log') {
 				this.output.append(msg.data.body);
 				return;
 			}
+			// TODO: A multi-watcher message would look something like this:
+			// if (msg.data.type === 'dispose-watcher') {
+			//     watchers.get(msg.data.path).dispose()
+			// }
 
 			this.output.append('extn got: ' + JSON.stringify(msg.data) + '\n');
 			for (const handler of this._onDataHandlers) {
@@ -79,6 +85,14 @@ export class WorkerServerProcess implements TsServerProcess {
 				handler(err);
 			}
 		};
+		// TODO: For prototyping, create one watcher ahead of time and send messages using the worker.
+		// For the real thing, it makes more sense to create a third MessageChannel and listen on it; the host
+		// can then send messages to tell the extension to create a new filesystemwatcher for each file/directory
+		this.output.append('creating fileSystemWatcher\n');
+		const watcher = vscode.workspace.createFileSystemWatcher('**/*');
+		watcher.onDidChange(e => worker.postMessage({ type: 'watch', event: 'change', path: e.path }));
+		watcher.onDidCreate(e => worker.postMessage({ type: 'watch', event: 'create', path: e.path }));
+		watcher.onDidDelete(e => worker.postMessage({ type: 'watch', event: 'delete', path: e.path }));
 		this.output.append('creating new MessageChannel and posting its port2 + args: ' + args.join(' '));
 		const syncChannel = new MessageChannel();
 		worker.postMessage({ args, port: syncChannel.port2 }, [syncChannel.port2]);
@@ -116,3 +130,4 @@ export class WorkerServerProcess implements TsServerProcess {
 		this.worker.terminate();
 	}
 }
+
