@@ -232,7 +232,8 @@ export class CodeLensContribution implements IEditorContribution {
 					helper.commit(decorationsAccessor);
 				});
 			});
-
+		}));
+		this._localToDispose.add(this._editor.onDidChangeModelContentDeferred(() => {
 			// Ask for all references again
 			scheduler.schedule();
 		}));

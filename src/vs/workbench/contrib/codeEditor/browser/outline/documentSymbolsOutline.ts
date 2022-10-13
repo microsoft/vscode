@@ -195,7 +195,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		// update soon'ish as model content change
 		const updateSoon = new TimeoutTimer();
 		this._disposables.add(updateSoon);
-		this._disposables.add(this._editor.onDidChangeModelContent(event => {
+		this._disposables.add(this._editor.onDidChangeModelContentDeferred(event => {
 			const model = this._editor.getModel();
 			if (model) {
 				const timeout = _outlineModelService.getDebounceValue(model);
@@ -358,7 +358,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			}));
 
 			// feature: update active when cursor changes
-			this._outlineDisposables.add(this._editor.onDidChangeCursorPosition(_ => {
+			this._outlineDisposables.add(this._editor.onDidChangeCursorPositionDeferred(_ => {
 				timeoutTimer.cancelAndSet(() => {
 					if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId() && this._editor.hasModel()) {
 						this._breadcrumbsDataSource.update(model, this._editor.getPosition());

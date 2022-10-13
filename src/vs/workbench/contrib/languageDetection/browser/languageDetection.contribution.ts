@@ -45,8 +45,8 @@ class LanguageDetectionStatusContribution implements IWorkbenchContribution {
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
-		_editorService.onDidActiveEditorChange(() => this._update(true), this, this._disposables);
-		this._update(false);
+		_editorService.onDidActiveEditorChange(() => this._updateLanguage(true), this, this._disposables);
+		this._updateLanguage(false);
 	}
 
 	dispose(): void {
@@ -56,11 +56,15 @@ class LanguageDetectionStatusContribution implements IWorkbenchContribution {
 		this._renderDisposables.dispose();
 	}
 
-	private _update(clear: boolean): void {
+	private _updateLanguage(clear: boolean): void {
 		if (clear) {
 			this._combinedEntry?.dispose();
 			this._combinedEntry = undefined;
 		}
+		this._scheduleUpdate();
+	}
+
+	private _scheduleUpdate(): void {
 		this._delayer.trigger(() => this._doUpdate());
 	}
 
@@ -70,8 +74,8 @@ class LanguageDetectionStatusContribution implements IWorkbenchContribution {
 		this._renderDisposables.clear();
 
 		// update when editor language changes
-		editor?.onDidChangeModelLanguage(() => this._update(true), this, this._renderDisposables);
-		editor?.onDidChangeModelContent(() => this._update(false), this, this._renderDisposables);
+		editor?.onDidChangeModelLanguage(() => this._updateLanguage(true), this, this._renderDisposables);
+		editor?.onDidChangeModelContentDeferred(() => this._scheduleUpdate(), this, this._renderDisposables);
 		const editorModel = editor?.getModel();
 		const editorUri = editorModel?.uri;
 		const existingId = editorModel?.getLanguageId();

@@ -42,7 +42,7 @@ class CodeActionOracle extends Disposable {
 	) {
 		super();
 		this._register(this._markerService.onMarkerChanged(e => this._onMarkerChanges(e)));
-		this._register(this._editor.onDidChangeCursorPosition(() => this._onCursorChange()));
+		this._register(this._editor.onDidChangeCursorPositionDeferred(() => this._onCursorChange()));
 	}
 
 	public trigger(trigger: CodeActionTrigger): TriggeredCodeAction {

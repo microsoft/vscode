@@ -494,6 +494,13 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	readonly onDidChangeModelContent: Event<IModelContentChangedEvent>;
 	/**
+	 * An event emitted when the content of the current model has changed. This is performed
+	 * asynchronously after the change has been rendered.
+	 * @event
+	 * @internal
+	 */
+	readonly onDidChangeModelContentDeferred: Event<void>;
+	/**
 	 * An event emitted when the language of the current model has changed.
 	 * @event
 	 */
@@ -518,6 +525,13 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @event
 	 */
 	readonly onDidChangeCursorPosition: Event<ICursorPositionChangedEvent>;
+	/**
+	 * An event emitted when the cursor position has changed. This is performed asynchronously after
+	 * the change has been rendered.
+	 * @event
+	 * @internal
+	 */
+	readonly onDidChangeCursorPositionDeferred: Event<void>;
 	/**
 	 * An event emitted when the cursor selection has changed.
 	 * @event

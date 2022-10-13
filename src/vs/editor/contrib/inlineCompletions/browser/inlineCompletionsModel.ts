@@ -267,6 +267,8 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			// Call this in case `onDidChangeModelContent` calls us first.
 			this.cache.value?.updateRanges();
 			this.updateFilteredInlineCompletions();
+		}));
+		this._register(this.editor.onDidChangeModelContentDeferred(() => {
 			this.scheduleAutomaticUpdate();
 		}));
 

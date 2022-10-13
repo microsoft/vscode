@@ -72,8 +72,10 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
 			this.minReservedLineCount = 0;
-			this.updateCacheSoon.schedule();
 			this.onDidChangeEmitter.fire();
+		}));
+		this._register(this.editor.onDidChangeCursorPositionDeferred(() => {
+			this.updateCacheSoon.schedule();
 		}));
 
 		this._register(toDisposable(() => this.suggestionInlineCompletionSource.stopForceRenderingAbove()));
