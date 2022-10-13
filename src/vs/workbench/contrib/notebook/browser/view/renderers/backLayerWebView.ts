@@ -403,12 +403,14 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 	private getRendererData(): RendererMetadata[] {
 		return this.notebookService.getRenderers().map((renderer): RendererMetadata => {
-			const entrypoint = this.asWebviewUri(renderer.entrypoint, renderer.extensionLocation).toString();
+			const entrypoint = {
+				extends: renderer.entrypoint.extends,
+				path: this.asWebviewUri(renderer.entrypoint.path, renderer.extensionLocation).toString()
+			};
 			return {
 				id: renderer.id,
 				entrypoint,
 				mimeTypes: renderer.mimeTypes,
-				extends: renderer.extends,
 				messaging: renderer.messaging !== RendererMessagingSpec.Never,
 				isBuiltin: renderer.isBuiltin
 			};
@@ -923,7 +925,7 @@ var requirejs = (function() {
 		const notebookDir = this.getNotebookBaseUri();
 		return [
 			...this.notebookService.getNotebookProviderResourceRoots(),
-			...this.notebookService.getRenderers().map(x => dirname(x.entrypoint)),
+			...this.notebookService.getRenderers().map(x => dirname(x.entrypoint.path)),
 			...workspaceFolders,
 			notebookDir,
 			...this.getBuiltinLocalResourceRoots()

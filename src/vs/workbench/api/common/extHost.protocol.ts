@@ -1944,7 +1944,7 @@ export interface ExtHostWindowShape {
 }
 
 export interface ExtHostLogLevelServiceShape {
-	$setLevel(level: LogLevel): void;
+	$setLevel(level: LogLevel, resource?: UriComponents): void;
 }
 
 export interface MainThreadLoggerShape {
@@ -2144,6 +2144,7 @@ export interface MainThreadThemingShape extends IDisposable {
 }
 
 export interface MainThreadLocalizationShape extends IDisposable {
+	$fetchBuiltInBundleUri(id: string): Promise<UriComponents | undefined>;
 	$fetchBundleContents(uriComponents: UriComponents): Promise<string>;
 }
 

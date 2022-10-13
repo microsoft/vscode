@@ -73,8 +73,7 @@ import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/ex
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
 import { IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
-import { ILoggerService, LogLevel } from 'vs/platform/log/common/log';
-import { FileLoggerService } from 'vs/platform/log/common/fileLog';
+import { LogLevel } from 'vs/platform/log/common/log';
 import { UserDataSyncMachinesService, IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataAutoSyncService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
@@ -95,7 +94,6 @@ import { WebLanguagePacksService } from 'vs/platform/languagePacks/browser/langu
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
 registerSingleton(IContextMenuService, ContextMenuService, InstantiationType.Delayed);
-registerSingleton(ILoggerService, FileLoggerService, InstantiationType.Delayed);
 registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService, InstantiationType.Delayed);
 registerSingleton(IUserDataSyncMachinesService, UserDataSyncMachinesService, InstantiationType.Delayed);
 registerSingleton(IUserDataSyncBackupStoreService, UserDataSyncBackupStoreService, InstantiationType.Delayed);

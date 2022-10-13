@@ -5,29 +5,41 @@
 
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ILoggerOptions, ILoggerService, ILogService, log, LogLevel } from 'vs/platform/log/common/log';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadLoggerShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ILogLevelService } from 'vs/workbench/contrib/logs/common/logLevelService';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
+import { localExtHostLog, remoteExtHostLog, webWorkerExtHostLog } from 'vs/workbench/services/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadLogger)
 export class MainThreadLoggerService implements MainThreadLoggerShape {
 
-	private readonly _logListener: IDisposable;
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@ILogService logService: ILogService,
-		@ILoggerService private readonly _loggerService: ILoggerService,
+		@ILoggerService private readonly loggerService: ILoggerService,
+		@ILogLevelService extensionLoggerService: ILogLevelService,
+		@IOutputService outputService: IOutputService,
 	) {
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostLogLevelServiceShape);
-		this._logListener = logService.onDidChangeLogLevel(level => proxy.$setLevel(level));
+		this.disposables.add(logService.onDidChangeLogLevel(level => proxy.$setLevel(level)));
+		this.disposables.add(extensionLoggerService.onDidChangeLogLevel(({ id, logLevel }) => {
+			const channel = outputService.getChannelDescriptor(id);
+			const resource = channel?.log ? channel.file : undefined;
+			if (resource && (channel?.extensionId || id === localExtHostLog || id === remoteExtHostLog || id === webWorkerExtHostLog)) {
+				proxy.$setLevel(logLevel, resource);
+			}
+		}));
 	}
 
 	$log(file: UriComponents, messages: [LogLevel, string][]): void {
-		const logger = this._loggerService.getLogger(URI.revive(file));
+		const logger = this.loggerService.getLogger(URI.revive(file));
 		if (!logger) {
 			throw new Error('Create the logger before logging');
 		}
@@ -37,11 +49,11 @@ export class MainThreadLoggerService implements MainThreadLoggerShape {
 	}
 
 	async $createLogger(file: UriComponents, options?: ILoggerOptions): Promise<void> {
-		this._loggerService.createLogger(URI.revive(file), options);
+		this.loggerService.createLogger(URI.revive(file), options);
 	}
 
 	dispose(): void {
-		this._logListener.dispose();
+		this.disposables.dispose();
 	}
 }
 
