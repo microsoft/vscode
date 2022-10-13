@@ -391,7 +391,7 @@ export class ExtHostNotebookDocument {
 		const cells = this._cells.splice(index, length);
 		this._cells.splice(newIdx, 0, ...cells);
 		const changes = [
-			new RawContentChangeEvent(index, 1, cells.map(c => c.apiCell), []),
+			new RawContentChangeEvent(index, length, cells.map(c => c.apiCell), []),
 			new RawContentChangeEvent(newIdx, 0, [], cells)
 		];
 		for (const change of changes) {
