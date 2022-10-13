@@ -162,12 +162,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		let top = 0;
 		let quickPickTop = 0;
 		if (this.isVisible(Parts.BANNER_PART)) {
-			top += this.getPart(Parts.BANNER_PART).maximumHeight;
-			quickPickTop += top;
+			top = this.getPart(Parts.BANNER_PART).maximumHeight;
+			quickPickTop = top;
 		}
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
 			top += this.getPart(Parts.TITLEBAR_PART).maximumHeight;
-			quickPickTop += this.titleService.isCommandCenterVisible ? 0 : top;
+			quickPickTop = this.titleService.isCommandCenterVisible ? quickPickTop : top;
 		}
 		return { top, quickPickTop };
 	}
