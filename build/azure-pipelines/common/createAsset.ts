@@ -28,10 +28,8 @@ if (process.argv.length !== 8) {
 	process.exit(-1);
 }
 
-const Ignore = Symbol('Ignore');
-
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
-function getPlatform(product: string, os: string, arch: string, type: string): string | typeof Ignore {
+function getPlatform(product: string, os: string, arch: string, type: string): string {
 	switch (os) {
 		case 'win32':
 			switch (product) {
@@ -59,7 +57,7 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					}
 					return arch === 'ia32' ? 'server-win32-web' : `server-win32-${arch}-web`;
 				case 'cli':
-					return type === 'cli-unsigned' ? Ignore : `cli-win32-${arch}`;
+					return `cli-win32-${arch}`;
 				default:
 					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
@@ -93,7 +91,7 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					return `linux-deb-${arch}`;
 				case 'rpm-package':
 					return `linux-rpm-${arch}`;
-				case 'cli-unsigned':
+				case 'cli':
 					return `cli-linux-${arch}`;
 				default:
 					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
@@ -116,7 +114,7 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					}
 					return `server-darwin-${arch}-web`;
 				case 'cli':
-					return type === 'cli-unsigned' ? Ignore : `cli-darwin-${arch}`;
+					return `cli-darwin-${arch}`;
 				default:
 					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
@@ -163,10 +161,6 @@ async function main(): Promise<void> {
 	const [, , product, os, arch, unprocessedType, fileName, filePath] = process.argv;
 	// getPlatform needs the unprocessedType
 	const platform = getPlatform(product, os, arch, unprocessedType);
-	if (platform === Ignore) {
-		return;
-	}
-
 	const type = getRealType(unprocessedType);
 	const quality = getEnv('VSCODE_QUALITY');
 	const commit = process.env['VSCODE_DISTRO_COMMIT'] || getEnv('BUILD_SOURCEVERSION');

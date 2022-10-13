@@ -29,7 +29,7 @@ const inputOptions: WalkThroughInputOptions = {
 export class EditorWalkThroughAction extends Action2 {
 
 	public static readonly ID = 'workbench.action.showInteractivePlayground';
-	public static readonly LABEL = localize('editorWalkThrough', "Interactive Editor Playground");
+	public static readonly LABEL = { value: localize('editorWalkThrough', "Interactive Editor Playground"), original: 'Interactive Editor Playground' };
 
 	constructor() {
 		super({

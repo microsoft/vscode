@@ -21,7 +21,7 @@ export class FileLogger extends AbstractLogger implements ILogger {
 	private backupIndex: number = 1;
 
 	constructor(
-		private readonly name: string,
+		name: string,
 		private readonly resource: URI,
 		level: LogLevel,
 		private readonly donotUseFormatters: boolean,
@@ -101,7 +101,7 @@ export class FileLogger extends AbstractLogger implements ILogger {
 			if (this.donotUseFormatters) {
 				content += message;
 			} else {
-				content += `[${this.getCurrentTimestamp()}] [${this.name}] [${this.stringifyLogLevel(level)}] ${message}\n`;
+				content += `${this.getCurrentTimestamp()} [${this.stringifyLogLevel(level)}] ${message}\n`;
 			}
 			await this.fileService.writeFile(this.resource, VSBuffer.fromString(content));
 		});

@@ -435,9 +435,11 @@ export class SelectActionViewItem extends BaseActionViewItem {
 	}
 
 	private registerListeners(): void {
-		this._register(this.selectBox.onDidSelect(e => {
-			this.actionRunner.run(this._action, this.getActionContext(e.selected, e.index));
-		}));
+		this._register(this.selectBox.onDidSelect(e => this.runAction(e.selected, e.index)));
+	}
+
+	protected runAction(option: string, index: number): void {
+		this.actionRunner.run(this._action, this.getActionContext(option, index));
 	}
 
 	protected getActionContext(option: string, index: number) {

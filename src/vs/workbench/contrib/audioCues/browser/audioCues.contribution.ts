@@ -29,27 +29,30 @@ const audioCueFeatureBase: IConfigurationPropertySchema = {
 		localize('audioCues.enabled.on', "Enable audio cue."),
 		localize('audioCues.enabled.off', "Disable audio cue.")
 	],
+	tags: ['accessibility']
 };
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	'properties': {
 		'audioCues.enabled': {
 			markdownDeprecationMessage: 'Deprecated. Use the specific setting for each audio cue instead (`audioCues.*`).',
+			tags: ['accessibility']
 		},
 		'audioCues.volume': {
 			'description': localize('audioCues.volume', "The volume of the audio cues in percent (0-100)."),
 			'type': 'number',
 			'minimum': 0,
 			'maximum': 100,
-			'default': 70
+			'default': 70,
+			tags: ['accessibility']
 		},
 		'audioCues.lineHasBreakpoint': {
 			'description': localize('audioCues.lineHasBreakpoint', "Plays a sound when the active line has a breakpoint."),
-			...audioCueFeatureBase,
+			...audioCueFeatureBase
 		},
 		'audioCues.lineHasInlineSuggestion': {
 			'description': localize('audioCues.lineHasInlineSuggestion', "Plays a sound when the active line has an inline suggestion."),
-			...audioCueFeatureBase,
+			...audioCueFeatureBase
 		},
 		'audioCues.lineHasError': {
 			'description': localize('audioCues.lineHasError', "Plays a sound when the active line has an error."),

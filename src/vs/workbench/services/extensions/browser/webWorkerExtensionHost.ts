@@ -293,6 +293,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				appHost: this._productService.embedderIdentifier ?? (platform.isWeb ? 'web' : 'desktop'),
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
+				extensionTelemetryLogResource: this._environmentService.extHostTelemetryLogFile,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,

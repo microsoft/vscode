@@ -149,7 +149,7 @@ registerAction2(class CreateProfileAction extends Action2 {
 			}, {
 				id: CreateTransientProfileAction.ID,
 				label: CreateTransientProfileAction.TITLE.value,
-			}], { hideInput: true, canPickMany: false, title: localize('create settings profile', "{0}: Create...", PROFILES_CATEGORY) });
+			}], { hideInput: true, canPickMany: false, title: localize('create settings profile', "{0}: Create...", PROFILES_CATEGORY.value) });
 		if (pick?.id) {
 			return commandService.executeCommand(pick.id);
 		}
@@ -342,7 +342,7 @@ registerAction2(class ManageSettingsProfileAction extends Action2 {
 					label: `${action.label}${action.checked ? ` $(${Codicon.check.id})` : ''}`,
 				};
 			});
-			const pick = await quickInputService.pick(picks, { canPickMany: false, title: PROFILES_CATEGORY });
+			const pick = await quickInputService.pick(picks, { canPickMany: false, title: PROFILES_CATEGORY.value });
 			if (pick?.id) {
 				await commandService.executeCommand(pick.id);
 			}

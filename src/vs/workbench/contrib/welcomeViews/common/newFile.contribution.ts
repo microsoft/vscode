@@ -7,6 +7,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, IMenuService, MenuId, registerAction2, IMenu, MenuRegistry, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -19,7 +20,7 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } fr
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const builtInSource = localize('Built-In', "Built-In");
-const category = localize('Create', "Create");
+const category: ILocalizedString = { value: localize('Create', "Create"), original: 'Create' };
 
 registerAction2(class extends Action2 {
 	constructor() {

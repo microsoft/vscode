@@ -29,7 +29,7 @@ import { ISymbolNavigationService } from 'vs/editor/contrib/gotoSymbol/browser/s
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
 import * as nls from 'vs/nls';
-import { IAction2Options, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IAction2F1RequiredOptions, IAction2Options, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
@@ -41,7 +41,6 @@ import { getDeclarationsAtPosition, getDefinitionsAtPosition, getImplementations
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { Iterable } from 'vs/base/common/iterator';
-
 
 MenuRegistry.appendMenuItem(MenuId.EditorContext, <ISubmenuItem>{
 	submenu: MenuId.EditorContextPeek,
@@ -83,7 +82,7 @@ export abstract class SymbolNavigationAction extends EditorAction2 {
 		return SymbolNavigationAction._allSymbolNavigationCommands.values();
 	}
 
-	private static _patchConfig(opts: IAction2Options): IAction2Options {
+	private static _patchConfig(opts: IAction2Options & IAction2F1RequiredOptions): IAction2Options {
 		const result = { ...opts, f1: true };
 		// patch context menu when clause
 		if (result.menu) {
@@ -99,7 +98,7 @@ export abstract class SymbolNavigationAction extends EditorAction2 {
 
 	readonly configuration: SymbolNavigationActionConfig;
 
-	constructor(configuration: SymbolNavigationActionConfig, opts: IAction2Options) {
+	constructor(configuration: SymbolNavigationActionConfig, opts: IAction2Options & IAction2F1RequiredOptions) {
 		super(SymbolNavigationAction._patchConfig(opts));
 		this.configuration = configuration;
 		SymbolNavigationAction._allSymbolNavigationCommands.set(opts.id, this);

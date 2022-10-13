@@ -444,6 +444,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 				appName: this._productService.nameLong,
 				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
+				extensionTelemetryLogResource: this._environmentService.extHostTelemetryLogFile,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,

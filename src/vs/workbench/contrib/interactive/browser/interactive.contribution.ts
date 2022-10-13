@@ -24,6 +24,7 @@ import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/s
 import { peekViewBorder /*, peekViewEditorBackground, peekViewResultsBackground */ } from 'vs/editor/contrib/peekView/browser/peekView';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { localize } from 'vs/nls';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -31,7 +32,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { EditorActivation, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -64,7 +65,7 @@ import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/s
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-const interactiveWindowCategory = localize('interactiveWindow', 'Interactive Window');
+const interactiveWindowCategory: ILocalizedString = { value: localize('interactiveWindow', 'Interactive Window'), original: 'Interactive Window' };
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -316,8 +317,8 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
 		InteractiveEditorSerializer.ID,
 		InteractiveEditorSerializer);
 
-registerSingleton(IInteractiveHistoryService, InteractiveHistoryService, false);
-registerSingleton(IInteractiveDocumentService, InteractiveDocumentService, false);
+registerSingleton(IInteractiveHistoryService, InteractiveHistoryService, InstantiationType.Delayed);
+registerSingleton(IInteractiveDocumentService, InteractiveDocumentService, InstantiationType.Delayed);
 
 registerAction2(class extends Action2 {
 	constructor() {

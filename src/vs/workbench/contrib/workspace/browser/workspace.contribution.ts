@@ -622,6 +622,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 // Configure Workspace Trust
 
 const CONFIGURE_TRUST_COMMAND_ID = 'workbench.trust.configure';
+const WORKSPACES_CATEGORY = { value: localize('workspacesCategory', "Workspaces"), original: 'Workspaces' };
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -629,7 +630,7 @@ registerAction2(class extends Action2 {
 			id: CONFIGURE_TRUST_COMMAND_ID,
 			title: { original: 'Configure Workspace Trust', value: localize('configureWorkspaceTrust', "Configure Workspace Trust") },
 			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
-			category: localize('workspacesCategory', "Workspaces"),
+			category: WORKSPACES_CATEGORY,
 			f1: true
 		});
 	}
@@ -647,7 +648,7 @@ registerAction2(class extends Action2 {
 			id: MANAGE_TRUST_COMMAND_ID,
 			title: { original: 'Manage Workspace Trust', value: localize('manageWorkspaceTrust', "Manage Workspace Trust") },
 			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
-			category: localize('workspacesCategory', "Workspaces"),
+			category: WORKSPACES_CATEGORY,
 			f1: true,
 			menu: {
 				id: MenuId.GlobalActivity,

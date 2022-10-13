@@ -2782,6 +2782,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const identifier = this._getTaskIdentifier(arg);
 		const type = arg && typeof arg !== 'string' && 'type' in arg ? arg.type : undefined;
 		const task = arg && typeof arg !== 'string' && 'task' in arg ? arg.task : arg === 'string' ? arg : undefined;
+		if (!identifier && !task && !type) {
+			return this._doRunTaskCommand();
+		}
 		this._getGroupedTasks().then(async (grouped) => {
 			const tasks = grouped.all();
 			const resolver = this._createResolver(grouped);
@@ -2800,6 +2803,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}
 			const exactMatchTask = tasks.find(t => task && (t.getDefinition(true)?.configurationProperties?.identifier === task || t.configurationProperties?.identifier === task || t._label === task));
+			if (exactMatchTask) {
+				const id = exactMatchTask.configurationProperties?.identifier || exactMatchTask.getDefinition(true)?.configurationProperties?.identifier;
+				if (id) {
+					for (const uri of folderURIs) {
+						const task = await resolver.resolve(uri, id);
+						if (task) {
+							this.run(task, { attachProblemMatcher: true }, TaskRunSource.User).then(undefined, () => { });
+							return;
+						}
+					}
+				}
+			}
 			const atLeastOneMatch = tasks.some(t => {
 				if (task) {
 					if (t._label.includes(task)) {
@@ -2812,22 +2827,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 				return false;
 			});
-			if (exactMatchTask) {
-				const id = exactMatchTask.configurationProperties?.identifier || exactMatchTask.getDefinition(true)?.configurationProperties?.identifier;
-				if (id) {
-					for (const uri of folderURIs) {
-						const task = await resolver.resolve(uri, id);
-						if (task) {
-							this.run(task, { attachProblemMatcher: true }, TaskRunSource.User).then(undefined, () => { });
-							return;
-						}
-					}
-				}
-			} else if (atLeastOneMatch) {
-				return this._doRunTaskCommand(tasks, type, task);
-			} else {
-				return this._doRunTaskCommand();
-			}
+			return atLeastOneMatch ? this._doRunTaskCommand(tasks, type, task) : this._doRunTaskCommand();
 		});
 	}
 

@@ -60,6 +60,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
 import { extname } from 'vs/base/common/resources';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
@@ -78,6 +79,8 @@ const SearchUnsupportedWorkspaceExtensionsContext = new RawContextKey<boolean>('
 const SearchDeprecatedExtensionsContext = new RawContextKey<boolean>('searchDeprecatedExtensions', false);
 export const RecommendedExtensionsContext = new RawContextKey<boolean>('recommendedExtensions', false);
 const SortByUpdateDateContext = new RawContextKey<boolean>('sortByUpdateDate', false);
+
+const REMOTE_CATEGORY: ILocalizedString = { value: localize({ key: 'remote', comment: ['Remote as in remote machine'] }, "Remote"), original: 'Remote' };
 
 export class ExtensionsViewletViewsContribution implements IWorkbenchContribution {
 
@@ -170,7 +173,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 									original: `Install Local Extensions in '${server.label}'...`,
 								};
 							},
-							category: localize({ key: 'remote', comment: ['Remote as in remote machine'] }, "Remote"),
+							category: REMOTE_CATEGORY,
 							icon: installLocalInRemoteIcon,
 							f1: true,
 							menu: {
@@ -193,7 +196,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 					super({
 						id: 'workbench.extensions.actions.installLocalExtensionsInRemote',
 						title: { value: localize('install remote in local', "Install Remote Extensions Locally..."), original: 'Install Remote Extensions Locally...' },
-						category: localize({ key: 'remote', comment: ['Remote as in remote machine'] }, "Remote"),
+						category: REMOTE_CATEGORY,
 						f1: true
 					});
 				}

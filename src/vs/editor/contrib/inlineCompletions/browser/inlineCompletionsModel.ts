@@ -512,6 +512,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		// otherwise command args might get disposed.
 		const cache = this.cache.clearAndLeak();
 
+		this.editor.pushUndoStop();
 		if (completion.snippetInfo) {
 			this.editor.executeEdits(
 				'inlineSuggestion.accept',

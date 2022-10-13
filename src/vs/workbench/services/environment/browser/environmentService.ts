@@ -101,6 +101,11 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	@memoize
 	get extHostLogsPath(): URI { return joinPath(this.logsHome, 'exthost'); }
 
+	@memoize
+	get extHostTelemetryLogFile(): URI {
+		return joinPath(this.extHostLogsPath, 'telemetry.log');
+	}
+
 	private extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
 
 	@memoize
