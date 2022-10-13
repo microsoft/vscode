@@ -37,7 +37,7 @@ import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, Webview
 import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
-export const enum WebviewMessageChannels {
+const enum WebviewMessageChannels {
 	onmessage = 'onmessage',
 	didClickLink = 'did-click-link',
 	didScroll = 'did-scroll',
@@ -303,12 +303,12 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			this.handleFocusChange(true);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.wheel, (event: IMouseWheelEvent) => {
-			this._onDidWheel.fire(event);
-		}));
-
 		this._register(this.on(WebviewMessageChannels.didBlur, () => {
 			this.handleFocusChange(false);
+		}));
+
+		this._register(this.on(WebviewMessageChannels.wheel, (event: IMouseWheelEvent) => {
+			this._onDidWheel.fire(event);
 		}));
 
 		this._register(this.on(WebviewMessageChannels.didFind, (didFind: boolean) => {
@@ -379,7 +379,6 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		}));
 
 		this._register(Event.runAndSubscribe(webviewThemeDataProvider.onThemeDataChanged, () => this.style()));
-
 		this._register(_accessibilityService.onDidChangeReducedMotion(() => this.style()));
 		this._register(_accessibilityService.onDidChangeScreenReaderOptimized(() => this.style()));
 
@@ -468,7 +467,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		return this._send('message', { message, transfer });
 	}
 
-	protected async _send(channel: string, data?: any, transferable: Transferable[] = []): Promise<boolean> {
+	private async _send(channel: string, data?: any, transferable: Transferable[] = []): Promise<boolean> {
 		if (this._state.type === WebviewState.Type.Initializing) {
 			let resolve: (x: boolean) => void;
 			const promise = new Promise<boolean>(r => resolve = r);
@@ -524,7 +523,6 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		if (options.purpose) {
 			params.purpose = options.purpose;
 		}
-
 
 		COI.addSearchParam(params, true, true);
 
@@ -598,7 +596,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		return false;
 	}
 
-	protected on<T = unknown>(channel: WebviewMessageChannels, handler: (data: T, e: MessageEvent) => void): IDisposable {
+	private on<T = unknown>(channel: WebviewMessageChannels, handler: (data: T, e: MessageEvent) => void): IDisposable {
 		let handlers = this._messageHandlers.get(channel);
 		if (!handlers) {
 			handlers = new Set();
@@ -726,7 +724,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this._webviewFindWidget?.updateTheme(this.webviewThemeDataProvider.getTheme());
 	}
 
-	private handleFocusChange(isFocused: boolean): void {
+	protected handleFocusChange(isFocused: boolean): void {
 		this._focused = isFocused;
 		if (isFocused) {
 			this._onDidFocus.fire();
