@@ -12,6 +12,10 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { LogsDataCleaner } from 'vs/workbench/contrib/logs/common/logsDataCleaner';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILogLevelService, LogLevelService } from 'vs/workbench/contrib/logs/common/logLevelService';
+
+registerSingleton(ILogLevelService, LogLevelService, InstantiationType.Delayed);
 
 class WebLogOutputChannels extends Disposable implements IWorkbenchContribution {
 

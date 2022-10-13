@@ -26,20 +26,47 @@ export interface Option<OptionType> {
 	deprecationMessage?: string;
 	allowEmptyValue?: boolean;
 	cat?: keyof typeof helpCategories;
+	global?: boolean;
+}
+
+export interface Subcommand<T> {
+	type: 'subcommand';
+	description?: string;
+	deprecationMessage?: string;
+	options: OptionDescriptions<Required<T>>;
 }
 
 export type OptionDescriptions<T> = {
-	[P in keyof T]: Option<OptionTypeName<T[P]>>;
+	[P in keyof T]:
+	T[P] extends boolean ? Option<'boolean'> :
+	T[P] extends string ? Option<'string'> :
+	T[P] extends string[] ? Option<'string[]'> :
+	Subcommand<T[P]>
 };
 
-type OptionTypeName<T> =
-	T extends boolean ? 'boolean' :
-	T extends string ? 'string' :
-	T extends string[] ? 'string[]' :
-	T extends undefined ? 'undefined' :
-	'unknown';
-
 export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
+	'tunnel': {
+		type: 'subcommand',
+		description: 'Make the current machine accessible from vscode.dev or other machines through a secure tunnel',
+		options: {
+			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
+			'disable-telemetry': { type: 'boolean' },
+			'telemetry-level': { type: 'string' },
+			user: {
+				type: 'subcommand',
+				options: {
+					login: {
+						type: 'subcommand',
+						options: {
+							provider: { type: 'string' },
+							'access-token': { type: 'string' }
+						}
+					}
+				}
+			}
+		}
+	},
+
 	'diff': { type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
 	'merge': { type: 'boolean', cat: 'o', alias: 'm', args: ['path1', 'path2', 'base', 'result'], description: localize('merge', "Perform a three-way merge by providing paths for two modified versions of a file, the common origin of both modified versions and the output file to save merge results.") },
 	'add': { type: 'boolean', cat: 'o', alias: 'a', args: 'folder', description: localize('add', "Add folder(s) to the last active window.") },
@@ -65,8 +92,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'enable-proposed-api': { type: 'string[]', allowEmptyValue: true, cat: 'e', args: 'ext-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
 
 	'version': { type: 'boolean', cat: 't', alias: 'v', description: localize('version', "Print version.") },
-	'verbose': { type: 'boolean', cat: 't', description: localize('verbose', "Print verbose output (implies --wait).") },
-	'log': { type: 'string', cat: 't', args: 'level', description: localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.") },
+	'verbose': { type: 'boolean', cat: 't', global: true, description: localize('verbose', "Print verbose output (implies --wait).") },
+	'log': { type: 'string[]', cat: 't', args: 'level', global: true, description: localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'. You can also configure the log level of an extension by passing extension id and log level in the following format: '${publisher}.${name}:${logLevel}'. For example: 'vscode.csharp:trace'. Can receive one or more such entries.") },
 	'status': { type: 'boolean', alias: 's', cat: 't', description: localize('status', "Print process usage and diagnostics information.") },
 	'prof-startup': { type: 'boolean', cat: 't', description: localize('prof-startup', "Run CPU profiler during startup.") },
 	'prof-append-timers': { type: 'string' },
@@ -80,7 +107,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'inspect-extensions': { type: 'string', allowEmptyValue: true, deprecates: ['debugPluginHost'], args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
 	'inspect-brk-extensions': { type: 'string', allowEmptyValue: true, deprecates: ['debugBrkPluginHost'], args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
 	'disable-gpu': { type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
-	'ms-enable-electron-run-as-node': { type: 'boolean' },
+	'ms-enable-electron-run-as-node': { type: 'boolean', global: true },
 	'max-memory': { type: 'string', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes)."), args: 'memory' },
 	'telemetry': { type: 'boolean', cat: 't', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
 
@@ -167,9 +194,11 @@ export interface ErrorReporter {
 	onMultipleValues(id: string, usedValue: string): void;
 	onEmptyValue(id: string): void;
 	onDeprecatedOption(deprecatedId: string, message: string): void;
+
+	getSubcommandReporter?(commmand: string): ErrorReporter;
 }
 
-const ignoringReporter: ErrorReporter = {
+const ignoringReporter = {
 	onUnknownOption: () => { },
 	onMultipleValues: () => { },
 	onEmptyValue: () => { },
@@ -177,29 +206,56 @@ const ignoringReporter: ErrorReporter = {
 };
 
 export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, errorReporter: ErrorReporter = ignoringReporter): T {
+	const firstArg = args.find(a => a.length > 0 && a[0] !== '-');
+
 	const alias: { [key: string]: string } = {};
-	const string: string[] = ['_'];
-	const boolean: string[] = [];
+	const stringOptions: string[] = ['_'];
+	const booleanOptions: string[] = [];
+	const globalOptions: OptionDescriptions<any> = {};
+	let command: Subcommand<any> | undefined = undefined;
 	for (const optionId in options) {
 		const o = options[optionId];
-		if (o.alias) {
-			alias[optionId] = o.alias;
-		}
-
-		if (o.type === 'string' || o.type === 'string[]') {
-			string.push(optionId);
-			if (o.deprecates) {
-				string.push(...o.deprecates);
+		if (o.type === 'subcommand') {
+			if (optionId === firstArg) {
+				command = o;
 			}
-		} else if (o.type === 'boolean') {
-			boolean.push(optionId);
-			if (o.deprecates) {
-				boolean.push(...o.deprecates);
+		} else {
+			if (o.alias) {
+				alias[optionId] = o.alias;
+			}
+
+			if (o.type === 'string' || o.type === 'string[]') {
+				stringOptions.push(optionId);
+				if (o.deprecates) {
+					stringOptions.push(...o.deprecates);
+				}
+			} else if (o.type === 'boolean') {
+				booleanOptions.push(optionId);
+				if (o.deprecates) {
+					booleanOptions.push(...o.deprecates);
+				}
+			}
+			if (o.global) {
+				globalOptions[optionId] = o;
 			}
 		}
 	}
+	if (command && firstArg) {
+		const options = globalOptions;
+		for (const optionId in command.options) {
+			options[optionId] = command.options[optionId];
+		}
+		const newArgs = args.filter(a => a !== firstArg);
+		const reporter = errorReporter.getSubcommandReporter ? errorReporter.getSubcommandReporter(firstArg) : undefined;
+		const subcommandOptions = parseArgs(newArgs, options, reporter);
+		return <T>{
+			[firstArg]: subcommandOptions
+		};
+	}
+
+
 	// remove aliases to avoid confusion
-	const parsedArgs = minimist(args, { string, boolean, alias });
+	const parsedArgs = minimist(args, { string: stringOptions, boolean: booleanOptions, alias });
 
 	const cleanedArgs: any = {};
 	const remainingArgs: any = parsedArgs;
@@ -211,6 +267,9 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 
 	for (const optionId in options) {
 		const o = options[optionId];
+		if (o.type === 'subcommand') {
+			continue;
+		}
 		if (o.alias) {
 			delete remainingArgs[o.alias];
 		}
@@ -284,14 +343,17 @@ function formatUsage(optionId: string, option: Option<any>) {
 
 // exported only for testing
 export function formatOptions(options: OptionDescriptions<any>, columns: number): string[] {
-	let maxLength = 0;
 	const usageTexts: [string, string][] = [];
 	for (const optionId in options) {
 		const o = options[optionId];
 		const usageText = formatUsage(optionId, o);
-		maxLength = Math.max(maxLength, usageText.length);
 		usageTexts.push([usageText, o.description!]);
 	}
+	return formatUsageTexts(usageTexts, columns);
+}
+
+function formatUsageTexts(usageTexts: [string, string][], columns: number) {
+	const maxLength = usageTexts.reduce((previous, e) => Math.max(previous, e[0].length), 12);
 	const argLength = maxLength + 2/*left padding*/ + 1/*right padding*/;
 	if (columns - argLength < 25) {
 		// Use a condensed version on narrow terminals
@@ -343,9 +405,14 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 		help.push('');
 	}
 	const optionsByCategory: { [P in keyof typeof helpCategories]?: OptionDescriptions<any> } = {};
+	const subcommands: { command: string; description: string }[] = [];
 	for (const optionId in options) {
 		const o = options[optionId];
-		if (o.description && o.cat) {
+		if (o.type === 'subcommand') {
+			if (o.description) {
+				subcommands.push({ command: optionId, description: o.description });
+			}
+		} else if (o.description && o.cat) {
 			let optionsByCat = optionsByCategory[o.cat];
 			if (!optionsByCat) {
 				optionsByCategory[o.cat] = optionsByCat = {};
@@ -364,6 +431,13 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 			help.push('');
 		}
 	}
+
+	if (subcommands.length) {
+		help.push(localize('subcommands', "Subcommands"));
+		help.push(...formatUsageTexts(subcommands.map(s => [s.command, s.description]), columns));
+		help.push('');
+	}
+
 	return help.join('\n');
 }
 
