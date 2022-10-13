@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 
-import { through, ThroughStream } from 'event-stream';
+import { merge, through, ThroughStream, writeArray } from 'event-stream';
 import * as File from 'vinyl';
 import * as Is from 'is';
 import * as xml2js from 'xml2js';
@@ -14,7 +14,7 @@ import * as gulp from 'gulp';
 import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 import * as iconv from '@vscode/iconv-lite-umd';
-import { l10nJsonFormat, getL10nXlf, l10nJsonDetails, getL10nFilesFromXlf } from '@vscode/l10n-dev';
+import { l10nJsonFormat, getL10nXlf, l10nJsonDetails, getL10nFilesFromXlf, getL10nJson } from '@vscode/l10n-dev';
 
 function log(message: any, ...rest: any[]): void {
 	fancyLog(ansiColors.green('[i18n]'), message, ...rest);
@@ -50,7 +50,7 @@ export const extraLanguages: Language[] = [
 ];
 
 // non built-in extensions also that are transifex and need to be part of the language packs
-export const externalExtensionsWithTranslations = {
+const externalExtensionsWithTranslations: Record<string, string> = {
 	'vscode-chrome-debug': 'msjsdiag.debugger-for-chrome',
 	'vscode-node-debug': 'ms-vscode.node-debug',
 	'vscode-node-debug2': 'ms-vscode.node-debug2'
@@ -586,6 +586,32 @@ export function createXlfFilesForCoreBundle(): ThroughStream {
 	});
 }
 
+function createL10nBundleForExtension(extensionName: string): ThroughStream {
+	const result = through();
+	gulp.src([
+		`extensions/${extensionName}/src/**/*.ts`,
+	]).pipe(writeArray((err, files: File[]) => {
+		if (err) {
+			result.emit('error', err);
+			return;
+		}
+
+		const json = getL10nJson(files.map(file => {
+			return file.contents.toString('utf8');
+		}));
+
+		if (Object.keys(json)) {
+			result.emit('data', new File({
+				path: `${extensionName}/bundle.l10n.json`,
+				contents: Buffer.from(JSON.stringify(json), 'utf8')
+			}));
+		}
+		result.emit('end');
+	}));
+
+	return result;
+}
+
 export function createXlfFilesForExtensions(): ThroughStream {
 	let counter: number = 0;
 	let folderStreamEnded: boolean = false;
@@ -608,7 +634,10 @@ export function createXlfFilesForExtensions(): ThroughStream {
 			}
 			return _l10nMap;
 		}
-		gulp.src([`.build/extensions/${extensionName}/package.nls.json`, `.build/extensions/${extensionName}/**/nls.metadata.json`], { allowEmpty: true }).pipe(through(function (file: File) {
+		merge(
+			gulp.src([`.build/extensions/${extensionName}/package.nls.json`, `.build/extensions/${extensionName}/**/nls.metadata.json`], { allowEmpty: true }),
+			createL10nBundleForExtension(extensionName)
+		).pipe(through(function (file: File) {
 			if (file.isBuffer()) {
 				const buffer: Buffer = file.contents as Buffer;
 				const basename = path.basename(file.path);
@@ -631,6 +660,9 @@ export function createXlfFilesForExtensions(): ThroughStream {
 						}
 						getL10nMap().set(`extensions/${extensionName}/${relPath}/${file}`, info);
 					}
+				} else if (basename === 'bundle.l10n.json') {
+					const json: l10nJsonFormat = JSON.parse(buffer.toString('utf8'));
+					getL10nMap().set(`extensions/${extensionName}/bundle`, json);
 				} else {
 					this.emit('error', new Error(`${file.path} is not a valid extension nls file`));
 					return;
@@ -762,7 +794,7 @@ function getRecordFromL10nJsonFormat(l10nJsonFormat: l10nJsonFormat): Record<str
 	return record;
 }
 
-export function prepareI18nPackFiles(externalExtensions: Record<string, string>, resultingTranslationPaths: TranslationPath[]): NodeJS.ReadWriteStream {
+export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[]): NodeJS.ReadWriteStream {
 	const parsePromises: Promise<l10nJsonDetails[]>[] = [];
 	const mainPack: I18nPack = { version: i18nPackVersion, contents: {} };
 	const extensionsPacks: Record<string, I18nPack> = {};
@@ -785,7 +817,7 @@ export function prepareI18nPackFiles(externalExtensions: Record<string, string>,
 						if (!extPack) {
 							extPack = extensionsPacks[resource] = { version: i18nPackVersion, contents: {} };
 						}
-						const externalId = externalExtensions[resource];
+						const externalId = externalExtensionsWithTranslations[resource];
 						if (!externalId) { // internal extension: remove 'extensions/extensionId/' segnent
 							const secondSlash = path.indexOf('/', firstSlash + 1);
 							extPack.contents[path.substring(secondSlash + 1)] = getRecordFromL10nJsonFormat(file.messages);
@@ -814,7 +846,7 @@ export function prepareI18nPackFiles(externalExtensions: Record<string, string>,
 					const translatedExtFile = createI18nFile(`extensions/${extension}`, extensionsPacks[extension]);
 					this.queue(translatedExtFile);
 
-					const externalExtensionId = externalExtensions[extension];
+					const externalExtensionId = externalExtensionsWithTranslations[extension];
 					if (externalExtensionId) {
 						resultingTranslationPaths.push({ id: externalExtensionId, resourceName: `extensions/${extension}.i18n.json` });
 					} else {
