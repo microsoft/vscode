@@ -195,7 +195,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		// update soon'ish as model content change
 		const updateSoon = new TimeoutTimer();
 		this._disposables.add(updateSoon);
-		this._disposables.add(this._editor.onDidChangeModelContentDeferred(event => {
+		this._disposables.add(this._editor.onDidChangeModelContent(event => {
 			const model = this._editor.getModel();
 			if (model) {
 				const timeout = _outlineModelService.getDebounceValue(model);
