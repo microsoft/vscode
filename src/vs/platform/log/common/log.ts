@@ -112,7 +112,7 @@ export interface ILoggerService {
 	/**
 	 * Creates a logger, or gets one if it already exists.
 	 */
-	createLogger(resource: URI, options?: ILoggerOptions): ILogger;
+	createLogger(resource: URI, options?: ILoggerOptions, logLevel?: LogLevel): ILogger;
 
 	/**
 	 * Gets an existing logger, if any.
@@ -128,12 +128,6 @@ export interface ILoggerService {
 	 * Get log level for a logger.
 	 */
 	getLogLevel(resource: URI): LogLevel | undefined;
-
-	/**
-	 * Get default log level for a logger with given name.
-	 * @param name logger name
-	 */
-	getDefaultLogLevel(name: string): LogLevel;
 }
 
 export abstract class AbstractLogger extends Disposable {
@@ -535,7 +529,6 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 	constructor(
 		private logLevel: LogLevel,
 		onDidChangeLogLevel: Event<LogLevel>,
-		private readonly defaultLogLevels: [string, LogLevel][]
 	) {
 		super();
 		this._register(onDidChangeLogLevel(logLevel => this.setLevel(logLevel)));
@@ -549,11 +542,11 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 		return this.loggerItems.get(resource)?.logger;
 	}
 
-	createLogger(resource: URI, options?: ILoggerOptions): ILogger {
+	createLogger(resource: URI, options?: ILoggerOptions, logLevel?: LogLevel): ILogger {
 		let logger = this.loggerItems.get(resource)?.logger;
 		if (!logger) {
-			const logLevel = options?.always ? LogLevel.Trace : undefined;
-			logger = this.doCreateLogger(resource, logLevel ?? (options?.name ? this.getDefaultLogLevel(options?.name) : this.logLevel), options);
+			logLevel = options?.always ? LogLevel.Trace : logLevel;
+			logger = this.doCreateLogger(resource, logLevel ?? this.logLevel, options);
 			this.loggerItems.set(resource, { logger, logLevel });
 		}
 		return logger;
@@ -585,10 +578,6 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 	getLogLevel(resource: URI): LogLevel | undefined {
 		const logger = this.loggerItems.get(resource);
 		return logger?.logLevel;
-	}
-
-	getDefaultLogLevel(name: string): LogLevel {
-		return this.defaultLogLevels.find(([loggerName]) => loggerName === name)?.[1] ?? this.logLevel;
 	}
 
 	override dispose(): void {

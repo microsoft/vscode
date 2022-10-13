@@ -13,7 +13,7 @@ export class LoggerService extends AbstractLoggerService implements ILoggerServi
 	constructor(
 		@ILogService logService: ILogService
 	) {
-		super(logService.getLevel(), logService.onDidChangeLogLevel, []);
+		super(logService.getLevel(), logService.onDidChangeLogLevel);
 	}
 
 	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {

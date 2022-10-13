@@ -147,7 +147,7 @@ export class FileLoggerService extends AbstractLoggerService implements ILoggerS
 		@ILogService logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
 	) {
-		super(logService.getLevel(), logService.onDidChangeLogLevel, []);
+		super(logService.getLevel(), logService.onDidChangeLogLevel);
 	}
 
 	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
