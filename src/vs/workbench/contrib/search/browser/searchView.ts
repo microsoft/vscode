@@ -9,6 +9,7 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
+import { IObjectTreeSetChildrenOptions } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { Delayer } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -535,25 +536,26 @@ export class SearchView extends ViewPane {
 	}
 
 	refreshTree(event?: IChangeEvent): void {
+		const setChildrenOpts: IObjectTreeSetChildrenOptions<RenderableMatch> = { diffIdentityProvider: { getId(element: RenderableMatch) { return element.id; }, }, diffDepth: 100 };
 		const collapseResults = this.searchConfig.collapseResults;
 		if (!event || event.added || event.removed) {
 			// Refresh whole tree
 			if (this.searchConfig.sortOrder === SearchSortOrder.Modified) {
 				// Ensure all matches have retrieved their file stat
 				this.retrieveFileStats()
-					.then(() => this.tree.setChildren(null, this.createResultIterator(collapseResults)));
+					.then(() => this.tree.setChildren(null, this.createResultIterator(collapseResults), setChildrenOpts));
 			} else {
-				this.tree.setChildren(null, this.createResultIterator(collapseResults));
+				this.tree.setChildren(null, this.createResultIterator(collapseResults), setChildrenOpts);
 			}
 		} else {
 			// If updated counts affect our search order, re-sort the view.
 			if (this.searchConfig.sortOrder === SearchSortOrder.CountAscending ||
 				this.searchConfig.sortOrder === SearchSortOrder.CountDescending) {
-				this.tree.setChildren(null, this.createResultIterator(collapseResults));
+				this.tree.setChildren(null, this.createResultIterator(collapseResults), setChildrenOpts);
 			} else {
 				// FileMatch modified, refresh those elements
 				event.elements.forEach(element => {
-					this.tree.setChildren(element, this.createIterator(element, collapseResults));
+					this.tree.setChildren(element, this.createIterator(element, collapseResults), setChildrenOpts);
 					this.tree.rerender(element);
 				});
 			}
@@ -577,7 +579,6 @@ export class SearchView extends ViewPane {
 
 	private createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults'], childFolderIncompressible: boolean): Iterable<ICompressedTreeElement<RenderableMatch>> {
 		const sortOrder = this.searchConfig.sortOrder;
-
 		const matchArray = this.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.downstreamFileMatches();
 		const matches = matchArray.sort((a, b) => searchMatchComparer(a, b, sortOrder));
 
@@ -589,7 +590,10 @@ export class SearchView extends ViewPane {
 				children = this.createFolderIterator(match, collapseResults, false);
 			}
 			let nodeExists = true;
-			try { this.tree.getNode(match); } catch (e) { nodeExists = false; }
+			try { this.tree.getNode(match); } catch (e) {
+				nodeExists = false;
+				console.log('here');
+			}
 
 			const collapsed = nodeExists ? undefined :
 				(collapseResults === 'alwaysCollapse' || (match.count() > 10 && collapseResults !== 'alwaysExpand'));
