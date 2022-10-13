@@ -31,6 +31,7 @@ import { SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/sea
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfiguration, ISearchConfigurationProperties, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { URI } from 'vs/base/common/uri';
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	const searchView = getSearchView(viewsService);
@@ -683,13 +684,19 @@ export const focusSearchListCommand: ICommandHandler = accessor => {
 	});
 };
 
-function getElementsToOperateOnInfo(viewer: WorkbenchCompressibleObjectTree<RenderableMatch, void>, currElement: RenderableMatch, sortConfig: ISearchConfigurationProperties): { elements: RenderableMatch[]; mustReselect: boolean } {
+export function getMultiSelectedSearchResources(viewer: WorkbenchCompressibleObjectTree<RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): URI[] {
+	return getElementsToOperateOnInfo(viewer, currElement, sortConfig).elements
+		.map((renderableMatch) => ((renderableMatch instanceof Match) ? null : renderableMatch.resource))
+		.filter((renderableMatch): renderableMatch is URI => (renderableMatch !== null));
+}
+
+function getElementsToOperateOnInfo(viewer: WorkbenchCompressibleObjectTree<RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): { elements: RenderableMatch[]; mustReselect: boolean } {
 	let elements: RenderableMatch[] = viewer.getSelection().filter((x): x is RenderableMatch => x !== null).sort((a, b) => searchComparer(a, b, sortConfig.sortOrder));
 
-	const mustReselect = elements.includes(currElement); // this indicates whether we need to re-focus/re-select on a remove.
+	const mustReselect = !currElement || elements.includes(currElement); // this indicates whether we need to re-focus/re-select on a remove.
 
 	// if selection doesn't include multiple elements, just return current focus element.
-	if (!(elements.length > 1 && elements.includes(currElement))) {
+	if (currElement && !(elements.length > 1 && elements.includes(currElement))) {
 		elements = [currElement];
 	}
 
