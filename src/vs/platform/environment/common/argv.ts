@@ -7,6 +7,18 @@
  * A list of command line arguments we support natively.
  */
 export interface NativeParsedArgs {
+	// subcommands
+	tunnel?: {
+		'cli-data-dir'?: string;
+		'disable-telemetry'?: boolean;
+		'telemetry-level'?: string;
+		user: {
+			login: {
+				'access-token'?: string;
+				'provider'?: string;
+			};
+		};
+	};
 	_: string[];
 	'folder-uri'?: string[]; // undefined or array of 1 or more
 	'file-uri'?: string[]; // undefined or array of 1 or more
