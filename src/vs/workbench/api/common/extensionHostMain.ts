@@ -68,7 +68,7 @@ abstract class ErrorHandler {
 
 		// set the prepareStackTrace-handle and use it as a side-effect to associate errors
 		// with extensions - this works by looking up callsites in the extension path index
-		Error.prepareStackTrace = (error: Error, stackTrace) => {
+		(<any>Error).prepareStackTrace = (error: Error, stackTrace: errors.V8CallSite[]) => {
 			let stackTraceMessage = '';
 			let extension: IExtensionDescription | undefined;
 			let fileName: string | null;
