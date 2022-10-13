@@ -44,27 +44,6 @@ export interface ITerminalQuickFixAddon extends ITerminalQuickFix {
 	onDidRequestRerunCommand: Event<{ command: string; addNewLine?: boolean }>;
 }
 
-enum QuickFixCommandResultTelemetryEvent {
-	/**
-	 * The quick fix was executed
-	 */
-	QuickFixExecuted = 'terminal/quickFix/executed',
-	/**
-	 * The quick fix proposed command was run manually
-	 */
-	QuickFixExecutedManually = 'terminal/quickFix/executedManually',
-	/**
-	 * The quick fix wasn't interacted with and
-	 * the suggested command differed from the one the user chose to run
-	 */
-	QuickFixIgnored = 'terminal/quickFix/ignored',
-	/**
-	 * The quick fix was interacted with and
-	 * the suggested command differed from the one the user chose to run
-	 */
-	QuickFixWrong = 'terminal/quickFix/wrong',
-}
-
 export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon, ITerminalQuickFixAddon {
 	private readonly _onDidRequestRerunCommand = new Emitter<{ command: string; addNewLine?: boolean }>();
 	readonly onDidRequestRerunCommand = this._onDidRequestRerunCommand.event;
@@ -80,7 +59,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	private readonly _terminalDecorationHoverService: TerminalDecorationHoverManager;
 
 	private _fixesShown: boolean = false;
-	private _fixesAvailable: boolean = false;
 	private _expectedCommands: string[] | undefined;
 
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
@@ -130,26 +108,16 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			return;
 		}
 		this._register(commandDetection.onCommandFinished(command => {
-			if (this._fixesAvailable) {
-				if (this._fixesShown) {
-					if (this._expectedCommands?.includes(command.command)) {
-						this._logService.debug(QuickFixCommandResultTelemetryEvent.QuickFixExecutedManually);
-						this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(QuickFixCommandResultTelemetryEvent.QuickFixExecutedManually);
-					} else {
-						this._logService.debug(QuickFixCommandResultTelemetryEvent.QuickFixWrong);
-						this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(QuickFixCommandResultTelemetryEvent.QuickFixWrong);
-					}
-					this._fixesShown = false;
-				} else {
-					this._logService.debug(QuickFixCommandResultTelemetryEvent.QuickFixIgnored);
-					this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(QuickFixCommandResultTelemetryEvent.QuickFixIgnored);
-				}
-			} else {
+			if (this._expectedCommands) {
+				const info = `terminal/quick-fix/command/fixes-shown:${this._fixesShown}/expected-command:${this._expectedCommands.includes(command.command)}`;
+				this._logService.info(info);
+				this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(info);
 				this._expectedCommands = undefined;
 			}
 			this._resolveQuickFixes(command);
-			this._fixesAvailable = false;
+			this._fixesShown = false;
 		}));
+
 		// The buffer is not ready by the time command finish
 		// is called. Add the decoration on command start if there are corresponding quick fixes
 		this._register(commandDetection.onCommandStarted(() => {
@@ -173,16 +141,12 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		const { fixes, onDidRunQuickFix, expectedCommands } = result;
 		this._expectedCommands = expectedCommands;
 		this._quickFixes = fixes;
-		this._register(this.onDidRequestRerunCommand(() => {
-			this._logService.debug(QuickFixCommandResultTelemetryEvent.QuickFixExecuted);
-			this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(QuickFixCommandResultTelemetryEvent.QuickFixExecuted);
-			this._fixesAvailable = false;
-		}));
-		this._register(onDidRunQuickFix(() => {
-			this._logService.debug(QuickFixCommandResultTelemetryEvent.QuickFixExecuted);
-			this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(QuickFixCommandResultTelemetryEvent.QuickFixExecuted);
+		this._register(onDidRunQuickFix((id) => {
+			const info = `terminal/quick-fix/${id}`;
+			this._logService.info(info);
+			this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(info);
 			this._disposeQuickFix();
-			this._fixesAvailable = false;
+			this._fixesShown = false;
 		}));
 	}
 
@@ -202,7 +166,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (!this._quickFixes) {
 			return;
 		}
-		this._fixesAvailable = true;
 		const marker = this._terminal.registerMarker();
 		if (!marker) {
 			return;
@@ -239,8 +202,8 @@ export function getQuickFixesForCommand(
 	quickFixOptions: Map<string, ITerminalQuickFixOptions[]>,
 	openerService: IOpenerService,
 	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>
-): { fixes: IAction[]; onDidRunQuickFix: Event<void>; expectedCommands?: string[] } | undefined {
-	const onDidRunQuickFixEmitter = new Emitter<void>();
+): { fixes: IAction[]; onDidRunQuickFix: Event<string>; expectedCommands?: string[] } | undefined {
+	const onDidRunQuickFixEmitter = new Emitter<string>();
 	const onDidRunQuickFix = onDidRunQuickFixEmitter.event;
 	const fixes: IAction[] = [];
 	const newCommand = command.command;
@@ -295,7 +258,7 @@ export function getQuickFixesForCommand(
 										openerService.open(quickFix.uri);
 										// since no command gets run here, need to
 										// clear the decoration and quick fix
-										onDidRunQuickFixEmitter.fire();
+										onDidRunQuickFixEmitter.fire(`opener`);
 									},
 									tooltip: label,
 									uri: quickFix.uri
@@ -309,7 +272,10 @@ export function getQuickFixesForCommand(
 							label: quickFix.label,
 							class: quickFix.class,
 							enabled: quickFix.enabled,
-							run: () => quickFix.run(),
+							run: () => {
+								quickFix.run();
+								onDidRunQuickFixEmitter.fire(quickFix.id);
+							},
 							tooltip: quickFix.tooltip
 						};
 					}
