@@ -16,13 +16,14 @@ import { isDefined } from 'vs/base/common/types';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ExtHostTestingShape, ILocationDto, MainContext, MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostTestItemCollection, TestItemImpl, TestItemRootImpl, toItemFromContext } from 'vs/workbench/api/common/extHostTestItem';
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { TestRunProfileKind, TestRunRequest } from 'vs/workbench/api/common/extHostTypes';
 import { TestId, TestIdPathParts, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { InvalidTestItemError } from 'vs/workbench/contrib/testing/common/testItemCollection';
-import { AbstractIncrementalTestCollection, CoverageDetails, IFileCoverage, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, ITestItem, RunTestForControllerRequest, RunTestForControllerResult, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
+import { AbstractIncrementalTestCollection, CoverageDetails, IFileCoverage, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, ITestItem, ITestItemContext, RunTestForControllerRequest, RunTestForControllerResult, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import type * as vscode from 'vscode';
 
 interface ControllerInfo {
@@ -41,14 +42,26 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	public onResultsChanged = this.resultsChangedEmitter.event;
 	public results: ReadonlyArray<vscode.TestRunResult> = [];
 
-	constructor(@IExtHostRpcService rpc: IExtHostRpcService, commands: ExtHostCommands) {
+	constructor(
+		@IExtHostRpcService rpc: IExtHostRpcService,
+		commands: ExtHostCommands,
+		private readonly editors: ExtHostDocumentsAndEditors,
+	) {
 		this.proxy = rpc.getProxy(MainContext.MainThreadTesting);
 		this.observer = new TestObservers(this.proxy);
 		this.runTracker = new TestRunCoordinator(this.proxy);
 
 		commands.registerArgumentProcessor({
-			processArgument: arg =>
-				arg?.$mid === MarshalledId.TestItemContext ? toItemFromContext(arg) : arg,
+			processArgument: arg => {
+				if (arg?.$mid !== MarshalledId.TestItemContext) {
+					return arg;
+				}
+
+				const cast = arg as ITestItemContext;
+				const targetTest = cast.tests[cast.tests.length - 1].item.extId;
+				const controller = this.controllers.get(TestId.root(targetTest));
+				return controller?.collection.tree.get(targetTest)?.actual ?? toItemFromContext(arg);
+			}
 		});
 	}
 
@@ -61,7 +74,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		}
 
 		const disposable = new DisposableStore();
-		const collection = disposable.add(new ExtHostTestItemCollection(controllerId, label));
+		const collection = disposable.add(new ExtHostTestItemCollection(controllerId, label, this.editors));
 		collection.root.label = label;
 
 		const profiles = new Map<number, vscode.TestRunProfile>();
@@ -158,6 +171,17 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			}],
 			exclude: req.exclude?.map(t => t.id),
 		}, token);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$syncTests(): Promise<void> {
+		for (const { collection } of this.controllers.values()) {
+			collection.flushDiff();
+		}
+
+		return Promise.resolve();
 	}
 
 	/**
@@ -746,7 +770,8 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 
 		this.updated.delete(node);
 
-		if (node.parent && this.alreadyRemoved.has(node.parent)) {
+		const parentId = TestId.parentId(node.item.extId);
+		if (parentId && this.alreadyRemoved.has(parentId.toString())) {
 			this.alreadyRemoved.add(node.item.extId);
 			return;
 		}

@@ -18,11 +18,12 @@ const replace = require('gulp-replace');
 const filter = require('gulp-filter');
 const _ = require('underscore');
 const util = require('./lib/util');
+const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const buildfile = require('../src/buildfile');
-const common = require('./lib/optimize');
+const optimize = require('./lib/optimize');
 const root = path.dirname(__dirname);
-const commit = util.getVersion(root);
+const commit = getVersion(root);
 const packageJson = require('../package.json');
 const product = require('../product.json');
 const crypto = require('crypto');
@@ -34,6 +35,9 @@ const minimist = require('minimist');
 const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
 const { getSettingsSearchBuildId, shouldSetupSettingsSearch } = require('./azure-pipelines/upload-configuration');
+const { promisify } = require('util');
+const glob = promisify(require('glob'));
+const rcedit = promisify(require('rcedit'));
 
 // Build
 const vscodeEntryPoints = _.flatten([
@@ -49,23 +53,18 @@ const vscodeEntryPoints = _.flatten([
 ]);
 
 const vscodeResources = [
-	'out-build/main.js',
-	'out-build/cli.js',
 	'out-build/bootstrap.js',
 	'out-build/bootstrap-fork.js',
 	'out-build/bootstrap-amd.js',
 	'out-build/bootstrap-node.js',
 	'out-build/bootstrap-window.js',
-	'out-build/vs/**/*.{svg,png,html,jpg,opus}',
+	'out-build/vs/**/*.{svg,png,html,jpg,mp3}',
 	'!out-build/vs/code/browser/**/*.html',
 	'!out-build/vs/editor/standalone/**/*.svg',
 	'out-build/vs/base/common/performance.js',
-	'out-build/vs/base/common/stripComments.js',
-	'out-build/vs/base/node/languagePacks.js',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh,ps.sh}',
 	'out-build/vs/base/browser/ui/codicons/codicon/**',
 	'out-build/vs/base/parts/sandbox/electron-browser/preload.js',
-	'out-build/vs/platform/environment/node/userDataPath.js',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/contrib/debug/**/*.json',
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
@@ -78,23 +77,58 @@ const vscodeResources = [
 	'out-build/vs/workbench/contrib/tasks/**/*.json',
 	'out-build/vs/platform/files/**/*.exe',
 	'out-build/vs/platform/files/**/*.md',
-	'out-build/vs/code/electron-sandbox/workbench/**',
-	'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js',
-	'out-build/vs/code/electron-sandbox/issue/issueReporter.js',
-	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js',
 	'!**/test/**'
+];
+
+// Do not change the order of these files! They will
+// be inlined into the target window file in this order
+// and they depend on each other in this way.
+const windowBootstrapFiles = [
+	'out-build/bootstrap.js',
+	'out-build/vs/loader.js',
+	'out-build/bootstrap-window.js'
 ];
 
 const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 	util.rimraf('out-vscode'),
-	common.optimizeTask({
-		src: 'out-build',
-		entryPoints: vscodeEntryPoints,
-		resources: vscodeResources,
-		loaderConfig: common.loaderConfig(),
-		out: 'out-vscode',
-		bundleInfo: undefined
-	})
+	// Optimize: bundles source files automatically based on
+	// AMD and CommonJS import statements based on the passed
+	// in entry points. In addition, concat window related
+	// bootstrap files into a single file.
+	optimize.optimizeTask(
+		{
+			out: 'out-vscode',
+			amd: {
+				src: 'out-build',
+				entryPoints: vscodeEntryPoints,
+				resources: vscodeResources,
+				loaderConfig: optimize.loaderConfig(),
+				bundleInfo: undefined
+			},
+			commonJS: {
+				src: 'out-build',
+				entryPoints: [
+					'out-build/main.js',
+					'out-build/cli.js'
+				],
+				platform: 'node',
+				external: [
+					'electron',
+					'minimist',
+					// TODO: we cannot inline `product.json` because
+					// it is being changed during build time at a later
+					// point in time (such as `checksums`)
+					'../product.json'
+				]
+			},
+			manual: [
+				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/workbench/workbench.js'], out: 'vs/code/electron-sandbox/workbench/workbench.js' },
+				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/issue/issueReporter.js'], out: 'vs/code/electron-sandbox/issue/issueReporter.js' },
+				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js'], out: 'vs/code/electron-sandbox/processExplorer/processExplorer.js' },
+				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js'], out: 'vs/code/electron-browser/sharedProcess/sharedProcess.js' }
+			]
+		}
+	)
 ));
 gulp.task(optimizeVSCodeTask);
 
@@ -102,7 +136,7 @@ const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${
 const minifyVSCodeTask = task.define('minify-vscode', task.series(
 	optimizeVSCodeTask,
 	util.rimraf('out-vscode-min'),
-	common.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
+	optimize.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
 ));
 gulp.task(minifyVSCodeTask);
 
@@ -208,7 +242,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(json(packageJsonUpdates));
 
 		const date = new Date().toISOString();
-		const productJsonUpdate = { commit, date, checksums };
+		const productJsonUpdate = { commit, date, checksums, version };
 
 		if (shouldSetupSettingsSearch()) {
 			productJsonUpdate.settingsSearchBuildId = getSettingsSearchBuildId(packageJson);
@@ -347,6 +381,35 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 	};
 }
 
+function patchWin32DependenciesTask(destinationFolderName) {
+	const cwd = path.join(path.dirname(root), destinationFolderName);
+
+	return async () => {
+		const deps = await glob('**/*.node', { cwd });
+		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, 'resources', 'app', 'package.json'), 'utf8'));
+		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, 'resources', 'app', 'product.json'), 'utf8'));
+		const baseVersion = packageJson.version.replace(/-.*$/, '');
+
+		await Promise.all(deps.map(async dep => {
+			const basename = path.basename(dep);
+
+			await rcedit(path.join(cwd, dep), {
+				'file-version': baseVersion,
+				'version-string': {
+					'CompanyName': 'Microsoft Corporation',
+					'FileDescription': product.nameLong,
+					'FileVersion': packageJson.version,
+					'InternalName': basename,
+					'LegalCopyright': 'Copyright (C) 2022 Microsoft. All rights reserved',
+					'OriginalFilename': basename,
+					'ProductName': product.nameLong,
+					'ProductVersion': packageJson.version,
+				}
+			});
+		}));
+	};
+}
+
 const buildRoot = path.dirname(root);
 
 const BUILD_TARGETS = [
@@ -370,10 +433,16 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const sourceFolderName = `out-vscode${dashed(minified)}`;
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
-		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
+		const tasks = [
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
-		));
+		];
+
+		if (platform === 'win32') {
+			tasks.push(patchWin32DependenciesTask(destinationFolderName));
+		}
+
+		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...tasks));
 		gulp.task(vscodeTaskCI);
 
 		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(

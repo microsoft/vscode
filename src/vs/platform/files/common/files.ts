@@ -567,14 +567,6 @@ export function hasFileReadStreamCapability(provider: IFileSystemProvider): prov
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileReadStream);
 }
 
-export interface IFileSystemProviderWithFileReadCapability extends IFileSystemProvider {
-	readFile(resource: URI): Promise<Uint8Array>;
-}
-
-export function hasFileReadCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileReadCapability {
-	return !!(provider.capabilities & FileSystemProviderCapabilities.Readonly);
-}
-
 export interface IFileSystemProviderWithFileAtomicReadCapability extends IFileSystemProvider {
 	readFile(resource: URI, opts?: IFileAtomicReadOptions): Promise<Uint8Array>;
 }

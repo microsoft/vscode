@@ -124,18 +124,6 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 			]
 		};
 		return dto;
-	},
-	saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-		return;
-	},
-	saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-		return;
-	},
-	backupNotebook: async (_document: vscode.NotebookDocument, _context: vscode.NotebookDocumentBackupContext, _cancellation: vscode.CancellationToken) => {
-		return {
-			id: '1',
-			delete: () => { }
-		};
 	}
 };
 
@@ -406,7 +394,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 
 		// Delete executing cell
 		const edit = new vscode.WorkspaceEdit();
-		edit.replaceNotebookCells(cell!.notebook.uri, new vscode.NotebookRange(cell!.index, cell!.index + 1), []);
+		edit.set(cell!.notebook.uri, [vscode.NotebookEdit.replaceCells(new vscode.NotebookRange(cell!.index, cell!.index + 1), [])]);
 		await vscode.workspace.applyEdit(edit);
 
 		assert.strictEqual(executionWasCancelled, true);

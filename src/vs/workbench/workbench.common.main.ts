@@ -101,7 +101,7 @@ import 'vs/workbench/services/outline/browser/outlineService';
 import 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
 import 'vs/editor/common/services/languageFeaturesService';
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -128,21 +128,21 @@ import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDat
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { IExtensionsProfileScannerService, ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 
-registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
-registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService);
-registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService);
-registerSingleton(IExtensionStorageService, ExtensionStorageService);
-registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
-registerSingleton(IContextViewService, ContextViewService, true);
-registerSingleton(IListService, ListService, true);
-registerSingleton(IEditorWorkerService, EditorWorkerService);
-registerSingleton(IMarkerDecorationsService, MarkerDecorationsService);
-registerSingleton(IMarkerService, MarkerService, true);
-registerSingleton(IContextKeyService, ContextKeyService);
-registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService);
-registerSingleton(IDownloadService, DownloadService, true);
-registerSingleton(IOpenerService, OpenerService, true);
-registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService);
+registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
+registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, InstantiationType.Delayed);
+registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService, InstantiationType.Delayed);
+registerSingleton(IExtensionStorageService, ExtensionStorageService, InstantiationType.Delayed);
+registerSingleton(IExtensionGalleryService, ExtensionGalleryService, InstantiationType.Delayed);
+registerSingleton(IContextViewService, ContextViewService, InstantiationType.Delayed);
+registerSingleton(IListService, ListService, InstantiationType.Delayed);
+registerSingleton(IEditorWorkerService, EditorWorkerService, InstantiationType.Eager /* registers link detection and word based suggestions for any document */);
+registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, InstantiationType.Delayed);
+registerSingleton(IMarkerService, MarkerService, InstantiationType.Delayed);
+registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Delayed);
+registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService, InstantiationType.Delayed);
+registerSingleton(IDownloadService, DownloadService, InstantiationType.Delayed);
+registerSingleton(IOpenerService, OpenerService, InstantiationType.Delayed);
+registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, InstantiationType.Delayed);
 
 //#endregion
 

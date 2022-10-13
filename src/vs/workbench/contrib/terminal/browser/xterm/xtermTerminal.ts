@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBuffer, IMarker, ITheme, Terminal as RawXtermTerminal } from 'xterm';
+import type { IBuffer, ITheme, Terminal as RawXtermTerminal } from 'xterm';
 import type { CanvasAddon as CanvasAddonType } from 'xterm-addon-canvas';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
@@ -17,12 +17,12 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { ICommandTracker, IInternalXtermTerminal, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { CommandNavigationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/commandNavigationAddon';
+import { MarkNavigationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { localize } from 'vs/nls';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -36,7 +36,7 @@ import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/dec
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IGenericMarkProperties } from 'vs/platform/terminal/common/terminalProcess';
+
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -88,8 +88,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _container?: HTMLElement;
 
 	// Always on addons
-	private _commandNavigationAddon: CommandNavigationAddon;
+	private _markNavigationAddon: MarkNavigationAddon;
 	private _shellIntegrationAddon: ShellIntegrationAddon;
+
 	private _decorationAddon: DecorationAddon;
 
 	// Optional addons
@@ -102,14 +103,16 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
 
-	private readonly _onDidRequestRunCommand = new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean }>();
+	private readonly _onDidRequestRunCommand = new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>();
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
+	private readonly _onDidRequestFreePort = new Emitter<string>();
+	readonly onDidRequestFreePort = this._onDidRequestFreePort.event;
 	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number } | undefined>();
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
 	private readonly _onDidChangeSelection = new Emitter<void>();
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
-	get commandTracker(): ICommandTracker { return this._commandNavigationAddon; }
+	get markTracker(): IMarkTracker { return this._markNavigationAddon; }
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
 
 	private _target: TerminalLocation | undefined;
@@ -117,6 +120,14 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this._target = location;
 	}
 	get target(): TerminalLocation | undefined { return this._target; }
+
+	get textureAtlas(): Promise<ImageBitmap> | undefined {
+		const canvas = this._webglAddon?.textureAtlas || this._canvasAddon?.textureAtlas;
+		if (!canvas) {
+			return undefined;
+		}
+		return createImageBitmap(canvas);
+	}
 
 	/**
 	 * @param xtermCtor The xterm.js constructor, this is passed in so it can be fetched lazily
@@ -200,17 +211,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 		// Load addons
 		this._updateUnicodeVersion();
-		this._commandNavigationAddon = this._instantiationService.createInstance(CommandNavigationAddon, _capabilities);
-		this.raw.loadAddon(this._commandNavigationAddon);
+		this._markNavigationAddon = this._instantiationService.createInstance(MarkNavigationAddon, _capabilities);
+		this.raw.loadAddon(this._markNavigationAddon);
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
 		this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e));
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon, disableShellIntegrationReporting, this._telemetryService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
-	}
-
-	addDecoration(marker: IMarker, properties: IGenericMarkProperties): void {
-		this._capabilities.get(TerminalCapability.CommandDetection)?.handleGenericCommand({ genericMarkProperties: properties, marker });
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
@@ -240,12 +247,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		if (!this._container) {
 			this.raw.open(container);
 		}
-		this._container = container;
+		// TODO: Move before open to the DOM renderer doesn't initialize
 		if (this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
 		} else if (this._shouldLoadCanvas()) {
 			this._enableCanvasRenderer();
 		}
+		this._container = container;
 		// Screen must be created at this point as xterm.open is called
 		return this._container.querySelector('.xterm-screen')!;
 	}
@@ -290,7 +298,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 
 	forceRedraw() {
-		this._webglAddon?.clearTextureAtlas();
 		this.raw.clearTextureAtlas();
 	}
 
@@ -394,7 +401,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		let endSpaces = 0;
 		// line.length may exceed cols as it doesn't necessarily trim the backing array on resize
 		for (let i = Math.min(line.length, this.raw.cols) - 1; i >= 0; i--) {
-			if (line && !line?.getCell(i)?.getChars()) {
+			if (!line?.getCell(i)?.getChars()) {
 				endSpaces++;
 			} else {
 				break;

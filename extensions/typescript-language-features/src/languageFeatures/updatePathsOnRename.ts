@@ -114,7 +114,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 
 			if (edits.size) {
 				if (await this.confirmActionWithUser(resourcesBeingRenamed)) {
-					await vscode.workspace.applyEdit(edits);
+					await vscode.workspace.applyEdit(edits, { isRefactoring: true });
 				}
 			}
 		}
@@ -147,73 +147,59 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			return false;
 		}
 
-		const enum Choice {
-			None = 0,
-			Accept = 1,
-			Reject = 2,
-			Always = 3,
-			Never = 4,
-		}
+		const rejectItem: vscode.MessageItem = {
+			title: localize('reject.title', "No"),
+			isCloseAffordance: true,
+		};
 
-		interface Item extends vscode.MessageItem {
-			readonly choice: Choice;
-		}
+		const acceptItem: vscode.MessageItem = {
+			title: localize('accept.title', "Yes"),
+		};
 
+		const alwaysItem: vscode.MessageItem = {
+			title: localize('always.title', "Always automatically update imports"),
+		};
 
-		const response = await vscode.window.showInformationMessage<Item>(
+		const neverItem: vscode.MessageItem = {
+			title: localize('never.title', "Never automatically update imports"),
+		};
+
+		const response = await vscode.window.showInformationMessage(
 			newResources.length === 1
 				? localize('prompt', "Update imports for '{0}'?", path.basename(newResources[0].fsPath))
 				: this.getConfirmMessage(localize('promptMoreThanOne', "Update imports for the following {0} files?", newResources.length), newResources), {
 			modal: true,
-		}, {
-			title: localize('reject.title', "No"),
-			choice: Choice.Reject,
-			isCloseAffordance: true,
-		}, {
-			title: localize('accept.title', "Yes"),
-			choice: Choice.Accept,
-		}, {
-			title: localize('always.title', "Always automatically update imports"),
-			choice: Choice.Always,
-		}, {
-			title: localize('never.title', "Never automatically update imports"),
-			choice: Choice.Never,
-		});
+		}, rejectItem, acceptItem, alwaysItem, neverItem);
 
-		if (!response) {
-			return false;
-		}
 
-		switch (response.choice) {
-			case Choice.Accept:
-				{
-					return true;
-				}
-			case Choice.Reject:
-				{
-					return false;
-				}
-			case Choice.Always:
-				{
-					const config = this.getConfiguration(newResources[0]);
-					config.update(
-						updateImportsOnFileMoveName,
-						UpdateImportsOnFileMoveSetting.Always,
-						vscode.ConfigurationTarget.Global);
-					return true;
-				}
-			case Choice.Never:
+		switch (response) {
+			case acceptItem: {
+				return true;
+			}
+			case rejectItem: {
+				return false;
+			}
+			case alwaysItem: {
+				const config = this.getConfiguration(newResources[0]);
+				config.update(
+					updateImportsOnFileMoveName,
+					UpdateImportsOnFileMoveSetting.Always,
+					this.getConfigTargetScope(config, updateImportsOnFileMoveName));
+				return true;
+			}
+			case neverItem:
 				{
 					const config = this.getConfiguration(newResources[0]);
 					config.update(
 						updateImportsOnFileMoveName,
 						UpdateImportsOnFileMoveSetting.Never,
-						vscode.ConfigurationTarget.Global);
+						this.getConfigTargetScope(config, updateImportsOnFileMoveName));
 					return false;
 				}
+			default: {
+				return false;
+			}
 		}
-
-		return false;
 	}
 
 	private async getJsTsFileBeingMoved(resource: vscode.Uri): Promise<vscode.Uri | undefined> {
@@ -283,6 +269,19 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 
 		paths.push('');
 		return paths.join('\n');
+	}
+
+	private getConfigTargetScope(config: vscode.WorkspaceConfiguration, settingsName: string): vscode.ConfigurationTarget {
+		const inspected = config.inspect(settingsName);
+		if (inspected?.workspaceFolderValue) {
+			return vscode.ConfigurationTarget.WorkspaceFolder;
+		}
+
+		if (inspected?.workspaceValue) {
+			return vscode.ConfigurationTarget.Workspace;
+		}
+
+		return vscode.ConfigurationTarget.Global;
 	}
 }
 

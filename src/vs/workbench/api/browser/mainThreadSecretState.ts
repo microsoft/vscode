@@ -36,9 +36,11 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 	}
 
 	async $getPassword(extensionId: string, key: string): Promise<string | undefined> {
+		this.logService.trace(`Getting password for ${extensionId} extension:`, key);
 		const fullKey = await this.getFullKey(extensionId);
 		const password = await this.credentialsService.getPassword(fullKey, key);
 		if (!password) {
+			this.logService.trace('No password found for:', key);
 			return undefined;
 		}
 
@@ -63,14 +65,24 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 			try {
 				const value = JSON.parse(decrypted);
 				if (value.extensionId === extensionId) {
+					this.logService.trace('Password found for:', key);
 					return value.content;
 				}
-			} catch (e) {
-				this.logService.error(e);
-				throw new Error('Cannot get password');
+			} catch (parseError) {
+				this.logService.error(parseError);
+
+				// If we can't parse the decrypted value, then it's not a valid secret so we should try to delete it
+				try {
+					await this.credentialsService.deletePassword(fullKey, key);
+				} catch (e) {
+					this.logService.error(e);
+				}
+
+				throw new Error('Unable to parse decrypted password');
 			}
 		}
 
+		this.logService.trace('No password found for:', key);
 		return undefined;
 	}
 

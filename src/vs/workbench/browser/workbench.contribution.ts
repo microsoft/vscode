@@ -448,6 +448,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.reduceMotion.auto', "Render with reduced motion based on OS configuration."),
 				],
 				default: 'auto',
+				tags: ['accessibility'],
 				enum: ['on', 'off', 'auto']
 			},
 			'workbench.layoutControl.enabled': {
@@ -539,6 +540,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'window.commandCenter': {
 				type: 'boolean',
 				default: false,
+				tags: ['experimental'],
 				markdownDescription: localize('window.commandCenter', "Show command launcher together with the window title. This setting only has an effect when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`')
 			},
 			'window.menuBarVisibility': {

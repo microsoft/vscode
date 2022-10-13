@@ -9,8 +9,9 @@ const gulp = require('gulp');
 const path = require('path');
 const es = require('event-stream');
 const util = require('./lib/util');
+const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
-const common = require('./lib/optimize');
+const optimize = require('./lib/optimize');
 const product = require('../product.json');
 const rename = require('gulp-rename');
 const filter = require('gulp-filter');
@@ -26,13 +27,13 @@ const REPO_ROOT = path.dirname(__dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
 const WEB_FOLDER = path.join(REPO_ROOT, 'remote', 'web');
 
-const commit = util.getVersion(REPO_ROOT);
+const commit = getVersion(REPO_ROOT);
 const quality = product.quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
 const vscodeWebResourceIncludes = [
 	// Workbench
-	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,jpg,opus}',
+	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,jpg,mp3}',
 	'out-build/vs/code/browser/workbench/*.html',
 	'out-build/vs/base/browser/ui/codicons/codicon/**/*.ttf',
 	'out-build/vs/**/markdown.css',
@@ -153,24 +154,28 @@ exports.createVSCodeWebFileContentMapper = createVSCodeWebFileContentMapper;
 
 const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 	util.rimraf('out-vscode-web'),
-	common.optimizeTask({
-		src: 'out-build',
-		entryPoints: _.flatten(vscodeWebEntryPoints),
-		otherSources: [],
-		resources: vscodeWebResources,
-		loaderConfig: common.loaderConfig(),
-		externalLoaderInfo: util.createExternalLoaderConfig(product.webEndpointUrl, commit, quality),
-		out: 'out-vscode-web',
-		inlineAmdImages: true,
-		bundleInfo: undefined,
-		fileContentMapper: createVSCodeWebFileContentMapper('.build/web/extensions', product)
-	})
+	optimize.optimizeTask(
+		{
+			out: 'out-vscode-web',
+			amd: {
+				src: 'out-build',
+				entryPoints: _.flatten(vscodeWebEntryPoints),
+				otherSources: [],
+				resources: vscodeWebResources,
+				loaderConfig: optimize.loaderConfig(),
+				externalLoaderInfo: util.createExternalLoaderConfig(product.webEndpointUrl, commit, quality),
+				inlineAmdImages: true,
+				bundleInfo: undefined,
+				fileContentMapper: createVSCodeWebFileContentMapper('.build/web/extensions', product)
+			}
+		}
+	)
 ));
 
 const minifyVSCodeWebTask = task.define('minify-vscode-web', task.series(
 	optimizeVSCodeWebTask,
 	util.rimraf('out-vscode-web-min'),
-	common.minifyTask('out-vscode-web', `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
+	optimize.minifyTask('out-vscode-web', `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
 ));
 gulp.task(minifyVSCodeWebTask);
 

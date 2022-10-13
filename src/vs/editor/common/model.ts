@@ -93,6 +93,11 @@ export interface IModelDecorationOptions {
 	className?: string | null;
 	blockClassName?: string | null;
 	/**
+	 * Indicates if this block should be rendered after the last line.
+	 * In this case, the range must be empty and set to the last line.
+	 */
+	blockIsAfterEnd?: boolean | null;
+	/**
 	 * Message to be rendered when hovering over the glyph margin decoration.
 	 */
 	glyphMarginHoverMessage?: IMarkdownString | IMarkdownString[] | null;
@@ -849,9 +854,11 @@ export interface ITextModel {
 
 	/**
 	 * Set the current language mode associated with the model.
+	 * @param languageId The new language.
+	 * @param source The source of the call that set the language.
 	 * @internal
 	 */
-	setMode(languageId: string): void;
+	setMode(languageId: string, source?: string): void;
 
 	/**
 	 * Returns the real (inner-most) language mode at a given position.

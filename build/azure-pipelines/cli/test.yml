@@ -1,0 +1,21 @@
+parameters:
+  - name: VSCODE_CLI_TARGETS
+    default: []
+    type: object
+  - name: VSCODE_CLI_RUST_CHANNEL
+    type: string
+    default: stable
+
+steps:
+  - template: ./install-rust-posix.yml
+    parameters:
+      targets: []
+      channel: ${{ parameters.VSCODE_CLI_RUST_CHANNEL }}
+
+  - script: rustup component add clippy && cargo clippy -- -D warnings
+    workingDirectory: cli
+    displayName: Clippy lint
+
+  - script: cargo test
+    workingDirectory: cli
+    displayName: Run unit tests

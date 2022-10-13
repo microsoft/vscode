@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { Emitter, Event } from 'vs/base/common/event';
+import { dispose } from 'vs/base/common/lifecycle';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -393,4 +395,133 @@ suite('Instantiation Service', () => {
 		assert.ok(obj);
 	});
 
+	test('Sync/Async dependency loop', async function () {
+
+		const A = createDecorator<A>('A');
+		const B = createDecorator<B>('B');
+		interface A { _serviceBrand: undefined; doIt(): void }
+		interface B { _serviceBrand: undefined; b(): boolean }
+
+		class BConsumer {
+			constructor(@B readonly b: B) {
+
+			}
+			doIt() {
+				return this.b.b();
+			}
+		}
+
+		class AService implements A {
+			_serviceBrand: undefined;
+			prop: BConsumer;
+			constructor(@IInstantiationService insta: IInstantiationService) {
+				this.prop = insta.createInstance(BConsumer);
+			}
+			doIt() {
+				return this.prop.doIt();
+			}
+		}
+
+		class BService implements B {
+			_serviceBrand: undefined;
+			constructor(@A a: A) {
+				assert.ok(a);
+			}
+			b() { return true; }
+		}
+
+		// SYNC -> explodes AImpl -> [insta:BConsumer] -> BImpl -> AImpl
+		{
+			const insta1 = new InstantiationService(new ServiceCollection(
+				[A, new SyncDescriptor(AService)],
+				[B, new SyncDescriptor(BService)],
+			), true, undefined, true);
+
+			try {
+				insta1.invokeFunction(accessor => accessor.get(A));
+				assert.ok(false);
+
+			} catch (error) {
+				assert.ok(error instanceof Error);
+				assert.ok(error.message.includes('RECURSIVELY'));
+			}
+		}
+
+		// ASYNC -> doesn't explode but cycle is tracked
+		{
+			const insta2 = new InstantiationService(new ServiceCollection(
+				[A, new SyncDescriptor(AService, undefined, true)],
+				[B, new SyncDescriptor(BService, undefined)],
+			), true, undefined, true);
+
+			const a = insta2.invokeFunction(accessor => accessor.get(A));
+			a.doIt();
+
+			const cycle = insta2._globalGraph?.findCycleSlow();
+			assert.strictEqual(cycle, 'A -> B -> A');
+		}
+	});
+
+	test('Delayed and events', function () {
+		const A = createDecorator<A>('A');
+		interface A {
+			_serviceBrand: undefined;
+			onDidDoIt: Event<any>;
+			doIt(): void;
+		}
+
+		let created = false;
+		class AImpl implements A {
+			_serviceBrand: undefined;
+			_doIt = 0;
+
+			_onDidDoIt = new Emitter<this>();
+			onDidDoIt: Event<this> = this._onDidDoIt.event;
+
+			constructor() {
+				created = true;
+			}
+
+			doIt(): void {
+				this._doIt += 1;
+				this._onDidDoIt.fire(this);
+			}
+		}
+
+		const insta = new InstantiationService(new ServiceCollection(
+			[A, new SyncDescriptor(AImpl, undefined, true)],
+		), true, undefined, true);
+
+		class Consumer {
+			constructor(@A readonly a: A) {
+				// eager subscribe -> NO service instance
+			}
+		}
+
+		const c: Consumer = insta.createInstance(Consumer);
+		let eventCount = 0;
+
+		// subscribing to event doesn't trigger instantiation
+		const listener = (e: any) => {
+			assert.ok(e instanceof AImpl);
+			eventCount++;
+		};
+		const d1 = c.a.onDidDoIt(listener);
+		const d2 = c.a.onDidDoIt(listener);
+		assert.strictEqual(created, false);
+		assert.strictEqual(eventCount, 0);
+		d2.dispose();
+
+		// instantiation happens on first call
+		c.a.doIt();
+		assert.strictEqual(created, true);
+		assert.strictEqual(eventCount, 1);
+
+
+		const d3 = c.a.onDidDoIt(listener);
+		c.a.doIt();
+		assert.strictEqual(eventCount, 3);
+
+		dispose([d1, d3]);
+	});
 });

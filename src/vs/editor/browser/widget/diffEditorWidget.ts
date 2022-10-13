@@ -24,7 +24,7 @@ import { IDiffEditorOptions, EditorLayoutInfo, EditorOption, EditorOptions, Edit
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -42,7 +42,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDiffLinesChange, InlineDiffMargin } from 'vs/editor/browser/widget/inlineDiffMargin';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { Constants } from 'vs/base/common/uint';
-import { EditorExtensionsRegistry, IDiffEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
@@ -172,6 +172,8 @@ const diffInsertIcon = registerIcon('diff-insert', Codicon.add, nls.localize('di
 const diffRemoveIcon = registerIcon('diff-remove', Codicon.remove, nls.localize('diffRemoveIcon', 'Line decoration for removals in the diff editor.'));
 const ttPolicy = window.trustedTypes?.createPolicy('diffEditorWidget', { createHTML: value => value });
 
+const ariaNavigationTip = nls.localize('diff-aria-navigation-tip', ' use Shift + F7 to navigate changes');
+
 export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffEditor {
 
 	private static readonly ONE_OVERVIEW_WIDTH = 15;
@@ -180,6 +182,9 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private readonly _onDidDispose: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidDispose: Event<void> = this._onDidDispose.event;
+
+	protected readonly _onDidChangeModel: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeModel: Event<void> = this._onDidChangeModel.event;
 
 	private readonly _onDidUpdateDiff: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidUpdateDiff: Event<void> = this._onDidUpdateDiff.event;
@@ -363,7 +368,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			this._containerDomElement.className = DiffEditorWidget._getClassName(this._themeService.getColorTheme(), this._options.renderSideBySide);
 		}));
 
-		const contributions: IDiffEditorContributionDescription[] = EditorExtensionsRegistry.getDiffEditorContributions();
+		const contributions = EditorExtensionsRegistry.getDiffEditorContributions();
 		for (const desc of contributions) {
 			try {
 				this._register(instantiationService.createInstance(desc.ctor, this));
@@ -830,6 +835,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}
 
 		this._layoutOverviewViewport();
+
+		this._onDidChangeModel.fire();
 	}
 
 	public getContainerDomNode(): HTMLElement {
@@ -1241,6 +1248,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (options.originalAriaLabel) {
 			result.ariaLabel = options.originalAriaLabel;
 		}
+		result.ariaLabel += ariaNavigationTip;
 		result.readOnly = !this._options.originalEditable;
 		result.dropIntoEditor = { enabled: !result.readOnly };
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
@@ -1258,7 +1266,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (options.modifiedAriaLabel) {
 			result.ariaLabel = options.modifiedAriaLabel;
 		}
-
+		result.ariaLabel += ariaNavigationTip;
 		result.wordWrapOverride1 = this._options.diffWordWrap;
 		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar!.verticalHasArrows = false;
@@ -2479,7 +2487,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			}
 			const hasCharChanges = (decorations.length > 0);
 
-			const sb = createStringBuilder(10000);
+			const sb = new StringBuilder(10000);
 			let maxCharsPerLine = 0;
 			let renderedLineCount = 0;
 			let viewLineCounts: number[] | null = null;
@@ -2597,7 +2605,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		renderControlCharacters: boolean,
 		fontLigatures: string,
 		tabSize: number,
-		sb: IStringBuilder,
+		sb: StringBuilder,
 		marginDomNode: HTMLElement
 	): number {
 

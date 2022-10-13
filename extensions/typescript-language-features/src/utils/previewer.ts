@@ -84,7 +84,7 @@ function getTagDocumentation(
 		case 'extends':
 		case 'param':
 		case 'template': {
-			const body = (convertLinkTags(tag.text, filePathConverter)).split(/^(\S+)\s*-?\s*/);
+			const body = getTagBody(tag, filePathConverter);
 			if (body?.length === 3) {
 				const param = body[1];
 				const doc = body[2];
@@ -104,6 +104,18 @@ function getTagDocumentation(
 		return label;
 	}
 	return label + (text.match(/\r\n|\n/g) ? '  \n' + text : ` \u2014 ${text}`);
+}
+
+function getTagBody(tag: Proto.JSDocTagInfo, filePathConverter: IFilePathToResourceConverter): Array<string> | undefined {
+	if (tag.name === 'template') {
+		const parts = tag.text;
+		if (parts && typeof (parts) !== 'string') {
+			const params = parts.filter(p => p.kind === 'typeParameterName').map(p => p.text).join(', ');
+			const docs = parts.filter(p => p.kind === 'text').map(p => convertLinkTags(p.text.replace(/^\s*-?\s*/, ''), filePathConverter)).join(' ');
+			return params ? ['', params, docs] : undefined;
+		}
+	}
+	return (convertLinkTags(tag.text, filePathConverter)).split(/^(\S+)\s*-?\s*/);
 }
 
 export function plainWithLinks(

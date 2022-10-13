@@ -1291,7 +1291,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 
 	updateStyleOverrides(overrideStyles?: IColorMapping): void {
 		dispose(this.styler);
-		this.styler = overrideStyles ? attachListStyler(this.tree, this.themeService, overrideStyles) : Disposable.None;
+		this.styler = attachListStyler(this.tree, this.themeService, overrideStyles);
 	}
 
 	dispose(): void {

@@ -53,6 +53,7 @@ class SourceAction extends Disposable implements ISourceAction {
 
 	constructor(
 		readonly action: IAction,
+		readonly isPrimary: boolean
 	) {
 		super();
 	}
@@ -70,7 +71,11 @@ class SourceAction extends Disposable implements ISourceAction {
 	}
 
 	private async _runAction(): Promise<void> {
-		await this.action.run();
+		try {
+			await this.action.run();
+		} catch (error) {
+			console.warn(`Kernel source command failed: ${error}`);
+		}
 	}
 }
 
@@ -133,17 +138,18 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	private _initSourceActions() {
 		const loadActionsFromMenu = (menu: IMenu) => {
 			const groups = menu.getActions({ shouldForwardArgs: true });
-			const actions: IAction[] = [];
+			const sourceActions: [ISourceAction, IDisposable][] = [];
 			groups.forEach(group => {
-				actions.push(...group[1]);
-			});
-			this._sourceActions = actions.map(action => {
-				const sourceAction = new SourceAction(action);
-				const stateChangeListener = sourceAction.onDidChangeState(() => {
-					this._onDidChangeSourceActions.fire();
+				const isPrimary = /^primary/.test(group[0]);
+				group[1].forEach(action => {
+					const sourceAction = new SourceAction(action, isPrimary);
+					const stateChangeListener = sourceAction.onDidChangeState(() => {
+						this._onDidChangeSourceActions.fire();
+					});
+					sourceActions.push([sourceAction, stateChangeListener]);
 				});
-				return [sourceAction, stateChangeListener];
 			});
+			this._sourceActions = sourceActions;
 			this._onDidChangeSourceActions.fire();
 		};
 
@@ -244,11 +250,9 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		// bound kernel
 		const selectedId = this._notebookBindings.get(NotebookTextModelLikeId.str(notebook));
 		const selected = selectedId ? this._kernels.get(selectedId)?.kernel : undefined;
-		const suggestions = kernels.filter(item => item.instanceAffinity > 1 && item.kernel !== selected).map(item => item.kernel);
-		if (!suggestions.length && all.length) {
-			suggestions.push(all[0]);
-		}
-		return { all, selected, suggestions };
+		const suggestions = kernels.filter(item => item.instanceAffinity > 1).map(item => item.kernel);
+		const hidden = kernels.filter(item => item.instanceAffinity < 0).map(item => item.kernel);
+		return { all, selected, suggestions, hidden };
 	}
 
 	getSelectedOrSuggestedKernel(notebook: INotebookTextModel): INotebookKernel | undefined {

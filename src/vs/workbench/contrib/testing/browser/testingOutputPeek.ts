@@ -55,7 +55,7 @@ import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listSe
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
@@ -904,7 +904,8 @@ class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
 }
 
 class ScrollableMarkdownMessage extends Disposable {
-	private scrollable: DomScrollableElement;
+	private readonly scrollable: DomScrollableElement;
+	private readonly element: HTMLElement;
 
 	constructor(container: HTMLElement, markdown: MarkdownRenderer, message: IMarkdownString) {
 		super();
@@ -913,6 +914,7 @@ class ScrollableMarkdownMessage extends Disposable {
 		rendered.element.style.height = '100%';
 		rendered.element.style.userSelect = 'text';
 		container.appendChild(rendered.element);
+		this.element = rendered.element;
 
 		this.scrollable = this._register(new DomScrollableElement(rendered.element, {
 			className: 'preview-text',
@@ -928,7 +930,12 @@ class ScrollableMarkdownMessage extends Disposable {
 
 	public layout(height: number, width: number) {
 		// Remove padding of `.monaco-editor .zone-widget.test-output-peek .preview-text`
-		this.scrollable.setScrollDimensions({ width: width - 32, height: height - 16 });
+		this.scrollable.setScrollDimensions({
+			width: width - 32,
+			height: height - 16,
+			scrollWidth: this.element.scrollWidth,
+			scrollHeight: this.element.scrollHeight
+		});
 	}
 }
 
@@ -1159,6 +1166,7 @@ class TestMessageElement implements ITreeElement {
 	public readonly uri: URI;
 	public readonly location?: IRichLocation;
 	public readonly description?: string;
+	public readonly marker?: number;
 
 	constructor(
 		public readonly result: ITestResult,
@@ -1166,9 +1174,10 @@ class TestMessageElement implements ITreeElement {
 		public readonly taskIndex: number,
 		public readonly messageIndex: number,
 	) {
-		const { message, location } = test.tasks[taskIndex].messages[messageIndex];
+		const m = test.tasks[taskIndex].messages[messageIndex];
 
-		this.location = location;
+		this.location = m.location;
+		this.marker = m.type === TestMessageType.Output ? m.marker : undefined;
 		this.uri = this.context = buildTestUri({
 			type: TestUriType.ResultMessage,
 			messageIndex,
@@ -1179,7 +1188,7 @@ class TestMessageElement implements ITreeElement {
 
 		this.id = this.uri.toString();
 
-		const asPlaintext = renderStringAsPlaintext(message);
+		const asPlaintext = renderStringAsPlaintext(m.message);
 		const lines = count(asPlaintext.trimRight(), '\n');
 		this.label = firstLine(asPlaintext);
 		if (lines > 0) {
@@ -1590,6 +1599,18 @@ class TreeActionsProvider {
 				}
 			}
 
+			if (element instanceof TestMessageElement) {
+				if (element.marker !== undefined) {
+					primary.push(new Action(
+						'testing.outputPeek.showMessageInTerminal',
+						localize('testing.showMessageInTerminal', "Show Output in Terminal"),
+						Codicon.terminal.classNames,
+						undefined,
+						() => this.testTerminalService.open(element.result, element.marker),
+					));
+				}
+			}
+
 			const result = { primary, secondary };
 			createAndFillInActionBarActions(menu, {
 				shouldForwardArgs: true,
@@ -1665,7 +1686,7 @@ export class GoToNextMessageAction extends EditorAction2 {
 			f1: true,
 			title: { value: localize('testing.goToNextMessage', "Go to Next Test Failure"), original: 'Go to Next Test Failure' },
 			icon: Codicon.arrowDown,
-			category: CATEGORIES.Test,
+			category: Categories.Test,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.F8,
 				weight: KeybindingWeight.EditorContrib + 1,
@@ -1695,7 +1716,7 @@ export class GoToPreviousMessageAction extends EditorAction2 {
 			f1: true,
 			title: { value: localize('testing.goToPreviousMessage', "Go to Previous Test Failure"), original: 'Go to Previous Test Failure' },
 			icon: Codicon.arrowUp,
-			category: CATEGORIES.Test,
+			category: Categories.Test,
 			keybinding: {
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8,
 				weight: KeybindingWeight.EditorContrib + 1,
@@ -1725,7 +1746,7 @@ export class OpenMessageInEditorAction extends EditorAction2 {
 			f1: false,
 			title: { value: localize('testing.openMessageInEditor', "Open in Editor"), original: 'Open in Editor' },
 			icon: Codicon.linkExternal,
-			category: CATEGORIES.Test,
+			category: Categories.Test,
 			menu: [{ id: MenuId.TestPeekTitle }],
 		});
 	}
@@ -1743,7 +1764,7 @@ export class ToggleTestingPeekHistory extends EditorAction2 {
 			f1: true,
 			title: { value: localize('testing.toggleTestingPeekHistory', "Toggle Test History in Peek"), original: 'Toggle Test History in Peek' },
 			icon: Codicon.history,
-			category: CATEGORIES.Test,
+			category: Categories.Test,
 			menu: [{
 				id: MenuId.TestPeekTitle,
 				group: 'navigation',

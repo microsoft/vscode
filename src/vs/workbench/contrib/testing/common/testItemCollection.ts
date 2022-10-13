@@ -9,13 +9,13 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { assertNever } from 'vs/base/common/assert';
 import { applyTestItemUpdate, ITestItem, ITestTag, namespaceTestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { URI } from 'vs/base/common/uri';
 
 /**
  * @private
  */
 interface CollectionItem<T> {
 	readonly fullId: TestId;
-	readonly parent: TestId | null;
 	actual: T;
 	expand: TestItemExpandState;
 	/**
@@ -32,6 +32,7 @@ export const enum TestItemEventOp {
 	RemoveChild,
 	SetProp,
 	Bulk,
+	DocumentSynced,
 }
 
 export interface ITestItemUpsertChild {
@@ -64,13 +65,18 @@ export interface ITestItemBulkReplace {
 	ops: (ITestItemUpsertChild | ITestItemRemoveChild)[];
 }
 
+export interface ITestItemDocumentSynced {
+	op: TestItemEventOp.DocumentSynced;
+}
+
 export type ExtHostTestItemEvent =
 	| ITestItemSetTags
 	| ITestItemUpsertChild
 	| ITestItemRemoveChild
 	| ITestItemUpdateCanResolveChildren
 	| ITestItemSetProp
-	| ITestItemBulkReplace;
+	| ITestItemBulkReplace
+	| ITestItemDocumentSynced;
 
 export interface ITestItemApi<T> {
 	controllerId: string;
@@ -81,6 +87,9 @@ export interface ITestItemApi<T> {
 export interface ITestItemCollectionOptions<T> {
 	/** Controller ID to use to prefix these test items. */
 	controllerId: string;
+
+	/** Gets the document version at the given URI, if it's open */
+	getDocumentVersion(uri: URI | undefined): number | undefined;
 
 	/** Gets API for the given test item, used to listen for events and set parents. */
 	getApiFor(item: T): ITestItemApi<T>;
@@ -142,6 +151,7 @@ export interface ITestChildrenLike<T> extends Iterable<[string, T]> {
 export interface ITestItemLike {
 	id: string;
 	tags: readonly ITestTag[];
+	uri?: URI;
 	canResolveChildren: boolean;
 }
 
@@ -196,17 +206,32 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 	 * Pushes a new diff entry onto the collected diff list.
 	 */
 	public pushDiff(diff: TestsDiffOp) {
-		// Try to merge updates, since they're invoked per-property
-		const last = this.diff[this.diff.length - 1];
-		if (last && diff.op === TestDiffOpType.Update) {
-			if (last.op === TestDiffOpType.Update && last.item.extId === diff.item.extId) {
-				applyTestItemUpdate(last.item, diff.item);
-				return;
-			}
+		switch (diff.op) {
+			case TestDiffOpType.DocumentSynced: {
+				for (const existing of this.diff) {
+					if (existing.op === TestDiffOpType.DocumentSynced && existing.uri === diff.uri) {
+						existing.docv = diff.docv;
+						return;
+					}
+				}
 
-			if (last.op === TestDiffOpType.Add && last.item.item.extId === diff.item.extId) {
-				applyTestItemUpdate(last.item, diff.item);
-				return;
+				break;
+			}
+			case TestDiffOpType.Update: {
+				// Try to merge updates, since they're invoked per-property
+				const last = this.diff[this.diff.length - 1];
+				if (last) {
+					if (last.op === TestDiffOpType.Update && last.item.extId === diff.item.extId) {
+						applyTestItemUpdate(last.item, diff.item);
+						return;
+					}
+
+					if (last.op === TestDiffOpType.Add && last.item.item.extId === diff.item.extId) {
+						applyTestItemUpdate(last.item, diff.item);
+						return;
+					}
+				}
+				break;
 			}
 		}
 
@@ -283,11 +308,29 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 			case TestItemEventOp.SetProp:
 				this.pushDiff({
 					op: TestDiffOpType.Update,
-					item: { extId: internal.fullId.toString(), item: evt.update }
+					item: {
+						extId: internal.fullId.toString(),
+						item: evt.update,
+					}
 				});
 				break;
+
+			case TestItemEventOp.DocumentSynced:
+				this.documentSynced(internal.actual.uri);
+				break;
+
 			default:
 				assertNever(evt);
+		}
+	}
+
+	private documentSynced(uri: URI | undefined) {
+		if (uri) {
+			this.pushDiff({
+				op: TestDiffOpType.DocumentSynced,
+				uri,
+				docv: this.options.getDocumentVersion(uri)
+			});
 		}
 	}
 
@@ -307,7 +350,6 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 			internal = {
 				fullId,
 				actual,
-				parent: parent ? fullId.parentId : null,
 				expandLevels: parent?.expandLevels /* intentionally undefined or 0 */ ? parent.expandLevels - 1 : undefined,
 				expand: TestItemExpandState.NotExpandable, // updated by `connectItemAndChildren`
 			};
@@ -318,7 +360,6 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 			this.pushDiff({
 				op: TestDiffOpType.Add,
 				item: {
-					parent: internal.parent && internal.parent.toString(),
 					controllerId: this.options.controllerId,
 					expand: internal.expand,
 					item: this.options.toITestItem(actual),
@@ -361,6 +402,9 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 				this.removeItem(TestId.joinToString(fullId, child.id));
 			}
 		}
+
+		// Mark ranges in the document as synced (#161320)
+		this.documentSynced(internal.actual.uri);
 	}
 
 	private diffTagRefs(newTags: readonly ITestTag[], oldTags: readonly ITestTag[], extId: string) {

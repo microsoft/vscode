@@ -65,6 +65,7 @@ export interface IExtension {
 	readonly ratingCount?: number;
 	readonly outdated: boolean;
 	readonly outdatedTargetPlatform: boolean;
+	readonly reloadRequiredStatus?: string;
 	readonly enablementState: EnablementState;
 	readonly tags: readonly string[];
 	readonly categories: readonly string[];
@@ -110,6 +111,8 @@ export interface IExtensionsWorkbenchService {
 	canSetLanguage(extension: IExtension): boolean;
 	setLanguage(extension: IExtension): Promise<void>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
+	setExtensionIgnoresUpdate(extension: IExtension, ignoreAutoUpate: boolean): void;
+	isExtensionIgnoresUpdates(extension: IExtension): boolean;
 	open(extension: IExtension, options?: IExtensionEditorOptions): Promise<void>;
 	checkForUpdates(): Promise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
@@ -180,6 +183,7 @@ export class ExtensionContainers extends Disposable {
 }
 
 export const WORKSPACE_RECOMMENDATIONS_VIEW_ID = 'workbench.views.extensions.workspaceRecommendations';
+export const OUTDATED_EXTENSIONS_VIEW_ID = 'workbench.views.extensions.searchOutdated';
 export const TOGGLE_IGNORE_EXTENSION_ACTION_ID = 'workbench.extensions.action.toggleIgnoreExtension';
 export const SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID = 'workbench.extensions.action.installVSIX';
 export const INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID = 'workbench.extensions.command.installFromVSIX';
@@ -187,9 +191,8 @@ export const INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID = 'workbench.extensions.comm
 export const LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID = 'workbench.extensions.action.listWorkspaceUnsupportedExtensions';
 
 // Context Keys
-export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
-export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
 export const HasOutdatedExtensionsContext = new RawContextKey<boolean>('hasOutdatedExtensions', false);
+export const CONTEXT_HAS_GALLERY = new RawContextKey<boolean>('hasGallery', false);
 
 // Context Menu Groups
 export const THEME_ACTIONS_GROUP = '_theme_';

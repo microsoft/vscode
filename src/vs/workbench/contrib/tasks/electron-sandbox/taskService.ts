@@ -11,7 +11,7 @@ import { ExecutionEngine } from 'vs/workbench/contrib/tasks/common/tasks';
 import * as TaskConfig from '../common/taskConfiguration';
 import { AbstractTaskService } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
 import { ITaskFilter, ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { TerminalTaskSystem } from 'vs/workbench/contrib/tasks/browser/terminalTaskSystem';
 import { IConfirmationResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TerminateResponseCode } from 'vs/base/common/processes';
@@ -45,6 +45,8 @@ import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/c
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 
 interface IWorkspaceFolderConfigurationResult {
 	workspaceFolder: IWorkspaceFolder;
@@ -88,6 +90,8 @@ export class TaskService extends AbstractTaskService {
 		@ILogService logService: ILogService,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IAudioCueService audioCueService: IAudioCueService
 	) {
 		super(configurationService,
 			markerService,
@@ -122,7 +126,9 @@ export class TaskService extends AbstractTaskService {
 			workspaceTrustManagementService,
 			logService,
 			themeService,
-			lifecycleService
+			lifecycleService,
+			remoteAgentService,
+			instantiationService
 		);
 		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown(), 'veto.tasks')));
 	}
@@ -138,10 +144,6 @@ export class TaskService extends AbstractTaskService {
 				this._taskSystem.onDidStateChange((event) => {
 					this._taskRunningState.set(this._taskSystem!.isActiveSync());
 					this._onDidStateChange.fire(event);
-				}),
-				this._taskSystem.onDidReconnectToTerminals((event) => {
-					this._taskRunningState.set(this._taskSystem!.isActiveSync());
-					this._onDidReconnectToTerminals.fire(event);
 				})
 			];
 		return this._taskSystem;
@@ -225,4 +227,4 @@ export class TaskService extends AbstractTaskService {
 	}
 }
 
-registerSingleton(ITaskService, TaskService, true);
+registerSingleton(ITaskService, TaskService, InstantiationType.Delayed);
