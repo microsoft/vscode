@@ -5,7 +5,7 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { IUpdateService, State, UpdateType } from 'vs/platform/update/common/update';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -96,4 +96,4 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 	}
 }
 
-registerSingleton(IUpdateService, BrowserUpdateService, false);
+registerSingleton(IUpdateService, BrowserUpdateService, InstantiationType.Eager);
