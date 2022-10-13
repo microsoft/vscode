@@ -68,27 +68,41 @@ export namespace Event {
 	 * *NOTE* when using this it's important to consider race conditions that could arise when using related deferred
 	 * and non-deferred events.
 	 */
-	export function defer<T>(event: Event<T>): Event<T> {
-		const listeners: { listener: (e: T) => any; thisArgs?: any; disposables?: IDisposable[] | DisposableStore }[] = [];
+	export function defer(event: Event<unknown>): Event<void> {
+		const listeners: { listener: () => any; thisArgs?: any; disposables?: IDisposable[] | DisposableStore }[] = [];
 		let primaryListener: IDisposable | undefined;
 		return (listener, thisArgs = null, disposables?) => {
-			listeners.push({ listener, thisArgs, disposables });
+			const entry = { listener, thisArgs, disposables };
+			listeners.push(entry);
 			if (!primaryListener) {
+				// TODO: Use debounce?
+				// TODO: Use signal?
 				primaryListener = event(e => {
 					if (enableDefer) {
 						setTimeout(() => {
 							for (const l of listeners) {
-								l.listener.call(l.thisArgs, e);
+								l.listener.call(l.thisArgs);
 							}
 						}, 0);
 					} else {
 						for (const l of listeners) {
-							l.listener.call(l.thisArgs, e);
+							l.listener.call(l.thisArgs);
 						}
 					}
 				});
 			}
-			return primaryListener;
+			return toDisposable(() => {
+				const index = listeners.indexOf(entry);
+				if (index === -1) {
+					return;
+				}
+				listeners.splice(index, 1);
+				// Clear out the primary listener if all the other listeners are gone
+				if (listeners.length === 0) {
+					primaryListener?.dispose();
+					primaryListener = undefined;
+				}
+			});
 		};
 	}
 
