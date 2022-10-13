@@ -418,7 +418,7 @@ mod tests {
 			.to_string_lossy()
 			.to_string();
 		assert_eq!(
-			RequestedVersion::try_from((&exe).as_str()).unwrap(),
+			RequestedVersion::try_from(exe.as_str()).unwrap(),
 			RequestedVersion::Path(exe),
 		);
 	}

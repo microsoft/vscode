@@ -19,9 +19,7 @@ where
 	/// Waits for the barrier to be closed, returning a value if one was sent.
 	pub async fn wait(&mut self) -> Result<T, RecvError> {
 		loop {
-			if let Err(e) = self.0.changed().await {
-				return Err(e);
-			}
+			self.0.changed().await?;
 
 			if let Some(v) = *(self.0.borrow()) {
 				return Ok(v);
