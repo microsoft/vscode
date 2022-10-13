@@ -1535,6 +1535,7 @@
       {
         "id": "nodejsWelcome",
         "title": "%walkthroughs.nodejsWelcome.title%",
+        "icon": "media/nodejsWalkthroughIcon.png",
         "description": "%walkthroughs.nodejsWelcome.description%",
         "when": "false",
         "steps": [
