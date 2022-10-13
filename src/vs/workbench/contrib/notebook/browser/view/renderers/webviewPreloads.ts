@@ -1305,10 +1305,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		private load(): Promise<rendererApi.RendererApi | undefined> {
-			if (!this._loadPromise) {
-				this._loadPromise = this._load();
-			}
-
+			this._loadPromise ??= this._load();
 			return this._loadPromise;
 		}
 
