@@ -20,7 +20,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -219,14 +219,22 @@ export class TerminalService implements ITerminalService {
 
 		_lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
 		_lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
-		this._storageSefgfrvice.onWillSaveState(() => this._storageService.store('reconnectToTasks', this.instances.some(i => i.shellLaunchConfig.type === 'Task' && i.shellLaunchConfig.hideFromUser), StorageScope.WORKSPACE, StorageTarget.USER));
+
+		//in order to reconnect to tasks, we have to show the panel
+		const reconnectToTaskKey = 'reconnectToTasks';
+		this._storageService.onWillSaveState((e) => {
+			if (e.reason === WillSaveStateReason.SHUTDOWN) {
+				this._storageService.store(reconnectToTaskKey, this.instances.some(i => i.shellLaunchConfig.type === 'Task'), StorageScope.WORKSPACE, StorageTarget.USER);
+			}
+		});
+		if (this._storageService.getBoolean(reconnectToTaskKey, StorageScope.WORKSPACE)) {
+			this._viewsService.openView(TERMINAL_VIEW_ID).then(() => {
+				this._storageService.store(reconnectToTaskKey, false, StorageScope.WORKSPACE, StorageTarget.USER);
+			});
+		}
 
 		// Create async as the class depends on `this`
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
-		if (this._storageService.get('reconnectToTasks', StorageScope.WORKSPACE)) {
-			this._commandService.executeCommand('workbench.action.togglePanel');
-			this.primaryBackendRegistered.then(() => this.initializeTerminals());
-		}
 	}
 
 	async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {

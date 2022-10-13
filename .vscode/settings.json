@@ -105,5 +105,6 @@
 		"sash"
 	],
 	"githubPullRequests.assignCreated": "${user}",
-	"githubPullRequests.defaultMergeMethod": "squash"
+	"githubPullRequests.defaultMergeMethod": "squash",
+	"editor.acceptSuggestionOnEnter": "on"
 }
