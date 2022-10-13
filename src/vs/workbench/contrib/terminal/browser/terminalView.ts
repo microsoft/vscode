@@ -166,9 +166,9 @@ export class TerminalViewPane extends ViewPane {
 			if (visible) {
 				if (!this._terminalService.isProcessSupportRegistered) {
 					this._onDidChangeViewWelcomeState.fire();
-					return;
+				} else {
+					await this._terminalService.primaryBackendRegistered;
 				}
-				await this._terminalService.primaryBackendRegistered;
 				// we don't know here whether or not it should be focused, so
 				// defer focusing the panel to the focus() call
 				// to prevent overriding preserveFocus for extensions
