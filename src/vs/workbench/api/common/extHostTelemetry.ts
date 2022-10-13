@@ -34,7 +34,6 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 		@IExtHostInitDataService private readonly initData: IExtHostInitDataService,
 		@ILoggerService loggerService: ILoggerService,
 	) {
-		console.log(this.initData.environment.extensionTelemetryLogResource);
 		this._outputLogger = loggerService.createLogger(URI.revive(this.initData.environment.extensionTelemetryLogResource));
 		this._outputLogger.info('Below are logs for extension telemetry events sent to the telemetry output channel API once the log level is set to trace.');
 		this._outputLogger.info('===========================================================');

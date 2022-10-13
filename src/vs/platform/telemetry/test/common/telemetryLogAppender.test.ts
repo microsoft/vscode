@@ -58,7 +58,7 @@ class TestTelemetryLogger extends AbstractLogger implements ILogger {
 	flush(): void { }
 }
 
-class TestTelemetryLoggerService implements ILoggerService {
+export class TestTelemetryLoggerService implements ILoggerService {
 	_serviceBrand: undefined;
 
 	logger?: TestTelemetryLogger;

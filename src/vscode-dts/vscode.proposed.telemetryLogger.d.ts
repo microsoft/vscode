@@ -48,7 +48,7 @@ declare module 'vscode' {
 		/**
 		 * Any additional common properties which should be injected into the data object.
 		 */
-		readonly additionalCommonProperties: Record<string, string | number | boolean>;
+		readonly additionalCommonProperties?: Record<string, string | number | boolean>;
 
 		/**
 		 * User-defined function which logs an event, used within the TelemetryLogger
