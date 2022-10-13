@@ -422,6 +422,23 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				return accessor.get(IPreferencesService).openWorkspaceSettings(args);
 			}
 		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.openAccessibilitySettings',
+					title: { value: nls.localize('openAccessibilitySettings', "Open Accessibility Settings"), original: 'Open Accessibility Settings' },
+					category,
+					menu: {
+						id: MenuId.CommandPalette,
+						when: WorkbenchStateContext.notEqualsTo('empty')
+					}
+				});
+			}
+			async run(accessor: ServicesAccessor) {
+				await accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:accessibility' });
+			}
+		});
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({

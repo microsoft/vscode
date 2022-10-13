@@ -698,6 +698,11 @@ export interface IDevelopmentOptions {
 	readonly logLevel?: LogLevel;
 
 	/**
+	 * Extension log level.
+	 */
+	readonly extensionLogLevel?: [string, LogLevel][];
+
+	/**
 	 * Location of a module containing extension tests to run once the workbench is open.
 	 */
 	readonly extensionTestsPath?: UriComponents;

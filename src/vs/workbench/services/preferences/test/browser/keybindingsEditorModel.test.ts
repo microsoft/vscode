@@ -672,7 +672,7 @@ suite('KeybindingsEditorModel', () => {
 			constructor() {
 				super({
 					id: command,
-					title,
+					title: { value: title, original: title },
 					f1: true
 				});
 			}

@@ -33,7 +33,8 @@ export class ExtHostWebview implements vscode.Webview {
 	#isDisposed: boolean = false;
 	#hasCalledAsWebviewUri = false;
 
-	#serializeBuffersForPostMessage = false;
+	#serializeBuffersForPostMessage: boolean;
+	#shouldRewriteOldResourceUris: boolean;
 
 	constructor(
 		handle: extHostProtocol.WebviewHandle,
@@ -51,6 +52,7 @@ export class ExtHostWebview implements vscode.Webview {
 		this.#workspace = workspace;
 		this.#extension = extension;
 		this.#serializeBuffersForPostMessage = shouldSerializeBuffersForPostMessage(extension);
+		this.#shouldRewriteOldResourceUris = shouldTryRewritingOldResourceUris(extension);
 		this.#deprecationService = deprecationService;
 	}
 
@@ -98,12 +100,12 @@ export class ExtHostWebview implements vscode.Webview {
 		this.assertNotDisposed();
 		if (this.#html !== value) {
 			this.#html = value;
-			if (!this.#hasCalledAsWebviewUri && /(["'])vscode-resource:([^\s'"]+?)(["'])/i.test(value)) {
+			if (this.#shouldRewriteOldResourceUris && !this.#hasCalledAsWebviewUri && /(["'])vscode-resource:([^\s'"]+?)(["'])/i.test(value)) {
 				this.#hasCalledAsWebviewUri = true;
 				this.#deprecationService.report('Webview vscode-resource: uris', this.#extension,
 					`Please migrate to use the 'webview.asWebviewUri' api instead: https://aka.ms/vscode-webview-use-aswebviewuri`);
 			}
-			this.#proxy.$setHtml(this.#handle, value);
+			this.#proxy.$setHtml(this.#handle, this.rewriteOldResourceUrlsIfNeeded(value));
 		}
 	}
 
@@ -131,12 +133,51 @@ export class ExtHostWebview implements vscode.Webview {
 			throw new Error('Webview is disposed');
 		}
 	}
+
+	private rewriteOldResourceUrlsIfNeeded(value: string): string {
+		if (!this.#shouldRewriteOldResourceUris) {
+			return value;
+		}
+
+		const isRemote = this.#extension.extensionLocation?.scheme === Schemas.vscodeRemote;
+		const remoteAuthority = this.#extension.extensionLocation.scheme === Schemas.vscodeRemote ? this.#extension.extensionLocation.authority : undefined;
+		return value
+			.replace(/(["'])(?:vscode-resource):(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
+				const uri = URI.from({
+					scheme: scheme || 'file',
+					path: decodeURIComponent(path),
+				});
+				const webviewUri = asWebviewUri(uri, { isRemote, authority: remoteAuthority }).toString();
+				return `${startQuote}${webviewUri}${endQuote}`;
+			})
+			.replace(/(["'])(?:vscode-webview-resource):(\/\/[^\s\/'"]+\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
+				const uri = URI.from({
+					scheme: scheme || 'file',
+					path: decodeURIComponent(path),
+				});
+				const webviewUri = asWebviewUri(uri, { isRemote, authority: remoteAuthority }).toString();
+				return `${startQuote}${webviewUri}${endQuote}`;
+			});
+	}
 }
 
 export function shouldSerializeBuffersForPostMessage(extension: IExtensionDescription): boolean {
 	try {
 		const version = normalizeVersion(parseVersion(extension.engines.vscode));
 		return !!version && version.majorBase >= 1 && version.minorBase >= 57;
+	} catch {
+		return false;
+	}
+}
+
+function shouldTryRewritingOldResourceUris(extension: IExtensionDescription): boolean {
+	try {
+		const version = normalizeVersion(parseVersion(extension.engines.vscode));
+		if (!version) {
+			return false;
+		}
+
+		return version.majorBase < 1 || (version.majorBase === 1 && version.minorBase < 60);
 	} catch {
 		return false;
 	}

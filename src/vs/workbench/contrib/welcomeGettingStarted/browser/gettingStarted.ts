@@ -1054,9 +1054,9 @@ export class GettingStartedPage extends EditorPane {
 
 		this.layoutMarkdown?.();
 
-		this.container.classList[size.height <= 600 ? 'add' : 'remove']('height-constrained');
-		this.container.classList[size.width <= 400 ? 'add' : 'remove']('width-constrained');
-		this.container.classList[size.width <= 800 ? 'add' : 'remove']('width-semi-constrained');
+		this.container.classList.toggle('height-constrained', size.height <= 600);
+		this.container.classList.toggle('width-constrained', size.width <= 400);
+		this.container.classList.toggle('width-semi-constrained', size.width <= 800);
 	}
 
 	private updateCategoryProgress() {

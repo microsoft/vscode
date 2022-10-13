@@ -32,7 +32,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { IEditorHoverOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
 import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel } from 'vs/editor/common/model';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { basename } from 'vs/base/common/path';
 import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
@@ -207,6 +207,33 @@ function getWordToLineNumbersMap(model: ITextModel | null): Map<string, number[]
 	}
 
 	return result;
+}
+
+export class LazyDebugEditorContribution extends Disposable implements IDebugEditorContribution {
+	private _contrib: IDebugEditorContribution | undefined;
+
+	constructor(editor: ICodeEditor, @IInstantiationService instantiationService: IInstantiationService) {
+		super();
+
+		const listener = editor.onDidChangeModel(() => {
+			if (editor.hasModel()) {
+				listener.dispose();
+				this._contrib = this._register(instantiationService.createInstance(DebugEditorContribution, editor));
+			}
+		});
+	}
+
+	showHover(position: Position, focus: boolean): Promise<void> {
+		return this._contrib ? this._contrib.showHover(position, focus) : Promise.resolve();
+	}
+
+	addLaunchConfiguration(): Promise<any> {
+		return this._contrib ? this._contrib.addLaunchConfiguration() : Promise.resolve();
+	}
+
+	closeExceptionWidget(): void {
+		this._contrib?.closeExceptionWidget();
+	}
 }
 
 export class DebugEditorContribution implements IDebugEditorContribution {
