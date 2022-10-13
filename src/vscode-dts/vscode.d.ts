@@ -8403,9 +8403,11 @@ declare module 'vscode' {
 		/**
 		 * Controls whether command uris are enabled in webview content or not.
 		 *
-		 * Defaults to false.
+		 * Defaults to `false` (command uris are disabled).
+		 *
+		 * If you pass in an array, only the commands in the array are allowed.
 		 */
-		readonly enableCommandUris?: boolean;
+		readonly enableCommandUris?: boolean | readonly string[];
 
 		/**
 		 * Root paths from which the webview can load local (filesystem) resources using uris from `asWebviewUri`
