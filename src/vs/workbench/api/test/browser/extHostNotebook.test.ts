@@ -605,6 +605,24 @@ suite('NotebookCell#Document', function () {
 		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs[0].items[0].mime, 'application/vnd.code.notebook.stdout');
 		assert.strictEqual(VSBuffer.wrap(notebook.apiNotebook.cellAt(1).outputs[0].items[0].data).toString(), 'foobarbaz');
 	});
+	test('Compress multiple stdout stream output items (with support for terminal escape code -> \u001b[A)', async function () {
+		await replaceOutputs(1, '1', [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: VSBuffer.fromString('\nfoo') }]);
+		await appendOutputItem(1, '1', [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: VSBuffer.fromString(`${String.fromCharCode(27)}[Abar`) }]);
+
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs.length, 1);
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs[0].items.length, 1);
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs[0].items[0].mime, 'application/vnd.code.notebook.stdout');
+		assert.strictEqual(VSBuffer.wrap(notebook.apiNotebook.cellAt(1).outputs[0].items[0].data).toString(), 'bar');
+	});
+	test('Compress multiple stdout stream output items (with support for terminal escape code -> \r character)', async function () {
+		await replaceOutputs(1, '1', [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: VSBuffer.fromString('foo') }]);
+		await appendOutputItem(1, '1', [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: VSBuffer.fromString(`\rbar`) }]);
+
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs.length, 1);
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs[0].items.length, 1);
+		assert.strictEqual(notebook.apiNotebook.cellAt(1).outputs[0].items[0].mime, 'application/vnd.code.notebook.stdout');
+		assert.strictEqual(VSBuffer.wrap(notebook.apiNotebook.cellAt(1).outputs[0].items[0].data).toString(), 'bar');
+	});
 	test('Compress multiple stderr stream output items', async function () {
 		await replaceOutputs(1, '1', [{ mime: 'application/vnd.code.notebook.stderr', valueBytes: VSBuffer.fromString('foo') }]);
 		await appendOutputItem(1, '1', [{ mime: 'application/vnd.code.notebook.stderr', valueBytes: VSBuffer.fromString('bar') }]);
