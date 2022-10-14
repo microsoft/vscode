@@ -57,12 +57,14 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 	}
 
 	public async verify(vsixFilePath: string, signatureArchiveFilePath: string): Promise<boolean> {
-		const vsceSign = await this.vsceSign();
+		let module: typeof vsceSign;
 
-		if (!vsceSign) {
+		try {
+			module = await this.vsceSign();
+		} catch (error) {
 			return false;
 		}
 
-		return vsceSign.verify(vsixFilePath, signatureArchiveFilePath);
+		return module.verify(vsixFilePath, signatureArchiveFilePath);
 	}
 }
