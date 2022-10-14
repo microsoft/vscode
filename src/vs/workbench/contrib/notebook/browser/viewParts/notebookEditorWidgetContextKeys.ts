@@ -136,7 +136,7 @@ export class NotebookEditorContextKeys {
 
 	private _updateForCellExecution(): void {
 		if (this._editor.textModel) {
-			const notebookExe = this._notebookExecutionStateService.getCellExecutionStatesForNotebook(this._editor.textModel.uri);
+			const notebookExe = this._notebookExecutionStateService.getCellExecutionsForNotebook(this._editor.textModel.uri);
 			this._someCellRunning.set(notebookExe.length > 0);
 		} else {
 			this._someCellRunning.set(false);
