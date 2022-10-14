@@ -33,7 +33,7 @@ export class ConfigurationModel implements IConfigurationModel {
 	}
 
 	private _rawConfiguration: ConfigurationModel | undefined;
-	private get rawConfiguration(): ConfigurationModel {
+	get rawConfiguration(): ConfigurationModel {
 		if (!this._rawConfiguration) {
 			if (this.raw?.length) {
 				const rawConfigurationModels = this.raw.map(raw => {
@@ -978,7 +978,7 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 }
 
 function compare(from: ConfigurationModel | undefined, to: ConfigurationModel | undefined): IConfigurationCompareResult {
-	const { added, removed, updated } = compareConfigurationContents(to, from);
+	const { added, removed, updated } = compareConfigurationContents(to?.rawConfiguration, from?.rawConfiguration);
 	const overrides: [string, string[]][] = [];
 
 	const fromOverrideIdentifiers = from?.getAllOverrideIdentifiers() || [];
