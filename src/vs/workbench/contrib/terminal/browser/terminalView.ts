@@ -45,7 +45,6 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { getShellIntegrationTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
