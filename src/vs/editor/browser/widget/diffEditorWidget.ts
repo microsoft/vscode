@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import * as assert from 'vs/base/common/assert';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ISashEvent, IVerticalSashLayoutProvider, Sash, SashState, Orientation } from 'vs/base/browser/ui/sash/sash';
+import { ISashEvent, IVerticalSashLayoutProvider, Sash, SashState, Orientation, IHorizontalSashLayoutProvider } from 'vs/base/browser/ui/sash/sash';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -1280,33 +1280,63 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		const height = this._elementSizeObserver.getHeight();
 		const reviewHeight = this._getReviewHeight();
 
-		const newWidthAndHeight = this._strategy.layout();
+		const splitPoint = this._strategy.layout();
 
-		this._originalDomNode.style.width = newWidthAndHeight[0] + 'px';
-		this._originalDomNode.style.height = newWidthAndHeight[1] + 'px';
+		this._originalDomNode.style.width = splitPoint + 'px';
 		this._originalDomNode.style.left = '0px';
 
-		this._modifiedDomNode.style.width = (width - newWidthAndHeight[0]) + 'px';
-		this._originalDomNode.style.height = newWidthAndHeight[1] + 'px';
-		this._modifiedDomNode.style.left = newWidthAndHeight[0] + 'px';
+		this._modifiedDomNode.style.width = (width - splitPoint) + 'px';
+		this._modifiedDomNode.style.left = splitPoint + 'px';
 
 		this._overviewDomElement.style.top = '0px';
-		this._overviewDomElement.style.height = (newWidthAndHeight[1]) + 'px';
+		this._overviewDomElement.style.height = (height - reviewHeight) + 'px';
 		this._overviewDomElement.style.width = DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH + 'px';
 		this._overviewDomElement.style.left = (width - DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH) + 'px';
 		this._overviewViewportDomElement.setWidth(DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH);
 		this._overviewViewportDomElement.setHeight(30);
 
-		this._originalEditor.layout({ width: newWidthAndHeight[0], height: (newWidthAndHeight[1]) });
-		this._modifiedEditor.layout({ width: width - newWidthAndHeight[0] - (this._options.renderOverviewRuler ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0), height: (newWidthAndHeight[1]) });
+		this._originalEditor.layout({ width: splitPoint, height: (height - reviewHeight) });
+		this._modifiedEditor.layout({ width: width - splitPoint - (this._options.renderOverviewRuler ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0), height: (height - reviewHeight) });
 
 		if (this._originalOverviewRuler || this._modifiedOverviewRuler) {
 			this._layoutOverviewRulers();
 		}
 
-		this._reviewPane.layout(height - reviewHeight, width, height);
+		this._reviewPane.layout(height - reviewHeight, width, reviewHeight);
 
 		this._layoutOverviewViewport();
+
+		// const width = this._elementSizeObserver.getWidth();
+		// const height = this._elementSizeObserver.getHeight();
+		// const reviewHeight = this._getReviewHeight();
+
+		// const newWidthAndHeight = this._strategy.layout();
+
+		// this._originalDomNode.style.width = newWidthAndHeight + 'px';
+		// //this._originalDomNode.style.height = newWidthAndHeight[1] + 'px';
+		// this._originalDomNode.style.left = '0px';
+
+		// this._modifiedDomNode.style.width = (width - newWidthAndHeight) + 'px';
+		// //this._originalDomNode.style.height = newWidthAndHeight[1] + 'px';
+		// this._modifiedDomNode.style.left = newWidthAndHeight + 'px';
+
+		// this._overviewDomElement.style.top = '0px';
+		// //this._overviewDomElement.style.height = (newWidthAndHeight[1]) + 'px';
+		// this._overviewDomElement.style.width = DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH + 'px';
+		// this._overviewDomElement.style.left = (width - DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH) + 'px';
+		// this._overviewViewportDomElement.setWidth(DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH);
+		// this._overviewViewportDomElement.setHeight(30);
+
+		// this._originalEditor.layout({ width: newWidthAndHeight, height: (newWidthAndHeight[1]) });
+		// this._modifiedEditor.layout({ width: width - newWidthAndHeight - (this._options.renderOverviewRuler ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0), height: (newWidthAndHeight[1]) });
+
+		// if (this._originalOverviewRuler || this._modifiedOverviewRuler) {
+		// 	this._layoutOverviewRulers();
+		// }
+
+		// this._reviewPane.layout(height - reviewHeight, width, height);
+
+		// this._layoutOverviewViewport();
 	}
 
 	private _layoutOverviewViewport(): void {
@@ -1548,7 +1578,7 @@ abstract class DiffEditorWidgetStyle extends Disposable {
 	protected abstract _getModifiedEditorDecorations(zones: IEditorsZones, lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, renderMarginRevertIcon: boolean): IEditorDiffDecorations;
 
 	public abstract setEnableSplitViewResizing(enableSplitViewResizing: boolean): void;
-	public abstract layout(): [number, number];
+	public abstract layout(): number;
 }
 
 interface IMyViewZone {
@@ -1921,13 +1951,14 @@ const DECORATIONS = {
 
 };
 
-class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerticalSashLayoutProvider {
+class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
 
 
 	static readonly MINIMUM_EDITOR_WIDTH = 100;
 
 	private _disableSash: boolean;
 	private readonly _sash: Sash;
+	private readonly _sash_horizontal: Sash;
 	private _sashRatio: number | null;
 	private _sashPosition: number | null;
 	private _sashPositionHeight: number | null;
@@ -1943,16 +1974,33 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 		this._sashPositionHeight = null;
 		this._startSashPosition = null;
 		this._startPositionHeight = null;
+
 		this._sash = this._register(new Sash(this._dataSource.getContainerDomNode(), this, { orientation: Orientation.VERTICAL }));
+		this._sash_horizontal = this._register(new Sash(this._dataSource.getContainerDomNode(), this, { orientation: Orientation.HORIZONTAL }));
+
 		if (this._disableSash) {
 			this._sash.state = SashState.Disabled;
 		}
-		this._sash.orthogonalStartSash = this._sash;
-		this._sash.orthogonalEndSash = this._sash;
+
+		this._sashPositionHeight = Math.floor(this._dataSource.getHeight());
+		console.log('constructor height: ', this._sashPositionHeight);
+
+		this._sash_horizontal.orthogonalStartSash = this._sash_horizontal;
+		this._sash_horizontal.orthogonalEndSash = this._sash_horizontal;
+		this._sash_horizontal.el.style.color = 'red';
+		this._sash_horizontal.orthogonalEndSash.el.style.color = 'pink';
+
+		this._sash_horizontal.orthogonalStartSash.el.style.color = 'pink';
+
 		this._sash.onDidStart(() => this._onSashDragStart());
 		this._sash.onDidChange((e: ISashEvent) => this._onSashDrag(e));
 		this._sash.onDidEnd(() => this._onSashDragEnd());
 		this._sash.onDidReset(() => this._onSashReset());
+
+		this._sash_horizontal.onDidStart(() => this._onSashHorizontalDragStart());
+		this._sash_horizontal.onDidChange((e: ISashEvent) => this._onSashHorizontalDrag(e));
+		this._sash_horizontal.onDidEnd(() => this._onSashHorizontalDragEnd());
+		this._sash_horizontal.onDidReset(() => this._onSashHorizontalReset());
 
 	}
 
@@ -1965,12 +2013,13 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 	}
 
 
-	public layout(sashRatio: number | null = this._sashRatio): [number, number] {
+	public layout(sashRatio: number | null = this._sashRatio): number {
 		const w = this._dataSource.getWidth();
 		const contentWidth = w - (this._dataSource.getOptions().renderOverviewRuler ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0);
 
 		let sashPosition = Math.floor((sashRatio || 0.5) * contentWidth);
-		const sashHeightPosition = Math.floor(this._dataSource.getHeight() * (sashRatio || 1.0));
+
+
 		const midPoint = Math.floor(0.5 * contentWidth);
 
 		sashPosition = this._disableSash ? midPoint : sashPosition || midPoint;
@@ -1991,37 +2040,56 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 			this._sashPosition = sashPosition;
 		}
 
-		if (this._sashPositionHeight !== sashHeightPosition) {
-			this._sashPositionHeight = sashHeightPosition;
-		}
-		this._sash.orthogonalStartSash = this._sash;
-		this._sash.orthogonalEndSash = this._sash;
+
+		this._sash_horizontal.orthogonalStartSash = this._sash_horizontal;
+		this._sash_horizontal.orthogonalEndSash = this._sash_horizontal;
 		this._sash.layout();
-		return [this._sashPosition, this._sashPositionHeight];
+		return this._sashPosition;
 	}
 
 	private _onSashDragStart(): void {
 		this._startSashPosition = this._sashPosition!;
-		this._startPositionHeight = this._sashPositionHeight;
+	}
+
+	private _onSashHorizontalDragStart(): void {
+		this._startPositionHeight = this._sashPositionHeight!;
 	}
 
 	private _onSashDrag(e: ISashEvent): void {
 		const w = this._dataSource.getWidth();
 		const contentWidth = w - (this._dataSource.getOptions().renderOverviewRuler ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0);
-		const contentHeight = this._dataSource.getHeight();
+		//	const contentHeight = this._dataSource.getHeight();
 
 		const sashPosition = this.layout((this._startSashPosition! + (e.currentX - e.startX)) / contentWidth);
-		this.layout((this._startPositionHeight! + (e.currentY - e.startY)) / contentHeight);
+		//	this.layout((this._startPositionHeight! + (e.currentY - e.startY)) / contentHeight);
 
-		this._sashRatio = sashPosition[0] / contentWidth;
+		this._sashRatio = sashPosition / contentWidth;
 		this._dataSource.relayoutEditors();
 	}
 
+	private _onSashHorizontalDrag(e: ISashEvent): void {
+		const contentHeight = this._dataSource.getHeight();
+
+		//this.layout((this._startPositionHeight! + (e.currentY - e.startY)) / contentHeight);
+		this._startPositionHeight! = (this._startPositionHeight! + (e.currentY - e.startY)) / contentHeight;
+		//this._sashRatio = sashPosition[0] / contentWidth;
+		this._dataSource.relayoutEditors();
+	}
+
+	private _onSashHorizontalDragEnd(): void {
+		this._sash.layout();
+	}
 	private _onSashDragEnd(): void {
 		this._sash.layout();
 	}
 
 	private _onSashReset(): void {
+		this._sashRatio = 0.5;
+		this._dataSource.relayoutEditors();
+		this._sash.layout();
+	}
+
+	private _onSashHorizontalReset(): void {
 		this._sashRatio = 0.5;
 		this._dataSource.relayoutEditors();
 		this._sash.layout();
@@ -2039,6 +2107,19 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 		return this._dataSource.getHeight();
 	}
 
+	//HORIZONTAL sash interface implementation:
+	public getHorizontalSashTop(sash: Sash): number {
+		console.log(this._startPositionHeight!);
+		return this._startPositionHeight! / 2.0;
+	}
+	public getHorizontalSashLeft?(sash: Sash): number {
+		return 0;
+
+	}
+	public getHorizontalSashWidth?(sash: Sash): number {
+		return this._dataSource.getWidth();
+
+	}
 	protected _getViewZones(lineChanges: ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[]): IEditorsZones {
 		const originalEditor = this._dataSource.getOriginalEditor();
 		const modifiedEditor = this._dataSource.getModifiedEditor();
@@ -2353,9 +2434,9 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle {
 		return result;
 	}
 
-	public layout(): [number, number] {
+	public layout(): number {
 		// An editor should not be smaller than 5px
-		return [Math.max(5, this._decorationsLeft), 5];
+		return Math.max(5, this._decorationsLeft);
 	}
 
 }

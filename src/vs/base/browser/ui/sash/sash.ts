@@ -239,7 +239,7 @@ const PointerEventsDisabledCssClass = 'pointer-events-disabled';
  */
 export class Sash extends Disposable {
 
-	private el: HTMLElement;
+	public el: HTMLElement;
 	private layoutProvider: ISashLayoutProvider;
 	private orientation: Orientation;
 	private size: number;
