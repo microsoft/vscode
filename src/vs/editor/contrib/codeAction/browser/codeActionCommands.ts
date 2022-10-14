@@ -491,7 +491,7 @@ export class AutoFixAction extends EditorAction {
 	}
 }
 
-const weight = KeybindingWeight.EditorContrib + 90;
+const weight = KeybindingWeight.EditorContrib + 1000;
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -503,7 +503,7 @@ registerAction2(class extends Action2 {
 			},
 			precondition: Context.Visible,
 			keybinding: {
-				weight: weight,
+				weight,
 				primary: KeyCode.Escape,
 				secondary: [KeyMod.Shift | KeyCode.Escape]
 			},
@@ -525,7 +525,7 @@ registerAction2(class extends Action2 {
 			},
 			precondition: Context.Visible,
 			keybinding: {
-				weight: weight + 100000,
+				weight,
 				primary: KeyCode.UpArrow,
 				secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
 				mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KeyP] },
@@ -548,7 +548,7 @@ registerAction2(class extends Action2 {
 			},
 			precondition: Context.Visible,
 			keybinding: {
-				weight: weight + 100000,
+				weight,
 				primary: KeyCode.DownArrow,
 				secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
 				mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KeyN] }
@@ -571,7 +571,7 @@ registerAction2(class extends Action2 {
 			},
 			precondition: Context.Visible,
 			keybinding: {
-				weight: weight + 100000,
+				weight,
 				primary: KeyCode.Enter,
 				secondary: [KeyMod.CtrlCmd | KeyCode.Period],
 			}
@@ -593,7 +593,7 @@ registerAction2(class extends Action2 {
 			},
 			precondition: Context.Visible,
 			keybinding: {
-				weight: weight + 100000,
+				weight,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 			}
 		});
