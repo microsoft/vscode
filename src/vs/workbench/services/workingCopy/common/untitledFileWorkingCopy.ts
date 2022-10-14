@@ -101,6 +101,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
+	readonly onDidChangeContentDeferred = Event.defer(this._onDidChangeContent.event);
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;

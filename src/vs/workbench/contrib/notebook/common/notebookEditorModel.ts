@@ -91,6 +91,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			readonly capabilities = that._isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
 			readonly onDidChangeDirty = that.onDidChangeDirty;
 			readonly onDidChangeContent = that._onDidChangeContent.event;
+			readonly onDidChangeContentDeferred = Event.defer(that._onDidChangeContent.event);
 			readonly onDidSave = that.onDidSave;
 			isDirty(): boolean { return that.isDirty(); }
 			backup(token: CancellationToken): Promise<IWorkingCopyBackup> { return that.backup(token); }

@@ -290,6 +290,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
+	readonly onDidChangeContentDeferred = Event.defer(this._onDidChangeContent.event);
 
 	private readonly _onDidResolve = this._register(new Emitter<void>());
 	readonly onDidResolve = this._onDidResolve.event;

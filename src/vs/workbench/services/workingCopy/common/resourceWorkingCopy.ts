@@ -152,6 +152,7 @@ export abstract class ResourceWorkingCopy extends Disposable implements IResourc
 
 	abstract onDidChangeDirty: Event<void>;
 	abstract onDidChangeContent: Event<void>;
+	abstract onDidChangeContentDeferred: Event<void>;
 	abstract onDidSave: Event<IWorkingCopySaveEvent>;
 
 	abstract isDirty(): boolean;

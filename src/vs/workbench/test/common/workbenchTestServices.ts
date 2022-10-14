@@ -139,6 +139,7 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
+	readonly onDidChangeContentDeferred = Event.defer(this._onDidChangeContent.event);
 
 	private readonly _onDidSave = this._register(new Emitter<IStoredFileWorkingCopySaveEvent>());
 	readonly onDidSave = this._onDidSave.event;

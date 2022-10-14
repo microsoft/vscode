@@ -83,6 +83,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
+	readonly onDidChangeContentDeferred = Event.defer(this._onDidChangeContent.event);
 
 	private readonly _onDidChangeName = this._register(new Emitter<void>());
 	readonly onDidChangeName = this._onDidChangeName.event;

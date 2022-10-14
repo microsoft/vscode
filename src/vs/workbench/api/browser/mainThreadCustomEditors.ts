@@ -437,6 +437,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+	readonly onDidChangeContentDeferred: Event<void> = Event.defer(this._onDidChangeContent.event);
 
 	private readonly _onDidSave: Emitter<IWorkingCopySaveEvent> = this._register(new Emitter<IWorkingCopySaveEvent>());
 	readonly onDidSave: Event<IWorkingCopySaveEvent> = this._onDidSave.event;

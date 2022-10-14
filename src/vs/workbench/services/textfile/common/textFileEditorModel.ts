@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions, TextFileResolveReason, ITextFileEditorModelSaveEvent } from 'vs/workbench/services/textfile/common/textfiles';
@@ -51,6 +51,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
+	readonly onDidChangeContentDeferred = Event.defer(this._onDidChangeContent.event);
 
 	private readonly _onDidResolve = this._register(new Emitter<TextFileResolveReason>());
 	readonly onDidResolve = this._onDidResolve.event;

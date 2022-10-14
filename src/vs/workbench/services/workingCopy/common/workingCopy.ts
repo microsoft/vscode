@@ -146,6 +146,12 @@ export interface IWorkingCopy extends IWorkingCopyIdentifier {
 	readonly onDidChangeContent: Event<void>;
 
 	/**
+	 * Used by the workbench e.g. to trigger auto-save
+	 * (unless this working copy is untitled) and backups.
+	 */
+	readonly onDidChangeContentDeferred: Event<void>;
+
+	/**
 	 * Used by the workbench e.g. to track local history
 	 * (unless this working copy is untitled).
 	 */

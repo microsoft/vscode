@@ -123,6 +123,7 @@ export class SearchEditorInput extends EditorInput {
 			readonly capabilities = input.hasCapability(EditorInputCapabilities.Untitled) ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
 			readonly onDidChangeDirty = input.onDidChangeDirty;
 			readonly onDidChangeContent = input.onDidChangeContent;
+			readonly onDidChangeContentDeferred = Event.defer(input.onDidChangeContent);
 			readonly onDidSave = input.onDidSave;
 			isDirty(): boolean { return input.isDirty(); }
 			backup(token: CancellationToken): Promise<IWorkingCopyBackup> { return input.backup(token); }
