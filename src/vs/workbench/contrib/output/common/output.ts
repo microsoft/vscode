@@ -95,6 +95,12 @@ export interface IOutputService {
 	onActiveOutputChannel: Event<string>;
 }
 
+export enum OutputChannelUpdateMode {
+	Append = 1,
+	Replace,
+	Clear
+}
+
 export interface IOutputChannel {
 
 	/**
@@ -118,14 +124,20 @@ export interface IOutputChannel {
 	append(output: string): void;
 
 	/**
-	 * Update the channel.
-	 */
-	update(): void;
-
-	/**
 	 * Clears all received output for this channel.
 	 */
-	clear(till?: number): void;
+	clear(): void;
+
+	/**
+	 * Replaces the content of the channel with given output
+	 */
+	replace(output: string): void;
+
+	/**
+	 * Update the channel.
+	 */
+	update(mode: OutputChannelUpdateMode.Append): void;
+	update(mode: OutputChannelUpdateMode, till: number): void;
 
 	/**
 	 * Disposes the output channel.

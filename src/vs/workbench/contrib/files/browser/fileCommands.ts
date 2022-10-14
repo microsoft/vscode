@@ -5,29 +5,29 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, SideBySideEditorInput, EditorsOrder } from 'vs/workbench/common/editor';
-import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/window/common/window';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, IExplorerService, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext } from 'vs/workbench/contrib/files/common/files';
+import { IWorkspaceContextService, UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspace/common/workspace';
+import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
+import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { isWindows } from 'vs/base/common/platform';
+import { isWeb, isWindows } from 'vs/base/common/platform';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { getResourceForCommand, getMultiSelectedResources, getOpenEditorsViewMultiSelection } from 'vs/workbench/contrib/files/browser/files';
+import { getResourceForCommand, getMultiSelectedResources, getOpenEditorsViewMultiSelection, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Schemas } from 'vs/base/common/network';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IEditorService, SIDE_GROUP, ISaveEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, GroupsOrder, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -35,58 +35,20 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { basename, joinPath, isEqual } from 'vs/base/common/resources';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { isCancellationError } from 'vs/base/common/errors';
+import { toAction } from 'vs/base/common/actions';
+import { EditorOpenSource, EditorResolution } from 'vs/platform/editor/common/editor';
+import { hash } from 'vs/base/common/hash';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
-
-// Commands
-
-export const REVEAL_IN_EXPLORER_COMMAND_ID = 'revealInExplorer';
-export const REVERT_FILE_COMMAND_ID = 'workbench.action.files.revert';
-export const OPEN_TO_SIDE_COMMAND_ID = 'explorer.openToSide';
-export const OPEN_WITH_EXPLORER_COMMAND_ID = 'explorer.openWith';
-export const SELECT_FOR_COMPARE_COMMAND_ID = 'selectForCompare';
-
-export const COMPARE_SELECTED_COMMAND_ID = 'compareSelected';
-export const COMPARE_RESOURCE_COMMAND_ID = 'compareFiles';
-export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.action.compareWithSaved';
-export const COPY_PATH_COMMAND_ID = 'copyFilePath';
-export const COPY_RELATIVE_PATH_COMMAND_ID = 'copyRelativeFilePath';
-
-export const SAVE_FILE_AS_COMMAND_ID = 'workbench.action.files.saveAs';
-export const SAVE_FILE_AS_LABEL = nls.localize('saveAs', "Save As...");
-export const SAVE_FILE_COMMAND_ID = 'workbench.action.files.save';
-export const SAVE_FILE_LABEL = nls.localize('save', "Save");
-export const SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID = 'workbench.action.files.saveWithoutFormatting';
-export const SAVE_FILE_WITHOUT_FORMATTING_LABEL = nls.localize('saveWithoutFormatting', "Save without Formatting");
-
-export const SAVE_ALL_COMMAND_ID = 'saveAll';
-export const SAVE_ALL_LABEL = nls.localize('saveAll', "Save All");
-
-export const SAVE_ALL_IN_GROUP_COMMAND_ID = 'workbench.files.action.saveAllInGroup';
-
-export const SAVE_FILES_COMMAND_ID = 'workbench.action.files.saveFiles';
-
-export const OpenEditorsGroupContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);
-export const OpenEditorsDirtyEditorContext = new RawContextKey<boolean>('dirtyEditorFocusedInOpenEditors', false);
-export const OpenEditorsReadonlyEditorContext = new RawContextKey<boolean>('readonlyEditorFocusedInOpenEditors', false);
-export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('resourceSelectedForCompare', false);
-
-export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
-export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
-
-export const PREVIOUS_COMPRESSED_FOLDER = 'previousCompressedFolder';
-export const NEXT_COMPRESSED_FOLDER = 'nextCompressedFolder';
-export const FIRST_COMPRESSED_FOLDER = 'firstCompressedFolder';
-export const LAST_COMPRESSED_FOLDER = 'lastCompressedFolder';
-export const NEW_UNTITLED_FILE_COMMAND_ID = 'workbench.action.files.newUntitledFile';
-export const NEW_UNTITLED_FILE_LABEL = nls.localize('newUntitledFile', "New Untitled File");
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, COMPARE_SELECTED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, COPY_PATH_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_WITH_EXPLORER_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, REVERT_FILE_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, PREVIOUS_COMPRESSED_FOLDER, NEXT_COMPRESSED_FOLDER, FIRST_COMPRESSED_FOLDER, LAST_COMPRESSED_FOLDER, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, NEW_FILE_COMMAND_ID } from './fileConstants';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
 	if (Array.isArray(toOpen)) {
@@ -134,9 +96,18 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const untitledResources = resources.filter(resource => resource.scheme === Schemas.untitled);
 			const fileResources = resources.filter(resource => resource.scheme !== Schemas.untitled);
 
-			const resolved = await fileService.resolveAll(fileResources.map(resource => ({ resource })));
-			const editors = resolved.filter(r => r.stat && r.success && !r.stat.isDirectory).map(r => ({
-				resource: r.stat!.resource,
+			const items = await Promise.all(fileResources.map(async resource => {
+				const item = explorerService.findClosest(resource);
+				if (item) {
+					// Explorer already resolved the item, no need to go to the file service #109780
+					return item;
+				}
+
+				return await fileService.stat(resource);
+			}));
+			const files = items.filter(i => !i.isDirectory);
+			const editors = files.map(f => ({
+				resource: f.resource,
 				options: { pinned: true }
 			})).concat(...untitledResources.map(untitledResource => ({ resource: untitledResource, options: { pinned: true } })));
 
@@ -147,7 +118,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib + 10,
-	when: ContextKeyExpr.and(ExplorerFocusCondition, ExplorerFolderContext.toNegated()),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerFolderContext.toNegated()),
 	primary: KeyCode.Enter,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.DownArrow
@@ -169,7 +140,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: COMPARE_WITH_SAVED_COMMAND_ID,
 	when: undefined,
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_D),
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyD),
 	handler: async (accessor, resource: URI | object) => {
 		const instantiationService = accessor.get(IInstantiationService);
 		const textModelService = accessor.get(ITextModelService);
@@ -188,7 +159,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		// Open editor (only resources that can be handled by file service are supported)
 		const uri = getResourceForCommand(resource, accessor.get(IListService), editorService);
-		if (uri && fileService.canHandleResource(uri)) {
+		if (uri && fileService.hasProvider(uri)) {
 			const name = basename(uri);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (in file) ↔ {1}", name, name);
 
@@ -233,8 +204,8 @@ CommandsRegistry.registerCommand({
 
 		if (resources.length === 2) {
 			return editorService.openEditor({
-				leftResource: resources[0],
-				rightResource: resources[1],
+				original: { resource: resources[0] },
+				modified: { resource: resources[1] },
 				options: { pinned: true }
 			});
 		}
@@ -252,77 +223,108 @@ CommandsRegistry.registerCommand({
 		const rightResource = getResourceForCommand(resource, listService, editorService);
 		if (globalResourceToCompare && rightResource) {
 			editorService.openEditor({
-				leftResource: globalResourceToCompare,
-				rightResource,
+				original: { resource: globalResourceToCompare },
+				modified: { resource: rightResource },
 				options: { pinned: true }
 			});
 		}
 	}
 });
 
-async function resourcesToClipboard(resources: URI[], relative: boolean, clipboardService: IClipboardService, notificationService: INotificationService, labelService: ILabelService): Promise<void> {
+async function resourcesToClipboard(resources: URI[], relative: boolean, clipboardService: IClipboardService, labelService: ILabelService, configurationService: IConfigurationService): Promise<void> {
 	if (resources.length) {
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
 
-		const text = resources.map(resource => labelService.getUriLabel(resource, { relative, noPrefix: true }))
-			.join(lineDelimiter);
+		let separator: '/' | '\\' | undefined = undefined;
+		if (relative) {
+			const relativeSeparator = configurationService.getValue('explorer.copyRelativePathSeparator');
+			if (relativeSeparator === '/' || relativeSeparator === '\\') {
+				separator = relativeSeparator;
+			}
+		}
+
+		const text = resources.map(resource => labelService.getUriLabel(resource, { relative, noPrefix: true, separator })).join(lineDelimiter);
 		await clipboardService.writeText(text);
-	} else {
-		notificationService.info(nls.localize('openFileToCopy', "Open a file first to copy its path"));
 	}
 }
+
+const copyPathCommandHandler: ICommandHandler = async (accessor, resource: URI | object) => {
+	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
+	await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+};
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: EditorContextKeys.focus.toNegated(),
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC,
 	win: {
-		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
+		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyC
 	},
 	id: COPY_PATH_COMMAND_ID,
-	handler: async (accessor, resource: URI | object) => {
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
-		await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(INotificationService), accessor.get(ILabelService));
-	}
+	handler: copyPathCommandHandler
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: EditorContextKeys.focus.toNegated(),
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C,
+	when: EditorContextKeys.focus,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC),
 	win: {
-		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C)
+		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyC
+	},
+	id: COPY_PATH_COMMAND_ID,
+	handler: copyPathCommandHandler
+});
+
+const copyRelativePathCommandHandler: ICommandHandler = async (accessor, resource: URI | object) => {
+	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
+	await resourcesToClipboard(resources, true, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+};
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: EditorContextKeys.focus.toNegated(),
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyC,
+	win: {
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC)
 	},
 	id: COPY_RELATIVE_PATH_COMMAND_ID,
-	handler: async (accessor, resource: URI | object) => {
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
-		await resourcesToClipboard(resources, true, accessor.get(IClipboardService), accessor.get(INotificationService), accessor.get(ILabelService));
-	}
+	handler: copyRelativePathCommandHandler
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: EditorContextKeys.focus,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyC),
+	win: {
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC)
+	},
+	id: COPY_RELATIVE_PATH_COMMAND_ID,
+	handler: copyRelativePathCommandHandler
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: undefined,
-	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_P),
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyP),
 	id: 'workbench.action.files.copyPathOfActiveFile',
 	handler: async (accessor) => {
 		const editorService = accessor.get(IEditorService);
 		const activeInput = editorService.activeEditor;
 		const resource = EditorResourceAccessor.getOriginalUri(activeInput, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const resources = resource ? [resource] : [];
-		await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(INotificationService), accessor.get(ILabelService));
+		await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
 	}
 });
 
 CommandsRegistry.registerCommand({
 	id: REVEAL_IN_EXPLORER_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
-		const viewletService = accessor.get(IViewletService);
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const contextService = accessor.get(IWorkspaceContextService);
 		const explorerService = accessor.get(IExplorerService);
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 
-		const viewlet = (await viewletService.openViewlet(VIEWLET_ID, false))?.getViewPaneContainer() as ExplorerViewPaneContainer;
+		const viewlet = (await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, false))?.getViewPaneContainer() as ExplorerViewPaneContainer;
 
 		if (uri && contextService.isInsideWorkspace(uri)) {
 			const explorerView = viewlet.getExplorerView();
@@ -345,15 +347,13 @@ CommandsRegistry.registerCommand({
 	id: OPEN_WITH_EXPLORER_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
-		const configurationService = accessor.get(IConfigurationService);
-		const quickInputService = accessor.get(IQuickInputService);
 
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 		if (uri) {
-			const input = editorService.createEditorInput({ resource: uri });
-			openEditorWith(input, undefined, undefined, editorGroupsService.activeGroup, editorService, configurationService, quickInputService);
+			return editorService.openEditor({ resource: uri, options: { override: EditorResolution.PICK, source: EditorOpenSource.USER } });
 		}
+
+		return undefined;
 	}
 });
 
@@ -380,7 +380,7 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 			// See also https://github.com/microsoft/vscode/issues/106330
 			if (
 				activeGroup.activeEditor instanceof SideBySideEditorInput &&
-				!options?.saveAs && !(activeGroup.activeEditor.primary.isUntitled() || activeGroup.activeEditor.secondary.isUntitled())
+				!options?.saveAs && !(activeGroup.activeEditor.primary.hasCapability(EditorInputCapabilities.Untitled) || activeGroup.activeEditor.secondary.hasCapability(EditorInputCapabilities.Untitled))
 			) {
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.primary });
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.secondary });
@@ -415,7 +415,7 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 	}
 }
 
-function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: ReadonlyArray<IEditorGroup>, options?: ISaveEditorsOptions): Promise<void> {
+function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: readonly IEditorGroup[], options?: ISaveEditorsOptions): Promise<void> {
 	const dirtyEditors: IEditorIdentifier[] = [];
 	for (const group of groups) {
 		for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
@@ -431,18 +431,31 @@ function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: ReadonlyAr
 async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<void> {
 	const editorService = accessor.get(IEditorService);
 	const notificationService = accessor.get(INotificationService);
+	const instantiationService = accessor.get(IInstantiationService);
 
 	try {
 		await editorService.save(editors, options);
 	} catch (error) {
-		notificationService.error(nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
+		if (!isCancellationError(error)) {
+			notificationService.notify({
+				id: editors.map(({ editor }) => hash(editor.resource?.toString())).join(), // ensure unique notification ID per set of editor
+				severity: Severity.Error,
+				message: nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)),
+				actions: {
+					primary: [
+						toAction({ id: 'workbench.action.files.saveEditors', label: nls.localize('retry', "Retry"), run: () => instantiationService.invokeFunction(accessor => doSaveEditors(accessor, editors, options)) }),
+						toAction({ id: 'workbench.action.files.revertEditors', label: nls.localize('discard', "Discard"), run: () => editorService.revert(editors) })
+					]
+				}
+			});
+		}
 	}
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: undefined,
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_S,
+	primary: KeyMod.CtrlCmd | KeyCode.KeyS,
 	id: SAVE_FILE_COMMAND_ID,
 	handler: accessor => {
 		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */ });
@@ -452,8 +465,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: undefined,
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_S),
-	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S) },
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyS),
+	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS) },
 	id: SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID,
 	handler: accessor => {
 		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */, skipSaveParticipants: true });
@@ -464,13 +477,18 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: SAVE_FILE_AS_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: undefined,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS,
 	handler: accessor => {
 		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, saveAs: true });
 	}
 });
 
-CommandsRegistry.registerCommand({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	when: undefined,
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: undefined,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyS },
+	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyS) },
 	id: SAVE_ALL_COMMAND_ID,
 	handler: (accessor) => {
 		return saveDirtyEditorsOfGroups(accessor, accessor.get(IEditorGroupsService).getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE), { reason: SaveReason.EXPLICIT });
@@ -484,7 +502,7 @@ CommandsRegistry.registerCommand({
 
 		const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService), accessor.get(IEditorGroupsService));
 
-		let groups: ReadonlyArray<IEditorGroup> | undefined = undefined;
+		let groups: readonly IEditorGroup[] | undefined = undefined;
 		if (!contexts.length) {
 			groups = editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		} else {
@@ -526,7 +544,7 @@ CommandsRegistry.registerCommand({
 		}
 
 		try {
-			await editorService.revert(editors.filter(({ editor }) => !editor.isUntitled() /* all except untitled */), { force: true });
+			await editorService.revert(editors.filter(({ editor }) => !editor.hasCapability(EditorInputCapabilities.Untitled) /* all except untitled */), { force: true });
 		} catch (error) {
 			notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
 		}
@@ -556,8 +574,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.LeftArrow,
 	id: PREVIOUS_COMPRESSED_FOLDER,
 	handler: (accessor) => {
-		const viewletService = accessor.get(IViewletService);
-		const viewlet = viewletService.getActiveViewlet();
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
 		if (viewlet?.getId() !== VIEWLET_ID) {
 			return;
@@ -575,8 +593,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.RightArrow,
 	id: NEXT_COMPRESSED_FOLDER,
 	handler: (accessor) => {
-		const viewletService = accessor.get(IViewletService);
-		const viewlet = viewletService.getActiveViewlet();
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
 		if (viewlet?.getId() !== VIEWLET_ID) {
 			return;
@@ -594,8 +612,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.Home,
 	id: FIRST_COMPRESSED_FOLDER,
 	handler: (accessor) => {
-		const viewletService = accessor.get(IViewletService);
-		const viewlet = viewletService.getActiveViewlet();
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
 		if (viewlet?.getId() !== VIEWLET_ID) {
 			return;
@@ -613,8 +631,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.End,
 	id: LAST_COMPRESSED_FOLDER,
 	handler: (accessor) => {
-		const viewletService = accessor.get(IViewletService);
-		const viewlet = viewletService.getActiveViewlet();
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
 		if (viewlet?.getId() !== VIEWLET_ID) {
 			return;
@@ -629,39 +647,69 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: null,
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_N,
+	primary: isWeb ? (isWindows ? KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyN) : KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyN) : KeyMod.CtrlCmd | KeyCode.KeyN,
+	secondary: isWeb ? [KeyMod.CtrlCmd | KeyCode.KeyN] : undefined,
 	id: NEW_UNTITLED_FILE_COMMAND_ID,
 	description: {
 		description: NEW_UNTITLED_FILE_LABEL,
 		args: [
 			{
-				name: 'viewType', description: 'The editor view type', schema: {
+				isOptional: true,
+				name: 'New Untitled File args',
+				description: 'The editor view type, language ID, or resource path if known',
+				schema: {
 					'type': 'object',
-					'required': ['viewType'],
 					'properties': {
 						'viewType': {
 							'type': 'string'
-						}
+						},
+						'languageId': {
+							'type': 'string'
+						},
 					}
 				}
 			}
 		]
 	},
-	handler: async (accessor, args?: { viewType: string }) => {
+	handler: async (accessor, args?: { languageId?: string; viewType?: string }) => {
 		const editorService = accessor.get(IEditorService);
 
-		if (typeof args?.viewType === 'string') {
-			const editorGroupsService = accessor.get(IEditorGroupsService);
-			const configurationService = accessor.get(IConfigurationService);
-			const quickInputService = accessor.get(IQuickInputService);
-
-			const textInput = editorService.createEditorInput({ options: { pinned: true } });
-			const group = editorGroupsService.activeGroup;
-			await openEditorWith(textInput, args.viewType, { pinned: true }, group, editorService, configurationService, quickInputService);
-		} else {
-			await editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
-		}
+		await editorService.openEditor({
+			resource: undefined,
+			options: {
+				override: args?.viewType,
+				pinned: true
+			},
+			languageId: args?.languageId,
+		});
 	}
 });
 
+CommandsRegistry.registerCommand({
+	id: NEW_FILE_COMMAND_ID,
+	handler: async (accessor, args?: { languageId?: string; viewType?: string; fileName?: string }) => {
+		const editorService = accessor.get(IEditorService);
+		const dialogService = accessor.get(IFileDialogService);
+		const fileService = accessor.get(IFileService);
 
+		const createFileLocalized = nls.localize('newFileCommand.saveLabel', "Create File");
+		const defaultFileUri = joinPath(await dialogService.defaultFilePath(), args?.fileName ?? 'Untitled.txt');
+
+		const saveUri = await dialogService.showSaveDialog({ saveLabel: createFileLocalized, title: createFileLocalized, defaultUri: defaultFileUri });
+
+		if (!saveUri) {
+			return;
+		}
+
+		await fileService.createFile(saveUri, undefined, { overwrite: true });
+
+		await editorService.openEditor({
+			resource: saveUri,
+			options: {
+				override: args?.viewType,
+				pinned: true
+			},
+			languageId: args?.languageId,
+		});
+	}
+});

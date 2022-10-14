@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 const cp = require('child_process');
-const path = require('path');
-const fs = require('fs');
+const { dirs } = require('./dirs');
+const { setupBuildYarnrc } = require('./setupBuildYarnrc');
 const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
 
 /**
@@ -20,7 +20,11 @@ function yarnInstall(location, opts) {
 	const raw = process.env['npm_config_argv'] || '{}';
 	const argv = JSON.parse(raw);
 	const original = argv.original || [];
-	const args = original.filter(arg => arg === '--ignore-optional' || arg === '--frozen-lockfile');
+	const args = original.filter(arg => arg === '--ignore-optional' || arg === '--frozen-lockfile' || arg === '--check-files');
+	if (opts.ignoreEngines) {
+		args.push('--ignore-engines');
+		delete opts.ignoreEngines;
+	}
 
 	console.log(`Installing dependencies in ${location}...`);
 	console.log(`$ yarn ${args.join(' ')}`);
@@ -31,47 +35,43 @@ function yarnInstall(location, opts) {
 	}
 }
 
-yarnInstall('extensions'); // node modules shared by all extensions
+for (let dir of dirs) {
 
-if (!(process.platform === 'win32' && (process.arch === 'arm64' || process.env['npm_config_arch'] === 'arm64'))) {
-	yarnInstall('remote'); // node modules used by vscode server
-	yarnInstall('remote/web'); // node modules used by vscode web
-}
-
-const allExtensionFolders = fs.readdirSync('extensions');
-const extensions = allExtensionFolders.filter(e => {
-	try {
-		let packageJSON = JSON.parse(fs.readFileSync(path.join('extensions', e, 'package.json')).toString());
-		return packageJSON && (packageJSON.dependencies || packageJSON.devDependencies);
-	} catch (e) {
-		return false;
+	if (dir === '') {
+		// `yarn` already executed in root
+		continue;
 	}
-});
 
-extensions.forEach(extension => yarnInstall(`extensions/${extension}`));
+	if (/^remote/.test(dir) && process.platform === 'win32' && (process.arch === 'arm64' || process.env['npm_config_arch'] === 'arm64')) {
+		// windows arm: do not execute `yarn` on remote folder
+		continue;
+	}
 
-function yarnInstallBuildDependencies() {
-	// make sure we install the deps of build/lib/watch for the system installed
-	// node, since that is the driver of gulp
-	const watchPath = path.join(path.dirname(__dirname), 'lib', 'watch');
-	const yarnrcPath = path.join(watchPath, '.yarnrc');
+	if (dir === 'build') {
+		setupBuildYarnrc();
+		yarnInstall('build');
+		continue;
+	}
 
-	const disturl = 'https://nodejs.org/download/release';
-	const target = process.versions.node;
-	const runtime = 'node';
+	let opts;
 
-	const yarnrc = `disturl "${disturl}"
-target "${target}"
-runtime "${runtime}"`;
+	if (dir === 'remote') {
+		// node modules used by vscode server
+		const env = { ...process.env };
+		if (process.env['VSCODE_REMOTE_CC']) { env['CC'] = process.env['VSCODE_REMOTE_CC']; }
+		if (process.env['VSCODE_REMOTE_CXX']) { env['CXX'] = process.env['VSCODE_REMOTE_CXX']; }
+		if (process.env['CXXFLAGS']) { delete env['CXXFLAGS']; }
+		if (process.env['CFLAGS']) { delete env['CFLAGS']; }
+		if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
+		if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
 
-	fs.writeFileSync(yarnrcPath, yarnrc, 'utf8');
-	yarnInstall(watchPath);
+		opts = { env };
+	} else if (/^extensions\//.test(dir)) {
+		opts = { ignoreEngines: true };
+	}
+
+	yarnInstall(dir, opts);
 }
 
-yarnInstall(`build`); // node modules required for build
-yarnInstall('test/automation'); // node modules required for smoketest
-yarnInstall('test/smoke'); // node modules required for smoketest
-yarnInstall('test/integration/browser'); // node modules required for integration
-yarnInstallBuildDependencies(); // node modules for watching, specific to host node version, not electron
-
-cp.execSync('git config pull.rebase true');
+cp.execSync('git config pull.rebase merges');
+cp.execSync('git config blame.ignoreRevsFile .git-blame-ignore');

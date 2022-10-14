@@ -11,7 +11,7 @@ function roundFloat(number: number, decimalPoints: number): number {
 }
 
 export class RGBA {
-	_rgbaBrand: void;
+	_rgbaBrand: void = undefined;
 
 	/**
 	 * Red: integer in [0-255]
@@ -47,7 +47,7 @@ export class RGBA {
 
 export class HSLA {
 
-	_hslaBrand: void;
+	_hslaBrand: void = undefined;
 
 	/**
 	 * Hue: integer in [0, 360]
@@ -160,7 +160,7 @@ export class HSLA {
 
 export class HSVA {
 
-	_hsvaBrand: void;
+	_hsvaBrand: void = undefined;
 
 	/**
 	 * Hue: integer in [0, 360]
@@ -257,6 +257,16 @@ export class Color {
 
 	static fromHex(hex: string): Color {
 		return Color.Format.CSS.parseHex(hex) || Color.red;
+	}
+
+	static equals(a: Color | null, b: Color | null): boolean {
+		if (!a && !b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		return a.equals(b);
 	}
 
 	readonly rgba: RGBA;
@@ -432,8 +442,12 @@ export class Color {
 		));
 	}
 
+	private _toString?: string;
 	toString(): string {
-		return '' + Color.Format.CSS.format(this);
+		if (!this._toString) {
+			this._toString = Color.Format.CSS.format(this);
+		}
+		return this._toString;
 	}
 
 	static getLighterColor(of: Color, relative: Color, factor?: number): Color {
@@ -523,7 +537,7 @@ export namespace Color {
 			/**
 			 * The default format will use HEX if opaque and RGBA otherwise.
 			 */
-			export function format(color: Color): string | null {
+			export function format(color: Color): string {
 				if (color.isOpaque()) {
 					return Color.Format.CSS.formatHex(color);
 				}

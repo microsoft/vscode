@@ -24,12 +24,15 @@
 	height: 22px;
 	font-size: 11px;
 	font-weight: bold;
-	text-transform: uppercase;
 	overflow: hidden;
 	display: flex;
 	cursor: pointer;
 	align-items: center;
 	box-sizing: border-box;
+}
+
+.monaco-pane-view .pane > .pane-header > .title {
+	text-transform: uppercase;
 }
 
 .monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header {
@@ -38,23 +41,12 @@
 	width: 22px;
 }
 
-.monaco-pane-view .pane > .pane-header > .twisties {
-	width: 20px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	transform-origin: center;
-	color: inherit;
-	flex-shrink: 0;
+.monaco-pane-view .pane > .pane-header > .codicon:first-of-type {
+	margin: 0 2px;
 }
 
-.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header > .twisties {
-	margin-top: 2px;
-	margin-bottom: 2px;
-}
-
-.monaco-pane-view .pane > .pane-header.expanded > .twisties::before {
-	transform: rotate(90deg);
+.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header > .codicon:first-of-type {
+	margin: 2px;
 }
 
 /* TODO: actions should be part of the pane, but they aren't yet */
@@ -63,26 +55,20 @@
 	margin-left: auto;
 }
 
-/* TODO: actions should be part of the pane, but they aren't yet */
-.monaco-pane-view .pane:hover > .pane-header.expanded > .actions,
-.monaco-pane-view .pane > .pane-header.actions-always-visible.expanded > .actions,
-.monaco-pane-view .pane > .pane-header.focused.expanded > .actions {
-	display: initial;
+.monaco-pane-view .pane > .pane-header > .actions .action-item {
+	margin-right: 4px;
+}
+
+.monaco-pane-view .pane > .pane-header > .actions .action-label {
+	padding: 2px;
 }
 
 /* TODO: actions should be part of the pane, but they aren't yet */
-.monaco-pane-view .pane > .pane-header > .actions .action-label.icon,
-.monaco-pane-view .pane > .pane-header > .actions .action-label.codicon {
-	width: 28px;
-	height: 22px;
-	background-size: 16px;
-	background-position: center center;
-	background-repeat: no-repeat;
-	margin-right: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	color: inherit;
+.monaco-pane-view .pane:hover > .pane-header.expanded > .actions,
+.monaco-pane-view .pane:focus-within > .pane-header.expanded > .actions,
+.monaco-pane-view .pane > .pane-header.actions-always-visible.expanded > .actions,
+.monaco-pane-view .pane > .pane-header.focused.expanded > .actions {
+	display: initial;
 }
 
 .monaco-pane-view .pane > .pane-header .monaco-action-bar .action-item.select-container {
@@ -94,8 +80,6 @@
 	min-width: 110px;
 	min-height: 18px;
 	padding: 2px 23px 2px 8px;
-	background-color: inherit !important;
-	color: inherit !important;
 }
 
 .linux .monaco-pane-view .pane > .pane-header .action-item .monaco-select-box,
@@ -125,6 +109,10 @@
 .monaco-pane-view.animated .split-view-view {
 	transition-duration: 0.15s;
 	transition-timing-function: ease-out;
+}
+
+.reduce-motion .monaco-pane-view .split-view-view {
+	transition-duration: 0s !important;
 }
 
 .monaco-pane-view.animated.vertical .split-view-view {

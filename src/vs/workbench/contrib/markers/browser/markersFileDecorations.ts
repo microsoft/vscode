@@ -5,7 +5,7 @@
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IMarkerService, IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IDecorationsService, IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsService, IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
@@ -28,7 +28,7 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 	}
 
 	provideDecorations(resource: URI): IDecorationData | undefined {
-		let markers = this._markerService.read({
+		const markers = this._markerService.read({
 			resource,
 			severities: MarkerSeverity.Error | MarkerSeverity.Warning
 		});
@@ -77,7 +77,7 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 
 	private _updateEnablement(): void {
-		let value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
+		const value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
 		if (value.decorations.enabled === this._enabled) {
 			return;
 		}

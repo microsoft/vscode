@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IFileSystemProviderWithOpenReadWriteCloseCapability, FileReadStreamOptions, createFileSystemProviderError, FileSystemProviderErrorCode, ensureFileSystemProviderError } from 'vs/platform/files/common/files';
 import { canceled } from 'vs/base/common/errors';
-import { IErrorTransformer, IDataTransformer, WriteableStream } from 'vs/base/common/stream';
+import { IDataTransformer, IErrorTransformer, WriteableStream } from 'vs/base/common/stream';
+import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { createFileSystemProviderError, ensureFileSystemProviderError, IFileReadStreamOptions, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability } from 'vs/platform/files/common/files';
 
-export interface ICreateReadStreamOptions extends FileReadStreamOptions {
+export interface ICreateReadStreamOptions extends IFileReadStreamOptions {
 
 	/**
 	 * The size of the buffer to use before sending to the stream.
@@ -46,7 +46,11 @@ export async function readFileIntoStream<T>(
 			error = options.errorTransformer(error);
 		}
 
-		target.end(error);
+		if (typeof error !== 'undefined') {
+			target.error(error);
+		}
+
+		target.end();
 	}
 }
 
@@ -58,10 +62,11 @@ async function doReadFileIntoStream<T>(provider: IFileSystemProviderWithOpenRead
 	// open handle through provider
 	const handle = await provider.open(resource, { create: false });
 
-	// Check for cancellation
-	throwIfCancelled(token);
-
 	try {
+
+		// Check for cancellation
+		throwIfCancelled(token);
+
 		let totalBytesRead = 0;
 		let bytesRead = 0;
 		let allowedRemainingBytes = (options && typeof options.length === 'number') ? options.length : undefined;
@@ -122,7 +127,7 @@ function throwIfTooLarge(totalBytesRead: number, options: ICreateReadStreamOptio
 	// Return early if file is too large to load and we have configured limits
 	if (options?.limits) {
 		if (typeof options.limits.memory === 'number' && totalBytesRead > options.limits.memory) {
-			throw createFileSystemProviderError(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow it to use more memory"), FileSystemProviderErrorCode.FileExceedsMemoryLimit);
+			throw createFileSystemProviderError(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow to use more memory"), FileSystemProviderErrorCode.FileExceedsMemoryLimit);
 		}
 
 		if (typeof options.limits.size === 'number' && totalBytesRead > options.limits.size) {

@@ -33,4 +33,8 @@ export namespace NotebookEditorExtensionsRegistry {
 	export function getEditorContributions(): INotebookEditorContributionDescription[] {
 		return EditorContributionRegistry.INSTANCE.getEditorContributions();
 	}
+
+	export function getSomeEditorContributions(ids: string[]): INotebookEditorContributionDescription[] {
+		return EditorContributionRegistry.INSTANCE.getEditorContributions().filter(c => ids.indexOf(c.id) >= 0);
+	}
 }

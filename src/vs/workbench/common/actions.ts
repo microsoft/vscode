@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { SyncActionDescriptor, MenuRegistry, MenuId, ICommandAction } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { ICommandAction } from 'vs/platform/action/common/action';
 
 export const Extensions = {
 	WorkbenchActions: 'workbench.contributions.actions'
@@ -43,7 +43,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		// keybinding
 		const weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingWeight.WorkbenchContrib : descriptor.keybindingWeight);
 		const keybindings = descriptor.keybindings;
-		KeybindingsRegistry.registerKeybindingRule({
+		registrations.add(KeybindingsRegistry.registerKeybindingRule({
 			id: descriptor.id,
 			weight: weight,
 			when:
@@ -55,14 +55,14 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 			win: keybindings?.win,
 			mac: keybindings?.mac,
 			linux: keybindings?.linux
-		});
+		}));
 
 		// menu item
 		// TODO@Rob slightly weird if-check required because of
-		// https://github.com/microsoft/vscode/blob/master/src/vs/workbench/contrib/search/electron-browser/search.contribution.ts#L266
+		// https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/search/electron-browser/search.contribution.ts#L266
 		if (descriptor.label) {
 
-			let idx = alias.indexOf(': ');
+			const idx = alias.indexOf(': ');
 			let categoryOriginal = '';
 			if (idx > 0) {
 				categoryOriginal = alias.substr(0, idx);
@@ -75,14 +75,10 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 				category: category ? { value: category, original: categoryOriginal } : undefined
 			};
 
-			MenuRegistry.addCommand(command);
+			registrations.add(MenuRegistry.addCommand(command));
 
 			registrations.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command, when }));
 		}
-
-		// TODO@alex,joh
-		// support removal of keybinding rule
-		// support removal of command-ui
 		return registrations;
 	}
 
@@ -124,9 +120,3 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		}
 	}
 });
-
-export const CATEGORIES = {
-	View: { value: localize('view', "View"), original: 'View' },
-	Help: { value: localize('help', "Help"), original: 'Help' },
-	Developer: { value: localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' }
-};

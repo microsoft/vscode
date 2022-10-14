@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
-export const INativeEnvironmentService = createDecorator<INativeEnvironmentService>('nativeEnvironmentService');
+export const INativeEnvironmentService = refineServiceDecorator<IEnvironmentService, INativeEnvironmentService>(IEnvironmentService);
 
 export interface IDebugParams {
 	port: number | null;
@@ -17,7 +17,15 @@ export interface IDebugParams {
 
 export interface IExtensionHostDebugParams extends IDebugParams {
 	debugId?: string;
+	env?: Record<string, string>;
 }
+
+/**
+ * Type of extension.
+ *
+ * **NOTE**: This is defined in `platform/environment` because it can appear as a CLI argument.
+ */
+export type ExtensionKind = 'ui' | 'workspace' | 'web';
 
 /**
  * A basic environment service that can be used in various processes,
@@ -40,33 +48,40 @@ export interface IEnvironmentService {
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 	// --- user roaming data
+	stateResource: URI;
 	userRoamingDataHome: URI;
-	settingsResource: URI;
-	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 	argvResource: URI;
-	snippetsHome: URI;
 
 	// --- data paths
 	untitledWorkspacesHome: URI;
-	globalStorageHome: URI;
 	workspaceStorageHome: URI;
+	localHistoryHome: URI;
+	cacheHome: URI;
 
 	// --- settings sync
 	userDataSyncHome: URI;
 	userDataSyncLogResource: URI;
 	sync: 'on' | 'off' | undefined;
 
+	// --- continue edit session
+	continueOn?: string;
+	editSessionId?: string;
+	editSessionsLogResource: URI;
+
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
+	enableExtensions?: readonly string[];
 	extensionDevelopmentLocationURI?: URI[];
+	extensionDevelopmentKind?: ExtensionKind[];
 	extensionTestsLocationURI?: URI;
 
 	// --- logging
 	logsPath: string;
 	logLevel?: string;
+	extensionLogLevel?: [string, string][];
 	verbose: boolean;
 	isBuilt: boolean;
 
@@ -74,6 +89,9 @@ export interface IEnvironmentService {
 	disableTelemetry: boolean;
 	telemetryLogResource: URI;
 	serviceMachineIdResource: URI;
+
+	// --- Policy
+	policyFile?: URI;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//
@@ -106,7 +124,14 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	// --- CLI Arguments
 	args: NativeParsedArgs;
 
-	// --- paths
+	// --- data paths
+	/**
+	 * Root path of the JavaScript sources.
+	 *
+	 * Note: This is NOT the installation root
+	 * directory itself but contained in it at
+	 * a level that is platform dependent.
+	 */
 	appRoot: string;
 	userHome: URI;
 	appSettingsHome: URI;
@@ -115,16 +140,15 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	machineSettingsResource: URI;
 	installSourcePath: string;
 
-	// --- IPC Handles
-	sharedIPCHandle: string;
-
-	// --- Extensions
-	extensionsPath?: string;
+	// --- extensions
+	extensionsPath: string;
 	extensionsDownloadPath: string;
 	builtinExtensionsPath: string;
 
-	// --- Smoke test support
-	driverHandle?: string;
+	// --- use keytar for credentials
+	disableKeytar?: boolean;
+
+	crossOriginIsolated?: boolean;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//

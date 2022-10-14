@@ -1,0 +1,1202 @@
+[
+	{
+		"c": "%  a sample bibliography file",
+		"t": "text.bibtex comment.block.bibtex",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"hc_light": "comment: #515151"
+		}
+	},
+	{
+		"c": "%",
+		"t": "text.bibtex comment.block.bibtex",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"hc_light": "comment: #515151"
+		}
+	},
+	{
+		"c": "@",
+		"t": "text.bibtex meta.entry.braces.bibtex keyword.other.entry-type.bibtex punctuation.definition.keyword.bibtex",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6",
+			"hc_light": "keyword: #0F4A85"
+		}
+	},
+	{
+		"c": "article",
+		"t": "text.bibtex meta.entry.braces.bibtex keyword.other.entry-type.bibtex",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6",
+			"hc_light": "keyword: #0F4A85"
+		}
+	},
+	{
+		"c": "{",
+		"t": "text.bibtex meta.entry.braces.bibtex punctuation.section.entry.begin.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "small",
+		"t": "text.bibtex meta.entry.braces.bibtex entity.name.type.entry-key.bibtex",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0",
+			"hc_light": "entity.name.type: #185E73"
+		}
+	},
+	{
+		"c": ",",
+		"t": "text.bibtex meta.entry.braces.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "author",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex support.function.key.bibtex",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.separator.key-value.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "{",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.definition.string.begin.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "Freely, I.P.",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "}",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.definition.string.end.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "text.bibtex meta.entry.braces.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "title",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex support.function.key.bibtex",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.separator.key-value.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "{",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.definition.string.begin.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "A small paper",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "}",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.definition.string.end.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "text.bibtex meta.entry.braces.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "journal",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex support.function.key.bibtex",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.separator.key-value.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "{",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.definition.string.begin.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "The journal of small papers",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "}",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.definition.string.end.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "text.bibtex meta.entry.braces.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "year",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex support.function.key.bibtex",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.separator.key-value.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "1997",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex constant.numeric.bibtex",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48"
+		}
+	},
+	{
+		"c": ",",
+		"t": "text.bibtex meta.entry.braces.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "volume",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex support.function.key.bibtex",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.separator.key-value.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "{",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.definition.string.begin.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "-1",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "}",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.definition.string.end.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "text.bibtex meta.entry.braces.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "note",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex support.function.key.bibtex",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.separator.key-value.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "{",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.definition.string.begin.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "to appear",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "}",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.definition.string.end.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "text.bibtex meta.entry.braces.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "}",
+		"t": "text.bibtex meta.entry.braces.bibtex punctuation.section.entry.end.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "@",
+		"t": "text.bibtex meta.entry.braces.bibtex keyword.other.entry-type.bibtex punctuation.definition.keyword.bibtex",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6",
+			"hc_light": "keyword: #0F4A85"
+		}
+	},
+	{
+		"c": "article",
+		"t": "text.bibtex meta.entry.braces.bibtex keyword.other.entry-type.bibtex",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6",
+			"hc_light": "keyword: #0F4A85"
+		}
+	},
+	{
+		"c": "{",
+		"t": "text.bibtex meta.entry.braces.bibtex punctuation.section.entry.begin.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "big",
+		"t": "text.bibtex meta.entry.braces.bibtex entity.name.type.entry-key.bibtex",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0",
+			"hc_light": "entity.name.type: #185E73"
+		}
+	},
+	{
+		"c": ",",
+		"t": "text.bibtex meta.entry.braces.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "author",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex support.function.key.bibtex",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.separator.key-value.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "{",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.definition.string.begin.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "Jass, Hugh",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "}",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.definition.string.end.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "text.bibtex meta.entry.braces.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "title",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex support.function.key.bibtex",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.separator.key-value.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "{",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.definition.string.begin.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "A big paper",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "}",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.definition.string.end.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "text.bibtex meta.entry.braces.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "journal",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex support.function.key.bibtex",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.separator.key-value.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "{",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.definition.string.begin.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "The journal of big papers",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "}",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.definition.string.end.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "text.bibtex meta.entry.braces.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "year",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex support.function.key.bibtex",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.separator.key-value.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "7991",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex constant.numeric.bibtex",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48"
+		}
+	},
+	{
+		"c": ",",
+		"t": "text.bibtex meta.entry.braces.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "volume",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex support.function.key.bibtex",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.separator.key-value.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "{",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.definition.string.begin.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "MCMXCVII",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "}",
+		"t": "text.bibtex meta.entry.braces.bibtex meta.key-assignment.bibtex punctuation.definition.string.end.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "text.bibtex meta.entry.braces.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "}",
+		"t": "text.bibtex meta.entry.braces.bibtex punctuation.section.entry.end.bibtex",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "%  The authors mentioned here are almost, but not quite,",
+		"t": "text.bibtex comment.block.bibtex",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"hc_light": "comment: #515151"
+		}
+	},
+	{
+		"c": "%  entirely unrelated to Matt Groening.",
+		"t": "text.bibtex comment.block.bibtex",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"hc_light": "comment: #515151"
+		}
+	}
+]

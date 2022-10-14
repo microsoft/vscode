@@ -38,7 +38,7 @@ export class TextSearchEngineAdapter {
 					},
 					token)
 				.then(
-					c => resolve({ limitHit: c.limitHit, type: 'success' } as ISerializedSearchSuccess),
+					c => resolve({ limitHit: c.limitHit, type: 'success', stats: c.stats } as ISerializedSearchSuccess),
 					reject);
 		});
 	}

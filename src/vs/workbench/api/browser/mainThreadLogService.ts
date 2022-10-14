@@ -3,46 +3,73 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtHostContext, ExtHostContext, MainThreadLogShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ILoggerOptions, ILoggerService, ILogService, log, LogLevel } from 'vs/platform/log/common/log';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ExtHostContext, MainThreadLoggerShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { UriComponents, URI } from 'vs/base/common/uri';
-import { FileLogService } from 'vs/platform/log/common/fileLogService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { basename } from 'vs/base/common/path';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ILogLevelService } from 'vs/workbench/contrib/logs/common/logLevelService';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
+import { localExtHostLog, remoteExtHostLog, webWorkerExtHostLog } from 'vs/workbench/services/extensions/common/extensions';
 
-@extHostNamedCustomer(MainContext.MainThreadLog)
-export class MainThreadLogService implements MainThreadLogShape {
+@extHostNamedCustomer(MainContext.MainThreadLogger)
+export class MainThreadLoggerService implements MainThreadLoggerShape {
 
-	private readonly _loggers = new Map<string, FileLogService>();
-	private readonly _logListener: IDisposable;
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ILogService private readonly _logService: ILogService,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@ILogService logService: ILogService,
+		@ILoggerService private readonly loggerService: ILoggerService,
+		@ILogLevelService extensionLoggerService: ILogLevelService,
+		@IOutputService outputService: IOutputService,
 	) {
-		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostLogService);
-		this._logListener = _logService.onDidChangeLogLevel(level => {
-			proxy.$setLevel(level);
-			this._loggers.forEach(value => value.setLevel(level));
-		});
+		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostLogLevelServiceShape);
+		this.disposables.add(logService.onDidChangeLogLevel(level => proxy.$setLevel(level)));
+		this.disposables.add(extensionLoggerService.onDidChangeLogLevel(({ id, logLevel }) => {
+			const channel = outputService.getChannelDescriptor(id);
+			const resource = channel?.log ? channel.file : undefined;
+			if (resource && (channel?.extensionId || id === localExtHostLog || id === remoteExtHostLog || id === webWorkerExtHostLog)) {
+				proxy.$setLevel(logLevel, resource);
+			}
+		}));
+	}
+
+	$log(file: UriComponents, messages: [LogLevel, string][]): void {
+		const logger = this.loggerService.getLogger(URI.revive(file));
+		if (!logger) {
+			throw new Error('Create the logger before logging');
+		}
+		for (const [level, message] of messages) {
+			log(logger, level, message);
+		}
+	}
+
+	async $createLogger(file: UriComponents, options?: ILoggerOptions): Promise<void> {
+		this.loggerService.createLogger(URI.revive(file), options);
 	}
 
 	dispose(): void {
-		this._logListener.dispose();
-		this._loggers.forEach(value => value.dispose());
-		this._loggers.clear();
-	}
-
-	$log(file: UriComponents, level: LogLevel, message: any[]): void {
-		const uri = URI.revive(file);
-		let logger = this._loggers.get(uri.toString());
-		if (!logger) {
-			logger = this._instaService.createInstance(FileLogService, basename(file.path), URI.revive(file), this._logService.getLevel());
-			this._loggers.set(uri.toString(), logger);
-		}
-		logger.log(level, message);
+		this.disposables.dispose();
 	}
 }
+
+// --- Internal commands to improve extension test runs
+
+CommandsRegistry.registerCommand('_extensionTests.setLogLevel', function (accessor: ServicesAccessor, level: number) {
+	const logService = accessor.get(ILogService);
+	const environmentService = accessor.get(IEnvironmentService);
+
+	if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
+		logService.setLevel(level);
+	}
+});
+
+CommandsRegistry.registerCommand('_extensionTests.getLogLevel', function (accessor: ServicesAccessor) {
+	const logService = accessor.get(ILogService);
+
+	return logService.getLevel();
+});

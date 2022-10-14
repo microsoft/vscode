@@ -15,18 +15,18 @@ class GitIgnoreDecorationProvider implements FileDecorationProvider {
 
 	private static Decoration: FileDecoration = { color: new ThemeColor('gitDecoration.ignoredResourceForeground') };
 
-	readonly onDidChange: Event<Uri[]>;
-	private queue = new Map<string, { repository: Repository; queue: Map<string, PromiseSource<FileDecoration | undefined>>; }>();
+	readonly onDidChangeFileDecorations: Event<Uri[]>;
+	private queue = new Map<string, { repository: Repository; queue: Map<string, PromiseSource<FileDecoration | undefined>> }>();
 	private disposables: Disposable[] = [];
 
 	constructor(private model: Model) {
-		this.onDidChange = fireEvent(anyEvent<any>(
+		this.onDidChangeFileDecorations = fireEvent(anyEvent<any>(
 			filterEvent(workspace.onDidSaveTextDocument, e => /\.gitignore$|\.git\/info\/exclude$/.test(e.uri.path)),
 			model.onDidOpenRepository,
 			model.onDidCloseRepository
 		));
 
-		this.disposables.push(window.registerDecorationProvider(this));
+		this.disposables.push(window.registerFileDecorationProvider(this));
 	}
 
 	async provideFileDecoration(uri: Uri): Promise<FileDecoration | undefined> {
@@ -93,20 +93,20 @@ class GitDecorationProvider implements FileDecorationProvider {
 	};
 
 	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
-	readonly onDidChange: Event<Uri[]> = this._onDidChangeDecorations.event;
+	readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
 
 	private disposables: Disposable[] = [];
 	private decorations = new Map<string, FileDecoration>();
 
 	constructor(private repository: Repository) {
 		this.disposables.push(
-			window.registerDecorationProvider(this),
+			window.registerFileDecorationProvider(this),
 			repository.onDidRunGitStatus(this.onDidRunGitStatus, this)
 		);
 	}
 
 	private onDidRunGitStatus(): void {
-		let newDecorations = new Map<string, FileDecoration>();
+		const newDecorations = new Map<string, FileDecoration>();
 
 		this.collectSubmoduleDecorationData(newDecorations);
 		this.collectDecorationData(this.repository.indexGroup, newDecorations);

@@ -23,7 +23,7 @@ suite('HTML Embedded Support', () => {
 		const docRegions = embeddedSupport.getDocumentRegions(htmlLanguageService, document);
 		const languageId = docRegions.getLanguageAtPosition(position);
 
-		assert.equal(languageId, expectedLanguageId);
+		assert.strictEqual(languageId, expectedLanguageId);
 	}
 
 	function assertEmbeddedLanguageContent(value: string, languageId: string, expectedContent: string): void {
@@ -31,7 +31,7 @@ suite('HTML Embedded Support', () => {
 
 		const docRegions = embeddedSupport.getDocumentRegions(htmlLanguageService, document);
 		const content = docRegions.getEmbeddedDocument(languageId);
-		assert.equal(content.getText(), expectedContent);
+		assert.strictEqual(content.getText(), expectedContent);
 	}
 
 	test('Styles', function (): any {
@@ -121,6 +121,8 @@ suite('HTML Embedded Support', () => {
 		assertEmbeddedLanguageContent('<script type="text/javascript">var i = 0;</script>', 'javascript', '                               var i = 0;         ');
 
 		assertEmbeddedLanguageContent('<div onKeyUp="foo()" onkeydown="bar()"/>', 'javascript', '              foo();            bar();  ');
+		assertEmbeddedLanguageContent('<div onKeyUp="return"/>', 'javascript', '              return;  ');
+		assertEmbeddedLanguageContent('<div onKeyUp=return\n/><script>foo();</script>', 'javascript', '             return;\n          foo();         ');
 	});
 
 });

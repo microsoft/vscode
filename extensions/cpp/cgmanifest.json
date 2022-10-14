@@ -4,14 +4,27 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "jeff-hykin/cpp-textmate-grammar",
-					"repositoryUrl": "https://github.com/jeff-hykin/cpp-textmate-grammar",
-					"commitHash": "666808cab3907fc91ed4d3901060ee6b045cca58"
+					"name": "jeff-hykin/better-cpp-syntax",
+					"repositoryUrl": "https://github.com/jeff-hykin/better-cpp-syntax",
+					"commitHash": "32be139c7d3cdf07195af4b3a5c639ebf4e3b356"
 				}
 			},
 			"license": "MIT",
-			"version": "1.14.15",
-			"description": "The files syntaxes/c.json and syntaxes/c++.json were derived from https://github.com/atom/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
+			"version": "1.15.23",
+			"description": "The original JSON grammars were derived from https://github.com/atom/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "jeff-hykin/better-c-syntax",
+					"repositoryUrl": "https://github.com/jeff-hykin/better-c-syntax",
+					"commitHash": "34712a6106a4ffb0a04d2fa836fd28ff6c5849a4"
+				}
+			},
+			"license": "MIT",
+			"version": "1.13.2",
+			"description": "The original JSON grammars were derived from https://github.com/atom/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
 		},
 		{
 			"component": {
@@ -39,6 +52,19 @@
 			],
 			"license": "TextMate Bundle License",
 			"version": "0.0.0"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "NVIDIA/cuda-cpp-grammar",
+					"repositoryUrl": "https://github.com/NVIDIA/cuda-cpp-grammar",
+					"commitHash": "81e88eaec5170aa8585736c63627c73e3589998c"
+				}
+			},
+			"license": "MIT",
+			"version": "0.0.0",
+			"description": "The file syntaxes/cuda-cpp.tmLanguage.json was derived from https://github.com/jeff-hykin/cpp-textmate-grammar, which was derived from https://github.com/atom/language-c, which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
 		}
 	],
 	"version": 1

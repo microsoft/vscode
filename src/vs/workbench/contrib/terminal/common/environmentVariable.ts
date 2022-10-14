@@ -6,6 +6,8 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { VariableResolver } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 
 export const IEnvironmentVariableService = createDecorator<IEnvironmentVariableService>('environmentVariableService');
 
@@ -43,12 +45,15 @@ export interface IMergedEnvironmentVariableCollectionDiff {
  * together.
  */
 export interface IMergedEnvironmentVariableCollection {
+	readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>;
 	readonly map: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>;
 
 	/**
 	 * Applies this collection to a process environment.
+	 * @param variableResolver An optional function to use to resolve variables within the
+	 * environment values.
 	 */
-	applyToProcessEnvironment(env: IProcessEnvironment): void;
+	applyToProcessEnvironment(env: IProcessEnvironment, variableResolver?: VariableResolver): Promise<void>;
 
 	/**
 	 * Generates a diff of this connection against another. Returns undefined if the collections are
@@ -95,9 +100,17 @@ export interface IEnvironmentVariableService {
 /** [variable, mutator] */
 export type ISerializableEnvironmentVariableCollection = [string, IEnvironmentVariableMutator][];
 
+/** [extension, collection] */
+export type ISerializableEnvironmentVariableCollections = [string, ISerializableEnvironmentVariableCollection][];
+
 export interface IEnvironmentVariableInfo {
 	readonly requiresAction: boolean;
 	getInfo(): string;
-	getIcon(): string;
-	getActions?(): { label: string, iconClass?: string, run: () => void, commandId: string }[];
+	getIcon(): ThemeIcon;
+	getActions?(): {
+		label: string;
+		commandId: string;
+		iconClass?: string;
+		run(target: any): void;
+	}[];
 }

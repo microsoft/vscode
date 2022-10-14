@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
-import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event, Emitter } from 'vs/base/common/event';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
+import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
+import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export const ICommandService = createDecorator<ICommandService>('commandService');
 
@@ -41,6 +41,7 @@ export interface ICommandHandlerDescription {
 	readonly description: string;
 	readonly args: ReadonlyArray<{
 		readonly name: string;
+		readonly isOptional?: boolean;
 		readonly description?: string;
 		readonly constraint?: TypeConstraint;
 		readonly schema?: IJSONSchema;
@@ -80,7 +81,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		// add argument validation if rich command metadata is provided
 		if (idOrCommand.description) {
 			const constraints: Array<TypeConstraint | undefined> = [];
-			for (let arg of idOrCommand.description.args) {
+			for (const arg of idOrCommand.description.args) {
 				constraints.push(arg.constraint);
 			}
 			const actualHandler = idOrCommand.handler;
@@ -99,9 +100,9 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 			this._commands.set(id, commands);
 		}
 
-		let removeFn = commands.unshift(idOrCommand);
+		const removeFn = commands.unshift(idOrCommand);
 
-		let ret = toDisposable(() => {
+		const ret = toDisposable(() => {
 			removeFn();
 			const command = this._commands.get(id);
 			if (command?.isEmpty()) {
@@ -147,3 +148,5 @@ export const NullCommandService: ICommandService = {
 		return Promise.resolve(undefined);
 	}
 };
+
+CommandsRegistry.registerCommand('noop', () => { });

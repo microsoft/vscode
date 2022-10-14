@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserDataSyncLogService, ALL_SYNC_RESOURCES, IUserDataSyncBackupStoreService, IResourceRefHandle, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { joinPath } from 'vs/base/common/resources';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { toLocalISOString } from 'vs/base/common/date';
+import { Promises } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { toLocalISOString } from 'vs/base/common/date';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { joinPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { ALL_SYNC_RESOURCES, IResourceRefHandle, IUserDataSyncBackupStoreService, IUserDataSyncLogService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 
 export class UserDataSyncBackupStoreService extends Disposable implements IUserDataSyncBackupStoreService {
 
@@ -21,13 +24,18 @@ export class UserDataSyncBackupStoreService extends Disposable implements IUserD
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super();
-		ALL_SYNC_RESOURCES.forEach(resourceKey => this.cleanUpBackup(resourceKey));
+		for (const profile of this.userDataProfilesService.profiles) {
+			for (const resource of ALL_SYNC_RESOURCES) {
+				this.cleanUpBackup(this.getResourceBackupHome(profile, resource));
+			}
+		}
 	}
 
-	async getAllRefs(resource: SyncResource): Promise<IResourceRefHandle[]> {
-		const folder = joinPath(this.environmentService.userDataSyncHome, resource);
+	async getAllRefs(profile: IUserDataProfile, resource: SyncResource): Promise<IResourceRefHandle[]> {
+		const folder = this.getResourceBackupHome(profile, resource);
 		const stat = await this.fileService.resolve(folder);
 		if (stat.children) {
 			const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}(\.json)?$/.test(stat.name)).sort().reverse();
@@ -39,9 +47,9 @@ export class UserDataSyncBackupStoreService extends Disposable implements IUserD
 		return [];
 	}
 
-	async resolveContent(resource: SyncResource, ref?: string): Promise<string | null> {
+	async resolveContent(profile: IUserDataProfile, resource: SyncResource, ref?: string): Promise<string | null> {
 		if (!ref) {
-			const refs = await this.getAllRefs(resource);
+			const refs = await this.getAllRefs(profile, resource);
 			if (refs.length) {
 				ref = refs[refs.length - 1].ref;
 			}
@@ -54,8 +62,8 @@ export class UserDataSyncBackupStoreService extends Disposable implements IUserD
 		return null;
 	}
 
-	async backup(resourceKey: SyncResource, content: string): Promise<void> {
-		const folder = joinPath(this.environmentService.userDataSyncHome, resourceKey);
+	async backup(profile: IUserDataProfile, resourceKey: SyncResource, content: string): Promise<void> {
+		const folder = this.getResourceBackupHome(profile, resourceKey);
 		const resource = joinPath(folder, `${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}.json`);
 		try {
 			await this.fileService.writeFile(resource, VSBuffer.fromString(content));
@@ -63,12 +71,15 @@ export class UserDataSyncBackupStoreService extends Disposable implements IUserD
 			this.logService.error(e);
 		}
 		try {
-			this.cleanUpBackup(resourceKey);
+			this.cleanUpBackup(folder);
 		} catch (e) { /* Ignore */ }
 	}
 
-	private async cleanUpBackup(resource: SyncResource): Promise<void> {
-		const folder = joinPath(this.environmentService.userDataSyncHome, resource);
+	private getResourceBackupHome(profile: IUserDataProfile, resource: SyncResource): URI {
+		return joinPath(this.environmentService.userDataSyncHome, ...(profile.isDefault ? [resource] : [profile.id, resource]));
+	}
+
+	private async cleanUpBackup(folder: URI): Promise<void> {
 		try {
 			try {
 				if (!(await this.fileService.exists(folder))) {
@@ -86,9 +97,9 @@ export class UserDataSyncBackupStoreService extends Disposable implements IUserD
 				if (remaining < 10) {
 					toDelete = toDelete.slice(10 - remaining);
 				}
-				await Promise.all(toDelete.map(stat => {
+				await Promises.settled(toDelete.map(async stat => {
 					this.logService.info('Deleting from backup', stat.resource.path);
-					this.fileService.del(stat.resource);
+					await this.fileService.del(stat.resource);
 				}));
 			}
 		} catch (e) {

@@ -5,9 +5,9 @@
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as viewEvents from 'vs/editor/common/viewEvents';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
@@ -45,7 +45,7 @@ export class Margin extends ViewPart {
 		this._domNode.appendChild(this._glyphMarginBackgroundDomNode);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 	}
 
@@ -55,7 +55,7 @@ export class Margin extends ViewPart {
 
 	// --- begin event handlers
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
@@ -66,7 +66,7 @@ export class Margin extends ViewPart {
 
 		return true;
 	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return super.onScrollChanged(e) || e.scrollTopChanged;
 	}
 

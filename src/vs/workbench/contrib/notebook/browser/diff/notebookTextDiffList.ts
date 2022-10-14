@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./notebookDiff';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import * as DOM from 'vs/base/browser/dom';
-import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, IListStyles, isMonacoEditor, IStyleController, MouseController } from 'vs/base/browser/ui/list/listWidget';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -14,35 +14,54 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
-import { CellDiffRenderTemplate, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
+import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { isMacintosh } from 'vs/base/common/platform';
-import { DeletedCell, InsertCell, ModifiedCell } from 'vs/workbench/contrib/notebook/browser/diff/cellComponents';
+import { DeletedElement, fixedDiffEditorOptions, fixedEditorOptions, getOptimizedNestedCodeEditorWidgetOptions, InsertElement, ModifiedElement } from 'vs/workbench/contrib/notebook/browser/diff/diffComponents';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { PixelRatio } from 'vs/base/browser/browser';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
-export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<CellDiffViewModel> {
-	// private readonly lineHeight: number;
+export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<DiffElementViewModelBase> {
+	private readonly lineHeight: number;
 
 	constructor(
 		@IConfigurationService readonly configurationService: IConfigurationService
 	) {
-		// const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		// this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight;
+		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
+		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value).lineHeight;
 	}
 
-	getHeight(element: CellDiffViewModel): number {
-		return 100;
+	getHeight(element: DiffElementViewModelBase): number {
+		return element.getHeight(this.lineHeight);
 	}
 
-	hasDynamicHeight(element: CellDiffViewModel): boolean {
+	hasDynamicHeight(element: DiffElementViewModelBase): boolean {
 		return false;
 	}
 
-	getTemplateId(element: CellDiffViewModel): string {
-		return CellDiffRenderer.TEMPLATE_ID;
+	getTemplateId(element: DiffElementViewModelBase): string {
+		switch (element.type) {
+			case 'delete':
+			case 'insert':
+				return CellDiffSingleSideRenderer.TEMPLATE_ID;
+			case 'modified':
+			case 'unchanged':
+				return CellDiffSideBySideRenderer.TEMPLATE_ID;
+		}
+
 	}
 }
-export class CellDiffRenderer implements IListRenderer<CellDiffViewModel, CellDiffRenderTemplate> {
-	static readonly TEMPLATE_ID = 'cell_diff';
+export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffElementViewModel, CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate> {
+	static readonly TEMPLATE_ID = 'cell_diff_single';
 
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
@@ -50,64 +69,295 @@ export class CellDiffRenderer implements IListRenderer<CellDiffViewModel, CellDi
 	) { }
 
 	get templateId() {
-		return CellDiffRenderer.TEMPLATE_ID;
+		return CellDiffSingleSideRenderer.TEMPLATE_ID;
 	}
 
-	renderTemplate(container: HTMLElement): CellDiffRenderTemplate {
+	renderTemplate(container: HTMLElement): CellDiffSingleSideRenderTemplate {
+		const body = DOM.$('.cell-body');
+		DOM.append(container, body);
+		const diffEditorContainer = DOM.$('.cell-diff-editor-container');
+		DOM.append(body, diffEditorContainer);
+
+		const diagonalFill = DOM.append(body, DOM.$('.diagonal-fill'));
+
+		const sourceContainer = DOM.append(diffEditorContainer, DOM.$('.source-container'));
+		const editor = this._buildSourceEditor(sourceContainer);
+
+		const metadataHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-header-container'));
+		const metadataInfoContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-info-container'));
+
+		const outputHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.output-header-container'));
+		const outputInfoContainer = DOM.append(diffEditorContainer, DOM.$('.output-info-container'));
+
+		const borderContainer = DOM.append(body, DOM.$('.border-container'));
+		const leftBorder = DOM.append(borderContainer, DOM.$('.left-border'));
+		const rightBorder = DOM.append(borderContainer, DOM.$('.right-border'));
+		const topBorder = DOM.append(borderContainer, DOM.$('.top-border'));
+		const bottomBorder = DOM.append(borderContainer, DOM.$('.bottom-border'));
+
 		return {
+			body,
 			container,
+			diffEditorContainer,
+			diagonalFill,
+			sourceEditor: editor,
+			metadataHeaderContainer,
+			metadataInfoContainer,
+			outputHeaderContainer,
+			outputInfoContainer,
+			leftBorder,
+			rightBorder,
+			topBorder,
+			bottomBorder,
 			elementDisposables: new DisposableStore()
 		};
 	}
 
-	renderElement(element: CellDiffViewModel, index: number, templateData: CellDiffRenderTemplate, height: number | undefined): void {
-		templateData.container.innerText = '';
+	private _buildSourceEditor(sourceContainer: HTMLElement) {
+		const editorContainer = DOM.append(sourceContainer, DOM.$('.editor-container'));
+
+		const editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
+			...fixedEditorOptions,
+			dimension: {
+				width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
+				height: 0
+			},
+			automaticLayout: false,
+			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
+		}, {});
+
+		return editor;
+	}
+
+	renderElement(element: SingleSideDiffElementViewModel, index: number, templateData: CellDiffSingleSideRenderTemplate, height: number | undefined): void {
+		templateData.body.classList.remove('left', 'right', 'full');
+
 		switch (element.type) {
-			case 'unchanged':
-				templateData.elementDisposables.add(this.instantiationService.createInstance(ModifiedCell, this.notebookEditor, element, templateData));
-				return;
 			case 'delete':
-				templateData.elementDisposables.add(this.instantiationService.createInstance(DeletedCell, this.notebookEditor, element, templateData));
+				templateData.elementDisposables.add(this.instantiationService.createInstance(DeletedElement, this.notebookEditor, element, templateData));
 				return;
 			case 'insert':
-				templateData.elementDisposables.add(this.instantiationService.createInstance(InsertCell, this.notebookEditor, element, templateData));
-				return;
-			case 'modified':
-				templateData.elementDisposables.add(this.instantiationService.createInstance(ModifiedCell, this.notebookEditor, element, templateData));
+				templateData.elementDisposables.add(this.instantiationService.createInstance(InsertElement, this.notebookEditor, element, templateData));
 				return;
 			default:
 				break;
 		}
 	}
 
-	disposeTemplate(templateData: CellDiffRenderTemplate): void {
+	disposeTemplate(templateData: CellDiffSingleSideRenderTemplate): void {
 		templateData.container.innerText = '';
+		templateData.sourceEditor.dispose();
+		templateData.elementDisposables.dispose();
 	}
 
-	disposeElement(element: CellDiffViewModel, index: number, templateData: CellDiffRenderTemplate): void {
+	disposeElement(element: SingleSideDiffElementViewModel, index: number, templateData: CellDiffSingleSideRenderTemplate): void {
 		templateData.elementDisposables.clear();
 	}
 }
 
 
-export class NotebookTextDiffList extends WorkbenchList<CellDiffViewModel> implements IDisposable, IStyleController {
+export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffElementViewModel, CellDiffSideBySideRenderTemplate> {
+	static readonly TEMPLATE_ID = 'cell_diff_side_by_side';
+
+	constructor(
+		readonly notebookEditor: INotebookTextDiffEditor,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
+		@IKeybindingService protected readonly keybindingService: IKeybindingService,
+		@IMenuService protected readonly menuService: IMenuService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
+		@INotificationService protected readonly notificationService: INotificationService,
+		@IThemeService protected readonly themeService: IThemeService,
+	) { }
+
+	get templateId() {
+		return CellDiffSideBySideRenderer.TEMPLATE_ID;
+	}
+
+	renderTemplate(container: HTMLElement): CellDiffSideBySideRenderTemplate {
+		const body = DOM.$('.cell-body');
+		DOM.append(container, body);
+		const diffEditorContainer = DOM.$('.cell-diff-editor-container');
+		DOM.append(body, diffEditorContainer);
+
+		const sourceContainer = DOM.append(diffEditorContainer, DOM.$('.source-container'));
+		const { editor, editorContainer } = this._buildSourceEditor(sourceContainer);
+
+		const inputToolbarContainer = DOM.append(sourceContainer, DOM.$('.editor-input-toolbar-container'));
+		const cellToolbarContainer = DOM.append(inputToolbarContainer, DOM.$('div.property-toolbar'));
+		const toolbar = this.instantiationService.createInstance(WorkbenchToolBar, cellToolbarContainer, {
+			actionViewItemProvider: action => {
+				if (action instanceof MenuItemAction) {
+					const item = new CodiconActionViewItem(action, undefined, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService);
+					return item;
+				}
+
+				return undefined;
+			}
+		});
+
+		const metadataHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-header-container'));
+		const metadataInfoContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-info-container'));
+
+		const outputHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.output-header-container'));
+		const outputInfoContainer = DOM.append(diffEditorContainer, DOM.$('.output-info-container'));
+
+		const borderContainer = DOM.append(body, DOM.$('.border-container'));
+		const leftBorder = DOM.append(borderContainer, DOM.$('.left-border'));
+		const rightBorder = DOM.append(borderContainer, DOM.$('.right-border'));
+		const topBorder = DOM.append(borderContainer, DOM.$('.top-border'));
+		const bottomBorder = DOM.append(borderContainer, DOM.$('.bottom-border'));
+
+
+		return {
+			body,
+			container,
+			diffEditorContainer,
+			sourceEditor: editor,
+			editorContainer,
+			inputToolbarContainer,
+			toolbar,
+			metadataHeaderContainer,
+			metadataInfoContainer,
+			outputHeaderContainer,
+			outputInfoContainer,
+			leftBorder,
+			rightBorder,
+			topBorder,
+			bottomBorder,
+			elementDisposables: new DisposableStore()
+		};
+	}
+
+	private _buildSourceEditor(sourceContainer: HTMLElement) {
+		const editorContainer = DOM.append(sourceContainer, DOM.$('.editor-container'));
+
+		const editor = this.instantiationService.createInstance(DiffEditorWidget, editorContainer, {
+			...fixedDiffEditorOptions,
+			padding: {
+				top: 24,
+				bottom: 12
+			},
+			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
+			originalEditable: false,
+			ignoreTrimWhitespace: false,
+			automaticLayout: false,
+			dimension: {
+				height: 0,
+				width: 0
+			}
+		}, {
+			originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
+			modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
+		});
+
+		return {
+			editor,
+			editorContainer
+		};
+	}
+
+	renderElement(element: SideBySideDiffElementViewModel, index: number, templateData: CellDiffSideBySideRenderTemplate, height: number | undefined): void {
+		templateData.body.classList.remove('left', 'right', 'full');
+
+		switch (element.type) {
+			case 'unchanged':
+				templateData.elementDisposables.add(this.instantiationService.createInstance(ModifiedElement, this.notebookEditor, element, templateData));
+				return;
+			case 'modified':
+				templateData.elementDisposables.add(this.instantiationService.createInstance(ModifiedElement, this.notebookEditor, element, templateData));
+				return;
+			default:
+				break;
+		}
+	}
+
+	disposeTemplate(templateData: CellDiffSideBySideRenderTemplate): void {
+		templateData.container.innerText = '';
+		templateData.sourceEditor.dispose();
+		templateData.toolbar?.dispose();
+		templateData.elementDisposables.dispose();
+	}
+
+	disposeElement(element: SideBySideDiffElementViewModel, index: number, templateData: CellDiffSideBySideRenderTemplate): void {
+		if (templateData.toolbar) {
+			templateData.toolbar.context = undefined;
+		}
+		templateData.elementDisposables.clear();
+	}
+}
+
+export class NotebookMouseController<T> extends MouseController<T> {
+	protected override onViewPointer(e: IListMouseEvent<T>): void {
+		if (isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+			const focus = typeof e.index === 'undefined' ? [] : [e.index];
+			this.list.setFocus(focus, e.browserEvent);
+		} else {
+			super.onViewPointer(e);
+		}
+	}
+}
+
+export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase> implements IDisposable, IStyleController {
 	private styleElement?: HTMLStyleElement;
+
+	get rowsContainer(): HTMLElement {
+		return this.view.containerDomNode;
+	}
 
 	constructor(
 		listUser: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<CellDiffViewModel>,
-		renderers: IListRenderer<CellDiffViewModel, CellDiffRenderTemplate>[],
+		delegate: IListVirtualDelegate<DiffElementViewModelBase>,
+		renderers: IListRenderer<DiffElementViewModelBase, CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate>[],
 		contextKeyService: IContextKeyService,
-		options: IWorkbenchListOptions<CellDiffViewModel>,
+		options: IWorkbenchListOptions<DiffElementViewModelBase>,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService) {
-		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
+		@IInstantiationService instantiationService: IInstantiationService) {
+		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, instantiationService);
 	}
 
-	style(styles: IListStyles) {
+	protected override createMouseController(options: IListOptions<DiffElementViewModelBase>): MouseController<DiffElementViewModelBase> {
+		return new NotebookMouseController(this);
+	}
+
+	getAbsoluteTopOfElement(element: DiffElementViewModelBase): number {
+		const index = this.indexOf(element);
+		// if (index === undefined || index < 0 || index >= this.length) {
+		// 	this._getViewIndexUpperBound(element);
+		// 	throw new ListError(this.listUser, `Invalid index ${index}`);
+		// }
+
+		return this.view.elementTop(index);
+	}
+
+	getScrollHeight() {
+		return this.view.scrollHeight;
+	}
+
+	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		this.view.delegateScrollFromMouseWheelEvent(browserEvent);
+	}
+
+	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent) {
+		this.view.delegateVerticalScrollbarPointerDown(browserEvent);
+	}
+
+	clear() {
+		super.splice(0, this.length);
+	}
+
+
+	updateElementHeight2(element: DiffElementViewModelBase, size: number) {
+		const viewIndex = this.indexOf(element);
+		const focused = this.getFocus();
+
+		this.view.updateElementHeight(viewIndex, size, focused.length ? focused[0] : null);
+	}
+
+	override style(styles: IListStyles) {
 		const selectorSuffix = this.view.domId;
 		if (!this.styleElement) {
 			this.styleElement = DOM.createStyleSheet(this.view.domNode);
@@ -202,22 +452,6 @@ export class NotebookTextDiffList extends WorkbenchList<CellDiffViewModel> imple
 				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows.drop-target,
 				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
 			`);
-		}
-
-		if (styles.listFilterWidgetBackground) {
-			content.push(`.monaco-list-type-filter { background-color: ${styles.listFilterWidgetBackground} }`);
-		}
-
-		if (styles.listFilterWidgetOutline) {
-			content.push(`.monaco-list-type-filter { border: 1px solid ${styles.listFilterWidgetOutline}; }`);
-		}
-
-		if (styles.listFilterWidgetNoMatchesOutline) {
-			content.push(`.monaco-list-type-filter.no-matches { border: 1px solid ${styles.listFilterWidgetNoMatchesOutline}; }`);
-		}
-
-		if (styles.listMatchesShadow) {
-			content.push(`.monaco-list-type-filter { box-shadow: 1px 1px 1px ${styles.listMatchesShadow}; }`);
 		}
 
 		const newStyles = content.join('\n');

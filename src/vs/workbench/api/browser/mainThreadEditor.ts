@@ -10,16 +10,17 @@ import { RenderLineNumbersType, TextEditorCursorStyle, cursorStyleToString, Edit
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IDecorationOptions, ScrollType } from 'vs/editor/common/editorCommon';
-import { ISingleEditOperation, ITextModel, ITextModelUpdateOptions, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { ITextModel, ITextModelUpdateOptions } from 'vs/editor/common/model';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { IModelService } from 'vs/editor/common/services/model';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType } from 'vs/workbench/api/common/extHost.protocol';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { equals } from 'vs/base/common/arrays';
-import { CodeEditorStateFlag, EditorState } from 'vs/editor/browser/core/editorState';
+import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { MainThreadDocuments } from 'vs/workbench/api/browser/mainThreadDocuments';
 
 export interface IFocusTracker {
@@ -79,7 +80,6 @@ export class MainThreadTextEditorProperties {
 		return {
 			insertSpaces: modelOptions.insertSpaces,
 			tabSize: modelOptions.tabSize,
-			indentSize: modelOptions.indentSize,
 			cursorStyle: cursorStyle,
 			lineNumbers: lineNumbers
 		};
@@ -146,7 +146,6 @@ export class MainThreadTextEditorProperties {
 		}
 		return (
 			a.tabSize === b.tabSize
-			&& a.indentSize === b.indentSize
 			&& a.insertSpaces === b.insertSpaces
 			&& a.cursorStyle === b.cursorStyle
 			&& a.lineNumbers === b.lineNumbers
@@ -351,7 +350,7 @@ export class MainThreadTextEditor {
 	}
 
 	private _setIndentConfiguration(newConfiguration: ITextEditorConfigurationUpdate): void {
-		const creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language, this._model.uri, this._model.isForSimpleWidget);
+		const creationOpts = this._modelService.getCreationOptions(this._model.getLanguageId(), this._model.uri, this._model.isForSimpleWidget);
 
 		if (newConfiguration.tabSize === 'auto' || newConfiguration.insertSpaces === 'auto') {
 			// one of the options was set to 'auto' => detect indentation
@@ -376,13 +375,6 @@ export class MainThreadTextEditor {
 		}
 		if (typeof newConfiguration.tabSize !== 'undefined') {
 			newOpts.tabSize = newConfiguration.tabSize;
-		}
-		if (typeof newConfiguration.indentSize !== 'undefined') {
-			if (newConfiguration.indentSize === 'tabSize') {
-				newOpts.indentSize = newOpts.tabSize || creationOpts.tabSize;
-			} else {
-				newOpts.indentSize = newConfiguration.indentSize;
-			}
 		}
 		this._model.updateOptions(newOpts);
 	}
@@ -423,7 +415,7 @@ export class MainThreadTextEditor {
 		if (!this._codeEditor) {
 			return;
 		}
-		this._codeEditor.setDecorations(key, ranges);
+		this._codeEditor.setDecorationsByType('exthost-api', key, ranges);
 	}
 
 	public setDecorationsFast(key: string, _ranges: number[]): void {
@@ -434,7 +426,7 @@ export class MainThreadTextEditor {
 		for (let i = 0, len = Math.floor(_ranges.length / 4); i < len; i++) {
 			ranges[i] = new Range(_ranges[4 * i], _ranges[4 * i + 1], _ranges[4 * i + 2], _ranges[4 * i + 3]);
 		}
-		this._codeEditor.setDecorationsFast(key, ranges);
+		this._codeEditor.setDecorationsByTypeFast(key, ranges);
 	}
 
 	public revealRange(range: IRange, revealType: TextEditorRevealType): void {
@@ -490,7 +482,7 @@ export class MainThreadTextEditor {
 			this._model.pushEOL(opts.setEndOfLine);
 		}
 
-		const transformedEdits = edits.map((edit): IIdentifiedSingleEditOperation => {
+		const transformedEdits = edits.map((edit): ISingleEditOperation => {
 			return {
 				range: Range.lift(edit.range),
 				text: edit.text,
@@ -508,7 +500,7 @@ export class MainThreadTextEditor {
 		return true;
 	}
 
-	async insertSnippet(template: string, ranges: readonly IRange[], opts: IUndoStopOptions) {
+	async insertSnippet(modelVersionId: number, template: string, ranges: readonly IRange[], opts: IUndoStopOptions) {
 
 		if (!this._codeEditor || !this._codeEditor.hasModel()) {
 			return false;
@@ -525,9 +517,17 @@ export class MainThreadTextEditor {
 			}
 		}
 
-		const snippetController = SnippetController2.get(this._codeEditor);
+		if (this._codeEditor.getModel().getVersionId() !== modelVersionId) {
+			// ignored because emmet tests fail...
+			// return false;
+		}
 
-		// // cancel previous snippet mode
+		const snippetController = SnippetController2.get(this._codeEditor);
+		if (!snippetController) {
+			return false;
+		}
+
+		// cancel previous snippet mode
 		// snippetController.leaveSnippet();
 
 		// set selection, focus editor

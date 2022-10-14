@@ -10,6 +10,7 @@
 		"statusBar.background": "#700000",
 		"statusBar.noFolderBackground": "#700000",
 		"statusBarItem.remoteBackground": "#c33",
+		"ports.iconRunningProcessForeground": "#DB7E58",
 		"editorGroupHeader.tabsBackground": "#330000",
 		"titleBar.activeBackground": "#770000",
 		"titleBar.inactiveBackground": "#772222",
@@ -49,7 +50,7 @@
 		"list.activeSelectionBackground": "#880000",
 		"list.inactiveSelectionBackground": "#770000",
 		"list.dropBackground": "#662222",
-		"list.focusBackground": "#660000",
+		"quickInputList.focusBackground": "#660000",
 		"list.highlightForeground": "#ff4444",
 		"pickerGroup.foreground": "#cc9999",
 		"pickerGroup.border": "#ff000033",
@@ -68,7 +69,8 @@
 		{
 			"scope": [
 				"meta.embedded",
-				"source.groovy.embedded"
+				"source.groovy.embedded",
+				"string meta.image.inline.markdown"
 			],
 			"settings": {
 				"foreground": "#F8F8F8"
@@ -363,6 +365,12 @@
 			"scope": "markup.italic",
 			"settings": {
 				"fontStyle": "italic"
+			}
+		},
+		{
+			"scope": "markup.strikethrough",
+			"settings": {
+				"fontStyle": "strikethrough"
 			}
 		},
 		{

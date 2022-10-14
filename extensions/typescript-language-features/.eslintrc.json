@@ -1,0 +1,5 @@
+{
+	"rules": {
+		"@typescript-eslint/prefer-optional-chain": "warn"
+	}
+}

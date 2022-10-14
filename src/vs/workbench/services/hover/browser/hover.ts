@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 export const IHoverService = createDecorator<IHoverService>('hoverService');
 
@@ -30,20 +30,25 @@ export interface IHoverService {
 	 * });
 	 * ```
 	 */
-	showHover(options: IHoverOptions, focus?: boolean): IDisposable | undefined;
+	showHover(options: IHoverOptions, focus?: boolean): IHoverWidget | undefined;
 
 	/**
-	 * Hides the hover if it was visible.
+	 * Hides the hover if it was visible. This call will be ignored if the the hover is currently
+	 * "locked" via the alt/option key.
 	 */
 	hideHover(): void;
 }
 
+export interface IHoverWidget extends IDisposable {
+	readonly isDisposed: boolean;
+}
+
 export interface IHoverOptions {
 	/**
-	 * The text to display in the primary section of the hover. The type of text determines the
+	 * The content to display in the primary section of the hover. The type of text determines the
 	 * default `hideOnHover` behavior.
 	 */
-	text: IMarkdownString | string;
+	content: IMarkdownString | string | HTMLElement;
 
 	/**
 	 * The target for the hover. This determines the position of the hover and it will only be
@@ -64,7 +69,7 @@ export interface IHoverOptions {
 	additionalClasses?: string[];
 
 	/**
-	 * An optional  link handler for markdown links, if this is not provided the IOpenerService will
+	 * An optional link handler for markdown links, if this is not provided the IOpenerService will
 	 * be used to open the links using its default options.
 	 */
 	linkHandler?(url: string): void;
@@ -82,10 +87,38 @@ export interface IHoverOptions {
 	hideOnHover?: boolean;
 
 	/**
-	 * Whether to anchor the hover above (default) or below the target. This option will be ignored
-	 * if there is not enough room to layout the hover in the specified anchor position.
+	 * Whether to hide the hover when a key is pressed.
 	 */
-	anchorPosition?: AnchorPosition;
+	hideOnKeyDown?: boolean;
+
+	/**
+	 * Position of the hover. The default is to show above the target. This option will be ignored
+	 * if there is not enough room to layout the hover in the specified position, unless the
+	 * forcePosition option is set.
+	 */
+	hoverPosition?: HoverPosition;
+
+	/**
+	 * Force the hover position, reducing the size of the hover instead of adjusting the hover
+	 * position.
+	 */
+	forcePosition?: boolean;
+
+	/**
+	 * Whether to show the hover pointer
+	 */
+	showPointer?: boolean;
+
+	/**
+	 * Whether to show a compact hover
+	 */
+	compact?: boolean;
+
+	/**
+	 * Whether to skip the fade in animation, this should be used when hovering from one hover to
+	 * another in the same group so it looks like the hover is moving from one element to the other.
+	 */
+	skipFadeInAnimation?: boolean;
 }
 
 export interface IHoverAction {
@@ -128,4 +161,10 @@ export interface IHoverTarget extends IDisposable {
 	 * hover using `MouseEvent.pageX`.
 	 */
 	x?: number;
+
+	/**
+	 * An optional absolute y coordinate to position the hover with, for example to position the
+	 * hover using `MouseEvent.pageY`.
+	 */
+	y?: number;
 }

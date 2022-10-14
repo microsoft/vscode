@@ -30,7 +30,7 @@ export class TextFileSaveParticipant extends Disposable {
 		return toDisposable(() => remove());
 	}
 
-	participate(model: ITextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
+	participate(model: ITextFileEditorModel, context: { reason: SaveReason }, token: CancellationToken): Promise<void> {
 		const cts = new CancellationTokenSource(token);
 
 		return this.progressService.withProgress({
@@ -64,7 +64,7 @@ export class TextFileSaveParticipant extends Disposable {
 		});
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.saveParticipants.splice(0, this.saveParticipants.length);
 	}
 }

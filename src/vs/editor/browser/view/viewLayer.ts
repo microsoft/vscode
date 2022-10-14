@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
+import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
@@ -20,7 +20,7 @@ export interface IVisibleLine extends ILine {
 	 * Return null if the HTML should not be touched.
 	 * Return the new HTML otherwise.
 	 */
-	renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: IStringBuilder): boolean;
+	renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: StringBuilder): boolean;
 
 	/**
 	 * Layout the line.
@@ -52,7 +52,7 @@ export class RenderedLinesCollection<T extends ILine> {
 		this._rendLineNumberStart = rendLineNumberStart;
 	}
 
-	_get(): { rendLineNumberStart: number; lines: T[]; } {
+	_get(): { rendLineNumberStart: number; lines: T[] } {
 		return {
 			rendLineNumberStart: this._rendLineNumberStart,
 			lines: this._lines
@@ -146,7 +146,8 @@ export class RenderedLinesCollection<T extends ILine> {
 		return deleted;
 	}
 
-	public onLinesChanged(changeFromLineNumber: number, changeToLineNumber: number): boolean {
+	public onLinesChanged(changeFromLineNumber: number, changeCount: number): boolean {
+		const changeToLineNumber = changeFromLineNumber + changeCount - 1;
 		if (this.getCount() === 0) {
 			// no lines
 			return false;
@@ -210,7 +211,7 @@ export class RenderedLinesCollection<T extends ILine> {
 		return deletedLines;
 	}
 
-	public onTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number; }[]): boolean {
+	public onTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number }[]): boolean {
 		if (this.getCount() === 0) {
 			// no lines
 			return false;
@@ -283,7 +284,7 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 	}
 
 	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return this._linesCollection.onLinesChanged(e.fromLineNumber, e.toLineNumber);
+		return this._linesCollection.onLinesChanged(e.fromLineNumber, e.count);
 	}
 
 	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
@@ -506,15 +507,15 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		ctx.lines.splice(removeIndex, removeCount);
 	}
 
-	private _finishRenderingNewLines(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, newLinesHTML: string, wasNew: boolean[]): void {
+	private _finishRenderingNewLines(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, newLinesHTML: string | TrustedHTML, wasNew: boolean[]): void {
 		if (ViewLayerRenderer._ttPolicy) {
-			newLinesHTML = ViewLayerRenderer._ttPolicy.createHTML(newLinesHTML) as unknown as string; // explains the ugly casts -> https://github.com/microsoft/vscode/issues/106396#issuecomment-692625393
+			newLinesHTML = ViewLayerRenderer._ttPolicy.createHTML(newLinesHTML as string);
 		}
 		const lastChild = <HTMLElement>this.domNode.lastChild;
 		if (domNodeIsEmpty || !lastChild) {
-			this.domNode.innerHTML = newLinesHTML;
+			this.domNode.innerHTML = newLinesHTML as string; // explains the ugly casts -> https://github.com/microsoft/vscode/issues/106396#issuecomment-692625393;
 		} else {
-			lastChild.insertAdjacentHTML('afterend', newLinesHTML);
+			lastChild.insertAdjacentHTML('afterend', newLinesHTML as string);
 		}
 
 		let currChild = <HTMLElement>this.domNode.lastChild;
@@ -527,13 +528,13 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		}
 	}
 
-	private _finishRenderingInvalidLines(ctx: IRendererContext<T>, invalidLinesHTML: string, wasInvalid: boolean[]): void {
+	private _finishRenderingInvalidLines(ctx: IRendererContext<T>, invalidLinesHTML: string | TrustedHTML, wasInvalid: boolean[]): void {
 		const hugeDomNode = document.createElement('div');
 
 		if (ViewLayerRenderer._ttPolicy) {
-			invalidLinesHTML = ViewLayerRenderer._ttPolicy.createHTML(invalidLinesHTML) as unknown as string;
+			invalidLinesHTML = ViewLayerRenderer._ttPolicy.createHTML(invalidLinesHTML as string);
 		}
-		hugeDomNode.innerHTML = invalidLinesHTML;
+		hugeDomNode.innerHTML = invalidLinesHTML as string;
 
 		for (let i = 0; i < ctx.linesLength; i++) {
 			const line = ctx.lines[i];
@@ -546,7 +547,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		}
 	}
 
-	private static readonly _sb = createStringBuilder(100000);
+	private static readonly _sb = new StringBuilder(100000);
 
 	private _finishRendering(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, deltaTop: number[]): void {
 

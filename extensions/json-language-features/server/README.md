@@ -62,6 +62,8 @@ The server supports the following settings:
 - json
   - `format`
     - `enable`: Whether the server should register the formatting support. This option is only applicable if the client supports *dynamicRegistration* for *rangeFormatting* and `initializationOptions.provideFormatter` is not defined.
+  - `validate`
+    - `enable`: Whether the server should validate. Defaults to `true` if not set.
   - `schemas`: Configures association of file names to schema URL or schemas and/or associations of schema URL to schema content.
     - `fileMatch`: an array of file names or paths (separated by `/`). `*` can be used as a wildcard. Exclusion patterns can also be defined and start with '!'. A file matches when there is at least one matching pattern and the last matching pattern is not an exclusion pattern.
     - `url`: The URL of the schema, optional when also a schema is provided.
@@ -167,7 +169,6 @@ interface ISchemaAssociation {
    * A match succeeds when there is at least one pattern matching and last matching pattern does not start with '!'.
    */
   fileMatch: string[];
-  
   /*
    * The schema for the given URI.
    * If no schema is provided, the schema will be fetched with the schema request service (if available).
@@ -187,12 +188,6 @@ Notification:
 ### Item Limit
 
 If the setting `resultLimit` is set, the JSON language server will limit the number of folding ranges and document symbols computed.
-When the limit is reached, a notification `json/resultLimitReached` is sent that can be shown that can be shown to the user.
-
-Notification:
-- method: 'json/resultLimitReached'
-- params: a human readable string to show to the user.
-
 
 ## Try
 
@@ -203,16 +198,16 @@ The JSON language server is shipped with [Visual Studio Code](https://code.visua
 If you plan to integrate the JSON language server into an editor and IDE, check out [this page](https://microsoft.github.io/language-server-protocol/implementors/tools/) if there's already an LSP client integration available.
 
 You can also launch the language server as a command and connect to it.
-For that, install the `json-language-server` npm module:
+For that, install the `vscode-json-languageserver` npm module:
 
-`npm install -g json-language-server`
+`npm install -g vscode-json-languageserver`
 
-Start the language server with the `json-language-server` command. Use a command line argument to specify the preferred communication channel:
+Start the language server with the `vscode-json-languageserver` command. Use a command line argument to specify the preferred communication channel:
 
 ```
-json-language-server --node-ipc
-json-language-server --stdio
-json-language-server --socket=<port>
+vscode-json-languageserver --node-ipc
+vscode-json-languageserver --stdio
+vscode-json-languageserver --socket=<port>
 ```
 
 To connect to the server from NodeJS, see Remy Suen's great write-up on [how to communicate with the server](https://github.com/rcjsuen/dockerfile-language-server-nodejs#communicating-with-the-server) through the available communication channels.

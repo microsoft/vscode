@@ -19,7 +19,7 @@
 }
 
 .scm-view .monaco-tl-contents > div {
-	margin-right: 12px;
+	padding-right: 12px;
 	overflow: hidden;
 }
 
@@ -67,6 +67,10 @@
 	justify-content: flex-end;
 }
 
+.scm-view .monaco-editor .selected-text {
+	border-radius: 0;
+}
+
 /**
  * The following rules are very specific because of inline drop down menus
  * https://github.com/microsoft/vscode/issues/101410
@@ -83,16 +87,11 @@
 	display: flex;
 	align-items: center;
 	overflow: hidden;
-	min-width: 16px; /* for flex */
-	height: 100%;
-	margin: 0;
-	background-repeat: no-repeat;
-	background-position: center;
 }
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label > .codicon {
 	font-size: 12px;
-	margin-right: 2px;
+	justify-content: center;
 }
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:last-of-type {
@@ -134,11 +133,7 @@
 }
 
 .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after {
-	padding-right: 3px;
-}
-
-.scm-view .monaco-list-row .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name {
-	text-decoration: line-through;
+	margin-right: 3px;
 }
 
 .scm-view .monaco-list-row .resource > .decoration-icon {
@@ -149,6 +144,11 @@
 	margin-right: 8px;
 }
 
+.scm-view .monaco-list-row .resource > .decoration-icon.codicon {
+	margin-right: 0;
+	margin-top: 3px;
+}
+
 .scm-view .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
 	flex-grow: 100;
 }
@@ -157,6 +157,7 @@
 .scm-view .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
 	display: none;
 	max-width: fit-content;
+	max-width: -moz-fit-content;
 }
 
 .scm-view .monaco-list .monaco-list-row:hover .resource-group > .actions,
@@ -169,28 +170,43 @@
 	display: block;
 }
 
+.scm-view .monaco-list .monaco-list-row.force-no-hover,
+.scm-view .monaco-list .monaco-list-row:hover.force-no-hover,
+.scm-view .monaco-list .monaco-list-row.focused.force-no-hover,
+.scm-view .monaco-list .monaco-list-row.selected.force-no-hover {
+	background: transparent !important;
+}
+
+.scm-view .monaco-list .monaco-list-row.cursor-default {
+	cursor: default;
+}
+
 .scm-view.show-actions .scm-provider > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .resource-group > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
 	display: block;
 }
 
-.scm-view .monaco-list-row .resource > .name > .monaco-icon-label > .actions .action-label,
-.scm-view .monaco-list-row .resource-group > .actions .action-label {
-	width: 16px;
-	height: 100%;
-	color: inherit;
-	background-position: 50% 50%;
-	background-repeat: no-repeat;
-}
-
-.scm-view .monaco-list-row .resource > .name > .monaco-icon-label > .actions .action-label.codicon {
-	line-height: 22px;
+.scm-view .monaco-list-row .actions .action-label {
+	padding: 2px;
 }
 
 .scm-view .scm-input {
 	height: 100%;
-	margin-left: 9px;
+	padding-left: 11px;
+	border-radius: 2px;
+}
+
+.scm-view .scm-input .margin {
+	width: 6px !important;
+}
+
+.scm-input .monaco-scrollable-element {
+	left: 6px !important;
+}
+
+.scm-view .scm-editor-container .monaco-editor {
+	border-radius: 2px !important;
 }
 
 .scm-view .scm-editor {
@@ -202,6 +218,77 @@
 	justify-content: center;
 }
 
+.scm-view .button-container {
+	display: flex;
+	height: 100%;
+	padding-left: 11px;
+	align-items: center;
+}
+
+.scm-view .button-container .monaco-description-button {
+	flex-direction: row;
+	flex-wrap: wrap;
+	padding: 0 4px;
+	overflow: hidden;
+}
+
+.scm-view .button-container .monaco-description-button > .monaco-button-label {
+	flex-grow: 1;
+	width: 0;
+	overflow: hidden;
+}
+
+.scm-view .button-container .monaco-description-button > .monaco-button-description {
+	flex-basis: 100%;
+}
+
+.scm-view .button-container .monaco-description-button > .monaco-button-label,
+.scm-view .button-container .monaco-description-button > .monaco-button-description {
+	font-weight: normal;
+	font-style: inherit;
+	padding: 4px 0;
+}
+
+.scm-view .button-container .codicon.codicon-cloud-upload,
+.scm-view .button-container .codicon.codicon-sync {
+	line-height: 22px;
+	margin: 0 0.4em 0 0;
+}
+
+.scm-view .button-container .codicon.codicon-arrow-up,
+.scm-view .button-container .codicon.codicon-arrow-down {
+	line-height: 22px;
+	font-size: small !important;
+	margin: 0 0.2em 0 0;
+}
+
+.scm-view .button-container > .monaco-button-dropdown {
+	flex-grow: 1;
+	overflow: hidden;
+}
+
+.scm-view .button-container > .monaco-button-dropdown > .monaco-dropdown-button {
+	display:flex;
+	align-items: center;
+	padding: 0 4px;
+}
+
+/* split commit button */
+.scm-view .button-container > .monaco-button-dropdown > .monaco-dropdown-button.codicon-drop-down-button {
+	border-radius: 0 2px 2px 0;
+}
+
+.scm-view .button-container > .monaco-button-dropdown > .monaco-button.monaco-text-button {
+	border-radius: 2px 0 0 2px;
+	min-width: 0;
+}
+
+.scm-view .button-container > .monaco-button-dropdown > .monaco-button.monaco-text-button > span:not(.codicon) {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .scm-view .scm-editor.hidden {
 	display: none;
 }
@@ -211,6 +298,16 @@
 	box-sizing: border-box;
 	padding: 1px;
 	outline-offset: -1px;
+	border-radius: 2px;
+}
+
+.scm-editor-validation-container {
+	display: flex;
+	box-sizing: border-box;
+	border-width: 1px;
+	border-style: solid;
+	border-top: none;
+	padding: 2px;
 }
 
 .scm-editor-validation {
@@ -218,16 +315,30 @@
 	font-size: 0.9em;
 	padding: 1px 3px;
 	display: block;
-	border-width: 1px;
-	border-style: solid;
-	border-top: none;
+	border-style: none;
+	flex: auto;
+}
+
+.scm-editor-validation p {
+	margin: 0;
+	padding: 0;
+}
+
+.scm-editor-validation a {
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.scm-editor-validation-actions {
+	align-self: start;
+	margin-top: 1px;
 }
 
 .scm-view .scm-editor-placeholder {
 	position: absolute;
 	pointer-events: none;
 	z-index: 1;
-	padding: 2px 4px 3px 4px;
+	padding: 2px 6px 3px 6px;
 	box-sizing: border-box;
 	width: 100%;
 	overflow: hidden;

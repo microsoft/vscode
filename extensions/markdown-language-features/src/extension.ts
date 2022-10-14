@@ -4,87 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { CommandManager } from './commandManager';
-import * as commands from './commands/index';
-import LinkProvider from './features/documentLinkProvider';
-import MDDocumentSymbolProvider from './features/documentSymbolProvider';
-import MarkdownFoldingProvider from './features/foldingProvider';
-import MarkdownSmartSelect from './features/smartSelect';
-import { MarkdownContentProvider } from './features/previewContentProvider';
-import { MarkdownPreviewManager } from './features/previewManager';
-import MarkdownWorkspaceSymbolProvider from './features/workspaceSymbolProvider';
-import { Logger } from './logger';
-import { MarkdownEngine } from './markdownEngine';
+import { LanguageClient, ServerOptions, TransportKind } from 'vscode-languageclient/node';
+import { MdLanguageClient, startClient } from './client/client';
+import { activateShared } from './extension.shared';
+import { VsCodeOutputLogger } from './logging';
+import { IMdParser, MarkdownItEngine } from './markdownEngine';
 import { getMarkdownExtensionContributions } from './markdownExtensions';
-import { ContentSecurityPolicyArbiter, ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
 import { githubSlugifier } from './slugify';
-import { loadDefaultTelemetryReporter, TelemetryReporter } from './telemetryReporter';
 
-
-export function activate(context: vscode.ExtensionContext) {
-	const telemetryReporter = loadDefaultTelemetryReporter();
-	context.subscriptions.push(telemetryReporter);
-
+export async function activate(context: vscode.ExtensionContext) {
 	const contributions = getMarkdownExtensionContributions(context);
 	context.subscriptions.push(contributions);
 
-	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
-	const engine = new MarkdownEngine(contributions, githubSlugifier);
-	const logger = new Logger();
+	const logger = new VsCodeOutputLogger();
+	context.subscriptions.push(logger);
 
-	const contentProvider = new MarkdownContentProvider(engine, context, cspArbiter, contributions, logger);
-	const symbolProvider = new MDDocumentSymbolProvider(engine);
-	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions, engine);
-	context.subscriptions.push(previewManager);
+	const engine = new MarkdownItEngine(contributions, githubSlugifier, logger);
 
-	context.subscriptions.push(registerMarkdownLanguageFeatures(symbolProvider, engine));
-	context.subscriptions.push(registerMarkdownCommands(previewManager, telemetryReporter, cspArbiter, engine));
-
-	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
-		logger.updateConfiguration();
-		previewManager.updateConfiguration();
-	}));
+	const client = await startServer(context, engine);
+	context.subscriptions.push(client);
+	activateShared(context, client, engine, logger, contributions);
 }
 
-function registerMarkdownLanguageFeatures(
-	symbolProvider: MDDocumentSymbolProvider,
-	engine: MarkdownEngine
-): vscode.Disposable {
-	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
+function startServer(context: vscode.ExtensionContext, parser: IMdParser): Promise<MdLanguageClient> {
+	const clientMain = vscode.extensions.getExtension('vscode.markdown-language-features')?.packageJSON?.main || '';
 
-	const charPattern = '(\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark})';
+	const serverMain = `./server/${clientMain.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/main`;
+	const serverModule = context.asAbsolutePath(serverMain);
 
-	return vscode.Disposable.from(
-		vscode.languages.setLanguageConfiguration('markdown', {
-			wordPattern: new RegExp(`${charPattern}((${charPattern}|[_])?${charPattern})*`, 'ug'),
-		}),
-		vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
-		vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider()),
-		vscode.languages.registerFoldingRangeProvider(selector, new MarkdownFoldingProvider(engine)),
-		vscode.languages.registerSelectionRangeProvider(selector, new MarkdownSmartSelect(engine)),
-		vscode.languages.registerWorkspaceSymbolProvider(new MarkdownWorkspaceSymbolProvider(symbolProvider))
-	);
+	// The debug options for the server
+	const debugOptions = { execArgv: ['--nolazy', '--inspect=' + (7000 + Math.round(Math.random() * 999))] };
+
+	// If the extension is launch in debug mode the debug server options are use
+	// Otherwise the run options are used
+	const serverOptions: ServerOptions = {
+		run: { module: serverModule, transport: TransportKind.ipc },
+		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
+	};
+	return startClient((id, name, clientOptions) => {
+		return new LanguageClient(id, name, serverOptions, clientOptions);
+	}, parser);
 }
-
-function registerMarkdownCommands(
-	previewManager: MarkdownPreviewManager,
-	telemetryReporter: TelemetryReporter,
-	cspArbiter: ContentSecurityPolicyArbiter,
-	engine: MarkdownEngine
-): vscode.Disposable {
-	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, previewManager);
-
-	const commandManager = new CommandManager();
-	commandManager.register(new commands.ShowPreviewCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowPreviewToSideCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowLockedPreviewToSideCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowSourceCommand(previewManager));
-	commandManager.register(new commands.RefreshPreviewCommand(previewManager, engine));
-	commandManager.register(new commands.MoveCursorToPositionCommand());
-	commandManager.register(new commands.ShowPreviewSecuritySelectorCommand(previewSecuritySelector, previewManager));
-	commandManager.register(new commands.OpenDocumentLinkCommand(engine));
-	commandManager.register(new commands.ToggleLockCommand(previewManager));
-	commandManager.register(new commands.RenderDocument(engine));
-	return commandManager;
-}
-

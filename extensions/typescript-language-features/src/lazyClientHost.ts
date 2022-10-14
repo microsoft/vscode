@@ -5,12 +5,14 @@
 
 import * as vscode from 'vscode';
 import { CommandManager } from './commands/commandManager';
+import { IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { TsServerProcessFactory } from './tsServer/server';
 import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
-import { flatten } from './utils/arrays';
+import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
+import { ServiceConfigurationProvider } from './utils/configuration';
 import * as fileSchemes from './utils/fileSchemes';
 import { standardLanguageDescriptions } from './utils/languageDescription';
 import { lazy, Lazy } from './utils/lazy';
@@ -19,22 +21,25 @@ import { PluginManager } from './utils/plugins';
 
 export function createLazyClientHost(
 	context: vscode.ExtensionContext,
-	onCaseInsenitiveFileSystem: boolean,
+	onCaseInsensitiveFileSystem: boolean,
 	services: {
-		pluginManager: PluginManager,
-		commandManager: CommandManager,
-		logDirectoryProvider: ILogDirectoryProvider,
-		cancellerFactory: OngoingRequestCancellerFactory,
-		versionProvider: ITypeScriptVersionProvider,
-		processFactory: TsServerProcessFactory,
+		pluginManager: PluginManager;
+		commandManager: CommandManager;
+		logDirectoryProvider: ILogDirectoryProvider;
+		cancellerFactory: OngoingRequestCancellerFactory;
+		versionProvider: ITypeScriptVersionProvider;
+		processFactory: TsServerProcessFactory;
+		activeJsTsEditorTracker: ActiveJsTsEditorTracker;
+		serviceConfigurationProvider: ServiceConfigurationProvider;
+		experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	},
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {
 	return lazy(() => {
 		const clientHost = new TypeScriptServiceClientHost(
 			standardLanguageDescriptions,
-			context.workspaceState,
-			onCaseInsenitiveFileSystem,
+			context,
+			onCaseInsensitiveFileSystem,
 			services,
 			onCompletionAccepted);
 
@@ -47,13 +52,14 @@ export function createLazyClientHost(
 export function lazilyActivateClient(
 	lazyClientHost: Lazy<TypeScriptServiceClientHost>,
 	pluginManager: PluginManager,
+	activeJsTsEditorTracker: ActiveJsTsEditorTracker,
 ): vscode.Disposable {
 	const disposables: vscode.Disposable[] = [];
 
-	const supportedLanguage = flatten([
-		...standardLanguageDescriptions.map(x => x.modeIds),
+	const supportedLanguage = [
+		...standardLanguageDescriptions.map(x => x.languageIds),
 		...pluginManager.plugins.map(x => x.languages)
-	]);
+	].flat();
 
 	let hasActivated = false;
 	const maybeActivate = (textDocument: vscode.TextDocument): boolean => {
@@ -62,7 +68,7 @@ export function lazilyActivateClient(
 			// Force activation
 			void lazyClientHost.value;
 
-			disposables.push(new ManagedFileContextManager(resource => {
+			disposables.push(new ManagedFileContextManager(activeJsTsEditorTracker, resource => {
 				return lazyClientHost.value.serviceClient.toPath(resource);
 			}));
 			return true;

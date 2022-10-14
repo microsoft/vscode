@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ITypeScriptServiceClient, ClientCapability } from '../typescriptService';
+import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from './api';
 import { Disposable } from './dispose';
 
@@ -54,14 +54,10 @@ class ConditionalRegistration {
 	private update() {
 		const enabled = this.conditions.every(condition => condition.value);
 		if (enabled) {
-			if (!this.registration) {
-				this.registration = this.doRegister();
-			}
+			this.registration ??= this.doRegister();
 		} else {
-			if (this.registration) {
-				this.registration.dispose();
-				this.registration = undefined;
-			}
+			this.registration?.dispose();
+			this.registration = undefined;
 		}
 	}
 }
@@ -83,13 +79,13 @@ export function requireMinVersion(
 	);
 }
 
-export function requireConfiguration(
-	language: string,
+export function requireGlobalConfiguration(
+	section: string,
 	configValue: string,
 ) {
 	return new Condition(
 		() => {
-			const config = vscode.workspace.getConfiguration(language, null);
+			const config = vscode.workspace.getConfiguration(section, null);
 			return !!config.get<boolean>(configValue);
 		},
 		vscode.workspace.onDidChangeConfiguration

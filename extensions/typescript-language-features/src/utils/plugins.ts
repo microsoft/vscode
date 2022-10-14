@@ -8,16 +8,17 @@ import * as arrays from './arrays';
 import { Disposable } from './dispose';
 
 export interface TypeScriptServerPlugin {
-	readonly path: string;
+	readonly extension: vscode.Extension<unknown>;
+	readonly uri: vscode.Uri;
 	readonly name: string;
 	readonly enableForWorkspaceTypeScriptVersions: boolean;
 	readonly languages: ReadonlyArray<string>;
-	readonly configNamespace?: string
+	readonly configNamespace?: string;
 }
 
 namespace TypeScriptServerPlugin {
 	export function equals(a: TypeScriptServerPlugin, b: TypeScriptServerPlugin): boolean {
-		return a.path === b.path
+		return a.uri.toString() === b.uri.toString()
 			&& a.name === b.name
 			&& a.enableForWorkspaceTypeScriptVersions === b.enableForWorkspaceTypeScriptVersions
 			&& arrays.equals(a.languages, b.languages);
@@ -27,7 +28,7 @@ namespace TypeScriptServerPlugin {
 export class PluginManager extends Disposable {
 	private readonly _pluginConfigurations = new Map<string, {}>();
 
-	private _plugins: Map<string, ReadonlyArray<TypeScriptServerPlugin>> | undefined;
+	private _plugins?: Map<string, ReadonlyArray<TypeScriptServerPlugin>>;
 
 	constructor() {
 		super();
@@ -36,8 +37,9 @@ export class PluginManager extends Disposable {
 			if (!this._plugins) {
 				return;
 			}
+
 			const newPlugins = this.readPlugins();
-			if (!arrays.equals(arrays.flatten(Array.from(this._plugins.values())), arrays.flatten(Array.from(newPlugins.values())), TypeScriptServerPlugin.equals)) {
+			if (!arrays.equals(Array.from(this._plugins.values()).flat(), Array.from(newPlugins.values()).flat(), TypeScriptServerPlugin.equals)) {
 				this._plugins = newPlugins;
 				this._onDidUpdatePlugins.fire(this);
 			}
@@ -45,16 +47,14 @@ export class PluginManager extends Disposable {
 	}
 
 	public get plugins(): ReadonlyArray<TypeScriptServerPlugin> {
-		if (!this._plugins) {
-			this._plugins = this.readPlugins();
-		}
-		return arrays.flatten(Array.from(this._plugins.values()));
+		this._plugins ??= this.readPlugins();
+		return Array.from(this._plugins.values()).flat();
 	}
 
 	private readonly _onDidUpdatePlugins = this._register(new vscode.EventEmitter<this>());
 	public readonly onDidChangePlugins = this._onDidUpdatePlugins.event;
 
-	private readonly _onDidUpdateConfig = this._register(new vscode.EventEmitter<{ pluginId: string, config: {} }>());
+	private readonly _onDidUpdateConfig = this._register(new vscode.EventEmitter<{ pluginId: string; config: {} }>());
 	public readonly onDidUpdateConfig = this._onDidUpdateConfig.event;
 
 	public setConfiguration(pluginId: string, config: {}) {
@@ -74,9 +74,10 @@ export class PluginManager extends Disposable {
 				const plugins: TypeScriptServerPlugin[] = [];
 				for (const plugin of pack.contributes.typescriptServerPlugins) {
 					plugins.push({
+						extension,
 						name: plugin.name,
 						enableForWorkspaceTypeScriptVersions: !!plugin.enableForWorkspaceTypeScriptVersions,
-						path: extension.extensionPath,
+						uri: extension.extensionUri,
 						languages: Array.isArray(plugin.languages) ? plugin.languages : [],
 						configNamespace: plugin.configNamespace,
 					});

@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as Formatter from 'vs/base/common/jsonFormatter';
 import * as assert from 'assert';
+import * as Formatter from 'vs/base/common/jsonFormatter';
 
 suite('JSON - formatter', () => {
 
@@ -20,7 +20,7 @@ suite('JSON - formatter', () => {
 
 		let lastEditOffset = content.length;
 		for (let i = edits.length - 1; i >= 0; i--) {
-			let edit = edits[i];
+			const edit = edits[i];
 			assert(edit.offset >= 0 && edit.length >= 0 && edit.offset + edit.length <= content.length);
 			assert(typeof edit.content === 'string');
 			assert(lastEditOffset >= edit.offset + edit.length); // make sure all edits are ordered
@@ -28,7 +28,7 @@ suite('JSON - formatter', () => {
 			content = content.substring(0, edit.offset) + edit.content + content.substring(edit.offset + edit.length);
 		}
 
-		assert.equal(content, expected);
+		assert.strictEqual(content, expected);
 	}
 
 	test('object - single property', () => {
@@ -437,5 +437,34 @@ suite('JSON - formatter', () => {
 		].join('\n');
 
 		format(content, expected);
+	});
+
+	test('toFormattedString', () => {
+		const obj = {
+			a: { b: 1, d: ['hello'] }
+		};
+
+
+		const getExpected = (tab: string, eol: string) => {
+			return [
+				`{`,
+				`${tab}"a": {`,
+				`${tab}${tab}"b": 1,`,
+				`${tab}${tab}"d": [`,
+				`${tab}${tab}${tab}"hello"`,
+				`${tab}${tab}]`,
+				`${tab}}`,
+				'}'
+			].join(eol);
+		};
+
+		let actual = Formatter.toFormattedString(obj, { insertSpaces: true, tabSize: 2, eol: '\n' });
+		assert.strictEqual(actual, getExpected('  ', '\n'));
+
+		actual = Formatter.toFormattedString(obj, { insertSpaces: true, tabSize: 2, eol: '\r\n' });
+		assert.strictEqual(actual, getExpected('  ', '\r\n'));
+
+		actual = Formatter.toFormattedString(obj, { insertSpaces: false, eol: '\r\n' });
+		assert.strictEqual(actual, getExpected('\t', '\r\n'));
 	});
 });

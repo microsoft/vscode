@@ -3,21 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as https from 'https';
 import * as http from 'http';
-import * as streams from 'vs/base/common/stream';
-import { createGunzip } from 'zlib';
+import * as https from 'https';
 import { parse as parseUrl } from 'url';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isBoolean, isNumber } from 'vs/base/common/types';
-import { canceled } from 'vs/base/common/errors';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRequestService, IHTTPConfiguration } from 'vs/platform/request/common/request';
-import { IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
-import { getProxyAgent, Agent } from 'vs/platform/request/node/proxy';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
+import { Promises } from 'vs/base/common/async';
 import { streamToBufferReadableStream } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationError } from 'vs/base/common/errors';
+import { Disposable } from 'vs/base/common/lifecycle';
+import * as streams from 'vs/base/common/stream';
+import { isBoolean, isNumber } from 'vs/base/common/types';
+import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IHTTPConfiguration, IRequestService } from 'vs/platform/request/common/request';
+import { Agent, getProxyAgent } from 'vs/platform/request/node/proxy';
+import { createGunzip } from 'zlib';
 
 export interface IRawRequestFunction {
 	(options: http.RequestOptions, callback?: (res: http.IncomingMessage) => void): http.ClientRequest;
@@ -40,9 +43,11 @@ export class RequestService extends Disposable implements IRequestService {
 	private proxyUrl?: string;
 	private strictSSL: boolean | undefined;
 	private authorization?: string;
+	private shellEnvErrorLogged?: boolean;
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
+		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -57,10 +62,25 @@ export class RequestService extends Disposable implements IRequestService {
 	}
 
 	async request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		this.logService.trace('RequestService#request', options.url);
+		this.logService.trace('RequestService#request (node) - begin', options.url);
 
 		const { proxyUrl, strictSSL } = this;
-		const agent = options.agent ? options.agent : await getProxyAgent(options.url || '', { proxyUrl, strictSSL });
+
+		let shellEnv: typeof process.env | undefined = undefined;
+		try {
+			shellEnv = await getResolvedShellEnv(this.logService, this.environmentService.args, process.env);
+		} catch (error) {
+			if (!this.shellEnvErrorLogged) {
+				this.shellEnvErrorLogged = true;
+				this.logService.error('RequestService#request (node) resolving shell environment failed', error);
+			}
+		}
+
+		const env = {
+			...process.env,
+			...shellEnv
+		};
+		const agent = options.agent ? options.agent : await getProxyAgent(options.url || '', env, { proxyUrl, strictSSL });
 
 		options.agent = agent;
 		options.strictSSL = strictSSL;
@@ -72,7 +92,17 @@ export class RequestService extends Disposable implements IRequestService {
 			};
 		}
 
-		return this._request(options, token);
+		try {
+			const res = await this._request(options, token);
+
+			this.logService.trace('RequestService#request (node) - success', options.url);
+
+			return res;
+		} catch (error) {
+			this.logService.trace('RequestService#request (node) - error', options.url, error);
+
+			throw error;
+		}
 	}
 
 	private async getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunction> {
@@ -83,8 +113,7 @@ export class RequestService extends Disposable implements IRequestService {
 
 	private _request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 
-		return new Promise<IRequestContext>(async (c, e) => {
-			let req: http.ClientRequest;
+		return Promises.withAsyncBody<IRequestContext>(async (c, e) => {
 
 			const endpoint = parseUrl(options.url!);
 			const rawRequest = options.getRawRequest
@@ -106,7 +135,7 @@ export class RequestService extends Disposable implements IRequestService {
 				opts.auth = options.user + ':' + options.password;
 			}
 
-			req = rawRequest(opts, (res: http.IncomingMessage) => {
+			const req = rawRequest(opts, (res: http.IncomingMessage) => {
 				const followRedirects: number = isNumber(options.followRedirects) ? options.followRedirects : 3;
 				if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
 					this._request({
@@ -141,7 +170,7 @@ export class RequestService extends Disposable implements IRequestService {
 
 			token.onCancellationRequested(() => {
 				req.abort();
-				e(canceled());
+				e(new CancellationError());
 			});
 		});
 	}

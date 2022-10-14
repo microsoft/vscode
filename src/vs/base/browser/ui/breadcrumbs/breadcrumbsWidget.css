@@ -6,7 +6,6 @@
 .monaco-breadcrumbs {
 	user-select: none;
 	-webkit-user-select: none;
-	-ms-user-select: none;
 	display: flex;
 	flex-direction: row;
 	flex-wrap: nowrap;
@@ -23,6 +22,9 @@
 	align-self: center;
 	height: 100%;
 	outline: none;
+}
+.monaco-breadcrumbs.disabled .monaco-breadcrumb-item {
+	cursor: default;
 }
 
 .monaco-breadcrumbs .monaco-breadcrumb-item .codicon-breadcrumb-separator {

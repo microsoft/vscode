@@ -20,8 +20,8 @@ import files from 'vs/workbench/services/textfile/test/browser/fixtures/files';
 import createSuite from 'vs/workbench/services/textfile/test/common/textFileService.io.test';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { TestWorkingCopyService } from 'vs/workbench/test/common/workbenchTestServices';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 // optimization: we don't need to run this suite in native environment,
 // because we have nativeTextFileService.io.test.ts for it,
@@ -36,7 +36,7 @@ if (isWeb) {
 
 		createSuite({
 			setup: async () => {
-				const instantiationService = workbenchInstantiationService();
+				const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 				const logService = new NullLogService();
 				const fileService = new FileService(logService);
@@ -48,16 +48,16 @@ if (isWeb) {
 				const collection = new ServiceCollection();
 				collection.set(IFileService, fileService);
 
-				collection.set(IWorkingCopyFileService, new WorkingCopyFileService(fileService, new TestWorkingCopyService(), instantiationService, new UriIdentityService(fileService)));
+				collection.set(IWorkingCopyFileService, new WorkingCopyFileService(fileService, new WorkingCopyService(), instantiationService, new UriIdentityService(fileService)));
 
 				service = instantiationService.createChild(collection).createInstance(TestBrowserTextFileServiceWithEncodingOverrides);
 
 				await fileProvider.mkdir(URI.file(testDir));
-				for (let fileName in files) {
+				for (const fileName in files) {
 					await fileProvider.writeFile(
 						URI.file(join(testDir, fileName)),
 						files[fileName],
-						{ create: true, overwrite: false }
+						{ create: true, overwrite: false, unlock: false }
 					);
 				}
 

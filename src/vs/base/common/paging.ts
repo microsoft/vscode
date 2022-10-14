@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isArray } from 'vs/base/common/types';
+import { range } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
-import { range } from 'vs/base/common/arrays';
 
 /**
  * A Pager is a stateless abstraction over a paged collection.
@@ -65,7 +64,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 	get length(): number { return this.pager.total; }
 
 	constructor(arg: IPager<T> | T[]) {
-		this.pager = isArray(arg) ? singlePagePager<T>(arg) : arg;
+		this.pager = Array.isArray(arg) ? singlePagePager<T>(arg) : arg;
 
 		const totalPages = Math.ceil(this.pager.total / this.pager.pageSize);
 
@@ -185,20 +184,5 @@ export function mapPager<T, R>(pager: IPager<T>, fn: (t: T) => R): IPager<R> {
 		total: pager.total,
 		pageSize: pager.pageSize,
 		getPage: (pageIndex, token) => pager.getPage(pageIndex, token).then(r => r.map(fn))
-	};
-}
-
-/**
- * Merges two pagers.
- */
-export function mergePagers<T>(one: IPager<T>, other: IPager<T>): IPager<T> {
-	return {
-		firstPage: [...one.firstPage, ...other.firstPage],
-		total: one.total + other.total,
-		pageSize: one.pageSize + other.pageSize,
-		getPage(pageIndex: number, token): Promise<T[]> {
-			return Promise.all([one.getPage(pageIndex, token), other.getPage(pageIndex, token)])
-				.then(([onePage, otherPage]) => [...onePage, ...otherPage]);
-		}
 	};
 }

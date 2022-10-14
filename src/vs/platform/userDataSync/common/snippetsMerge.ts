@@ -150,7 +150,7 @@ export function merge(local: IStringDictionary<string>, remote: IStringDictionar
 	};
 }
 
-function compare(from: IStringDictionary<string> | null, to: IStringDictionary<string> | null): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
+function compare(from: IStringDictionary<string> | null, to: IStringDictionary<string> | null): { added: Set<string>; removed: Set<string>; updated: Set<string> } {
 	const fromKeys = from ? Object.keys(from) : [];
 	const toKeys = to ? Object.keys(to) : [];
 	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());

@@ -8,7 +8,9 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
+import { IViewBadge } from 'vs/workbench/common/views';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
+import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 
 export class MainThreadWebviewsViews extends Disposable implements extHostProtocol.MainThreadWebviewViewsShape {
@@ -19,7 +21,7 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 	private readonly _webviewViewProviders = new Map<string, IDisposable>();
 
 	constructor(
-		context: extHostProtocol.IExtHostContext,
+		context: IExtHostContext,
 		private readonly mainThreadWebviews: MainThreadWebviews,
 		@IWebviewViewService private readonly _webviewViewService: IWebviewViewService,
 	) {
@@ -28,7 +30,7 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewViews);
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 
 		dispose(this._webviewViewProviders.values());
@@ -47,6 +49,11 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 		webviewView.description = value;
 	}
 
+	public $setWebviewViewBadge(handle: string, badge: IViewBadge | undefined): void {
+		const webviewView = this.getWebviewView(handle);
+		webviewView.badge = badge;
+	}
+
 	public $show(handle: extHostProtocol.WebviewHandle, preserveFocus: boolean): void {
 		const webviewView = this.getWebviewView(handle);
 		webviewView.show(preserveFocus);
@@ -55,7 +62,7 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 	public $registerWebviewViewProvider(
 		extensionData: extHostProtocol.WebviewExtensionDescription,
 		viewType: string,
-		options?: { retainContextWhenHidden?: boolean }
+		options: { retainContextWhenHidden?: boolean; serializeBuffersForPostMessage: boolean }
 	): void {
 		if (this._webviewViewProviders.has(viewType)) {
 			throw new Error(`View provider for ${viewType} already registered`);
@@ -68,7 +75,7 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 				const handle = webviewView.webview.id;
 
 				this._webviewViews.set(handle, webviewView);
-				this.mainThreadWebviews.addWebview(handle, webviewView.webview);
+				this.mainThreadWebviews.addWebview(handle, webviewView.webview, { serializeBuffersForPostMessage: options.serializeBuffersForPostMessage });
 
 				let state = undefined;
 				if (webviewView.webview.state) {

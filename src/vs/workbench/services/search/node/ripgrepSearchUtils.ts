@@ -46,9 +46,9 @@ export interface IOutputChannel {
 }
 
 export class OutputChannel implements IOutputChannel {
-	constructor(@ILogService private readonly logService: ILogService) { }
+	constructor(private prefix: string, @ILogService private readonly logService: ILogService) { }
 
 	appendLine(msg: string): void {
-		this.logService.debug('RipgrepSearchEH#search', msg);
+		this.logService.debug(`${this.prefix}#search`, msg);
 	}
 }

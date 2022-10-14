@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/scm';
 import { Emitter } from 'vs/base/common/event';
-import { IDisposable, Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
@@ -32,7 +32,6 @@ export class SCMTitleMenu implements IDisposable {
 	readonly onDidChangeTitle = this._onDidChangeTitle.event;
 
 	readonly menu: IMenu;
-	private listener: IDisposable = Disposable.None;
 	private disposables = new DisposableStore();
 
 	constructor(
@@ -49,15 +48,12 @@ export class SCMTitleMenu implements IDisposable {
 	private updateTitleActions(): void {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
-		const disposable = createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, { primary, secondary });
+		createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, { primary, secondary });
 
 		if (equals(primary, this._actions, actionEquals) && equals(secondary, this._secondaryActions, actionEquals)) {
-			disposable.dispose();
 			return;
 		}
 
-		this.listener.dispose();
-		this.listener = disposable;
 		this._actions = primary;
 		this._secondaryActions = secondary;
 
@@ -65,8 +61,7 @@ export class SCMTitleMenu implements IDisposable {
 	}
 
 	dispose(): void {
-		this.menu.dispose();
-		this.listener.dispose();
+		this.disposables.dispose();
 	}
 }
 
@@ -119,15 +114,12 @@ class SCMMenusItem implements IDisposable {
 		let item = this.contextualResourceMenus.get(resource.contextValue);
 
 		if (!item) {
-			const contextKeyService = this.contextKeyService.createScoped();
-			contextKeyService.createKey('scmResourceState', resource.contextValue);
-
+			const contextKeyService = this.contextKeyService.createOverlay([['scmResourceState', resource.contextValue]]);
 			const menu = this.menuService.createMenu(MenuId.SCMResourceContext, contextKeyService);
 
 			item = {
 				menu, dispose() {
 					menu.dispose();
-					contextKeyService.dispose();
 				}
 			};
 
@@ -138,7 +130,8 @@ class SCMMenusItem implements IDisposable {
 	}
 
 	dispose(): void {
-		this.resourceGroupMenu?.dispose();
+		this._resourceGroupMenu?.dispose();
+		this._resourceFolderMenu?.dispose();
 		this.genericResourceMenu?.dispose();
 
 		if (this.contextualResourceMenus) {
@@ -146,9 +139,6 @@ class SCMMenusItem implements IDisposable {
 			this.contextualResourceMenus.clear();
 			this.contextualResourceMenus = undefined;
 		}
-
-		this.resourceFolderMenu?.dispose();
-		this.contextKeyService.dispose();
 	}
 }
 
@@ -178,10 +168,11 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService private readonly menuService: IMenuService
 	) {
-		this.contextKeyService = contextKeyService.createScoped();
-		this.contextKeyService.createKey<string | undefined>('scmProvider', provider.contextValue);
-		this.contextKeyService.createKey<string | undefined>('scmProviderRootUri', provider.rootUri?.toString());
-		this.contextKeyService.createKey<boolean>('scmProviderHasRootUri', !!provider.rootUri);
+		this.contextKeyService = contextKeyService.createOverlay([
+			['scmProvider', provider.contextValue],
+			['scmProviderRootUri', provider.rootUri?.toString()],
+			['scmProviderHasRootUri', !!provider.rootUri],
+		]);
 
 		const serviceCollection = new ServiceCollection([IContextKeyService, this.contextKeyService]);
 		instantiationService = instantiationService.createChild(serviceCollection);
@@ -207,9 +198,9 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		let result = this.resourceGroupMenusItems.get(group);
 
 		if (!result) {
-			const contextKeyService = this.contextKeyService.createScoped();
-			contextKeyService.createKey('scmProvider', group.provider.contextValue);
-			contextKeyService.createKey('scmResourceGroup', group.id);
+			const contextKeyService = this.contextKeyService.createOverlay([
+				['scmResourceGroup', group.id],
+			]);
 
 			result = new SCMMenusItem(contextKeyService, this.menuService);
 			this.resourceGroupMenusItems.set(group, result);
@@ -238,7 +229,7 @@ export class SCMMenus implements ISCMMenus, IDisposable {
 
 	readonly titleMenu: SCMTitleMenu;
 	private readonly disposables = new DisposableStore();
-	private readonly menus = new Map<ISCMProvider, { menus: SCMRepositoryMenus, dispose: () => void }>();
+	private readonly menus = new Map<ISCMProvider, { menus: SCMRepositoryMenus; dispose: () => void }>();
 
 	constructor(
 		@ISCMService scmService: ISCMService,

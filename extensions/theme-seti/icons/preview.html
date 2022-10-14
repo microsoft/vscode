@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--- Preview the icons in the Seti icon font. Use a simple-server or the LiveServer extension to view -->
+<head>
+	<meta charset="UTF-8">
+	<title>seti font preview</title>
+	<style>
+		body {
+			font-family: sans-serif;
+			margin: 0;
+			padding: 10px 20px;
+		}
+
+		.preview {
+			line-height: 2em;
+		}
+
+		.preview_icon {
+			display: inline-block;
+			width: 32px;
+			text-align: center;
+		}
+
+		.icon {
+			display: inline-block;
+			font-size: 16px;
+			line-height: 1;
+		}
+
+		.icon:before {
+			font-family: seti !important;
+			font-style: normal;
+			font-weight: normal !important;
+			vertical-align: top;
+		}
+
+		.grid {
+			display: grid;
+			grid-template-columns: 0.7fr 0.7fr 1fr 0.7fr 0.7fr 1fr;
+		}
+
+		.vs {
+			background-color: #FFFFFF;
+			color: #000000;
+		}
+
+		.vs-dark {
+			background-color: #1E1E1E;
+			color: #D4D4D4;
+		}
+	</style>
+	<script>
+		function fetchThemeFile() {
+			return fetch('./vs-seti-icon-theme.json').then(res => res.json());
+		}
+		function generateColumn(label, style, associations, htmContent) {
+			htmContent.push('<div class=' + style + '>' + label);
+			const keys = Object.keys(associations).sort();
+			for (let association of keys) {
+				const id = associations[association];
+				htmContent.push('<div class="preview"><span class="preview_icon"><span class="icon icon' + id + '"></span></span><span>' + association + '</span></div>');
+			}
+			htmContent.push('</div>');
+		}
+		function generateIconsForScheme(label, set, style, htmContent) {
+			generateColumn('language IDs', style, set.languageIds, htmContent);
+			generateColumn('file extensions', style, set.fileExtensions, htmContent);
+			generateColumn('file names', style, set.fileNames, htmContent);
+		}
+
+		function generateContent(themeFile) {
+			let htmContent = [];
+			let cssContent = [];
+			const version = themeFile.version.substr(themeFile.version.lastIndexOf('/') + 1);
+			cssContent.push('@font-face {font-family: "seti"; src: url("./seti.woff?' + version + '") format("woff"); }');
+
+			let iconDefinitions = themeFile.iconDefinitions;
+			for (let id in iconDefinitions) {
+				let def = iconDefinitions[id];
+				cssContent.push('.icon' + id + ':before { content: "' + def.fontCharacter + '"; color: ' + def.fontColor + '}');
+			}
+			let style = document.createElement('style');
+			style.type = 'text/css';
+			style.media = 'screen';
+			style.innerHTML = cssContent.join('\n');
+			document.head.appendChild(style);
+
+			htmContent.push('<div class="grid">');
+			generateIconsForScheme('dark', themeFile, 'vs-dark', htmContent);
+			generateIconsForScheme('light', themeFile.light, 'vs', htmContent);
+			htmContent.push('</div>');
+
+			document.body.innerHTML += htmContent.join('\n');
+		}
+		window.addEventListener("load", function () {
+			fetchThemeFile().then(generateContent);
+		});
+	</script>
+</head>
+
+<body>
+</body>
+
+</html>

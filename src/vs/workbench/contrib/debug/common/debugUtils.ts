@@ -9,6 +9,8 @@ import { URI as uri } from 'vs/base/common/uri';
 import { isAbsolute } from 'vs/base/common/path';
 import { deepClone } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
@@ -41,7 +43,7 @@ export function filterExceptionsFromTelemetry<T extends { [key: string]: unknown
 
 
 export function isSessionAttach(session: IDebugSession): boolean {
-	return session.configuration.request === 'attach' && !getExtensionHostDebugSession(session);
+	return session.configuration.request === 'attach' && !getExtensionHostDebugSession(session) && (!session.parentSession || isSessionAttach(session.parentSession));
 }
 
 /**
@@ -70,19 +72,19 @@ export function isDebuggerMainContribution(dbg: IDebuggerContribution) {
 	return dbg.type && (dbg.label || dbg.program || dbg.runtime);
 }
 
-export function getExactExpressionStartAndEnd(lineContent: string, looseStart: number, looseEnd: number): { start: number, end: number } {
+export function getExactExpressionStartAndEnd(lineContent: string, looseStart: number, looseEnd: number): { start: number; end: number } {
 	let matchingExpression: string | undefined = undefined;
 	let startOffset = 0;
 
 	// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar
 	// Match any character except a set of characters which often break interesting sub-expressions
-	let expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
+	const expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
 	let result: RegExpExecArray | null = null;
 
 	// First find the full expression under the cursor
 	while (result = expression.exec(lineContent)) {
-		let start = result.index + 1;
-		let end = start + result[0].length;
+		const start = result.index + 1;
+		const end = start + result[0].length;
 
 		if (start <= looseStart && end >= looseEnd) {
 			matchingExpression = result[0];
@@ -94,10 +96,10 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 	// If there are non-word characters after the cursor, we want to truncate the expression then.
 	// For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
 	if (matchingExpression) {
-		let subExpression: RegExp = /\w+/g;
+		const subExpression: RegExp = /\w+/g;
 		let subExpressionResult: RegExpExecArray | null = null;
 		while (subExpressionResult = subExpression.exec(matchingExpression)) {
-			let subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
+			const subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
 			if (subEnd >= looseEnd) {
 				break;
 			}
@@ -196,7 +198,7 @@ export function convertToVSCPaths(message: DebugProtocol.ProtocolMessage, toUri:
 function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: boolean, source: PathContainer | undefined) => void): void {
 
 	switch (msg.type) {
-		case 'event':
+		case 'event': {
 			const event = <DebugProtocol.Event>msg;
 			switch (event.event) {
 				case 'output':
@@ -212,7 +214,8 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 					break;
 			}
 			break;
-		case 'request':
+		}
+		case 'request': {
 			const request = <DebugProtocol.Request>msg;
 			switch (request.command) {
 				case 'setBreakpoints':
@@ -234,7 +237,8 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 					break;
 			}
 			break;
-		case 'response':
+		}
+		case 'response': {
 			const response = <DebugProtocol.Response>msg;
 			if (response.success && response.body) {
 				switch (response.command) {
@@ -253,11 +257,18 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 					case 'setBreakpoints':
 						(<DebugProtocol.SetBreakpointsResponse>response).body.breakpoints.forEach(bp => fixSourcePath(false, bp.source));
 						break;
+					case 'disassemble':
+						{
+							const di = <DebugProtocol.DisassembleResponse>response;
+							di.body?.instructions.forEach(di => fixSourcePath(false, di.location));
+						}
+						break;
 					default:
 						break;
 				}
 			}
 			break;
+		}
 	}
 }
 
@@ -302,4 +313,19 @@ function compareOrders(first: number | undefined, second: number | undefined): n
 	}
 
 	return first - second;
+}
+
+export async function saveAllBeforeDebugStart(configurationService: IConfigurationService, editorService: IEditorService): Promise<void> {
+	const saveBeforeStartConfig: string = configurationService.getValue('debug.saveBeforeStart', { overrideIdentifier: editorService.activeTextEditorLanguageId });
+	if (saveBeforeStartConfig !== 'none') {
+		await editorService.saveAll();
+		if (saveBeforeStartConfig === 'allEditorsInActiveGroup') {
+			const activeEditor = editorService.activeEditorPane;
+			if (activeEditor && activeEditor.input.resource?.scheme === Schemas.untitled) {
+				// Make sure to save the active editor in case it is in untitled file it wont be saved as part of saveAll #111850
+				await editorService.save({ editor: activeEditor.input, groupId: activeEditor.group.id });
+			}
+		}
+	}
+	await configurationService.reloadConfiguration();
 }

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IHTMLDataProvider, newHTMLDataProvider } from 'vscode-html-languageservice';
-import { RequestService } from './requests';
+import { CustomDataRequestService } from './htmlServer';
 
-export function fetchHTMLDataProviders(dataPaths: string[], requestService: RequestService): Promise<IHTMLDataProvider[]> {
+export function fetchHTMLDataProviders(dataPaths: string[], requestService: CustomDataRequestService): Promise<IHTMLDataProvider[]> {
 	const providers = dataPaths.map(async p => {
 		try {
 			const content = await requestService.getContent(p);

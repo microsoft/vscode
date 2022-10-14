@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, ExtHostWindowShape, IExtHostContext, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtHostContext, ExtHostWindowShape, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
@@ -16,7 +16,6 @@ export class MainThreadWindow implements MainThreadWindowShape {
 
 	private readonly proxy: ExtHostWindowShape;
 	private readonly disposables = new DisposableStore();
-	private readonly resolved = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -31,11 +30,6 @@ export class MainThreadWindow implements MainThreadWindowShape {
 
 	dispose(): void {
 		this.disposables.dispose();
-
-		for (const value of this.resolved.values()) {
-			value.dispose();
-		}
-		this.resolved.clear();
 	}
 
 	$getWindowVisibility(): Promise<boolean> {
@@ -52,12 +46,15 @@ export class MainThreadWindow implements MainThreadWindowShape {
 			// called with URI or transformed -> use uri
 			target = uri;
 		}
-		return this.openerService.open(target, { openExternal: true, allowTunneling: options.allowTunneling });
+		return this.openerService.open(target, {
+			openExternal: true,
+			allowTunneling: options.allowTunneling,
+			allowContributedOpeners: options.allowContributedOpeners,
+		});
 	}
 
 	async $asExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<UriComponents> {
-		const uri = URI.revive(uriComponents);
-		const result = await this.openerService.resolveExternalUri(uri, options);
+		const result = await this.openerService.resolveExternalUri(URI.revive(uriComponents), options);
 		return result.resolved;
 	}
 }

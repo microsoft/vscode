@@ -6,9 +6,10 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { conditionalRegistration, requireConfiguration } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
+import { LanguageDescription } from '../utils/languageDescription';
 import * as typeConverters from '../utils/typeConverters';
+import FileConfigurationManager from './fileConfigurationManager';
 
 
 const localize = nls.loadMessageBundle();
@@ -20,7 +21,7 @@ class JsDocCompletionItem extends vscode.CompletionItem {
 		public readonly document: vscode.TextDocument,
 		public readonly position: vscode.Position
 	) {
-		super('/** */', vscode.CompletionItemKind.Snippet);
+		super('/** */', vscode.CompletionItemKind.Text);
 		this.detail = localize('typescript.jsDocCompletionItem.documentation', 'JSDoc comment');
 		this.sortText = '\0';
 
@@ -37,6 +38,8 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
+		private readonly language: LanguageDescription,
+		private readonly fileConfigurationManager: FileConfigurationManager,
 	) { }
 
 	public async provideCompletionItems(
@@ -44,6 +47,10 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.CompletionItem[] | undefined> {
+		if (!vscode.workspace.getConfiguration(this.language.id, document).get('suggest.completeJSDocs')) {
+			return undefined;
+		}
+
 		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return undefined;
@@ -53,8 +60,12 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 			return undefined;
 		}
 
-		const args = typeConverters.Position.toFileLocationRequestArgs(file, position);
-		const response = await this.client.execute('docCommentTemplate', args, token);
+		const response = await this.client.interruptGetErr(async () => {
+			await this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
+
+			const args = typeConverters.Position.toFileLocationRequestArgs(file, position);
+			return this.client.execute('docCommentTemplate', args, token);
+		});
 		if (response.type !== 'response' || !response.body) {
 			return undefined;
 		}
@@ -95,9 +106,9 @@ export function templateToSnippet(template: string): vscode.SnippetString {
 	// TODO: use append placeholder
 	let snippetIndex = 1;
 	template = template.replace(/\$/g, '\\$');
-	template = template.replace(/^\s*(?=(\/|[ ]\*))/gm, '');
+	template = template.replace(/^[ \t]*(?=(\/|[ ]\*))/gm, '');
 	template = template.replace(/^(\/\*\*\s*\*[ ]*)$/m, (x) => x + `\$0`);
-	template = template.replace(/\* @param([ ]\{\S+\})?\s+(\S+)\s*$/gm, (_param, type, post) => {
+	template = template.replace(/\* @param([ ]\{\S+\})?\s+(\S+)[ \t]*$/gm, (_param, type, post) => {
 		let out = '* @param ';
 		if (type === ' {any}' || type === ' {*}') {
 			out += `{\$\{${snippetIndex++}:*\}} `;
@@ -107,19 +118,20 @@ export function templateToSnippet(template: string): vscode.SnippetString {
 		out += post + ` \${${snippetIndex++}}`;
 		return out;
 	});
+
+	template = template.replace(/\* @returns[ \t]*$/gm, `* @returns \${${snippetIndex++}}`);
+
 	return new vscode.SnippetString(template);
 }
 
 export function register(
 	selector: DocumentSelector,
-	modeId: string,
+	language: LanguageDescription,
 	client: ITypeScriptServiceClient,
+	fileConfigurationManager: FileConfigurationManager,
+
 ): vscode.Disposable {
-	return conditionalRegistration([
-		requireConfiguration(modeId, 'suggest.completeJSDocs')
-	], () => {
-		return vscode.languages.registerCompletionItemProvider(selector.syntax,
-			new JsDocCompletionProvider(client),
-			'*');
-	});
+	return vscode.languages.registerCompletionItemProvider(selector.syntax,
+		new JsDocCompletionProvider(client, language, fileConfigurationManager),
+		'*');
 }

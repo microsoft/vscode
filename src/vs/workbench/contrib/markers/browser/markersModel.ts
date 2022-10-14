@@ -7,20 +7,24 @@ import { basename, extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IMarker, MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
-import { mergeSort, isNonEmptyArray, flatten } from 'vs/base/common/arrays';
+import { isNonEmptyArray, flatten } from 'vs/base/common/arrays';
 import { ResourceMap } from 'vs/base/common/map';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Hasher } from 'vs/base/common/hash';
 import { withUndefinedAsNull } from 'vs/base/common/types';
+import { splitLines } from 'vs/base/common/strings';
+import { IMatch } from 'vs/base/common/filters';
+import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
 
+export type MarkerElement = ResourceMarkers | Marker | RelatedInformation;
 
 export function compareMarkersByUri(a: IMarker, b: IMarker) {
 	return extUri.compare(a.resource, b.resource);
 }
 
 function compareResourceMarkers(a: ResourceMarkers, b: ResourceMarkers): number {
-	let [firstMarkerOfA] = a.markers;
-	let [firstMarkerOfB] = b.markers;
+	const [firstMarkerOfA] = a.markers;
+	const [firstMarkerOfB] = b.markers;
 	let res = 0;
 	if (firstMarkerOfA && firstMarkerOfB) {
 		res = MarkerSeverity.compare(firstMarkerOfA.marker.severity, firstMarkerOfB.marker.severity);
@@ -49,7 +53,7 @@ export class ResourceMarkers {
 
 	get markers(): readonly Marker[] {
 		if (!this._cachedMarkers) {
-			this._cachedMarkers = mergeSort(flatten([...this._markersMap.values()]), ResourceMarkers._compareMarkers);
+			this._cachedMarkers = flatten([...this._markersMap.values()]).sort(ResourceMarkers._compareMarkers);
 		}
 		return this._cachedMarkers;
 	}
@@ -68,7 +72,7 @@ export class ResourceMarkers {
 	}
 
 	delete(uri: URI) {
-		let array = this._markersMap.get(uri);
+		const array = this._markersMap.get(uri);
 		if (array) {
 			this._total -= array.length;
 			this._cachedMarkers = undefined;
@@ -95,7 +99,7 @@ export class Marker {
 	private _lines: string[] | undefined;
 	get lines(): string[] {
 		if (!this._lines) {
-			this._lines = this.marker.message.split(/\r\n|\r|\n/g);
+			this._lines = splitLines(this.marker.message);
 		}
 		return this._lines;
 	}
@@ -112,6 +116,19 @@ export class Marker {
 			resource: this.marker.resource.path,
 			relatedInformation: this.relatedInformation.length ? this.relatedInformation.map(r => ({ ...r.raw, resource: r.raw.resource.path })) : undefined
 		}, null, '\t');
+	}
+}
+
+export class MarkerTableItem extends Marker {
+	constructor(
+		marker: Marker,
+		readonly sourceMatches?: IMatch[],
+		readonly codeMatches?: IMatch[],
+		readonly messageMatches?: IMatch[],
+		readonly fileMatches?: IMatch[],
+		readonly ownerMatches?: IMatch[],
+	) {
+		super(marker.id, marker.marker, marker.relatedInformation);
 	}
 }
 
@@ -150,6 +167,16 @@ export class MarkersModel {
 		this.resourcesByUri = new Map<string, ResourceMarkers>();
 	}
 
+	reset(): void {
+		const removed = new Set<ResourceMarkers>();
+		for (const resourceMarker of this.resourcesByUri.values()) {
+			removed.add(resourceMarker);
+		}
+		this.resourcesByUri.clear();
+		this._total = 0;
+		this._onDidChange.fire({ removed, added: new Set<ResourceMarkers>(), updated: new Set<ResourceMarkers>() });
+	}
+
 	private _total: number = 0;
 	get total(): number {
 		return this._total;
@@ -162,6 +189,10 @@ export class MarkersModel {
 	setResourceMarkers(resourcesMarkers: [URI, IMarker[]][]): void {
 		const change: MarkerChangesEvent = { added: new Set(), removed: new Set(), updated: new Set() };
 		for (const [resource, rawMarkers] of resourcesMarkers) {
+
+			if (unsupportedSchemas.has(resource.scheme)) {
+				continue;
+			}
 
 			const key = extUri.getComparisonKey(resource, true);
 			let resourceMarkers = this.resourcesByUri.get(key);

@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { getFoldingRanges } from '../modes/htmlFolding';
 import { TextDocument, getLanguageModes } from '../modes/languageModes';
 import { ClientCapabilities } from 'vscode-css-languageservice';
-import { getNodeFSRequestService } from '../node/nodeFs';
+import { getNodeFileFS } from '../node/nodeFs';
 
 interface ExpectedIndentRange {
 	startLine: number;
@@ -22,7 +22,7 @@ async function assertRanges(lines: string[], expected: ExpectedIndentRange[], me
 		settings: {},
 		folders: [{ name: 'foo', uri: 'test://foo' }]
 	};
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFSRequestService());
+	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
 	const actual = await getFoldingRanges(languageModes, document, nRanges, null);
 
 	let actualRanges = [];
@@ -30,7 +30,7 @@ async function assertRanges(lines: string[], expected: ExpectedIndentRange[], me
 		actualRanges[i] = r(actual[i].startLine, actual[i].endLine, actual[i].kind);
 	}
 	actualRanges = actualRanges.sort((r1, r2) => r1.startLine - r2.startLine);
-	assert.deepEqual(actualRanges, expected, message);
+	assert.deepStrictEqual(actualRanges, expected, message);
 }
 
 function r(startLine: number, endLine: number, kind?: string): ExpectedIndentRange {

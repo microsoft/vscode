@@ -3,21 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListRenderer } from './list';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { $ } from 'vs/base/browser/dom';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IListRenderer } from './list';
 
 export interface IRow {
-	domNode: HTMLElement | null;
+	domNode: HTMLElement;
 	templateId: string;
 	templateData: any;
 }
 
 function removeFromParent(element: HTMLElement): void {
 	try {
-		if (element.parentElement) {
-			element.parentElement.removeChild(element);
-		}
+		element.parentElement?.removeChild(element);
 	} catch (e) {
 		// this will throw if this happens due to a blur event, nasty business
 	}
@@ -84,7 +82,6 @@ export class RowCache<T> implements IDisposable {
 			for (const cachedRow of cachedRows) {
 				const renderer = this.getRenderer(templateId);
 				renderer.disposeTemplate(cachedRow.templateData);
-				cachedRow.domNode = null;
 				cachedRow.templateData = null;
 			}
 		});

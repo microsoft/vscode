@@ -3,10 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPosition } from 'xterm';
+import type { IViewportRange, IBufferRange, IBufferLine, IBufferCellPosition, IBuffer } from 'xterm';
 import { IRange } from 'vs/editor/common/core/range';
+import { OperatingSystem } from 'vs/base/common/platform';
+import { IPath, posix, win32 } from 'vs/base/common/path';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
-export function convertLinkRangeToBuffer(lines: IBufferLine[], bufferWidth: number, range: IRange, startLine: number) {
+/**
+ * Converts a possibly wrapped link's range (comprised of string indices) into a buffer range that plays nicely with xterm.js
+ *
+ * @param lines A single line (not the entire buffer)
+ * @param bufferWidth The number of columns in the terminal
+ * @param range The link range - string indices
+ * @param startLine The absolute y position (on the buffer) of the line
+ */
+export function convertLinkRangeToBuffer(
+	lines: IBufferLine[],
+	bufferWidth: number,
+	range: IRange,
+	startLine: number
+): IBufferRange {
 	const bufferRange: IBufferRange = {
 		start: {
 			x: range.startColumn,
@@ -106,6 +122,10 @@ export function convertBufferRangeToViewport(bufferRange: IBufferRange, viewport
 }
 
 export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
+	// Cap the maximum number of lines generated to prevent potential performance problems. This is
+	// more of a sanity check as the wrapped line should already be trimmed down at this point.
+	const maxLineLength = Math.max(2048 / cols * 2);
+	lineEnd = Math.min(lineEnd, lineStart + maxLineLength);
 	let content = '';
 	for (let i = lineStart; i <= lineEnd; i++) {
 		// Make sure only 0 to cols are considered as resizing when windows mode is enabled will
@@ -118,6 +138,7 @@ export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd:
 	return content;
 }
 
+
 export function positionIsInRange(position: IBufferCellPosition, range: IBufferRange): boolean {
 	if (position.y < range.start.y || position.y > range.end.y) {
 		return false;
@@ -129,4 +150,35 @@ export function positionIsInRange(position: IBufferCellPosition, range: IBufferR
 		return false;
 	}
 	return true;
+}
+
+/**
+ * For shells with the CommandDetection capability, the cwd for a command relative to the line of
+ * the particular link can be used to narrow down the result for an exact file match.
+ */
+export function updateLinkWithRelativeCwd(capabilities: ITerminalCapabilityStore, y: number, text: string, pathSeparator: string): string | undefined {
+	const cwd = capabilities.get(TerminalCapability.CommandDetection)?.getCwdForLine(y);
+	if (!cwd) {
+		return undefined;
+	}
+	if (!text.includes(pathSeparator)) {
+		text = cwd + pathSeparator + text;
+	} else {
+		let commonDirs = 0;
+		let i = 0;
+		const cwdPath = cwd.split(pathSeparator).reverse();
+		const linkPath = text.split(pathSeparator);
+		while (i < cwdPath.length) {
+			if (cwdPath[i] === linkPath[i]) {
+				commonDirs++;
+			}
+			i++;
+		}
+		text = cwd + pathSeparator + linkPath.slice(commonDirs).join(pathSeparator);
+	}
+	return text;
+}
+
+export function osPathModule(os: OperatingSystem): IPath {
+	return os === OperatingSystem.Windows ? win32 : posix;
 }

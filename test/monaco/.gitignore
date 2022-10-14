@@ -1,0 +1,4 @@
+/dist/**/*.js
+/dist/**/*.ttf
+/out/
+/esm-check/out/

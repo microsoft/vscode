@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtHostContext, IExtHostContext, MainContext, MainThreadUrlsShape, ExtHostUrlsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer } from '../common/extHostCustomers';
+import { ExtHostContext, MainContext, MainThreadUrlsShape, ExtHostUrlsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers';
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -32,7 +32,7 @@ class ExtensionUrlHandler implements IURLHandler {
 export class MainThreadUrls implements MainThreadUrlsShape {
 
 	private readonly proxy: ExtHostUrlsShape;
-	private handlers = new Map<number, { extensionId: ExtensionIdentifier, disposable: IDisposable }>();
+	private handlers = new Map<number, { extensionId: ExtensionIdentifier; disposable: IDisposable }>();
 
 	constructor(
 		context: IExtHostContext,

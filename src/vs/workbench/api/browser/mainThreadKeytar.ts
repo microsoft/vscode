@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { MainContext, MainThreadKeytarShape, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { MainContext, MainThreadKeytarShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 
 @extHostNamedCustomer(MainContext.MainThreadKeytar)
 export class MainThreadKeytar implements MainThreadKeytarShape {
@@ -31,7 +31,7 @@ export class MainThreadKeytar implements MainThreadKeytarShape {
 		return this._credentialsService.findPassword(service);
 	}
 
-	async $findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
+	async $findCredentials(service: string): Promise<Array<{ account: string; password: string }>> {
 		return this._credentialsService.findCredentials(service);
 	}
 

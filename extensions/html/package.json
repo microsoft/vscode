@@ -1,7 +1,7 @@
 {
   "name": "html",
   "displayName": "%displayName%",
-	"description": "%description%",
+  "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
   "license": "MIT",
@@ -9,7 +9,7 @@
     "vscode": "0.10.x"
   },
   "scripts": {
-    "update-grammar": "node ./build/update-grammar.js"
+    "update-grammar": "node ./build/update-grammar.mjs"
   },
   "contributes": {
     "languages": [
@@ -76,6 +76,16 @@
           "meta.tag string.quoted": "other"
         }
       }
+    ],
+    "snippets": [
+      {
+        "language": "html",
+        "path": "./snippets/html.code-snippets"
+      }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

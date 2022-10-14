@@ -36,7 +36,6 @@
 	left: 3px;
 	height: 3px;
 	width: 100%;
-	box-shadow: #DDD 0 6px 6px -6px inset;
 }
 .monaco-scrollable-element > .shadow.left {
 	display: block;
@@ -44,7 +43,6 @@
 	left: 0;
 	height: 100%;
 	width: 3px;
-	box-shadow: #DDD 6px 0 6px -6px inset;
 }
 .monaco-scrollable-element > .shadow.top-left-corner {
 	display: block;
@@ -52,60 +50,4 @@
 	left: 0;
 	height: 3px;
 	width: 3px;
-}
-.monaco-scrollable-element > .shadow.top.left {
-	box-shadow: #DDD 6px 6px 6px -6px inset;
-}
-
-/* ---------- Default Style ---------- */
-
-.vs .monaco-scrollable-element > .scrollbar > .slider {
-	background: rgba(100, 100, 100, .4);
-}
-.vs-dark .monaco-scrollable-element > .scrollbar > .slider {
-	background: rgba(121, 121, 121, .4);
-}
-.hc-black .monaco-scrollable-element > .scrollbar > .slider {
-	background: rgba(111, 195, 223, .6);
-}
-
-.monaco-scrollable-element > .scrollbar > .slider:hover {
-	background: rgba(100, 100, 100, .7);
-}
-.hc-black .monaco-scrollable-element > .scrollbar > .slider:hover {
-	background: rgba(111, 195, 223, .8);
-}
-
-.monaco-scrollable-element > .scrollbar > .slider.active {
-	background: rgba(0, 0, 0, .6);
-}
-.vs-dark .monaco-scrollable-element > .scrollbar > .slider.active {
-	background: rgba(191, 191, 191, .4);
-}
-.hc-black .monaco-scrollable-element > .scrollbar > .slider.active {
-	background: rgba(111, 195, 223, 1);
-}
-
-.vs-dark .monaco-scrollable-element .shadow.top {
-	box-shadow: none;
-}
-
-.vs-dark .monaco-scrollable-element .shadow.left {
-	box-shadow: #000 6px 0 6px -6px inset;
-}
-
-.vs-dark .monaco-scrollable-element .shadow.top.left {
-	box-shadow: #000 6px 6px 6px -6px inset;
-}
-
-.hc-black .monaco-scrollable-element .shadow.top {
-	box-shadow: none;
-}
-
-.hc-black .monaco-scrollable-element .shadow.left {
-	box-shadow: none;
-}
-
-.hc-black .monaco-scrollable-element .shadow.top.left {
-	box-shadow: none;
 }

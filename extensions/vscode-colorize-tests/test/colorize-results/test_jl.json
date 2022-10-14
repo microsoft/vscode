@@ -1,0 +1,2774 @@
+[
+	{
+		"c": "#",
+		"t": "source.julia comment.line.number-sign.julia punctuation.definition.comment.julia",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"hc_light": "comment: #515151"
+		}
+	},
+	{
+		"c": " n-queens (nqueens) solver, for nsquaresx-by-nsquaresy board",
+		"t": "source.julia comment.line.number-sign.julia",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"hc_light": "comment: #515151"
+		}
+	},
+	{
+		"c": "struct",
+		"t": "source.julia keyword.other.julia",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6",
+			"hc_light": "keyword: #0F4A85"
+		}
+	},
+	{
+		"c": " Queen",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "    x",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.julia keyword.operator.relation.types.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "Int",
+		"t": "source.julia support.type.julia",
+		"r": {
+			"dark_plus": "support.type: #4EC9B0",
+			"light_plus": "support.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.type: #4EC9B0",
+			"hc_light": "support.type: #185E73"
+		}
+	},
+	{
+		"c": "    y",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.julia keyword.operator.relation.types.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "Int",
+		"t": "source.julia support.type.julia",
+		"r": {
+			"dark_plus": "support.type: #4EC9B0",
+			"light_plus": "support.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.type: #4EC9B0",
+			"hc_light": "support.type: #185E73"
+		}
+	},
+	{
+		"c": "end",
+		"t": "source.julia keyword.control.end.julia",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D"
+		}
+	},
+	{
+		"c": "hitshorz",
+		"t": "source.julia entity.name.function.julia",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "queena",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " queenb",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.julia keyword.operator.update.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " queena",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.julia keyword.operator.dots.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "x ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "==",
+		"t": "source.julia keyword.operator.relation.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " queenb",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.julia keyword.operator.dots.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "x",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "hitsvert",
+		"t": "source.julia entity.name.function.julia",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "queena",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " queenb",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.julia keyword.operator.update.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " queena",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.julia keyword.operator.dots.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "y ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "==",
+		"t": "source.julia keyword.operator.relation.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " queenb",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.julia keyword.operator.dots.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "y",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "hitsdiag",
+		"t": "source.julia entity.name.function.julia",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "queena",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " queenb",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.julia keyword.operator.update.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "abs",
+		"t": "source.julia support.function.julia",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "queena",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.julia keyword.operator.dots.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "x ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "-",
+		"t": "source.julia keyword.operator.arithmetic.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " queenb",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.julia keyword.operator.dots.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "x",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "==",
+		"t": "source.julia keyword.operator.relation.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "abs",
+		"t": "source.julia support.function.julia",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "queena",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.julia keyword.operator.dots.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "y ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "-",
+		"t": "source.julia keyword.operator.arithmetic.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " queenb",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.julia keyword.operator.dots.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "y",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "hitshvd",
+		"t": "source.julia entity.name.function.julia",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "qa",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " qb",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.julia keyword.operator.update.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "hitshorz",
+		"t": "source.julia support.function.julia",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "qa",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " qb",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "||",
+		"t": "source.julia keyword.operator.boolean.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "hitsvert",
+		"t": "source.julia support.function.julia",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "qa",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " qb",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "||",
+		"t": "source.julia keyword.operator.boolean.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "hitsdiag",
+		"t": "source.julia support.function.julia",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "qa",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " qb",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "hitsany",
+		"t": "source.julia entity.name.function.julia",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "testqueen",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " queens",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.julia keyword.operator.update.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "any",
+		"t": "source.julia support.function.julia",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "q ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "->",
+		"t": "source.julia keyword.operator.arrow.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "hitshvd",
+		"t": "source.julia support.function.julia",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "testqueen",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " q",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "),",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " queens",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "function",
+		"t": "source.julia keyword.other.julia",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6",
+			"hc_light": "keyword: #0F4A85"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "trysolve",
+		"t": "source.julia entity.name.function.julia",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "nsquaresx",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " nsquaresy",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " nqueens",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " presqueens ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.julia keyword.operator.update.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "())",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "    nqueens ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "==",
+		"t": "source.julia keyword.operator.relation.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.julia constant.numeric.julia",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "&&",
+		"t": "source.julia keyword.operator.boolean.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "return",
+		"t": "source.julia keyword.control.julia",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D"
+		}
+	},
+	{
+		"c": " presqueens",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "for",
+		"t": "source.julia keyword.control.julia",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D"
+		}
+	},
+	{
+		"c": " xsquare ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "in",
+		"t": "source.julia keyword.operator.relation.in.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "1",
+		"t": "source.julia constant.numeric.julia",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.julia keyword.operator.range.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "nsquaresx",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "        ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "for",
+		"t": "source.julia keyword.control.julia",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D"
+		}
+	},
+	{
+		"c": " ysquare ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "in",
+		"t": "source.julia keyword.operator.relation.in.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "1",
+		"t": "source.julia constant.numeric.julia",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.julia keyword.operator.range.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "nsquaresy",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "            testqueen ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.julia keyword.operator.update.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "Queen",
+		"t": "source.julia support.function.julia",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "xsquare",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " ysquare",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "            ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "if",
+		"t": "source.julia keyword.control.julia",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "!",
+		"t": "source.julia keyword.operator.boolean.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "hitsany",
+		"t": "source.julia support.function.julia",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "testqueen",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " presqueens",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "                tryqueens ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.julia keyword.operator.update.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "presqueens",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "...",
+		"t": "source.julia keyword.operator.dots.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " testqueen",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "                maybesol ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.julia keyword.operator.update.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "trysolve",
+		"t": "source.julia support.function.julia",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "nsquaresx",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " nsquaresy",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " nqueens ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "-",
+		"t": "source.julia keyword.operator.arithmetic.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "1",
+		"t": "source.julia constant.numeric.julia",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": " tryqueens",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.julia meta.bracket.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "                maybesol ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "!==",
+		"t": "source.julia keyword.operator.relation.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "nothing",
+		"t": "source.julia constant.language.julia",
+		"r": {
+			"dark_plus": "constant.language: #569CD6",
+			"light_plus": "constant.language: #0000FF",
+			"dark_vs": "constant.language: #569CD6",
+			"light_vs": "constant.language: #0000FF",
+			"hc_black": "constant.language: #569CD6",
+			"hc_light": "constant.language: #0F4A85"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "&&",
+		"t": "source.julia keyword.operator.boolean.julia",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "return",
+		"t": "source.julia keyword.control.julia",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D"
+		}
+	},
+	{
+		"c": " maybesol",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "            ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "end",
+		"t": "source.julia keyword.control.end.julia",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D"
+		}
+	},
+	{
+		"c": "        ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "end",
+		"t": "source.julia keyword.control.end.julia",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "end",
+		"t": "source.julia keyword.control.end.julia",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "return",
+		"t": "source.julia keyword.control.julia",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.julia",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"hc_light": "default: #292929"
+		}
+	},
+	{
+		"c": "nothing",
+		"t": "source.julia constant.language.julia",
+		"r": {
+			"dark_plus": "constant.language: #569CD6",
+			"light_plus": "constant.language: #0000FF",
+			"dark_vs": "constant.language: #569CD6",
+			"light_vs": "constant.language: #0000FF",
+			"hc_black": "constant.language: #569CD6",
+			"hc_light": "constant.language: #0F4A85"
+		}
+	},
+	{
+		"c": "end",
+		"t": "source.julia keyword.control.end.julia",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D"
+		}
+	}
+]

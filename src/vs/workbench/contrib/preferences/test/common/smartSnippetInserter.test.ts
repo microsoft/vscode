@@ -5,21 +5,21 @@
 
 import * as assert from 'assert';
 import { SmartSnippetInserter } from 'vs/workbench/contrib/preferences/common/smartSnippetInserter';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { Position } from 'vs/editor/common/core/position';
 
 suite('SmartSnippetInserter', () => {
 
 	function testSmartSnippetInserter(text: string[], runner: (assert: (desiredPos: Position, pos: Position, prepend: string, append: string) => void) => void): void {
-		let model = createTextModel(text.join('\n'));
+		const model = createTextModel(text.join('\n'));
 		runner((desiredPos, pos, prepend, append) => {
-			let actual = SmartSnippetInserter.insertSnippet(model, desiredPos);
-			let expected = {
+			const actual = SmartSnippetInserter.insertSnippet(model, desiredPos);
+			const expected = {
 				position: pos,
 				prepend,
 				append
 			};
-			assert.deepEqual(actual, expected);
+			assert.deepStrictEqual(actual, expected);
 		});
 		model.dispose();
 	}

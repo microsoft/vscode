@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { request } from 'vs/base/parts/request/browser/request';
+import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { request } from 'vs/base/parts/request/browser/request';
 import { IRequestService } from 'vs/platform/request/common/request';
 
 /**
@@ -24,14 +24,24 @@ export class RequestService implements IRequestService {
 	) {
 	}
 
-	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		this.logService.trace('RequestService#request', options.url);
+	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		this.logService.trace('RequestService#request (browser) - begin', options.url);
 
 		if (!options.proxyAuthorization) {
 			options.proxyAuthorization = this.configurationService.getValue<string>('http.proxyAuthorization');
 		}
 
-		return request(options, token);
+		try {
+			const res = await request(options, token);
+
+			this.logService.trace('RequestService#request (browser) - success', options.url);
+
+			return res;
+		} catch (error) {
+			this.logService.error('RequestService#request (browser) - error', options.url, error);
+
+			throw error;
+		}
 	}
 
 	async resolveProxy(url: string): Promise<string | undefined> {

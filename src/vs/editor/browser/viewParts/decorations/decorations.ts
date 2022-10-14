@@ -6,10 +6,10 @@
 import 'vs/css!./decorations';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { Range } from 'vs/editor/common/core/range';
-import { HorizontalRange, RenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { HorizontalRange, RenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as viewEvents from 'vs/editor/common/viewEvents';
+import { ViewModelDecoration } from 'vs/editor/common/viewModel';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class DecorationsOverlay extends DynamicViewOverlay {
@@ -30,7 +30,7 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		this._context.addEventHandler(this);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._context.removeEventHandler(this);
 		this._renderResult = null;
 		super.dispose();
@@ -38,31 +38,31 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 
 	// --- begin event handlers
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		return true;
 	}
-	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		return true;
 	}
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
 	}
-	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		return true;
 	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged || e.scrollWidthChanged;
 	}
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 	// --- end event handlers
@@ -71,7 +71,8 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		const _decorations = ctx.getDecorationsInViewport();
 
 		// Keep only decorations with `className`
-		let decorations: ViewModelDecoration[] = [], decorationsLen = 0;
+		let decorations: ViewModelDecoration[] = [];
+		let decorationsLen = 0;
 		for (let i = 0, len = _decorations.length; i < len; i++) {
 			const d = _decorations[i];
 			if (d.options.className) {
@@ -163,7 +164,7 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 
 			let range = d.range;
 			if (showIfCollapsed && range.endColumn === 1 && range.endLineNumber !== range.startLineNumber) {
-				range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber - 1, this._context.model.getLineMaxColumn(range.endLineNumber - 1));
+				range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber - 1, this._context.viewModel.getLineMaxColumn(range.endLineNumber - 1));
 			}
 
 			if (prevClassName === className && prevShowIfCollapsed === showIfCollapsed && Range.areIntersectingOrTouching(prevRange!, range)) {
@@ -202,9 +203,12 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 
 			if (showIfCollapsed && lineVisibleRanges.ranges.length === 1) {
 				const singleVisibleRange = lineVisibleRanges.ranges[0];
-				if (singleVisibleRange.width === 0) {
-					// collapsed range case => make the decoration visible by faking its width
-					lineVisibleRanges.ranges[0] = new HorizontalRange(singleVisibleRange.left, this._typicalHalfwidthCharacterWidth);
+				if (singleVisibleRange.width < this._typicalHalfwidthCharacterWidth) {
+					// collapsed/very small range case => make the decoration visible by expanding its width
+					// expand its size on both sides (both to the left and to the right, keeping it centered)
+					const center = Math.round(singleVisibleRange.left + singleVisibleRange.width / 2);
+					const left = Math.max(0, Math.round(center - this._typicalHalfwidthCharacterWidth / 2));
+					lineVisibleRanges.ranges[0] = new HorizontalRange(left, this._typicalHalfwidthCharacterWidth);
 				}
 			}
 

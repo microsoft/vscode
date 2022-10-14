@@ -8,7 +8,6 @@
   "engines": {
     "vscode": "0.10.x"
   },
-  "enableProposedApi": true,
   "icon": "images/npm_icon.png",
   "categories": [
     "Other"
@@ -22,23 +21,35 @@
     "find-yarn-workspace-root": "^2.0.0",
     "jsonc-parser": "^2.2.1",
     "minimatch": "^3.0.4",
-    "request-light": "^0.4.0",
-    "vscode-nls": "^4.1.1",
+    "request-light": "^0.5.7",
+    "vscode-nls": "^5.2.0",
+    "which": "^2.0.2",
     "which-pm": "^2.0.0"
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
-    "@types/node": "^12.11.7"
+    "@types/node": "16.x",
+    "@types/which": "^2.0.0"
+  },
+  "resolutions": {
+    "which-pm/load-yaml-file/**/argparse": "1.0.9"
   },
   "main": "./out/npmMain",
   "browser": "./dist/browser/npmBrowserMain",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask",
+    "onTaskType:npm",
     "onCommand:npm.runScriptFromFolder",
     "onLanguage:json",
     "workspaceContains:package.json",
     "onView:npm"
   ],
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "%workspaceTrust%"
+    }
+  },
   "contributes": {
     "languages": [
       {
@@ -59,8 +70,10 @@
         {
           "id": "npm",
           "name": "%view.name%",
-          "icon": "images/code.svg",
-          "visibility": "hidden"
+          "when": "npm:showScriptExplorer",
+          "icon": "$(json)",
+          "visibility": "hidden",
+          "contextualTitle": "%view.name%"
         }
       ]
     },
@@ -98,7 +111,7 @@
       },
       {
         "command": "npm.packageManager",
-        "title": "%command.packageManager"
+        "title": "%command.packageManager%"
       }
     ],
     "menus": {
@@ -225,6 +238,12 @@
             "yarn",
             "pnpm"
           ],
+          "enumDescriptions": [
+            "%config.npm.packageManager.auto%",
+            "%config.npm.packageManager.npm%",
+            "%config.npm.packageManager.yarn%",
+            "%config.npm.packageManager.pnpm%"
+          ],
           "default": "auto",
           "description": "%config.npm.packageManager%"
         },
@@ -262,6 +281,15 @@
           "scope": "window",
           "default": "open"
         },
+        "npm.scriptExplorerExclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "%config.npm.scriptExplorerExclude%",
+          "scope": "resource",
+          "default": []
+        },
         "npm.fetchOnlinePackageInfo": {
           "type": "boolean",
           "description": "%config.npm.fetchOnlinePackageInfo%",
@@ -270,6 +298,12 @@
           "tags": [
             "usesOnlineServices"
           ]
+        },
+        "npm.scriptHover": {
+            "type": "boolean",
+            "description": "%config.npm.scriptHover%",
+            "default": true,
+            "scope": "window"
         }
       }
     },
@@ -302,5 +336,9 @@
         "when": "shellExecutionSupported"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

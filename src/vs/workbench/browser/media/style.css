@@ -46,7 +46,7 @@ body.web {
 }
 
 .monaco-workbench.web {
-	touch-action: initial; /* reenable touch events on workbench */
+	touch-action: none; /* Disable browser handling of all panning and zooming gestures. Removes 300ms touch delay. */
 }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -66,6 +66,10 @@ body.web {
 
 .monaco-workbench.border.mac {
 	border-radius: 5px;
+}
+
+.monaco-workbench.border.mac.macos-bigsur-or-newer {
+	border-radius: 10px; /* macOS Big Sur increased rounded corners size */
 }
 
 .monaco-workbench img {
@@ -131,49 +135,13 @@ body.web {
 	-webkit-app-region: no-drag;
 }
 
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical {
-	padding: .5em 0;
+
+.monaco-workbench .codicon[class*='codicon-'] {
+	font-size: 16px; /* sets font-size for codicons in workbench (https://github.com/microsoft/vscode/issues/98495) */
 }
 
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .action-menu-item {
-	height: 1.8em;
-}
-
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .keybinding {
-	font-size: inherit;
-	padding: 0 2em;
-}
-
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .menu-item-check {
-	font-size: inherit;
-	width: 2em;
-}
-
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .action-label.separator {
-	font-size: inherit;
-	padding: 0.2em 0 0 0;
-	margin-bottom: 0.2em;
-}
-
-.monaco-workbench.linux .monaco-menu .monaco-action-bar.vertical .action-label.separator {
-	margin-left: 0;
-	margin-right: 0;
-}
-
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
-	font-size: 60%;
-	padding: 0 1.8em;
-}
-
-.monaco-workbench.linux .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
-	height: 100%;
-	mask-size: 10px 10px;
-	-webkit-mask-size: 10px 10px;
-}
-
-.monaco-workbench .monaco-menu .action-item {
-	cursor: default;
+.monaco-workbench.modal-dialog-visible .monaco-progress-container.infinite .progress-bit {
+	display: none; /* stop progress animations when dialogs are visible (https://github.com/microsoft/vscode/issues/138396) */
 }
 
 /* Custom Dropdown (select) Arrows */
@@ -192,10 +160,10 @@ body.web {
 .monaco-workbench .select-container:after {
 	content: "\eab4";
 	font-family: codicon;
-	font-size: 14px;
-	width: 14px;
-	height: 14px;
-	line-height: 14px;
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+	line-height: 16px;
 	position: absolute;
 	top: 0;
 	bottom: 0;
@@ -204,7 +172,7 @@ body.web {
 	pointer-events: none;
 }
 
-/* START Keyboard Focus Indication Styles */
+/* Keyboard Focus Indication Styles */
 
 .monaco-workbench [tabindex="0"]:focus,
 .monaco-workbench [tabindex="-1"]:focus,
@@ -217,7 +185,11 @@ body.web {
 	outline-width: 1px;
 	outline-style: solid;
 	outline-offset: -1px;
-	opacity: 1 !important;
+	opacity: 1;
+}
+
+.monaco-workbench input[type="checkbox"]:focus {
+	outline-offset: 2px;
 }
 
 .monaco-workbench [tabindex="0"]:active,
@@ -264,6 +236,6 @@ body.web {
 	outline: 0 !important; /* tree indicates focus not via outline but through the focused item */
 }
 
-.monaco-workbench .codicon[class*='codicon-'] {
-	font-size: 16px; /* sets font-size for codicons in workbench https://github.com/microsoft/vscode/issues/98495 */
+.monaco-workbench a.monaco-link:hover {
+	text-decoration: underline; /* render underline on hover for accessibility requirements */
 }

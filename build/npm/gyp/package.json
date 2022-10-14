@@ -1,0 +1,11 @@
+{
+  "name": "code-oss-dev-build",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "devDependencies": {
+    "node-gyp": "^8.4.1"
+  },
+  "scripts": {
+  }
+}

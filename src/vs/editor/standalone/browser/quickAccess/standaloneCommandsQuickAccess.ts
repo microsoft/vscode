@@ -8,14 +8,14 @@ import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/
 import { QuickCommandNLS } from 'vs/editor/common/standaloneStrings';
 import { ICommandQuickPick } from 'vs/platform/quickinput/browser/commandsQuickAccess';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/commandsQuickAccess';
+import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/commandsQuickAccess';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -32,9 +32,9 @@ export class StandaloneCommandsQuickAccessProvider extends AbstractEditorCommand
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@INotificationService notificationService: INotificationService
+		@IDialogService dialogService: IDialogService
 	) {
-		super({ showAlias: false }, instantiationService, keybindingService, commandService, telemetryService, notificationService);
+		super({ showAlias: false }, instantiationService, keybindingService, commandService, telemetryService, dialogService);
 	}
 
 	protected async getCommandPicks(): Promise<Array<ICommandQuickPick>> {
@@ -42,17 +42,13 @@ export class StandaloneCommandsQuickAccessProvider extends AbstractEditorCommand
 	}
 }
 
-Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
-	ctor: StandaloneCommandsQuickAccessProvider,
-	prefix: StandaloneCommandsQuickAccessProvider.PREFIX,
-	helpEntries: [{ description: QuickCommandNLS.quickCommandHelp, needsEditor: true }]
-});
-
 export class GotoLineAction extends EditorAction {
+
+	static readonly ID = 'editor.action.quickCommand';
 
 	constructor() {
 		super({
-			id: 'editor.action.quickCommand',
+			id: GotoLineAction.ID,
 			label: QuickCommandNLS.quickCommandActionLabel,
 			alias: 'Command Palette',
 			precondition: undefined,
@@ -74,3 +70,9 @@ export class GotoLineAction extends EditorAction {
 }
 
 registerEditorAction(GotoLineAction);
+
+Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
+	ctor: StandaloneCommandsQuickAccessProvider,
+	prefix: StandaloneCommandsQuickAccessProvider.PREFIX,
+	helpEntries: [{ description: QuickCommandNLS.quickCommandHelp, commandId: GotoLineAction.ID }]
+});

@@ -5,7 +5,7 @@
 
 import { WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
 
 export class NoOpWorkspaceTagsService implements IWorkspaceTagsService {
@@ -16,7 +16,7 @@ export class NoOpWorkspaceTagsService implements IWorkspaceTagsService {
 		return Promise.resolve({});
 	}
 
-	getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined {
+	async getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): Promise<string | undefined> {
 		return undefined;
 	}
 
@@ -25,4 +25,4 @@ export class NoOpWorkspaceTagsService implements IWorkspaceTagsService {
 	}
 }
 
-registerSingleton(IWorkspaceTagsService, NoOpWorkspaceTagsService, true);
+registerSingleton(IWorkspaceTagsService, NoOpWorkspaceTagsService, InstantiationType.Delayed);

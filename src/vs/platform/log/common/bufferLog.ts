@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, LogLevel, AbstractLogService, DEFAULT_LOG_LEVEL } from 'vs/platform/log/common/log';
+import { AbstractLogger, DEFAULT_LOG_LEVEL, ILogger, ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 interface ILog {
 	level: LogLevel;
 	args: any[];
 }
 
-function getLogFunction(logger: ILogService, level: LogLevel): Function {
+function getLogFunction(logger: ILogger, level: LogLevel): Function {
 	switch (level) {
 		case LogLevel.Trace: return logger.trace;
 		case LogLevel.Debug: return logger.debug;
@@ -22,23 +22,21 @@ function getLogFunction(logger: ILogService, level: LogLevel): Function {
 	}
 }
 
-export class BufferLogService extends AbstractLogService implements ILogService {
+export class BufferLogService extends AbstractLogger implements ILogService {
 
 	declare readonly _serviceBrand: undefined;
 	private buffer: ILog[] = [];
-	private _logger: ILogService | undefined = undefined;
+	private _logger: ILogger | undefined = undefined;
 
 	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
 		super();
 		this.setLevel(logLevel);
 		this._register(this.onDidChangeLogLevel(level => {
-			if (this._logger) {
-				this._logger.setLevel(level);
-			}
+			this._logger?.setLevel(level);
 		}));
 	}
 
-	set logger(logger: ILogService) {
+	set logger(logger: ILogger) {
 		this._logger = logger;
 
 		for (const { level, args } of this.buffer) {
@@ -82,15 +80,11 @@ export class BufferLogService extends AbstractLogService implements ILogService 
 		this._log(LogLevel.Critical, message, ...args);
 	}
 
-	dispose(): void {
-		if (this._logger) {
-			this._logger.dispose();
-		}
+	override dispose(): void {
+		this._logger?.dispose();
 	}
 
 	flush(): void {
-		if (this._logger) {
-			this._logger.flush();
-		}
+		this._logger?.flush();
 	}
 }

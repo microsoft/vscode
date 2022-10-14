@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RequestService, getScheme } from '../requests';
+import { RequestService } from '../requests';
 import { URI as Uri } from 'vscode-uri';
 
 import * as fs from 'fs';
@@ -11,12 +11,12 @@ import { FileType } from 'vscode-css-languageservice';
 
 export function getNodeFSRequestService(): RequestService {
 	function ensureFileUri(location: string) {
-		if (getScheme(location) !== 'file') {
+		if (!location.startsWith('file://')) {
 			throw new Error('fileRequestService can only handle file URLs');
 		}
 	}
 	return {
-		getContent(location: string, encoding?: string) {
+		getContent(location: string, encoding?: BufferEncoding) {
 			ensureFileUri(location);
 			return new Promise((c, e) => {
 				const uri = Uri.parse(location);

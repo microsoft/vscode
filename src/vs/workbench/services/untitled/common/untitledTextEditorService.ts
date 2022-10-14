@@ -12,8 +12,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export const IUntitledTextEditorService = createDecorator<IUntitledTextEditorService>('untitledTextEditorService');
 
@@ -26,9 +25,9 @@ export interface INewUntitledTextEditorOptions {
 	initialValue?: string;
 
 	/**
-	 * Preferred language mode to use when saving the untitled editor.
+	 * Preferred language id to use when saving the untitled editor.
 	 */
-	mode?: string;
+	languageId?: string;
 
 	/**
 	 * Preferred encoding to use when saving the untitled editor.
@@ -57,7 +56,7 @@ export interface INewUntitledTextEditorWithAssociatedResourceOptions extends INe
 	 * Note: currently it is not possible to specify the `scheme` to use. The
 	 * untitled editor will saved to the default local or remote resource.
 	 */
-	associatedResource?: { authority: string; path: string; query: string; fragment: string; }
+	associatedResource?: { authority: string; path: string; query: string; fragment: string };
 }
 
 type IInternalUntitledTextEditorOptions = IExistingUntitledTextEditorOptions & INewUntitledTextEditorWithAssociatedResourceOptions;
@@ -80,9 +79,9 @@ export interface IUntitledTextEditorModelManager {
 	readonly onDidChangeLabel: Event<IUntitledTextEditorModel>;
 
 	/**
-	 * Events for when untitled text editors are disposed.
+	 * Events for when untitled text editors are about to be disposed.
 	 */
-	readonly onDidDispose: Event<IUntitledTextEditorModel>;
+	readonly onWillDispose: Event<IUntitledTextEditorModel>;
 
 	/**
 	 * Creates a new untitled editor model with the provided options. If the `untitledResource`
@@ -99,13 +98,20 @@ export interface IUntitledTextEditorModelManager {
 	get(resource: URI): IUntitledTextEditorModel | undefined;
 
 	/**
+	 * Returns the value of the untitled editor, undefined if none exists
+	 * @param resource The URI of the untitled file
+	 * @returns The content, or undefined
+	 */
+	getValue(resource: URI): string | undefined;
+
+	/**
 	 * Resolves an untitled editor model from the provided options. If the `untitledResource`
 	 * property is provided and the untitled editor exists, it will return that existing
 	 * instance instead of creating a new one.
 	 */
-	resolve(options?: INewUntitledTextEditorOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
-	resolve(options?: INewUntitledTextEditorWithAssociatedResourceOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
-	resolve(options?: IExistingUntitledTextEditorOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
+	resolve(options?: INewUntitledTextEditorOptions): Promise<IUntitledTextEditorModel>;
+	resolve(options?: INewUntitledTextEditorWithAssociatedResourceOptions): Promise<IUntitledTextEditorModel>;
+	resolve(options?: IExistingUntitledTextEditorOptions): Promise<IUntitledTextEditorModel>;
 }
 
 export interface IUntitledTextEditorService extends IUntitledTextEditorModelManager {
@@ -123,8 +129,8 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 	private readonly _onDidChangeEncoding = this._register(new Emitter<IUntitledTextEditorModel>());
 	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
 
-	private readonly _onDidDispose = this._register(new Emitter<IUntitledTextEditorModel>());
-	readonly onDidDispose = this._onDidDispose.event;
+	private readonly _onWillDispose = this._register(new Emitter<IUntitledTextEditorModel>());
+	readonly onWillDispose = this._onWillDispose.event;
 
 	private readonly _onDidChangeLabel = this._register(new Emitter<IUntitledTextEditorModel>());
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
@@ -142,8 +148,15 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		return this.mapResourceToModel.get(resource);
 	}
 
-	resolve(options?: IInternalUntitledTextEditorOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
-		return this.doCreateOrGet(options).load();
+	getValue(resource: URI): string | undefined {
+		return this.get(resource)?.textEditorModel?.getValue();
+	}
+
+	async resolve(options?: IInternalUntitledTextEditorOptions): Promise<UntitledTextEditorModel> {
+		const model = this.doCreateOrGet(options);
+		await model.resolve();
+
+		return model;
 	}
 
 	create(options?: IInternalUntitledTextEditorOptions): UntitledTextEditorModel {
@@ -181,13 +194,13 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 			}
 		}
 
-		// Language mode
-		if (options.mode) {
-			massagedOptions.mode = options.mode;
+		// Language id
+		if (options.languageId) {
+			massagedOptions.languageId = options.languageId;
 		} else if (!massagedOptions.associatedResource) {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>();
 			if (configuration.files?.defaultLanguage) {
-				massagedOptions.mode = configuration.files.defaultLanguage;
+				massagedOptions.languageId = configuration.files.defaultLanguage;
 			}
 		}
 
@@ -211,7 +224,7 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		}
 
 		// Create new model with provided options
-		const model = this._register(this.instantiationService.createInstance(UntitledTextEditorModel, untitledResource, !!options.associatedResource, options.initialValue, options.mode, options.encoding));
+		const model = this._register(this.instantiationService.createInstance(UntitledTextEditorModel, untitledResource, !!options.associatedResource, options.initialValue, options.languageId, options.encoding));
 
 		this.registerModel(model);
 
@@ -225,10 +238,10 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire(model)));
 		modelListeners.add(model.onDidChangeName(() => this._onDidChangeLabel.fire(model)));
 		modelListeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(model)));
-		modelListeners.add(model.onDispose(() => this._onDidDispose.fire(model)));
+		modelListeners.add(model.onWillDispose(() => this._onWillDispose.fire(model)));
 
 		// Remove from cache on dispose
-		Event.once(model.onDispose)(() => {
+		Event.once(model.onWillDispose)(() => {
 
 			// Registry
 			this.mapResourceToModel.delete(model.resource);
@@ -248,4 +261,4 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 	}
 }
 
-registerSingleton(IUntitledTextEditorService, UntitledTextEditorService, true);
+registerSingleton(IUntitledTextEditorService, UntitledTextEditorService, InstantiationType.Delayed);

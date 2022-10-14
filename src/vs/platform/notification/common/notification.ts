@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import BaseSeverity from 'vs/base/common/severity';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import BaseSeverity from 'vs/base/common/severity';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export import Severity = BaseSeverity;
 
@@ -45,9 +45,16 @@ export enum NeverShowAgainScope {
 	WORKSPACE,
 
 	/**
-	 * Will never show this notification on any workspace again.
+	 * Will never show this notification on any workspace of the same
+	 * profile again.
 	 */
-	GLOBAL
+	PROFILE,
+
+	/**
+	 * Will never show this notification on any workspace across all
+	 * profiles again.
+	 */
+	APPLICATION
 }
 
 export interface INeverShowAgainOptions {
@@ -65,12 +72,20 @@ export interface INeverShowAgainOptions {
 
 	/**
 	 * Whether to persist the choice in the current workspace or for all workspaces. By
-	 * default it will be persisted for all workspaces (= `NeverShowAgainScope.GLOBAL`).
+	 * default it will be persisted for all workspaces across all profiles
+	 * (= `NeverShowAgainScope.APPLICATION`).
 	 */
 	readonly scope?: NeverShowAgainScope;
 }
 
 export interface INotification extends INotificationProperties {
+
+	/**
+	 * The id of the notification. If provided, will be used to compare
+	 * notifications with others to decide whether a notification is
+	 * duplicate or not.
+	 */
+	readonly id?: string;
 
 	/**
 	 * The severity of the notification. Either `Info`, `Warning` or `Error`.
@@ -86,7 +101,7 @@ export interface INotification extends INotificationProperties {
 	/**
 	 * The source of the notification appears as additional information.
 	 */
-	readonly source?: string;
+	readonly source?: string | { label: string; id: string };
 
 	/**
 	 * Actions to show as part of the notification. Primary actions show up as
@@ -114,15 +129,17 @@ export interface INotificationActions {
 	/**
 	 * Primary actions show up as buttons as part of the message and will close
 	 * the notification once clicked.
+	 *
+	 * Pass `ActionWithMenuAction` for an action that has additional menu actions.
 	 */
-	readonly primary?: ReadonlyArray<IAction>;
+	readonly primary?: readonly IAction[];
 
 	/**
 	 * Secondary actions are meant to provide additional configuration or context
 	 * for the notification and will show up less prominent. A notification does not
 	 * close automatically when invoking a secondary action.
 	 */
-	readonly secondary?: ReadonlyArray<IAction>;
+	readonly secondary?: readonly IAction[];
 }
 
 export interface INotificationProgressProperties {
@@ -209,18 +226,12 @@ export interface INotificationHandle {
 	close(): void;
 }
 
-export interface IPromptChoice {
+interface IBasePromptChoice {
 
 	/**
 	 * Label to show for the choice to the user.
 	 */
 	readonly label: string;
-
-	/**
-	 * Primary choices show up as buttons in the notification below the message.
-	 * Secondary choices show up under the gear icon in the header of the notification.
-	 */
-	readonly isSecondary?: boolean;
 
 	/**
 	 * Whether to keep the notification open after the choice was selected
@@ -232,6 +243,28 @@ export interface IPromptChoice {
 	 * Triggered when the user selects the choice.
 	 */
 	run: () => void;
+}
+
+export interface IPromptChoice extends IBasePromptChoice {
+
+	/**
+	 * Primary choices show up as buttons in the notification below the message.
+	 * Secondary choices show up under the gear icon in the header of the notification.
+	 */
+	readonly isSecondary?: boolean;
+}
+
+export interface IPromptChoiceWithMenu extends IPromptChoice {
+
+	/**
+	 * Additional choices those will be shown in the dropdown menu for this choice.
+	 */
+	readonly menu: IBasePromptChoice[];
+
+	/**
+	 * Menu is not supported on secondary choices
+	 */
+	readonly isSecondary: false | undefined;
 }
 
 export interface IPromptOptions extends INotificationProperties {
@@ -287,6 +320,28 @@ export interface INotificationService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * The DND mode can be enabled or disabled
+	 * and will result in all info and warning
+	 * notifications to be silent.
+	 */
+	doNotDisturbMode: boolean;
+
+	/**
+	 * Emitted when a new notification is added.
+	 */
+	readonly onDidAddNotification: Event<INotification>;
+
+	/**
+	 * Emitted when a notification is removed.
+	 */
+	readonly onDidRemoveNotification: Event<INotification>;
+
+	/**
+	 * Emitted when a do not disturb mode has changed.
+	 */
+	readonly onDidChangeDoNotDisturbMode: Event<void>;
+
+	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`
 	 * can be used to control the notification afterwards.
 	 *
@@ -322,12 +377,12 @@ export interface INotificationService {
 	 *
 	 * @param severity the severity of the notification. Either `Info`, `Warning` or `Error`.
 	 * @param message the message to show as status.
-	 * @param choices options to be choosen from.
+	 * @param choices options to be chosen from.
 	 * @param options provides some optional configuration options.
 	 *
 	 * @returns a handle on the notification to e.g. hide it or update message, buttons, etc.
 	 */
-	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle;
+	prompt(severity: Severity, message: string, choices: (IPromptChoice | IPromptChoiceWithMenu)[], options?: IPromptOptions): INotificationHandle;
 
 	/**
 	 * Shows a status message in the status area with the provided text.
@@ -338,13 +393,6 @@ export interface INotificationService {
 	 * @returns a disposable to hide the status message
 	 */
 	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable;
-
-	/**
-	 * Allows to configure a filter for notifications.
-	 *
-	 * @param filter the filter to use
-	 */
-	setFilter(filter: NotificationsFilter): void;
 }
 
 export class NoOpNotification implements INotificationHandle {

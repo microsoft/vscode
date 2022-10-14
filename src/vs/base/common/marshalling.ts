@@ -6,6 +6,7 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { regExpFlags } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { MarshalledId } from './marshallingIds';
 
 export function stringify(obj: any): string {
 	return JSON.stringify(obj, replacer);
@@ -18,14 +19,14 @@ export function parse(text: string): any {
 }
 
 export interface MarshalledObject {
-	$mid: number;
+	$mid: MarshalledId;
 }
 
 function replacer(key: string, value: any): any {
 	// URI is done via toJSON-member
 	if (value instanceof RegExp) {
 		return {
-			$mid: 2,
+			$mid: MarshalledId.Regexp,
 			source: value.source,
 			flags: regExpFlags(value),
 		};
@@ -35,6 +36,7 @@ function replacer(key: string, value: any): any {
 
 
 type Deserialize<T> = T extends UriComponents ? URI
+	: T extends VSBuffer ? VSBuffer
 	: T extends object
 	? Revived<T>
 	: T;
@@ -49,8 +51,9 @@ export function revive<T = any>(obj: any, depth = 0): Revived<T> {
 	if (typeof obj === 'object') {
 
 		switch ((<MarshalledObject>obj).$mid) {
-			case 1: return <any>URI.revive(obj);
-			case 2: return <any>new RegExp(obj.source, obj.flags);
+			case MarshalledId.Uri: return <any>URI.revive(obj);
+			case MarshalledId.Regexp: return <any>new RegExp(obj.source, obj.flags);
+			case MarshalledId.Date: return <any>new Date(obj.source);
 		}
 
 		if (

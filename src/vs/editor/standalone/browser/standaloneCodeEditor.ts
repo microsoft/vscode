@@ -5,7 +5,7 @@
 
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IDiffEditor, IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
@@ -13,15 +13,13 @@ import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/edit
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { StandaloneKeybindingService, applyConfigurationValues } from 'vs/editor/standalone/browser/simpleServices';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { StandaloneKeybindingService, updateConfigurationService } from 'vs/editor/standalone/browser/standaloneServices';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { IMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
+import { ContextKeyExpr, ContextKeyValue, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -30,7 +28,15 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { StandaloneCodeEditorNLS } from 'vs/editor/common/standaloneStrings';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
+import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
+import { URI } from 'vs/base/common/uri';
+import { StandaloneCodeEditorService } from 'vs/editor/standalone/browser/standaloneCodeEditorService';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 /**
  * Description of an action contribution
@@ -114,6 +120,10 @@ export interface IGlobalEditorOptions {
 	 */
 	wordBasedSuggestions?: boolean;
 	/**
+	 * Controls whether word based completions should be included from opened documents of the same language or any language.
+	 */
+	wordBasedSuggestionsOnlySameLanguage?: boolean;
+	/**
 	 * Controls whether the semanticHighlighting is shown for the languages that support it.
 	 * true: semanticHighlighting is enabled for all themes
 	 * false: semanticHighlighting is disabled for all themes
@@ -133,11 +143,17 @@ export interface IGlobalEditorOptions {
 	maxTokenizationLineLength?: number;
 	/**
 	 * Theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light'.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
-	 * To switch a theme, use `monaco.editor.setTheme`
+	 * To switch a theme, use `monaco.editor.setTheme`.
+	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
 	 */
 	theme?: string;
+	/**
+	 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
+	 * Defaults to true.
+	 */
+	autoDetectHighContrast?: boolean;
 }
 
 /**
@@ -150,21 +166,27 @@ export interface IStandaloneEditorConstructionOptions extends IEditorConstructio
 	model?: ITextModel | null;
 	/**
 	 * The initial value of the auto created model in the editor.
-	 * To not create automatically a model, use `model: null`.
+	 * To not automatically create a model, use `model: null`.
 	 */
 	value?: string;
 	/**
 	 * The initial language of the auto created model in the editor.
-	 * To not create automatically a model, use `model: null`.
+	 * To not automatically create a model, use `model: null`.
 	 */
 	language?: string;
 	/**
 	 * Initial theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
-	 * To switch a theme, use `monaco.editor.setTheme`
+	 * To switch a theme, use `monaco.editor.setTheme`.
+	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
 	 */
 	theme?: string;
+	/**
+	 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
+	 * Defaults to true.
+	 */
+	autoDetectHighContrast?: boolean;
 	/**
 	 * An URL to open when Ctrl+H (Windows and Linux) or Cmd+H (OSX) is pressed in
 	 * the accessibility help dialog in the editor.
@@ -172,31 +194,42 @@ export interface IStandaloneEditorConstructionOptions extends IEditorConstructio
 	 * Defaults to "https://go.microsoft.com/fwlink/?linkid=852450"
 	 */
 	accessibilityHelpUrl?: string;
+	/**
+	 * Container element to use for ARIA messages.
+	 * Defaults to document.body.
+	 */
+	ariaContainerElement?: HTMLElement;
 }
 
 /**
  * The options to create a diff editor.
  */
-export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
+export interface IStandaloneDiffEditorConstructionOptions extends IDiffEditorConstructionOptions {
 	/**
 	 * Initial theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
-	 * To switch a theme, use `monaco.editor.setTheme`
+	 * To switch a theme, use `monaco.editor.setTheme`.
+	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
 	 */
 	theme?: string;
+	/**
+	 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
+	 * Defaults to true.
+	 */
+	autoDetectHighContrast?: boolean;
 }
 
 export interface IStandaloneCodeEditor extends ICodeEditor {
 	updateOptions(newOptions: IEditorOptions & IGlobalEditorOptions): void;
 	addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
-	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
+	createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor: IActionDescriptor): IDisposable;
 }
 
 export interface IStandaloneDiffEditor extends IDiffEditor {
 	addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
-	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
+	createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor: IActionDescriptor): IDisposable;
 
 	getOriginalEditor(): IStandaloneCodeEditor;
@@ -206,12 +239,19 @@ export interface IStandaloneDiffEditor extends IDiffEditor {
 let LAST_GENERATED_COMMAND_ID = 0;
 
 let ariaDomNodeCreated = false;
-function createAriaDomNode() {
-	if (ariaDomNodeCreated) {
-		return;
+/**
+ * Create ARIA dom node inside parent,
+ * or only for the first editor instantiation inside document.body.
+ * @param parent container element for ARIA dom node
+ */
+function createAriaDomNode(parent: HTMLElement | undefined) {
+	if (!parent) {
+		if (ariaDomNodeCreated) {
+			return;
+		}
+		ariaDomNodeCreated = true;
 	}
-	ariaDomNodeCreated = true;
-	aria.setARIAContainer(document.body);
+	aria.setARIAContainer(parent || document.body);
 }
 
 /**
@@ -223,7 +263,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 	constructor(
 		domElement: HTMLElement,
-		options: IStandaloneEditorConstructionOptions,
+		_options: Readonly<IStandaloneEditorConstructionOptions>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
@@ -231,12 +271,14 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
-		options = options || {};
+		const options = { ..._options };
 		options.ariaLabel = options.ariaLabel || StandaloneCodeEditorNLS.editorViewAccessibleLabel;
 		options.ariaLabel = options.ariaLabel + ';' + (StandaloneCodeEditorNLS.accessibilityHelpMessage);
-		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService);
+		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
@@ -244,8 +286,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 			this._standaloneKeybindingService = null;
 		}
 
-		// Create the ARIA dom node as soon as the first editor is instantiated
-		createAriaDomNode();
+		createAriaDomNode(options.ariaContainerElement);
 	}
 
 	public addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null {
@@ -253,13 +294,13 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 			console.warn('Cannot add command because the editor is configured with an unrecognized KeybindingService');
 			return null;
 		}
-		let commandId = 'DYNAMIC_' + (++LAST_GENERATED_COMMAND_ID);
-		let whenExpression = ContextKeyExpr.deserialize(context);
+		const commandId = 'DYNAMIC_' + (++LAST_GENERATED_COMMAND_ID);
+		const whenExpression = ContextKeyExpr.deserialize(context);
 		this._standaloneKeybindingService.addDynamicKeybinding(commandId, keybinding, handler, whenExpression);
 		return commandId;
 	}
 
-	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
+	public createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T> {
 		return this._contextKeyService.createKey(key, defaultValue);
 	}
 
@@ -301,7 +342,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 		// Register the context menu item
 		if (contextMenuGroupId) {
-			let menuItem: IMenuItem = {
+			const menuItem: IMenuItem = {
 				command: {
 					id: uniqueId,
 					title: label
@@ -321,7 +362,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		}
 
 		// Finally, register an internal editor action
-		let internalAction = new InternalEditorAction(
+		const internalAction = new InternalEditorAction(
 			uniqueId,
 			label,
 			label,
@@ -331,56 +372,73 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		);
 
 		// Store it under the original id, such that trigger with the original id will work
-		this._actions[id] = internalAction;
+		this._actions.set(id, internalAction);
 		toDispose.add(toDisposable(() => {
-			delete this._actions[id];
+			this._actions.delete(id);
 		}));
 
 		return toDispose;
+	}
+
+	protected override _triggerCommand(handlerId: string, payload: any): void {
+		if (this._codeEditorService instanceof StandaloneCodeEditorService) {
+			// Help commands find this editor as the active editor
+			try {
+				this._codeEditorService.setActiveCodeEditor(this);
+				super._triggerCommand(handlerId, payload);
+			} finally {
+				this._codeEditorService.setActiveCodeEditor(null);
+			}
+		} else {
+			super._triggerCommand(handlerId, payload);
+		}
 	}
 }
 
 export class StandaloneEditor extends StandaloneCodeEditor implements IStandaloneCodeEditor {
 
-	private readonly _contextViewService: ContextViewService;
 	private readonly _configurationService: IConfigurationService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;
 	private _ownsModel: boolean;
 
 	constructor(
 		domElement: HTMLElement,
-		options: IStandaloneEditorConstructionOptions | undefined,
-		toDispose: IDisposable,
+		_options: Readonly<IStandaloneEditorConstructionOptions> | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextViewService contextViewService: IContextViewService,
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IModelService modelService: IModelService,
+		@ILanguageService languageService: ILanguageService,
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
-		applyConfigurationValues(configurationService, options, false);
-		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
-		options = options || {};
+		const options = { ..._options };
+		updateConfigurationService(configurationService, options, false);
+		const themeDomRegistration = (<StandaloneThemeService>themeService).registerEditorContainer(domElement);
 		if (typeof options.theme === 'string') {
 			themeService.setTheme(options.theme);
 		}
-		let _model: ITextModel | null | undefined = options.model;
+		if (typeof options.autoDetectHighContrast !== 'undefined') {
+			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
+		}
+		const _model: ITextModel | null | undefined = options.model;
 		delete options.model;
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService, accessibilityService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
 
-		this._contextViewService = <ContextViewService>contextViewService;
 		this._configurationService = configurationService;
 		this._standaloneThemeService = themeService;
-		this._register(toDispose);
 		this._register(themeDomRegistration);
 
 		let model: ITextModel | null;
 		if (typeof _model === 'undefined') {
-			model = (<any>self).monaco.editor.createModel(options.value || '', options.language || 'text/plain');
+			const languageId = languageService.getLanguageIdByMimeType(options.language) || options.language || PLAINTEXT_LANGUAGE_ID;
+			model = createTextModel(modelService, languageService, options.value || '', languageId, undefined);
 			this._ownsModel = true;
 		} else {
 			model = _model;
@@ -389,7 +447,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 		this._attachModel(model);
 		if (model) {
-			let e: IModelChangedEvent = {
+			const e: IModelChangedEvent = {
 				oldModelUrl: null,
 				newModelUrl: model.uri
 			};
@@ -397,26 +455,22 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		}
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 	}
 
-	public updateOptions(newOptions: IEditorOptions & IGlobalEditorOptions): void {
-		applyConfigurationValues(this._configurationService, newOptions, false);
+	public override updateOptions(newOptions: Readonly<IEditorOptions & IGlobalEditorOptions>): void {
+		updateConfigurationService(this._configurationService, newOptions, false);
 		if (typeof newOptions.theme === 'string') {
 			this._standaloneThemeService.setTheme(newOptions.theme);
+		}
+		if (typeof newOptions.autoDetectHighContrast !== 'undefined') {
+			this._standaloneThemeService.setAutoDetectHighContrast(Boolean(newOptions.autoDetectHighContrast));
 		}
 		super.updateOptions(newOptions);
 	}
 
-	_attachModel(model: ITextModel | null): void {
-		super._attachModel(model);
-		if (this._modelData) {
-			this._contextViewService.setContainer(this._modelData.view.domNode.domNode);
-		}
-	}
-
-	_postDetachModelCleanup(detachedModel: ITextModel): void {
+	override _postDetachModelCleanup(detachedModel: ITextModel): void {
 		super._postDetachModelCleanup(detachedModel);
 		if (detachedModel && this._ownsModel) {
 			detachedModel.dispose();
@@ -427,19 +481,14 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
 
-	private readonly _contextViewService: ContextViewService;
 	private readonly _configurationService: IConfigurationService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;
 
 	constructor(
 		domElement: HTMLElement,
-		options: IDiffEditorConstructionOptions | undefined,
-		toDispose: IDisposable,
+		_options: Readonly<IStandaloneDiffEditorConstructionOptions> | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextViewService contextViewService: IContextViewService,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
 		@INotificationService notificationService: INotificationService,
@@ -448,46 +497,48 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IEditorProgressService editorProgressService: IEditorProgressService,
 		@IClipboardService clipboardService: IClipboardService,
 	) {
-		applyConfigurationValues(configurationService, options, true);
-		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
-		options = options || {};
+		const options = { ..._options };
+		updateConfigurationService(configurationService, options, true);
+		const themeDomRegistration = (<StandaloneThemeService>themeService).registerEditorContainer(domElement);
 		if (typeof options.theme === 'string') {
-			options.theme = themeService.setTheme(options.theme);
+			themeService.setTheme(options.theme);
+		}
+		if (typeof options.autoDetectHighContrast !== 'undefined') {
+			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
 		}
 
-		super(domElement, options, clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
+		super(domElement, options, {}, clipboardService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
 
-		this._contextViewService = <ContextViewService>contextViewService;
 		this._configurationService = configurationService;
 		this._standaloneThemeService = themeService;
 
-		this._register(toDispose);
 		this._register(themeDomRegistration);
-
-		this._contextViewService.setContainer(this._containerDomElement);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 	}
 
-	public updateOptions(newOptions: IDiffEditorOptions & IGlobalEditorOptions): void {
-		applyConfigurationValues(this._configurationService, newOptions, true);
+	public override updateOptions(newOptions: Readonly<IDiffEditorOptions & IGlobalEditorOptions>): void {
+		updateConfigurationService(this._configurationService, newOptions, true);
 		if (typeof newOptions.theme === 'string') {
 			this._standaloneThemeService.setTheme(newOptions.theme);
+		}
+		if (typeof newOptions.autoDetectHighContrast !== 'undefined') {
+			this._standaloneThemeService.setAutoDetectHighContrast(Boolean(newOptions.autoDetectHighContrast));
 		}
 		super.updateOptions(newOptions);
 	}
 
-	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: IEditorOptions): CodeEditorWidget {
+	protected override _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorOptions>): CodeEditorWidget {
 		return instantiationService.createInstance(StandaloneCodeEditor, container, options);
 	}
 
-	public getOriginalEditor(): IStandaloneCodeEditor {
+	public override getOriginalEditor(): IStandaloneCodeEditor {
 		return <StandaloneCodeEditor>super.getOriginalEditor();
 	}
 
-	public getModifiedEditor(): IStandaloneCodeEditor {
+	public override getModifiedEditor(): IStandaloneCodeEditor {
 		return <StandaloneCodeEditor>super.getModifiedEditor();
 	}
 
@@ -495,11 +546,34 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		return this.getModifiedEditor().addCommand(keybinding, handler, context);
 	}
 
-	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
+	public createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T> {
 		return this.getModifiedEditor().createContextKey(key, defaultValue);
 	}
 
 	public addAction(descriptor: IActionDescriptor): IDisposable {
 		return this.getModifiedEditor().addAction(descriptor);
 	}
+}
+
+/**
+ * @internal
+ */
+export function createTextModel(modelService: IModelService, languageService: ILanguageService, value: string, languageId: string | undefined, uri: URI | undefined): ITextModel {
+	value = value || '';
+	if (!languageId) {
+		const firstLF = value.indexOf('\n');
+		let firstLine = value;
+		if (firstLF !== -1) {
+			firstLine = value.substring(0, firstLF);
+		}
+		return doCreateModel(modelService, value, languageService.createByFilepathOrFirstLine(uri || null, firstLine), uri);
+	}
+	return doCreateModel(modelService, value, languageService.createById(languageId), uri);
+}
+
+/**
+ * @internal
+ */
+function doCreateModel(modelService: IModelService, value: string, languageSelection: ILanguageSelection, uri: URI | undefined): ITextModel {
+	return modelService.createModel(value, languageSelection, uri);
 }

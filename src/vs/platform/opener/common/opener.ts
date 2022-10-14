@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
+import { IEditorOptions, ITextEditorSelection } from 'vs/platform/editor/common/editor';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IOpenerService = createDecorator<IOpenerService>('openerService');
 
-type OpenInternalOptions = {
+export type OpenInternalOptions = {
 
 	/**
 	 * Signals that the intent is to open an editor to the side
@@ -19,13 +21,28 @@ type OpenInternalOptions = {
 	readonly openToSide?: boolean;
 
 	/**
+	 * Extra editor options to apply in case an editor is used to open.
+	 */
+	readonly editorOptions?: IEditorOptions;
+
+	/**
 	 * Signals that the editor to open was triggered through a user
 	 * action, such as keyboard or mouse usage.
 	 */
 	readonly fromUserGesture?: boolean;
+
+	/**
+	 * Allow command links to be handled.
+	 */
+	readonly allowCommands?: boolean;
 };
 
-type OpenExternalOptions = { readonly openExternal?: boolean; readonly allowTunneling?: boolean };
+export type OpenExternalOptions = {
+	readonly openExternal?: boolean;
+	readonly allowTunneling?: boolean;
+	readonly allowContributedOpeners?: boolean | string;
+	readonly fromWorkspace?: boolean;
+};
 
 export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
 
@@ -40,15 +57,16 @@ export interface IOpener {
 }
 
 export interface IExternalOpener {
-	openExternal(href: string): Promise<boolean>;
+	openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string }, token: CancellationToken): Promise<boolean>;
+	dispose?(): void;
 }
 
 export interface IValidator {
-	shouldOpen(resource: URI | string): Promise<boolean>;
+	shouldOpen(resource: URI | string, openOptions?: OpenOptions): Promise<boolean>;
 }
 
 export interface IExternalUriResolver {
-	resolveExternalUri(resource: URI, options?: OpenOptions): Promise<{ resolved: URI, dispose(): void } | undefined>;
+	resolveExternalUri(resource: URI, options?: OpenOptions): Promise<{ resolved: URI; dispose(): void } | undefined>;
 }
 
 export interface IOpenerService {
@@ -75,7 +93,12 @@ export interface IOpenerService {
 	 * Sets the handler for opening externally. If not provided,
 	 * a default handler will be used.
 	 */
-	setExternalOpener(opener: IExternalOpener): void;
+	setDefaultExternalOpener(opener: IExternalOpener): void;
+
+	/**
+	 * Registers a new opener external resources openers.
+	 */
+	registerExternalOpener(opener: IExternalOpener): IDisposable;
 
 	/**
 	 * Opens a resource, like a webaddress, a document uri, or executes command.
@@ -87,24 +110,66 @@ export interface IOpenerService {
 
 	/**
 	 * Resolve a resource to its external form.
+	 * @throws whenever resolvers couldn't resolve this resource externally.
 	 */
 	resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri>;
 }
 
-export const NullOpenerService: IOpenerService = Object.freeze({
+export const NullOpenerService = Object.freeze({
 	_serviceBrand: undefined,
 	registerOpener() { return Disposable.None; },
 	registerValidator() { return Disposable.None; },
 	registerExternalUriResolver() { return Disposable.None; },
-	setExternalOpener() { },
+	setDefaultExternalOpener() { },
+	registerExternalOpener() { return Disposable.None; },
 	async open() { return false; },
 	async resolveExternalUri(uri: URI) { return { resolved: uri, dispose() { } }; },
-});
+} as IOpenerService);
 
-export function matchesScheme(target: URI | string, scheme: string) {
+export function matchesScheme(target: URI | string, scheme: string): boolean {
 	if (URI.isUri(target)) {
 		return equalsIgnoreCase(target.scheme, scheme);
 	} else {
 		return startsWithIgnoreCase(target, scheme + ':');
 	}
+}
+
+export function matchesSomeScheme(target: URI | string, ...schemes: string[]): boolean {
+	return schemes.some(scheme => matchesScheme(target, scheme));
+}
+
+/**
+ * Encodes selection into the `URI`.
+ *
+ * IMPORTANT: you MUST use `extractSelection` to separate the selection
+ * again from the original `URI` before passing the `URI` into any
+ * component that is not aware of selections.
+ */
+export function withSelection(uri: URI, selection: ITextEditorSelection): URI {
+	return uri.with({ fragment: `${selection.startLineNumber},${selection.startColumn}${selection.endLineNumber ? `-${selection.endLineNumber}${selection.endColumn ? `,${selection.endColumn}` : ''}` : ''}` });
+}
+
+/**
+ * file:///some/file.js#73
+ * file:///some/file.js#L73
+ * file:///some/file.js#73,84
+ * file:///some/file.js#L73,84
+ * file:///some/file.js#73-83
+ * file:///some/file.js#L73-L83
+ * file:///some/file.js#73,84-83,52
+ * file:///some/file.js#L73,84-L83,52
+ */
+export function extractSelection(uri: URI): { selection: ITextEditorSelection | undefined; uri: URI } {
+	let selection: ITextEditorSelection | undefined = undefined;
+	const match = /^L?(\d+)(?:,(\d+))?(-L?(\d+)(?:,(\d+))?)?/.exec(uri.fragment);
+	if (match) {
+		selection = {
+			startLineNumber: parseInt(match[1]),
+			startColumn: match[2] ? parseInt(match[2]) : 1,
+			endLineNumber: match[4] ? parseInt(match[4]) : undefined,
+			endColumn: match[4] ? (match[5] ? parseInt(match[5]) : 1) : undefined
+		};
+		uri = uri.with({ fragment: '' });
+	}
+	return { selection, uri };
 }

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 function makeRandomHexString(length: number): string {
@@ -34,9 +34,7 @@ const getRootTempDir = (() => {
 export const getInstanceTempDir = (() => {
 	let dir: string | undefined;
 	return () => {
-		if (!dir) {
-			dir = path.join(getRootTempDir(), makeRandomHexString(20));
-		}
+		dir ??= path.join(getRootTempDir(), makeRandomHexString(20));
 		if (!fs.existsSync(dir)) {
 			fs.mkdirSync(dir);
 		}

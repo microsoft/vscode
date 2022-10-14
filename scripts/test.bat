@@ -12,12 +12,12 @@ set NAMESHORT=%NAMESHORT:"=%.exe
 set CODE=".build\electron\%NAMESHORT%"
 
 :: Download Electron if needed
-node build\lib\electron.js
+call node build\lib\electron.js
 if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js electron
 
 :: Run tests
 set ELECTRON_ENABLE_LOGGING=1
-%CODE% .\test\unit\electron\index.js %*
+%CODE% .\test\unit\electron\index.js --crash-reporter-directory=%~dp0\..\.build\crashes %*
 
 popd
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import 'mocha';
 import * as assert from 'assert';
-import { URI }  from 'vscode-uri';
+import { URI } from 'vscode-uri';
 import { resolve } from 'path';
 import { TextDocument, DocumentLink } from 'vscode-languageserver-types';
 import { WorkspaceFolder } from 'vscode-languageserver-protocol';
@@ -21,15 +21,15 @@ export interface ItemDescription {
 suite('Links', () => {
 	const cssLanguageService = getCSSLanguageService({ fileSystemProvider: getNodeFSRequestService() });
 
-	let assertLink = function (links: DocumentLink[], expected: ItemDescription, document: TextDocument) {
-		let matches = links.filter(link => {
+	const assertLink = function (links: DocumentLink[], expected: ItemDescription, document: TextDocument) {
+		const matches = links.filter(link => {
 			return document.offsetAt(link.range.start) === expected.offset;
 		});
 
-		assert.equal(matches.length, 1, `${expected.offset} should only existing once: Actual: ${links.map(l => document.offsetAt(l.range.start)).join(', ')}`);
-		let match = matches[0];
-		assert.equal(document.getText(match.range), expected.value);
-		assert.equal(match.target, expected.target);
+		assert.strictEqual(matches.length, 1, `${expected.offset} should only existing once: Actual: ${links.map(l => document.offsetAt(l.range.start)).join(', ')}`);
+		const match = matches[0];
+		assert.strictEqual(document.getText(match.range), expected.value);
+		assert.strictEqual(match.target, expected.target);
 	};
 
 	async function assertLinks(value: string, expected: ItemDescription[], testUri: string, workspaceFolders?: WorkspaceFolder[], lang: string = 'css'): Promise<void> {
@@ -45,33 +45,43 @@ suite('Links', () => {
 		const context = getDocumentContext(testUri, workspaceFolders);
 
 		const stylesheet = cssLanguageService.parseStylesheet(document);
-		let links = await cssLanguageService.findDocumentLinks2(document, stylesheet, context)!;
+		const links = await cssLanguageService.findDocumentLinks2(document, stylesheet, context)!;
 
-		assert.equal(links.length, expected.length);
+		assert.strictEqual(links.length, expected.length);
 
-		for (let item of expected) {
+		for (const item of expected) {
 			assertLink(links, item, document);
 		}
 	}
 
 	function getTestResource(path: string) {
-		return URI.file(resolve(__dirname, '../../test/linksTestFixtures', path)).toString();
+		return URI.file(resolve(__dirname, '../../test/linksTestFixtures', path)).toString(true);
 	}
 
 	test('url links', async function () {
 
-		let testUri = getTestResource('about.css');
-		let folders = [{ name: 'x', uri: getTestResource('') }];
+		const testUri = getTestResource('about.css');
+		const folders = [{ name: 'x', uri: getTestResource('') }];
 
 		await assertLinks('html { background-image: url("hello.html|")',
 			[{ offset: 29, value: '"hello.html"', target: getTestResource('hello.html') }], testUri, folders
 		);
 	});
 
+	test('url links - untitled', async function () {
+
+		const testUri = 'untitled:untitled-1';
+		const folders = [{ name: 'x', uri: getTestResource('') }];
+
+		await assertLinks('@import url("base.css|");")',
+			[{ offset: 12, value: '"base.css"', target: 'untitled:base.css' }], testUri, folders
+		);
+	});
+
 	test('node module resolving', async function () {
 
-		let testUri = getTestResource('about.css');
-		let folders = [{ name: 'x', uri: getTestResource('') }];
+		const testUri = getTestResource('about.css');
+		const folders = [{ name: 'x', uri: getTestResource('') }];
 
 		await assertLinks('html { background-image: url("~foo/hello.html|")',
 			[{ offset: 29, value: '"~foo/hello.html"', target: getTestResource('node_modules/foo/hello.html') }], testUri, folders
@@ -80,8 +90,8 @@ suite('Links', () => {
 
 	test('node module subfolder resolving', async function () {
 
-		let testUri = getTestResource('subdir/about.css');
-		let folders = [{ name: 'x', uri: getTestResource('') }];
+		const testUri = getTestResource('subdir/about.css');
+		const folders = [{ name: 'x', uri: getTestResource('') }];
 
 		await assertLinks('html { background-image: url("~foo/hello.html|")',
 			[{ offset: 29, value: '"~foo/hello.html"', target: getTestResource('node_modules/foo/hello.html') }], testUri, folders

@@ -3,27 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
+import { IEditorWhitespace, IPartialViewLinesViewportData, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from 'vs/editor/common/viewModel';
 import * as strings from 'vs/base/common/strings';
 
-export interface IEditorWhitespace {
-	readonly id: string;
-	readonly afterLineNumber: number;
-	readonly height: number;
-}
-
-/**
- * An accessor that allows for whtiespace to be added, removed or changed in bulk.
- */
-export interface IWhitespaceChangeAccessor {
-	insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): string;
-	changeOneWhitespace(id: string, newAfterLineNumber: number, newHeight: number): void;
-	removeWhitespace(id: string): void;
-}
-
-interface IPendingChange { id: string; newAfterLineNumber: number; newHeight: number; }
-interface IPendingRemove { id: string; }
+interface IPendingChange { id: string; newAfterLineNumber: number; newHeight: number }
+interface IPendingRemove { id: string }
 
 class PendingChanges {
 	private _hasPending: boolean;
@@ -248,7 +232,7 @@ export class LinesLayout {
 		}
 
 		const applyRemoveAndChange = (whitespaces: EditorWhitespace[]): EditorWhitespace[] => {
-			let result: EditorWhitespace[] = [];
+			const result: EditorWhitespace[] = [];
 			for (const whitespace of whitespaces) {
 				if (toRemove.has(whitespace.id)) {
 					continue;
@@ -498,7 +482,7 @@ export class LinesLayout {
 	 * @param lineNumber The line number
 	 * @return The sum of heights for all objects above `lineNumber`.
 	 */
-	public getVerticalOffsetForLineNumber(lineNumber: number): number {
+	public getVerticalOffsetForLineNumber(lineNumber: number, includeViewZones = false): number {
 		this._checkPendingChanges();
 		lineNumber = lineNumber | 0;
 
@@ -509,8 +493,22 @@ export class LinesLayout {
 			previousLinesHeight = 0;
 		}
 
-		const previousWhitespacesHeight = this.getWhitespaceAccumulatedHeightBeforeLineNumber(lineNumber);
+		const previousWhitespacesHeight = this.getWhitespaceAccumulatedHeightBeforeLineNumber(lineNumber - (includeViewZones ? 1 : 0));
 
+		return previousLinesHeight + previousWhitespacesHeight + this._paddingTop;
+	}
+
+	/**
+	 * Get the vertical offset (the sum of heights for all objects above) a certain line number.
+	 *
+	 * @param lineNumber The line number
+	 * @return The sum of heights for all objects above `lineNumber`.
+	 */
+	public getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones = false): number {
+		this._checkPendingChanges();
+		lineNumber = lineNumber | 0;
+		const previousLinesHeight = this._lineHeight * lineNumber;
+		const previousWhitespacesHeight = this.getWhitespaceAccumulatedHeightBeforeLineNumber(lineNumber + (includeViewZones ? 1 : 0));
 		return previousLinesHeight + previousWhitespacesHeight + this._paddingTop;
 	}
 
@@ -544,6 +542,23 @@ export class LinesLayout {
 		this._checkPendingChanges();
 		const totalHeight = this.getLinesTotalHeight();
 		return verticalOffset > totalHeight;
+	}
+
+	public isInTopPadding(verticalOffset: number): boolean {
+		if (this._paddingTop === 0) {
+			return false;
+		}
+		this._checkPendingChanges();
+		return (verticalOffset < this._paddingTop);
+	}
+
+	public isInBottomPadding(verticalOffset: number): boolean {
+		if (this._paddingBottom === 0) {
+			return false;
+		}
+		this._checkPendingChanges();
+		const totalHeight = this.getLinesTotalHeight();
+		return (verticalOffset >= totalHeight - this._paddingBottom);
 	}
 
 	/**
@@ -833,7 +848,7 @@ export class LinesLayout {
 			return [];
 		}
 
-		let result: IViewWhitespaceViewportData[] = [];
+		const result: IViewWhitespaceViewportData[] = [];
 		for (let i = startIndex; i <= endIndex; i++) {
 			const top = this.getVerticalOffsetForWhitespaceIndex(i);
 			const height = this.getHeightForWhitespaceIndex(i);

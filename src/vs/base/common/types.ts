@@ -3,35 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-
-/**
- * @returns whether the provided parameter is a JavaScript Array or not.
- */
-export function isArray<T>(array: T | {}): array is T extends readonly any[] ? (unknown extends T ? never : readonly any[]) : any[] {
-	return Array.isArray(array);
-}
-
 /**
  * @returns whether the provided parameter is a JavaScript String or not.
  */
-export function isString(str: any): str is string {
+export function isString(str: unknown): str is string {
 	return (typeof str === 'string');
 }
 
 /**
  * @returns whether the provided parameter is a JavaScript Array and each element in the array is a string.
  */
-export function isStringArray(value: any): value is string[] {
-	return Array.isArray(value) && (<any[]>value).every(elem => isString(elem));
+export function isStringArray(value: unknown): value is string[] {
+	return Array.isArray(value) && (<unknown[]>value).every(elem => isString(elem));
 }
 
 /**
- *
  * @returns whether the provided parameter is of type `object` but **not**
  *	`null`, an `array`, a `regexp`, nor a `date`.
  */
-export function isObject(obj: any): obj is Object {
+export function isObject(obj: unknown): obj is Object {
 	// The method can't do a type cast since there are type (like strings) which
 	// are subclasses of any put not positvely matched by the function. Hence type
 	// narrowing results in wrong results.
@@ -43,24 +33,40 @@ export function isObject(obj: any): obj is Object {
 }
 
 /**
+ * @returns whether the provided parameter is of type `Buffer` or Uint8Array dervived type
+ */
+export function isTypedArray(obj: unknown): obj is Object {
+	const TypedArray = Object.getPrototypeOf(Uint8Array);
+	return typeof obj === 'object'
+		&& obj instanceof TypedArray;
+}
+
+/**
  * In **contrast** to just checking `typeof` this will return `false` for `NaN`.
  * @returns whether the provided parameter is a JavaScript Number or not.
  */
-export function isNumber(obj: any): obj is number {
+export function isNumber(obj: unknown): obj is number {
 	return (typeof obj === 'number' && !isNaN(obj));
+}
+
+/**
+ * @returns whether the provided parameter is an Iterable, casting to the given generic
+ */
+export function isIterable<T>(obj: unknown): obj is Iterable<T> {
+	return !!obj && typeof (obj as any)[Symbol.iterator] === 'function';
 }
 
 /**
  * @returns whether the provided parameter is a JavaScript Boolean or not.
  */
-export function isBoolean(obj: any): obj is boolean {
+export function isBoolean(obj: unknown): obj is boolean {
 	return (obj === true || obj === false);
 }
 
 /**
  * @returns whether the provided parameter is undefined.
  */
-export function isUndefined(obj: any): obj is undefined {
+export function isUndefined(obj: unknown): obj is undefined {
 	return (typeof obj === 'undefined');
 }
 
@@ -74,12 +80,12 @@ export function isDefined<T>(arg: T | null | undefined): arg is T {
 /**
  * @returns whether the provided parameter is undefined or null.
  */
-export function isUndefinedOrNull(obj: any): obj is undefined | null {
+export function isUndefinedOrNull(obj: unknown): obj is undefined | null {
 	return (isUndefined(obj) || obj === null);
 }
 
 
-export function assertType(condition: any, type?: string): asserts condition {
+export function assertType(condition: unknown, type?: string): asserts condition {
 	if (!condition) {
 		throw new Error(type ? `Unexpected type, expected '${type}'` : 'Unexpected type');
 	}
@@ -123,12 +129,12 @@ const hasOwnProperty = Object.prototype.hasOwnProperty;
 /**
  * @returns whether the provided parameter is an empty JavaScript Object or not.
  */
-export function isEmptyObject(obj: any): obj is any {
+export function isEmptyObject(obj: unknown): obj is object {
 	if (!isObject(obj)) {
 		return false;
 	}
 
-	for (let key in obj) {
+	for (const key in obj) {
 		if (hasOwnProperty.call(obj, key)) {
 			return false;
 		}
@@ -140,27 +146,27 @@ export function isEmptyObject(obj: any): obj is any {
 /**
  * @returns whether the provided parameter is a JavaScript Function or not.
  */
-export function isFunction(obj: any): obj is Function {
+export function isFunction(obj: unknown): obj is Function {
 	return (typeof obj === 'function');
 }
 
 /**
  * @returns whether the provided parameters is are JavaScript Function or not.
  */
-export function areFunctions(...objects: any[]): boolean {
+export function areFunctions(...objects: unknown[]): boolean {
 	return objects.length > 0 && objects.every(isFunction);
 }
 
 export type TypeConstraint = string | Function;
 
-export function validateConstraints(args: any[], constraints: Array<TypeConstraint | undefined>): void {
+export function validateConstraints(args: unknown[], constraints: Array<TypeConstraint | undefined>): void {
 	const len = Math.min(args.length, constraints.length);
 	for (let i = 0; i < len; i++) {
 		validateConstraint(args[i], constraints[i]);
 	}
 }
 
-export function validateConstraint(arg: any, constraint: TypeConstraint | undefined): void {
+export function validateConstraint(arg: unknown, constraint: TypeConstraint | undefined): void {
 
 	if (isString(constraint)) {
 		if (typeof arg !== constraint) {
@@ -174,7 +180,7 @@ export function validateConstraint(arg: any, constraint: TypeConstraint | undefi
 		} catch {
 			// ignore
 		}
-		if (!isUndefinedOrNull(arg) && arg.constructor === constraint) {
+		if (!isUndefinedOrNull(arg) && (arg as any).constructor === constraint) {
 			return;
 		}
 		if (constraint.length === 1 && constraint.call(undefined, arg) === true) {
@@ -182,41 +188,6 @@ export function validateConstraint(arg: any, constraint: TypeConstraint | undefi
 		}
 		throw new Error(`argument does not match one of these constraints: arg instanceof constraint, arg.constructor === constraint, nor constraint(arg) === true`);
 	}
-}
-
-export function getAllPropertyNames(obj: object): string[] {
-	let res: string[] = [];
-	let proto = Object.getPrototypeOf(obj);
-	while (Object.prototype !== proto) {
-		res = res.concat(Object.getOwnPropertyNames(proto));
-		proto = Object.getPrototypeOf(proto);
-	}
-	return res;
-}
-
-export function getAllMethodNames(obj: object): string[] {
-	const methods: string[] = [];
-	for (const prop of getAllPropertyNames(obj)) {
-		if (typeof (obj as any)[prop] === 'function') {
-			methods.push(prop);
-		}
-	}
-	return methods;
-}
-
-export function createProxyObject<T extends object>(methodNames: string[], invoke: (method: string, args: any[]) => any): T {
-	const createProxyMethod = (method: string): () => any => {
-		return function () {
-			const args = Array.prototype.slice.call(arguments, 0);
-			return invoke(method, args);
-		};
-	};
-
-	let result = {} as T;
-	for (const methodName of methodNames) {
-		(<any>result)[methodName] = createProxyMethod(methodName);
-	}
-	return result;
 }
 
 /**
@@ -233,49 +204,23 @@ export function withUndefinedAsNull<T>(x: T | undefined): T | null {
 	return typeof x === 'undefined' ? null : x;
 }
 
+type AddFirstParameterToFunction<T, TargetFunctionsReturnType, FirstParameter> = T extends (...args: any[]) => TargetFunctionsReturnType ?
+	// Function: add param to function
+	(firstArg: FirstParameter, ...args: Parameters<T>) => ReturnType<T> :
+
+	// Else: just leave as is
+	T;
+
 /**
  * Allows to add a first parameter to functions of a type.
  */
 export type AddFirstParameterToFunctions<Target, TargetFunctionsReturnType, FirstParameter> = {
-
-	//  For every property
-	[K in keyof Target]:
-
-	// Function: add param to function
-	Target[K] extends (...args: any) => TargetFunctionsReturnType ? (firstArg: FirstParameter, ...args: Parameters<Target[K]>) => ReturnType<Target[K]> :
-
-	// Else: just leave as is
-	Target[K]
+	// For every property
+	[K in keyof Target]: AddFirstParameterToFunction<Target[K], TargetFunctionsReturnType, FirstParameter>;
 };
 
 /**
- * Mapped-type that replaces all occurrences of URI with UriComponents
+ * Given an object with all optional properties, requires at least one to be defined.
+ * i.e. AtLeastOne<MyObject>;
  */
-export type UriDto<T> = { [K in keyof T]: T[K] extends URI
-	? UriComponents
-	: UriDto<T[K]> };
-
-/**
- * Mapped-type that replaces all occurrences of URI with UriComponents and
- * drops all functions.
- */
-export type Dto<T> = T extends { toJSON(): infer U }
-	? U
-	: T extends object
-	? { [k in keyof T]: Dto<T[k]>; }
-	: T;
-
-export function NotImplementedProxy<T>(name: string): { new(): T } {
-	return <any>class {
-		constructor() {
-			return new Proxy({}, {
-				get(target: any, prop: PropertyKey) {
-					if (target[prop]) {
-						return target[prop];
-					}
-					throw new Error(`Not Implemented: ${name}->${String(prop)}`);
-				}
-			});
-		}
-	};
-}
+export type AtLeastOne<T, U = { [K in keyof T]: Pick<T, K> }> = Partial<T> & U[keyof U];

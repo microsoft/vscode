@@ -6,11 +6,10 @@
 import { distinct } from 'vs/base/common/arrays';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IStorageService, IStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionIgnoredRecommendationsService, IgnoredRecommendationChangeNotification } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { IWorkpsaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
+import { IWorkspaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 
 const ignoredRecommendationsStorageKey = 'extensionsAssistant/ignored_recommendations';
 
@@ -33,23 +32,21 @@ export class ExtensionIgnoredRecommendationsService extends Disposable implement
 	get ignoredRecommendations(): string[] { return distinct([...this.globalIgnoredRecommendations, ...this.ignoredWorkspaceRecommendations]); }
 
 	constructor(
-		@IWorkpsaceExtensionsConfigService private readonly workpsaceExtensionsConfigService: IWorkpsaceExtensionsConfigService,
+		@IWorkspaceExtensionsConfigService private readonly workspaceExtensionsConfigService: IWorkspaceExtensionsConfigService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
 		super();
-		storageKeysSyncRegistryService.registerStorageKey({ key: ignoredRecommendationsStorageKey, version: 1 });
 		this._globalIgnoredRecommendations = this.getCachedIgnoredRecommendations();
-		this._register(this.storageService.onDidChangeStorage(e => this.onDidStorageChange(e)));
+		this._register(this.storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
 
 		this.initIgnoredWorkspaceRecommendations();
 	}
 
 	private async initIgnoredWorkspaceRecommendations(): Promise<void> {
-		this.ignoredWorkspaceRecommendations = await this.workpsaceExtensionsConfigService.getUnwantedRecommendations();
+		this.ignoredWorkspaceRecommendations = await this.workspaceExtensionsConfigService.getUnwantedRecommendations();
 		this._onDidChangeIgnoredRecommendations.fire();
-		this._register(this.workpsaceExtensionsConfigService.onDidChangeExtensionsConfigs(async () => {
-			this.ignoredWorkspaceRecommendations = await this.workpsaceExtensionsConfigService.getUnwantedRecommendations();
+		this._register(this.workspaceExtensionsConfigService.onDidChangeExtensionsConfigs(async () => {
+			this.ignoredWorkspaceRecommendations = await this.workspaceExtensionsConfigService.getUnwantedRecommendations();
 			this._onDidChangeIgnoredRecommendations.fire();
 		}));
 	}
@@ -72,8 +69,8 @@ export class ExtensionIgnoredRecommendationsService extends Disposable implement
 		return ignoredRecommendations.map(e => e.toLowerCase());
 	}
 
-	private onDidStorageChange(e: IStorageChangeEvent): void {
-		if (e.key === ignoredRecommendationsStorageKey && e.scope === StorageScope.GLOBAL
+	private onDidStorageChange(e: IStorageValueChangeEvent): void {
+		if (e.key === ignoredRecommendationsStorageKey && e.scope === StorageScope.PROFILE
 			&& this.ignoredRecommendationsValue !== this.getStoredIgnoredRecommendationsValue() /* This checks if current window changed the value or not */) {
 			this._ignoredRecommendationsValue = undefined;
 			this._globalIgnoredRecommendations = this.getCachedIgnoredRecommendations();
@@ -102,13 +99,13 @@ export class ExtensionIgnoredRecommendationsService extends Disposable implement
 	}
 
 	private getStoredIgnoredRecommendationsValue(): string {
-		return this.storageService.get(ignoredRecommendationsStorageKey, StorageScope.GLOBAL, '[]');
+		return this.storageService.get(ignoredRecommendationsStorageKey, StorageScope.PROFILE, '[]');
 	}
 
 	private setStoredIgnoredRecommendationsValue(value: string): void {
-		this.storageService.store(ignoredRecommendationsStorageKey, value, StorageScope.GLOBAL);
+		this.storageService.store(ignoredRecommendationsStorageKey, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 }
 
-registerSingleton(IExtensionIgnoredRecommendationsService, ExtensionIgnoredRecommendationsService);
+registerSingleton(IExtensionIgnoredRecommendationsService, ExtensionIgnoredRecommendationsService, InstantiationType.Delayed);

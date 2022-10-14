@@ -6,6 +6,9 @@
 //@ts-check
 'use strict';
 
+const performance = require('./vs/base/common/performance');
+performance.mark('code/fork/start');
+
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 
@@ -20,7 +23,7 @@ if (process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']) {
 }
 
 // Configure: pipe logging to parent process
-if (!!process.send && process.env.PIPE_LOGGING === 'true') {
+if (!!process.send && process.env['VSCODE_PIPE_LOGGING'] === 'true') {
 	pipeLoggingToParent();
 }
 
@@ -34,19 +37,26 @@ if (process.env['VSCODE_PARENT_PID']) {
 	terminateWhenParentTerminates();
 }
 
-// Configure Crash Reporter
-configureCrashReporter();
+// Listen for message ports
+if (process.env['VSCODE_WILL_SEND_MESSAGE_PORT']) {
+	listenForMessagePort();
+}
 
 // Load AMD entry point
-require('./bootstrap-amd').load(process.env['AMD_ENTRYPOINT']);
+require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
 
 
 //#region Helpers
 
 function pipeLoggingToParent() {
+	const MAX_STREAM_BUFFER_LENGTH = 1024 * 1024;
 	const MAX_LENGTH = 100000;
 
-	// Prevent circular stringify and convert arguments to real array
+	/**
+	 * Prevent circular stringify and convert arguments to real array
+	 *
+	 * @param {ArrayLike<unknown>} args
+	 */
 	function safeToArray(args) {
 		const seen = [];
 		const argsArray = [];
@@ -54,34 +64,28 @@ function pipeLoggingToParent() {
 		// Massage some arguments with special treatment
 		if (args.length) {
 			for (let i = 0; i < args.length; i++) {
+				let arg = args[i];
 
 				// Any argument of type 'undefined' needs to be specially treated because
 				// JSON.stringify will simply ignore those. We replace them with the string
 				// 'undefined' which is not 100% right, but good enough to be logged to console
-				if (typeof args[i] === 'undefined') {
-					args[i] = 'undefined';
+				if (typeof arg === 'undefined') {
+					arg = 'undefined';
 				}
 
 				// Any argument that is an Error will be changed to be just the error stack/message
 				// itself because currently cannot serialize the error over entirely.
-				else if (args[i] instanceof Error) {
-					const errorObj = args[i];
+				else if (arg instanceof Error) {
+					const errorObj = arg;
 					if (errorObj.stack) {
-						args[i] = errorObj.stack;
+						arg = errorObj.stack;
 					} else {
-						args[i] = errorObj.toString();
+						arg = errorObj.toString();
 					}
 				}
 
-				argsArray.push(args[i]);
+				argsArray.push(arg);
 			}
-		}
-
-		// Add the stack trace as payload if we are told so. We remove the message and the 2 top frames
-		// to start the stacktrace where the console message was being written
-		if (process.env.VSCODE_LOG_STACK === 'true') {
-			const stack = new Error().stack;
-			argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') });
 		}
 
 		try {
@@ -114,7 +118,9 @@ function pipeLoggingToParent() {
 	 */
 	function safeSend(arg) {
 		try {
-			process.send(arg);
+			if (process.send) {
+				process.send(arg);
+			}
 		} catch (error) {
 			// Can happen if the parent channel is closed meanwhile
 		}
@@ -131,18 +137,77 @@ function pipeLoggingToParent() {
 			&& !(obj instanceof Date);
 	}
 
+	/**
+	 *
+	 * @param {'log' | 'warn' | 'error'} severity
+	 * @param {string} args
+	 */
+	function safeSendConsoleMessage(severity, args) {
+		safeSend({ type: '__$console', severity, arguments: args });
+	}
+
+	/**
+	 * Wraps a console message so that it is transmitted to the renderer.
+	 *
+	 * The wrapped property is not defined with `writable: false` to avoid
+	 * throwing errors, but rather a no-op setting. See https://github.com/microsoft/vscode-extension-telemetry/issues/88
+	 *
+	 * @param {'log' | 'info' | 'warn' | 'error'} method
+	 * @param {'log' | 'warn' | 'error'} severity
+	 */
+	function wrapConsoleMethod(method, severity) {
+		Object.defineProperty(console, method, {
+			set: () => { },
+			get: () => function () { safeSendConsoleMessage(severity, safeToArray(arguments)); },
+		});
+	}
+
+	/**
+	 * Wraps process.stderr/stdout.write() so that it is transmitted to the
+	 * renderer or CLI. It both calls through to the original method as well
+	 * as to console.log with complete lines so that they're made available
+	 * to the debugger/CLI.
+	 *
+	 * @param {'stdout' | 'stderr'} streamName
+	 * @param {'log' | 'warn' | 'error'} severity
+	 */
+	function wrapStream(streamName, severity) {
+		const stream = process[streamName];
+		const original = stream.write;
+
+		/** @type string */
+		let buf = '';
+
+		Object.defineProperty(stream, 'write', {
+			set: () => { },
+			get: () => (chunk, encoding, callback) => {
+				buf += chunk.toString(encoding);
+				const eol = buf.length > MAX_STREAM_BUFFER_LENGTH ? buf.length : buf.lastIndexOf('\n');
+				if (eol !== -1) {
+					console[severity](buf.slice(0, eol));
+					buf = buf.slice(eol + 1);
+				}
+
+				original.call(stream, chunk, encoding, callback);
+			},
+		});
+	}
+
 	// Pass console logging to the outside so that we have it in the main side if told so
-	if (process.env.VERBOSE_LOGGING === 'true') {
-		console.log = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeToArray(arguments) }); };
-		console.info = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeToArray(arguments) }); };
-		console.warn = function () { safeSend({ type: '__$console', severity: 'warn', arguments: safeToArray(arguments) }); };
+	if (process.env['VSCODE_VERBOSE_LOGGING'] === 'true') {
+		wrapConsoleMethod('info', 'log');
+		wrapConsoleMethod('log', 'log');
+		wrapConsoleMethod('warn', 'warn');
+		wrapConsoleMethod('error', 'error');
 	} else {
 		console.log = function () { /* ignore */ };
 		console.warn = function () { /* ignore */ };
 		console.info = function () { /* ignore */ };
+		wrapConsoleMethod('error', 'error');
 	}
 
-	console.error = function () { safeSend({ type: '__$console', severity: 'error', arguments: safeToArray(arguments) }); };
+	wrapStream('stderr', 'error');
+	wrapStream('stdout', 'log');
 }
 
 function handleExceptions() {
@@ -172,17 +237,20 @@ function terminateWhenParentTerminates() {
 	}
 }
 
-function configureCrashReporter() {
-	const crashReporterOptionsRaw = process.env['CRASH_REPORTER_START_OPTIONS'];
-	if (typeof crashReporterOptionsRaw === 'string') {
-		try {
-			const crashReporterOptions = JSON.parse(crashReporterOptionsRaw);
-			if (crashReporterOptions) {
-				process['crashReporter'].start(crashReporterOptions);
+function listenForMessagePort() {
+	// We need to listen for the 'port' event as soon as possible,
+	// otherwise we might miss the event. But we should also be
+	// prepared in case the event arrives late.
+	// @ts-ignore
+	if (process.parentPort) {
+		// @ts-ignore
+		process.parentPort.on('message', (e) => {
+			if (global.vscodePortsCallback) {
+				global.vscodePortsCallback(e.ports);
+			} else {
+				global.vscodePorts = e.ports;
 			}
-		} catch (error) {
-			console.error(error);
-		}
+		});
 	}
 }
 

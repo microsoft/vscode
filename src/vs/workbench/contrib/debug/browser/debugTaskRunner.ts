@@ -6,20 +6,23 @@
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
 import { Event } from 'vs/base/common/event';
-import Constants from 'vs/workbench/contrib/markers/browser/constants';
+import { Markers } from 'vs/workbench/contrib/markers/common/markers';
 import { ITaskService, ITaskSummary } from 'vs/workbench/contrib/tasks/common/taskService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { TaskEvent, TaskEventKind, TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ITaskEvent, TaskEventKind, ITaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IAction } from 'vs/base/common/actions';
 import { withUndefinedAsNull } from 'vs/base/common/types';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { IViewsService } from 'vs/workbench/common/views';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { createErrorWithActions } from 'vs/base/common/errorMessage';
+import { Action } from 'vs/base/common/actions';
+import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
-function once(match: (e: TaskEvent) => boolean, event: Event<TaskEvent>): Event<TaskEvent> {
+function once(match: (e: ITaskEvent) => boolean, event: Event<ITaskEvent>): Event<ITaskEvent> {
 	return (listener, thisArgs = null, disposables?) => {
 		const result = event(e => {
 			if (match(e)) {
@@ -36,6 +39,8 @@ export const enum TaskRunResult {
 	Success
 }
 
+const DEBUG_TASK_ERROR_CHOICE_KEY = 'debug.taskerrorchoice';
+
 export class DebugTaskRunner {
 
 	private canceled = false;
@@ -46,13 +51,15 @@ export class DebugTaskRunner {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IStorageService private readonly storageService: IStorageService,
+		@ICommandService private readonly commandService: ICommandService
 	) { }
 
 	cancel(): void {
 		this.canceled = true;
 	}
 
-	async runTaskAndCheckErrors(root: IWorkspaceFolder | IWorkspace | undefined, taskId: string | TaskIdentifier | undefined, onError: (msg: string, actions: IAction[]) => Promise<void>): Promise<TaskRunResult> {
+	async runTaskAndCheckErrors(root: IWorkspaceFolder | IWorkspace | undefined, taskId: string | ITaskIdentifier | undefined): Promise<TaskRunResult> {
 		try {
 			this.canceled = false;
 			const taskSummary = await this.runTask(root, taskId);
@@ -61,7 +68,7 @@ export class DebugTaskRunner {
 				return TaskRunResult.Failure;
 			}
 
-			const errorCount = taskId ? this.markerService.getStatistics().errors : 0;
+			const errorCount = taskId ? this.markerService.read({ severities: MarkerSeverity.Error, take: 2 }).length : 0;
 			const successExitCode = taskSummary && taskSummary.exitCode === 0;
 			const failureExitCode = taskSummary && taskSummary.exitCode !== 0;
 			const onTaskErrors = this.configurationService.getValue<IDebugConfiguration>('debug').onTaskErrors;
@@ -69,7 +76,7 @@ export class DebugTaskRunner {
 				return TaskRunResult.Success;
 			}
 			if (onTaskErrors === 'showErrors') {
-				await this.viewsService.openView(Constants.MARKERS_VIEW_ID, true);
+				await this.viewsService.openView(Markers.MARKERS_VIEW_ID, true);
 				return Promise.resolve(TaskRunResult.Failure);
 			}
 			if (onTaskErrors === 'abort') {
@@ -106,15 +113,43 @@ export class DebugTaskRunner {
 				return TaskRunResult.Success;
 			}
 
-			await this.viewsService.openView(Constants.MARKERS_VIEW_ID, true);
+			await this.viewsService.openView(Markers.MARKERS_VIEW_ID, true);
 			return Promise.resolve(TaskRunResult.Failure);
 		} catch (err) {
-			await onError(err.message, [this.taskService.configureAction()]);
-			return TaskRunResult.Failure;
+			const taskConfigureAction = this.taskService.configureAction();
+			const choiceMap: { [key: string]: number } = JSON.parse(this.storageService.get(DEBUG_TASK_ERROR_CHOICE_KEY, StorageScope.WORKSPACE, '{}'));
+
+			let choice = -1;
+			if (choiceMap[err.message] !== undefined) {
+				choice = choiceMap[err.message];
+			} else {
+				const showResult = await this.dialogService.show(
+					severity.Error,
+					err.message,
+					[nls.localize('debugAnyway', "Debug Anyway"), taskConfigureAction.label, nls.localize('cancel', "Cancel")],
+					{
+						cancelId: 2,
+						checkbox: {
+							label: nls.localize('rememberTask', "Remember my choice for this task")
+						}
+					}
+				);
+				choice = showResult.choice;
+				if (showResult.checkboxChecked) {
+					choiceMap[err.message] = choice;
+					this.storageService.store(DEBUG_TASK_ERROR_CHOICE_KEY, JSON.stringify(choiceMap), StorageScope.WORKSPACE, StorageTarget.USER);
+				}
+			}
+
+			if (choice === 1) {
+				await taskConfigureAction.run();
+			}
+
+			return choice === 0 ? TaskRunResult.Success : TaskRunResult.Failure;
 		}
 	}
 
-	async runTask(root: IWorkspace | IWorkspaceFolder | undefined, taskId: string | TaskIdentifier | undefined): Promise<ITaskSummary | null> {
+	async runTask(root: IWorkspace | IWorkspaceFolder | undefined, taskId: string | ITaskIdentifier | undefined): Promise<ITaskSummary | null> {
 		if (!taskId) {
 			return Promise.resolve(null);
 		}
@@ -127,7 +162,7 @@ export class DebugTaskRunner {
 			const errorMessage = typeof taskId === 'string'
 				? nls.localize('DebugTaskNotFoundWithTaskId', "Could not find the task '{0}'.", taskId)
 				: nls.localize('DebugTaskNotFound', "Could not find the specified task.");
-			return Promise.reject(createErrorWithActions(errorMessage));
+			return Promise.reject(createErrorWithActions(errorMessage, [new Action(DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, undefined, true, () => this.commandService.executeCommand(DEBUG_CONFIGURE_COMMAND_ID))]));
 		}
 
 		// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340
@@ -170,19 +205,27 @@ export class DebugTaskRunner {
 		});
 
 		return new Promise((c, e) => {
+			const waitForInput = new Promise<void>(resolve => once(e => (e.kind === TaskEventKind.AcquiredInput) && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
+				resolve();
+			}));
+
 			promise.then(result => {
 				taskStarted = true;
 				c(result);
 			}, error => e(error));
 
-			setTimeout(() => {
-				if (!taskStarted) {
-					const errorMessage = typeof taskId === 'string'
-						? nls.localize('taskNotTrackedWithTaskId', "The specified task cannot be tracked.")
-						: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked.", JSON.stringify(taskId));
-					e({ severity: severity.Error, message: errorMessage });
-				}
-			}, 10000);
+			waitForInput.then(() => {
+				const waitTime = task.configurationProperties.isBackground ? 5000 : 10000;
+
+				setTimeout(() => {
+					if (!taskStarted) {
+						const errorMessage = typeof taskId === 'string'
+							? nls.localize('taskNotTrackedWithTaskId', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", taskId)
+							: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", JSON.stringify(taskId));
+						e({ severity: severity.Error, message: errorMessage });
+					}
+				}, waitTime);
+			});
 		});
 	}
 }

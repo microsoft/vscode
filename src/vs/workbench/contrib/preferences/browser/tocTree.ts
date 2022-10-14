@@ -9,18 +9,16 @@ import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/brow
 import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
 import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchObjectTreeOptions, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { editorBackground, focusBorder, foreground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { settingsHeaderForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { settingsHeaderForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const $ = DOM.$;
@@ -90,7 +88,11 @@ export class TOCTreeModel {
 
 			// Check everything that the SettingsFilter checks except whether it's filtered by a category
 			const isRemote = !!this.environmentService.remoteAuthority;
-			return child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAllTags(this._viewState.tagFilters) && child.matchesAnyExtension(this._viewState.extensionFilters);
+			return child.matchesScope(this._viewState.settingsTarget, isRemote) &&
+				child.matchesAllTags(this._viewState.tagFilters) &&
+				child.matchesAnyFeature(this._viewState.featureFilters) &&
+				child.matchesAnyExtension(this._viewState.extensionFilters) &&
+				child.matchesAnyId(this._viewState.idFilters);
 		}).length;
 	}
 }
@@ -199,8 +201,6 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		// test open mode
@@ -227,12 +227,11 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			new TOCTreeDelegate(),
 			[new TOCRenderer()],
 			options,
+			instantiationService,
 			contextKeyService,
 			listService,
 			themeService,
 			configurationService,
-			keybindingService,
-			accessibilityService,
 		);
 
 		this.disposables.add(attachStyler(themeService, {

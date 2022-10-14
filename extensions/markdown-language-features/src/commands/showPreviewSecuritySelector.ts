@@ -5,9 +5,9 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../commandManager';
-import { PreviewSecuritySelector } from '../security';
+import { MarkdownPreviewManager } from '../preview/previewManager';
+import { PreviewSecuritySelector } from '../preview/security';
 import { isMarkdownFile } from '../util/file';
-import { MarkdownPreviewManager } from '../features/previewManager';
 
 export class ShowPreviewSecuritySelectorCommand implements Command {
 	public readonly id = 'markdown.showPreviewSecuritySelector';

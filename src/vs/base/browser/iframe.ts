@@ -27,13 +27,11 @@ function getParentWindowIfSameOrigin(w: Window): Window | null {
 
 	// Cannot really tell if we have access to the parent window unless we try to access something in it
 	try {
-		let location = w.location;
-		let parentLocation = w.parent.location;
-		if (location.origin !== 'null' && parentLocation.origin !== 'null') {
-			if (location.protocol !== parentLocation.protocol || location.hostname !== parentLocation.hostname || location.port !== parentLocation.port) {
-				hasDifferentOriginAncestorFlag = true;
-				return null;
-			}
+		const location = w.location;
+		const parentLocation = w.parent.location;
+		if (location.origin !== 'null' && parentLocation.origin !== 'null' && location.origin !== parentLocation.origin) {
+			hasDifferentOriginAncestorFlag = true;
+			return null;
 		}
 	} catch (e) {
 		hasDifferentOriginAncestorFlag = true;
@@ -99,7 +97,7 @@ export class IframeUtils {
 
 		let top = 0, left = 0;
 
-		let windowChain = this.getSameOriginWindowChain();
+		const windowChain = this.getSameOriginWindowChain();
 
 		for (const windowChainEl of windowChain) {
 
@@ -114,7 +112,7 @@ export class IframeUtils {
 				break;
 			}
 
-			let boundingRect = windowChainEl.iframeElement.getBoundingClientRect();
+			const boundingRect = windowChainEl.iframeElement.getBoundingClientRect();
 			top += boundingRect.top;
 			left += boundingRect.left;
 		}

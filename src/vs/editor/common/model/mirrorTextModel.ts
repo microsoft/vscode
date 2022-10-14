@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { splitLines } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
-import { IModelContentChange } from 'vs/editor/common/model/textModelEvents';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { IModelContentChange } from 'vs/editor/common/textModelEvents';
+import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 
 export interface IModelChangedEvent {
 	/**
@@ -22,9 +23,21 @@ export interface IModelChangedEvent {
 	 * The new version id the model has transitioned to.
 	 */
 	readonly versionId: number;
+	/**
+	 * Flag that indicates that this event was generated while undoing.
+	 */
+	readonly isUndoing: boolean;
+	/**
+	 * Flag that indicates that this event was generated while redoing.
+	 */
+	readonly isRedoing: boolean;
 }
 
-export class MirrorTextModel {
+export interface IMirrorTextModel {
+	readonly version: number;
+}
+
+export class MirrorTextModel implements IMirrorTextModel {
 
 	protected _uri: URI;
 	protected _lines: string[];
@@ -93,7 +106,7 @@ export class MirrorTextModel {
 		this._lines[lineIndex] = newValue;
 		if (this._lineStarts) {
 			// update prefix sum
-			this._lineStarts.changeValue(lineIndex, this._lines[lineIndex].length + this._eol.length);
+			this._lineStarts.setValue(lineIndex, this._lines[lineIndex].length + this._eol.length);
 		}
 	}
 
@@ -131,7 +144,7 @@ export class MirrorTextModel {
 			// Nothing to insert
 			return;
 		}
-		let insertLines = insertText.split(/\r\n|\r|\n/);
+		const insertLines = splitLines(insertText);
 		if (insertLines.length === 1) {
 			// Inserting text on one line
 			this._setLineText(position.lineNumber - 1,
@@ -152,7 +165,7 @@ export class MirrorTextModel {
 		);
 
 		// Insert new lines & store lengths
-		let newLengths = new Uint32Array(insertLines.length - 1);
+		const newLengths = new Uint32Array(insertLines.length - 1);
 		for (let i = 1; i < insertLines.length; i++) {
 			this._lines.splice(position.lineNumber + i - 1, 0, insertLines[i]);
 			newLengths[i - 1] = insertLines[i].length + this._eol.length;

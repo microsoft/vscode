@@ -3,45 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isFunction, assertIsDefined } from 'vs/base/common/types';
-import { isValidBasename } from 'vs/base/common/extpath';
-import { basename } from 'vs/base/common/resources';
-import { Action } from 'vs/base/common/actions';
-import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { localize } from 'vs/nls';
+import { assertIsDefined } from 'vs/base/common/types';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IAction, toAction } from 'vs/base/common/actions';
+import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, BINARY_TEXT_FILE_MODE } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions, TextEditorOptions, IEditorInput, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { AbstractTextCodeEditor } from 'vs/workbench/browser/parts/editor/textCodeEditor';
+import { IEditorOpenContext, isTextEditorViewState, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { FileOperationError, FileOperationResult, FileChangesEvent, IFileService, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
-import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { createErrorWithActions } from 'vs/base/common/errorMessage';
+import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
  * An implementation of editor for file system resources.
  */
-export class TextFileEditor extends BaseTextEditor {
+export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState> {
 
 	static readonly ID = TEXT_FILE_EDITOR_ID;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IFileService private readonly fileService: IFileService,
-		@IViewletService private readonly viewletService: IViewletService,
+		@IFileService fileService: IFileService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
@@ -51,9 +54,11 @@ export class TextFileEditor extends BaseTextEditor {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IExplorerService private readonly explorerService: IExplorerService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IPathService private readonly pathService: IPathService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
+		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
 
 		// Clear view state for deleted files
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
@@ -63,38 +68,30 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	private onDidFilesChange(e: FileChangesEvent): void {
-		const deleted = e.getDeleted();
-		if (deleted?.length) {
-			this.clearTextEditorViewState(deleted.map(d => d.resource));
+		for (const resource of e.rawDeleted) {
+			this.clearEditorViewState(resource);
 		}
 	}
 
 	private onDidRunOperation(e: FileOperationEvent): void {
 		if (e.operation === FileOperation.MOVE && e.target) {
-			this.moveTextEditorViewState(e.resource, e.target.resource, this.uriIdentityService.extUri);
+			this.moveEditorViewState(e.resource, e.target.resource, this.uriIdentityService.extUri);
 		}
 	}
 
-	protected onWillCloseEditorInGroup(editor: IEditorInput): void {
+	override getTitle(): string {
+		if (this.input) {
+			return this.input.getName();
+		}
 
-		// React to editors closing to preserve or clear view state. This needs to happen
-		// in the onWillCloseEditor because at that time the editor has not yet
-		// been disposed and we can safely persist the view state still as needed.
-		this.doSaveOrClearTextEditorViewState(editor);
+		return localize('textFileEditor', "Text File Editor");
 	}
 
-	getTitle(): string {
-		return this.input ? this.input.getName() : nls.localize('textFileEditor', "Text File Editor");
-	}
-
-	get input(): FileEditorInput | undefined {
+	override get input(): FileEditorInput | undefined {
 		return this._input as FileEditorInput;
 	}
 
-	async setInput(input: FileEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-
-		// Update/clear view settings if input changes
-		this.doSaveOrClearTextEditorViewState(this.input);
+	override async setInput(input: FileEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Set input and resolve
 		await super.setInput(input, options, context, token);
@@ -116,20 +113,24 @@ export class TextFileEditor extends BaseTextEditor {
 			const textFileModel = resolvedModel;
 
 			// Editor
-			const textEditor = assertIsDefined(this.getControl());
-			textEditor.setModel(textFileModel.textEditorModel);
+			const control = assertIsDefined(this.editorControl);
+			control.setModel(textFileModel.textEditorModel);
 
-			// Always restore View State if any associated and not disabled via settings
-			if (this.shouldRestoreTextEditorViewState(input, context)) {
-				const editorViewState = this.loadTextEditorViewState(input.resource);
+			// Restore view state (unless provided by options)
+			if (!isTextEditorViewState(options?.viewState)) {
+				const editorViewState = this.loadEditorViewState(input, context);
 				if (editorViewState) {
-					textEditor.restoreViewState(editorViewState);
+					if (options?.selection) {
+						editorViewState.cursorState = []; // prevent duplicate selections via options
+					}
+
+					control.restoreViewState(editorViewState);
 				}
 			}
 
-			// TextOptions (avoiding instanceof here for a reason, do not change!)
-			if (options && isFunction((<TextEditorOptions>options).apply)) {
-				(<TextEditorOptions>options).apply(textEditor, ScrollType.Immediate);
+			// Apply options to editor if any
+			if (options) {
+				applyTextEditorOptions(options, control, ScrollType.Immediate);
 			}
 
 			// Since the resolved model provides information about being readonly
@@ -137,13 +138,13 @@ export class TextFileEditor extends BaseTextEditor {
 			// was already asked for being readonly or not. The rationale is that
 			// a resolved model might have more specific information about being
 			// readonly or not that the input did not have.
-			textEditor.updateOptions({ readOnly: textFileModel.isReadonly() });
+			control.updateOptions({ readOnly: textFileModel.isReadonly() });
 		} catch (error) {
-			this.handleSetInputError(error, input, options);
+			await this.handleSetInputError(error, input, options);
 		}
 	}
 
-	protected handleSetInputError(error: Error, input: FileEditorInput, options: EditorOptions | undefined): void {
+	protected async handleSetInputError(error: Error, input: FileEditorInput, options: ITextEditorOptions | undefined): Promise<void> {
 
 		// In case we tried to open a file inside the text editor and the response
 		// indicates that this is not a text file, reopen the file through the binary
@@ -154,17 +155,32 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// Similar, handle case where we were asked to open a folder in the text editor.
 		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_DIRECTORY) {
-			this.openAsFolder(input);
+			let action: IAction;
+			if (this.contextService.isInsideWorkspace(input.preferredResource)) {
+				action = toAction({
+					id: 'workbench.files.action.reveal', label: localize('reveal', "Reveal in Explorer View"), run: async () => {
+						await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
 
-			throw new Error(nls.localize('openFolderError', "File is a directory"));
+						return this.explorerService.select(input.preferredResource, true);
+					}
+				});
+			} else {
+				action = toAction({
+					id: 'workbench.files.action.ok', label: localize('ok', "OK"), run: async () => {
+						// No operation possible, but clicking OK will close the editor
+					}
+				});
+			}
+
+			throw createErrorWithActions(new FileOperationError(localize('fileIsDirectoryError', "File is a directory"), FileOperationResult.FILE_IS_DIRECTORY), [action]);
 		}
 
 		// Offer to create a file from the error if we have a file not found and the name is valid
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.preferredResource))) {
-			throw createErrorWithActions(toErrorMessage(error), {
-				actions: [
-					new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), undefined, true, async () => {
-						await this.textFileService.create(input.preferredResource);
+		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && await this.pathService.hasValidBasename(input.preferredResource)) {
+			const fileNotFoundError = createErrorWithActions(new FileOperationError(localize('fileNotFoundError', "File not found"), FileOperationResult.FILE_NOT_FOUND), [
+				toAction({
+					id: 'workbench.files.action.createMissingFile', label: localize('createFile', "Create File"), run: async () => {
+						await this.textFileService.create([{ resource: input.preferredResource }]);
 
 						return this.editorService.openEditor({
 							resource: input.preferredResource,
@@ -172,85 +188,81 @@ export class TextFileEditor extends BaseTextEditor {
 								pinned: true // new file gets pinned by default
 							}
 						});
-					})
-				]
-			});
+					}
+				})
+			]);
+
+			throw fileNotFoundError;
 		}
 
 		// Otherwise make sure the error bubbles up
 		throw error;
 	}
 
-	private openAsBinary(input: FileEditorInput, options: EditorOptions | undefined): void {
-		input.setForceOpenAsBinary();
+	private openAsBinary(input: FileEditorInput, options: ITextEditorOptions | undefined): void {
+		const defaultBinaryEditor = this.configurationService.getValue<string | undefined>('workbench.editor.defaultBinaryEditor');
+		const group = this.group ?? this.editorGroupService.activeGroup;
 
-		// Make sure to not steal away the currently active group
-		// because we are triggering another openEditor() call
-		// and do not control the initial intent that resulted
-		// in us now opening as binary.
-		const preservingOptions: IEditorOptions = { activation: EditorActivation.PRESERVE };
-		if (options) {
-			options.overwrite(preservingOptions);
+		const editorOptions = {
+			...options,
+			// Make sure to not steal away the currently active group
+			// because we are triggering another openEditor() call
+			// and do not control the initial intent that resulted
+			// in us now opening as binary.
+			activation: EditorActivation.PRESERVE
+		};
+
+		// Check configuration and determine whether we open the binary
+		// file input in a different editor or going through the same
+		// editor.
+		// Going through the same editor is debt, and a better solution
+		// would be to introduce a real editor for the binary case
+		// and avoid enforcing binary or text on the file editor input.
+
+		if (defaultBinaryEditor && defaultBinaryEditor !== '' && defaultBinaryEditor !== DEFAULT_EDITOR_ASSOCIATION.id) {
+			this.doOpenAsBinaryInDifferentEditor(group, defaultBinaryEditor, input, editorOptions);
 		} else {
-			options = EditorOptions.create(preservingOptions);
-		}
-
-		this.editorService.openEditor(input, options, this.group);
-	}
-
-	private async openAsFolder(input: FileEditorInput): Promise<void> {
-		if (!this.group) {
-			return;
-		}
-
-		// Since we cannot open a folder, we have to restore the previous input if any and close the editor
-		await this.group.closeEditor(this.input);
-
-		// Best we can do is to reveal the folder in the explorer
-		if (this.contextService.isInsideWorkspace(input.preferredResource)) {
-			await this.viewletService.openViewlet(VIEWLET_ID);
-
-			this.explorerService.select(input.preferredResource, true);
+			this.doOpenAsBinaryInSameEditor(group, defaultBinaryEditor, input, editorOptions);
 		}
 	}
 
-	clearInput(): void {
+	private doOpenAsBinaryInDifferentEditor(group: IEditorGroup, editorId: string | undefined, editor: FileEditorInput, editorOptions: ITextEditorOptions): void {
+		this.editorService.replaceEditors([{
+			editor,
+			replacement: { resource: editor.resource, options: { ...editorOptions, override: editorId } }
+		}], group);
+	}
 
-		// Update/clear editor view state in settings
-		this.doSaveOrClearTextEditorViewState(this.input);
+	private doOpenAsBinaryInSameEditor(group: IEditorGroup, editorId: string | undefined, editor: FileEditorInput, editorOptions: ITextEditorOptions): void {
+
+		// Open binary as text
+		if (editorId === DEFAULT_EDITOR_ASSOCIATION.id) {
+			editor.setForceOpenAsText();
+			editor.setPreferredLanguageId(BINARY_TEXT_FILE_MODE); // https://github.com/microsoft/vscode/issues/131076
+
+			editorOptions = { ...editorOptions, forceReload: true }; // Same pane and same input, must force reload to clear cached state
+		}
+
+		// Open as binary
+		else {
+			editor.setForceOpenAsBinary();
+		}
+
+		group.openEditor(editor, editorOptions);
+	}
+
+	override clearInput(): void {
+		super.clearInput();
 
 		// Clear Model
-		const textEditor = this.getControl();
-		if (textEditor) {
-			textEditor.setModel(null);
-		}
-
-		// Pass to super
-		super.clearInput();
+		this.editorControl?.setModel(null);
 	}
 
-	protected saveState(): void {
-
-		// Update/clear editor view State
-		this.doSaveOrClearTextEditorViewState(this.input);
-
-		super.saveState();
+	protected override tracksEditorViewState(input: EditorInput): boolean {
+		return input instanceof FileEditorInput;
 	}
 
-	private doSaveOrClearTextEditorViewState(input: IEditorInput | undefined): void {
-		if (!(input instanceof FileEditorInput)) {
-			return; // ensure we have an input to handle view state for
-		}
-
-		// If the user configured to not restore view state, we clear the view
-		// state unless the editor is still opened in the group.
-		if (!this.shouldRestoreTextEditorViewState(input) && (!this.group || !this.group.isOpened(input))) {
-			this.clearTextEditorViewState([input.resource], this.group);
-		}
-
-		// Otherwise we save the view state to restore it later
-		else if (!input.isDisposed()) {
-			this.saveTextEditorViewState(input.resource);
-		}
+	protected override tracksDisposedEditorViewState(): boolean {
+		return true; // track view state even for disposed editors
 	}
 }

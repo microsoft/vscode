@@ -3,33 +3,60 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Severity from 'vs/base/common/severity';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
+import { Codicon } from 'vs/base/common/codicons';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { basename } from 'vs/base/common/resources';
+import Severity from 'vs/base/common/severity';
+import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface FileFilter {
-	extensions: string[];
-	name: string;
+	readonly extensions: string[];
+	readonly name: string;
 }
 
 export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
 
 export interface ICheckbox {
-	label: string;
-	checked?: boolean;
+	readonly label: string;
+	readonly checked?: boolean;
 }
 
+export interface IConfirmDialogArgs {
+	readonly confirmation: IConfirmation;
+}
+
+export interface IShowDialogArgs {
+	readonly severity: Severity;
+	readonly message: string;
+	readonly buttons?: string[];
+	readonly options?: IDialogOptions;
+}
+
+export interface IInputDialogArgs extends IShowDialogArgs {
+	readonly buttons: string[];
+	readonly inputs: IInput[];
+}
+
+export interface IDialog {
+	readonly confirmArgs?: IConfirmDialogArgs;
+	readonly showArgs?: IShowDialogArgs;
+	readonly inputArgs?: IInputDialogArgs;
+}
+
+export type IDialogResult = IConfirmationResult | IInputResult | IShowResult;
+
 export interface IConfirmation {
-	title?: string;
-	type?: DialogType;
-	message: string;
-	detail?: string;
-	primaryButton?: string;
-	secondaryButton?: string;
-	checkbox?: ICheckbox;
+	readonly title?: string;
+	readonly type?: DialogType;
+	readonly message: string;
+	readonly detail?: string;
+	readonly primaryButton?: string;
+	readonly secondaryButton?: string;
+	readonly checkbox?: ICheckbox;
 }
 
 export interface IConfirmationResult {
@@ -38,13 +65,13 @@ export interface IConfirmationResult {
 	 * Will be true if the dialog was confirmed with the primary button
 	 * pressed.
 	 */
-	confirmed: boolean;
+	readonly confirmed: boolean;
 
 	/**
 	 * This will only be defined if the confirmation was created
 	 * with the checkbox option defined.
 	 */
-	checkboxChecked?: boolean;
+	readonly checkboxChecked?: boolean;
 }
 
 export interface IShowResult {
@@ -54,13 +81,13 @@ export interface IShowResult {
 	 * then a promise with index of `cancelId` option is returned. If there is no such
 	 * option then promise with index `0` is returned.
 	 */
-	choice: number;
+	readonly choice: number;
 
 	/**
 	 * This will only be defined if the confirmation was created
 	 * with the checkbox option defined.
 	 */
-	checkboxChecked?: boolean;
+	readonly checkboxChecked?: boolean;
 }
 
 export interface IInputResult extends IShowResult {
@@ -69,7 +96,7 @@ export interface IInputResult extends IShowResult {
 	 * Values for the input fields as provided by the user
 	 * or `undefined` if none.
 	 */
-	values?: string[];
+	readonly values?: string[];
 }
 
 export interface IPickAndOpenOptions {
@@ -77,9 +104,11 @@ export interface IPickAndOpenOptions {
 	defaultUri?: URI;
 	telemetryExtraData?: ITelemetryData;
 	availableFileSystems?: string[];
+	remoteAuthority?: string | null;
 }
 
 export interface ISaveDialogOptions {
+
 	/**
 	 * A human-readable string for the dialog title
 	 */
@@ -109,6 +138,7 @@ export interface ISaveDialogOptions {
 }
 
 export interface IOpenDialogOptions {
+
 	/**
 	 * A human-readable string for the dialog title
 	 */
@@ -154,27 +184,36 @@ export interface IOpenDialogOptions {
 
 export const IDialogService = createDecorator<IDialogService>('dialogService');
 
+export interface ICustomDialogOptions {
+	readonly buttonDetails?: string[];
+	readonly markdownDetails?: ICustomDialogMarkdown[];
+	readonly classes?: string[];
+	readonly icon?: Codicon;
+	readonly disableCloseAction?: boolean;
+}
+
+export interface ICustomDialogMarkdown {
+	readonly markdown: IMarkdownString;
+	readonly classes?: string[];
+}
+
 export interface IDialogOptions {
-	cancelId?: number;
-	detail?: string;
-	checkbox?: ICheckbox;
+	readonly cancelId?: number;
+	readonly detail?: string;
+	readonly checkbox?: ICheckbox;
+	readonly custom?: boolean | ICustomDialogOptions;
 }
 
 export interface IInput {
-	placeholder?: string;
-	type?: 'text' | 'password'
-	value?: string;
+	readonly placeholder?: string;
+	readonly type?: 'text' | 'password';
+	readonly value?: string;
 }
 
 /**
- * A service to bring up modal dialogs.
- *
- * Note: use the `INotificationService.prompt()` method for a non-modal way to ask
- * the user for input.
+ * A handler to bring up modal dialogs.
  */
-export interface IDialogService {
-
-	readonly _serviceBrand: undefined;
+export interface IDialogHandler {
 
 	/**
 	 * Ask the user for confirmation with a modal dialog.
@@ -188,7 +227,62 @@ export interface IDialogService {
 	 * then a promise with index of `cancelId` option is returned. If there is no such
 	 * option then promise with index `0` is returned.
 	 */
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult>;
+	show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult>;
+
+	/**
+	 * Present a modal dialog to the user asking for input.
+	 *
+	 *  @returns A promise with the selected choice index. If the user refused to choose,
+	 * then a promise with index of `cancelId` option is returned. If there is no such
+	 * option then promise with index `0` is returned. In addition, the values for the
+	 * inputs are returned as well.
+	 */
+	input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult>;
+
+	/**
+	 * Present the about dialog to the user.
+	 */
+	about(): Promise<void>;
+}
+
+/**
+ * A service to bring up modal dialogs.
+ *
+ * Note: use the `INotificationService.prompt()` method for a non-modal way to ask
+ * the user for input.
+ */
+export interface IDialogService {
+
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * An event that fires when a dialog is about to show.
+	 */
+	onWillShowDialog: Event<void>;
+
+	/**
+	 * An event that fires when a dialog did show (closed).
+	 */
+	onDidShowDialog: Event<void>;
+
+	/**
+	 * Ask the user for confirmation with a modal dialog.
+	 */
+	confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
+
+	/**
+	 * Present a modal dialog to the user.
+	 *
+	 * @param severity the severity of the message
+	 * @param message the message to show
+	 * @param buttons the buttons to show. By convention, the first button should be the
+	 * primary action and the last button the "Cancel" action.
+	 *
+	 * @returns A promise with the selected choice index. If the user refused to choose,
+	 * then a promise with index of `cancelId` option is returned. If there is no such
+	 * option then promise with index `0` is returned.
+	 */
+	show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult>;
 
 	/**
 	 * Present a modal dialog to the user asking for input.
@@ -218,20 +312,23 @@ export interface IFileDialogService {
 	/**
 	 * The default path for a new file based on previously used files.
 	 * @param schemeFilter The scheme of the file path. If no filter given, the scheme of the current window is used.
+	 * Falls back to user home in the absence of enough information to find a better URI.
 	 */
-	defaultFilePath(schemeFilter?: string): URI | undefined;
+	defaultFilePath(schemeFilter?: string): Promise<URI>;
 
 	/**
 	 * The default path for a new folder based on previously used folders.
 	 * @param schemeFilter The scheme of the folder path. If no filter given, the scheme of the current window is used.
+	 * Falls back to user home in the absence of enough information to find a better URI.
 	 */
-	defaultFolderPath(schemeFilter?: string): URI | undefined;
+	defaultFolderPath(schemeFilter?: string): Promise<URI>;
 
 	/**
 	 * The default path for a new workspace based on previously used workspaces.
 	 * @param schemeFilter The scheme of the workspace path. If no filter given, the scheme of the current window is used.
+	 * Falls back to user home in the absence of enough information to find a better URI.
 	 */
-	defaultWorkspacePath(schemeFilter?: string, filename?: string): URI | undefined;
+	defaultWorkspacePath(schemeFilter?: string): Promise<URI>;
 
 	/**
 	 * Shows a file-folder selection dialog and opens the selected entry.
@@ -298,10 +395,10 @@ export function getFileNamesMessage(fileNamesOrResources: readonly (string | URI
 }
 
 export interface INativeOpenDialogOptions {
-	forceNewWindow?: boolean;
+	readonly forceNewWindow?: boolean;
 
-	defaultPath?: string;
+	readonly defaultPath?: string;
 
-	telemetryEventName?: string;
-	telemetryExtraData?: ITelemetryData;
+	readonly telemetryEventName?: string;
+	readonly telemetryExtraData?: ITelemetryData;
 }

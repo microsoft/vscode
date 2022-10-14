@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Disposable, EventEmitter } from 'vscode';
-import { dirname, sep } from 'path';
+import { dirname, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
 import * as byline from 'byline';
+
+export const isMacintosh = process.platform === 'darwin';
+export const isWindows = process.platform === 'win32';
 
 export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
@@ -48,9 +51,7 @@ export function anyEvent<T>(...events: Event<T>[]): Event<T> {
 	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => {
 		const result = combinedDisposable(events.map(event => event(i => listener.call(thisArgs, i))));
 
-		if (disposables) {
-			disposables.push(result);
-		}
+		disposables?.push(result);
 
 		return result;
 	};
@@ -86,7 +87,7 @@ export function eventToPromise<T>(event: Event<T>): Promise<T> {
 }
 
 export function once(fn: (...args: any[]) => any): (...args: any[]) => any {
-	let didRun = false;
+	const didRun = false;
 
 	return (...args) => {
 		if (didRun) {
@@ -168,7 +169,7 @@ export async function mkdirp(path: string, mode?: number): Promise<boolean> {
 }
 
 export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
-	const seen: { [key: string]: boolean; } = Object.create(null);
+	const seen: { [key: string]: boolean } = Object.create(null);
 
 	return element => {
 		const key = keyFn(element);
@@ -216,11 +217,11 @@ export async function grep(filename: string, pattern: RegExp): Promise<boolean> 
 export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
 	return new Promise<Buffer>((complete, error) => {
 		let done = false;
-		let buffer = Buffer.allocUnsafe(bytes);
+		const buffer = Buffer.allocUnsafe(bytes);
 		let bytesRead = 0;
 
 		stream.on('data', (data: Buffer) => {
-			let bytesToRead = Math.min(bytes - bytesRead, data.length);
+			const bytesToRead = Math.min(bytes - bytesRead, data.length);
 			data.copy(buffer, bytesRead, 0, bytesToRead);
 			bytesRead += bytesToRead;
 
@@ -280,8 +281,14 @@ export function detectUnicodeEncoding(buffer: Buffer): Encoding | null {
 	return null;
 }
 
-function isWindowsPath(path: string): boolean {
-	return /^[a-zA-Z]:\\/.test(path);
+function normalizePath(path: string): string {
+	// Windows & Mac are currently being handled
+	// as case insensitive file systems in VS Code.
+	if (isWindows || isMacintosh) {
+		return path.toLowerCase();
+	}
+
+	return path;
 }
 
 export function isDescendant(parent: string, descendant: string): boolean {
@@ -293,23 +300,33 @@ export function isDescendant(parent: string, descendant: string): boolean {
 		parent += sep;
 	}
 
-	// Windows is case insensitive
-	if (isWindowsPath(parent)) {
-		parent = parent.toLowerCase();
-		descendant = descendant.toLowerCase();
-	}
-
-	return descendant.startsWith(parent);
+	return normalizePath(descendant).startsWith(normalizePath(parent));
 }
 
 export function pathEquals(a: string, b: string): boolean {
-	// Windows is case insensitive
-	if (isWindowsPath(a)) {
-		a = a.toLowerCase();
-		b = b.toLowerCase();
+	return normalizePath(a) === normalizePath(b);
+}
+
+/**
+ * Given the `repository.root` compute the relative path while trying to preserve
+ * the casing of the resource URI. The `repository.root` segment of the path can
+ * have a casing mismatch if the folder/workspace is being opened with incorrect
+ * casing.
+ */
+export function relativePath(from: string, to: string): string {
+	// On Windows, there are cases in which `from` is a path that contains a trailing `\` character
+	// (ex: C:\, \\server\folder\) due to the implementation of `path.normalize()`. This behavior is
+	// by design as documented in https://github.com/nodejs/node/issues/1765.
+	if (isWindows) {
+		from = from.replace(/\\$/, '');
 	}
 
-	return a === b;
+	if (isDescendant(from, to) && from.length < to.length) {
+		return to.substring(from.length + 1);
+	}
+
+	// Fallback to `path.relative`
+	return relative(from, to);
 }
 
 export function* splitInChunks(array: string[], maxChunkLength: number): IterableIterator<string[]> {
@@ -379,7 +396,7 @@ export class Limiter<T> {
 	}
 }
 
-type Completion<T> = { success: true, value: T } | { success: false, err: any };
+type Completion<T> = { success: true; value: T } | { success: false; err: any };
 
 export class PromiseSource<T> {
 
@@ -412,5 +429,58 @@ export class PromiseSource<T> {
 			this._promise = Promise.reject(err);
 			this._onDidComplete.fire({ success: false, err });
 		}
+	}
+}
+
+export namespace Versions {
+	declare type VersionComparisonResult = -1 | 0 | 1;
+
+	export interface Version {
+		major: number;
+		minor: number;
+		patch: number;
+		pre?: string;
+	}
+
+	export function compare(v1: string | Version, v2: string | Version): VersionComparisonResult {
+		if (typeof v1 === 'string') {
+			v1 = fromString(v1);
+		}
+		if (typeof v2 === 'string') {
+			v2 = fromString(v2);
+		}
+
+		if (v1.major > v2.major) { return 1; }
+		if (v1.major < v2.major) { return -1; }
+
+		if (v1.minor > v2.minor) { return 1; }
+		if (v1.minor < v2.minor) { return -1; }
+
+		if (v1.patch > v2.patch) { return 1; }
+		if (v1.patch < v2.patch) { return -1; }
+
+		if (v1.pre === undefined && v2.pre !== undefined) { return 1; }
+		if (v1.pre !== undefined && v2.pre === undefined) { return -1; }
+
+		if (v1.pre !== undefined && v2.pre !== undefined) {
+			return v1.pre.localeCompare(v2.pre) as VersionComparisonResult;
+		}
+
+		return 0;
+	}
+
+	export function from(major: string | number, minor: string | number, patch?: string | number, pre?: string): Version {
+		return {
+			major: typeof major === 'string' ? parseInt(major, 10) : major,
+			minor: typeof minor === 'string' ? parseInt(minor, 10) : minor,
+			patch: patch === undefined || patch === null ? 0 : typeof patch === 'string' ? parseInt(patch, 10) : patch,
+			pre: pre,
+		};
+	}
+
+	export function fromString(version: string): Version {
+		const [ver, pre] = version.split('-');
+		const [major, minor, patch] = ver.split('.');
+		return from(major, minor, patch, pre);
 	}
 }

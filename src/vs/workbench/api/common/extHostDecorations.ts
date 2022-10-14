@@ -37,17 +37,17 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadDecorations);
 	}
 
-	registerDecorationProvider(provider: vscode.FileDecorationProvider, extensionId: ExtensionIdentifier): vscode.Disposable {
+	registerFileDecorationProvider(provider: vscode.FileDecorationProvider, extensionId: ExtensionIdentifier): vscode.Disposable {
 		const handle = ExtHostDecorations._handlePool++;
 		this._provider.set(handle, { provider, extensionId });
 		this._proxy.$registerDecorationProvider(handle, extensionId.value);
 
-		const listener = provider.onDidChange(e => {
+		const listener = provider.onDidChangeFileDecorations && provider.onDidChangeFileDecorations(e => {
 			if (!e) {
 				this._proxy.$onDidChange(handle, null);
 				return;
 			}
-			let array = asArray(e);
+			const array = asArray(e);
 			if (array.length <= ExtHostDecorations._maxEventSize) {
 				this._proxy.$onDidChange(handle, array);
 				return;
@@ -58,11 +58,11 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 			this._logService.warn('[Decorations] CAPPING events from decorations provider', extensionId.value, array.length);
 			const mapped = array.map(uri => ({ uri, rank: count(uri.path, '/') }));
 			const groups = groupBy(mapped, (a, b) => a.rank - b.rank || compare(a.uri.path, b.uri.path));
-			let picked: URI[] = [];
-			outer: for (let uris of groups) {
+			const picked: URI[] = [];
+			outer: for (const uris of groups) {
 				let lastDirname: string | undefined;
-				for (let obj of uris) {
-					let myDirname = dirname(obj.uri.path);
+				for (const obj of uris) {
+					const myDirname = dirname(obj.uri.path);
 					if (lastDirname !== myDirname) {
 						lastDirname = myDirname;
 						if (picked.push(obj.uri) >= ExtHostDecorations._maxEventSize) {
@@ -75,7 +75,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		});
 
 		return new Disposable(() => {
-			listener.dispose();
+			listener?.dispose();
 			this._proxy.$unregisterDecorationProvider(handle);
 			this._provider.delete(handle);
 		});

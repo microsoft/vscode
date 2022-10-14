@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration, TrackedRangeStickiness, TrackedRangeStickiness as ActualTrackedRangeStickiness } from 'vs/editor/common/model';
+import { TrackedRangeStickiness, TrackedRangeStickiness as ActualTrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 
 //
@@ -39,17 +39,13 @@ const enum Constants {
 	IsForValidationMaskInverse = 0b11111011,
 	IsForValidationOffset = 2,
 
-	IsInOverviewRulerMask = 0b00001000,
-	IsInOverviewRulerMaskInverse = 0b11110111,
-	IsInOverviewRulerOffset = 3,
+	StickinessMask = 0b00011000,
+	StickinessMaskInverse = 0b11100111,
+	StickinessOffset = 3,
 
-	StickinessMask = 0b00110000,
-	StickinessMaskInverse = 0b11001111,
-	StickinessOffset = 4,
-
-	CollapseOnReplaceEditMask = 0b01000000,
-	CollapseOnReplaceEditMaskInverse = 0b10111111,
-	CollapseOnReplaceEditOffset = 6,
+	CollapseOnReplaceEditMask = 0b00100000,
+	CollapseOnReplaceEditMaskInverse = 0b11011111,
+	CollapseOnReplaceEditOffset = 5,
 
 	/**
 	 * Due to how deletion works (in order to avoid always walking the right subtree of the deleted node),
@@ -98,14 +94,6 @@ function setNodeIsForValidation(node: IntervalNode, value: boolean): void {
 		(node.metadata & Constants.IsForValidationMaskInverse) | ((value ? 1 : 0) << Constants.IsForValidationOffset)
 	);
 }
-export function getNodeIsInOverviewRuler(node: IntervalNode): boolean {
-	return ((node.metadata & Constants.IsInOverviewRulerMask) >>> Constants.IsInOverviewRulerOffset) === 1;
-}
-function setNodeIsInOverviewRuler(node: IntervalNode, value: boolean): void {
-	node.metadata = (
-		(node.metadata & Constants.IsInOverviewRulerMaskInverse) | ((value ? 1 : 0) << Constants.IsInOverviewRulerOffset)
-	);
-}
 function getNodeStickiness(node: IntervalNode): TrackedRangeStickiness {
 	return ((node.metadata & Constants.StickinessMask) >>> Constants.StickinessOffset);
 }
@@ -126,7 +114,7 @@ export function setNodeStickiness(node: IntervalNode, stickiness: ActualTrackedR
 	_setNodeStickiness(node, <number>stickiness);
 }
 
-export class IntervalNode implements IModelDecoration {
+export class IntervalNode {
 
 	/**
 	 * contains binary encoded information for color, visited, isForValidation and stickiness.
@@ -149,7 +137,7 @@ export class IntervalNode implements IModelDecoration {
 	public cachedVersionId: number;
 	public cachedAbsoluteStart: number;
 	public cachedAbsoluteEnd: number;
-	public range: Range;
+	public range: Range | null;
 
 	constructor(id: string, start: number, end: number) {
 		this.metadata = 0;
@@ -170,13 +158,12 @@ export class IntervalNode implements IModelDecoration {
 		this.options = null!;
 		setNodeIsForValidation(this, false);
 		_setNodeStickiness(this, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
-		setNodeIsInOverviewRuler(this, false);
 		setCollapseOnReplaceEdit(this, false);
 
 		this.cachedVersionId = 0;
 		this.cachedAbsoluteStart = start;
 		this.cachedAbsoluteEnd = end;
-		this.range = null!;
+		this.range = null;
 
 		setNodeIsVisited(this, false);
 	}
@@ -193,20 +180,19 @@ export class IntervalNode implements IModelDecoration {
 
 	public setOptions(options: ModelDecorationOptions) {
 		this.options = options;
-		let className = this.options.className;
+		const className = this.options.className;
 		setNodeIsForValidation(this, (
 			className === ClassName.EditorErrorDecoration
 			|| className === ClassName.EditorWarningDecoration
 			|| className === ClassName.EditorInfoDecoration
 		));
 		_setNodeStickiness(this, <number>this.options.stickiness);
-		setNodeIsInOverviewRuler(this, (this.options.overviewRuler && this.options.overviewRuler.color) ? true : false);
 		setCollapseOnReplaceEdit(this, this.options.collapseOnReplaceEdit);
 	}
 
 	public setCachedOffsets(absoluteStart: number, absoluteEnd: number, cachedVersionId: number): void {
 		if (this.cachedVersionId !== cachedVersionId) {
-			this.range = null!;
+			this.range = null;
 		}
 		this.cachedVersionId = cachedVersionId;
 		this.cachedAbsoluteStart = absoluteStart;
@@ -487,7 +473,7 @@ function searchForEditing(T: IntervalTree, start: number, end: number): Interval
 	let nodeMaxEnd = 0;
 	let nodeStart = 0;
 	let nodeEnd = 0;
-	let result: IntervalNode[] = [];
+	const result: IntervalNode[] = [];
 	let resultLen = 0;
 	while (node !== SENTINEL) {
 		if (getNodeIsVisited(node)) {
@@ -623,7 +609,7 @@ function noOverlapReplace(T: IntervalTree, start: number, end: number, textLengt
 
 function collectNodesFromOwner(T: IntervalTree, ownerId: number): IntervalNode[] {
 	let node = T.root;
-	let result: IntervalNode[] = [];
+	const result: IntervalNode[] = [];
 	let resultLen = 0;
 	while (node !== SENTINEL) {
 		if (getNodeIsVisited(node)) {
@@ -661,7 +647,7 @@ function collectNodesFromOwner(T: IntervalTree, ownerId: number): IntervalNode[]
 
 function collectNodesPostOrder(T: IntervalTree): IntervalNode[] {
 	let node = T.root;
-	let result: IntervalNode[] = [];
+	const result: IntervalNode[] = [];
 	let resultLen = 0;
 	while (node !== SENTINEL) {
 		if (getNodeIsVisited(node)) {
@@ -699,7 +685,7 @@ function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boo
 	let delta = 0;
 	let nodeStart = 0;
 	let nodeEnd = 0;
-	let result: IntervalNode[] = [];
+	const result: IntervalNode[] = [];
 	let resultLen = 0;
 	while (node !== SENTINEL) {
 		if (getNodeIsVisited(node)) {
@@ -764,7 +750,7 @@ function intervalSearch(T: IntervalTree, intervalStart: number, intervalEnd: num
 	let nodeMaxEnd = 0;
 	let nodeStart = 0;
 	let nodeEnd = 0;
-	let result: IntervalNode[] = [];
+	const result: IntervalNode[] = [];
 	let resultLen = 0;
 	while (node !== SENTINEL) {
 		if (getNodeIsVisited(node)) {
@@ -1000,7 +986,7 @@ function rbTreeDelete(T: IntervalTree, z: IntervalNode): void {
 		return;
 	}
 
-	let yWasRed = (getNodeColor(y) === NodeColor.Red);
+	const yWasRed = (getNodeColor(y) === NodeColor.Red);
 
 	if (y === y.parent.left) {
 		y.parent.left = x;

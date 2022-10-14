@@ -8,6 +8,7 @@ import type * as vscode from 'vscode';
 import { MainContext, MainThreadMessageServiceShape, MainThreadMessageOptions, IMainContext } from './extHost.protocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 function isMessageItem(item: any): item is vscode.MessageItem {
 	return item && item.title;
@@ -30,24 +31,32 @@ export class ExtHostMessageService {
 	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | vscode.MessageItem | string | undefined, rest: Array<vscode.MessageItem | string>): Promise<string | vscode.MessageItem | undefined>;
 	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string | vscode.MessageItem | undefined, rest: Array<string | vscode.MessageItem>): Promise<string | vscode.MessageItem | undefined> {
 
-		const options: MainThreadMessageOptions = { extension };
+		const options: MainThreadMessageOptions = {
+			source: { identifier: extension.identifier, label: extension.displayName || extension.name }
+		};
 		let items: (string | vscode.MessageItem)[];
 
 		if (typeof optionsOrFirstItem === 'string' || isMessageItem(optionsOrFirstItem)) {
 			items = [optionsOrFirstItem, ...rest];
 		} else {
-			options.modal = optionsOrFirstItem && optionsOrFirstItem.modal;
+			options.modal = optionsOrFirstItem?.modal;
+			options.useCustom = optionsOrFirstItem?.useCustom;
+			options.detail = optionsOrFirstItem?.detail;
 			items = rest;
 		}
 
-		const commands: { title: string; isCloseAffordance: boolean; handle: number; }[] = [];
+		if (options.useCustom) {
+			checkProposedApiEnabled(extension, 'resolvers');
+		}
+
+		const commands: { title: string; isCloseAffordance: boolean; handle: number }[] = [];
 
 		for (let handle = 0; handle < items.length; handle++) {
 			const command = items[handle];
 			if (typeof command === 'string') {
 				commands.push({ title: command, handle, isCloseAffordance: false });
 			} else if (typeof command === 'object') {
-				let { title, isCloseAffordance } = command;
+				const { title, isCloseAffordance } = command;
 				commands.push({ title, isCloseAffordance: !!isCloseAffordance, handle });
 			} else {
 				this._logService.warn('Invalid message item:', command);

@@ -12,9 +12,9 @@ import { IRange } from 'vs/editor/common/core/range';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
 import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { ITextEditorPane } from 'vs/workbench/common/editor';
+import { IEditorPane } from 'vs/workbench/common/editor';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
@@ -72,7 +72,7 @@ export class Source {
 		return this.uri.scheme === DEBUG_SCHEME;
 	}
 
-	openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditorPane | undefined> {
+	openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<IEditorPane | undefined> {
 		return !this.available ? Promise.resolve(undefined) : editorService.openEditor({
 			resource: this.uri,
 			description: this.origin,
@@ -86,7 +86,7 @@ export class Source {
 		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
-	static getEncodedDebugData(modelUri: URI): { name: string, path: string, sessionId?: string, sourceReference?: number } {
+	static getEncodedDebugData(modelUri: URI): { name: string; path: string; sessionId?: string; sourceReference?: number } {
 		let path: string;
 		let sourceReference: number | undefined;
 		let sessionId: string | undefined;
@@ -99,7 +99,7 @@ export class Source {
 				path = modelUri.path;
 				if (modelUri.query) {
 					const keyvalues = modelUri.query.split('&');
-					for (let keyvalue of keyvalues) {
+					for (const keyvalue of keyvalues) {
 						const pair = keyvalue.split('=');
 						if (pair.length === 2) {
 							switch (pair[0]) {

@@ -5,28 +5,31 @@
 
 import * as es from 'event-stream';
 import * as fs from 'fs';
+import * as cp from 'child_process';
 import * as glob from 'glob';
 import * as gulp from 'gulp';
 import * as path from 'path';
+import * as through2 from 'through2';
+import got from 'got';
 import { Stream } from 'stream';
 import * as File from 'vinyl';
-import * as vsce from 'vsce';
 import { createStatsStream } from './stats';
 import * as util2 from './util';
-import remote = require('gulp-remote-retry-src');
 const vzip = require('gulp-vinyl-zip');
 import filter = require('gulp-filter');
 import rename = require('gulp-rename');
 import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 const buffer = require('gulp-buffer');
-import json = require('gulp-json-editor');
 import * as jsoncParser from 'jsonc-parser';
-const webpack = require('webpack');
-const webpackGulp = require('webpack-stream');
-const util = require('./util');
+import webpack = require('webpack');
+import { getProductionDependencies } from './dependencies';
+import _ = require('underscore');
+import { getExtensionStream } from './builtInExtensions';
+import { getVersion } from './getVersion';
+
 const root = path.dirname(path.dirname(__dirname));
-const commit = util.getVersion(root);
+const commit = getVersion(root);
 const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
 
 function minifyExtensionResources(input: Stream): Stream {
@@ -96,6 +99,10 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string):
 			}
 		}
 	}
+
+	const vsce = require('vsce') as typeof import('vsce');
+	const webpack = require('webpack');
+	const webpackGulp = require('webpack-stream');
 
 	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn, packagedDependencies }).then(fileNames => {
 		const files = fileNames
@@ -175,6 +182,8 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string):
 function fromLocalNormal(extensionPath: string): Stream {
 	const result = es.through();
 
+	const vsce = require('vsce') as typeof import('vsce');
+
 	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn })
 		.then(fileNames => {
 			const files = fileNames
@@ -193,15 +202,19 @@ function fromLocalNormal(extensionPath: string): Stream {
 	return result.pipe(createStatsStream(path.basename(extensionPath)));
 }
 
+const userAgent = 'VSCode Build';
 const baseHeaders = {
 	'X-Market-Client-Id': 'VSCode Build',
-	'User-Agent': 'VSCode Build',
+	'User-Agent': userAgent,
 	'X-Market-User-Id': '291C1CD0-051A-4123-9B4B-30D60EF52EE2',
 };
 
-export function fromMarketplace(extensionName: string, version: string, metadata: any): Stream {
+export function fromMarketplace(serviceUrl: string, { name: extensionName, version, metadata }: IBuiltInExtension): Stream {
+	const remote = require('gulp-remote-retry-src');
+	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
+
 	const [publisher, name] = extensionName.split('.');
-	const url = `https://marketplace.visualstudio.com/_apis/public/gallery/publishers/${publisher}/vsextensions/${name}/${version}/vspackage`;
+	const url = `${serviceUrl}/publishers/${publisher}/vsextensions/${name}/${version}/vspackage`;
 
 	fancyLog('Downloading extension:', ansiColors.yellow(`${extensionName}@${version}`), '...');
 
@@ -224,19 +237,65 @@ export function fromMarketplace(extensionName: string, version: string, metadata
 		.pipe(json({ __metadata: metadata }))
 		.pipe(packageJsonFilter.restore);
 }
+
+const ghApiHeaders: Record<string, string> = {
+	Accept: 'application/vnd.github.v3+json',
+	'User-Agent': userAgent,
+};
+if (process.env.GITHUB_TOKEN) {
+	ghApiHeaders.Authorization = 'Basic ' + Buffer.from(process.env.GITHUB_TOKEN).toString('base64');
+}
+const ghDownloadHeaders = {
+	...ghApiHeaders,
+	Accept: 'application/octet-stream',
+};
+
+export function fromGithub({ name, version, repo, metadata }: IBuiltInExtension): Stream {
+	const remote = require('gulp-remote-retry-src');
+	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
+
+	fancyLog('Downloading extension from GH:', ansiColors.yellow(`${name}@${version}`), '...');
+
+	const packageJsonFilter = filter('package.json', { restore: true });
+
+	return remote([`/repos${new URL(repo).pathname}/releases/tags/v${version}`], {
+		base: 'https://api.github.com',
+		requestOptions: { headers: ghApiHeaders }
+	}).pipe(through2.obj(function (file, _enc, callback) {
+		const asset = JSON.parse(file.contents.toString()).assets.find((a: any) => a.name.endsWith('.vsix'));
+		if (!asset) {
+			return callback(new Error(`Could not find vsix in release of ${repo} @ ${version}`));
+		}
+
+		const res = got.stream(asset.url, { headers: ghDownloadHeaders, followRedirect: true });
+		file.contents = res.pipe(through2());
+		callback(null, file);
+	}))
+		.pipe(buffer())
+		.pipe(vzip.src())
+		.pipe(filter('extension/**'))
+		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
+		.pipe(packageJsonFilter)
+		.pipe(buffer())
+		.pipe(json({ __metadata: metadata }))
+		.pipe(packageJsonFilter.restore);
+}
+
 const excludedExtensions = [
 	'vscode-api-tests',
 	'vscode-colorize-tests',
 	'vscode-test-resolver',
 	'ms-vscode.node-debug',
 	'ms-vscode.node-debug2',
-	'vscode-notebook-tests',
-	'vscode-custom-editor-tests',
 ];
 
-const marketplaceWebExtensions = [
-	'ms-vscode.references-view'
-];
+const marketplaceWebExtensionsExclude = new Set([
+	'ms-vscode.node-debug',
+	'ms-vscode.node-debug2',
+	'ms-vscode.js-debug-companion',
+	'ms-vscode.js-debug',
+	'ms-vscode.vscode-js-profile-table'
+]);
 
 interface IBuiltInExtension {
 	name: string;
@@ -251,19 +310,38 @@ const webBuiltInExtensions: IBuiltInExtension[] = productJson.webBuiltInExtensio
 
 type ExtensionKind = 'ui' | 'workspace' | 'web';
 interface IExtensionManifest {
-	main: string;
-	browser: string;
+	main?: string;
+	browser?: string;
 	extensionKind?: ExtensionKind | ExtensionKind[];
+	extensionPack?: string[];
+	extensionDependencies?: string[];
+	contributes?: { [id: string]: any };
 }
 /**
- * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionsUtil.ts`
+ * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionManifestPropertiesService.ts`
  */
 function isWebExtension(manifest: IExtensionManifest): boolean {
+	if (Boolean(manifest.browser)) {
+		return true;
+	}
+	if (Boolean(manifest.main)) {
+		return false;
+	}
+	// neither browser nor main
 	if (typeof manifest.extensionKind !== 'undefined') {
 		const extensionKind = Array.isArray(manifest.extensionKind) ? manifest.extensionKind : [manifest.extensionKind];
-		return (extensionKind.indexOf('web') >= 0);
+		if (extensionKind.indexOf('web') >= 0) {
+			return true;
+		}
 	}
-	return (!Boolean(manifest.main) || Boolean(manifest.browser));
+	if (typeof manifest.contributes !== 'undefined') {
+		for (const id of ['debuggers', 'terminal', 'typescriptServerPlugins']) {
+			if (manifest.contributes.hasOwnProperty(id)) {
+				return false;
+			}
+		}
+	}
+	return true;
 }
 
 export function packageLocalExtensionsStream(forWeb: boolean): Stream {
@@ -292,8 +370,10 @@ export function packageLocalExtensionsStream(forWeb: boolean): Stream {
 	if (forWeb) {
 		result = localExtensionsStream;
 	} else {
-		// also include shared node modules
-		result = es.merge(localExtensionsStream, gulp.src('extensions/node_modules/**', { base: '.' }));
+		// also include shared production node modules
+		const productionDependencies = getProductionDependencies('extensions/');
+		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
+		result = es.merge(localExtensionsStream, gulp.src(dependenciesSrc, { base: '.' }));
 	}
 
 	return (
@@ -304,16 +384,15 @@ export function packageLocalExtensionsStream(forWeb: boolean): Stream {
 
 export function packageMarketplaceExtensionsStream(forWeb: boolean): Stream {
 	const marketplaceExtensionsDescriptions = [
-		...builtInExtensions.filter(({ name }) => (forWeb ? marketplaceWebExtensions.indexOf(name) >= 0 : true)),
+		...builtInExtensions.filter(({ name }) => (forWeb ? !marketplaceWebExtensionsExclude.has(name) : true)),
 		...(forWeb ? webBuiltInExtensions : [])
 	];
 	const marketplaceExtensionsStream = minifyExtensionResources(
 		es.merge(
 			...marketplaceExtensionsDescriptions
 				.map(extension => {
-					const input = fromMarketplace(extension.name, extension.version, extension.metadata)
-						.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-					return updateExtensionPackageJSON(input, (data: any) => {
+					const src = getExtensionStream(extension).pipe(rename(p => p.dirname = `extensions/${p.dirname}`));
+					return updateExtensionPackageJSON(src, (data: any) => {
 						delete data.scripts;
 						delete data.dependencies;
 						delete data.devDependencies;
@@ -333,6 +412,7 @@ export interface IScannedBuiltinExtension {
 	extensionPath: string;
 	packageJSON: any;
 	packageNLS?: any;
+	browserNlsMetadataPath?: string;
 	readmePath?: string;
 	changelogPath?: string;
 }
@@ -350,13 +430,20 @@ export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] 
 			if (!fs.existsSync(packageJSONPath)) {
 				continue;
 			}
-			let packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
+			const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
 			if (!isWebExtension(packageJSON)) {
 				continue;
 			}
 			const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
 			const packageNLSPath = children.filter(child => child === 'package.nls.json')[0];
 			const packageNLS = packageNLSPath ? JSON.parse(fs.readFileSync(path.join(extensionsRoot, extensionFolder, packageNLSPath)).toString()) : undefined;
+			let browserNlsMetadataPath: string | undefined;
+			if (packageJSON.browser) {
+				const browserEntrypointFolderPath = path.join(extensionFolder, path.dirname(packageJSON.browser));
+				if (fs.existsSync(path.join(extensionsRoot, browserEntrypointFolderPath, 'nls.metadata.json'))) {
+					browserNlsMetadataPath = path.join(browserEntrypointFolderPath, 'nls.metadata.json');
+				}
+			}
 			const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
 			const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
 
@@ -364,6 +451,7 @@ export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] 
 				extensionPath: extensionFolder,
 				packageJSON,
 				packageNLS,
+				browserNlsMetadataPath,
 				readmePath: readme ? path.join(extensionFolder, readme) : undefined,
 				changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
 			});
@@ -375,10 +463,13 @@ export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] 
 }
 
 export function translatePackageJSON(packageJSON: string, packageNLSPath: string) {
+	interface NLSFormat {
+		[key: string]: string | { message: string; comment: string[] };
+	}
 	const CharCode_PC = '%'.charCodeAt(0);
-	const packageNls = JSON.parse(fs.readFileSync(packageNLSPath).toString());
+	const packageNls: NLSFormat = JSON.parse(fs.readFileSync(packageNLSPath).toString());
 	const translate = (obj: any) => {
-		for (let key in obj) {
+		for (const key in obj) {
 			const val = obj[key];
 			if (Array.isArray(val)) {
 				val.forEach(translate);
@@ -387,11 +478,136 @@ export function translatePackageJSON(packageJSON: string, packageNLSPath: string
 			} else if (typeof val === 'string' && val.charCodeAt(0) === CharCode_PC && val.charCodeAt(val.length - 1) === CharCode_PC) {
 				const translated = packageNls[val.substr(1, val.length - 2)];
 				if (translated) {
-					obj[key] = translated;
+					obj[key] = typeof translated === 'string' ? translated : (typeof translated.message === 'string' ? translated.message : val);
 				}
 			}
 		}
 	};
 	translate(packageJSON);
 	return packageJSON;
+}
+
+const extensionsPath = path.join(root, 'extensions');
+
+// Additional projects to run esbuild on. These typically build code for webviews
+const esbuildMediaScripts = [
+	'markdown-language-features/esbuild-notebook.js',
+	'markdown-language-features/esbuild-preview.js',
+	'markdown-math/esbuild.js',
+	'notebook-renderers/esbuild.js',
+	'ipynb/esbuild.js',
+	'simple-browser/esbuild-preview.js',
+];
+
+export async function webpackExtensions(taskName: string, isWatch: boolean, webpackConfigLocations: { configPath: string; outputRoot?: string }[]) {
+	const webpack = require('webpack') as typeof import('webpack');
+
+	const webpackConfigs: webpack.Configuration[] = [];
+
+	for (const { configPath, outputRoot } of webpackConfigLocations) {
+		const configOrFnOrArray = require(configPath);
+		function addConfig(configOrFn: webpack.Configuration | Function) {
+			let config;
+			if (typeof configOrFn === 'function') {
+				config = (configOrFn as Function)({}, {});
+				webpackConfigs.push(config);
+			} else {
+				config = configOrFn;
+			}
+
+			if (outputRoot) {
+				config.output.path = path.join(outputRoot, path.relative(path.dirname(configPath), config.output.path));
+			}
+
+			webpackConfigs.push(configOrFn);
+		}
+		addConfig(configOrFnOrArray);
+	}
+	function reporter(fullStats: any) {
+		if (Array.isArray(fullStats.children)) {
+			for (const stats of fullStats.children) {
+				const outputPath = stats.outputPath;
+				if (outputPath) {
+					const relativePath = path.relative(extensionsPath, outputPath).replace(/\\/g, '/');
+					const match = relativePath.match(/[^\/]+(\/server|\/client)?/);
+					fancyLog(`Finished ${ansiColors.green(taskName)} ${ansiColors.cyan(match![0])} with ${stats.errors.length} errors.`);
+				}
+				if (Array.isArray(stats.errors)) {
+					stats.errors.forEach((error: any) => {
+						fancyLog.error(error);
+					});
+				}
+				if (Array.isArray(stats.warnings)) {
+					stats.warnings.forEach((warning: any) => {
+						fancyLog.warn(warning);
+					});
+				}
+			}
+		}
+	}
+	return new Promise<void>((resolve, reject) => {
+		if (isWatch) {
+			webpack(webpackConfigs).watch({}, (err, stats) => {
+				if (err) {
+					reject();
+				} else {
+					reporter(stats?.toJson());
+				}
+			});
+		} else {
+			webpack(webpackConfigs).run((err, stats) => {
+				if (err) {
+					fancyLog.error(err);
+					reject();
+				} else {
+					reporter(stats?.toJson());
+					resolve();
+				}
+			});
+		}
+	});
+}
+
+async function esbuildExtensions(taskName: string, isWatch: boolean, scripts: { script: string; outputRoot?: string }[]) {
+	function reporter(stdError: string, script: string) {
+		const matches = (stdError || '').match(/\> (.+): error: (.+)?/g);
+		fancyLog(`Finished ${ansiColors.green(taskName)} ${script} with ${matches ? matches.length : 0} errors.`);
+		for (const match of matches || []) {
+			fancyLog.error(match);
+		}
+	}
+
+	const tasks = scripts.map(({ script, outputRoot }) => {
+		return new Promise<void>((resolve, reject) => {
+			const args = [script];
+			if (isWatch) {
+				args.push('--watch');
+			}
+			if (outputRoot) {
+				args.push('--outputRoot', outputRoot);
+			}
+			const proc = cp.execFile(process.argv[0], args, {}, (error, _stdout, stderr) => {
+				if (error) {
+					return reject(error);
+				}
+				reporter(stderr, script);
+				if (stderr) {
+					return reject();
+				}
+				return resolve();
+			});
+
+			proc.stdout!.on('data', (data) => {
+				fancyLog(`${ansiColors.green(taskName)}: ${data.toString('utf8')}`);
+			});
+		});
+	});
+	return Promise.all(tasks);
+}
+
+export async function buildExtensionMedia(isWatch: boolean, outputRoot?: string) {
+	return esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(p => ({
+		script: path.join(extensionsPath, p),
+		outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
+	})));
 }

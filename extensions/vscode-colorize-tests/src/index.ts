@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 const path = require('path');
-const testRunner = require('vscode/lib/testrunner');
+const testRunner = require('../../../test/integration/electron/testrunner');
 
 const suite = 'Integration Colorize Tests';
 
 const options: any = {
 	ui: 'tdd',
-	useColors: (!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY && process.platform !== 'win32'),
+	color: true,
 	timeout: 60000
 };
 

@@ -57,7 +57,7 @@ suite('Types', () => {
 		assert(!types.isObject(/test/));
 		assert(!types.isObject(new RegExp('')));
 		assert(!types.isFunction(new Date()));
-		assert(!types.isObject(assert));
+		assert.strictEqual(types.isObject(assert), false);
 		assert(!types.isObject(function foo() { }));
 
 		assert(types.isObject({}));
@@ -75,29 +75,11 @@ suite('Types', () => {
 		assert(!types.isEmptyObject(/test/));
 		assert(!types.isEmptyObject(new RegExp('')));
 		assert(!types.isEmptyObject(new Date()));
-		assert(!types.isEmptyObject(assert));
+		assert.strictEqual(types.isEmptyObject(assert), false);
 		assert(!types.isEmptyObject(function foo() { /**/ }));
 		assert(!types.isEmptyObject({ foo: 'bar' }));
 
 		assert(types.isEmptyObject({}));
-	});
-
-	test('isArray', () => {
-		assert(!types.isArray(undefined));
-		assert(!types.isArray(null));
-		assert(!types.isArray('foo'));
-		assert(!types.isArray(5));
-		assert(!types.isArray(true));
-		assert(!types.isArray({}));
-		assert(!types.isArray(/test/));
-		assert(!types.isArray(new RegExp('')));
-		assert(!types.isArray(new Date()));
-		assert(!types.isArray(assert));
-		assert(!types.isArray(function foo() { /**/ }));
-		assert(!types.isArray({ foo: 'bar' }));
-
-		assert(types.isArray([]));
-		assert(types.isArray([1, 2, '3']));
 	});
 
 	test('isString', () => {
@@ -178,15 +160,15 @@ suite('Types', () => {
 		assert.throws(() => types.assertAllDefined(true, undefined));
 		assert.throws(() => types.assertAllDefined(undefined, false));
 
-		assert.equal(types.assertIsDefined(true), true);
-		assert.equal(types.assertIsDefined(false), false);
-		assert.equal(types.assertIsDefined('Hello'), 'Hello');
-		assert.equal(types.assertIsDefined(''), '');
+		assert.strictEqual(types.assertIsDefined(true), true);
+		assert.strictEqual(types.assertIsDefined(false), false);
+		assert.strictEqual(types.assertIsDefined('Hello'), 'Hello');
+		assert.strictEqual(types.assertIsDefined(''), '');
 
 		const res = types.assertAllDefined(1, true, 'Hello');
-		assert.equal(res[0], 1);
-		assert.equal(res[1], true);
-		assert.equal(res[2], 'Hello');
+		assert.strictEqual(res[0], 1);
+		assert.strictEqual(res[1], true);
+		assert.strictEqual(res[2], 'Hello');
 	});
 
 	test('validateConstraints', () => {

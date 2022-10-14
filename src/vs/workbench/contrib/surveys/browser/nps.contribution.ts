@@ -8,8 +8,7 @@ import { language } from 'vs/base/common/platform';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
@@ -27,7 +26,6 @@ class NPSContribution implements IWorkbenchContribution {
 
 	constructor(
 		@IStorageService storageService: IStorageService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IOpenerService openerService: IOpenerService,
@@ -37,39 +35,33 @@ class NPSContribution implements IWorkbenchContribution {
 			return;
 		}
 
-		// opt-in to syncing
-		storageKeysSyncRegistryService.registerStorageKey({ key: SESSION_COUNT_KEY, version: 1 });
-		storageKeysSyncRegistryService.registerStorageKey({ key: LAST_SESSION_DATE_KEY, version: 1 });
-		storageKeysSyncRegistryService.registerStorageKey({ key: SKIP_VERSION_KEY, version: 1 });
-		storageKeysSyncRegistryService.registerStorageKey({ key: IS_CANDIDATE_KEY, version: 1 });
-
-		const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.GLOBAL, '');
+		const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.APPLICATION, '');
 		if (skipVersion) {
 			return;
 		}
 
 		const date = new Date().toDateString();
-		const lastSessionDate = storageService.get(LAST_SESSION_DATE_KEY, StorageScope.GLOBAL, new Date(0).toDateString());
+		const lastSessionDate = storageService.get(LAST_SESSION_DATE_KEY, StorageScope.APPLICATION, new Date(0).toDateString());
 
 		if (date === lastSessionDate) {
 			return;
 		}
 
-		const sessionCount = (storageService.getNumber(SESSION_COUNT_KEY, StorageScope.GLOBAL, 0) || 0) + 1;
-		storageService.store(LAST_SESSION_DATE_KEY, date, StorageScope.GLOBAL);
-		storageService.store(SESSION_COUNT_KEY, sessionCount, StorageScope.GLOBAL);
+		const sessionCount = (storageService.getNumber(SESSION_COUNT_KEY, StorageScope.APPLICATION, 0) || 0) + 1;
+		storageService.store(LAST_SESSION_DATE_KEY, date, StorageScope.APPLICATION, StorageTarget.USER);
+		storageService.store(SESSION_COUNT_KEY, sessionCount, StorageScope.APPLICATION, StorageTarget.USER);
 
 		if (sessionCount < 9) {
 			return;
 		}
 
-		const isCandidate = storageService.getBoolean(IS_CANDIDATE_KEY, StorageScope.GLOBAL, false)
+		const isCandidate = storageService.getBoolean(IS_CANDIDATE_KEY, StorageScope.APPLICATION, false)
 			|| Math.random() < PROBABILITY;
 
-		storageService.store(IS_CANDIDATE_KEY, isCandidate, StorageScope.GLOBAL);
+		storageService.store(IS_CANDIDATE_KEY, isCandidate, StorageScope.APPLICATION, StorageTarget.USER);
 
 		if (!isCandidate) {
-			storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL);
+			storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.APPLICATION, StorageTarget.USER);
 			return;
 		}
 
@@ -81,18 +73,18 @@ class NPSContribution implements IWorkbenchContribution {
 				run: () => {
 					telemetryService.getTelemetryInfo().then(info => {
 						openerService.open(URI.parse(`${productService.npsSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(productService.version)}&m=${encodeURIComponent(info.machineId)}`));
-						storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
-						storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL);
+						storageService.store(IS_CANDIDATE_KEY, false, StorageScope.APPLICATION, StorageTarget.USER);
+						storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.APPLICATION, StorageTarget.USER);
 					});
 				}
 			}, {
 				label: nls.localize('remindLater', "Remind Me later"),
-				run: () => storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.GLOBAL)
+				run: () => storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.APPLICATION, StorageTarget.USER)
 			}, {
 				label: nls.localize('neverAgain', "Don't Show Again"),
 				run: () => {
-					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
-					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL);
+					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.APPLICATION, StorageTarget.USER);
+					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.APPLICATION, StorageTarget.USER);
 				}
 			}],
 			{ sticky: true }

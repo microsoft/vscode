@@ -1,33 +1,30 @@
 {
   "name": "code-oss-dev-smoke-test",
   "version": "0.1.0",
+  "license": "MIT",
   "main": "./src/main.js",
   "scripts": {
-    "postinstall": "npm run compile",
-    "compile": "yarn --cwd ../automation compile && tsc",
-    "watch": "concurrently \"yarn --cwd ../automation watch --preserveWatchOutput\" \"tsc --watch --preserveWatchOutput\"",
-    "mocha": "mocha"
+    "compile": "yarn --cwd ../automation compile && node ../../node_modules/typescript/bin/tsc",
+    "watch-automation": "yarn --cwd ../automation watch",
+    "watch-smoke": "node ../../node_modules/typescript/bin/tsc --watch --preserveWatchOutput",
+    "watch": "npm-run-all -lp watch-automation watch-smoke",
+    "mocha": "node ../node_modules/mocha/bin/mocha"
+  },
+  "dependencies": {
+    "@vscode/test-electron": "2.1.4",
+    "mkdirp": "^1.0.4",
+    "ncp": "^2.0.0",
+    "node-fetch": "^2.6.7",
+    "rimraf": "3.0.2"
   },
   "devDependencies": {
-    "@types/htmlparser2": "3.7.29",
-    "@types/mkdirp": "0.5.1",
-    "@types/mocha": "2.2.41",
+    "@types/mkdirp": "^1.0.1",
+    "@types/mocha": "^9.1.1",
     "@types/ncp": "2.0.1",
-    "@types/node": "^12.11.7",
-    "@types/rimraf": "2.0.2",
-    "concurrently": "^3.5.1",
-    "cpx": "^1.5.0",
-    "htmlparser2": "^3.9.2",
-    "mkdirp": "^0.5.1",
-    "mocha": "^6.1.4",
-    "mocha-junit-reporter": "^1.17.0",
-    "mocha-multi-reporters": "^1.1.7",
-    "ncp": "^2.0.0",
-    "portastic": "^1.0.1",
-    "rimraf": "^2.6.1",
-    "strip-json-comments": "^2.0.1",
-    "tmp": "0.0.33",
-    "typescript": "3.7.5",
+    "@types/node": "16.x",
+    "@types/node-fetch": "^2.5.10",
+    "@types/rimraf": "3.0.2",
+    "npm-run-all": "^4.1.5",
     "watch": "^1.0.2"
   }
 }

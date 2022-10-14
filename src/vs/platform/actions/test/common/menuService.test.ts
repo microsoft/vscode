@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MenuRegistry, MenuId, isIMenuItem } from 'vs/platform/actions/common/actions';
-import { MenuService } from 'vs/platform/actions/common/menuService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { generateUuid } from 'vs/base/common/uuid';
+import { isIMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuService } from 'vs/platform/actions/common/menuService';
 import { NullCommandService } from 'vs/platform/commands/common/commands';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
 
 // --- service instances
 
 const contextKeyService = new class extends MockContextKeyService {
-	contextMatchesRules() {
+	override contextMatchesRules() {
 		return true;
 	}
 };
@@ -27,8 +29,8 @@ suite('MenuService', function () {
 	let testMenuId: MenuId;
 
 	setup(function () {
-		menuService = new MenuService(NullCommandService);
-		testMenuId = new MenuId('testo');
+		menuService = new MenuService(NullCommandService, new InMemoryStorageService());
+		testMenuId = new MenuId(`testo/${generateUuid()}`);
 		disposables.clear();
 	});
 
@@ -65,14 +67,14 @@ suite('MenuService', function () {
 
 		const groups = menuService.createMenu(testMenuId, contextKeyService).getActions();
 
-		assert.equal(groups.length, 5);
+		assert.strictEqual(groups.length, 5);
 		const [one, two, three, four, five] = groups;
 
-		assert.equal(one[0], 'navigation');
-		assert.equal(two[0], '0_hello');
-		assert.equal(three[0], 'hello');
-		assert.equal(four[0], 'Hello');
-		assert.equal(five[0], '');
+		assert.strictEqual(one[0], 'navigation');
+		assert.strictEqual(two[0], '0_hello');
+		assert.strictEqual(three[0], 'hello');
+		assert.strictEqual(four[0], 'Hello');
+		assert.strictEqual(five[0], '');
 	});
 
 	test('in group sorting, by title', function () {
@@ -94,14 +96,14 @@ suite('MenuService', function () {
 
 		const groups = menuService.createMenu(testMenuId, contextKeyService).getActions();
 
-		assert.equal(groups.length, 1);
+		assert.strictEqual(groups.length, 1);
 		const [, actions] = groups[0];
 
-		assert.equal(actions.length, 3);
+		assert.strictEqual(actions.length, 3);
 		const [one, two, three] = actions;
-		assert.equal(one.id, 'a');
-		assert.equal(two.id, 'b');
-		assert.equal(three.id, 'c');
+		assert.strictEqual(one.id, 'a');
+		assert.strictEqual(two.id, 'b');
+		assert.strictEqual(three.id, 'c');
 	});
 
 	test('in group sorting, by title and order', function () {
@@ -131,15 +133,15 @@ suite('MenuService', function () {
 
 		const groups = menuService.createMenu(testMenuId, contextKeyService).getActions();
 
-		assert.equal(groups.length, 1);
+		assert.strictEqual(groups.length, 1);
 		const [, actions] = groups[0];
 
-		assert.equal(actions.length, 4);
+		assert.strictEqual(actions.length, 4);
 		const [one, two, three, four] = actions;
-		assert.equal(one.id, 'd');
-		assert.equal(two.id, 'c');
-		assert.equal(three.id, 'b');
-		assert.equal(four.id, 'a');
+		assert.strictEqual(one.id, 'd');
+		assert.strictEqual(two.id, 'c');
+		assert.strictEqual(three.id, 'b');
+		assert.strictEqual(four.id, 'a');
 	});
 
 
@@ -165,14 +167,14 @@ suite('MenuService', function () {
 
 		const groups = menuService.createMenu(testMenuId, contextKeyService).getActions();
 
-		assert.equal(groups.length, 1);
+		assert.strictEqual(groups.length, 1);
 		const [[, actions]] = groups;
 
-		assert.equal(actions.length, 3);
+		assert.strictEqual(actions.length, 3);
 		const [one, two, three] = actions;
-		assert.equal(one.id, 'c');
-		assert.equal(two.id, 'b');
-		assert.equal(three.id, 'a');
+		assert.strictEqual(one.id, 'c');
+		assert.strictEqual(two.id, 'b');
+		assert.strictEqual(three.id, 'a');
 	});
 
 	test('special MenuId palette', function () {
@@ -188,16 +190,25 @@ suite('MenuService', function () {
 		for (const item of MenuRegistry.getMenuItems(MenuId.CommandPalette)) {
 			if (isIMenuItem(item)) {
 				if (item.command.id === 'a') {
-					assert.equal(item.command.title, 'Explicit');
+					assert.strictEqual(item.command.title, 'Explicit');
 					foundA = true;
 				}
 				if (item.command.id === 'b') {
-					assert.equal(item.command.title, 'Implicit');
+					assert.strictEqual(item.command.title, 'Implicit');
 					foundB = true;
 				}
 			}
 		}
-		assert.equal(foundA, true);
-		assert.equal(foundB, true);
+		assert.strictEqual(foundA, true);
+		assert.strictEqual(foundB, true);
+	});
+
+	test('Extension contributed submenus missing with errors in output #155030', function () {
+
+		const id = generateUuid();
+		const menu = new MenuId(id);
+
+		assert.throws(() => new MenuId(id));
+		assert.ok(menu === MenuId.for(id));
 	});
 });

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { ILink } from 'vs/editor/common/modes';
-import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/modes/linkComputer';
+import { ILink } from 'vs/editor/common/languages';
+import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/languages/linkComputer';
 
 class SimpleLinkComputerTarget implements ILinkComputerTarget {
 
@@ -22,7 +22,7 @@ class SimpleLinkComputerTarget implements ILinkComputerTarget {
 }
 
 function myComputeLinks(lines: string[]): ILink[] {
-	let target = new SimpleLinkComputerTarget(lines);
+	const target = new SimpleLinkComputerTarget(lines);
 	return computeLinks(target);
 }
 
@@ -48,8 +48,8 @@ function assertLink(text: string, extractedLink: string): void {
 		}
 	}
 
-	let r = myComputeLinks([text]);
-	assert.deepEqual(r, [{
+	const r = myComputeLinks([text]);
+	assert.deepStrictEqual(r, [{
 		range: {
 			startLineNumber: 1,
 			startColumn: startColumn,
@@ -63,8 +63,8 @@ function assertLink(text: string, extractedLink: string): void {
 suite('Editor Modes - Link Computer', () => {
 
 	test('Null model', () => {
-		let r = computeLinks(null);
-		assert.deepEqual(r, []);
+		const r = computeLinks(null);
+		assert.deepStrictEqual(r, []);
 	});
 
 	test('Parsing', () => {
@@ -228,6 +228,41 @@ suite('Editor Modes - Link Computer', () => {
 		assertLink(
 			'aa  http://tree-mark.chips.jp/レーズン＆ベリーミックス  aa',
 			'    http://tree-mark.chips.jp/レーズン＆ベリーミックス    '
+		);
+	});
+
+	test('issue #121438: Link detection stops at【...】', () => {
+		assertLink(
+			'aa  https://zh.wikipedia.org/wiki/【我推的孩子】 aa',
+			'    https://zh.wikipedia.org/wiki/【我推的孩子】   '
+		);
+	});
+
+	test('issue #121438: Link detection stops at《...》', () => {
+		assertLink(
+			'aa  https://zh.wikipedia.org/wiki/《新青年》编辑部旧址 aa',
+			'    https://zh.wikipedia.org/wiki/《新青年》编辑部旧址   '
+		);
+	});
+
+	test('issue #121438: Link detection stops at “...”', () => {
+		assertLink(
+			'aa  https://zh.wikipedia.org/wiki/“常凯申”误译事件 aa',
+			'    https://zh.wikipedia.org/wiki/“常凯申”误译事件   '
+		);
+	});
+
+	test('issue #150905: Colon after bare hyperlink is treated as its part', () => {
+		assertLink(
+			'https://site.web/page.html: blah blah blah',
+			'https://site.web/page.html                '
+		);
+	});
+
+	test('issue #151631: Link parsing stoped where comments include a single quote ', () => {
+		assertLink(
+			`aa https://regexper.com/#%2F''%2F aa`,
+			`   https://regexper.com/#%2F''%2F   `,
 		);
 	});
 });

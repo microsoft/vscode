@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as Proto from './protocol';
 import BufferSyncSupport from './tsServer/bufferSyncSupport';
-import { ExectuionTarget } from './tsServer/server';
+import { ExecutionTarget } from './tsServer/server';
 import { TypeScriptVersion } from './tsServer/versionProvider';
 import API from './utils/api';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
@@ -30,7 +30,9 @@ export namespace ServerResponse {
 
 	export const NoContent = { type: 'noContent' } as const;
 
-	export type Response<T extends Proto.Response> = T | Cancelled | typeof NoContent;
+	export const NoServer = { type: 'noServer' } as const;
+
+	export type Response<T extends Proto.Response> = T | Cancelled | typeof NoContent | typeof NoServer;
 }
 
 interface StandardTsServerRequests {
@@ -68,6 +70,10 @@ interface StandardTsServerRequests {
 	'prepareCallHierarchy': [Proto.FileLocationRequestArgs, Proto.PrepareCallHierarchyResponse];
 	'provideCallHierarchyIncomingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyIncomingCallsResponse];
 	'provideCallHierarchyOutgoingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyOutgoingCallsResponse];
+	'fileReferences': [Proto.FileRequestArgs, Proto.FileReferencesResponse];
+	'provideInlayHints': [Proto.InlayHintsRequestArgs, Proto.InlayHintsResponse];
+	'encodedSemanticClassifications-full': [Proto.EncodedSemanticClassificationsRequestArgs, Proto.EncodedSemanticClassificationsResponse];
+	'findSourceDefinition': [Proto.FileLocationRequestArgs, Proto.DefinitionResponse];
 }
 
 interface NoResponseTsServerRequests {
@@ -90,7 +96,7 @@ export type ExecConfig = {
 	readonly lowPriority?: boolean;
 	readonly nonRecoverable?: boolean;
 	readonly cancelOnResourceChange?: vscode.Uri;
-	readonly executionTarget?: ExectuionTarget;
+	readonly executionTarget?: ExecutionTarget;
 };
 
 export enum ClientCapability {
@@ -147,7 +153,9 @@ export interface ITypeScriptServiceClient {
 	 *
 	 * @return The normalized path or `undefined` if the document is not open on the server.
 	 */
-	toOpenedFilePath(document: vscode.TextDocument): string | undefined;
+	toOpenedFilePath(document: vscode.TextDocument, options?: {
+		suppressAlertOnFailure?: boolean;
+	}): string | undefined;
 
 	/**
 	 * Checks if `resource` has a given capability.
@@ -156,7 +164,7 @@ export interface ITypeScriptServiceClient {
 
 	getWorkspaceRootForResource(resource: vscode.Uri): string | undefined;
 
-	readonly onTsServerStarted: vscode.Event<{ version: TypeScriptVersion, usedApiVersion: API }>;
+	readonly onTsServerStarted: vscode.Event<{ version: TypeScriptVersion; usedApiVersion: API }>;
 	readonly onProjectLanguageServiceStateChanged: vscode.Event<Proto.ProjectLanguageServiceStateEventBody>;
 	readonly onDidBeginInstallTypings: vscode.Event<Proto.BeginInstallTypesEventBody>;
 	readonly onDidEndInstallTypings: vscode.Event<Proto.EndInstallTypesEventBody>;

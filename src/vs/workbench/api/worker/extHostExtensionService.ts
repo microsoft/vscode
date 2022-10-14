@@ -11,14 +11,15 @@ import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterc
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 import { timeout } from 'vs/base/common/async';
+import { ExtHostConsoleForwarder } from 'vs/workbench/api/worker/extHostConsoleForwarder';
 
 class WorkerRequireInterceptor extends RequireInterceptor {
 
 	_installInterceptor() { }
 
 	getModule(request: string, parent: URI): undefined | any {
-		for (let alternativeModuleName of this._alternatives) {
-			let alternative = alternativeModuleName(request);
+		for (const alternativeModuleName of this._alternatives) {
+			const alternative = alternativeModuleName(request);
 			if (alternative) {
 				request = alternative;
 				break;
@@ -38,10 +39,15 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 	private _fakeModules?: WorkerRequireInterceptor;
 
 	protected async _beforeAlmostReadyToRunExtensions(): Promise<void> {
+		// make sure console.log calls make it to the render
+		this._instaService.createInstance(ExtHostConsoleForwarder);
+
 		// initialize API and register actors
 		const apiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
-		this._fakeModules = this._instaService.createInstance(WorkerRequireInterceptor, apiFactory, this._registry);
+		this._fakeModules = this._instaService.createInstance(WorkerRequireInterceptor, apiFactory, { mine: this._myRegistry, all: this._globalRegistry });
 		await this._fakeModules.install();
+		performance.mark('code/extHost/didInitAPI');
+
 		await this._waitForDebuggerAttachment();
 	}
 
@@ -49,10 +55,21 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		return extensionDescription.browser;
 	}
 
-	protected async _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
-
+	protected async _loadCommonJSModule<T extends object | undefined>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
 		module = module.with({ path: ensureSuffix(module.path, '.js') });
-		const response = await fetch(module.toString(true));
+		const extensionId = extension?.identifier.value;
+		if (extensionId) {
+			performance.mark(`code/extHost/willFetchExtensionCode/${extensionId}`);
+		}
+
+		// First resolve the extension entry point URI to something we can load using `fetch`
+		// This needs to be done on the main thread due to a potential `resourceUriProvider` (workbench api)
+		// which is only available in the main thread
+		const browserUri = URI.revive(await this._mainThreadExtensionsProxy.$asBrowserUri(module));
+		const response = await fetch(browserUri.toString(true));
+		if (extensionId) {
+			performance.mark(`code/extHost/didFetchExtensionCode/${extensionId}`);
+		}
 
 		if (response.status !== 200) {
 			throw new Error(response.statusText);
@@ -63,7 +80,24 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		// Here we append #vscode-extension to serve as a marker, such that source maps
 		// can be adjusted for the extra wrapping function.
 		const sourceURL = `${module.toString(true)}#vscode-extension`;
-		const initFn = new Function('module', 'exports', 'require', `${source}\n//# sourceURL=${sourceURL}`);
+		const fullSource = `${source}\n//# sourceURL=${sourceURL}`;
+		let initFn: Function;
+		try {
+			initFn = new Function('module', 'exports', 'require', fullSource);
+		} catch (err) {
+			if (extensionId) {
+				console.error(`Loading code for extension ${extensionId} failed: ${err.message}`);
+			} else {
+				console.error(`Loading code failed: ${err.message}`);
+			}
+			console.error(`${module.toString(true)}${typeof err.line === 'number' ? ` line ${err.line}` : ''}${typeof err.column === 'number' ? ` column ${err.column}` : ''}`);
+			console.error(err);
+			throw err;
+		}
+
+		if (extension) {
+			await this._extHostLocalizationService.initializeLocalizedMessages(extension);
+		}
 
 		// define commonjs globals: `module`, `exports`, and `require`
 		const _exports = {};
@@ -78,15 +112,21 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		try {
 			activationTimesBuilder.codeLoadingStart();
+			if (extensionId) {
+				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
+			}
 			initFn(_module, _exports, _require);
 			return <T>(_module.exports !== _exports ? _module.exports : _exports);
 		} finally {
+			if (extensionId) {
+				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId}`);
+			}
 			activationTimesBuilder.codeLoadingStop();
 		}
 	}
 
 	async $setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> {
-		throw new Error('Not supported');
+		return;
 	}
 
 	private async _waitForDebuggerAttachment(waitTimeout = 5000) {

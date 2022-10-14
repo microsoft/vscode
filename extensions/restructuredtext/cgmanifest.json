@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "trond-snekvik/vscode-rst",
+					"repositoryUrl": "https://github.com/trond-snekvik/vscode-rst",
+					"commitHash": "f0fe19ffde6509be52ad9267a57e1b3df665f072"
+				}
+			},
+			"license": "MIT",
+			"version": "1.5.1"
+		}
+	],
+	"version": 1
+}

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { addMatchMediaChangeListener } from 'vs/base/browser/browser';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
 
 export class BrowserHostColorSchemeService extends Disposable implements IHostColorSchemeService {
@@ -16,7 +16,6 @@ export class BrowserHostColorSchemeService extends Disposable implements IHostCo
 	private readonly _onDidSchemeChangeEvent = this._register(new Emitter<void>());
 
 	constructor(
-		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -25,10 +24,10 @@ export class BrowserHostColorSchemeService extends Disposable implements IHostCo
 
 	private registerListeners(): void {
 
-		window.matchMedia('(prefers-color-scheme: dark)').addListener(() => {
+		addMatchMediaChangeListener('(prefers-color-scheme: dark)', () => {
 			this._onDidSchemeChangeEvent.fire();
 		});
-		window.matchMedia('(forced-colors: active)').addListener(() => {
+		addMatchMediaChangeListener('(forced-colors: active)', () => {
 			this._onDidSchemeChangeEvent.fire();
 		});
 	}
@@ -43,16 +42,16 @@ export class BrowserHostColorSchemeService extends Disposable implements IHostCo
 		} else if (window.matchMedia(`(prefers-color-scheme: dark)`).matches) {
 			return true;
 		}
-		return this.environmentService.configuration.colorScheme.dark;
+		return false;
 	}
 
 	get highContrast(): boolean {
 		if (window.matchMedia(`(forced-colors: active)`).matches) {
 			return true;
 		}
-		return this.environmentService.configuration.colorScheme.highContrast;
+		return false;
 	}
 
 }
 
-registerSingleton(IHostColorSchemeService, BrowserHostColorSchemeService, true);
+registerSingleton(IHostColorSchemeService, BrowserHostColorSchemeService, InstantiationType.Delayed);

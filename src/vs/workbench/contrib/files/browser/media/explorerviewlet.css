@@ -89,12 +89,13 @@
 	height: 22px;
 }
 
-.monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
+.monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .ibwrapper > .input {
 	padding: 0;
 	height: 20px;
 }
 
 /* High Contrast Theming */
-.monaco-workbench.hc-black .explorer-viewlet .explorer-item {
+.monaco-workbench.hc-black .explorer-viewlet .explorer-item,
+.monaco-workbench.hc-light .explorer-viewlet .explorer-item {
 	line-height: 20px;
 }

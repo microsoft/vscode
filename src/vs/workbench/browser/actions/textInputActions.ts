@@ -42,7 +42,7 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 			// Cut / Copy / Paste
 			new Action('editor.action.clipboardCutAction', localize('cut', "Cut"), undefined, true, async () => document.execCommand('cut')),
 			new Action('editor.action.clipboardCopyAction', localize('copy', "Copy"), undefined, true, async () => document.execCommand('copy')),
-			new Action('editor.action.clipboardPasteAction', localize('paste', "Paste"), undefined, true, async (element: HTMLInputElement | HTMLTextAreaElement) => {
+			new Action('editor.action.clipboardPasteAction', localize('paste', "Paste"), undefined, true, async element => {
 
 				// Native: paste is supported
 				if (isNative) {
@@ -76,23 +76,26 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 
 		// Context menu support in input/textarea
 		this.layoutService.container.addEventListener('contextmenu', e => this.onContextMenu(e));
-
 	}
 
 	private onContextMenu(e: MouseEvent): void {
-		if (e.target instanceof HTMLElement) {
-			const target = <HTMLElement>e.target;
-			if (target.nodeName && (target.nodeName.toLowerCase() === 'input' || target.nodeName.toLowerCase() === 'textarea')) {
-				EventHelper.stop(e, true);
-
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => e,
-					getActions: () => this.textInputActions,
-					getActionsContext: () => target,
-					onHide: () => target.focus() // fixes https://github.com/microsoft/vscode/issues/52948
-				});
-			}
+		if (e.defaultPrevented) {
+			return; // make sure to not show these actions by accident if component indicated to prevent
 		}
+
+		const target = e.target;
+		if (!(target instanceof HTMLElement) || (target.nodeName.toLowerCase() !== 'input' && target.nodeName.toLowerCase() !== 'textarea')) {
+			return; // only for inputs or textareas
+		}
+
+		EventHelper.stop(e, true);
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => e,
+			getActions: () => this.textInputActions,
+			getActionsContext: () => target,
+			onHide: () => target.focus() // fixes https://github.com/microsoft/vscode/issues/52948
+		});
 	}
 }
 

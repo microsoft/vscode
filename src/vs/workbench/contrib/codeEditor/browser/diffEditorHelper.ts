@@ -8,11 +8,12 @@ import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
-import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
+import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
+import { IDiffComputationResult } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 
 const enum WidgetState {
 	Hidden,
@@ -21,7 +22,7 @@ const enum WidgetState {
 
 class DiffEditorHelperContribution extends Disposable implements IDiffEditorContribution {
 
-	public static ID = 'editor.contrib.diffEditorHelper';
+	public static readonly ID = 'editor.contrib.diffEditorHelper';
 
 	private _helperWidget: FloatingClickWidget | null;
 	private _helperWidgetListener: IDisposable | null;
@@ -38,25 +39,26 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 		this._helperWidgetListener = null;
 		this._state = WidgetState.Hidden;
 
+		if (!(this._diffEditor instanceof EmbeddedDiffEditorWidget)) {
+			this._register(this._diffEditor.onDidUpdateDiff(() => {
+				const diffComputationResult = this._diffEditor.getDiffComputationResult();
+				this._setState(this._deduceState(diffComputationResult));
 
-		this._register(this._diffEditor.onDidUpdateDiff(() => {
-			const diffComputationResult = this._diffEditor.getDiffComputationResult();
-			this._setState(this._deduceState(diffComputationResult));
-
-			if (diffComputationResult && diffComputationResult.quitEarly) {
-				this._notificationService.prompt(
-					Severity.Warning,
-					nls.localize('hintTimeout', "The diff algorithm was stopped early (after {0} ms.)", this._diffEditor.maxComputationTime),
-					[{
-						label: nls.localize('removeTimeout', "Remove limit"),
-						run: () => {
-							this._configurationService.updateValue('diffEditor.maxComputationTime', 0, ConfigurationTarget.USER);
-						}
-					}],
-					{}
-				);
-			}
-		}));
+				if (diffComputationResult && diffComputationResult.quitEarly) {
+					this._notificationService.prompt(
+						Severity.Warning,
+						nls.localize('hintTimeout', "The diff algorithm was stopped early (after {0} ms.)", this._diffEditor.maxComputationTime),
+						[{
+							label: nls.localize('removeTimeout', "Remove Limit"),
+							run: () => {
+								this._configurationService.updateValue('diffEditor.maxComputationTime', 0);
+							}
+						}],
+						{}
+					);
+				}
+			}));
+		}
 	}
 
 	private _deduceState(diffComputationResult: IDiffComputationResult | null): WidgetState {
@@ -94,11 +96,11 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 
 	private _onDidClickHelperWidget(): void {
 		if (this._state === WidgetState.HintWhitespace) {
-			this._configurationService.updateValue('diffEditor.ignoreTrimWhitespace', false, ConfigurationTarget.USER);
+			this._configurationService.updateValue('diffEditor.ignoreTrimWhitespace', false);
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 	}
 }

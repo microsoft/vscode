@@ -5,8 +5,8 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { IUpdateService, State, UpdateType } from 'vs/platform/update/common/update';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Disposable } from 'vs/base/common/lifecycle';
 
@@ -39,30 +39,30 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 	}
 
 	constructor(
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 
-		this.checkForUpdates();
+		this.checkForUpdates(false);
 	}
 
 	async isLatestVersion(): Promise<boolean> {
-		const update = await this.doCheckForUpdates();
+		const update = await this.doCheckForUpdates(false);
 
 		return !!update;
 	}
 
-	async checkForUpdates(): Promise<void> {
-		await this.doCheckForUpdates();
+	async checkForUpdates(explicit: boolean): Promise<void> {
+		await this.doCheckForUpdates(explicit);
 	}
 
-	private async doCheckForUpdates(): Promise<IUpdate | null> {
+	private async doCheckForUpdates(explicit: boolean): Promise<IUpdate | null> {
 		if (this.environmentService.options && this.environmentService.options.updateProvider) {
 			const updateProvider = this.environmentService.options.updateProvider;
 
 			// State -> Checking for Updates
-			this.state = State.CheckingForUpdates(null);
+			this.state = State.CheckingForUpdates(explicit);
 
 			const update = await updateProvider.checkForUpdate();
 			if (update) {
@@ -90,6 +90,10 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 	async quitAndInstall(): Promise<void> {
 		this.hostService.reload();
 	}
+
+	async _applySpecificUpdate(packagePath: string): Promise<void> {
+		// noop
+	}
 }
 
-registerSingleton(IUpdateService, BrowserUpdateService);
+registerSingleton(IUpdateService, BrowserUpdateService, InstantiationType.Eager);

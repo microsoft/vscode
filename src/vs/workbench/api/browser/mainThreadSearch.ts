@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, QueryType, SearchProviderType } from 'vs/workbench/services/search/common/search';
-import { ExtHostContext, ExtHostSearchShape, IExtHostContext, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostSearchShape, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadSearch)
 export class MainThreadSearch implements MainThreadSearchShape {
@@ -20,9 +21,11 @@ export class MainThreadSearch implements MainThreadSearchShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@ISearchService private readonly _searchService: ISearchService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IConfigurationService _configurationService: IConfigurationService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSearch);
+		this._proxy.$enableExtensionHostSearch();
 	}
 
 	dispose(): void {
@@ -91,9 +94,7 @@ class SearchOperation {
 			this.matches.set(match.resource.toString(), match);
 		}
 
-		if (this.progress) {
-			this.progress(match);
-		}
+		this.progress?.(match);
 	}
 }
 
@@ -138,7 +139,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
 		return Promise.resolve(searchP).then((result: ISearchCompleteStats) => {
 			this._searches.delete(search.id);
-			return { results: Array.from(search.matches.values()), stats: result.stats, limitHit: result.limitHit };
+			return { results: Array.from(search.matches.values()), stats: result.stats, limitHit: result.limitHit, messages: result.messages };
 		}, err => {
 			this._searches.delete(search.id);
 			return Promise.reject(err);

@@ -31,10 +31,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/backup",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/bulkEdit",
 			"project": "vscode-workbench"
 		},
@@ -51,6 +47,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/typeHierarchy",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/codeActions",
 			"project": "vscode-workbench"
 		},
@@ -60,6 +60,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/debug",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/dialogs",
 			"project": "vscode-workbench"
 		},
 		{
@@ -95,6 +99,18 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/inlayHints",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/interactive",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/languageStatus",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/keybindings",
 			"project": "vscode-workbench"
 		},
@@ -103,7 +119,11 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/localizations",
+			"name": "vs/workbench/contrib/mergeEditor",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/localization",
 			"project": "vscode-workbench"
 		},
 		{
@@ -179,6 +199,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/testing",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/terminal",
 			"project": "vscode-workbench"
 		},
@@ -211,6 +235,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/workspace",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/workspaces",
 			"project": "vscode-workbench"
 		},
@@ -219,7 +247,27 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/welcome",
+			"name": "vs/workbench/contrib/externalUriOpener",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/welcomeGettingStarted",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/welcomeOverlay",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/welcomePage",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/welcomeViews",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/welcomeWalkthrough",
 			"project": "vscode-workbench"
 		},
 		{
@@ -231,7 +279,35 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/editSessions",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/views",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/languageDetection",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/audioCues",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/deprecatedExtensionMigrator",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/bracketPairColorizer2Telemetry",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/offline",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/remoteTunnel",
 			"project": "vscode-workbench"
 		},
 		{
@@ -243,7 +319,15 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/backup",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/bulkEdit",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/clipboard",
 			"project": "vscode-workbench"
 		},
 		{
@@ -279,6 +363,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/history",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/log",
 			"project": "vscode-workbench"
 		},
@@ -295,7 +383,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/services/mode",
+			"name": "vs/workbench/services/language",
 			"project": "vscode-workbench"
 		},
 		{
@@ -355,6 +443,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/editSessions",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/views",
 			"project": "vscode-workbench"
 		},
@@ -363,8 +455,32 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/localHistory",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/authentication",
 			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/extensionRecommendations",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/gettingStarted",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/host",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/userDataProfile",
+			"project": "vscode-profiles"
+		},
+		{
+			"name": "vs/workbench/services/userDataProfile",
+			"project": "vscode-profiles"
 		}
 	]
 }

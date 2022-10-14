@@ -7,68 +7,68 @@ import * as assert from 'assert';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
 import { getLanguageModes, WorkspaceFolder, TextDocument, CompletionList, CompletionItemKind, ClientCapabilities, TextEdit } from '../modes/languageModes';
-import { getNodeFSRequestService } from '../node/nodeFs';
+import { getNodeFileFS } from '../node/nodeFs';
 import { getDocumentContext } from '../utils/documentContext';
 export interface ItemDescription {
 	label: string;
 	documentation?: string;
 	kind?: CompletionItemKind;
 	resultText?: string;
-	command?: { title: string, command: string };
+	command?: { title: string; command: string };
 	notAvailable?: boolean;
 }
 
 export function assertCompletion(completions: CompletionList, expected: ItemDescription, document: TextDocument) {
-	let matches = completions.items.filter(completion => {
+	const matches = completions.items.filter(completion => {
 		return completion.label === expected.label;
 	});
 	if (expected.notAvailable) {
-		assert.equal(matches.length, 0, `${expected.label} should not existing is results`);
+		assert.strictEqual(matches.length, 0, `${expected.label} should not existing is results`);
 		return;
 	}
 
-	assert.equal(matches.length, 1, `${expected.label} should only existing once: Actual: ${completions.items.map(c => c.label).join(', ')}`);
-	let match = matches[0];
+	assert.strictEqual(matches.length, 1, `${expected.label} should only existing once: Actual: ${completions.items.map(c => c.label).join(', ')}`);
+	const match = matches[0];
 	if (expected.documentation) {
-		assert.equal(match.documentation, expected.documentation);
+		assert.strictEqual(match.documentation, expected.documentation);
 	}
 	if (expected.kind) {
-		assert.equal(match.kind, expected.kind);
+		assert.strictEqual(match.kind, expected.kind);
 	}
 	if (expected.resultText && match.textEdit) {
 		const edit = TextEdit.is(match.textEdit) ? match.textEdit : TextEdit.replace(match.textEdit.replace, match.textEdit.newText);
-		assert.equal(TextDocument.applyEdits(document, [edit]), expected.resultText);
+		assert.strictEqual(TextDocument.applyEdits(document, [edit]), expected.resultText);
 	}
 	if (expected.command) {
-		assert.deepEqual(match.command, expected.command);
+		assert.deepStrictEqual(match.command, expected.command);
 	}
 }
 
 const testUri = 'test://test/test.html';
 
-export async function testCompletionFor(value: string, expected: { count?: number, items?: ItemDescription[] }, uri = testUri, workspaceFolders?: WorkspaceFolder[]): Promise<void> {
-	let offset = value.indexOf('|');
+export async function testCompletionFor(value: string, expected: { count?: number; items?: ItemDescription[] }, uri = testUri, workspaceFolders?: WorkspaceFolder[]): Promise<void> {
+	const offset = value.indexOf('|');
 	value = value.substr(0, offset) + value.substr(offset + 1);
 
-	let workspace = {
+	const workspace = {
 		settings: {},
 		folders: workspaceFolders || [{ name: 'x', uri: uri.substr(0, uri.lastIndexOf('/')) }]
 	};
 
-	let document = TextDocument.create(uri, 'html', 0, value);
-	let position = document.positionAt(offset);
+	const document = TextDocument.create(uri, 'html', 0, value);
+	const position = document.positionAt(offset);
 	const context = getDocumentContext(uri, workspace.folders);
 
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFSRequestService());
+	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
 	const mode = languageModes.getModeAtPosition(document, position)!;
 
-	let list = await mode.doComplete!(document, position, context);
+	const list = await mode.doComplete!(document, position, context);
 
 	if (expected.count) {
-		assert.equal(list.items.length, expected.count);
+		assert.strictEqual(list.items.length, expected.count);
 	}
 	if (expected.items) {
-		for (let item of expected.items) {
+		for (const item of expected.items) {
 			assertCompletion(list, item, document);
 		}
 	}

@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter, Relay, EventMultiplexer } from 'vs/base/common/event';
-import { IDisposable, toDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import * as errors from 'vs/base/common/errors';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { getRandomElement } from 'vs/base/common/arrays';
-import { isFunction, isUndefinedOrNull } from 'vs/base/common/types';
+import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { memoize } from 'vs/base/common/decorators';
+import { CancellationError } from 'vs/base/common/errors';
+import { Emitter, Event, EventMultiplexer, Relay } from 'vs/base/common/event';
+import { combinedDisposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import * as strings from 'vs/base/common/strings';
+import { isFunction, isUndefinedOrNull } from 'vs/base/common/types';
 
 /**
  * An `IChannel` is an abstraction over a collection of commands.
@@ -55,10 +56,10 @@ function requestTypeToStr(type: RequestType): string {
 	}
 }
 
-type IRawPromiseRequest = { type: RequestType.Promise; id: number; channelName: string; name: string; arg: any; };
-type IRawPromiseCancelRequest = { type: RequestType.PromiseCancel, id: number };
-type IRawEventListenRequest = { type: RequestType.EventListen; id: number; channelName: string; name: string; arg: any; };
-type IRawEventDisposeRequest = { type: RequestType.EventDispose, id: number };
+type IRawPromiseRequest = { type: RequestType.Promise; id: number; channelName: string; name: string; arg: any };
+type IRawPromiseCancelRequest = { type: RequestType.PromiseCancel; id: number };
+type IRawEventListenRequest = { type: RequestType.EventListen; id: number; channelName: string; name: string; arg: any };
+type IRawEventDisposeRequest = { type: RequestType.EventDispose; id: number };
 type IRawRequest = IRawPromiseRequest | IRawPromiseCancelRequest | IRawEventListenRequest | IRawEventDisposeRequest;
 
 export const enum ResponseType {
@@ -85,7 +86,7 @@ function responseTypeToStr(type: ResponseType): string {
 
 type IRawInitializeResponse = { type: ResponseType.Initialize };
 type IRawPromiseSuccessResponse = { type: ResponseType.PromiseSuccess; id: number; data: any };
-type IRawPromiseErrorResponse = { type: ResponseType.PromiseError; id: number; data: { message: string, name: string, stack: string[] | undefined } };
+type IRawPromiseErrorResponse = { type: ResponseType.PromiseError; id: number; data: { message: string; name: string; stack: string[] | undefined } };
 type IRawPromiseErrorObjResponse = { type: ResponseType.PromiseErrorObj; id: number; data: any };
 type IRawEventFireResponse = { type: ResponseType.EventFire; id: number; data: any };
 type IRawResponse = IRawInitializeResponse | IRawPromiseSuccessResponse | IRawPromiseErrorResponse | IRawPromiseErrorObjResponse | IRawEventFireResponse;
@@ -311,9 +312,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 		switch (response.type) {
 			case ResponseType.Initialize: {
 				const msgLength = this.send([response.type]);
-				if (this.logger) {
-					this.logger.logOutgoing(msgLength, 0, RequestInitiator.OtherSide, responseTypeToStr(response.type));
-				}
+				this.logger?.logOutgoing(msgLength, 0, RequestInitiator.OtherSide, responseTypeToStr(response.type));
 				return;
 			}
 
@@ -322,9 +321,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 			case ResponseType.EventFire:
 			case ResponseType.PromiseErrorObj: {
 				const msgLength = this.send([response.type, response.id], response.data);
-				if (this.logger) {
-					this.logger.logOutgoing(msgLength, response.id, RequestInitiator.OtherSide, responseTypeToStr(response.type), response.data);
-				}
+				this.logger?.logOutgoing(msgLength, response.id, RequestInitiator.OtherSide, responseTypeToStr(response.type), response.data);
 				return;
 			}
 		}
@@ -355,24 +352,16 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 		switch (type) {
 			case RequestType.Promise:
-				if (this.logger) {
-					this.logger.logIncoming(message.byteLength, header[1], RequestInitiator.OtherSide, `${requestTypeToStr(type)}: ${header[2]}.${header[3]}`, body);
-				}
+				this.logger?.logIncoming(message.byteLength, header[1], RequestInitiator.OtherSide, `${requestTypeToStr(type)}: ${header[2]}.${header[3]}`, body);
 				return this.onPromise({ type, id: header[1], channelName: header[2], name: header[3], arg: body });
 			case RequestType.EventListen:
-				if (this.logger) {
-					this.logger.logIncoming(message.byteLength, header[1], RequestInitiator.OtherSide, `${requestTypeToStr(type)}: ${header[2]}.${header[3]}`, body);
-				}
+				this.logger?.logIncoming(message.byteLength, header[1], RequestInitiator.OtherSide, `${requestTypeToStr(type)}: ${header[2]}.${header[3]}`, body);
 				return this.onEventListen({ type, id: header[1], channelName: header[2], name: header[3], arg: body });
 			case RequestType.PromiseCancel:
-				if (this.logger) {
-					this.logger.logIncoming(message.byteLength, header[1], RequestInitiator.OtherSide, `${requestTypeToStr(type)}`);
-				}
+				this.logger?.logIncoming(message.byteLength, header[1], RequestInitiator.OtherSide, `${requestTypeToStr(type)}`);
 				return this.disposeActiveRequest({ type, id: header[1] });
 			case RequestType.EventDispose:
-				if (this.logger) {
-					this.logger.logIncoming(message.byteLength, header[1], RequestInitiator.OtherSide, `${requestTypeToStr(type)}`);
-				}
+				this.logger?.logIncoming(message.byteLength, header[1], RequestInitiator.OtherSide, `${requestTypeToStr(type)}`);
 				return this.disposeActiveRequest({ type, id: header[1] });
 		}
 	}
@@ -488,7 +477,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 			this.protocolListener.dispose();
 			this.protocolListener = null;
 		}
-		this.activeRequests.forEach(d => d.dispose());
+		dispose(this.activeRequests.values());
 		this.activeRequests.clear();
 	}
 }
@@ -505,6 +494,7 @@ export interface IIPCLogger {
 
 export class ChannelClient implements IChannelClient, IDisposable {
 
+	private isDisposed: boolean = false;
 	private state: State = State.Uninitialized;
 	private activeRequests = new Set<IDisposable>();
 	private handlers = new Map<number, IHandler>();
@@ -525,9 +515,15 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken) {
+				if (that.isDisposed) {
+					return Promise.reject(new CancellationError());
+				}
 				return that.requestPromise(channelName, command, arg, cancellationToken);
 			},
 			listen(event: string, arg: any) {
+				if (that.isDisposed) {
+					return Event.None;
+				}
 				return that.requestEvent(channelName, event, arg);
 			}
 		} as T;
@@ -539,14 +535,14 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		const request: IRawRequest = { id, type, channelName, name, arg };
 
 		if (cancellationToken.isCancellationRequested) {
-			return Promise.reject(errors.canceled());
+			return Promise.reject(new CancellationError());
 		}
 
 		let disposable: IDisposable;
 
 		const result = new Promise((c, e) => {
 			if (cancellationToken.isCancellationRequested) {
-				return e(errors.canceled());
+				return e(new CancellationError());
 			}
 
 			const doRequest = () => {
@@ -557,14 +553,14 @@ export class ChannelClient implements IChannelClient, IDisposable {
 							c(response.data);
 							break;
 
-						case ResponseType.PromiseError:
+						case ResponseType.PromiseError: {
 							this.handlers.delete(id);
 							const error = new Error(response.data.message);
 							(<any>error).stack = response.data.stack;
 							error.name = response.data.name;
 							e(error);
 							break;
-
+						}
 						case ResponseType.PromiseErrorObj:
 							this.handlers.delete(id);
 							e(response.data);
@@ -595,7 +591,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 					this.sendRequest({ id, type: RequestType.PromiseCancel });
 				}
 
-				e(errors.canceled());
+				e(new CancellationError());
 			};
 
 			const cancellationTokenListener = cancellationToken.onCancellationRequested(cancel);
@@ -644,18 +640,14 @@ export class ChannelClient implements IChannelClient, IDisposable {
 			case RequestType.Promise:
 			case RequestType.EventListen: {
 				const msgLength = this.send([request.type, request.id, request.channelName, request.name], request.arg);
-				if (this.logger) {
-					this.logger.logOutgoing(msgLength, request.id, RequestInitiator.LocalSide, `${requestTypeToStr(request.type)}: ${request.channelName}.${request.name}`, request.arg);
-				}
+				this.logger?.logOutgoing(msgLength, request.id, RequestInitiator.LocalSide, `${requestTypeToStr(request.type)}: ${request.channelName}.${request.name}`, request.arg);
 				return;
 			}
 
 			case RequestType.PromiseCancel:
 			case RequestType.EventDispose: {
 				const msgLength = this.send([request.type, request.id]);
-				if (this.logger) {
-					this.logger.logOutgoing(msgLength, request.id, RequestInitiator.LocalSide, requestTypeToStr(request.type));
-				}
+				this.logger?.logOutgoing(msgLength, request.id, RequestInitiator.LocalSide, requestTypeToStr(request.type));
 				return;
 			}
 		}
@@ -686,18 +678,14 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 		switch (type) {
 			case ResponseType.Initialize:
-				if (this.logger) {
-					this.logger.logIncoming(message.byteLength, 0, RequestInitiator.LocalSide, responseTypeToStr(type));
-				}
+				this.logger?.logIncoming(message.byteLength, 0, RequestInitiator.LocalSide, responseTypeToStr(type));
 				return this.onResponse({ type: header[0] });
 
 			case ResponseType.PromiseSuccess:
 			case ResponseType.PromiseError:
 			case ResponseType.EventFire:
 			case ResponseType.PromiseErrorObj:
-				if (this.logger) {
-					this.logger.logIncoming(message.byteLength, header[1], RequestInitiator.LocalSide, responseTypeToStr(type), body);
-				}
+				this.logger?.logIncoming(message.byteLength, header[1], RequestInitiator.LocalSide, responseTypeToStr(type), body);
 				return this.onResponse({ type: header[0], id: header[1], data: body });
 		}
 	}
@@ -711,25 +699,29 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 		const handler = this.handlers.get(response.id);
 
-		if (handler) {
-			handler(response);
-		}
+		handler?.(response);
+	}
+
+	@memoize
+	get onDidInitializePromise(): Promise<void> {
+		return Event.toPromise(this.onDidInitialize);
 	}
 
 	private whenInitialized(): Promise<void> {
 		if (this.state === State.Idle) {
 			return Promise.resolve();
 		} else {
-			return Event.toPromise(this.onDidInitialize);
+			return this.onDidInitializePromise;
 		}
 	}
 
 	dispose(): void {
+		this.isDisposed = true;
 		if (this.protocolListener) {
 			this.protocolListener.dispose();
 			this.protocolListener = null;
 		}
-		this.activeRequests.forEach(p => p.dispose());
+		dispose(this.activeRequests.values());
 		this.activeRequests.clear();
 	}
 }
@@ -814,7 +806,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 
 				if (isFunction(routerOrClientFilter)) {
 					// when no router is provided, we go random client picking
-					let connection = getRandomElement(that.connections.filter(routerOrClientFilter));
+					const connection = getRandomElement(that.connections.filter(routerOrClientFilter));
 
 					connectionPromise = connection
 						// if we found a client, let's call on it
@@ -1015,145 +1007,159 @@ export class StaticRouter<TContext = string> implements IClientRouter<TContext> 
 	}
 }
 
-
-//#region createChannelReceiver / createChannelSender
-
 /**
- * Use both `createChannelReceiver` and `createChannelSender`
- * for automated process <=> process communication over methods
- * and events. You do not need to spell out each method on both
- * sides, a proxy will take care of this.
+ * Use ProxyChannels to automatically wrapping and unwrapping
+ * services to/from IPC channels, instead of manually wrapping
+ * each service method and event.
  *
- * Rules:
- * - if marshalling is enabled, only `URI` and `RegExp` is converted
+ * Restrictions:
+ * - If marshalling is enabled, only `URI` and `RegExp` is converted
  *   automatically for you
- * - events must follow the naming convention `onUppercase`
+ * - Events must follow the naming convention `onUpperCase`
  * - `CancellationToken` is currently not supported
- * - if a context is provided, you can use `AddFirstParameterToFunctions`
+ * - If a context is provided, you can use `AddFirstParameterToFunctions`
  *   utility to signal this in the receiving side type
  */
+export namespace ProxyChannel {
 
-export interface IBaseChannelOptions {
+	export interface IProxyOptions {
 
-	/**
-	 * Disables automatic marshalling of `URI`.
-	 * If marshalling is disabled, `UriComponents`
-	 * must be used instead.
-	 */
-	disableMarshalling?: boolean;
-}
-
-export interface IChannelReceiverOptions extends IBaseChannelOptions { }
-
-export function createChannelReceiver(service: unknown, options?: IChannelReceiverOptions): IServerChannel {
-	const handler = service as { [key: string]: unknown };
-	const disableMarshalling = options && options.disableMarshalling;
-
-	// Buffer any event that should be supported by
-	// iterating over all property keys and finding them
-	const mapEventNameToEvent = new Map<string, Event<unknown>>();
-	for (const key in handler) {
-		if (propertyIsEvent(key)) {
-			mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, true));
-		}
+		/**
+		 * Disables automatic marshalling of `URI`.
+		 * If marshalling is disabled, `UriComponents`
+		 * must be used instead.
+		 */
+		disableMarshalling?: boolean;
 	}
 
-	return new class implements IServerChannel {
+	export interface ICreateServiceChannelOptions extends IProxyOptions { }
 
-		listen<T>(_: unknown, event: string): Event<T> {
-			const eventImpl = mapEventNameToEvent.get(event);
-			if (eventImpl) {
-				return eventImpl as Event<T>;
+	export function fromService<TContext>(service: unknown, options?: ICreateServiceChannelOptions): IServerChannel<TContext> {
+		const handler = service as { [key: string]: unknown };
+		const disableMarshalling = options && options.disableMarshalling;
+
+		// Buffer any event that should be supported by
+		// iterating over all property keys and finding them
+		const mapEventNameToEvent = new Map<string, Event<unknown>>();
+		for (const key in handler) {
+			if (propertyIsEvent(key)) {
+				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, true));
 			}
-
-			throw new Error(`Event not found: ${event}`);
 		}
 
-		call(_: unknown, command: string, args?: any[]): Promise<any> {
-			const target = handler[command];
-			if (typeof target === 'function') {
+		return new class implements IServerChannel {
 
-				// Revive unless marshalling disabled
-				if (!disableMarshalling && Array.isArray(args)) {
-					for (let i = 0; i < args.length; i++) {
-						args[i] = revive(args[i]);
+			listen<T>(_: unknown, event: string, arg: any): Event<T> {
+				const eventImpl = mapEventNameToEvent.get(event);
+				if (eventImpl) {
+					return eventImpl as Event<T>;
+				}
+
+				if (propertyIsDynamicEvent(event)) {
+					const target = handler[event];
+					if (typeof target === 'function') {
+						return target.call(handler, arg);
 					}
 				}
 
-				return target.apply(handler, args);
+				throw new Error(`Event not found: ${event}`);
 			}
 
-			throw new Error(`Method not found: ${command}`);
-		}
-	};
-}
-
-export interface IChannelSenderOptions extends IBaseChannelOptions {
-
-	/**
-	 * If provided, will add the value of `context`
-	 * to each method call to the target.
-	 */
-	context?: unknown;
-
-	/**
-	 * If provided, will not proxy any of the properties
-	 * that are part of the Map but rather return that value.
-	 */
-	properties?: Map<string, unknown>;
-}
-
-export function createChannelSender<T>(channel: IChannel, options?: IChannelSenderOptions): T {
-	const disableMarshalling = options && options.disableMarshalling;
-
-	return new Proxy({}, {
-		get(_target: T, propKey: PropertyKey) {
-			if (typeof propKey === 'string') {
-
-				// Check for predefined values
-				if (options?.properties?.has(propKey)) {
-					return options.properties.get(propKey);
-				}
-
-				// Event
-				if (propertyIsEvent(propKey)) {
-					return channel.listen(propKey);
-				}
-
-				// Function
-				return async function (...args: any[]) {
-
-					// Add context if any
-					let methodArgs: any[];
-					if (options && !isUndefinedOrNull(options.context)) {
-						methodArgs = [options.context, ...args];
-					} else {
-						methodArgs = args;
-					}
-
-					const result = await channel.call(propKey, methodArgs);
+			call(_: unknown, command: string, args?: any[]): Promise<any> {
+				const target = handler[command];
+				if (typeof target === 'function') {
 
 					// Revive unless marshalling disabled
-					if (!disableMarshalling) {
-						return revive(result);
+					if (!disableMarshalling && Array.isArray(args)) {
+						for (let i = 0; i < args.length; i++) {
+							args[i] = revive(args[i]);
+						}
 					}
 
-					return result;
-				};
+					return target.apply(handler, args);
+				}
+
+				throw new Error(`Method not found: ${command}`);
 			}
+		};
+	}
 
-			throw new Error(`Property not found: ${String(propKey)}`);
-		}
-	}) as T;
+	export interface ICreateProxyServiceOptions extends IProxyOptions {
+
+		/**
+		 * If provided, will add the value of `context`
+		 * to each method call to the target.
+		 */
+		context?: unknown;
+
+		/**
+		 * If provided, will not proxy any of the properties
+		 * that are part of the Map but rather return that value.
+		 */
+		properties?: Map<string, unknown>;
+	}
+
+	export function toService<T extends object>(channel: IChannel, options?: ICreateProxyServiceOptions): T {
+		const disableMarshalling = options && options.disableMarshalling;
+
+		return new Proxy({}, {
+			get(_target: T, propKey: PropertyKey) {
+				if (typeof propKey === 'string') {
+
+					// Check for predefined values
+					if (options?.properties?.has(propKey)) {
+						return options.properties.get(propKey);
+					}
+
+					// Dynamic Event
+					if (propertyIsDynamicEvent(propKey)) {
+						return function (arg: any) {
+							return channel.listen(propKey, arg);
+						};
+					}
+
+					// Event
+					if (propertyIsEvent(propKey)) {
+						return channel.listen(propKey);
+					}
+
+					// Function
+					return async function (...args: any[]) {
+
+						// Add context if any
+						let methodArgs: any[];
+						if (options && !isUndefinedOrNull(options.context)) {
+							methodArgs = [options.context, ...args];
+						} else {
+							methodArgs = args;
+						}
+
+						const result = await channel.call(propKey, methodArgs);
+
+						// Revive unless marshalling disabled
+						if (!disableMarshalling) {
+							return revive(result);
+						}
+
+						return result;
+					};
+				}
+
+				throw new Error(`Property not found: ${String(propKey)}`);
+			}
+		}) as T;
+	}
+
+	function propertyIsEvent(name: string): boolean {
+		// Assume a property is an event if it has a form of "onSomething"
+		return name[0] === 'o' && name[1] === 'n' && strings.isUpperAsciiLetter(name.charCodeAt(2));
+	}
+
+	function propertyIsDynamicEvent(name: string): boolean {
+		// Assume a property is a dynamic event (a method that returns an event) if it has a form of "onDynamicSomething"
+		return /^onDynamic/.test(name) && strings.isUpperAsciiLetter(name.charCodeAt(9));
+	}
 }
-
-function propertyIsEvent(name: string): boolean {
-	// Assume a property is an event if it has a form of "onSomething"
-	return name[0] === 'o' && name[1] === 'n' && strings.isUpperAsciiLetter(name.charCodeAt(2));
-}
-
-//#endregion
-
 
 const colorTables = [
 	['#2977B1', '#FC802D', '#34A13A', '#D3282F', '#9366BA'],
@@ -1165,7 +1171,7 @@ function prettyWithoutArrays(data: any): any {
 		return data;
 	}
 	if (data && typeof data === 'object' && typeof data.toString === 'function') {
-		let result = data.toString();
+		const result = data.toString();
 		if (result !== '[object Object]') {
 			return result;
 		}

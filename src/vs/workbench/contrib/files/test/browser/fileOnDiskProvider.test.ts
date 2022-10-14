@@ -9,15 +9,22 @@ import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileContentProvider } from 'vs/workbench/contrib/files/common/files';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Files - FileOnDiskContentProvider', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	test('provideTextContent', async () => {
@@ -27,8 +34,8 @@ suite('Files - FileOnDiskContentProvider', () => {
 		const content = await provider.provideTextContent(uri.with({ scheme: 'conflictResolution', query: JSON.stringify({ scheme: uri.scheme }) }));
 
 		assert.ok(content);
-		assert.equal(snapshotToString(content!.createSnapshot()), 'Hello Html');
-		assert.equal(accessor.fileService.getLastReadFileUri().scheme, uri.scheme);
-		assert.equal(accessor.fileService.getLastReadFileUri().path, uri.path);
+		assert.strictEqual(snapshotToString(content!.createSnapshot()), 'Hello Html');
+		assert.strictEqual(accessor.fileService.getLastReadFileUri().scheme, uri.scheme);
+		assert.strictEqual(accessor.fileService.getLastReadFileUri().path, uri.path);
 	});
 });

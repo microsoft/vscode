@@ -3,7 +3,8 @@
 	"compilerOptions": {
 		"noEmit": true,
 		"types": [
-			"trusted-types"
+			"trusted-types",
+			"wicg-file-system-access"
 		],
 		"paths": {},
 		"module": "amd",
@@ -17,9 +18,8 @@
 	"include": [
 		"typings/require.d.ts",
 		"typings/thenable.d.ts",
-		"vs/css.d.ts",
+		"vs/loader.d.ts",
 		"vs/monaco.d.ts",
-		"vs/nls.d.ts",
 		"vs/editor/*",
 		"vs/base/common/*",
 		"vs/base/browser/*",
@@ -27,6 +27,10 @@
 		"vs/platform/*/browser/*"
 	],
 	"exclude": [
-		"node_modules/*"
+		"node_modules/*",
+		"vs/platform/files/browser/htmlFileSystemProvider.ts",
+		"vs/platform/files/browser/webFileSystemAccess.ts",
+		"vs/platform/telemetry/*",
+		"vs/platform/assignment/*"
 	]
 }

@@ -7,12 +7,12 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
 import { listInvalidItemForeground, listDeemphasizedForeground } from 'vs/platform/theme/common/colorRegistry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { explorerRootErrorEmitter } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
+import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 
 export function provideDecorations(fileStat: ExplorerItem): IDecorationData | undefined {
 	if (fileStat.isRoot && fileStat.isError) {
@@ -65,10 +65,10 @@ export class ExplorerDecorationsProvider implements IDecorationsProvider {
 		return this._onDidChange.event;
 	}
 
-	provideDecorations(resource: URI): IDecorationData | undefined {
+	async provideDecorations(resource: URI): Promise<IDecorationData | undefined> {
 		const fileStat = this.explorerService.findClosest(resource);
 		if (!fileStat) {
-			return undefined;
+			throw new Error('ExplorerItem not found');
 		}
 
 		return provideDecorations(fileStat);

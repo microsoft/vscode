@@ -3,16 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import { getConfigurationKeys, IConfigurationOverrides, IConfigurationService, getConfigurationValue, isConfigurationOverrides, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
-import { Emitter } from 'vs/base/common/event';
+import { getConfigurationValue, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export class TestConfigurationService implements IConfigurationService {
 	public _serviceBrand: undefined;
 
 	private configuration: any;
-	readonly onDidChangeConfiguration = new Emitter<any>().event;
+	readonly onDidChangeConfigurationEmitter = new Emitter<IConfigurationChangeEvent>();
+	readonly onDidChangeConfiguration = this.onDidChangeConfigurationEmitter.event;
 
 	constructor(configuration?: any) {
 		this.configuration = configuration || Object.create(null);
@@ -34,7 +37,7 @@ export class TestConfigurationService implements IConfigurationService {
 		}
 		configuration = configuration ? configuration : this.configuration;
 		if (arg1 && typeof arg1 === 'string') {
-			return getConfigurationValue(configuration, arg1);
+			return configuration[arg1] ?? getConfigurationValue(configuration, arg1);
 		}
 		return configuration;
 	}
@@ -55,19 +58,25 @@ export class TestConfigurationService implements IConfigurationService {
 		return Promise.resolve(undefined);
 	}
 
+	private overrideIdentifiers: Map<string, string[]> = new Map();
+	public setOverrideIdentifiers(key: string, identifiers: string[]): void {
+		this.overrideIdentifiers.set(key, identifiers);
+	}
+
 	public inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
 		const config = this.getValue(undefined, overrides);
 
 		return {
 			value: getConfigurationValue<T>(config, key),
 			defaultValue: getConfigurationValue<T>(config, key),
-			userValue: getConfigurationValue<T>(config, key)
+			userValue: getConfigurationValue<T>(config, key),
+			overrideIdentifiers: this.overrideIdentifiers.get(key)
 		};
 	}
 
 	public keys() {
 		return {
-			default: getConfigurationKeys(),
+			default: Object.keys(Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()),
 			user: Object.keys(this.configuration),
 			workspace: [],
 			workspaceFolder: []

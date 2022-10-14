@@ -5,7 +5,6 @@
 
 .monaco-editor .debug-hover-widget {
 	position: absolute;
-	margin-top: -1px;
 	z-index: 50;
 	animation-duration: 0.15s;
 	animation-name: fadeIn;
@@ -16,10 +15,11 @@
 }
 
 .monaco-editor .debug-hover-widget .complex-value {
-	max-width: 700px;
+	max-width: 550px;
 }
 
-.monaco-editor .debug-hover-widget .complex-value .title {
+.monaco-editor .debug-hover-widget .complex-value .title,
+.monaco-editor .debug-hover-widget .complex-value .tip {
 	padding-left: 15px;
 	padding-right: 2px;
 	font-size: 11px;
@@ -29,7 +29,15 @@
 	height: 18px;
 	overflow: hidden;
 	white-space: pre;
+}
+
+.monaco-editor .debug-hover-widget .complex-value .title {
 	border-bottom: 1px solid rgba(128, 128, 128, 0.35);
+}
+
+.monaco-editor .debug-hover-widget .complex-value .tip {
+	border-top: 1px solid rgba(128, 128, 128, 0.35);
+	opacity: 0.5;
 }
 
 .monaco-editor .debug-hover-widget .debug-hover-tree {

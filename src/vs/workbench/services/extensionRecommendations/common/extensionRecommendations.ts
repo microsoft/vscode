@@ -7,11 +7,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
 
-export interface IExtensionsConfigContent {
-	recommendations: string[];
-	unwantedRecommendations: string[];
-}
-
 export type DynamicRecommendation = 'dynamic';
 export type ConfigRecommendation = 'config';
 export type ExecutableRecommendation = 'executable';
@@ -45,15 +40,16 @@ export interface IExtensionRecommendationsService {
 	getImportantRecommendations(): Promise<string[]>;
 	getOtherRecommendations(): Promise<string[]>;
 	getFileBasedRecommendations(): string[];
-	getExeBasedRecommendations(exe?: string): Promise<{ important: string[], others: string[] }>;
-	getConfigBasedRecommendations(): Promise<{ important: string[], others: string[] }>;
+	getExeBasedRecommendations(exe?: string): Promise<{ important: string[]; others: string[] }>;
+	getConfigBasedRecommendations(): Promise<{ important: string[]; others: string[] }>;
 	getWorkspaceRecommendations(): Promise<string[]>;
 	getKeymapRecommendations(): string[];
+	getLanguageRecommendations(): string[];
 }
 
 export type IgnoredRecommendationChangeNotification = {
-	extensionId: string,
-	isRecommended: boolean
+	extensionId: string;
+	isRecommended: boolean;
 };
 
 export const IExtensionIgnoredRecommendationsService = createDecorator<IExtensionIgnoredRecommendationsService>('IExtensionIgnoredRecommendationsService');

@@ -3,17 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
+import { CommandsRegistry, ICommandHandlerDescription, ICommandService } from 'vs/platform/commands/common/commands';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { Dto, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { ExtHostCommandsShape, ExtHostContext, MainContext, MainThreadCommandsShape } from '../common/extHost.protocol';
+
 
 @extHostNamedCustomer(MainContext.MainThreadCommands)
 export class MainThreadCommands implements MainThreadCommandsShape {
 
-	private readonly _commandRegistrations = new Map<string, IDisposable>();
+	private readonly _commandRegistrations = new DisposableMap<string>();
 	private readonly _generateCommandsDocumentationRegistration: IDisposable;
 	private readonly _proxy: ExtHostCommandsShape;
 
@@ -28,29 +30,27 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	}
 
 	dispose() {
-		dispose(this._commandRegistrations.values());
-		this._commandRegistrations.clear();
-
+		this._commandRegistrations.dispose();
 		this._generateCommandsDocumentationRegistration.dispose();
 	}
 
-	private _generateCommandsDocumentation(): Promise<void> {
-		return this._proxy.$getContributedCommandHandlerDescriptions().then(result => {
-			// add local commands
-			const commands = CommandsRegistry.getCommands();
-			for (const [id, command] of commands) {
-				if (command.description) {
-					result[id] = command.description;
-				}
-			}
+	private async _generateCommandsDocumentation(): Promise<void> {
+		const result = await this._proxy.$getContributedCommandHandlerDescriptions();
 
-			// print all as markdown
-			const all: string[] = [];
-			for (let id in result) {
-				all.push('`' + id + '` - ' + _generateMarkdown(result[id]));
+		// add local commands
+		const commands = CommandsRegistry.getCommands();
+		for (const [id, command] of commands) {
+			if (command.description) {
+				result[id] = command.description;
 			}
-			console.log(all.join('\n'));
-		});
+		}
+
+		// print all as markdown
+		const all: string[] = [];
+		for (const id in result) {
+			all.push('`' + id + '` - ' + _generateMarkdown(result[id]));
+		}
+		console.log(all.join('\n'));
 	}
 
 	$registerCommand(id: string): void {
@@ -65,14 +65,22 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	}
 
 	$unregisterCommand(id: string): void {
-		const command = this._commandRegistrations.get(id);
-		if (command) {
-			command.dispose();
-			this._commandRegistrations.delete(id);
+		this._commandRegistrations.deleteAndDispose(id);
+	}
+
+	$fireCommandActivationEvent(id: string): void {
+		const activationEvent = `onCommand:${id}`;
+		if (!this._extensionService.activationEventIsDone(activationEvent)) {
+			// this is NOT awaited because we only use it as drive-by-activation
+			// for commands that are already known inside the extension host
+			this._extensionService.activateByEvent(activationEvent);
 		}
 	}
 
-	async $executeCommand<T>(id: string, args: any[], retry: boolean): Promise<T | undefined> {
+	async $executeCommand<T>(id: string, args: any[] | SerializableObjectWithBuffers<any[]>, retry: boolean): Promise<T | undefined> {
+		if (args instanceof SerializableObjectWithBuffers) {
+			args = args.value;
+		}
 		for (let i = 0; i < args.length; i++) {
 			args[i] = revive(args[i]);
 		}
@@ -90,14 +98,14 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 
 // --- command doc
 
-function _generateMarkdown(description: string | ICommandHandlerDescription): string {
+function _generateMarkdown(description: string | Dto<ICommandHandlerDescription> | ICommandHandlerDescription): string {
 	if (typeof description === 'string') {
 		return description;
 	} else {
 		const parts = [description.description];
 		parts.push('\n\n');
 		if (description.args) {
-			for (let arg of description.args) {
+			for (const arg of description.args) {
 				parts.push(`* _${arg.name}_ - ${arg.description || ''}\n`);
 			}
 		}

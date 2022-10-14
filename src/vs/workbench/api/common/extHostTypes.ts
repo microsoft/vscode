@@ -3,34 +3,53 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesceInPlace, equals } from 'vs/base/common/arrays';
-import { escapeCodicons } from 'vs/base/common/codicons';
+import { asArray, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
-import { isMarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
 import { ResourceMap } from 'vs/base/common/map';
-import { isStringArray } from 'vs/base/common/types';
+import { Mimes, normalizeMimeType } from 'vs/base/common/mime';
+import { nextCharLength } from 'vs/base/common/strings';
+import { isNumber, isObject, isString, isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { addIdToOutput, CellEditType, ICellEditOperation, IDisplayOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IRelativePatternDto } from 'vs/workbench/api/common/extHost.protocol';
+import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
+/**
+ * @deprecated
+ *
+ * This utility ensures that old JS code that uses functions for classes still works. Existing usages cannot be removed
+ * but new ones must not be added
+ * */
 function es5ClassCompat(target: Function): any {
-	///@ts-expect-error
-	function _() { return Reflect.construct(target, arguments, this.constructor); }
-	Object.defineProperty(_, 'name', Object.getOwnPropertyDescriptor(target, 'name')!);
-	Object.setPrototypeOf(_, target);
-	Object.setPrototypeOf(_.prototype, target.prototype);
-	return _;
+	const interceptFunctions = {
+		apply: function () {
+			const args = arguments.length === 1 ? [] : arguments[1];
+			return Reflect.construct(target, args, arguments[0].constructor);
+		},
+		call: function () {
+			if (arguments.length === 0) {
+				return Reflect.construct(target, []);
+			} else {
+				const [thisArg, ...restArgs] = arguments;
+				return Reflect.construct(target, restArgs, thisArg.constructor);
+			}
+		}
+	};
+	return Object.assign(target, interceptFunctions);
 }
 
 @es5ClassCompat
 export class Disposable {
 
-	static from(...inDisposables: { dispose(): any; }[]): Disposable {
-		let disposables: ReadonlyArray<{ dispose(): any; }> | undefined = inDisposables;
+	static from(...inDisposables: { dispose(): any }[]): Disposable {
+		let disposables: ReadonlyArray<{ dispose(): any }> | undefined = inDisposables;
 		return new Disposable(function () {
 			if (disposables) {
 				for (const disposable of disposables) {
@@ -95,11 +114,20 @@ export class Position {
 		if (other instanceof Position) {
 			return true;
 		}
-		let { line, character } = <Position>other;
+		const { line, character } = <Position>other;
 		if (typeof line === 'number' && typeof character === 'number') {
 			return true;
 		}
 		return false;
+	}
+
+	static of(obj: vscode.Position): Position {
+		if (obj instanceof Position) {
+			return obj;
+		} else if (this.isPosition(obj)) {
+			return new Position(obj.line, obj.character);
+		}
+		throw new Error('Invalid argument, is NOT a position-like object');
 	}
 
 	private _line: number;
@@ -174,9 +202,9 @@ export class Position {
 		}
 	}
 
-	translate(change: { lineDelta?: number; characterDelta?: number; }): Position;
+	translate(change: { lineDelta?: number; characterDelta?: number }): Position;
 	translate(lineDelta?: number, characterDelta?: number): Position;
-	translate(lineDeltaOrChange: number | undefined | { lineDelta?: number; characterDelta?: number; }, characterDelta: number = 0): Position {
+	translate(lineDeltaOrChange: number | undefined | { lineDelta?: number; characterDelta?: number }, characterDelta: number = 0): Position {
 
 		if (lineDeltaOrChange === null || characterDelta === null) {
 			throw illegalArgument();
@@ -198,9 +226,9 @@ export class Position {
 		return new Position(this.line + lineDelta, this.character + characterDelta);
 	}
 
-	with(change: { line?: number; character?: number; }): Position;
+	with(change: { line?: number; character?: number }): Position;
 	with(line?: number, character?: number): Position;
-	with(lineOrChange: number | undefined | { line?: number; character?: number; }, character: number = this.character): Position {
+	with(lineOrChange: number | undefined | { line?: number; character?: number }, character: number = this.character): Position {
 
 		if (lineOrChange === null || character === null) {
 			throw illegalArgument();
@@ -243,6 +271,16 @@ export class Range {
 			&& Position.isPosition((<Range>thing.end));
 	}
 
+	static of(obj: vscode.Range): Range {
+		if (obj instanceof Range) {
+			return obj;
+		}
+		if (this.isRange(obj)) {
+			return new Range(obj.start, obj.end);
+		}
+		throw new Error('Invalid argument, is NOT a range-like object');
+	}
+
 	protected _start: Position;
 	protected _end: Position;
 
@@ -254,18 +292,19 @@ export class Range {
 		return this._end;
 	}
 
+	constructor(start: vscode.Position, end: vscode.Position);
 	constructor(start: Position, end: Position);
 	constructor(startLine: number, startColumn: number, endLine: number, endColumn: number);
-	constructor(startLineOrStart: number | Position, startColumnOrEnd: number | Position, endLine?: number, endColumn?: number) {
+	constructor(startLineOrStart: number | Position | vscode.Position, startColumnOrEnd: number | Position | vscode.Position, endLine?: number, endColumn?: number) {
 		let start: Position | undefined;
 		let end: Position | undefined;
 
 		if (typeof startLineOrStart === 'number' && typeof startColumnOrEnd === 'number' && typeof endLine === 'number' && typeof endColumn === 'number') {
 			start = new Position(startLineOrStart, startColumnOrEnd);
 			end = new Position(endLine, endColumn);
-		} else if (startLineOrStart instanceof Position && startColumnOrEnd instanceof Position) {
-			start = startLineOrStart;
-			end = startColumnOrEnd;
+		} else if (Position.isPosition(startLineOrStart) && Position.isPosition(startColumnOrEnd)) {
+			start = Position.of(startLineOrStart);
+			end = Position.of(startColumnOrEnd);
 		}
 
 		if (!start || !end) {
@@ -282,12 +321,12 @@ export class Range {
 	}
 
 	contains(positionOrRange: Position | Range): boolean {
-		if (positionOrRange instanceof Range) {
-			return this.contains(positionOrRange._start)
-				&& this.contains(positionOrRange._end);
+		if (Range.isRange(positionOrRange)) {
+			return this.contains(positionOrRange.start)
+				&& this.contains(positionOrRange.end);
 
-		} else if (positionOrRange instanceof Position) {
-			if (positionOrRange.isBefore(this._start)) {
+		} else if (Position.isPosition(positionOrRange)) {
+			if (Position.of(positionOrRange).isBefore(this._start)) {
 				return false;
 			}
 			if (this._end.isBefore(positionOrRange)) {
@@ -333,9 +372,9 @@ export class Range {
 		return this._start.line === this._end.line;
 	}
 
-	with(change: { start?: Position, end?: Position; }): Range;
+	with(change: { start?: Position; end?: Position }): Range;
 	with(start?: Position, end?: Position): Range;
-	with(startOrChange: Position | undefined | { start?: Position, end?: Position; }, end: Position = this.end): Range {
+	with(startOrChange: Position | undefined | { start?: Position; end?: Position }, end: Position = this.end): Range {
 
 		if (startOrChange === null || end === null) {
 			throw illegalArgument();
@@ -401,9 +440,9 @@ export class Selection extends Range {
 		if (typeof anchorLineOrAnchor === 'number' && typeof anchorColumnOrActive === 'number' && typeof activeLine === 'number' && typeof activeColumn === 'number') {
 			anchor = new Position(anchorLineOrAnchor, anchorColumnOrActive);
 			active = new Position(activeLine, activeColumn);
-		} else if (anchorLineOrAnchor instanceof Position && anchorColumnOrActive instanceof Position) {
-			anchor = anchorLineOrAnchor;
-			active = anchorColumnOrActive;
+		} else if (Position.isPosition(anchorLineOrAnchor) && Position.isPosition(anchorColumnOrActive)) {
+			anchor = Position.of(anchorLineOrAnchor);
+			active = Position.of(anchorColumnOrActive);
 		}
 
 		if (!anchor || !active) {
@@ -420,7 +459,7 @@ export class Selection extends Range {
 		return this._anchor === this._end;
 	}
 
-	toJSON() {
+	override toJSON() {
 		return {
 			start: this.start,
 			end: this.end,
@@ -576,94 +615,186 @@ export class TextEdit {
 	}
 }
 
+@es5ClassCompat
+export class NotebookEdit implements vscode.NotebookEdit {
+
+	static isNotebookCellEdit(thing: any): thing is NotebookEdit {
+		if (thing instanceof NotebookEdit) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return NotebookRange.isNotebookRange((<NotebookEdit>thing))
+			&& Array.isArray((<NotebookEdit>thing).newCells);
+	}
+
+	static replaceCells(range: NotebookRange, newCells: NotebookCellData[]): NotebookEdit {
+		return new NotebookEdit(range, newCells);
+	}
+
+	static insertCells(index: number, newCells: vscode.NotebookCellData[]): vscode.NotebookEdit {
+		return new NotebookEdit(new NotebookRange(index, index), newCells);
+	}
+
+	static deleteCells(range: NotebookRange): NotebookEdit {
+		return new NotebookEdit(range, []);
+	}
+
+	static updateCellMetadata(index: number, newMetadata: { [key: string]: any }): NotebookEdit {
+		const edit = new NotebookEdit(new NotebookRange(index, index), []);
+		edit.newCellMetadata = newMetadata;
+		return edit;
+	}
+
+	static updateNotebookMetadata(newMetadata: { [key: string]: any }): NotebookEdit {
+		const edit = new NotebookEdit(new NotebookRange(0, 0), []);
+		edit.newNotebookMetadata = newMetadata;
+		return edit;
+	}
+
+	range: NotebookRange;
+	newCells: NotebookCellData[];
+	newCellMetadata?: { [key: string]: any };
+	newNotebookMetadata?: { [key: string]: any };
+
+	constructor(range: NotebookRange, newCells: NotebookCellData[]) {
+		this.range = range;
+		this.newCells = newCells;
+	}
+}
+
+export class SnippetTextEdit implements vscode.SnippetTextEdit {
+
+	static isSnippetTextEdit(thing: any): thing is SnippetTextEdit {
+		if (thing instanceof SnippetTextEdit) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return Range.isRange((<SnippetTextEdit>thing).range)
+			&& SnippetString.isSnippetString((<SnippetTextEdit>thing).snippet);
+	}
+
+	static replace(range: Range, snippet: SnippetString): SnippetTextEdit {
+		return new SnippetTextEdit(range, snippet);
+	}
+
+	static insert(position: Position, snippet: SnippetString): SnippetTextEdit {
+		return SnippetTextEdit.replace(new Range(position, position), snippet);
+	}
+
+	range: Range;
+
+	snippet: SnippetString;
+
+	constructor(range: Range, snippet: SnippetString) {
+		this.range = range;
+		this.snippet = snippet;
+	}
+}
+
 export interface IFileOperationOptions {
-	overwrite?: boolean;
-	ignoreIfExists?: boolean;
-	ignoreIfNotExists?: boolean;
-	recursive?: boolean;
+	readonly overwrite?: boolean;
+	readonly ignoreIfExists?: boolean;
+	readonly ignoreIfNotExists?: boolean;
+	readonly recursive?: boolean;
+	readonly contents?: Uint8Array;
 }
 
 export const enum FileEditType {
 	File = 1,
 	Text = 2,
-	Cell = 3
+	Cell = 3,
+	CellReplace = 5,
+	Snippet = 6,
 }
 
 export interface IFileOperation {
-	_type: FileEditType.File;
-	from?: URI;
-	to?: URI;
-	options?: IFileOperationOptions;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
+	readonly _type: FileEditType.File;
+	readonly from?: URI;
+	readonly to?: URI;
+	readonly options?: IFileOperationOptions;
+	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
 export interface IFileTextEdit {
-	_type: FileEditType.Text;
-	uri: URI;
-	edit: TextEdit;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
+	readonly _type: FileEditType.Text;
+	readonly uri: URI;
+	readonly edit: TextEdit;
+	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
+}
+
+export interface IFileSnippetTextEdit {
+	readonly _type: FileEditType.Snippet;
+	readonly uri: URI;
+	readonly range: vscode.Range;
+	readonly edit: vscode.SnippetString;
+	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
 export interface IFileCellEdit {
-	_type: FileEditType.Cell;
-	uri: URI;
-	edit?: ICellEditOperation;
-	notebookMetadata?: vscode.NotebookDocumentMetadata;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
+	readonly _type: FileEditType.Cell;
+	readonly uri: URI;
+	readonly edit?: ICellPartialMetadataEdit | IDocumentMetadataEdit;
+	readonly notebookMetadata?: Record<string, any>;
+	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
 }
+
+export interface ICellEdit {
+	readonly _type: FileEditType.CellReplace;
+	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
+	readonly uri: URI;
+	readonly index: number;
+	readonly count: number;
+	readonly cells: vscode.NotebookCellData[];
+}
+
+
+type WorkspaceEditEntry = IFileOperation | IFileTextEdit | IFileSnippetTextEdit | IFileCellEdit | ICellEdit;
 
 @es5ClassCompat
 export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
-	private readonly _edits = new Array<IFileOperation | IFileTextEdit | IFileCellEdit>();
+	private readonly _edits: WorkspaceEditEntry[] = [];
 
 
-	_allEntries(): ReadonlyArray<IFileTextEdit | IFileOperation | IFileCellEdit> {
+	_allEntries(): ReadonlyArray<WorkspaceEditEntry> {
 		return this._edits;
 	}
 
 	// --- file
 
-	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from, to, options, metadata });
 	}
 
-	createFile(uri: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	createFile(uri: vscode.Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: undefined, to: uri, options, metadata });
 	}
 
-	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	deleteFile(uri: vscode.Uri, options?: { readonly recursive?: boolean; readonly ignoreIfNotExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: uri, to: undefined, options, metadata });
 	}
 
 	// --- notebook
 
-	replaceNotebookMetadata(uri: URI, value: vscode.NotebookDocumentMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Cell, metadata, uri, notebookMetadata: value });
+	private replaceNotebookMetadata(uri: URI, value: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.DocumentMetadata, metadata: value }, notebookMetadata: value });
 	}
 
-	replaceNotebookCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		if (start !== end || cells.length > 0) {
-			this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Replace, index: start, count: end - start, cells: cells.map(cell => ({ ...cell, outputs: cell.outputs.map(output => addIdToOutput(output)) })) } });
+	private replaceNotebookCells(uri: URI, startOrRange: vscode.NotebookRange, cellData: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		const start = startOrRange.start;
+		const end = startOrRange.end;
+
+		if (start !== end || cellData.length > 0) {
+			this._edits.push({ _type: FileEditType.CellReplace, uri, index: start, count: end - start, cells: cellData, metadata });
 		}
 	}
 
-	replaceNotebookCellOutput(uri: URI, index: number, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({
-			_type: FileEditType.Cell, metadata, uri, edit: {
-				editType: CellEditType.Output, index, outputs: outputs.map(output => {
-					if (NotebookCellOutput.isNotebookCellOutput(output)) {
-						return addIdToOutput(output.toJSON());
-					} else {
-						return addIdToOutput(output);
-					}
-				})
-			}
-		});
-	}
-
-	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: vscode.NotebookCellMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Metadata, index, metadata: cellMetadata } });
+	private replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.PartialMetadata, index, metadata: cellMetadata } });
 	}
 
 	// --- text
@@ -686,21 +817,55 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		return this._edits.some(edit => edit._type === FileEditType.Text && edit.uri.toString() === uri.toString());
 	}
 
-	set(uri: URI, edits: TextEdit[]): void {
+	set(uri: URI, edits: ReadonlyArray<TextEdit | SnippetTextEdit>): void;
+	set(uri: URI, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata]>): void;
+	set(uri: URI, edits: readonly NotebookEdit[]): void;
+	set(uri: URI, edits: ReadonlyArray<[NotebookEdit, vscode.WorkspaceEditEntryMetadata]>): void;
+
+	set(uri: URI, edits: null | undefined | ReadonlyArray<TextEdit | SnippetTextEdit | NotebookEdit | [NotebookEdit, vscode.WorkspaceEditEntryMetadata] | [TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata]>): void {
 		if (!edits) {
-			// remove all text edits for `uri`
+			// remove all text, snippet, or notebook edits for `uri`
 			for (let i = 0; i < this._edits.length; i++) {
 				const element = this._edits[i];
-				if (element._type === FileEditType.Text && element.uri.toString() === uri.toString()) {
-					this._edits[i] = undefined!; // will be coalesced down below
+				switch (element._type) {
+					case FileEditType.Text:
+					case FileEditType.Snippet:
+					case FileEditType.Cell:
+					case FileEditType.CellReplace:
+						if (element.uri.toString() === uri.toString()) {
+							this._edits[i] = undefined!; // will be coalesced down below
+						}
+						break;
 				}
 			}
 			coalesceInPlace(this._edits);
 		} else {
 			// append edit to the end
-			for (const edit of edits) {
-				if (edit) {
-					this._edits.push({ _type: FileEditType.Text, uri, edit });
+			for (const editOrTuple of edits) {
+				if (!editOrTuple) {
+					continue;
+				}
+				let edit: TextEdit | SnippetTextEdit | NotebookEdit;
+				let metadata: vscode.WorkspaceEditEntryMetadata | undefined;
+				if (Array.isArray(editOrTuple)) {
+					edit = editOrTuple[0];
+					metadata = editOrTuple[1];
+				} else {
+					edit = editOrTuple;
+				}
+				if (NotebookEdit.isNotebookCellEdit(edit)) {
+					if (edit.newCellMetadata) {
+						this.replaceNotebookCellMetadata(uri, edit.range.start, edit.newCellMetadata, metadata);
+					} else if (edit.newNotebookMetadata) {
+						this.replaceNotebookMetadata(uri, edit.newNotebookMetadata, metadata);
+					} else {
+						this.replaceNotebookCells(uri, edit.range, edit.newCells, metadata);
+					}
+				} else if (SnippetTextEdit.isSnippetTextEdit(edit)) {
+					this._edits.push({ _type: FileEditType.Snippet, uri, range: edit.range, edit: edit.snippet, metadata });
+
+				} else {
+					this._edits.push({ _type: FileEditType.Text, uri, edit, metadata });
 				}
 			}
 		}
@@ -708,7 +873,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	get(uri: URI): TextEdit[] {
 		const res: TextEdit[] = [];
-		for (let candidate of this._edits) {
+		for (const candidate of this._edits) {
 			if (candidate._type === FileEditType.Text && candidate.uri.toString() === uri.toString()) {
 				res.push(candidate.edit);
 			}
@@ -718,7 +883,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	entries(): [URI, TextEdit[]][] {
 		const textEdits = new ResourceMap<[URI, TextEdit[]]>();
-		for (let candidate of this._edits) {
+		for (const candidate of this._edits) {
 			if (candidate._type === FileEditType.Text) {
 				let textEdit = textEdits.get(candidate.uri);
 				if (!textEdit) {
@@ -850,7 +1015,7 @@ export enum DiagnosticSeverity {
 @es5ClassCompat
 export class Location {
 
-	static isLocation(thing: any): thing is Location {
+	static isLocation(thing: any): thing is vscode.Location {
 		if (thing instanceof Location) {
 			return true;
 		}
@@ -869,9 +1034,9 @@ export class Location {
 
 		if (!rangeOrPosition) {
 			//that's OK
-		} else if (rangeOrPosition instanceof Range) {
-			this.range = rangeOrPosition;
-		} else if (rangeOrPosition instanceof Position) {
+		} else if (Range.isRange(rangeOrPosition)) {
+			this.range = Range.of(rangeOrPosition);
+		} else if (Position.isPosition(rangeOrPosition)) {
 			this.range = new Range(rangeOrPosition, rangeOrPosition);
 		} else {
 			throw new Error('Illegal argument');
@@ -974,20 +1139,18 @@ export class Diagnostic {
 @es5ClassCompat
 export class Hover {
 
-	public contents: vscode.MarkdownString[] | vscode.MarkedString[];
+	public contents: (vscode.MarkdownString | vscode.MarkedString)[];
 	public range: Range | undefined;
 
 	constructor(
-		contents: vscode.MarkdownString | vscode.MarkedString | vscode.MarkdownString[] | vscode.MarkedString[],
+		contents: vscode.MarkdownString | vscode.MarkedString | (vscode.MarkdownString | vscode.MarkedString)[],
 		range?: Range
 	) {
 		if (!contents) {
 			throw new Error('Illegal argument, contents must be defined');
 		}
 		if (Array.isArray(contents)) {
-			this.contents = <vscode.MarkdownString[] | vscode.MarkedString[]>contents;
-		} else if (isMarkdownString(contents)) {
-			this.contents = [contents];
+			this.contents = contents;
 		} else {
 			this.contents = [contents];
 		}
@@ -1108,9 +1271,7 @@ export class DocumentSymbol {
 		if (!candidate.range.contains(candidate.selectionRange)) {
 			throw new Error('selectionRange must be contained in fullRange');
 		}
-		if (candidate.children) {
-			candidate.children.forEach(DocumentSymbol.validate);
-		}
+		candidate.children?.forEach(DocumentSymbol.validate);
 	}
 
 	name: string;
@@ -1134,9 +1295,9 @@ export class DocumentSymbol {
 }
 
 
-export enum CodeActionTrigger {
-	Automatic = 1,
-	Manual = 2,
+export enum CodeActionTriggerKind {
+	Invoke = 1,
+	Automatic = 2,
 }
 
 @es5ClassCompat
@@ -1169,6 +1330,7 @@ export class CodeActionKind {
 	public static Refactor: CodeActionKind;
 	public static RefactorExtract: CodeActionKind;
 	public static RefactorInline: CodeActionKind;
+	public static RefactorMove: CodeActionKind;
 	public static RefactorRewrite: CodeActionKind;
 	public static Source: CodeActionKind;
 	public static SourceOrganizeImports: CodeActionKind;
@@ -1195,6 +1357,7 @@ CodeActionKind.QuickFix = CodeActionKind.Empty.append('quickfix');
 CodeActionKind.Refactor = CodeActionKind.Empty.append('refactor');
 CodeActionKind.RefactorExtract = CodeActionKind.Refactor.append('extract');
 CodeActionKind.RefactorInline = CodeActionKind.Refactor.append('inline');
+CodeActionKind.RefactorMove = CodeActionKind.Refactor.append('move');
 CodeActionKind.RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
 CodeActionKind.Source = CodeActionKind.Empty.append('source');
 CodeActionKind.SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
@@ -1222,6 +1385,7 @@ export class CallHierarchyItem {
 	_itemId?: string;
 
 	kind: SymbolKind;
+	tags?: SymbolTag[];
 	name: string;
 	detail?: string;
 	uri: URI;
@@ -1259,6 +1423,13 @@ export class CallHierarchyOutgoingCall {
 	}
 }
 
+export enum LanguageStatusSeverity {
+	Information = 0,
+	Warning = 1,
+	Error = 2
+}
+
+
 @es5ClassCompat
 export class CodeLens {
 
@@ -1276,54 +1447,10 @@ export class CodeLens {
 	}
 }
 
-
-export class CodeInset {
-
-	range: Range;
-	height?: number;
-
-	constructor(range: Range, height?: number) {
-		this.range = range;
-		this.height = height;
-	}
-}
-
-
 @es5ClassCompat
-export class MarkdownString {
+export class MarkdownString implements vscode.MarkdownString {
 
-	value: string;
-	isTrusted?: boolean;
-	readonly supportThemeIcons?: boolean;
-
-	constructor(value?: string, supportThemeIcons: boolean = false) {
-		this.value = value ?? '';
-		this.supportThemeIcons = supportThemeIcons;
-	}
-
-	appendText(value: string): MarkdownString {
-		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-		this.value += (this.supportThemeIcons ? escapeCodicons(value) : value)
-			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
-			.replace(/\n/, '\n\n');
-
-		return this;
-	}
-
-	appendMarkdown(value: string): MarkdownString {
-		this.value += value;
-
-		return this;
-	}
-
-	appendCodeblock(code: string, language: string = ''): MarkdownString {
-		this.value += '\n```';
-		this.value += language;
-		this.value += '\n';
-		this.value += code;
-		this.value += '\n```\n';
-		return this;
-	}
+	readonly #delegate: BaseMarkdownString;
 
 	static isMarkdownString(thing: any): thing is vscode.MarkdownString {
 		if (thing instanceof MarkdownString) {
@@ -1331,15 +1458,73 @@ export class MarkdownString {
 		}
 		return thing && thing.appendCodeblock && thing.appendMarkdown && thing.appendText && (thing.value !== undefined);
 	}
+
+	constructor(value?: string, supportThemeIcons: boolean = false) {
+		this.#delegate = new BaseMarkdownString(value, { supportThemeIcons });
+	}
+
+	get value(): string {
+		return this.#delegate.value;
+	}
+	set value(value: string) {
+		this.#delegate.value = value;
+	}
+
+	get isTrusted(): boolean | undefined {
+		return this.#delegate.isTrusted;
+	}
+
+	set isTrusted(value: boolean | undefined) {
+		this.#delegate.isTrusted = value;
+	}
+
+	get supportThemeIcons(): boolean | undefined {
+		return this.#delegate.supportThemeIcons;
+	}
+
+	set supportThemeIcons(value: boolean | undefined) {
+		this.#delegate.supportThemeIcons = value;
+	}
+
+	get supportHtml(): boolean | undefined {
+		return this.#delegate.supportHtml;
+	}
+
+	set supportHtml(value: boolean | undefined) {
+		this.#delegate.supportHtml = value;
+	}
+
+	get baseUri(): vscode.Uri | undefined {
+		return this.#delegate.baseUri;
+	}
+
+	set baseUri(value: vscode.Uri | undefined) {
+		this.#delegate.baseUri = value;
+	}
+
+	appendText(value: string): vscode.MarkdownString {
+		this.#delegate.appendText(value);
+		return this;
+	}
+
+	appendMarkdown(value: string): vscode.MarkdownString {
+		this.#delegate.appendMarkdown(value);
+		return this;
+	}
+
+	appendCodeblock(value: string, language?: string): vscode.MarkdownString {
+		this.#delegate.appendCodeblock(language ?? '', value);
+		return this;
+	}
 }
 
 @es5ClassCompat
 export class ParameterInformation {
 
 	label: string | [number, number];
-	documentation?: string | MarkdownString;
+	documentation?: string | vscode.MarkdownString;
 
-	constructor(label: string | [number, number], documentation?: string | MarkdownString) {
+	constructor(label: string | [number, number], documentation?: string | vscode.MarkdownString) {
 		this.label = label;
 		this.documentation = documentation;
 	}
@@ -1349,11 +1534,11 @@ export class ParameterInformation {
 export class SignatureInformation {
 
 	label: string;
-	documentation?: string | MarkdownString;
+	documentation?: string | vscode.MarkdownString;
 	parameters: ParameterInformation[];
 	activeParameter?: number;
 
-	constructor(label: string, documentation?: string | MarkdownString) {
+	constructor(label: string, documentation?: string | vscode.MarkdownString) {
 		this.label = label;
 		this.documentation = documentation;
 		this.parameters = [];
@@ -1378,6 +1563,43 @@ export enum SignatureHelpTriggerKind {
 	ContentChange = 3,
 }
 
+
+export enum InlayHintKind {
+	Type = 1,
+	Parameter = 2,
+}
+
+@es5ClassCompat
+export class InlayHintLabelPart {
+
+	value: string;
+	tooltip?: string | vscode.MarkdownString;
+	location?: Location;
+	command?: vscode.Command;
+
+	constructor(value: string) {
+		this.value = value;
+	}
+}
+
+@es5ClassCompat
+export class InlayHint implements vscode.InlayHint {
+
+	label: string | InlayHintLabelPart[];
+	tooltip?: string | vscode.MarkdownString;
+	position: Position;
+	textEdits?: TextEdit[];
+	kind?: vscode.InlayHintKind;
+	paddingLeft?: boolean;
+	paddingRight?: boolean;
+
+	constructor(position: Position, label: string | InlayHintLabelPart[], kind?: vscode.InlayHintKind) {
+		this.position = position;
+		this.label = label;
+		this.kind = kind;
+	}
+}
+
 export enum CompletionTriggerKind {
 	Invoke = 0,
 	TriggerCharacter = 1,
@@ -1386,7 +1608,7 @@ export enum CompletionTriggerKind {
 
 export interface CompletionContext {
 	readonly triggerKind: CompletionTriggerKind;
-	readonly triggerCharacter?: string;
+	readonly triggerCharacter: string | undefined;
 }
 
 export enum CompletionItemKind {
@@ -1424,34 +1646,31 @@ export enum CompletionItemTag {
 }
 
 export interface CompletionItemLabel {
-	name: string;
-	parameters?: string;
-	qualifier?: string;
-	type?: string;
+	label: string;
+	detail?: string;
+	description?: string;
 }
-
 
 @es5ClassCompat
 export class CompletionItem implements vscode.CompletionItem {
 
-	label: string;
-	label2?: CompletionItemLabel;
+	label: string | CompletionItemLabel;
 	kind?: CompletionItemKind;
 	tags?: CompletionItemTag[];
 	detail?: string;
-	documentation?: string | MarkdownString;
+	documentation?: string | vscode.MarkdownString;
 	sortText?: string;
 	filterText?: string;
 	preselect?: boolean;
 	insertText?: string | SnippetString;
 	keepWhitespace?: boolean;
-	range?: Range | { inserting: Range; replacing: Range; };
+	range?: Range | { inserting: Range; replacing: Range };
 	commitCharacters?: string[];
 	textEdit?: TextEdit;
 	additionalTextEdits?: TextEdit[];
 	command?: vscode.Command;
 
-	constructor(label: string, kind?: CompletionItemKind) {
+	constructor(label: string | CompletionItemLabel, kind?: CompletionItemKind) {
 		this.label = label;
 		this.kind = kind;
 	}
@@ -1459,7 +1678,6 @@ export class CompletionItem implements vscode.CompletionItem {
 	toJSON(): any {
 		return {
 			label: this.label,
-			label2: this.label2,
 			kind: this.kind && CompletionItemKind[this.kind],
 			detail: this.detail,
 			documentation: this.documentation,
@@ -1481,6 +1699,57 @@ export class CompletionList {
 	constructor(items: vscode.CompletionItem[] = [], isIncomplete: boolean = false) {
 		this.items = items;
 		this.isIncomplete = isIncomplete;
+	}
+}
+
+@es5ClassCompat
+export class InlineSuggestion implements vscode.InlineCompletionItem {
+
+	filterText?: string;
+	insertText: string;
+	range?: Range;
+	command?: vscode.Command;
+
+	constructor(insertText: string, range?: Range, command?: vscode.Command) {
+		this.insertText = insertText;
+		this.range = range;
+		this.command = command;
+	}
+}
+
+@es5ClassCompat
+export class InlineSuggestionList implements vscode.InlineCompletionList {
+	items: vscode.InlineCompletionItemNew[];
+
+	commands: vscode.Command[] | undefined = undefined;
+
+	constructor(items: vscode.InlineCompletionItemNew[]) {
+		this.items = items;
+	}
+}
+
+@es5ClassCompat
+export class InlineSuggestionNew implements vscode.InlineCompletionItemNew {
+	insertText: string;
+	range?: Range;
+	command?: vscode.Command;
+
+	constructor(insertText: string, range?: Range, command?: vscode.Command) {
+		this.insertText = insertText;
+		this.range = range;
+		this.command = command;
+	}
+}
+
+@es5ClassCompat
+export class InlineSuggestionsNew implements vscode.InlineCompletionListNew {
+	items: vscode.InlineCompletionItemNew[];
+
+	commands: vscode.Command[] | undefined;
+
+	constructor(items: vscode.InlineCompletionItemNew[], commands?: vscode.Command[]) {
+		this.items = items;
+		this.commands = commands;
 	}
 }
 
@@ -1526,6 +1795,11 @@ export enum TextEditorSelectionChangeKind {
 	Keyboard = 1,
 	Mouse = 2,
 	Command = 3
+}
+
+export enum TextDocumentChangeReason {
+	Undo = 1,
+	Redo = 2,
 }
 
 /**
@@ -1597,7 +1871,7 @@ export class Color {
 	}
 }
 
-export type IColorFormat = string | { opaque: string, transparent: string; };
+export type IColorFormat = string | { opaque: string; transparent: string };
 
 @es5ClassCompat
 export class ColorInformation {
@@ -1643,6 +1917,47 @@ export enum SourceControlInputBoxValidationType {
 	Information = 2
 }
 
+export enum TerminalExitReason {
+	Unknown = 0,
+	Shutdown = 1,
+	Process = 2,
+	User = 3,
+	Extension = 4
+}
+
+export class TerminalLink implements vscode.TerminalLink {
+	constructor(
+		public startIndex: number,
+		public length: number,
+		public tooltip?: string
+	) {
+		if (typeof startIndex !== 'number' || startIndex < 0) {
+			throw illegalArgument('startIndex');
+		}
+		if (typeof length !== 'number' || length < 1) {
+			throw illegalArgument('length');
+		}
+		if (tooltip !== undefined && typeof tooltip !== 'string') {
+			throw illegalArgument('tooltip');
+		}
+	}
+}
+
+export enum TerminalLocation {
+	Panel = 1,
+	Editor = 2,
+}
+
+export class TerminalProfile implements vscode.TerminalProfile {
+	constructor(
+		public options: vscode.TerminalOptions | vscode.ExtensionTerminalOptions
+	) {
+		if (typeof options !== 'object') {
+			throw illegalArgument('options');
+		}
+	}
+}
+
 export enum TaskRevealKind {
 	Always = 1,
 
@@ -1662,6 +1977,7 @@ export enum TaskPanelKind {
 @es5ClassCompat
 export class TaskGroup implements vscode.TaskGroup {
 
+	isDefault: boolean | undefined;
 	private _id: string;
 
 	public static Clean: TaskGroup = new TaskGroup('clean', 'Clean');
@@ -1687,11 +2003,11 @@ export class TaskGroup implements vscode.TaskGroup {
 		}
 	}
 
-	constructor(id: string, _label: string) {
+	constructor(id: string, public readonly label: string) {
 		if (typeof id !== 'string') {
 			throw illegalArgument('name');
 		}
-		if (typeof _label !== 'string') {
+		if (typeof label !== 'string') {
 			throw illegalArgument('name');
 		}
 		this._id = id;
@@ -1773,7 +2089,7 @@ export class ProcessExecution implements vscode.ProcessExecution {
 			props.push(this._process);
 		}
 		if (this._args && this._args.length > 0) {
-			for (let arg of this._args) {
+			for (const arg of this._args) {
 				props.push(arg);
 			}
 		}
@@ -1859,7 +2175,7 @@ export class ShellExecution implements vscode.ShellExecution {
 			props.push(typeof this._command === 'string' ? this._command : this._command.value);
 		}
 		if (this._args && this._args.length > 0) {
-			for (let arg of this._args) {
+			for (const arg of this._args) {
 				props.push(typeof arg === 'string' ? arg : arg.value);
 			}
 		}
@@ -1879,19 +2195,19 @@ export enum TaskScope {
 }
 
 export class CustomExecution implements vscode.CustomExecution {
-	private _callback: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>;
-	constructor(callback: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+	private _callback: (resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>;
+	constructor(callback: (resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		this._callback = callback;
 	}
 	public computeId(): string {
 		return 'customExecution' + generateUuid();
 	}
 
-	public set callback(value: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+	public set callback(value: (resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		this._callback = value;
 	}
 
-	public get callback(): ((resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+	public get callback(): ((resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		return this._callback;
 	}
 }
@@ -2153,15 +2469,94 @@ export enum ProgressLocation {
 	Notification = 15
 }
 
+export namespace ViewBadge {
+	export function isViewBadge(thing: any): thing is vscode.ViewBadge {
+		const viewBadgeThing = thing as vscode.ViewBadge;
+
+		if (!isNumber(viewBadgeThing.value)) {
+			console.log('INVALID view badge, invalid value', viewBadgeThing.value);
+			return false;
+		}
+		if (viewBadgeThing.tooltip && !isString(viewBadgeThing.tooltip)) {
+			console.log('INVALID view badge, invalid tooltip', viewBadgeThing.tooltip);
+			return false;
+		}
+		return true;
+	}
+}
+
 @es5ClassCompat
 export class TreeItem {
 
 	label?: string | vscode.TreeItemLabel;
 	resourceUri?: URI;
-	iconPath?: string | URI | { light: string | URI; dark: string | URI; };
+	iconPath?: string | URI | { light: string | URI; dark: string | URI } | ThemeIcon;
 	command?: vscode.Command;
 	contextValue?: string;
 	tooltip?: string | vscode.MarkdownString;
+	checkboxState?: vscode.TreeItemCheckboxState;
+
+	static isTreeItem(thing: any, extension: IExtensionDescription): thing is TreeItem {
+		if (thing instanceof TreeItem) {
+			return true;
+		}
+		const treeItemThing = thing as vscode.TreeItem2;
+		if (treeItemThing.label !== undefined && !isString(treeItemThing.label) && !(treeItemThing.label?.label)) {
+			console.log('INVALID tree item, invalid label', treeItemThing.label);
+			return false;
+		}
+		if ((treeItemThing.id !== undefined) && !isString(treeItemThing.id)) {
+			console.log('INVALID tree item, invalid id', treeItemThing.id);
+			return false;
+		}
+		if ((treeItemThing.iconPath !== undefined) && !isString(treeItemThing.iconPath) && !URI.isUri(treeItemThing.iconPath) && (!treeItemThing.iconPath || !isString((treeItemThing.iconPath as vscode.ThemeIcon).id))) {
+			const asLightAndDarkThing = treeItemThing.iconPath as { light: string | URI; dark: string | URI } | null;
+			if (!asLightAndDarkThing || (!isString(asLightAndDarkThing.light) && !URI.isUri(asLightAndDarkThing.light) && !isString(asLightAndDarkThing.dark) && !URI.isUri(asLightAndDarkThing.dark))) {
+				console.log('INVALID tree item, invalid iconPath', treeItemThing.iconPath);
+				return false;
+			}
+		}
+		if ((treeItemThing.description !== undefined) && !isString(treeItemThing.description) && (typeof treeItemThing.description !== 'boolean')) {
+			console.log('INVALID tree item, invalid description', treeItemThing.description);
+			return false;
+		}
+		if ((treeItemThing.resourceUri !== undefined) && !URI.isUri(treeItemThing.resourceUri)) {
+			console.log('INVALID tree item, invalid resourceUri', treeItemThing.resourceUri);
+			return false;
+		}
+		if ((treeItemThing.tooltip !== undefined) && !isString(treeItemThing.tooltip) && !(treeItemThing.tooltip instanceof MarkdownString)) {
+			console.log('INVALID tree item, invalid tooltip', treeItemThing.tooltip);
+			return false;
+		}
+		if ((treeItemThing.command !== undefined) && !treeItemThing.command.command) {
+			console.log('INVALID tree item, invalid command', treeItemThing.command);
+			return false;
+		}
+		if ((treeItemThing.collapsibleState !== undefined) && (treeItemThing.collapsibleState < TreeItemCollapsibleState.None) && (treeItemThing.collapsibleState > TreeItemCollapsibleState.Expanded)) {
+			console.log('INVALID tree item, invalid collapsibleState', treeItemThing.collapsibleState);
+			return false;
+		}
+		if ((treeItemThing.contextValue !== undefined) && !isString(treeItemThing.contextValue)) {
+			console.log('INVALID tree item, invalid contextValue', treeItemThing.contextValue);
+			return false;
+		}
+		if ((treeItemThing.accessibilityInformation !== undefined) && !treeItemThing.accessibilityInformation?.label) {
+			console.log('INVALID tree item, invalid accessibilityInformation', treeItemThing.accessibilityInformation);
+			return false;
+		}
+		if (treeItemThing.checkboxState !== undefined) {
+			checkProposedApiEnabled(extension, 'treeItemCheckbox');
+			const checkbox = isNumber(treeItemThing.checkboxState) ? treeItemThing.checkboxState :
+				isObject(treeItemThing.checkboxState) && isNumber(treeItemThing.checkboxState.state) ? treeItemThing.checkboxState.state : undefined;
+			const tooltip = !isNumber(treeItemThing.checkboxState) && isObject(treeItemThing.checkboxState) ? treeItemThing.checkboxState.tooltip : undefined;
+			if (checkbox === undefined || (checkbox !== TreeItemCheckboxState.Checked && checkbox !== TreeItemCheckboxState.Unchecked) || (tooltip !== undefined && !isString(tooltip))) {
+				console.log('INVALID tree item, invalid checkboxState', treeItemThing.checkboxState);
+				return false;
+			}
+		}
+
+		return true;
+	}
 
 	constructor(label: string | vscode.TreeItemLabel, collapsibleState?: vscode.TreeItemCollapsibleState);
 	constructor(resourceUri: URI, collapsibleState?: vscode.TreeItemCollapsibleState);
@@ -2179,6 +2574,96 @@ export enum TreeItemCollapsibleState {
 	None = 0,
 	Collapsed = 1,
 	Expanded = 2
+}
+
+export enum TreeItemCheckboxState {
+	Unchecked = 0,
+	Checked = 1
+}
+
+@es5ClassCompat
+export class DataTransferItem {
+
+	async asString(): Promise<string> {
+		return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
+	}
+
+	asFile(): undefined | vscode.DataTransferFile {
+		return undefined;
+	}
+
+	public readonly id: string;
+
+	constructor(
+		public readonly value: any,
+		id?: string,
+	) {
+		this.id = id ?? generateUuid();
+	}
+}
+
+@es5ClassCompat
+export class DataTransfer implements vscode.DataTransfer {
+	#items = new Map<string, DataTransferItem[]>();
+
+	constructor(init?: Iterable<readonly [string, DataTransferItem]>) {
+		for (const [mime, item] of init ?? []) {
+			const existing = this.#items.get(mime);
+			if (existing) {
+				existing.push(item);
+			} else {
+				this.#items.set(mime, [item]);
+			}
+		}
+	}
+
+	get(mimeType: string): DataTransferItem | undefined {
+		return this.#items.get(mimeType)?.[0];
+	}
+
+	set(mimeType: string, value: DataTransferItem): void {
+		// This intentionally overwrites all entries for a given mimetype.
+		// This is similar to how the DOM DataTransfer type works
+		this.#items.set(mimeType, [value]);
+	}
+
+	forEach(callbackfn: (value: DataTransferItem, key: string, dataTransfer: DataTransfer) => void, thisArg?: unknown): void {
+		for (const [mime, items] of this.#items) {
+			for (const item of items) {
+				callbackfn.call(thisArg, item, mime, this);
+			}
+		}
+	}
+
+	*[Symbol.iterator](): IterableIterator<[mimeType: string, item: vscode.DataTransferItem]> {
+		for (const [mime, items] of this.#items) {
+			for (const item of items) {
+				yield [mime, item];
+			}
+		}
+	}
+}
+
+@es5ClassCompat
+export class DocumentDropEdit {
+	insertText: string | SnippetString;
+
+	additionalEdit?: WorkspaceEdit;
+
+	constructor(insertText: string | SnippetString) {
+		this.insertText = insertText;
+	}
+}
+
+@es5ClassCompat
+export class DocumentPasteEdit {
+	insertText: string | SnippetString;
+
+	additionalEdit?: WorkspaceEdit;
+
+	constructor(insertText: string | SnippetString) {
+		this.insertText = insertText;
+	}
 }
 
 @es5ClassCompat
@@ -2217,14 +2702,30 @@ export enum ConfigurationTarget {
 
 @es5ClassCompat
 export class RelativePattern implements IRelativePattern {
-	base: string;
-	baseFolder?: URI;
 
 	pattern: string;
 
-	constructor(base: vscode.WorkspaceFolder | string, pattern: string) {
+	private _base!: string;
+	get base(): string {
+		return this._base;
+	}
+	set base(base: string) {
+		this._base = base;
+		this._baseUri = URI.file(base);
+	}
+
+	private _baseUri!: URI;
+	get baseUri(): URI {
+		return this._baseUri;
+	}
+	set baseUri(baseUri: URI) {
+		this._baseUri = baseUri;
+		this._base = baseUri.fsPath;
+	}
+
+	constructor(base: vscode.WorkspaceFolder | URI | string, pattern: string) {
 		if (typeof base !== 'string') {
-			if (!base || !URI.isUri(base.uri)) {
+			if (!base || !URI.isUri(base) && !URI.isUri(base.uri)) {
 				throw illegalArgument('base');
 			}
 		}
@@ -2234,13 +2735,22 @@ export class RelativePattern implements IRelativePattern {
 		}
 
 		if (typeof base === 'string') {
-			this.base = base;
+			this.baseUri = URI.file(base);
+		} else if (URI.isUri(base)) {
+			this.baseUri = base;
 		} else {
-			this.baseFolder = base.uri;
-			this.base = base.uri.fsPath;
+			this.baseUri = base.uri;
 		}
 
 		this.pattern = pattern;
+	}
+
+	toJSON(): IRelativePatternDto {
+		return {
+			pattern: this.pattern,
+			base: this.base,
+			baseUri: this.baseUri.toJSON()
+		};
 	}
 }
 
@@ -2294,9 +2804,6 @@ export class FunctionBreakpoint extends Breakpoint {
 
 	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
 		super(enabled, condition, hitCondition, logMessage);
-		if (!functionName) {
-			throw illegalArgument('functionName');
-		}
 		this.functionName = functionName;
 	}
 }
@@ -2369,14 +2876,61 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 	}
 }
 
-export enum LogLevel {
-	Trace = 1,
-	Debug = 2,
-	Info = 3,
-	Warning = 4,
-	Error = 5,
-	Critical = 6,
-	Off = 7
+export enum InlineCompletionTriggerKind {
+	Invoke = 0,
+	Automatic = 1,
+}
+
+export enum InlineCompletionTriggerKindNew {
+	Invoke = 0,
+	Automatic = 1,
+}
+
+@es5ClassCompat
+export class InlineValueText implements vscode.InlineValueText {
+	readonly range: Range;
+	readonly text: string;
+
+	constructor(range: Range, text: string) {
+		this.range = range;
+		this.text = text;
+	}
+}
+
+@es5ClassCompat
+export class InlineValueVariableLookup implements vscode.InlineValueVariableLookup {
+	readonly range: Range;
+	readonly variableName?: string;
+	readonly caseSensitiveLookup: boolean;
+
+	constructor(range: Range, variableName?: string, caseSensitiveLookup: boolean = true) {
+		this.range = range;
+		this.variableName = variableName;
+		this.caseSensitiveLookup = caseSensitiveLookup;
+	}
+}
+
+@es5ClassCompat
+export class InlineValueEvaluatableExpression implements vscode.InlineValueEvaluatableExpression {
+	readonly range: Range;
+	readonly expression?: string;
+
+	constructor(range: Range, expression?: string) {
+		this.range = range;
+		this.expression = expression;
+	}
+}
+
+@es5ClassCompat
+export class InlineValueContext implements vscode.InlineValueContext {
+
+	readonly frameId: number;
+	readonly stoppedLocation: vscode.Range;
+
+	constructor(frameId: number, range: vscode.Range) {
+		this.frameId = frameId;
+		this.stoppedLocation = range;
+	}
 }
 
 //#region file api
@@ -2476,6 +3030,11 @@ export enum CommentThreadCollapsibleState {
 export enum CommentMode {
 	Editing = 0,
 	Preview = 1
+}
+
+export enum CommentThreadState {
+	Unresolved = 0,
+	Resolved = 1
 }
 
 //#endregion
@@ -2621,7 +3180,7 @@ export class SemanticTokensBuilder {
 	}
 
 	private static _sortAndDeltaEncode(data: number[]): Uint32Array {
-		let pos: number[] = [];
+		const pos: number[] = [];
 		const tokenCount = (data.length / 5) | 0;
 		for (let i = 0; i < tokenCount; i++) {
 			pos[i] = i;
@@ -2673,7 +3232,7 @@ export class SemanticTokensBuilder {
 }
 
 export class SemanticTokens {
-	readonly resultId?: string;
+	readonly resultId: string | undefined;
 	readonly data: Uint32Array;
 
 	constructor(data: Uint32Array, resultId?: string) {
@@ -2685,7 +3244,7 @@ export class SemanticTokens {
 export class SemanticTokensEdit {
 	readonly start: number;
 	readonly deleteCount: number;
-	readonly data?: Uint32Array;
+	readonly data: Uint32Array | undefined;
 
 	constructor(start: number, deleteCount: number, data?: Uint32Array) {
 		this.start = start;
@@ -2695,7 +3254,7 @@ export class SemanticTokensEdit {
 }
 
 export class SemanticTokensEdits {
-	readonly resultId?: string;
+	readonly resultId: string | undefined;
 	readonly edits: SemanticTokensEdit[];
 
 	constructor(edits: SemanticTokensEdit[], resultId?: string) {
@@ -2720,17 +3279,6 @@ export enum DebugConsoleMode {
 	MergeWithParent = 1
 }
 
-export enum DebugConfigurationProviderTriggerKind {
-	/**
-	 *	`DebugConfigurationProvider.provideDebugConfigurations` is called to provide the initial debug configurations for a newly created launch.json.
-	 */
-	Initial = 1,
-	/**
-	 * `DebugConfigurationProvider.provideDebugConfigurations` is called to provide dynamically generated debug configurations when the user asks for them through the UI (e.g. via the "Select and Start Debugging" command).
-	 */
-	Dynamic = 2
-}
-
 //#endregion
 
 @es5ClassCompat
@@ -2741,6 +3289,17 @@ export class QuickInputButtons {
 	private constructor() { }
 }
 
+export enum QuickPickItemKind {
+	Separator = -1,
+	Default = 0,
+}
+
+export enum InputBoxValidationSeverity {
+	Info = 1,
+	Warning = 2,
+	Error = 3
+}
+
 export enum ExtensionKind {
 	UI = 1,
 	Workspace = 2
@@ -2748,21 +3307,26 @@ export enum ExtensionKind {
 
 export class FileDecoration {
 
-	static validate(d: FileDecoration): void {
-		if (d.badge && d.badge.length !== 1) {
-			throw new Error(`The 'badge'-property must be undefined or a single character`);
+	static validate(d: FileDecoration): boolean {
+		if (d.badge) {
+			let len = nextCharLength(d.badge, 0);
+			if (len < d.badge.length) {
+				len += nextCharLength(d.badge, len);
+			}
+			if (d.badge.length > len) {
+				throw new Error(`The 'badge'-property must be undefined or a short character`);
+			}
 		}
 		if (!d.color && !d.badge && !d.tooltip) {
 			throw new Error(`The decoration is empty`);
 		}
+		return true;
 	}
 
 	badge?: string;
 	tooltip?: string;
 	color?: vscode.ThemeColor;
-	priority?: number;
 	propagate?: boolean;
-
 
 	constructor(badge?: string, tooltip?: string, color?: ThemeColor) {
 		this.badge = badge;
@@ -2782,78 +3346,251 @@ export class ColorTheme implements vscode.ColorTheme {
 export enum ColorThemeKind {
 	Light = 1,
 	Dark = 2,
-	HighContrast = 3
+	HighContrast = 3,
+	HighContrastLight = 4
 }
 
 //#endregion Theming
 
 //#region Notebook
 
+export class NotebookRange {
+	static isNotebookRange(thing: any): thing is vscode.NotebookRange {
+		if (thing instanceof NotebookRange) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return typeof (<NotebookRange>thing).start === 'number'
+			&& typeof (<NotebookRange>thing).end === 'number';
+	}
+
+	private _start: number;
+	private _end: number;
+
+	get start() {
+		return this._start;
+	}
+
+	get end() {
+		return this._end;
+	}
+
+	get isEmpty(): boolean {
+		return this._start === this._end;
+	}
+
+	constructor(start: number, end: number) {
+		if (start < 0) {
+			throw illegalArgument('start must be positive');
+		}
+		if (end < 0) {
+			throw illegalArgument('end must be positive');
+		}
+		if (start <= end) {
+			this._start = start;
+			this._end = end;
+		} else {
+			this._start = end;
+			this._end = start;
+		}
+	}
+
+	with(change: { start?: number; end?: number }): NotebookRange {
+		let start = this._start;
+		let end = this._end;
+
+		if (change.start !== undefined) {
+			start = change.start;
+		}
+		if (change.end !== undefined) {
+			end = change.end;
+		}
+		if (start === this._start && end === this._end) {
+			return this;
+		}
+		return new NotebookRange(start, end);
+	}
+}
+
+export class NotebookCellData {
+
+	static validate(data: NotebookCellData): void {
+		if (typeof data.kind !== 'number') {
+			throw new Error('NotebookCellData MUST have \'kind\' property');
+		}
+		if (typeof data.value !== 'string') {
+			throw new Error('NotebookCellData MUST have \'value\' property');
+		}
+		if (typeof data.languageId !== 'string') {
+			throw new Error('NotebookCellData MUST have \'languageId\' property');
+		}
+	}
+
+	static isNotebookCellDataArray(value: unknown): value is vscode.NotebookCellData[] {
+		return Array.isArray(value) && (<unknown[]>value).every(elem => NotebookCellData.isNotebookCellData(elem));
+	}
+
+	static isNotebookCellData(value: unknown): value is vscode.NotebookCellData {
+		// return value instanceof NotebookCellData;
+		return true;
+	}
+
+	kind: NotebookCellKind;
+	value: string;
+	languageId: string;
+	mime?: string;
+	outputs?: vscode.NotebookCellOutput[];
+	metadata?: Record<string, any>;
+	executionSummary?: vscode.NotebookCellExecutionSummary;
+
+	constructor(kind: NotebookCellKind, value: string, languageId: string, mime?: string, outputs?: vscode.NotebookCellOutput[], metadata?: Record<string, any>, executionSummary?: vscode.NotebookCellExecutionSummary) {
+		this.kind = kind;
+		this.value = value;
+		this.languageId = languageId;
+		this.mime = mime;
+		this.outputs = outputs ?? [];
+		this.metadata = metadata;
+		this.executionSummary = executionSummary;
+
+		NotebookCellData.validate(this);
+	}
+}
+
+export class NotebookData {
+
+	cells: NotebookCellData[];
+	metadata?: { [key: string]: any };
+
+	constructor(cells: NotebookCellData[]) {
+		this.cells = cells;
+	}
+}
+
+
 export class NotebookCellOutputItem {
 
 	static isNotebookCellOutputItem(obj: unknown): obj is vscode.NotebookCellOutputItem {
-		return obj instanceof NotebookCellOutputItem;
+		if (obj instanceof NotebookCellOutputItem) {
+			return true;
+		}
+		if (!obj) {
+			return false;
+		}
+		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string'
+			&& (<vscode.NotebookCellOutputItem>obj).data instanceof Uint8Array;
+	}
+
+	static error(err: Error | { name: string; message?: string; stack?: string }): NotebookCellOutputItem {
+		const obj = {
+			name: err.name,
+			message: err.message,
+			stack: err.stack
+		};
+		return NotebookCellOutputItem.json(obj, 'application/vnd.code.notebook.error');
+	}
+
+	static stdout(value: string): NotebookCellOutputItem {
+		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stdout');
+	}
+
+	static stderr(value: string): NotebookCellOutputItem {
+		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stderr');
+	}
+
+	static bytes(value: Uint8Array, mime: string = 'application/octet-stream'): NotebookCellOutputItem {
+		return new NotebookCellOutputItem(value, mime);
+	}
+
+	static #encoder = new TextEncoder();
+
+	static text(value: string, mime: string = Mimes.text): NotebookCellOutputItem {
+		const bytes = NotebookCellOutputItem.#encoder.encode(String(value));
+		return new NotebookCellOutputItem(bytes, mime);
+	}
+
+	static json(value: any, mime: string = 'text/x-json'): NotebookCellOutputItem {
+		const rawStr = JSON.stringify(value, undefined, '\t');
+		return NotebookCellOutputItem.text(rawStr, mime);
 	}
 
 	constructor(
-		readonly mime: string,
-		readonly value: unknown, // JSON'able
-		readonly metadata?: Record<string, string | number | boolean>
-	) { }
+		public data: Uint8Array,
+		public mime: string,
+	) {
+		const mimeNormalized = normalizeMimeType(mime, true);
+		if (!mimeNormalized) {
+			throw new Error(`INVALID mime type: ${mime}. Must be in the format "type/subtype[;optionalparameter]"`);
+		}
+		this.mime = mimeNormalized;
+	}
 }
 
 export class NotebookCellOutput {
 
-	static isNotebookCellOutput(obj: unknown): obj is vscode.NotebookCellOutput {
-		return obj instanceof NotebookCellOutput;
+	static isNotebookCellOutput(candidate: any): candidate is vscode.NotebookCellOutput {
+		if (candidate instanceof NotebookCellOutput) {
+			return true;
+		}
+		if (!candidate || typeof candidate !== 'object') {
+			return false;
+		}
+		return typeof (<NotebookCellOutput>candidate).id === 'string' && Array.isArray((<NotebookCellOutput>candidate).items);
 	}
 
-	constructor(
-		readonly outputs: NotebookCellOutputItem[],
-		readonly metadata?: Record<string, string | number | boolean>
-	) { }
-
-	toJSON(): IDisplayOutput {
-		let data: { [key: string]: unknown; } = {};
-		let custom: { [key: string]: unknown; } = {};
-		let hasMetadata = false;
-
-		for (let item of this.outputs) {
-			data[item.mime] = item.value;
-			if (item.metadata) {
-				custom[item.mime] = item.metadata;
-				hasMetadata = true;
+	static ensureUniqueMimeTypes(items: NotebookCellOutputItem[], warn: boolean = false): NotebookCellOutputItem[] {
+		const seen = new Set<string>();
+		const removeIdx = new Set<number>();
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
+			const normalMime = normalizeMimeType(item.mime);
+			// We can have multiple text stream mime types in the same output.
+			if (!seen.has(normalMime) || isTextStreamMime(normalMime)) {
+				seen.add(normalMime);
+				continue;
+			}
+			// duplicated mime types... first has won
+			removeIdx.add(i);
+			if (warn) {
+				console.warn(`DUPLICATED mime type '${item.mime}' will be dropped`);
 			}
 		}
-		return {
-			outputKind: CellOutputKind.Rich,
-			data,
-			metadata: hasMetadata ? { custom } : undefined
-		};
+		if (removeIdx.size === 0) {
+			return items;
+		}
+		return items.filter((_item, index) => !removeIdx.has(index));
+	}
+
+	id: string;
+	items: NotebookCellOutputItem[];
+	metadata?: Record<string, any>;
+
+	constructor(
+		items: NotebookCellOutputItem[],
+		idOrMetadata?: string | Record<string, any>,
+		metadata?: Record<string, any>
+	) {
+		this.items = NotebookCellOutput.ensureUniqueMimeTypes(items, true);
+		if (typeof idOrMetadata === 'string') {
+			this.id = idOrMetadata;
+			this.metadata = metadata;
+		} else {
+			this.id = generateUuid();
+			this.metadata = idOrMetadata ?? metadata;
+		}
 	}
 }
 
-export enum CellKind {
-	Markdown = 1,
+export enum NotebookCellKind {
+	Markup = 1,
 	Code = 2
 }
 
-export enum CellOutputKind {
-	Text = 1,
-	Error = 2,
-	Rich = 3
-}
-
-export enum NotebookCellRunState {
-	Running = 1,
-	Idle = 2,
-	Success = 3,
-	Error = 4
-}
-
-export enum NotebookRunState {
-	Running = 1,
-	Idle = 2
+export enum NotebookCellExecutionState {
+	Idle = 1,
+	Pending = 2,
+	Executing = 3,
 }
 
 export enum NotebookCellStatusBarAlignment {
@@ -2864,9 +3601,39 @@ export enum NotebookCellStatusBarAlignment {
 export enum NotebookEditorRevealType {
 	Default = 0,
 	InCenter = 1,
-	InCenterIfOutsideViewport = 2
+	InCenterIfOutsideViewport = 2,
+	AtTop = 3
 }
 
+export class NotebookCellStatusBarItem {
+	constructor(
+		public text: string,
+		public alignment: NotebookCellStatusBarAlignment) { }
+}
+
+
+export enum NotebookControllerAffinity {
+	Default = 1,
+	Preferred = 2
+}
+
+export enum NotebookControllerAffinity2 {
+	Default = 1,
+	Preferred = 2,
+	Hidden = -1
+}
+
+export class NotebookRendererScript {
+
+	public provides: readonly string[];
+
+	constructor(
+		public uri: vscode.Uri,
+		provides: string | readonly string[] = []
+	) {
+		this.provides = asArray(provides);
+	}
+}
 
 //#endregion
 
@@ -2918,5 +3685,236 @@ export enum StandardTokenType {
 	Other = 0,
 	Comment = 1,
 	String = 2,
-	RegEx = 4
+	RegEx = 3
 }
+
+
+export class LinkedEditingRanges {
+	constructor(public readonly ranges: Range[], public readonly wordPattern?: RegExp) {
+	}
+}
+
+//#region ports
+export class PortAttributes {
+	private _port: number;
+	private _autoForwardAction: PortAutoForwardAction;
+	constructor(port: number, autoForwardAction: PortAutoForwardAction) {
+		this._port = port;
+		this._autoForwardAction = autoForwardAction;
+	}
+
+	get port(): number {
+		return this._port;
+	}
+
+	get autoForwardAction(): PortAutoForwardAction {
+		return this._autoForwardAction;
+	}
+}
+//#endregion ports
+
+//#region Testing
+export enum TestResultState {
+	Queued = 1,
+	Running = 2,
+	Passed = 3,
+	Failed = 4,
+	Skipped = 5,
+	Errored = 6
+}
+
+export enum TestRunProfileKind {
+	Run = 1,
+	Debug = 2,
+	Coverage = 3,
+}
+
+@es5ClassCompat
+export class TestRunRequest implements vscode.TestRunRequest {
+	constructor(
+		public readonly include: vscode.TestItem[] | undefined = undefined,
+		public readonly exclude: vscode.TestItem[] | undefined = undefined,
+		public readonly profile: vscode.TestRunProfile | undefined = undefined,
+	) { }
+}
+
+@es5ClassCompat
+export class TestMessage implements vscode.TestMessage {
+	public expectedOutput?: string;
+	public actualOutput?: string;
+	public location?: vscode.Location;
+
+	public static diff(message: string | vscode.MarkdownString, expected: string, actual: string) {
+		const msg = new TestMessage(message);
+		msg.expectedOutput = expected;
+		msg.actualOutput = actual;
+		return msg;
+	}
+
+	constructor(public message: string | vscode.MarkdownString) { }
+}
+
+@es5ClassCompat
+export class TestTag implements vscode.TestTag {
+	constructor(public readonly id: string) { }
+}
+
+//#endregion
+
+//#region Test Coverage
+@es5ClassCompat
+export class CoveredCount implements vscode.CoveredCount {
+	constructor(public covered: number, public total: number) { }
+}
+
+@es5ClassCompat
+export class FileCoverage implements vscode.FileCoverage {
+	public static fromDetails(uri: vscode.Uri, details: vscode.DetailedCoverage[]): vscode.FileCoverage {
+		const statements = new CoveredCount(0, 0);
+		const branches = new CoveredCount(0, 0);
+		const fn = new CoveredCount(0, 0);
+
+		for (const detail of details) {
+			if ('branches' in detail) {
+				statements.total += 1;
+				statements.covered += detail.executionCount > 0 ? 1 : 0;
+
+				for (const branch of detail.branches) {
+					branches.total += 1;
+					branches.covered += branch.executionCount > 0 ? 1 : 0;
+				}
+			} else {
+				fn.total += 1;
+				fn.covered += detail.executionCount > 0 ? 1 : 0;
+			}
+		}
+
+		const coverage = new FileCoverage(
+			uri,
+			statements,
+			branches.total > 0 ? branches : undefined,
+			fn.total > 0 ? fn : undefined,
+		);
+
+		coverage.detailedCoverage = details;
+
+		return coverage;
+	}
+
+	detailedCoverage?: vscode.DetailedCoverage[];
+
+	constructor(
+		public readonly uri: vscode.Uri,
+		public statementCoverage: vscode.CoveredCount,
+		public branchCoverage?: vscode.CoveredCount,
+		public functionCoverage?: vscode.CoveredCount,
+	) { }
+}
+
+@es5ClassCompat
+export class StatementCoverage implements vscode.StatementCoverage {
+	constructor(
+		public executionCount: number,
+		public location: Position | Range,
+		public branches: vscode.BranchCoverage[] = [],
+	) { }
+}
+
+@es5ClassCompat
+export class BranchCoverage implements vscode.BranchCoverage {
+	constructor(
+		public executionCount: number,
+		public location: Position | Range,
+	) { }
+}
+
+@es5ClassCompat
+export class FunctionCoverage implements vscode.FunctionCoverage {
+	constructor(
+		public executionCount: number,
+		public location: Position | Range,
+	) { }
+}
+//#endregion
+
+export enum ExternalUriOpenerPriority {
+	None = 0,
+	Option = 1,
+	Default = 2,
+	Preferred = 3,
+}
+
+export enum WorkspaceTrustState {
+	Untrusted = 0,
+	Trusted = 1,
+	Unspecified = 2
+}
+
+export enum PortAutoForwardAction {
+	Notify = 1,
+	OpenBrowser = 2,
+	OpenPreview = 3,
+	Silent = 4,
+	Ignore = 5,
+	OpenBrowserOnce = 6
+}
+
+export class TypeHierarchyItem {
+	_sessionId?: string;
+	_itemId?: string;
+
+	kind: SymbolKind;
+	tags?: SymbolTag[];
+	name: string;
+	detail?: string;
+	uri: URI;
+	range: Range;
+	selectionRange: Range;
+
+	constructor(kind: SymbolKind, name: string, detail: string, uri: URI, range: Range, selectionRange: Range) {
+		this.kind = kind;
+		this.name = name;
+		this.detail = detail;
+		this.uri = uri;
+		this.range = range;
+		this.selectionRange = selectionRange;
+	}
+}
+
+//#region Tab Inputs
+
+export class TextTabInput {
+	constructor(readonly uri: URI) { }
+}
+
+export class TextDiffTabInput {
+	constructor(readonly original: URI, readonly modified: URI) { }
+}
+
+export class TextMergeTabInput {
+	constructor(readonly base: URI, readonly input1: URI, readonly input2: URI, readonly result: URI) { }
+}
+
+export class CustomEditorTabInput {
+	constructor(readonly uri: URI, readonly viewType: string) { }
+}
+
+export class WebviewEditorTabInput {
+	constructor(readonly viewType: string) { }
+}
+
+export class NotebookEditorTabInput {
+	constructor(readonly uri: URI, readonly notebookType: string) { }
+}
+
+export class NotebookDiffEditorTabInput {
+	constructor(readonly original: URI, readonly modified: URI, readonly notebookType: string) { }
+}
+
+export class TerminalEditorTabInput {
+	constructor() { }
+}
+export class InteractiveWindowInput {
+	constructor(readonly uri: URI, readonly inputBoxUri: URI) { }
+}
+//#endregion

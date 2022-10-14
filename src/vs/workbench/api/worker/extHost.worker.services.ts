@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
+import { ExtensionStoragePaths, IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import { ExtHostExtensionService } from 'vs/workbench/api/worker/extHostExtensionService';
-import { ExtHostLogService } from 'vs/workbench/api/worker/extHostLogService';
 
 // #########################################################################
 // ###                                                                   ###
@@ -15,5 +14,5 @@ import { ExtHostLogService } from 'vs/workbench/api/worker/extHostLogService';
 // ###                                                                   ###
 // #########################################################################
 
-registerSingleton(IExtHostExtensionService, ExtHostExtensionService);
-registerSingleton(ILogService, ExtHostLogService);
+registerSingleton(IExtHostExtensionService, ExtHostExtensionService, false);
+registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, false);

@@ -13,12 +13,14 @@ import { localize } from 'vs/nls';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRequestService, asText } from 'vs/platform/request/common/request';
 import { joinPath } from 'vs/base/common/resources';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { Utils } from 'vs/platform/profiling/common/profiling';
+import { IFileService } from 'vs/platform/files/common/files';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 abstract class RepoInfo {
 	abstract get base(): string;
@@ -74,7 +76,7 @@ export class SlowExtensionAction extends Action {
 		this.enabled = Boolean(RepoInfo.fromExtension(extension));
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const action = await this._instantiationService.invokeFunction(createSlowExtensionAction, this.extension, this.profile);
 		if (action) {
 			await action.run();
@@ -102,7 +104,7 @@ export async function createSlowExtensionAction(
 		return undefined;
 	}
 
-	const data = <{ total_count: number; }>JSON.parse(rawText);
+	const data = <{ total_count: number }>JSON.parse(rawText);
 	if (!data || typeof data.total_count !== 'number') {
 		return undefined;
 	} else if (data.total_count === 0) {
@@ -122,18 +124,18 @@ class ReportExtensionSlowAction extends Action {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IProductService private readonly _productService: IProductService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
-		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super('report.slow', localize('cmd.report', "Report Issue"));
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 
 		// rewrite pii (paths) and store on disk
-		const profiler = await import('v8-inspect-profiler');
-		const data = profiler.rewriteAbsolutePaths({ profile: <any>this.profile.data }, 'pii_removed');
-		const path = joinPath(this._environmentService.tmpDir, `${this.extension.identifier.value}-unresponsive.cpuprofile.txt`).fsPath;
-		await profiler.writeProfile(data, path).then(undefined, onUnexpectedError);
+		const data = Utils.rewriteAbsolutePaths(this.profile.data, 'pii_removed');
+		const path = joinPath(this._environmentService.tmpDir, `${this.extension.identifier.value}-unresponsive.cpuprofile.txt`);
+		await this._fileService.writeFile(path, VSBuffer.fromString(JSON.stringify(data, undefined, 4)));
 
 		// build issue
 		const os = await this._nativeHostService.getOSProperties();
@@ -144,7 +146,7 @@ class ReportExtensionSlowAction extends Action {
 - Extension Name: \`${this.extension.name}\`
 - Extension Version: \`${this.extension.version}\`
 - OS Version: \`${osVersion}\`
-- VSCode version: \`${this._productService.version}\`\n\n${message}`);
+- VS Code version: \`${this._productService.version}\`\n\n${message}`);
 
 		const url = `${this.repoInfo.base}/${this.repoInfo.owner}/${this.repoInfo.repo}/issues/new/?body=${body}&title=${title}`;
 		this._openerService.open(URI.parse(url));
@@ -152,8 +154,8 @@ class ReportExtensionSlowAction extends Action {
 		this._dialogService.show(
 			Severity.Info,
 			localize('attach.title', "Did you attach the CPU-Profile?"),
-			[localize('ok', 'OK')],
-			{ detail: localize('attach.msg', "This is a reminder to make sure that you have not forgotten to attach '{0}' to the issue you have just created.", path) }
+			undefined,
+			{ detail: localize('attach.msg', "This is a reminder to make sure that you have not forgotten to attach '{0}' to the issue you have just created.", path.fsPath) }
 		);
 	}
 }
@@ -166,18 +168,19 @@ class ShowExtensionSlowAction extends Action {
 		readonly profile: IExtensionHostProfile,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
+		@IFileService private readonly _fileService: IFileService,
+
 	) {
 		super('show.slow', localize('cmd.show', "Show Issues"));
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 
 		// rewrite pii (paths) and store on disk
-		const profiler = await import('v8-inspect-profiler');
-		const data = profiler.rewriteAbsolutePaths({ profile: <any>this.profile.data }, 'pii_removed');
-		const path = joinPath(this._environmentService.tmpDir, `${this.extension.identifier.value}-unresponsive.cpuprofile.txt`).fsPath;
-		await profiler.writeProfile(data, path).then(undefined, onUnexpectedError);
+		const data = Utils.rewriteAbsolutePaths(this.profile.data, 'pii_removed');
+		const path = joinPath(this._environmentService.tmpDir, `${this.extension.identifier.value}-unresponsive.cpuprofile.txt`);
+		await this._fileService.writeFile(path, VSBuffer.fromString(JSON.stringify(data, undefined, 4)));
 
 		// show issues
 		const url = `${this.repoInfo.base}/${this.repoInfo.owner}/${this.repoInfo.repo}/issues?utf8=✓&q=is%3Aissue+state%3Aopen+%22Extension+causes+high+cpu+load%22`;
@@ -186,8 +189,8 @@ class ShowExtensionSlowAction extends Action {
 		this._dialogService.show(
 			Severity.Info,
 			localize('attach.title', "Did you attach the CPU-Profile?"),
-			[localize('ok', 'OK')],
-			{ detail: localize('attach.msg2', "This is a reminder to make sure that you have not forgotten to attach '{0}' to an existing performance issue.", path) }
+			undefined,
+			{ detail: localize('attach.msg2', "This is a reminder to make sure that you have not forgotten to attach '{0}' to an existing performance issue.", path.fsPath) }
 		);
 	}
 }

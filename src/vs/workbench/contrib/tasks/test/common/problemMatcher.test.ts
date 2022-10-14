@@ -67,12 +67,12 @@ suite('ProblemPatternParser', () => {
 
 	suite('single-pattern definitions', () => {
 		test('parses a pattern defined by only a regexp', () => {
-			let problemPattern: matchers.Config.ProblemPattern = {
+			const problemPattern: matchers.Config.IProblemPattern = {
 				regexp: 'test'
 			};
-			let parsed = parser.parse(problemPattern);
+			const parsed = parser.parse(problemPattern);
 			assert(reporter.isOK());
-			assert.deepEqual(parsed, {
+			assert.deepStrictEqual(parsed, {
 				regexp: testRegexp,
 				kind: matchers.ProblemLocationKind.Location,
 				file: 1,
@@ -82,12 +82,12 @@ suite('ProblemPatternParser', () => {
 			});
 		});
 		test('does not sets defaults for line and character if kind is File', () => {
-			let problemPattern: matchers.Config.ProblemPattern = {
+			const problemPattern: matchers.Config.IProblemPattern = {
 				regexp: 'test',
 				kind: 'file'
 			};
-			let parsed = parser.parse(problemPattern);
-			assert.deepEqual(parsed, {
+			const parsed = parser.parse(problemPattern);
+			assert.deepStrictEqual(parsed, {
 				regexp: testRegexp,
 				kind: matchers.ProblemLocationKind.File,
 				file: 1,
@@ -98,12 +98,12 @@ suite('ProblemPatternParser', () => {
 
 	suite('multi-pattern definitions', () => {
 		test('defines a pattern based on regexp and property fields, with file/line location', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
+			const problemPattern: matchers.Config.MultiLineProblemPattern = [
 				{ regexp: 'test', file: 3, line: 4, column: 5, message: 6 }
 			];
-			let parsed = parser.parse(problemPattern);
+			const parsed = parser.parse(problemPattern);
 			assert(reporter.isOK());
-			assert.deepEqual(parsed,
+			assert.deepStrictEqual(parsed,
 				[{
 					regexp: testRegexp,
 					kind: matchers.ProblemLocationKind.Location,
@@ -115,12 +115,12 @@ suite('ProblemPatternParser', () => {
 			);
 		});
 		test('defines a pattern bsaed on regexp and property fields, with location', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
+			const problemPattern: matchers.Config.MultiLineProblemPattern = [
 				{ regexp: 'test', file: 3, location: 4, message: 6 }
 			];
-			let parsed = parser.parse(problemPattern);
+			const parsed = parser.parse(problemPattern);
 			assert(reporter.isOK());
-			assert.deepEqual(parsed,
+			assert.deepStrictEqual(parsed,
 				[{
 					regexp: testRegexp,
 					kind: matchers.ProblemLocationKind.Location,
@@ -131,15 +131,15 @@ suite('ProblemPatternParser', () => {
 			);
 		});
 		test('accepts a pattern that provides the fields from multiple entries', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
+			const problemPattern: matchers.Config.MultiLineProblemPattern = [
 				{ regexp: 'test', file: 3 },
 				{ regexp: 'test1', line: 4 },
 				{ regexp: 'test2', column: 5 },
 				{ regexp: 'test3', message: 6 }
 			];
-			let parsed = parser.parse(problemPattern);
+			const parsed = parser.parse(problemPattern);
 			assert(reporter.isOK());
-			assert.deepEqual(parsed, [
+			assert.deepStrictEqual(parsed, [
 				{ regexp: testRegexp, kind: matchers.ProblemLocationKind.Location, file: 3 },
 				{ regexp: new RegExp('test1'), line: 4 },
 				{ regexp: new RegExp('test2'), character: 5 },
@@ -147,84 +147,84 @@ suite('ProblemPatternParser', () => {
 			]);
 		});
 		test('forbids setting the loop flag outside of the last element in the array', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
+			const problemPattern: matchers.Config.MultiLineProblemPattern = [
 				{ regexp: 'test', file: 3, loop: true },
 				{ regexp: 'test1', line: 4 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
+			const parsed = parser.parse(problemPattern);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The loop property is only supported on the last line matcher.'));
 		});
 		test('forbids setting the kind outside of the first element of the array', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
+			const problemPattern: matchers.Config.MultiLineProblemPattern = [
 				{ regexp: 'test', file: 3 },
 				{ regexp: 'test1', kind: 'file', line: 4 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
+			const parsed = parser.parse(problemPattern);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The problem pattern is invalid. The kind property must be provided only in the first element'));
 		});
 
 		test('kind: Location requires a regexp', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
+			const problemPattern: matchers.Config.MultiLineProblemPattern = [
 				{ file: 0, line: 1, column: 20, message: 0 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
+			const parsed = parser.parse(problemPattern);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The problem pattern is missing a regular expression.'));
 		});
 		test('kind: Location requires a regexp on every entry', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
+			const problemPattern: matchers.Config.MultiLineProblemPattern = [
 				{ regexp: 'test', file: 3 },
 				{ line: 4 },
 				{ regexp: 'test2', column: 5 },
 				{ regexp: 'test3', message: 6 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
+			const parsed = parser.parse(problemPattern);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The problem pattern is missing a regular expression.'));
 		});
 		test('kind: Location requires a message', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
+			const problemPattern: matchers.Config.MultiLineProblemPattern = [
 				{ regexp: 'test', file: 0, line: 1, column: 20 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
+			const parsed = parser.parse(problemPattern);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The problem pattern is invalid. It must have at least have a file and a message.'));
 		});
 
 		test('kind: Location requires a file', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
+			const problemPattern: matchers.Config.MultiLineProblemPattern = [
 				{ regexp: 'test', line: 1, column: 20, message: 0 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
+			const parsed = parser.parse(problemPattern);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The problem pattern is invalid. It must either have kind: "file" or have a line or location match group.'));
 		});
 
 		test('kind: Location requires either a line or location', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
+			const problemPattern: matchers.Config.MultiLineProblemPattern = [
 				{ regexp: 'test', file: 1, column: 20, message: 0 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
+			const parsed = parser.parse(problemPattern);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The problem pattern is invalid. It must either have kind: "file" or have a line or location match group.'));
 		});
 
 		test('kind: File accepts a regexp, file and message', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
+			const problemPattern: matchers.Config.MultiLineProblemPattern = [
 				{ regexp: 'test', file: 2, kind: 'file', message: 6 }
 			];
-			let parsed = parser.parse(problemPattern);
+			const parsed = parser.parse(problemPattern);
 			assert(reporter.isOK());
-			assert.deepEqual(parsed,
+			assert.deepStrictEqual(parsed,
 				[{
 					regexp: testRegexp,
 					kind: matchers.ProblemLocationKind.File,
@@ -235,22 +235,22 @@ suite('ProblemPatternParser', () => {
 		});
 
 		test('kind: File requires a file', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
+			const problemPattern: matchers.Config.MultiLineProblemPattern = [
 				{ regexp: 'test', kind: 'file', message: 6 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
+			const parsed = parser.parse(problemPattern);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The problem pattern is invalid. It must have at least have a file and a message.'));
 		});
 
 		test('kind: File requires a message', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
+			const problemPattern: matchers.Config.MultiLineProblemPattern = [
 				{ regexp: 'test', kind: 'file', file: 6 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
+			const parsed = parser.parse(problemPattern);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The problem pattern is invalid. It must have at least have a file and a message.'));
 		});
 	});

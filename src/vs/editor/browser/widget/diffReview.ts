@@ -12,26 +12,29 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { Action } from 'vs/base/common/actions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Configuration } from 'vs/editor/browser/config/configuration';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IComputedEditorOptions, EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
-import { ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { ColorId, FontStyle, MetadataConsts } from 'vs/editor/common/modes';
-import { editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
+import { editorLineNumbers } from 'vs/editor/common/core/editorColorRegistry';
 import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { ViewLineRenderingData } from 'vs/editor/common/viewModel';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Constants } from 'vs/base/common/uint';
-import { registerIcon, Codicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { ILanguageIdCodec } from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -73,11 +76,13 @@ class Diff {
 	}
 }
 
-const diffReviewInsertIcon = registerIcon('diff-review-insert', Codicon.add);
-const diffReviewRemoveIcon = registerIcon('diff-review-remove', Codicon.remove);
-const diffReviewCloseIcon = registerIcon('diff-review-close', Codicon.close);
+const diffReviewInsertIcon = registerIcon('diff-review-insert', Codicon.add, nls.localize('diffReviewInsertIcon', 'Icon for \'Insert\' in diff review.'));
+const diffReviewRemoveIcon = registerIcon('diff-review-remove', Codicon.remove, nls.localize('diffReviewRemoveIcon', 'Icon for \'Remove\' in diff review.'));
+const diffReviewCloseIcon = registerIcon('diff-review-close', Codicon.close, nls.localize('diffReviewCloseIcon', 'Icon for \'Close\' in diff review.'));
 
 export class DiffReview extends Disposable {
+
+	private static _ttPolicy = window.trustedTypes?.createPolicy('diffReview', { createHTML: value => value });
 
 	private readonly _diffEditor: DiffEditorWidget;
 	private _isVisible: boolean;
@@ -90,7 +95,10 @@ export class DiffReview extends Disposable {
 	private _diffs: Diff[];
 	private _currentDiff: Diff | null;
 
-	constructor(diffEditor: DiffEditorWidget) {
+	constructor(
+		diffEditor: DiffEditorWidget,
+		@ILanguageService private readonly _languageService: ILanguageService
+	) {
 		super();
 		this._diffEditor = diffEditor;
 		this._isVisible = false;
@@ -104,10 +112,7 @@ export class DiffReview extends Disposable {
 			this.actionBarContainer.domNode
 		));
 
-		this._actionBar.push(new Action('diffreview.close', nls.localize('label.close', "Close"), 'close-diff-review ' + diffReviewCloseIcon.classNames, true, () => {
-			this.hide();
-			return Promise.resolve(null);
-		}), { label: false, icon: true });
+		this._actionBar.push(new Action('diffreview.close', nls.localize('label.close', "Close"), 'close-diff-review ' + ThemeIcon.asClassName(diffReviewCloseIcon), true, async () => this.hide()), { label: false, icon: true });
 
 		this.domNode = createFastDomNode(document.createElement('div'));
 		this.domNode.setClassName('diff-review monaco-editor-background');
@@ -134,7 +139,7 @@ export class DiffReview extends Disposable {
 		this._register(dom.addStandardDisposableListener(this.domNode.domNode, 'click', (e) => {
 			e.preventDefault();
 
-			let row = dom.findParentWithClass(e.target, 'diff-review-row');
+			const row = dom.findParentWithClass(e.target, 'diff-review-row');
 			if (row) {
 				this._goToRow(row);
 			}
@@ -252,9 +257,9 @@ export class DiffReview extends Disposable {
 
 	private accept(): void {
 		let jumpToLineNumber = -1;
-		let current = this._getCurrentFocusedRow();
+		const current = this._getCurrentFocusedRow();
 		if (current) {
-			let lineNumber = parseInt(current.getAttribute('data-line')!, 10);
+			const lineNumber = parseInt(current.getAttribute('data-line')!, 10);
 			if (!isNaN(lineNumber)) {
 				jumpToLineNumber = lineNumber;
 			}
@@ -276,7 +281,7 @@ export class DiffReview extends Disposable {
 	}
 
 	private _getPrevRow(): HTMLElement {
-		let current = this._getCurrentFocusedRow();
+		const current = this._getCurrentFocusedRow();
 		if (!current) {
 			return this._getFirstRow();
 		}
@@ -287,7 +292,7 @@ export class DiffReview extends Disposable {
 	}
 
 	private _getNextRow(): HTMLElement {
-		let current = this._getCurrentFocusedRow();
+		const current = this._getCurrentFocusedRow();
 		if (!current) {
 			return this._getFirstRow();
 		}
@@ -302,7 +307,7 @@ export class DiffReview extends Disposable {
 	}
 
 	private _getCurrentFocusedRow(): HTMLElement | null {
-		let result = <HTMLElement>document.activeElement;
+		const result = <HTMLElement>document.activeElement;
 		if (result && /diff-review-row/.test(result.className)) {
 			return result;
 		}
@@ -310,7 +315,7 @@ export class DiffReview extends Disposable {
 	}
 
 	private _goToRow(row: HTMLElement): void {
-		let prev = this._getCurrentFocusedRow();
+		const prev = this._getCurrentFocusedRow();
 		row.tabIndex = 0;
 		row.focus();
 		if (prev && prev !== row) {
@@ -365,7 +370,8 @@ export class DiffReview extends Disposable {
 			return [];
 		}
 
-		let diffs: Diff[] = [], diffsLength = 0;
+		const diffs: Diff[] = [];
+		let diffsLength = 0;
 
 		for (let i = 0, len = lineChanges.length; i < len; i++) {
 			const lineChange = lineChanges[i];
@@ -375,7 +381,8 @@ export class DiffReview extends Disposable {
 			const modifiedStart = lineChange.modifiedStartLineNumber;
 			const modifiedEnd = lineChange.modifiedEndLineNumber;
 
-			let r: DiffEntry[] = [], rLength = 0;
+			const r: DiffEntry[] = [];
+			let rLength = 0;
 
 			// Emit before anchors
 			{
@@ -483,7 +490,8 @@ export class DiffReview extends Disposable {
 
 		// Merge adjacent diffs
 		let curr: DiffEntry[] = diffs[0].entries;
-		let r: Diff[] = [], rLength = 0;
+		const r: Diff[] = [];
+		let rLength = 0;
 		for (let i = 1, len = diffs.length; i < len; i++) {
 			const thisDiff = diffs[i].entries;
 
@@ -551,11 +559,11 @@ export class DiffReview extends Disposable {
 		this._currentDiff = this._diffs[diffIndex];
 
 		const diffs = this._diffs[diffIndex].entries;
-		let container = document.createElement('div');
+		const container = document.createElement('div');
 		container.className = 'diff-review-table';
 		container.setAttribute('role', 'list');
 		container.setAttribute('aria-label', 'Difference review. Use "Stage | Unstage | Revert Selected Ranges" commands');
-		Configuration.applyFontInfoSlow(container, modifiedOptions.get(EditorOption.fontInfo));
+		applyFontInfo(container, modifiedOptions.get(EditorOption.fontInfo));
 
 		let minOriginalLine = 0;
 		let maxOriginalLine = 0;
@@ -582,10 +590,10 @@ export class DiffReview extends Disposable {
 			}
 		}
 
-		let header = document.createElement('div');
+		const header = document.createElement('div');
 		header.className = 'diff-review-row';
 
-		let cell = document.createElement('div');
+		const cell = document.createElement('div');
 		cell.className = 'diff-review-cell diff-review-summary';
 		const originalChangedLinesCnt = maxOriginalLine - minOriginalLine + 1;
 		const modifiedChangedLinesCnt = maxModifiedLine - minModifiedLine + 1;
@@ -625,7 +633,7 @@ export class DiffReview extends Disposable {
 		let modLine = minModifiedLine;
 		for (let i = 0, len = diffs.length; i < len; i++) {
 			const diffEntry = diffs[i];
-			DiffReview._renderSection(container, diffEntry, modLine, lineHeight, this._width, originalOptions, originalModel, originalModelOpts, modifiedOptions, modifiedModel, modifiedModelOpts);
+			DiffReview._renderSection(container, diffEntry, modLine, lineHeight, this._width, originalOptions, originalModel, originalModelOpts, modifiedOptions, modifiedModel, modifiedModelOpts, this._languageService.languageIdCodec);
 			if (diffEntry.modifiedLineStart !== 0) {
 				modLine = diffEntry.modifiedLineEnd;
 			}
@@ -639,7 +647,8 @@ export class DiffReview extends Disposable {
 	private static _renderSection(
 		dest: HTMLElement, diffEntry: DiffEntry, modLine: number, lineHeight: number, width: number,
 		originalOptions: IComputedEditorOptions, originalModel: ITextModel, originalModelOpts: TextModelResolvedOptions,
-		modifiedOptions: IComputedEditorOptions, modifiedModel: ITextModel, modifiedModelOpts: TextModelResolvedOptions
+		modifiedOptions: IComputedEditorOptions, modifiedModel: ITextModel, modifiedModelOpts: TextModelResolvedOptions,
+		languageIdCodec: ILanguageIdCodec
 	): void {
 
 		const type = diffEntry.getType();
@@ -647,7 +656,7 @@ export class DiffReview extends Disposable {
 		let rowClassName: string = 'diff-review-row';
 		let lineNumbersExtraClassName: string = '';
 		const spacerClassName: string = 'diff-review-spacer';
-		let spacerIcon: Codicon | null = null;
+		let spacerIcon: ThemeIcon | null = null;
 		switch (type) {
 			case DiffEntryType.Insert:
 				rowClassName = 'diff-review-row line-insert';
@@ -690,7 +699,7 @@ export class DiffReview extends Disposable {
 			}
 			row.setAttribute('data-line', String(modLine));
 
-			let cell = document.createElement('div');
+			const cell = document.createElement('div');
 			cell.className = 'diff-review-cell';
 			cell.style.height = `${lineHeight}px`;
 			row.appendChild(cell);
@@ -723,7 +732,7 @@ export class DiffReview extends Disposable {
 
 			if (spacerIcon) {
 				const spacerCodicon = document.createElement('span');
-				spacerCodicon.className = spacerIcon.classNames;
+				spacerCodicon.className = ThemeIcon.asClassName(spacerIcon);
 				spacerCodicon.innerText = '\u00a0\u00a0';
 				spacer.appendChild(spacerCodicon);
 			} else {
@@ -733,14 +742,18 @@ export class DiffReview extends Disposable {
 
 			let lineContent: string;
 			if (modifiedLine !== 0) {
-				cell.insertAdjacentHTML('beforeend',
-					this._renderLine(modifiedModel, modifiedOptions, modifiedModelOpts.tabSize, modifiedLine)
-				);
+				let html: string | TrustedHTML = this._renderLine(modifiedModel, modifiedOptions, modifiedModelOpts.tabSize, modifiedLine, languageIdCodec);
+				if (DiffReview._ttPolicy) {
+					html = DiffReview._ttPolicy.createHTML(html as string);
+				}
+				cell.insertAdjacentHTML('beforeend', html as string);
 				lineContent = modifiedModel.getLineContent(modifiedLine);
 			} else {
-				cell.insertAdjacentHTML('beforeend',
-					this._renderLine(originalModel, originalOptions, originalModelOpts.tabSize, originalLine)
-				);
+				let html: string | TrustedHTML = this._renderLine(originalModel, originalOptions, originalModelOpts.tabSize, originalLine, languageIdCodec);
+				if (DiffReview._ttPolicy) {
+					html = DiffReview._ttPolicy.createHTML(html as string);
+				}
+				cell.insertAdjacentHTML('beforeend', html as string);
 				lineContent = originalModel.getLineContent(originalLine);
 			}
 
@@ -770,22 +783,10 @@ export class DiffReview extends Disposable {
 		}
 	}
 
-	private static _renderLine(model: ITextModel, options: IComputedEditorOptions, tabSize: number, lineNumber: number): string {
+	private static _renderLine(model: ITextModel, options: IComputedEditorOptions, tabSize: number, lineNumber: number, languageIdCodec: ILanguageIdCodec): string {
 		const lineContent = model.getLineContent(lineNumber);
 		const fontInfo = options.get(EditorOption.fontInfo);
-
-		const defaultMetadata = (
-			(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
-			| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
-			| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
-		) >>> 0;
-
-		const tokens = new Uint32Array(2);
-		tokens[0] = lineContent.length;
-		tokens[1] = defaultMetadata;
-
-		const lineTokens = new LineTokens(tokens, lineContent);
-
+		const lineTokens = LineTokens.createEmpty(lineContent, languageIdCodec);
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, model.mightContainNonBasicASCII());
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
 		const r = renderViewLine(new RenderLineInput(
@@ -845,9 +846,7 @@ class DiffReviewNext extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const diffEditor = findFocusedDiffEditor(accessor);
-		if (diffEditor) {
-			diffEditor.diffReviewNext();
-		}
+		diffEditor?.diffReviewNext();
 	}
 }
 
@@ -868,9 +867,7 @@ class DiffReviewPrev extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const diffEditor = findFocusedDiffEditor(accessor);
-		if (diffEditor) {
-			diffEditor.diffReviewPrev();
-		}
+		diffEditor?.diffReviewPrev();
 	}
 }
 

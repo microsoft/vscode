@@ -4,42 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
-'use strict';
-
 (function () {
-	const bootstrap = bootstrapLib();
-	const bootstrapWindow = bootstrapWindowLib();
+	'use strict';
 
-	// Avoid Monkey Patches from Application Insights
-	bootstrap.avoidMonkeyPatchFromAppInsights();
+	const bootstrapWindow = bootstrapWindowLib();
 
 	// Load shared process into window
 	bootstrapWindow.load(['vs/code/electron-browser/sharedProcess/sharedProcessMain'], function (sharedProcess, configuration) {
-		sharedProcess.startup({
-			machineId: configuration.machineId,
-			windowId: configuration.windowId
-		});
-	});
-
-
-	//#region Globals
-
-	/**
-	 * @returns {{ avoidMonkeyPatchFromAppInsights: () => void; }}
-	 */
-	function bootstrapLib() {
-		// @ts-ignore (defined in bootstrap.js)
-		return window.MonacoBootstrap;
-	}
+		return sharedProcess.main(configuration);
+	},
+		{
+			configureDeveloperSettings: function () {
+				return {
+					disallowReloadKeybinding: true
+				};
+			}
+		}
+	);
 
 	/**
-	 * @returns {{ load: (modules: string[], resultCallback: (result, configuration: object) => any, options?: object) => unknown }}
+	 * @typedef {import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
+	 *
+	 * @returns {{
+	 *   load: (
+	 *     modules: string[],
+	 *     resultCallback: (result, configuration: ISandboxConfiguration) => unknown,
+	 *     options?: {
+	 *       configureDeveloperSettings?: (config: ISandboxConfiguration) => {
+	 * 			forceEnableDeveloperKeybindings?: boolean,
+	 * 			disallowReloadKeybinding?: boolean,
+	 * 			removeDeveloperKeybindingsAfterLoad?: boolean
+	 * 		 }
+	 *     }
+	 *   ) => Promise<unknown>
+	 * }}
 	 */
 	function bootstrapWindowLib() {
 		// @ts-ignore (defined in bootstrap-window.js)
 		return window.MonacoBootstrapWindow;
 	}
-
-	//#endregion
-
 }());

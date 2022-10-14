@@ -12,9 +12,11 @@ import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/c
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
+import { ExtensionKind } from 'vs/platform/environment/common/environment';
+import { allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
+import { productSchemaId } from 'vs/platform/product/common/productService';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
-export type ExtensionKind = 'workspace' | 'ui' | undefined;
 
 export class ExtensionMessageCollector {
 
@@ -63,9 +65,9 @@ export interface IExtensionPointUser<T> {
 export type IExtensionPointHandler<T> = (extensions: readonly IExtensionPointUser<T>[], delta: ExtensionPointUserDelta<T>) => void;
 
 export interface IExtensionPoint<T> {
-	name: string;
+	readonly name: string;
 	setHandler(handler: IExtensionPointHandler<T>): void;
-	defaultExtensionKind: ExtensionKind;
+	readonly defaultExtensionKind: ExtensionKind[] | undefined;
 }
 
 export class ExtensionPointUserDelta<T> {
@@ -89,8 +91,8 @@ export class ExtensionPointUserDelta<T> {
 		const previousSet = this._toSet(previous);
 		const currentSet = this._toSet(current);
 
-		let added = current.filter(user => !previousSet.has(ExtensionIdentifier.toKey(user.description.identifier)));
-		let removed = previous.filter(user => !currentSet.has(ExtensionIdentifier.toKey(user.description.identifier)));
+		const added = current.filter(user => !previousSet.has(ExtensionIdentifier.toKey(user.description.identifier)));
+		const removed = previous.filter(user => !currentSet.has(ExtensionIdentifier.toKey(user.description.identifier)));
 
 		return new ExtensionPointUserDelta<T>(added, removed);
 	}
@@ -104,13 +106,13 @@ export class ExtensionPointUserDelta<T> {
 export class ExtensionPoint<T> implements IExtensionPoint<T> {
 
 	public readonly name: string;
-	public readonly defaultExtensionKind: ExtensionKind;
+	public readonly defaultExtensionKind: ExtensionKind[] | undefined;
 
 	private _handler: IExtensionPointHandler<T> | null;
 	private _users: IExtensionPointUser<T>[] | null;
 	private _delta: ExtensionPointUserDelta<T> | null;
 
-	constructor(name: string, defaultExtensionKind: ExtensionKind) {
+	constructor(name: string, defaultExtensionKind: ExtensionKind[] | undefined) {
 		this.name = name;
 		this.defaultExtensionKind = defaultExtensionKind;
 		this._handler = null;
@@ -149,13 +151,11 @@ const extensionKindSchema: IJSONSchema = {
 	type: 'string',
 	enum: [
 		'ui',
-		'workspace',
-		'web'
+		'workspace'
 	],
 	enumDescriptions: [
 		nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
 		nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote."),
-		nls.localize('web', "Web worker extension kind. Such an extension can execute in a web worker extension host.")
 	],
 };
 
@@ -224,12 +224,31 @@ export const schema: IJSONSchema = {
 			type: 'boolean',
 			description: nls.localize('vscode.extension.preview', 'Sets the extension to be flagged as a Preview in the Marketplace.'),
 		},
+		enableProposedApi: {
+			type: 'boolean',
+			deprecationMessage: nls.localize('vscode.extension.enableProposedApi.deprecated', 'Use `enabledApiProposals` instead.'),
+		},
+		enabledApiProposals: {
+			markdownDescription: nls.localize('vscode.extension.enabledApiProposals', 'Enable API proposals to try them out. Only valid **during development**. Extensions **cannot be published** with this property. For more details visit: https://code.visualstudio.com/api/advanced-topics/using-proposed-api'),
+			type: 'array',
+			uniqueItems: true,
+			items: {
+				type: 'string',
+				enum: Object.keys(allApiProposals),
+				markdownEnumDescriptions: Object.values(allApiProposals)
+			}
+		},
 		activationEvents: {
 			description: nls.localize('vscode.extension.activationEvents', 'Activation events for the VS Code extension.'),
 			type: 'array',
 			items: {
 				type: 'string',
 				defaultSnippets: [
+					{
+						label: 'onWebviewPanel',
+						description: nls.localize('vscode.extension.activationEvents.onWebviewPanel', 'An activation event emmited when a webview is loaded of a certain viewType'),
+						body: 'onWebviewPanel:viewType'
+					},
 					{
 						label: 'onLanguage',
 						description: nls.localize('vscode.extension.activationEvents.onLanguage', 'An activation event emitted whenever a file that resolves to the specified language gets opened.'),
@@ -276,9 +295,19 @@ export const schema: IJSONSchema = {
 						body: 'onStartupFinished'
 					},
 					{
+						label: 'onTaskType',
+						description: nls.localize('vscode.extension.activationEvents.onTaskType', 'An activation event emitted whenever tasks of a certain type need to be listed or resolved.'),
+						body: 'onTaskType:${1:taskType}'
+					},
+					{
 						label: 'onFileSystem',
 						description: nls.localize('vscode.extension.activationEvents.onFileSystem', 'An activation event emitted whenever a file or folder is accessed with the given scheme.'),
 						body: 'onFileSystem:${1:scheme}'
+					},
+					{
+						label: 'onEditSession',
+						description: nls.localize('vscode.extension.activationEvents.onEditSession', 'An activation event emitted whenever an edit session is accessed with the given scheme.'),
+						body: 'onEditSession:${1:scheme}'
 					},
 					{
 						label: 'onSearch',
@@ -301,9 +330,39 @@ export const schema: IJSONSchema = {
 						description: nls.localize('vscode.extension.activationEvents.onUri', 'An activation event emitted whenever a system-wide Uri directed towards this extension is open.'),
 					},
 					{
+						label: 'onOpenExternalUri',
+						body: 'onOpenExternalUri',
+						description: nls.localize('vscode.extension.activationEvents.onOpenExternalUri', 'An activation event emitted whenever a external uri (such as an http or https link) is being opened.'),
+					},
+					{
 						label: 'onCustomEditor',
 						body: 'onCustomEditor:${9:viewType}',
 						description: nls.localize('vscode.extension.activationEvents.onCustomEditor', 'An activation event emitted whenever the specified custom editor becomes visible.'),
+					},
+					{
+						label: 'onNotebook',
+						body: 'onNotebook:${1:type}',
+						description: nls.localize('vscode.extension.activationEvents.onNotebook', 'An activation event emitted whenever the specified notebook document is opened.'),
+					},
+					{
+						label: 'onAuthenticationRequest',
+						body: 'onAuthenticationRequest:${11:authenticationProviderId}',
+						description: nls.localize('vscode.extension.activationEvents.onAuthenticationRequest', 'An activation event emitted whenever sessions are requested from the specified authentication provider.')
+					},
+					{
+						label: 'onRenderer',
+						description: nls.localize('vscode.extension.activationEvents.onRenderer', 'An activation event emitted whenever a notebook output renderer is used.'),
+						body: 'onRenderer:${11:rendererId}'
+					},
+					{
+						label: 'onTerminalProfile',
+						body: 'onTerminalProfile:${1:terminalId}',
+						description: nls.localize('vscode.extension.activationEvents.onTerminalProfile', 'An activation event emitted when a specific terminal profile is launched.'),
+					},
+					{
+						label: 'onWalkthrough',
+						body: 'onWalkthrough:${1:walkthroughID}',
+						description: nls.localize('vscode.extension.activationEvents.onWalkthrough', 'An activation event emitted when a specified walkthrough is opened.'),
 					},
 					{
 						label: '*',
@@ -400,6 +459,81 @@ export const schema: IJSONSchema = {
 				}
 			]
 		},
+		capabilities: {
+			description: nls.localize('vscode.extension.capabilities', "Declare the set of supported capabilities by the extension."),
+			type: 'object',
+			properties: {
+				virtualWorkspaces: {
+					description: nls.localize('vscode.extension.capabilities.virtualWorkspaces', "Declares whether the extension should be enabled in virtual workspaces. A virtual workspace is a workspace which is not backed by any on-disk resources. When false, this extension will be automatically disabled in virtual workspaces. Default is true."),
+					type: ['boolean', 'object'],
+					defaultSnippets: [
+						{ label: 'limited', body: { supported: '${1:limited}', description: '${2}' } },
+						{ label: 'false', body: { supported: false, description: '${2}' } },
+					],
+					default: true.valueOf,
+					properties: {
+						supported: {
+							markdownDescription: nls.localize('vscode.extension.capabilities.virtualWorkspaces.supported', "Declares the level of support for virtual workspaces by the extension."),
+							type: ['string', 'boolean'],
+							enum: ['limited', true, false],
+							enumDescriptions: [
+								nls.localize('vscode.extension.capabilities.virtualWorkspaces.supported.limited', "The extension will be enabled in virtual workspaces with some functionality disabled."),
+								nls.localize('vscode.extension.capabilities.virtualWorkspaces.supported.true', "The extension will be enabled in virtual workspaces with all functionality enabled."),
+								nls.localize('vscode.extension.capabilities.virtualWorkspaces.supported.false', "The extension will not be enabled in virtual workspaces."),
+							]
+						},
+						description: {
+							type: 'string',
+							markdownDescription: nls.localize('vscode.extension.capabilities.virtualWorkspaces.description', "A description of how virtual workspaces affects the extensions behavior and why it is needed. This only applies when `supported` is not `true`."),
+						}
+					}
+				},
+				untrustedWorkspaces: {
+					description: nls.localize('vscode.extension.capabilities.untrustedWorkspaces', 'Declares how the extension should be handled in untrusted workspaces.'),
+					type: 'object',
+					required: ['supported'],
+					defaultSnippets: [
+						{ body: { supported: '${1:limited}', description: '${2}' } },
+					],
+					properties: {
+						supported: {
+							markdownDescription: nls.localize('vscode.extension.capabilities.untrustedWorkspaces.supported', "Declares the level of support for untrusted workspaces by the extension."),
+							type: ['string', 'boolean'],
+							enum: ['limited', true, false],
+							enumDescriptions: [
+								nls.localize('vscode.extension.capabilities.untrustedWorkspaces.supported.limited', "The extension will be enabled in untrusted workspaces with some functionality disabled."),
+								nls.localize('vscode.extension.capabilities.untrustedWorkspaces.supported.true', "The extension will be enabled in untrusted workspaces with all functionality enabled."),
+								nls.localize('vscode.extension.capabilities.untrustedWorkspaces.supported.false', "The extension will not be enabled in untrusted workspaces."),
+							]
+						},
+						restrictedConfigurations: {
+							description: nls.localize('vscode.extension.capabilities.untrustedWorkspaces.restrictedConfigurations', "A list of configuration keys contributed by the extension that should not use workspace values in untrusted workspaces."),
+							type: 'array',
+							items: {
+								type: 'string'
+							}
+						},
+						description: {
+							type: 'string',
+							markdownDescription: nls.localize('vscode.extension.capabilities.untrustedWorkspaces.description', "A description of how workspace trust affects the extensions behavior and why it is needed. This only applies when `supported` is not `true`."),
+						}
+					}
+				}
+			}
+		},
+		sponsor: {
+			description: nls.localize('vscode.extension.contributes.sponsor', "Specify the location from where users can sponsor your extension."),
+			type: 'object',
+			defaultSnippets: [
+				{ body: { url: '${1:https:}' } },
+			],
+			properties: {
+				'url': {
+					description: nls.localize('vscode.extension.contributes.sponsor.url', "URL from where users can sponsor your extension. It must be a valid URL with a HTTP or HTTPS protocol. Example value: https://github.com/sponsors/nvaccess"),
+					type: 'string',
+				}
+			}
+		},
 		scripts: {
 			type: 'object',
 			properties: {
@@ -416,6 +550,16 @@ export const schema: IJSONSchema = {
 		icon: {
 			type: 'string',
 			description: nls.localize('vscode.extension.icon', 'The path to a 128x128 pixel icon.')
+		},
+		l10n: {
+			type: 'string',
+			description: nls.localize({
+				key: 'vscode.extension.l10n',
+				comment: [
+					'{Locked="bundle.l10n._locale_.json"}',
+					'{Locked="vscode.l10n API"}'
+				]
+			}, 'The relative path to a folder containing localization (bundle.l10n.*.json) files. Must be specified if you are using the vscode.l10n API.')
 		}
 	}
 };
@@ -424,7 +568,7 @@ export interface IExtensionPointDescriptor {
 	extensionPoint: string;
 	deps?: IExtensionPoint<any>[];
 	jsonSchema: IJSONSchema;
-	defaultExtensionKind?: ExtensionKind;
+	defaultExtensionKind?: ExtensionKind[];
 }
 
 export class ExtensionsRegistryImpl {
@@ -456,3 +600,25 @@ Registry.add(PRExtensions.ExtensionsRegistry, new ExtensionsRegistryImpl());
 export const ExtensionsRegistry: ExtensionsRegistryImpl = Registry.as(PRExtensions.ExtensionsRegistry);
 
 schemaRegistry.registerSchema(schemaId, schema);
+
+
+schemaRegistry.registerSchema(productSchemaId, {
+	properties: {
+		extensionEnabledApiProposals: {
+			description: nls.localize('product.extensionEnabledApiProposals', "API proposals that the respective extensions can freely use."),
+			type: 'object',
+			properties: {},
+			additionalProperties: {
+				anyOf: [{
+					type: 'array',
+					uniqueItems: true,
+					items: {
+						type: 'string',
+						enum: Object.keys(allApiProposals),
+						markdownEnumDescriptions: Object.values(allApiProposals)
+					}
+				}]
+			}
+		}
+	}
+});

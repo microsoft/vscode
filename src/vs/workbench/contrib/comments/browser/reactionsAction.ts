@@ -17,7 +17,7 @@ export class ToggleReactionsAction extends Action {
 		super(ToggleReactionsAction.ID, title || nls.localize('pickReactions', "Pick Reactions..."), 'toggle-reactions', true);
 		this.toggleDropdownMenu = toggleDropdownMenu;
 	}
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		this.toggleDropdownMenu();
 		return Promise.resolve(true);
 	}
@@ -32,28 +32,28 @@ export class ReactionActionViewItem extends ActionViewItem {
 	constructor(action: ReactionAction) {
 		super(null, action, {});
 	}
-	updateLabel(): void {
+	override updateLabel(): void {
 		if (!this.label) {
 			return;
 		}
 
-		let action = this.getAction() as ReactionAction;
+		const action = this.action as ReactionAction;
 		if (action.class) {
 			this.label.classList.add(action.class);
 		}
 
 		if (!action.icon) {
-			let reactionLabel = dom.append(this.label, dom.$('span.reaction-label'));
+			const reactionLabel = dom.append(this.label, dom.$('span.reaction-label'));
 			reactionLabel.innerText = action.label;
 		} else {
-			let reactionIcon = dom.append(this.label, dom.$('.reaction-icon'));
+			const reactionIcon = dom.append(this.label, dom.$('.reaction-icon'));
 			reactionIcon.style.display = '';
-			let uri = URI.revive(action.icon);
-			reactionIcon.style.backgroundImage = `url('${uri}')`;
+			const uri = URI.revive(action.icon);
+			reactionIcon.style.backgroundImage = dom.asCSSUrl(uri);
 			reactionIcon.title = action.label;
 		}
 		if (action.count) {
-			let reactionCount = dom.append(this.label, dom.$('span.reaction-count'));
+			const reactionCount = dom.append(this.label, dom.$('span.reaction-count'));
 			reactionCount.innerText = `${action.count}`;
 		}
 	}

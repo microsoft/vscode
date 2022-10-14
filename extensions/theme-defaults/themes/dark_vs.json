@@ -1,12 +1,34 @@
 {
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Dark (Visual Studio)",
-	"include": "./dark_defaults.json",
+	"colors": {
+		"editor.background": "#1E1E1E",
+		"editor.foreground": "#D4D4D4",
+		"editor.inactiveSelectionBackground": "#3A3D41",
+		"editorIndentGuide.background": "#404040",
+		"editorIndentGuide.activeBackground": "#707070",
+		"editor.selectionHighlightBackground": "#ADD6FF26",
+		"list.dropBackground": "#383B3D",
+		"activityBarBadge.background": "#007ACC",
+		"sideBarTitle.foreground": "#BBBBBB",
+		"input.placeholderForeground": "#A6A6A6",
+		"menu.background": "#303031",
+		"menu.foreground": "#CCCCCC",
+		"statusBarItem.remoteForeground": "#FFF",
+		"statusBarItem.remoteBackground": "#16825D",
+		"ports.iconRunningProcessForeground": "#369432",
+		"sideBarSectionHeader.background": "#0000",
+		"sideBarSectionHeader.border": "#ccc3",
+		"tab.lastPinnedBorder": "#ccc3",
+		"list.activeSelectionIconForeground": "#FFF",
+		"terminal.inactiveSelectionBackground": "#3A3D41",
+	},
 	"tokenColors": [
 		{
 			"scope": [
 				"meta.embedded",
-				"source.groovy.embedded"
+				"source.groovy.embedded",
+				"string meta.image.inline.markdown",
 			],
 			"settings": {
 				"foreground": "#D4D4D4"
@@ -122,6 +144,12 @@
 			"scope": "markup.italic",
 			"settings": {
 				"fontStyle": "italic"
+			}
+		},
+		{
+			"scope": "markup.strikethrough",
+			"settings": {
+				"fontStyle": "strikethrough"
 			}
 		},
 		{
@@ -362,6 +390,7 @@
 			}
 		}
 	],
+	"semanticHighlighting": true,
 	"semanticTokenColors": {
 		"newOperator": "#d4d4d4",
 		"stringLiteral": "#ce9178",

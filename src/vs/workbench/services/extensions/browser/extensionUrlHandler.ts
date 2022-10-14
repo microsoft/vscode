@@ -8,17 +8,17 @@ import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/li
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IURLHandler, IURLService, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -26,24 +26,28 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
+import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
+import { CancellationToken } from 'vs/base/common/cancellation';
+
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
 const URL_TO_HANDLE = 'extensionUrlHandler.urlToHandle';
-const CONFIRMED_EXTENSIONS_CONFIGURATION_KEY = 'extensions.confirmedUriHandlerExtensionIds';
-const CONFIRMED_EXTENSIONS_STORAGE_KEY = 'extensionUrlHandler.confirmedExtensions';
+const USER_TRUSTED_EXTENSIONS_CONFIGURATION_KEY = 'extensions.confirmedUriHandlerExtensionIds';
+const USER_TRUSTED_EXTENSIONS_STORAGE_KEY = 'extensionUrlHandler.confirmedExtensions';
 
 function isExtensionId(value: string): boolean {
 	return /^[a-z0-9][a-z0-9\-]*\.[a-z0-9][a-z0-9\-]*$/i.test(value);
 }
 
-class ConfirmedExtensionIdStorage {
+class UserTrustedExtensionIdStorage {
 
 	get extensions(): string[] {
-		const confirmedExtensionIdsJson = this.storageService.get(CONFIRMED_EXTENSIONS_STORAGE_KEY, StorageScope.GLOBAL, '[]');
+		const userTrustedExtensionIdsJson = this.storageService.get(USER_TRUSTED_EXTENSIONS_STORAGE_KEY, StorageScope.PROFILE, '[]');
 
 		try {
-			return JSON.parse(confirmedExtensionIdsJson);
+			return JSON.parse(userTrustedExtensionIdsJson);
 		} catch {
 			return [];
 		}
@@ -60,7 +64,7 @@ class ConfirmedExtensionIdStorage {
 	}
 
 	set(ids: string[]): void {
-		this.storageService.store(CONFIRMED_EXTENSIONS_STORAGE_KEY, JSON.stringify(ids), StorageScope.GLOBAL);
+		this.storageService.store(USER_TRUSTED_EXTENSIONS_STORAGE_KEY, JSON.stringify(ids), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 }
 
@@ -71,6 +75,16 @@ export interface IExtensionUrlHandler {
 	registerExtensionHandler(extensionId: ExtensionIdentifier, handler: IURLHandler): void;
 	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void;
 }
+
+export interface ExtensionUrlHandlerEvent {
+	readonly extensionId: string;
+}
+
+type ExtensionUrlHandlerClassification = {
+	owner: 'joaomoreno';
+	readonly extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The ID of the extension that should handle the URI' };
+	comment: 'This is used to understand the drop funnel of extension URI handling by the OS & VS Code.';
+};
 
 /**
  * This class handles URLs which are directed towards extensions.
@@ -86,8 +100,8 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	readonly _serviceBrand: undefined;
 
 	private extensionHandlers = new Map<string, IURLHandler>();
-	private uriBuffer = new Map<string, { timestamp: number, uri: URI }[]>();
-	private storage: ConfirmedExtensionIdStorage;
+	private uriBuffer = new Map<string, { timestamp: number; uri: URI }[]>();
+	private userTrustedExtensionsStorage: UserTrustedExtensionIdStorage;
 	private disposable: IDisposable;
 
 	constructor(
@@ -101,9 +115,11 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IExtensionUrlTrustService private readonly extensionUrlTrustService: IExtensionUrlTrustService
 	) {
-		this.storage = new ConfirmedExtensionIdStorage(storageService);
+		this.userTrustedExtensionsStorage = new UserTrustedExtensionIdStorage(storageService);
 
 		const interval = setInterval(() => this.garbageCollect(), THIRTY_SECONDS);
 		const urlToHandleValue = this.storageService.get(URL_TO_HANDLE, StorageScope.WORKSPACE);
@@ -118,7 +134,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		);
 
 		const cache = ExtensionUrlBootstrapHandler.cache;
-		setTimeout(() => cache.forEach(uri => this.handleURL(uri)));
+		setTimeout(() => cache.forEach(([uri, option]) => this.handleURL(uri, option)));
 	}
 
 	async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
@@ -127,22 +143,21 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 
 		const extensionId = uri.authority;
+		this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/start', { extensionId });
+
 		const wasHandlerAvailable = this.extensionHandlers.has(ExtensionIdentifier.toKey(extensionId));
 		const extension = await this.extensionService.getExtension(extensionId);
 
 		if (!extension) {
-			await this.handleUnhandledURL(uri, { id: extensionId });
+			await this.handleUnhandledURL(uri, { id: extensionId }, options);
 			return true;
 		}
 
-		let showConfirm: boolean;
-		if (options && options.trusted) {
-			showConfirm = false;
-		} else {
-			showConfirm = !this.isConfirmed(ExtensionIdentifier.toKey(extensionId));
-		}
+		const trusted = options?.trusted
+			|| (options?.originalUrl ? await this.extensionUrlTrustService.isExtensionUrlTrusted(extensionId, options.originalUrl) : false)
+			|| this.didUserTrustExtension(ExtensionIdentifier.toKey(extensionId));
 
-		if (showConfirm) {
+		if (!trusted) {
 			let uriString = uri.toString(false);
 
 			if (uriString.length > 40) {
@@ -160,11 +175,12 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			});
 
 			if (!result.confirmed) {
+				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/cancel', { extensionId });
 				return true;
 			}
 
 			if (result.checkboxChecked) {
-				this.storage.add(ExtensionIdentifier.toKey(extensionId));
+				this.userTrustedExtensionsStorage.add(ExtensionIdentifier.toKey(extensionId));
 			}
 		}
 
@@ -173,7 +189,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		if (handler) {
 			if (!wasHandlerAvailable) {
 				// forward it directly
-				return await handler.handleURL(uri, options);
+				return await this.handleURLByExtension(extensionId, handler, uri, options);
 			}
 
 			// let the ExtensionUrlHandler instance handle this
@@ -202,7 +218,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		const uris = this.uriBuffer.get(ExtensionIdentifier.toKey(extensionId)) || [];
 
 		for (const { uri } of uris) {
-			handler.handleURL(uri);
+			this.handleURLByExtension(extensionId, handler, uri);
 		}
 
 		this.uriBuffer.delete(ExtensionIdentifier.toKey(extensionId));
@@ -212,95 +228,123 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		this.extensionHandlers.delete(ExtensionIdentifier.toKey(extensionId));
 	}
 
-	private async handleUnhandledURL(uri: URI, extensionIdentifier: IExtensionIdentifier): Promise<void> {
+	private async handleURLByExtension(extensionId: ExtensionIdentifier | string, handler: IURLHandler, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+		this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/end', { extensionId: ExtensionIdentifier.toKey(extensionId) });
+		return await handler.handleURL(uri, options);
+	}
+
+	private async handleUnhandledURL(uri: URI, extensionIdentifier: IExtensionIdentifier, options?: IOpenURLOptions): Promise<void> {
 		const installedExtensions = await this.extensionManagementService.getInstalled();
-		const extension = installedExtensions.filter(e => areSameExtensions(e.identifier, extensionIdentifier))[0];
-
-		// Extension is installed
-		if (extension) {
-			const enabled = this.extensionEnablementService.isEnabled(extension);
-
-			// Extension is not running. Reload the window to handle.
-			if (enabled) {
-				const result = await this.dialogService.confirm({
-					message: localize('reloadAndHandle', "Extension '{0}' is not loaded. Would you like to reload the window to load the extension and open the URL?", extension.manifest.displayName || extension.manifest.name),
-					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-					primaryButton: localize('reloadAndOpen', "&&Reload Window and Open"),
-					type: 'question'
-				});
-
-				if (!result.confirmed) {
-					return;
-				}
-
-				await this.reloadAndHandle(uri);
-			}
-
-			// Extension is disabled. Enable the extension and reload the window to handle.
-			else {
-				const result = await this.dialogService.confirm({
-					message: localize('enableAndHandle', "Extension '{0}' is disabled. Would you like to enable the extension and reload the window to open the URL?", extension.manifest.displayName || extension.manifest.name),
-					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-					primaryButton: localize('enableAndReload', "&&Enable and Open"),
-					type: 'question'
-				});
-
-				if (!result.confirmed) {
-					return;
-				}
-
-				await this.extensionEnablementService.setEnablement([extension], EnablementState.EnabledGlobally);
-				await this.reloadAndHandle(uri);
-			}
-		}
+		let extension = installedExtensions.find(e => areSameExtensions(e.identifier, extensionIdentifier));
 
 		// Extension is not installed
-		else {
-			const galleryExtension = await this.galleryService.getCompatibleExtension(extensionIdentifier);
+		if (!extension) {
+			let galleryExtension: IGalleryExtension | undefined;
+
+			try {
+				galleryExtension = (await this.galleryService.getExtensions([extensionIdentifier], CancellationToken.None))[0] ?? undefined;
+			} catch (err) {
+				return;
+			}
 
 			if (!galleryExtension) {
 				return;
 			}
 
+			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/install_extension/start', { extensionId: extensionIdentifier.id });
+
 			// Install the Extension and reload the window to handle.
 			const result = await this.dialogService.confirm({
-				message: localize('installAndHandle', "Extension '{0}' is not installed. Would you like to install the extension and reload the window to open this URL?", galleryExtension.displayName || galleryExtension.name),
+				message: localize('installAndHandle', "Extension '{0}' is not installed. Would you like to install the extension and open this URL?", galleryExtension.displayName || galleryExtension.name),
 				detail: `${galleryExtension.displayName || galleryExtension.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-				primaryButton: localize('install', "&&Install"),
+				primaryButton: localize('install and open', "&&Install and Open"),
 				type: 'question'
 			});
 
 			if (!result.confirmed) {
+				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/install_extension/cancel', { extensionId: extensionIdentifier.id });
 				return;
 			}
 
+			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/install_extension/accept', { extensionId: extensionIdentifier.id });
+
 			try {
-				await this.progressService.withProgress({
+				extension = await this.progressService.withProgress({
 					location: ProgressLocation.Notification,
 					title: localize('Installing', "Installing Extension '{0}'...", galleryExtension.displayName || galleryExtension.name)
-				}, () => this.extensionManagementService.installFromGallery(galleryExtension));
-
-				this.notificationService.prompt(
-					Severity.Info,
-					localize('reload', "Would you like to reload the window and open the URL '{0}'?", uri.toString()),
-					[{ label: localize('Reload', "Reload Window and Open"), run: () => this.reloadAndHandle(uri) }],
-					{ sticky: true }
-				);
+				}, () => this.extensionManagementService.installFromGallery(galleryExtension!));
 			} catch (error) {
 				this.notificationService.error(error);
+				return;
 			}
+		}
+
+		// Extension is installed but not enabled
+		if (!this.extensionEnablementService.isEnabled(extension)) {
+			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/enable_extension/start', { extensionId: extensionIdentifier.id });
+			const result = await this.dialogService.confirm({
+				message: localize('enableAndHandle', "Extension '{0}' is disabled. Would you like to enable the extension and open the URL?", extension.manifest.displayName || extension.manifest.name),
+				detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
+				primaryButton: localize('enableAndReload', "&&Enable and Open"),
+				type: 'question'
+			});
+
+			if (!result.confirmed) {
+				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/enable_extension/cancel', { extensionId: extensionIdentifier.id });
+				return;
+			}
+
+			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/enable_extension/accept', { extensionId: extensionIdentifier.id });
+			await this.extensionEnablementService.setEnablement([extension], EnablementState.EnabledGlobally);
+		}
+
+		if (this.extensionService.canAddExtension(toExtensionDescription(extension))) {
+			await this.waitUntilExtensionIsAdded(extensionIdentifier);
+			await this.handleURL(uri, { ...options, trusted: true });
+		}
+
+		/* Extension cannot be added and require window reload */
+		else {
+			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/activate_extension/start', { extensionId: extensionIdentifier.id });
+			const result = await this.dialogService.confirm({
+				message: localize('reloadAndHandle', "Extension '{0}' is not loaded. Would you like to reload the window to load the extension and open the URL?", extension.manifest.displayName || extension.manifest.name),
+				detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
+				primaryButton: localize('reloadAndOpen', "&&Reload Window and Open"),
+				type: 'question'
+			});
+
+			if (!result.confirmed) {
+				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/activate_extension/cancel', { extensionId: extensionIdentifier.id });
+				return;
+			}
+
+			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/activate_extension/accept', { extensionId: extensionIdentifier.id });
+			this.storageService.store(URL_TO_HANDLE, JSON.stringify(uri.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			await this.hostService.reload();
 		}
 	}
 
-	private async reloadAndHandle(url: URI): Promise<void> {
-		this.storageService.store(URL_TO_HANDLE, JSON.stringify(url.toJSON()), StorageScope.WORKSPACE);
-		await this.hostService.reload();
+	private async waitUntilExtensionIsAdded(extensionId: IExtensionIdentifier): Promise<void> {
+		if (!(await this.extensionService.getExtension(extensionId.id))) {
+			await new Promise<void>((c, e) => {
+				const disposable = this.extensionService.onDidChangeExtensions(async () => {
+					try {
+						if (await this.extensionService.getExtension(extensionId.id)) {
+							disposable.dispose();
+							c();
+						}
+					} catch (error) {
+						e(error);
+					}
+				});
+			});
+		}
 	}
 
 	// forget about all uris buffered more than 5 minutes ago
 	private garbageCollect(): void {
 		const now = new Date().getTime();
-		const uriBuffer = new Map<string, { timestamp: number, uri: URI }[]>();
+		const uriBuffer = new Map<string, { timestamp: number; uri: URI }[]>();
 
 		this.uriBuffer.forEach((uris, extensionId) => {
 			uris = uris.filter(({ timestamp }) => now - timestamp < FIVE_MINUTES);
@@ -313,22 +357,22 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		this.uriBuffer = uriBuffer;
 	}
 
-	private isConfirmed(id: string): boolean {
-		if (this.storage.has(id)) {
+	private didUserTrustExtension(id: string): boolean {
+		if (this.userTrustedExtensionsStorage.has(id)) {
 			return true;
 		}
 
-		return this.getConfirmedExtensionIdsFromConfiguration().indexOf(id) > -1;
+		return this.getConfirmedTrustedExtensionIdsFromConfiguration().indexOf(id) > -1;
 	}
 
-	private getConfirmedExtensionIdsFromConfiguration(): Array<string> {
-		const confirmedExtensionIds = this.configurationService.getValue<Array<string>>(CONFIRMED_EXTENSIONS_CONFIGURATION_KEY);
+	private getConfirmedTrustedExtensionIdsFromConfiguration(): Array<string> {
+		const trustedExtensionIds = this.configurationService.getValue(USER_TRUSTED_EXTENSIONS_CONFIGURATION_KEY);
 
-		if (!Array.isArray(confirmedExtensionIds)) {
+		if (!Array.isArray(trustedExtensionIds)) {
 			return [];
 		}
 
-		return confirmedExtensionIds;
+		return trustedExtensionIds;
 	}
 
 	dispose(): void {
@@ -338,7 +382,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 }
 
-registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler);
+registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler, InstantiationType.Eager);
 
 /**
  * This class handles URLs before `ExtensionUrlHandler` is instantiated.
@@ -346,10 +390,10 @@ registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler);
  */
 class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandler {
 
-	private static _cache: URI[] = [];
+	private static _cache: [URI, IOpenURLOptions | undefined][] = [];
 	private static disposable: IDisposable;
 
-	static get cache(): URI[] {
+	static get cache(): [URI, IOpenURLOptions | undefined][] {
 		ExtensionUrlBootstrapHandler.disposable.dispose();
 
 		const result = ExtensionUrlBootstrapHandler._cache;
@@ -361,12 +405,12 @@ class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandle
 		ExtensionUrlBootstrapHandler.disposable = urlService.registerHandler(this);
 	}
 
-	async handleURL(uri: URI): Promise<boolean> {
+	async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		if (!isExtensionId(uri.authority)) {
 			return false;
 		}
 
-		ExtensionUrlBootstrapHandler._cache.push(uri);
+		ExtensionUrlBootstrapHandler._cache.push([uri, options]);
 		return true;
 	}
 }
@@ -391,7 +435,7 @@ class ManageAuthorizedExtensionURIsAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const storageService = accessor.get(IStorageService);
 		const quickInputService = accessor.get(IQuickInputService);
-		const storage = new ConfirmedExtensionIdStorage(storageService);
+		const storage = new UserTrustedExtensionIdStorage(storageService);
 		const items = storage.extensions.map(label => ({ label, picked: true } as IQuickPickItem));
 
 		if (items.length === 0) {

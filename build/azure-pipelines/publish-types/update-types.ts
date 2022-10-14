@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as path from 'path';
@@ -16,7 +14,7 @@ try {
 		.toString()
 		.trim();
 
-	const dtsUri = `https://raw.githubusercontent.com/microsoft/vscode/${tag}/src/vs/vscode.d.ts`;
+	const dtsUri = `https://raw.githubusercontent.com/microsoft/vscode/${tag}/src/vscode-dts/vscode.d.ts`;
 	const outPath = path.resolve(process.cwd(), 'DefinitelyTyped/types/vscode/index.d.ts');
 	cp.execSync(`curl ${dtsUri} --output ${outPath}`);
 
@@ -72,7 +70,7 @@ function getNewFileHeader(tag: string) {
 		`/*---------------------------------------------------------------------------------------------`,
 		` *  Copyright (c) Microsoft Corporation. All rights reserved.`,
 		` *  Licensed under the MIT License.`,
-		` *  See https://github.com/microsoft/vscode/blob/master/LICENSE.txt for license information.`,
+		` *  See https://github.com/microsoft/vscode/blob/main/LICENSE.txt for license information.`,
 		` *--------------------------------------------------------------------------------------------*/`,
 		``,
 		`/**`,

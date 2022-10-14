@@ -6,49 +6,42 @@
 import * as nls from 'vs/nls';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ITaskSystem } from 'vs/workbench/contrib/tasks/common/taskSystem';
-import { ExecutionEngine, TaskRunSource } from 'vs/workbench/contrib/tasks/common/tasks';
-import { TerminalTaskSystem } from './terminalTaskSystem';
-import { AbstractTaskService, WorkspaceFolderConfigurationResult } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
-import { TaskFilter, ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ExecutionEngine } from 'vs/workbench/contrib/tasks/common/tasks';
+import { AbstractTaskService, IWorkspaceFolderConfigurationResult } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
+import { ITaskFilter, ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class TaskService extends AbstractTaskService {
 	private static readonly ProcessTaskSystemSupportMessage = nls.localize('taskService.processTaskSystem', 'Process task system is not support in the web.');
 
-	protected getTaskSystem(): ITaskSystem {
+	protected _getTaskSystem(): ITaskSystem {
 		if (this._taskSystem) {
 			return this._taskSystem;
 		}
 		if (this.executionEngine === ExecutionEngine.Terminal) {
-			this._taskSystem = this.createTerminalTaskSystem();
+			this._taskSystem = this._createTerminalTaskSystem();
 		} else {
 			throw new Error(TaskService.ProcessTaskSystemSupportMessage);
 		}
-		this._taskSystemListener = this._taskSystem!.onDidStateChange((event) => {
-			if (this._taskSystem) {
-				this._taskRunningState.set(this._taskSystem.isActiveSync());
-			}
-			this._onDidStateChange.fire(event);
-		});
-		return this._taskSystem!;
+		const taskSystem = this._createTerminalTaskSystem();
+		this._taskSystem = taskSystem;
+		this._taskSystemListeners =
+			[
+				taskSystem.onDidStateChange((event) => {
+					this._taskRunningState.set(taskSystem.isActiveSync());
+					this._onDidStateChange.fire(event);
+				}),
+			];
+		return this._taskSystem;
 	}
 
-	protected updateWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): void {
-		this._workspaceTasksPromise = this.computeWorkspaceTasks(runSource).then(value => {
-			if (this.executionEngine !== ExecutionEngine.Terminal || ((this._taskSystem !== undefined) && !(this._taskSystem instanceof TerminalTaskSystem))) {
-				throw new Error(TaskService.ProcessTaskSystemSupportMessage);
-			}
-			return value;
-		});
-	}
-
-	protected computeLegacyConfiguration(workspaceFolder: IWorkspaceFolder): Promise<WorkspaceFolderConfigurationResult> {
+	protected _computeLegacyConfiguration(workspaceFolder: IWorkspaceFolder): Promise<IWorkspaceFolderConfigurationResult> {
 		throw new Error(TaskService.ProcessTaskSystemSupportMessage);
 	}
 
-	protected versionAndEngineCompatible(filter?: TaskFilter): boolean {
+	protected _versionAndEngineCompatible(filter?: ITaskFilter): boolean {
 		return this.executionEngine === ExecutionEngine.Terminal;
 	}
 }
 
-registerSingleton(ITaskService, TaskService, true);
+registerSingleton(ITaskService, TaskService, InstantiationType.Delayed);

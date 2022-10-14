@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentVariableCollection, EnvironmentVariableMutatorType, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff, IExtensionOwnedEnvironmentVariableMutator } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
+import { EnvironmentVariableMutatorType, IEnvironmentVariableCollection, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { VariableResolver } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 
 export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVariableCollection {
 	readonly map: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 
-	constructor(collections: Map<string, IEnvironmentVariableCollection>) {
+	constructor(
+		readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>
+	) {
 		collections.forEach((collection, extensionIdentifier) => {
 			const it = collection.map.entries();
 			let next = it.next();
@@ -41,28 +44,29 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		});
 	}
 
-	applyToProcessEnvironment(env: IProcessEnvironment): void {
+	async applyToProcessEnvironment(env: IProcessEnvironment, variableResolver?: VariableResolver): Promise<void> {
 		let lowerToActualVariableNames: { [lowerKey: string]: string | undefined } | undefined;
 		if (isWindows) {
 			lowerToActualVariableNames = {};
 			Object.keys(env).forEach(e => lowerToActualVariableNames![e.toLowerCase()] = e);
 		}
-		this.map.forEach((mutators, variable) => {
+		for (const [variable, mutators] of this.map) {
 			const actualVariable = isWindows ? lowerToActualVariableNames![variable.toLowerCase()] || variable : variable;
-			mutators.forEach(mutator => {
+			for (const mutator of mutators) {
+				const value = variableResolver ? await variableResolver(mutator.value) : mutator.value;
 				switch (mutator.type) {
 					case EnvironmentVariableMutatorType.Append:
-						env[actualVariable] = (env[actualVariable] || '') + mutator.value;
+						env[actualVariable] = (env[actualVariable] || '') + value;
 						break;
 					case EnvironmentVariableMutatorType.Prepend:
-						env[actualVariable] = mutator.value + (env[actualVariable] || '');
+						env[actualVariable] = value + (env[actualVariable] || '');
 						break;
 					case EnvironmentVariableMutatorType.Replace:
-						env[actualVariable] = mutator.value;
+						env[actualVariable] = value;
 						break;
 				}
-			});
-		});
+			}
+		}
 	}
 
 	diff(other: IMergedEnvironmentVariableCollection): IMergedEnvironmentVariableCollectionDiff | undefined {

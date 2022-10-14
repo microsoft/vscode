@@ -3,11 +3,12 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "publisher": "vscode",
+  "license": "MIT",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.41.0"
   },
-  "enableProposedApi": true,
+  "icon": "images/icon.png",
   "categories": [
     "Other"
   ],
@@ -15,16 +16,79 @@
     "*"
   ],
   "extensionDependencies": [
-    "vscode.git"
+    "vscode.git-base"
   ],
   "main": "./out/extension.js",
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "enabledApiProposals": [
+    "contribShareMenu",
+    "contribEditSessions"
+  ],
   "contributes": {
     "commands": [
       {
         "command": "github.publish",
         "title": "Publish to GitHub"
+      },
+      {
+        "command": "github.copyVscodeDevLink",
+        "title": "Copy vscode.dev Link"
+      },
+      {
+        "command": "github.copyVscodeDevLinkFile",
+        "title": "Copy vscode.dev Link"
+      },
+      {
+        "command": "github.openOnVscodeDev",
+        "title": "Open on vscode.dev",
+        "icon": "$(globe)"
       }
     ],
+    "continueEditSession": [
+      {
+        "command": "github.openOnVscodeDev",
+        "when": "github.hasGitHubRepo"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "github.publish",
+          "when": "git-base.gitEnabled && remoteName != 'codespaces'"
+        },
+        {
+          "command": "github.copyVscodeDevLink",
+          "when": "false"
+        },
+        {
+          "command": "github.copyVscodeDevLinkFile",
+          "when": "false"
+        },
+        {
+          "command": "github.openOnVscodeDev",
+          "when": "false"
+        }
+      ],
+      "file/share": [
+        {
+            "command": "github.copyVscodeDevLinkFile",
+            "when": "github.hasGitHubRepo",
+            "group": "0_vscode@0"
+        }
+      ],
+      "editor/context/share": [
+        {
+            "command": "github.copyVscodeDevLink",
+            "when": "github.hasGitHubRepo && resourceScheme != untitled",
+            "group": "0_vscode@0"
+        }
+      ]
+    },
     "configuration": [
       {
         "title": "GitHub",
@@ -34,6 +98,15 @@
             "scope": "resource",
             "default": true,
             "description": "%config.gitAuthentication%"
+          },
+          "github.gitProtocol": {
+            "type": "string",
+            "enum": [
+              "https",
+              "ssh"
+            ],
+            "default": "https",
+            "description": "%config.gitProtocol%"
           }
         }
       }
@@ -49,6 +122,9 @@
         "contents": "%welcome.publishWorkspaceFolder%",
         "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0"
       }
+    ],
+    "markdown.previewStyles": [
+      "./markdown.css"
     ]
   },
   "scripts": {
@@ -57,11 +133,15 @@
     "watch": "gulp watch-extension:github"
   },
   "dependencies": {
-    "@octokit/rest": "^18.0.1",
+    "@octokit/rest": "19.0.4",
     "tunnel": "^0.0.6",
-    "vscode-nls": "^4.1.2"
+    "vscode-nls": "^5.2.0"
   },
   "devDependencies": {
-    "@types/node": "^10.12.21"
+    "@types/node": "16.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

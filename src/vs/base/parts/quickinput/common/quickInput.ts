@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMatch } from 'vs/base/common/filters';
 import { IItemAccessor } from 'vs/base/common/fuzzyScorer';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import Severity from 'vs/base/common/severity';
+import { URI } from 'vs/base/common/uri';
 
 export interface IQuickPickItemHighlights {
 	label?: IMatch[];
@@ -17,10 +18,13 @@ export interface IQuickPickItemHighlights {
 	detail?: IMatch[];
 }
 
+export type QuickPickItem = IQuickPickSeparator | IQuickPickItem;
+
 export interface IQuickPickItem {
 	type?: 'item';
 	id?: string;
 	label: string;
+	meta?: string;
 	ariaLabel?: string;
 	description?: string;
 	detail?: string;
@@ -41,7 +45,10 @@ export interface IQuickPickItem {
 
 export interface IQuickPickSeparator {
 	type: 'separator';
+	id?: string;
 	label?: string;
+	ariaLabel?: string;
+	buttons?: IQuickInputButton[];
 }
 
 export interface IKeyMods {
@@ -56,6 +63,11 @@ export interface IQuickNavigateConfiguration {
 }
 
 export interface IPickOptions<T extends IQuickPickItem> {
+
+	/**
+	 * an optional string to show as the title of the quick input
+	 */
+	title?: string;
 
 	/**
 	 * an optional string to show as placeholder in the input box to guide the user what she picks on
@@ -98,6 +110,13 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	quickNavigate?: IQuickNavigateConfiguration;
 
 	/**
+	 * Hides the input box from the picker UI. This is typically used
+	 * in combination with quick-navigation where no search UI should
+	 * be presented.
+	 */
+	hideInput?: boolean;
+
+	/**
 	 * a context key to set when this picker is active
 	 */
 	contextKey?: string;
@@ -110,9 +129,15 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	onKeyMods?: (keyMods: IKeyMods) => void;
 	onDidFocus?: (entry: T) => void;
 	onDidTriggerItemButton?: (context: IQuickPickItemButtonContext<T>) => void;
+	onDidTriggerSeparatorButton?: (context: IQuickPickSeparatorButtonEvent) => void;
 }
 
 export interface IInputOptions {
+
+	/**
+	 * an optional string to show as the title of the quick input
+	 */
+	title?: string;
 
 	/**
 	 * the value to prefill in the input box
@@ -144,12 +169,34 @@ export interface IInputOptions {
 	/**
 	 * an optional function that is used to validate user input.
 	 */
-	validateInput?: (input: string) => Promise<string | null | undefined>;
+	validateInput?: (input: string) => Promise<string | null | undefined | { content: string; severity: Severity }>;
+}
+
+export enum QuickInputHideReason {
+
+	/**
+	 * Focus moved away from the quick input.
+	 */
+	Blur = 1,
+
+	/**
+	 * An explicit user gesture, e.g. pressing Escape key.
+	 */
+	Gesture,
+
+	/**
+	 * Anything else.
+	 */
+	Other
+}
+
+export interface IQuickInputHideEvent {
+	reason: QuickInputHideReason;
 }
 
 export interface IQuickInput extends IDisposable {
 
-	readonly onDidHide: Event<void>;
+	readonly onDidHide: Event<IQuickInputHideEvent>;
 	readonly onDispose: Event<void>;
 
 	title: string | undefined;
@@ -173,7 +220,17 @@ export interface IQuickInput extends IDisposable {
 	hide(): void;
 }
 
-export interface IQuickPickAcceptEvent {
+export interface IQuickPickWillAcceptEvent {
+
+	/**
+	 * Allows to disable the default accept handling
+	 * of the picker. If `veto` is called, the picker
+	 * will not trigger the `onDidAccept` event.
+	 */
+	veto(): void;
+}
+
+export interface IQuickPickDidAcceptEvent {
 
 	/**
 	 * Signals if the picker item is to be accepted
@@ -205,7 +262,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	readonly onDidChangeValue: Event<string>;
 
-	readonly onDidAccept: Event<IQuickPickAcceptEvent>;
+	readonly onWillAccept: Event<IQuickPickWillAcceptEvent>;
+	readonly onDidAccept: Event<IQuickPickDidAcceptEvent>;
 
 	/**
 	 * If enabled, will fire the `onDidAccept` event when
@@ -230,6 +288,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	readonly onDidTriggerItemButton: Event<IQuickPickItemButtonEvent<T>>;
 
+	readonly onDidTriggerSeparatorButton: Event<IQuickPickSeparatorButtonEvent>;
+
 	items: ReadonlyArray<T | IQuickPickSeparator>;
 
 	canSelectMany: boolean;
@@ -240,9 +300,18 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	matchOnLabel: boolean;
 
+	/**
+	 * The mode to filter label with. Fuzzy will use fuzzy searching and
+	 * contiguous will make filter entries that do not contain the exact string
+	 * (including whitespace). This defaults to `'fuzzy'`.
+	 */
+	matchOnLabelMode: 'fuzzy' | 'contiguous';
+
 	sortByLabel: boolean;
 
 	autoFocusOnList: boolean;
+
+	keepScrollPosition: boolean;
 
 	quickNavigate: IQuickNavigateConfiguration | undefined;
 
@@ -277,34 +346,79 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	hideInput: boolean;
 
 	hideCheckAll: boolean;
+
+	/**
+	 * A set of `Toggle` objects to add to the input box.
+	 */
+	toggles: IQuickInputToggle[] | undefined;
+}
+
+export interface IQuickInputToggle {
+	onChange: Event<boolean /* via keyboard */>;
 }
 
 export interface IInputBox extends IQuickInput {
 
+	/**
+	 * Value shown in the input box.
+	 */
 	value: string;
 
+	/**
+	 * Provide start and end values to be selected in the input box.
+	 */
 	valueSelection: Readonly<[number, number]> | undefined;
 
+	/**
+	 * Value shown as example for input.
+	 */
 	placeholder: string | undefined;
 
+	/**
+	 * Determines if the input value should be hidden while typing.
+	 */
 	password: boolean;
 
+	/**
+	 * Event called when the input value changes.
+	 */
 	readonly onDidChangeValue: Event<string>;
 
+	/**
+	 * Event called when the user submits the input.
+	 */
 	readonly onDidAccept: Event<void>;
 
+	/**
+	 * Buttons to show in addition to user input submission.
+	 */
 	buttons: ReadonlyArray<IQuickInputButton>;
 
+	/**
+	 * Event called when a button is selected.
+	 */
 	readonly onDidTriggerButton: Event<IQuickInputButton>;
 
+	/**
+	 * Text show below the input box.
+	 */
 	prompt: string | undefined;
 
+	/**
+	 * An optional validation message indicating a problem with the current input value.
+	 * Returning undefined clears the validation message.
+	 */
 	validationMessage: string | undefined;
+
+	/**
+	 * Severity of the input validation message.
+	 */
+	severity: Severity;
 }
 
 export interface IQuickInputButton {
 	/** iconPath or iconClass required */
-	iconPath?: { dark: URI; light?: URI; };
+	iconPath?: { dark: URI; light?: URI };
 	/** iconPath or iconClass required */
 	iconClass?: string;
 	tooltip?: string;
@@ -320,6 +434,11 @@ export interface IQuickPickItemButtonEvent<T extends IQuickPickItem> {
 	item: T;
 }
 
+export interface IQuickPickSeparatorButtonEvent {
+	button: IQuickInputButton;
+	separator: IQuickPickSeparator;
+}
+
 export interface IQuickPickItemButtonContext<T extends IQuickPickItem> extends IQuickPickItemButtonEvent<T> {
 	removeItem(): void;
 }
@@ -327,13 +446,13 @@ export interface IQuickPickItemButtonContext<T extends IQuickPickItem> extends I
 export type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSeparator;
 
 
-//region Fuzzy Scorer Support
+//#region Fuzzy Scorer Support
 
 export type IQuickPickItemWithResource = IQuickPickItem & { resource?: URI };
 
 export class QuickPickItemScorerAccessor implements IItemAccessor<IQuickPickItemWithResource> {
 
-	constructor(private options?: { skipDescription?: boolean, skipPath?: boolean }) { }
+	constructor(private options?: { skipDescription?: boolean; skipPath?: boolean }) { }
 
 	getItemLabel(entry: IQuickPickItemWithResource): string {
 		return entry.label;

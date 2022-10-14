@@ -21,23 +21,23 @@ suite('Debug - Utils', () => {
 	});
 
 	test('getExactExpressionStartAndEnd', () => {
-		assert.deepEqual(getExactExpressionStartAndEnd('foo', 1, 2), { start: 1, end: 3 });
-		assert.deepEqual(getExactExpressionStartAndEnd('foo', 1, 3), { start: 1, end: 3 });
-		assert.deepEqual(getExactExpressionStartAndEnd('foo', 1, 4), { start: 1, end: 3 });
-		assert.deepEqual(getExactExpressionStartAndEnd('this.name = "John"', 1, 10), { start: 1, end: 9 });
-		assert.deepEqual(getExactExpressionStartAndEnd('this.name = "John"', 6, 10), { start: 1, end: 9 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('foo', 1, 2), { start: 1, end: 3 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('foo', 1, 3), { start: 1, end: 3 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('foo', 1, 4), { start: 1, end: 3 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('this.name = "John"', 1, 10), { start: 1, end: 9 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('this.name = "John"', 6, 10), { start: 1, end: 9 });
 		// Hovers over "address" should pick up this->address
-		assert.deepEqual(getExactExpressionStartAndEnd('this->address = "Main street"', 6, 10), { start: 1, end: 13 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('this->address = "Main street"', 6, 10), { start: 1, end: 13 });
 		// Hovers over "name" should pick up a.b.c.d.name
-		assert.deepEqual(getExactExpressionStartAndEnd('var t = a.b.c.d.name', 16, 20), { start: 9, end: 20 });
-		assert.deepEqual(getExactExpressionStartAndEnd('MyClass::StaticProp', 10, 20), { start: 1, end: 19 });
-		assert.deepEqual(getExactExpressionStartAndEnd('largeNumber = myVar?.prop', 21, 25), { start: 15, end: 25 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('var t = a.b.c.d.name', 16, 20), { start: 9, end: 20 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('MyClass::StaticProp', 10, 20), { start: 1, end: 19 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('largeNumber = myVar?.prop', 21, 25), { start: 15, end: 25 });
 
 		// For example in expression 'a.b.c.d', hover was under 'b', 'a.b' should be the exact range
-		assert.deepEqual(getExactExpressionStartAndEnd('var t = a.b.c.d.name', 11, 12), { start: 9, end: 11 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('var t = a.b.c.d.name', 11, 12), { start: 9, end: 11 });
 
-		assert.deepEqual(getExactExpressionStartAndEnd('var t = a.b;c.d.name', 16, 20), { start: 13, end: 20 });
-		assert.deepEqual(getExactExpressionStartAndEnd('var t = a.b.c-d.name', 16, 20), { start: 15, end: 20 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('var t = a.b;c.d.name', 16, 20), { start: 13, end: 20 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('var t = a.b.c-d.name', 16, 20), { start: 15, end: 20 });
 	});
 
 	test('config presentation', () => {
@@ -122,16 +122,16 @@ suite('Debug - Utils', () => {
 		});
 
 		const sorted = getVisibleAndSorted(configs);
-		assert.equal(sorted.length, 9);
-		assert.equal(sorted[0].name, 'f');
-		assert.equal(sorted[1].name, 'd');
-		assert.equal(sorted[2].name, 'e');
-		assert.equal(sorted[3].name, 'g');
-		assert.equal(sorted[4].name, 'h');
-		assert.equal(sorted[5].name, 'i');
-		assert.equal(sorted[6].name, 'b');
-		assert.equal(sorted[7].name, 'p');
-		assert.equal(sorted[8].name, 'a');
+		assert.strictEqual(sorted.length, 9);
+		assert.strictEqual(sorted[0].name, 'f');
+		assert.strictEqual(sorted[1].name, 'd');
+		assert.strictEqual(sorted[2].name, 'e');
+		assert.strictEqual(sorted[3].name, 'g');
+		assert.strictEqual(sorted[4].name, 'h');
+		assert.strictEqual(sorted[5].name, 'i');
+		assert.strictEqual(sorted[6].name, 'b');
+		assert.strictEqual(sorted[7].name, 'p');
+		assert.strictEqual(sorted[8].name, 'a');
 
 	});
 });

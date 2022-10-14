@@ -4,108 +4,17 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/b6c5e83016b52311cdc622c2579462861ee91587",
+	"version": "https://github.com/atom/language-php/commit/ff64523c94c014d68f5dec189b05557649c5872a",
 	"name": "PHP",
 	"scopeName": "text.html.php",
 	"injections": {
-		"L:source.php string.quoted.single.sql.php source.sql.embedded.php": {
+		"L:meta.embedded.php.blade": {
 			"patterns": [
 				{
-					"match": "(#)(\\\\'|[^'])*(?='|$)",
-					"name": "comment.line.number-sign.sql",
-					"captures": {
-						"1": {
-							"name": "punctuation.definition.comment.sql"
-						}
-					}
+					"include": "text.html.basic"
 				},
 				{
-					"match": "(--)(\\\\'|[^'])*(?='|$)",
-					"name": "comment.line.double-dash.sql",
-					"captures": {
-						"1": {
-							"name": "punctuation.definition.comment.sql"
-						}
-					}
-				},
-				{
-					"match": "\\\\[\\\\'`\"]",
-					"name": "constant.character.escape.php"
-				},
-				{
-					"match": "\"(?=((\\\\\")|[^\"'])*('|$))",
-					"name": "string.quoted.double.unclosed.sql"
-				}
-			]
-		},
-		"L:source.php string.quoted.double.sql.php source.sql.embedded.php": {
-			"patterns": [
-				{
-					"match": "(#)(\\\\\"|[^\"])*(?=\"|$)",
-					"name": "comment.line.number-sign.sql",
-					"captures": {
-						"1": {
-							"name": "punctuation.definition.comment.sql"
-						}
-					}
-				},
-				{
-					"match": "(--)(\\\\\"|[^\"])*(?=\"|$)",
-					"name": "comment.line.double-dash.sql",
-					"captures": {
-						"1": {
-							"name": "punctuation.definition.comment.sql"
-						}
-					}
-				},
-				{
-					"match": "\\\\[\\\\'`\"]",
-					"name": "constant.character.escape.php"
-				},
-				{
-					"match": "(')([^'\\\\]*)(')",
-					"name": "string.quoted.single.sql",
-					"captures": {
-						"1": {
-							"name": "punctuation.definition.string.begin.sql"
-						},
-						"2": {
-							"patterns": [
-								{
-									"include": "source.php#interpolation_double_quoted"
-								}
-							]
-						},
-						"3": {
-							"name": "punctuation.definition.string.end.sql"
-						}
-					}
-				},
-				{
-					"match": "(`)([^`\\\\]*)(`)",
-					"name": "string.quoted.other.backtick.sql",
-					"captures": {
-						"1": {
-							"name": "punctuation.definition.string.begin.sql"
-						},
-						"2": {
-							"patterns": [
-								{
-									"include": "source.php#interpolation_double_quoted"
-								}
-							]
-						},
-						"3": {
-							"name": "punctuation.definition.string.end.sql"
-						}
-					}
-				},
-				{
-					"match": "'(?=((\\\\')|[^'\"])*(\"|$))",
-					"name": "string.quoted.single.unclosed.sql"
-				},
-				{
-					"include": "source.php#interpolation_double_quoted"
+					"include": "text.html.php.blade#blade"
 				}
 			]
 		},

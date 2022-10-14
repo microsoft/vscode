@@ -10,7 +10,7 @@ import * as platform from 'vs/base/common/platform';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution, EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, Handler } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference } from 'vs/editor/common/model';
@@ -37,11 +37,11 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 				}
 			}));
 
-			let setSelectionToClipboard = this._register(new RunOnceScheduler(() => {
+			const setSelectionToClipboard = this._register(new RunOnceScheduler(() => {
 				if (!editor.hasModel()) {
 					return;
 				}
-				let model = editor.getModel();
+				const model = editor.getModel();
 				let selections = editor.getSelections();
 				selections = selections.slice(0);
 				selections.sort(Range.compareRangesUsingStarts);
@@ -61,12 +61,12 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 					return;
 				}
 
-				let result: string[] = [];
+				const result: string[] = [];
 				for (const sel of selections) {
 					result.push(model.getValueInRange(sel, EndOfLinePreference.TextDefined));
 				}
 
-				let textToCopy = result.join(model.getEOL());
+				const textToCopy = result.join(model.getEOL());
 				clipboardService.writeText(textToCopy, 'selection');
 			}, 100));
 
@@ -84,7 +84,7 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 		}
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 	}
 }
@@ -97,7 +97,7 @@ class SelectionClipboardPastePreventer implements IWorkbenchContribution {
 			document.addEventListener('mouseup', (e) => {
 				if (e.button === 1) {
 					// middle button
-					const config = configurationService.getValue<{ selectionClipboard: boolean; }>('editor');
+					const config = configurationService.getValue<{ selectionClipboard: boolean }>('editor');
 					if (!config.selectionClipboard) {
 						// selection clipboard is disabled
 						// try to stop the upcoming paste

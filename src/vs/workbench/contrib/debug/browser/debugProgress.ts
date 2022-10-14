@@ -39,7 +39,7 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 					if (viewsService.isViewContainerVisible(VIEWLET_ID)) {
 						progressService.withProgress({ location: VIEWLET_ID }, () => promise);
 					}
-					const source = debugService.getConfigurationManager().getDebuggerLabel(session.configuration.type);
+					const source = debugService.getAdapterManager().getDebuggerLabel(session.configuration.type);
 					progressService.withProgress({
 						location: ProgressLocation.Notification,
 						title: progressStartEvent.body.title,
@@ -49,7 +49,7 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 						delay: 500
 					}, progressStep => {
 						let total = 0;
-						const reportProgress = (progress: { message?: string, percentage?: number }) => {
+						const reportProgress = (progress: { message?: string; percentage?: number }) => {
 							let increment = undefined;
 							if (typeof progress.percentage === 'number') {
 								increment = progress.percentage - total;

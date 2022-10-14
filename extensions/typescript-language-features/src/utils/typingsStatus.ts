@@ -27,7 +27,7 @@ export default class TypingsStatus extends Disposable {
 			this._client.onDidEndInstallTypings(event => this.onEndInstallTypings(event.eventId)));
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 
 		for (const timeout of this._acquiringTypings.values()) {
@@ -68,7 +68,7 @@ export class AtaProgressReporter extends Disposable {
 		this._register(client.onTypesInstallerInitializationFailed(_ => this.onTypesInstallerInitializationFailed()));
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this._promises.forEach(value => value());
 	}
@@ -106,7 +106,7 @@ export class AtaProgressReporter extends Disposable {
 			const selected = await vscode.window.showWarningMessage(
 				localize(
 					'typesInstallerInitializationFailed.title',
-					"Could not install typings files for JavaScript language features. Please ensure that NPM is installed or configure 'typescript.npm' in your user settings. Click [here]({0}) to learn more.",
+					"Could not install typings files for JavaScript language features. Please ensure that NPM is installed, or configure 'typescript.npm' in your user settings. Alternatively, check the [documentation]({0}) to learn more.",
 					'https://go.microsoft.com/fwlink/?linkid=847635'
 				),
 				dontShowAgain);

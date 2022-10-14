@@ -5,14 +5,14 @@
 
 import 'vs/css!./glyphMargin';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { RenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as viewEvents from 'vs/editor/common/viewEvents';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
 export class DecorationToRender {
-	_decorationToRenderBrand: void;
+	_decorationToRenderBrand: void = undefined;
 
 	public startLineNumber: number;
 	public endLineNumber: number;
@@ -98,7 +98,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		this._context.addEventHandler(this);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._context.removeEventHandler(this);
 		this._renderResult = null;
 		super.dispose();
@@ -106,7 +106,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 
 	// --- begin event handlers
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
@@ -116,25 +116,25 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 		return true;
 	}
-	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		return true;
 	}
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
 	}
-	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		return true;
 	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged;
 	}
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 
@@ -142,7 +142,8 @@ export class GlyphMarginOverlay extends DedupOverlay {
 
 	protected _getDecorations(ctx: RenderingContext): DecorationToRender[] {
 		const decorations = ctx.getDecorationsInViewport();
-		let r: DecorationToRender[] = [], rLen = 0;
+		const r: DecorationToRender[] = [];
+		let rLen = 0;
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const d = decorations[i];
 			const glyphMarginClassName = d.options.glyphMarginClassName;

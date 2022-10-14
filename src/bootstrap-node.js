@@ -6,6 +6,33 @@
 //@ts-check
 'use strict';
 
+// Setup current working directory in all our node & electron processes
+// - Windows: call `process.chdir()` to always set application folder as cwd
+// -  all OS: store the `process.cwd()` inside `VSCODE_CWD` for consistent lookups
+function setupCurrentWorkingDirectory() {
+	const path = require('path');
+
+	try {
+
+		// Store the `process.cwd()` inside `VSCODE_CWD`
+		// for consistent lookups, but make sure to only
+		// do this once unless defined already from e.g.
+		// a parent process.
+		if (typeof process.env['VSCODE_CWD'] !== 'string') {
+			process.env['VSCODE_CWD'] = process.cwd();
+		}
+
+		// Windows: always set application folder as current working dir
+		if (process.platform === 'win32') {
+			process.chdir(path.dirname(process.execPath));
+		}
+	} catch (err) {
+		console.error(err);
+	}
+}
+
+setupCurrentWorkingDirectory();
+
 /**
  * Add support for redirecting the loading of node modules
  *
@@ -56,5 +83,75 @@ exports.removeGlobalNodeModuleLookupPaths = function () {
 			commonSuffixLength++;
 		}
 		return paths.slice(0, paths.length - commonSuffixLength);
+	};
+};
+
+/**
+ * Helper to enable portable mode.
+ *
+ * @param {Partial<import('./vs/base/common/product').IProductConfiguration>} product
+ * @returns {{ portableDataPath: string; isPortable: boolean; }}
+ */
+exports.configurePortable = function (product) {
+	const fs = require('fs');
+	const path = require('path');
+
+	const appRoot = path.dirname(__dirname);
+
+	/**
+	 * @param {import('path')} path
+	 */
+	function getApplicationPath(path) {
+		if (process.env['VSCODE_DEV']) {
+			return appRoot;
+		}
+
+		if (process.platform === 'darwin') {
+			return path.dirname(path.dirname(path.dirname(appRoot)));
+		}
+
+		return path.dirname(path.dirname(appRoot));
+	}
+
+	/**
+	 * @param {import('path')} path
+	 */
+	function getPortableDataPath(path) {
+		if (process.env['VSCODE_PORTABLE']) {
+			return process.env['VSCODE_PORTABLE'];
+		}
+
+		if (process.platform === 'win32' || process.platform === 'linux') {
+			return path.join(getApplicationPath(path), 'data');
+		}
+
+		// @ts-ignore
+		const portableDataName = product.portable || `${product.applicationName}-portable-data`;
+		return path.join(path.dirname(getApplicationPath(path)), portableDataName);
+	}
+
+	const portableDataPath = getPortableDataPath(path);
+	const isPortable = !('target' in product) && fs.existsSync(portableDataPath);
+	const portableTempPath = path.join(portableDataPath, 'tmp');
+	const isTempPortable = isPortable && fs.existsSync(portableTempPath);
+
+	if (isPortable) {
+		process.env['VSCODE_PORTABLE'] = portableDataPath;
+	} else {
+		delete process.env['VSCODE_PORTABLE'];
+	}
+
+	if (isTempPortable) {
+		if (process.platform === 'win32') {
+			process.env['TMP'] = portableTempPath;
+			process.env['TEMP'] = portableTempPath;
+		} else {
+			process.env['TMPDIR'] = portableTempPath;
+		}
+	}
+
+	return {
+		portableDataPath,
+		isPortable
 	};
 };

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMirrorModel, IWorkerContext } from 'vs/editor/common/services/editorSimpleWorker';
-import { ILink } from 'vs/editor/common/modes';
+import { ILink } from 'vs/editor/common/languages';
 import { URI } from 'vs/base/common/uri';
 import * as extpath from 'vs/base/common/extpath';
 import * as resources from 'vs/base/common/resources';
@@ -56,7 +56,7 @@ export class OutputLinkComputer {
 		}
 
 		const links: ILink[] = [];
-		const lines = model.getValue().split(/\r\n|\r|\n/);
+		const lines = strings.splitLines(model.getValue());
 
 		// For each workspace root patterns
 		for (const [folderUri, folderPatterns] of this.patterns) {

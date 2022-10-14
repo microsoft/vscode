@@ -15,7 +15,7 @@ import { Action } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findModel';
+import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/browser/findModel';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -25,15 +25,17 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { attachFindReplaceInputBoxStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { appendKeyBindingLabel, isSearchViewFocused, getSearchView } from 'vs/workbench/contrib/search/browser/searchActions';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { isMacintosh } from 'vs/base/common/platform';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { IViewsService } from 'vs/workbench/common/views';
 import { searchReplaceAllIcon, searchHideReplaceIcon, searchShowContextIcon, searchShowReplaceIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { ToggleSearchEditorContextLinesCommandId } from 'vs/workbench/contrib/searchEditor/browser/constants';
+import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
 
 /** Specified in searchview.css */
 export const SingleLineInputHeight = 24;
@@ -56,14 +58,14 @@ class ReplaceAllAction extends Action {
 	static readonly ID: string = 'search.action.replaceAll';
 
 	constructor(private _searchWidget: SearchWidget) {
-		super(ReplaceAllAction.ID, '', searchReplaceAllIcon.classNames, false);
+		super(ReplaceAllAction.ID, '', ThemeIcon.asClassName(searchReplaceAllIcon), false);
 	}
 
 	set searchWidget(searchWidget: SearchWidget) {
 		this._searchWidget = searchWidget;
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		if (this._searchWidget) {
 			return this._searchWidget.triggerReplaceAll();
 		}
@@ -116,8 +118,8 @@ export class SearchWidget extends Widget {
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string | null = null;
 
-	private _onSearchSubmit = this._register(new Emitter<{ triggeredOnType: boolean, delay: number }>());
-	readonly onSearchSubmit: Event<{ triggeredOnType: boolean, delay: number }> = this._onSearchSubmit.event;
+	private _onSearchSubmit = this._register(new Emitter<{ triggeredOnType: boolean; delay: number }>());
+	readonly onSearchSubmit: Event<{ triggeredOnType: boolean; delay: number }> = this._onSearchSubmit.event;
 
 	private _onSearchCancel = this._register(new Emitter<{ focus: boolean }>());
 	readonly onSearchCancel: Event<{ focus: boolean }> = this._onSearchCancel.event;
@@ -146,8 +148,8 @@ export class SearchWidget extends Widget {
 	private readonly _onDidToggleContext = new Emitter<void>();
 	readonly onDidToggleContext: Event<void> = this._onDidToggleContext.event;
 
-	private showContextCheckbox!: Checkbox;
-	private contextLinesInput!: InputBox;
+	private showContextToggle!: Toggle;
+	public contextLinesInput!: InputBox;
 
 	constructor(
 		container: HTMLElement,
@@ -155,7 +157,7 @@ export class SearchWidget extends Widget {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly keyBindingService: IKeybindingService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IClipboardService private readonly clipboardServce: IClipboardService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
@@ -234,6 +236,7 @@ export class SearchWidget extends Widget {
 
 	clearHistory(): void {
 		this.searchInput.inputBox.clearHistory();
+		this.replaceInput.inputBox.clearHistory();
 	}
 
 	showNextSearchTerm() {
@@ -293,8 +296,8 @@ export class SearchWidget extends Widget {
 		};
 		this.toggleReplaceButton = this._register(new Button(parent, opts));
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', 'false');
-		this.toggleReplaceButton.element.classList.add(...searchHideReplaceIcon.classNamesArray);
-		this.toggleReplaceButton.icon = 'toggle-replace-button';
+		this.toggleReplaceButton.element.classList.add('toggle-replace-button');
+		this.toggleReplaceButton.icon = searchHideReplaceIcon;
 		// TODO@joao need to dispose this listener eventually
 		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
 		this.toggleReplaceButton.element.title = nls.localize('search.replace.toggle.button.title', "Toggle Replace");
@@ -305,16 +308,18 @@ export class SearchWidget extends Widget {
 			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search'),
 			validation: (value: string) => this.validateSearchInput(value),
 			placeholder: nls.localize('search.placeHolder', "Search"),
-			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleCaseSensitiveCommandId), this.keyBindingService),
-			appendWholeWordsLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleWholeWordCommandId), this.keyBindingService),
-			appendRegexLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleRegexCommandId), this.keyBindingService),
+			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.ToggleCaseSensitiveCommandId), this.keybindingService),
+			appendWholeWordsLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.ToggleWholeWordCommandId), this.keybindingService),
+			appendRegexLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.ToggleRegexCommandId), this.keybindingService),
 			history: options.searchHistory,
+			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
 			flexibleHeight: true,
-			flexibleMaxHeight: SearchWidget.INPUT_MAX_HEIGHT
+			flexibleMaxHeight: SearchWidget.INPUT_MAX_HEIGHT,
+			showCommonFindToggles: true
 		};
 
 		const searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
-		this.searchInput = this._register(new ContextScopedFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService, true));
+		this.searchInput = this._register(new ContextScopedFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService));
 		this._register(attachFindReplaceInputBoxStyler(this.searchInput, this.themeService));
 		this.searchInput.onKeyDown((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyDown(keyboardEvent));
 		this.searchInput.setValue(options.value || '');
@@ -337,7 +342,7 @@ export class SearchWidget extends Widget {
 			const useGlobalFindBuffer = this.searchConfiguration.globalFindClipboard;
 			if (!this.ignoreGlobalFindBufferOnNextFocus && useGlobalFindBuffer) {
 				const globalBufferText = await this.clipboardServce.readFindText();
-				if (this.previousGlobalFindBufferValue !== globalBufferText) {
+				if (globalBufferText && this.previousGlobalFindBufferValue !== globalBufferText) {
 					this.searchInput.inputBox.addToHistory();
 					this.searchInput.setValue(globalBufferText);
 					this.searchInput.select();
@@ -351,21 +356,29 @@ export class SearchWidget extends Widget {
 		this._register(this.searchInputFocusTracker.onDidBlur(() => this.searchInputBoxFocused.set(false)));
 
 
-		this.showContextCheckbox = new Checkbox({ isChecked: false, title: nls.localize('showContext', "Show Context"), icon: searchShowContextIcon });
-		this._register(this.showContextCheckbox.onChange(() => this.onContextLinesChanged()));
+		this.showContextToggle = new Toggle({
+			isChecked: false,
+			title: appendKeyBindingLabel(nls.localize('showContext', "Toggle Context Lines"), this.keybindingService.lookupKeybinding(ToggleSearchEditorContextLinesCommandId), this.keybindingService),
+			icon: searchShowContextIcon
+		});
+		this._register(this.showContextToggle.onChange(() => this.onContextLinesChanged()));
 
 		if (options.showContextToggle) {
 			this.contextLinesInput = new InputBox(searchInputContainer, this.contextViewService, { type: 'number' });
 			this.contextLinesInput.element.classList.add('context-lines-input');
 			this.contextLinesInput.value = '' + (this.configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor.defaultNumberOfContextLines ?? 1);
-			this._register(this.contextLinesInput.onDidChange(() => this.onContextLinesChanged()));
+			this._register(this.contextLinesInput.onDidChange((value: string) => {
+				if (value !== '0') {
+					this.showContextToggle.checked = true;
+				}
+				this.onContextLinesChanged();
+			}));
 			this._register(attachInputBoxStyler(this.contextLinesInput, this.themeService));
-			dom.append(searchInputContainer, this.showContextCheckbox.domNode);
+			dom.append(searchInputContainer, this.showContextToggle.domNode);
 		}
 	}
 
 	private onContextLinesChanged() {
-		this.domNode.classList.toggle('show-context', this.showContextCheckbox.checked);
 		this._onDidToggleContext.fire();
 
 		if (this.contextLinesInput.value.includes('-')) {
@@ -378,12 +391,11 @@ export class SearchWidget extends Widget {
 	public setContextLines(lines: number) {
 		if (!this.contextLinesInput) { return; }
 		if (lines === 0) {
-			this.showContextCheckbox.checked = false;
+			this.showContextToggle.checked = false;
 		} else {
-			this.showContextCheckbox.checked = true;
+			this.showContextToggle.checked = true;
 			this.contextLinesInput.value = '' + lines;
 		}
-		this.domNode.classList.toggle('show-context', this.showContextCheckbox.checked);
 	}
 
 	private renderReplaceInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
@@ -393,8 +405,9 @@ export class SearchWidget extends Widget {
 		this.replaceInput = this._register(new ContextScopedReplaceInput(replaceBox, this.contextViewService, {
 			label: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
-			appendPreserveCaseLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.TogglePreserveCaseId), this.keyBindingService),
+			appendPreserveCaseLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.TogglePreserveCaseId), this.keybindingService),
 			history: options.replaceHistory,
+			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
 			flexibleHeight: true,
 			flexibleMaxHeight: SearchWidget.INPUT_MAX_HEIGHT
 		}, this.contextKeyService, true));
@@ -431,11 +444,11 @@ export class SearchWidget extends Widget {
 	private onToggleReplaceButton(): void {
 		this.replaceContainer.classList.toggle('disabled');
 		if (this.isReplaceShown()) {
-			this.toggleReplaceButton.element.classList.remove(...searchHideReplaceIcon.classNamesArray);
-			this.toggleReplaceButton.element.classList.add(...searchShowReplaceIcon.classNamesArray);
+			this.toggleReplaceButton.element.classList.remove(...ThemeIcon.asClassNameArray(searchHideReplaceIcon));
+			this.toggleReplaceButton.element.classList.add(...ThemeIcon.asClassNameArray(searchShowReplaceIcon));
 		} else {
-			this.toggleReplaceButton.element.classList.remove(...searchShowReplaceIcon.classNamesArray);
-			this.toggleReplaceButton.element.classList.add(...searchHideReplaceIcon.classNamesArray);
+			this.toggleReplaceButton.element.classList.remove(...ThemeIcon.asClassNameArray(searchShowReplaceIcon));
+			this.toggleReplaceButton.element.classList.add(...ThemeIcon.asClassNameArray(searchHideReplaceIcon));
 		}
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', this.isReplaceShown() ? 'true' : 'false');
 		this.updateReplaceActiveState();
@@ -449,7 +462,7 @@ export class SearchWidget extends Widget {
 	setReplaceAllActionState(enabled: boolean): void {
 		if (this.replaceAllAction.enabled !== enabled) {
 			this.replaceAllAction.enabled = enabled;
-			this.replaceAllAction.label = enabled ? SearchWidget.REPLACE_ALL_ENABLED_LABEL(this.keyBindingService) : SearchWidget.REPLACE_ALL_DISABLED_LABEL;
+			this.replaceAllAction.label = enabled ? SearchWidget.REPLACE_ALL_ENABLED_LABEL(this.keybindingService) : SearchWidget.REPLACE_ALL_DISABLED_LABEL;
 			this.updateReplaceActiveState();
 		}
 	}
@@ -575,7 +588,7 @@ export class SearchWidget extends Widget {
 			}
 			keyboardEvent.preventDefault();
 		}
-		else if (KeyMod.Shift | KeyCode.Tab) {
+		else if (keyboardEvent.equals(KeyMod.Shift | KeyCode.Tab)) {
 			this.focusRegexAction();
 			keyboardEvent.preventDefault();
 		}
@@ -633,22 +646,22 @@ export class SearchWidget extends Widget {
 	}
 
 	getContextLines() {
-		return this.showContextCheckbox.checked ? +this.contextLinesInput.value : 0;
+		return this.showContextToggle.checked ? +this.contextLinesInput.value : 0;
 	}
 
 	modifyContextLines(increase: boolean) {
 		const current = +this.contextLinesInput.value;
 		const modified = current + (increase ? 1 : -1);
-		this.showContextCheckbox.checked = modified !== 0;
+		this.showContextToggle.checked = modified !== 0;
 		this.contextLinesInput.value = '' + modified;
 	}
 
 	toggleContextLines() {
-		this.showContextCheckbox.checked = !this.showContextCheckbox.checked;
+		this.showContextToggle.checked = !this.showContextToggle.checked;
 		this.onContextLinesChanged();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.setReplaceAllActionState(false);
 		super.dispose();
 	}

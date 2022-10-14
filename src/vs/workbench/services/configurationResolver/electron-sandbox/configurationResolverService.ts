@@ -10,11 +10,12 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/baseConfigurationResolverService';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class ConfigurationResolverService extends BaseConfigurationResolverService {
 
@@ -25,14 +26,21 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 		@ICommandService commandService: ICommandService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IQuickInputService quickInputService: IQuickInputService,
-		@ILabelService labelService: ILabelService
+		@ILabelService labelService: ILabelService,
+		@IShellEnvironmentService shellEnvironmentService: IShellEnvironmentService,
+		@IPathService pathService: IPathService,
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		super({
+			getAppRoot: (): string | undefined => {
+				return environmentService.appRoot;
+			},
 			getExecPath: (): string | undefined => {
 				return environmentService.execPath;
-			}
-		}, process.env as IProcessEnvironment, editorService, configurationService, commandService, workspaceContextService, quickInputService, labelService);
+			},
+		}, shellEnvironmentService.getShellEnv(), editorService, configurationService, commandService,
+			workspaceContextService, quickInputService, labelService, pathService, extensionService);
 	}
 }
 
-registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
+registerSingleton(IConfigurationResolverService, ConfigurationResolverService, InstantiationType.Delayed);

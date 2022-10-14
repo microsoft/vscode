@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
-import { mapArrayOrNot } from 'vs/base/common/arrays';
+import { flatten, mapArrayOrNot } from 'vs/base/common/arrays';
+import { isThenable } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import * as resources from 'vs/base/common/resources';
-import * as glob from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
-import { IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
-import { TextSearchProvider, TextSearchResult, TextSearchMatch, TextSearchComplete, Range, TextSearchOptions, TextSearchQuery } from 'vs/workbench/services/search/common/searchExtTypes';
-import { nextTick } from 'vs/base/common/process';
 import { Schemas } from 'vs/base/common/network';
+import * as path from 'vs/base/common/path';
+import * as resources from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { hasSiblingPromiseFn, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
+import { Range, TextSearchComplete, TextSearchMatch, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;
@@ -27,7 +26,7 @@ export class TextSearchManager {
 	private isLimitHit = false;
 	private resultCount = 0;
 
-	constructor(private query: ITextQuery, private provider: TextSearchProvider, private fileUtils: IFileUtils) { }
+	constructor(private query: ITextQuery, private provider: TextSearchProvider, private fileUtils: IFileUtils, private processType: ITextSearchStats['type']) { }
 
 	search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const folderQueries = this.query.folderQueries || [];
@@ -71,8 +70,13 @@ export class TextSearchManager {
 				const someFolderHitLImit = results.some(result => !!result && !!result.limitHit);
 				resolve({
 					limitHit: this.isLimitHit || someFolderHitLImit,
+					messages: flatten(results.map(result => {
+						if (!result?.message) { return []; }
+						if (Array.isArray(result.message)) { return result.message; }
+						else { return [result.message]; }
+					})),
 					stats: {
-						type: 'textSearchProvider'
+						type: this.processType
 					}
 				});
 			}, (err: Error) => {
@@ -109,7 +113,7 @@ export class TextSearchManager {
 		};
 	}
 
-	private searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: TextSearchResult) => void, token: CancellationToken): Promise<TextSearchComplete | null | undefined> {
+	private async searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: TextSearchResult) => void, token: CancellationToken): Promise<TextSearchComplete | null | undefined> {
 		const queryTester = new QueryGlobTester(this.query, folderQuery);
 		const testingPs: Promise<void>[] = [];
 		const progress = {
@@ -119,31 +123,36 @@ export class TextSearchManager {
 				}
 
 				const hasSibling = folderQuery.folder.scheme === Schemas.file ?
-					glob.hasSiblingPromiseFn(() => {
+					hasSiblingPromiseFn(() => {
 						return this.fileUtils.readdir(resources.dirname(result.uri));
 					}) :
 					undefined;
 
 				const relativePath = resources.relativePath(folderQuery.folder, result.uri);
 				if (relativePath) {
-					testingPs.push(
-						queryTester.includedInQuery(relativePath, path.basename(relativePath), hasSibling)
-							.then(included => {
-								if (included) {
+					// This method is only async when the exclude contains sibling clauses
+					const included = queryTester.includedInQuery(relativePath, path.basename(relativePath), hasSibling);
+					if (isThenable(included)) {
+						testingPs.push(
+							included.then(isIncluded => {
+								if (isIncluded) {
 									onResult(result);
 								}
 							}));
+					} else if (included) {
+						onResult(result);
+					}
 				}
 			}
 		};
 
 		const searchOptions = this.getSearchOptionsForFolder(folderQuery);
-		return new Promise(resolve => nextTick(resolve))
-			.then(() => this.provider.provideTextSearchResults(patternInfoToQuery(this.query.contentPattern), searchOptions, progress, token))
-			.then(result => {
-				return Promise.all(testingPs)
-					.then(() => result);
-			});
+		const result = await this.provider.provideTextSearchResults(patternInfoToQuery(this.query.contentPattern), searchOptions, progress, token);
+		if (testingPs.length) {
+			await Promise.all(testingPs);
+		}
+
+		return result;
 	}
 
 	private validateProviderResult(result: TextSearchResult): boolean {
@@ -179,6 +188,7 @@ export class TextSearchManager {
 			includes,
 			useIgnoreFiles: !fq.disregardIgnoreFiles,
 			useGlobalIgnoreFiles: !fq.disregardGlobalIgnoreFiles,
+			useParentIgnoreFiles: !fq.disregardParentIgnoreFiles,
 			followSymlinks: !fq.ignoreSymlinks,
 			encoding: fq.fileEncoding && this.fileUtils.toCanonicalName(fq.fileEncoding),
 			maxFileSize: this.query.maxFileSize,

@@ -3,20 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
-import { IColorTheme, IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService, IFileIconTheme, IProductIconTheme } from 'vs/platform/theme/common/themeService';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { isBoolean, isString } from 'vs/base/common/types';
+import { IconContribution, IconDefinition } from 'vs/platform/theme/common/iconRegistry';
 
-export const IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
+export const IWorkbenchThemeService = refineServiceDecorator<IThemeService, IWorkbenchThemeService>(IThemeService);
 
 export const VS_LIGHT_THEME = 'vs';
 export const VS_DARK_THEME = 'vs-dark';
 export const VS_HC_THEME = 'hc-black';
+export const VS_HC_LIGHT_THEME = 'hc-light';
 
-export const HC_THEME_ID = 'Default High Contrast';
+export const THEME_SCOPE_OPEN_PAREN = '[';
+export const THEME_SCOPE_CLOSE_PAREN = ']';
+export const THEME_SCOPE_WILDCARD = '*';
+
+export const themeScopeRegex = /\[(.+?)\]/g;
 
 export enum ThemeSettings {
 	COLOR_THEME = 'workbench.colorTheme',
@@ -25,11 +31,11 @@ export enum ThemeSettings {
 	COLOR_CUSTOMIZATIONS = 'workbench.colorCustomizations',
 	TOKEN_COLOR_CUSTOMIZATIONS = 'editor.tokenColorCustomizations',
 	SEMANTIC_TOKEN_COLOR_CUSTOMIZATIONS = 'editor.semanticTokenColorCustomizations',
-	TOKEN_COLOR_CUSTOMIZATIONS_EXPERIMENTAL = 'editor.tokenColorCustomizationsExperimental',
 
 	PREFERRED_DARK_THEME = 'workbench.preferredDarkColorTheme',
 	PREFERRED_LIGHT_THEME = 'workbench.preferredLightColorTheme',
-	PREFERRED_HC_THEME = 'workbench.preferredHighContrastColorTheme',
+	PREFERRED_HC_DARK_THEME = 'workbench.preferredHighContrastColorTheme', /* id kept for compatibility reasons */
+	PREFERRED_HC_LIGHT_THEME = 'workbench.preferredHighContrastLightColorTheme',
 	DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme',
 	DETECT_HC = 'window.autoDetectHighContrast'
 }
@@ -54,36 +60,46 @@ export interface IColorMap {
 export interface IWorkbenchFileIconTheme extends IWorkbenchTheme, IFileIconTheme {
 }
 
-export interface IWorkbenchProductIconTheme extends IWorkbenchTheme {
+export interface IWorkbenchProductIconTheme extends IWorkbenchTheme, IProductIconTheme {
 	readonly settingsId: string;
+
+	getIcon(icon: IconContribution): IconDefinition | undefined;
 }
+
+export type ThemeSettingTarget = ConfigurationTarget | undefined | 'auto' | 'preview';
 
 
 export interface IWorkbenchThemeService extends IThemeService {
 	readonly _serviceBrand: undefined;
-	setColorTheme(themeId: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchColorTheme | null>;
+	setColorTheme(themeId: string | undefined | IWorkbenchColorTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme | null>;
 	getColorTheme(): IWorkbenchColorTheme;
 	getColorThemes(): Promise<IWorkbenchColorTheme[]>;
+	getMarketplaceColorThemes(publisher: string, name: string, version: string): Promise<IWorkbenchColorTheme[]>;
 	onDidColorThemeChange: Event<IWorkbenchColorTheme>;
-	restoreColorTheme(): void;
 
-	setFileIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchFileIconTheme>;
+	setFileIconTheme(iconThemeId: string | undefined | IWorkbenchFileIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchFileIconTheme>;
 	getFileIconTheme(): IWorkbenchFileIconTheme;
 	getFileIconThemes(): Promise<IWorkbenchFileIconTheme[]>;
+	getMarketplaceFileIconThemes(publisher: string, name: string, version: string): Promise<IWorkbenchFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IWorkbenchFileIconTheme>;
 
-	setProductIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchProductIconTheme>;
+	setProductIconTheme(iconThemeId: string | undefined | IWorkbenchProductIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchProductIconTheme>;
 	getProductIconTheme(): IWorkbenchProductIconTheme;
 	getProductIconThemes(): Promise<IWorkbenchProductIconTheme[]>;
+	getMarketplaceProductIconThemes(publisher: string, name: string, version: string): Promise<IWorkbenchProductIconTheme[]>;
 	onDidProductIconThemeChange: Event<IWorkbenchProductIconTheme>;
 }
 
-export interface IColorCustomizations {
-	[colorIdOrThemeSettingsId: string]: string | IColorCustomizations;
+export interface IThemeScopedColorCustomizations {
+	[colorId: string]: string;
 }
 
-export interface ITokenColorCustomizations {
-	[groupIdOrThemeSettingsId: string]: string | ITokenColorizationSetting | ITokenColorCustomizations | undefined | ITextMateThemingRule[] | boolean;
+export interface IColorCustomizations {
+	[colorIdOrThemeScope: string]: IThemeScopedColorCustomizations | string;
+}
+
+export interface IThemeScopedTokenColorCustomizations {
+	[groupId: string]: ITextMateThemingRule[] | ITokenColorizationSetting | boolean | string | undefined;
 	comments?: string | ITokenColorizationSetting;
 	strings?: string | ITokenColorizationSetting;
 	numbers?: string | ITokenColorizationSetting;
@@ -95,15 +111,50 @@ export interface ITokenColorCustomizations {
 	semanticHighlighting?: boolean; // deprecated, use ISemanticTokenColorCustomizations.enabled instead
 }
 
-export interface ISemanticTokenColorCustomizations {
+export interface ITokenColorCustomizations {
+	[groupIdOrThemeScope: string]: IThemeScopedTokenColorCustomizations | ITextMateThemingRule[] | ITokenColorizationSetting | boolean | string | undefined;
+	comments?: string | ITokenColorizationSetting;
+	strings?: string | ITokenColorizationSetting;
+	numbers?: string | ITokenColorizationSetting;
+	keywords?: string | ITokenColorizationSetting;
+	types?: string | ITokenColorizationSetting;
+	functions?: string | ITokenColorizationSetting;
+	variables?: string | ITokenColorizationSetting;
+	textMateRules?: ITextMateThemingRule[];
+	semanticHighlighting?: boolean; // deprecated, use ISemanticTokenColorCustomizations.enabled instead
+}
+
+export interface IThemeScopedSemanticTokenColorCustomizations {
+	[styleRule: string]: ISemanticTokenRules | boolean | undefined;
 	enabled?: boolean;
 	rules?: ISemanticTokenRules;
-	[styleRuleOrThemeSettingsId: string]: ISemanticTokenRules | ISemanticTokenColorCustomizations | boolean | undefined;
+}
+
+export interface ISemanticTokenColorCustomizations {
+	[styleRuleOrThemeScope: string]: IThemeScopedSemanticTokenColorCustomizations | ISemanticTokenRules | boolean | undefined;
+	enabled?: boolean;
+	rules?: ISemanticTokenRules;
+}
+
+export interface IThemeScopedExperimentalSemanticTokenColorCustomizations {
+	[themeScope: string]: ISemanticTokenRules | undefined;
 }
 
 export interface IExperimentalSemanticTokenColorCustomizations {
-	[styleRuleOrThemeSettingsId: string]: ISemanticTokenRules | IExperimentalSemanticTokenColorCustomizations | undefined;
+	[styleRuleOrThemeScope: string]: IThemeScopedExperimentalSemanticTokenColorCustomizations | ISemanticTokenRules | undefined;
 }
+
+export type IThemeScopedCustomizations =
+	IThemeScopedColorCustomizations
+	| IThemeScopedTokenColorCustomizations
+	| IThemeScopedExperimentalSemanticTokenColorCustomizations
+	| IThemeScopedSemanticTokenColorCustomizations;
+
+export type IThemeScopableCustomizations =
+	IColorCustomizations
+	| ITokenColorCustomizations
+	| IExperimentalSemanticTokenColorCustomizations
+	| ISemanticTokenColorCustomizations;
 
 export interface ISemanticTokenRules {
 	[selector: string]: string | ISemanticTokenColorizationSetting | undefined;
@@ -118,15 +169,22 @@ export interface ITextMateThemingRule {
 export interface ITokenColorizationSetting {
 	foreground?: string;
 	background?: string;
-	fontStyle?: string; /* [italic|underline|bold] */
+	fontStyle?: string; /* [italic|bold|underline|strikethrough] */
 }
 
 export interface ISemanticTokenColorizationSetting {
 	foreground?: string;
-	fontStyle?: string; /* [italic|underline|bold] */
+	fontStyle?: string; /* [italic|bold|underline|strikethrough] */
 	bold?: boolean;
 	underline?: boolean;
+	strikethrough?: boolean;
 	italic?: boolean;
+}
+
+export interface ExtensionVersion {
+	publisher: string;
+	name: string;
+	version: string;
 }
 
 export interface ExtensionData {
@@ -146,6 +204,9 @@ export namespace ExtensionData {
 		}
 		return undefined;
 	}
+	export function fromName(publisher: string, name: string, isBuiltin = false): ExtensionData {
+		return { extensionPublisher: publisher, extensionId: `${publisher}.${name}`, extensionName: name, extensionIsBuiltin: isBuiltin };
+	}
 }
 
 export interface IThemeExtensionPoint {
@@ -153,6 +214,6 @@ export interface IThemeExtensionPoint {
 	label?: string;
 	description?: string;
 	path: string;
-	uiTheme?: typeof VS_LIGHT_THEME | typeof VS_DARK_THEME | typeof VS_HC_THEME;
+	uiTheme?: typeof VS_LIGHT_THEME | typeof VS_DARK_THEME | typeof VS_HC_THEME | typeof VS_HC_LIGHT_THEME;
 	_watch: boolean; // unsupported options to watch location
 }

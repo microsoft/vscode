@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.extension-sync-ignored.hide {
+	display: none;
+}
+
 .extension-ratings {
 	display: inline-block;
 }
@@ -11,7 +15,7 @@
 	font-size: 80%;
 }
 
-.extension-ratings > .codicon[class*='codicon-star']:not(:first-child) {
+.extension-ratings > .codicon[class*='codicon-extensions-rating']:not(:first-child) {
 	margin-left: 3px;
 }
 
@@ -23,19 +27,8 @@
 	margin-left: 0;
 }
 
-/* TODO @misolori make this a color token */
-.extension-ratings .codicon-star-full,
-.extension-ratings .codicon-star-half {
-	color: #FF8E00 !important;
-}
-
-.extension-install-count .codicon,
-.extension-action.codicon-gear {
-	color: inherit;
-}
-
-.extension-ratings .codicon-star-empty {
-	opacity: .4;
+.extension-ratings .codicon-extensions-star-empty {
+	opacity: .75;
 }
 
 .extension-bookmark {
@@ -44,14 +37,21 @@
 	width: 20px;
 }
 
-.extension-bookmark > .recommendation {
+.extension-bookmark > .recommendation,
+.extension-bookmark > .pre-release {
 	border-right: 20px solid transparent;
 	border-top: 20px solid;
 	box-sizing: border-box;
 	position: relative;
 }
 
-.extension-bookmark > .recommendation > .codicon {
+.extension-bookmark > .pre-release {
+	border-top-color: var(--vscode-extensionIcon-preReleaseForeground);
+	color: #ffffff;
+}
+
+.extension-bookmark > .recommendation > .codicon,
+.extension-bookmark > .pre-release > .codicon {
 	position: absolute;
 	bottom: 9px;
 	left: 1px;

@@ -5,88 +5,147 @@
 
 import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
+import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Event } from 'vs/base/common/event';
+import { ISearchOptions } from 'xterm-addon-search';
 
 export class TerminalFindWidget extends SimpleFindWidget {
-	protected _findInputFocused: IContextKey<boolean>;
-	protected _findWidgetFocused: IContextKey<boolean>;
+	private _findInputFocused: IContextKey<boolean>;
+	private _findWidgetFocused: IContextKey<boolean>;
+	private _findWidgetVisible: IContextKey<boolean>;
 
 	constructor(
-		findState: FindReplaceState,
+		readonly findState: FindReplaceState,
+		private _instance: ITerminalInstance,
 		@IContextViewService _contextViewService: IContextViewService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
-		super(_contextViewService, _contextKeyService, findState, true);
+		super(findState, { showCommonFindToggles: true, showResultCount: true, type: 'Terminal' }, _contextViewService, _contextKeyService, keybindingService);
+
 		this._register(findState.onFindReplaceStateChange(() => {
 			this.show();
 		}));
-		this._findInputFocused = KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_FOCUSED.bindTo(this._contextKeyService);
-		this._findWidgetFocused = KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED.bindTo(this._contextKeyService);
-	}
-
-	public find(previous: boolean) {
-		const instance = this._terminalService.getActiveInstance();
-		if (instance !== null) {
-			if (previous) {
-				instance.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
-			} else {
-				instance.findNext(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
+		this._findInputFocused = TerminalContextKeys.findInputFocus.bindTo(this._contextKeyService);
+		this._findWidgetFocused = TerminalContextKeys.findFocus.bindTo(this._contextKeyService);
+		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(this._contextKeyService);
+		this.updateTheme(this._themeService.getColorTheme());
+		this._register(this._themeService.onDidColorThemeChange((theme?: IColorTheme) => {
+			this.updateTheme(theme ?? this._themeService.getColorTheme());
+			if (this.isVisible()) {
+				this.find(true, true);
 			}
+		}));
+		this._register(this._configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('workbench.colorCustomizations') && this.isVisible()) {
+				this.find(true, true);
+			}
+		}));
+	}
+
+	find(previous: boolean, update?: boolean) {
+		const xterm = this._instance.xterm;
+		if (!xterm) {
+			return;
+		}
+		if (previous) {
+			this._findPreviousWithEvent(xterm, this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: update });
+		} else {
+			this._findNextWithEvent(xterm, this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
 		}
 	}
 
-	public hide() {
+	override reveal(): void {
+		const initialInput = this._instance.hasSelection() && this._instance.selection!.indexOf('\n') === -1 ? this._instance.selection : undefined;
+		const xterm = this._instance.xterm;
+		if (xterm && this.inputValue && this.inputValue !== '') {
+			// trigger highlight all matches
+			this._findPreviousWithEvent(xterm, this.inputValue, { incremental: true, regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() }).then(foundMatch => {
+				this.updateButtons(foundMatch);
+				this._register(Event.once(xterm.onDidChangeSelection)(() => xterm.clearActiveSearchDecoration()));
+			});
+		}
+		this.updateButtons(false);
+
+		super.reveal(initialInput);
+		this._findWidgetVisible.set(true);
+	}
+
+	override show() {
+		const initialInput = this._instance.hasSelection() && this._instance.selection!.indexOf('\n') === -1 ? this._instance.selection : undefined;
+		super.show(initialInput);
+		this._findWidgetVisible.set(true);
+	}
+
+	override hide() {
 		super.hide();
-		const instance = this._terminalService.getActiveInstance();
-		if (instance) {
-			instance.focus();
-		}
+		this._findWidgetVisible.reset();
+		this._instance.focus();
+		this._instance.xterm?.clearSearchDecorations();
 	}
 
-	protected onInputChanged() {
+	protected async _getResultCount(): Promise<{ resultIndex: number; resultCount: number } | undefined> {
+		return this._instance.xterm?.findResult;
+	}
+
+	protected _onInputChanged() {
 		// Ignore input changes for now
-		const instance = this._terminalService.getActiveInstance();
-		if (instance !== null) {
-			return instance.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: true });
+		const xterm = this._instance.xterm;
+		if (xterm) {
+			this._findPreviousWithEvent(xterm, this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: true }).then(foundMatch => {
+				this.updateButtons(foundMatch);
+			});
 		}
 		return false;
 	}
 
-	protected onFocusTrackerFocus() {
-		const instance = this._terminalService.getActiveInstance();
-		if (instance) {
-			instance.notifyFindWidgetFocusChanged(true);
-		}
+	protected _onFocusTrackerFocus() {
 		this._findWidgetFocused.set(true);
 	}
 
-	protected onFocusTrackerBlur() {
-		const instance = this._terminalService.getActiveInstance();
-		if (instance) {
-			instance.notifyFindWidgetFocusChanged(false);
-		}
+	protected _onFocusTrackerBlur() {
+		this._instance.xterm?.clearActiveSearchDecoration();
 		this._findWidgetFocused.reset();
 	}
 
-	protected onFindInputFocusTrackerFocus() {
+	protected _onFindInputFocusTrackerFocus() {
 		this._findInputFocused.set(true);
 	}
 
-	protected onFindInputFocusTrackerBlur() {
+	protected _onFindInputFocusTrackerBlur() {
 		this._findInputFocused.reset();
 	}
 
-	public findFirst() {
-		const instance = this._terminalService.getActiveInstance();
-		if (instance) {
-			if (instance.hasSelection()) {
-				instance.clearSelection();
-			}
-			instance.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
+	findFirst() {
+		const instance = this._instance;
+		if (instance.hasSelection()) {
+			instance.clearSelection();
 		}
+		const xterm = instance.xterm;
+		if (xterm) {
+			this._findPreviousWithEvent(xterm, this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
+		}
+	}
+
+	private async _findNextWithEvent(xterm: IXtermTerminal, term: string, options: ISearchOptions): Promise<boolean> {
+		return xterm.findNext(term, options).then(foundMatch => {
+			this._register(Event.once(xterm.onDidChangeSelection)(() => xterm.clearActiveSearchDecoration()));
+			return foundMatch;
+		});
+	}
+
+	private async _findPreviousWithEvent(xterm: IXtermTerminal, term: string, options: ISearchOptions): Promise<boolean> {
+		return xterm.findPrevious(term, options).then(foundMatch => {
+			this._register(Event.once(xterm.onDidChangeSelection)(() => xterm.clearActiveSearchDecoration()));
+			return foundMatch;
+		});
 	}
 }

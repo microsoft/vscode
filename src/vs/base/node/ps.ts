@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
-import { ProcessItem } from 'vs/base/common/processes';
 import { FileAccess } from 'vs/base/common/network';
+import { ProcessItem } from 'vs/base/common/processes';
 
 export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
@@ -48,17 +48,15 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 		function findName(cmd: string): string {
 
-			const SHARED_PROCESS_HINT = /--disable-blink-features=Auxclick/;
-			const WINDOWS_WATCHER_HINT = /\\watcher\\win32\\CodeHelper\.exe/;
+			const SHARED_PROCESS_HINT = /--vscode-window-kind=shared-process/;
+			const ISSUE_REPORTER_HINT = /--vscode-window-kind=issue-reporter/;
+			const PROCESS_EXPLORER_HINT = /--vscode-window-kind=process-explorer/;
+			const UTILITY_NETWORK_HINT = /--utility-sub-type=network/;
+			const UTILITY_EXTENSION_HOST_HINT = /--utility-sub-type=node.mojom.NodeService/;
 			const WINDOWS_CRASH_REPORTER = /--crashes-directory/;
 			const WINDOWS_PTY = /\\pipe\\winpty-control/;
 			const WINDOWS_CONSOLE_HOST = /conhost\.exe/;
 			const TYPE = /--type=([a-zA-Z-]+)/;
-
-			// find windows file watcher
-			if (WINDOWS_WATCHER_HINT.exec(cmd)) {
-				return 'watcherService ';
-			}
 
 			// find windows crash reporter
 			if (WINDOWS_CRASH_REPORTER.exec(cmd)) {
@@ -83,7 +81,23 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 						return 'shared-process';
 					}
 
+					if (ISSUE_REPORTER_HINT.exec(cmd)) {
+						return 'issue-reporter';
+					}
+
+					if (PROCESS_EXPLORER_HINT.exec(cmd)) {
+						return 'process-explorer';
+					}
+
 					return `window`;
+				} else if (matches[1] === 'utility') {
+					if (UTILITY_NETWORK_HINT.exec(cmd)) {
+						return 'utility-network-service';
+					}
+
+					if (UTILITY_EXTENSION_HOST_HINT.exec(cmd)) {
+						return 'extension-host';
+					}
 				}
 				return matches[1];
 			}
@@ -124,6 +138,10 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 			(import('windows-process-tree')).then(windowsProcessTree => {
 				windowsProcessTree.getProcessList(rootPid, (processList) => {
+					if (!processList) {
+						reject(new Error(`Root process ${rootPid} not found`));
+						return;
+					}
 					windowsProcessTree.getProcessCpuUsage(processList, (completeProcessList) => {
 						const processItems: Map<number, ProcessItem> = new Map();
 						completeProcessList.forEach(process => {

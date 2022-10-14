@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { ICommandAction, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { ICommandAction } from 'vs/platform/action/common/action';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IWebIssueService, WebIssueService } from 'vs/workbench/contrib/issue/browser/issueService';
-import { OpenIssueReporterArgs, OpenIssueReporterActionId } from 'vs/workbench/contrib/issue/common/commands';
+import { WebIssueService } from 'vs/workbench/contrib/issue/browser/issueService';
+import { OpenIssueReporterArgs, OpenIssueReporterActionId, OpenIssueReporterApiCommandId } from 'vs/workbench/contrib/issue/common/commands';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 
 class RegisterIssueContribution implements IWorkbenchContribution {
 
@@ -31,16 +33,69 @@ class RegisterIssueContribution implements IWorkbenchContribution {
 					}
 				}
 
-				return accessor.get(IWebIssueService).openReporter({ extensionId });
+				return accessor.get(IWorkbenchIssueService).openReporter({ extensionId });
+			});
+
+			CommandsRegistry.registerCommand({
+				id: OpenIssueReporterApiCommandId,
+				handler: function (accessor, args?: [string] | OpenIssueReporterArgs) {
+					let extensionId: string | undefined;
+					if (args) {
+						if (Array.isArray(args)) {
+							[extensionId] = args;
+						} else {
+							extensionId = args.extensionId;
+						}
+					}
+
+					if (!!extensionId && typeof extensionId !== 'string') {
+						throw new Error(`Invalid argument when running '${OpenIssueReporterApiCommandId}: 'extensionId' must be of type string `);
+					}
+
+					return accessor.get(IWorkbenchIssueService).openReporter({ extensionId });
+				},
+				description: {
+					description: 'Open the issue reporter and optionally prefill part of the form.',
+					args: [
+						{
+							name: 'options',
+							description: 'Data to use to prefill the issue reporter with.',
+							isOptional: true,
+							schema: {
+								oneOf: [
+									{
+										type: 'string',
+										description: 'The extension id to preselect.'
+									},
+									{
+										type: 'object',
+										properties: {
+											extensionId: {
+												type: 'string'
+											},
+										}
+
+									}
+								]
+							}
+						},
+					]
+				}
 			});
 
 			const command: ICommandAction = {
 				id: OpenIssueReporterActionId,
 				title: { value: OpenIssueReporterActionLabel, original: 'Report Issue' },
-				category: CATEGORIES.Help
+				category: Categories.Help
 			};
 
 			MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command });
+
+			MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+				group: '3_feedback',
+				command,
+				order: 3
+			});
 		}
 	}
 }
@@ -51,4 +106,4 @@ CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
 	return nls.localize('statusUnsupported', "The --status argument is not yet supported in browsers.");
 });
 
-registerSingleton(IWebIssueService, WebIssueService, true);
+registerSingleton(IWorkbenchIssueService, WebIssueService, InstantiationType.Delayed);

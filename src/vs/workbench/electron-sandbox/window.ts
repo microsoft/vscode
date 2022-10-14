@@ -3,72 +3,73 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import * as errors from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { equals } from 'vs/base/common/objects';
-import * as DOM from 'vs/base/browser/dom';
-import { IAction, Separator } from 'vs/base/common/actions';
+import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame, ModifierKeyEmitter } from 'vs/base/browser/dom';
+import { Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
-import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
-import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/window/common/window';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
+import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IMenuService, MenuId, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { ICommandAction } from 'vs/platform/action/common/action';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { LifecyclePhase, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { LifecyclePhase, ILifecycleService, WillShutdownEvent, ShutdownReason, BeforeShutdownErrorEvent, BeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { isWindows, isMacintosh } from 'vs/base/common/platform';
+import { isWindows, isMacintosh, isCI } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { coalesce } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MenubarControl } from '../browser/parts/titlebar/menubarControl';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IUpdateService } from 'vs/platform/update/common/update';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IPreferencesService } from '../services/preferences/common/preferences';
-import { IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
-import { IMenubarService } from 'vs/platform/menubar/electron-sandbox/menubar';
-import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { assertIsDefined } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { posix, dirname } from 'vs/base/common/path';
-import { getBaseLabel } from 'vs/base/common/labels';
-import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
+import { posix } from 'vs/base/common/path';
+import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/tunnel/common/tunnel';
 import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { Event } from 'vs/base/common/event';
-import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { whenEditorClosed } from 'vs/workbench/browser/editor';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { dirname } from 'vs/base/common/resources';
+import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
+import { Codicon } from 'vs/base/common/codicons';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class NativeWindow extends Disposable {
-
-	private static REMEMBER_PROXY_CREDENTIALS_KEY = 'window.rememberProxyCredentials';
 
 	private touchBarMenu: IMenu | undefined;
 	private readonly touchBarDisposables = this._register(new DisposableStore());
@@ -81,7 +82,7 @@ export class NativeWindow extends Disposable {
 	private readonly addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
 	private pendingFoldersToAdd: URI[] = [];
 
-	private readonly closeEmptyWindowScheduler = this._register(new RunOnceScheduler(() => this.onAllEditorsClosed(), 50));
+	private readonly closeEmptyWindowScheduler = this._register(new RunOnceScheduler(() => this.onDidAllEditorsClose(), 50));
 
 	private isDocumentedEdited = false;
 
@@ -103,7 +104,6 @@ export class NativeWindow extends Disposable {
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
@@ -113,7 +113,14 @@ export class NativeWindow extends Disposable {
 		@IProductService private readonly productService: IProductService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
+		@IProgressService private readonly progressService: IProgressService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IBannerService private readonly bannerService: IBannerService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -123,15 +130,18 @@ export class NativeWindow extends Disposable {
 
 	private registerListeners(): void {
 
+		// Layout
+		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
+
 		// React to editor input changes
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
-		// prevent opening a real URL inside the shell
-		[DOM.EventType.DRAG_OVER, DOM.EventType.DROP].forEach(event => {
+		// prevent opening a real URL inside the window
+		for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
 			window.document.body.addEventListener(event, (e: DragEvent) => {
-				DOM.EventHelper.stop(e);
+				EventHelper.stop(e);
 			});
-		});
+		}
 
 		// Support runAction event
 		ipcRenderer.on('vscode:runAction', async (event: unknown, request: INativeRunActionInWindowRequest) => {
@@ -154,11 +164,7 @@ export class NativeWindow extends Disposable {
 			try {
 				await this.commandService.executeCommand(request.id, ...args);
 
-				type CommandExecutedClassifcation = {
-					id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-					from: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				};
-				this.telemetryService.publicLog2<{ id: String, from: String }, CommandExecutedClassifcation>('commandExecuted', { id: request.id, from: request.from });
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: request.id, from: request.from });
 			} catch (error) {
 				this.notificationService.error(error);
 			}
@@ -174,54 +180,64 @@ export class NativeWindow extends Disposable {
 		// Error reporting from main
 		ipcRenderer.on('vscode:reportError', (event: unknown, error: string) => {
 			if (error) {
-				errors.onUnexpectedError(JSON.parse(error));
+				onUnexpectedError(JSON.parse(error));
 			}
 		});
 
 		// Support openFiles event for existing and new files
-		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => this.onOpenFiles(request));
+		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => { this.onOpenFiles(request); });
 
 		// Support addFolders event if we have a workspace opened
-		ipcRenderer.on('vscode:addFolders', (event: unknown, request: IAddFoldersRequest) => this.onAddFoldersRequest(request));
+		ipcRenderer.on('vscode:addFolders', (event: unknown, request: IAddFoldersRequest) => { this.onAddFoldersRequest(request); });
 
 		// Message support
-		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => {
-			this.notificationService.info(message);
+		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => { this.notificationService.info(message); });
+
+		// Shell Environment Issue Notifications
+		ipcRenderer.on('vscode:showResolveShellEnvError', (event: unknown, message: string) => {
+			this.notificationService.prompt(
+				Severity.Error,
+				message,
+				[{
+					label: localize('learnMore', "Learn More"),
+					run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
+				}]
+			);
 		});
 
-		// Display change events
-		ipcRenderer.on('vscode:displayChanged', () => {
-			clearAllFontInfos();
+		ipcRenderer.on('vscode:showCredentialsError', (event: unknown, message: string) => {
+			this.notificationService.prompt(
+				Severity.Error,
+				localize('keychainWriteError', "Writing login information to the keychain failed with error '{0}'.", message),
+				[{
+					label: localize('troubleshooting', "Troubleshooting Guide"),
+					run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2190713')
+				}]
+			);
 		});
 
 		// Fullscreen Events
-		ipcRenderer.on('vscode:enterFullScreen', async () => {
-			await this.lifecycleService.when(LifecyclePhase.Ready);
-			setFullscreen(true);
-		});
-
-		ipcRenderer.on('vscode:leaveFullScreen', async () => {
-			await this.lifecycleService.when(LifecyclePhase.Ready);
-			setFullscreen(false);
-		});
+		ipcRenderer.on('vscode:enterFullScreen', async () => { setFullscreen(true); });
+		ipcRenderer.on('vscode:leaveFullScreen', async () => { setFullscreen(false); });
 
 		// Proxy Login Dialog
-		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo, username?: string, password?: string, replyChannel: string }) => {
-			const rememberCredentials = this.storageService.getBoolean(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
-			const result = await this.dialogService.input(Severity.Warning, nls.localize('proxyAuthRequired', "Proxy Authentication Required"),
+		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string }) => {
+			const rememberCredentialsKey = 'window.rememberProxyCredentials';
+			const rememberCredentials = this.storageService.getBoolean(rememberCredentialsKey, StorageScope.APPLICATION);
+			const result = await this.dialogService.input(Severity.Warning, localize('proxyAuthRequired', "Proxy Authentication Required"),
 				[
-					nls.localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
-					nls.localize({ key: 'cancelButton', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+					localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
+					localize({ key: 'cancelButton', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
 				],
 				[
-					{ placeholder: nls.localize('username', "Username"), value: payload.username },
-					{ placeholder: nls.localize('password', "Password"), type: 'password', value: payload.password }
+					{ placeholder: localize('username', "Username"), value: payload.username },
+					{ placeholder: localize('password', "Password"), type: 'password', value: payload.password }
 				],
 				{
 					cancelId: 1,
-					detail: nls.localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
+					detail: localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
 					checkbox: {
-						label: nls.localize('rememberCredentials', "Remember my credentials"),
+						label: localize('rememberCredentials', "Remember my credentials"),
 						checked: rememberCredentials
 					}
 				});
@@ -237,9 +253,9 @@ export class NativeWindow extends Disposable {
 
 				// Update state based on checkbox
 				if (result.checkboxChecked) {
-					this.storageService.store(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, true, StorageScope.GLOBAL);
+					this.storageService.store(rememberCredentialsKey, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 				} else {
-					this.storageService.remove(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
+					this.storageService.remove(rememberCredentialsKey, StorageScope.APPLICATION);
 				}
 
 				// Reply back to main side with credentials
@@ -264,10 +280,10 @@ export class NativeWindow extends Disposable {
 		}));
 
 		// Listen to visible editor changes
-		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
+		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidChangeVisibleEditors()));
 
 		// Listen to editor closing (if we run with --wait)
-		const filesToWait = this.environmentService.configuration.filesToWait;
+		const filesToWait = this.environmentService.filesToWait;
 		if (filesToWait) {
 			this.trackClosedWaitFiles(filesToWait.waitMarkerFileUri, coalesce(filesToWait.paths.map(path => path.fileUri)));
 		}
@@ -278,7 +294,7 @@ export class NativeWindow extends Disposable {
 				const file = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file });
 
 				// Represented Filename
-				this.updateRepresentedFilename(file?.fsPath);
+				this.nativeHostService.setRepresentedFilename(file?.fsPath ?? '');
 
 				// Custom title menu
 				this.provideCustomTitleContextMenu(file?.fsPath);
@@ -286,11 +302,11 @@ export class NativeWindow extends Disposable {
 		}
 
 		// Maximize/Restore on doubleclick (for macOS custom title)
-		if (isMacintosh && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if (isMacintosh && getTitleBarStyle(this.configurationService) === 'custom') {
 			const titlePart = assertIsDefined(this.layoutService.getContainer(Parts.TITLEBAR_PART));
 
-			this._register(DOM.addDisposableListener(titlePart, DOM.EventType.DBLCLICK, e => {
-				DOM.EventHelper.stop(e);
+			this._register(addDisposableListener(titlePart, EventType.DBLCLICK, e => {
+				EventHelper.stop(e);
 
 				this.nativeHostService.handleTitleDoubleClick();
 			}));
@@ -312,15 +328,187 @@ export class NativeWindow extends Disposable {
 		this._register(Event.any(
 			Event.map(Event.filter(this.nativeHostService.onDidMaximizeWindow, id => id === this.nativeHostService.windowId), () => true),
 			Event.map(Event.filter(this.nativeHostService.onDidUnmaximizeWindow, id => id === this.nativeHostService.windowId), () => false)
-		)(e => this.onDidChangeMaximized(e)));
+		)(e => this.onDidChangeWindowMaximized(e)));
 
-		this.onDidChangeMaximized(this.environmentService.configuration.maximized ?? false);
+		this.onDidChangeWindowMaximized(this.environmentService.window.maximized ?? false);
 
 		// Detect panel position to determine minimum width
-		this._register(this.layoutService.onPanelPositionChange(pos => {
-			this.onDidPanelPositionChange(positionFromString(pos));
-		}));
-		this.onDidPanelPositionChange(this.layoutService.getPanelPosition());
+		this._register(this.layoutService.onDidChangePanelPosition(pos => this.onDidChangePanelPosition(positionFromString(pos))));
+		this.onDidChangePanelPosition(this.layoutService.getPanelPosition());
+
+		// Lifecycle
+		this._register(this.lifecycleService.onBeforeShutdown(e => this.onBeforeShutdown(e)));
+		this._register(this.lifecycleService.onBeforeShutdownError(e => this.onBeforeShutdownError(e)));
+		this._register(this.lifecycleService.onWillShutdown(e => this.onWillShutdown(e)));
+	}
+
+	private onBeforeShutdown({ veto, reason }: BeforeShutdownEvent): void {
+		if (reason === ShutdownReason.CLOSE) {
+			const confirmBeforeCloseSetting = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
+
+			const confirmBeforeClose = confirmBeforeCloseSetting === 'always' || (confirmBeforeCloseSetting === 'keyboardOnly' && ModifierKeyEmitter.getInstance().isModifierPressed);
+			if (confirmBeforeClose) {
+
+				// When we need to confirm on close or quit, veto the shutdown
+				// with a long running promise to figure out whether shutdown
+				// can proceed or not.
+
+				return veto((async () => {
+					let actualReason: ShutdownReason = reason;
+					if (reason === ShutdownReason.CLOSE && !isMacintosh) {
+						const windowCount = await this.nativeHostService.getWindowCount();
+						if (windowCount === 1) {
+							actualReason = ShutdownReason.QUIT; // Windows/Linux: closing last window means to QUIT
+						}
+					}
+
+					let confirmed = true;
+					if (confirmBeforeClose) {
+						confirmed = await this.instantiationService.invokeFunction(accessor => NativeWindow.confirmOnShutdown(accessor, actualReason));
+					}
+
+					// Progress for long running shutdown
+					if (confirmed) {
+						this.progressOnBeforeShutdown(reason);
+					}
+
+					return !confirmed;
+				})(), 'veto.confirmBeforeClose');
+			}
+		}
+
+		// Progress for long running shutdown
+		this.progressOnBeforeShutdown(reason);
+	}
+
+	private progressOnBeforeShutdown(reason: ShutdownReason): void {
+		this.progressService.withProgress({
+			location: ProgressLocation.Window, 	// use window progress to not be too annoying about this operation
+			delay: 800,							// delay so that it only appears when operation takes a long time
+			title: this.toShutdownLabel(reason, false),
+		}, () => {
+			return Event.toPromise(Event.any(
+				this.lifecycleService.onWillShutdown, 	// dismiss this dialog when we shutdown
+				this.lifecycleService.onShutdownVeto, 	// or when shutdown was vetoed
+				this.dialogService.onWillShowDialog		// or when a dialog asks for input
+			));
+		});
+	}
+
+	static async confirmOnShutdown(accessor: ServicesAccessor, reason: ShutdownReason): Promise<boolean> {
+		const dialogService = accessor.get(IDialogService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		const message = reason === ShutdownReason.QUIT ?
+			(isMacintosh ? localize('quitMessageMac', "Are you sure you want to quit?") : localize('quitMessage', "Are you sure you want to exit?")) :
+			localize('closeWindowMessage', "Are you sure you want to close the window?");
+		const primaryButton = reason === ShutdownReason.QUIT ?
+			(isMacintosh ? localize({ key: 'quitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Quit") : localize({ key: 'exitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Exit")) :
+			localize({ key: 'closeWindowButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Close Window");
+
+		const res = await dialogService.confirm({
+			type: 'question',
+			message,
+			primaryButton,
+			checkbox: {
+				label: localize('doNotAskAgain', "Do not ask me again")
+			}
+		});
+
+		// Update setting if checkbox checked
+		if (res.checkboxChecked) {
+			await configurationService.updateValue('window.confirmBeforeClose', 'never');
+		}
+
+		return res.confirmed;
+	}
+
+	private onBeforeShutdownError({ error, reason }: BeforeShutdownErrorEvent): void {
+		this.dialogService.show(Severity.Error, this.toShutdownLabel(reason, true), undefined, {
+			detail: localize('shutdownErrorDetail', "Error: {0}", toErrorMessage(error))
+		});
+	}
+
+	private onWillShutdown({ reason, force, joiners }: WillShutdownEvent): void {
+
+		// Delay so that the dialog only appears after timeout
+		const shutdownDialogScheduler = new RunOnceScheduler(() => {
+			const pendingJoiners = joiners();
+
+			this.progressService.withProgress({
+				location: ProgressLocation.Dialog, 				// use a dialog to prevent the user from making any more interactions now
+				buttons: [this.toForceShutdownLabel(reason)],	// allow to force shutdown anyway
+				cancellable: false,								// do not allow to cancel
+				sticky: true,									// do not allow to dismiss
+				title: this.toShutdownLabel(reason, false),
+				detail: pendingJoiners.length > 0 ? localize('willShutdownDetail', "The following operations are still running: \n{0}", pendingJoiners.map(joiner => `- ${joiner.label}`).join('\n')) : undefined
+			}, () => {
+				return Event.toPromise(this.lifecycleService.onDidShutdown); // dismiss this dialog when we actually shutdown
+			}, () => {
+				force();
+			});
+		}, 1200);
+		shutdownDialogScheduler.schedule();
+
+		// Dispose scheduler when we actually shutdown
+		Event.once(this.lifecycleService.onDidShutdown)(() => shutdownDialogScheduler.dispose());
+	}
+
+	private toShutdownLabel(reason: ShutdownReason, isError: boolean): string {
+		if (isError) {
+			switch (reason) {
+				case ShutdownReason.CLOSE:
+					return localize('shutdownErrorClose', "An unexpected error prevented the window to close");
+				case ShutdownReason.QUIT:
+					return localize('shutdownErrorQuit', "An unexpected error prevented the application to quit");
+				case ShutdownReason.RELOAD:
+					return localize('shutdownErrorReload', "An unexpected error prevented the window to reload");
+				case ShutdownReason.LOAD:
+					return localize('shutdownErrorLoad', "An unexpected error prevented to change the workspace");
+			}
+		}
+
+		switch (reason) {
+			case ShutdownReason.CLOSE:
+				return localize('shutdownTitleClose', "Closing the window is taking a bit longer...");
+			case ShutdownReason.QUIT:
+				return localize('shutdownTitleQuit', "Quitting the application is taking a bit longer...");
+			case ShutdownReason.RELOAD:
+				return localize('shutdownTitleReload', "Reloading the window is taking a bit longer...");
+			case ShutdownReason.LOAD:
+				return localize('shutdownTitleLoad', "Changing the workspace is taking a bit longer...");
+		}
+	}
+
+	private toForceShutdownLabel(reason: ShutdownReason): string {
+		switch (reason) {
+			case ShutdownReason.CLOSE:
+				return localize('shutdownForceClose', "Close Anyway");
+			case ShutdownReason.QUIT:
+				return localize('shutdownForceQuit', "Quit Anyway");
+			case ShutdownReason.RELOAD:
+				return localize('shutdownForceReload', "Reload Anyway");
+			case ShutdownReason.LOAD:
+				return localize('shutdownForceLoad', "Change Anyway");
+		}
+	}
+
+	private onWindowResize(e: UIEvent, retry: boolean): void {
+		if (e.target === window) {
+			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
+				// TODO@electron this is an electron issue on macOS when simple fullscreen is enabled
+				// where for some reason the window clientWidth is reported as 0 when switching
+				// between simple fullscreen and normal screen. In that case we schedule the layout
+				// call at the next animation frame once, in the hope that the dimensions are
+				// proper then.
+				if (retry) {
+					scheduleAtNextAnimationFrame(() => this.onWindowResize(e, false));
+				}
+				return;
+			}
+
+			this.layoutService.layout();
+		}
 	}
 
 	private updateDocumentEdited(isDirty = this.workingCopyService.hasDirty): void {
@@ -331,41 +519,42 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private onDidChangeMaximized(maximized: boolean): void {
+	private onDidChangeWindowMaximized(maximized: boolean): void {
 		this.layoutService.updateWindowMaximizedState(maximized);
 	}
 
 	private getWindowMinimumWidth(panelPosition: Position = this.layoutService.getPanelPosition()): number {
+
 		// if panel is on the side, then return the larger minwidth
 		const panelOnSide = panelPosition === Position.LEFT || panelPosition === Position.RIGHT;
 		if (panelOnSide) {
 			return WindowMinimumSize.WIDTH_WITH_VERTICAL_PANEL;
 		}
-		else {
-			return WindowMinimumSize.WIDTH;
-		}
+
+		return WindowMinimumSize.WIDTH;
 	}
 
-	private onDidPanelPositionChange(pos: Position): void {
+	private onDidChangePanelPosition(pos: Position): void {
 		const minWidth = this.getWindowMinimumWidth(pos);
+
 		this.nativeHostService.setMinimumSize(minWidth, undefined);
 	}
 
-	private onDidVisibleEditorsChange(): void {
+	private onDidChangeVisibleEditors(): void {
 
 		// Close when empty: check if we should close the window based on the setting
 		// Overruled by: window has a workspace opened or this window is for extension development
 		// or setting is disabled. Also enabled when running with --wait from the command line.
 		const visibleEditorPanes = this.editorService.visibleEditorPanes;
 		if (visibleEditorPanes.length === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
-			const closeWhenEmpty = this.configurationService.getValue<boolean>('window.closeWhenEmpty');
+			const closeWhenEmpty = this.configurationService.getValue('window.closeWhenEmpty');
 			if (closeWhenEmpty || this.environmentService.args.wait) {
 				this.closeEmptyWindowScheduler.schedule();
 			}
 		}
 	}
 
-	private onAllEditorsClosed(): void {
+	private onDidAllEditorsClose(): void {
 		const visibleEditorPanes = this.editorService.visibleEditorPanes.length;
 		if (visibleEditorPanes === 0) {
 			this.nativeHostService.closeWindow();
@@ -392,17 +581,13 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private updateRepresentedFilename(filePath: string | undefined): void {
-		this.nativeHostService.setRepresentedFilename(filePath ? filePath : '');
-	}
-
 	private provideCustomTitleContextMenu(filePath: string | undefined): void {
 
 		// Clear old menu
 		this.customTitleContextMenuDisposable.clear();
 
 		// Provide new menu if a file is opened and we are on a custom title
-		if (!filePath || getTitleBarStyle(this.configurationService, this.environmentService) !== 'custom') {
+		if (!filePath || getTitleBarStyle(this.configurationService) !== 'custom') {
 			return;
 		}
 
@@ -416,52 +601,137 @@ export class NativeWindow extends Disposable {
 				pathOffset++; // for segments which are not the file name we want to open the folder
 			}
 
-			const path = segments.slice(0, pathOffset).join(posix.sep);
+			const path = URI.file(segments.slice(0, pathOffset).join(posix.sep));
 
 			let label: string;
 			if (!isFile) {
-				label = getBaseLabel(dirname(path));
+				label = this.labelService.getUriBasenameLabel(dirname(path));
 			} else {
-				label = getBaseLabel(path);
+				label = this.labelService.getUriBasenameLabel(path);
 			}
 
 			const commandId = `workbench.action.revealPathInFinder${i}`;
-			this.customTitleContextMenuDisposable.add(CommandsRegistry.registerCommand(commandId, () => this.nativeHostService.showItemInFolder(path)));
-			this.customTitleContextMenuDisposable.add(MenuRegistry.appendMenuItem(MenuId.TitleBarContext, { command: { id: commandId, title: label || posix.sep }, order: -i }));
+			this.customTitleContextMenuDisposable.add(CommandsRegistry.registerCommand(commandId, () => this.nativeHostService.showItemInFolder(path.fsPath)));
+			this.customTitleContextMenuDisposable.add(MenuRegistry.appendMenuItem(MenuId.TitleBarTitleContext, { command: { id: commandId, title: label || posix.sep }, order: -i }));
 		}
 	}
 
 	private create(): void {
 
-		// Native menu controller
-		if (isMacintosh || getTitleBarStyle(this.configurationService, this.environmentService) === 'native') {
-			this._register(this.instantiationService.createInstance(NativeMenubarControl));
-		}
-
 		// Handle open calls
 		this.setupOpenHandlers();
 
-		// Notify main side when window ready
+		// Notify some services about lifecycle phases
 		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.nativeHostService.notifyReady());
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.sharedProcessService.notifyRestored());
 
-		// Integrity warning
-		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
-
-		// Root warning
-		this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {
-			const isAdmin = await this.nativeHostService.isAdmin();
-
-			// Update title
-			this.titleService.updateProperties({ isAdmin });
-
-			// Show warning message (unix only)
-			if (isAdmin && !isWindows) {
-				this.notificationService.warn(nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", this.productService.nameShort));
-			}
-		});
+		// Check for situations that are worth warning the user about
+		this.handleWarnings();
 
 		// Touchbar menu (if enabled)
 		this.updateTouchbarMenu();
+
+		// Smoke Test Driver
+		if (this.environmentService.enableSmokeTestDriver) {
+			this.setupDriver();
+		}
+	}
+
+	private async handleWarnings(): Promise<void> {
+
+		// Check for cyclic dependencies
+		if (require.hasDependencyCycle()) {
+			if (isCI) {
+				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
+				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
+			} else {
+				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
+				this.nativeHostService.openDevTools();
+			}
+		}
+
+		// After restored phase is fine for the following ones
+		await this.lifecycleService.when(LifecyclePhase.Restored);
+
+		// Integrity / Root warning
+		(async () => {
+			const isAdmin = await this.nativeHostService.isAdmin();
+			const { isPure } = await this.integrityService.isPure();
+
+			// Update to title
+			this.titleService.updateProperties({ isPure, isAdmin });
+
+			// Show warning message (unix only)
+			if (isAdmin && !isWindows) {
+				this.notificationService.warn(localize('runningAsRoot', "It is not recommended to run {0} as root user.", this.productService.nameShort));
+			}
+		})();
+
+		// Installation Dir Warning
+		if (this.environmentService.isBuilt) {
+			let installLocationUri: URI;
+			if (isMacintosh) {
+				// appRoot = /Applications/Visual Studio Code - Insiders.app/Contents/Resources/app
+				installLocationUri = dirname(dirname(dirname(URI.file(this.environmentService.appRoot))));
+			} else {
+				// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\resources\app
+				// appRoot = /usr/share/code-insiders/resources/app
+				installLocationUri = dirname(dirname(URI.file(this.environmentService.appRoot)));
+			}
+
+			for (const folder of this.contextService.getWorkspace().folders) {
+				if (this.uriIdentityService.extUri.isEqualOrParent(folder.uri, installLocationUri)) {
+					this.bannerService.show({
+						id: 'appRootWarning.banner',
+						message: localize('appRootWarning.banner', "Files you store within the installation folder ('{0}') may be OVERWRITTEN or DELETED IRREVERSIBLY without warning at update time.", this.labelService.getUriLabel(installLocationUri)),
+						icon: Codicon.warning
+					});
+
+					break;
+				}
+			}
+		}
+
+		// Windows 7 warning
+		if (isWindows) {
+			const version = this.environmentService.os.release.split('.');
+
+			// Refs https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoa
+			if (parseInt(version[0]) === 6 && parseInt(version[1]) === 1) {
+				const message = localize('windows 7 eol', "{0} on Windows 7 will no longer receive any further updates.", this.productService.nameLong);
+
+				this.notificationService.prompt(
+					Severity.Warning,
+					message,
+					[{
+						label: localize('learnMore', "Learn More"),
+						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-win7'))
+					}],
+					{
+						neverShowAgain: { id: 'windows7eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
+					}
+				);
+			}
+		}
+	}
+
+	private setupDriver(): void {
+		const that = this;
+		let pendingQuit = false;
+
+		registerWindowDriver({
+			async exitApplication(): Promise<void> {
+				if (pendingQuit) {
+					that.logService.info('[driver] not handling exitApplication() due to pending quit() call');
+					return;
+				}
+
+				that.logService.info('[driver] handling exitApplication()');
+
+				pendingQuit = true;
+				return that.nativeHostService.quit();
+			}
+		});
 	}
 
 	private setupOpenHandlers(): void {
@@ -472,7 +742,7 @@ export class NativeWindow extends Disposable {
 		};
 
 		// Handle external open() calls
-		this.openerService.setExternalOpener({
+		this.openerService.setDefaultExternalOpener({
 			openExternal: async (href: string) => {
 				const success = await this.nativeHostService.openExternal(href);
 				if (!success) {
@@ -501,13 +771,30 @@ export class NativeWindow extends Disposable {
 						} : undefined;
 						const tunnel = await this.tunnelService.openTunnel(addressProvider, portMappingRequest.address, portMappingRequest.port);
 						if (tunnel) {
+							const addressAsUri = URI.parse(tunnel.localAddress);
+							const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
 							return {
-								resolved: uri.with({ authority: tunnel.localAddress }),
+								resolved,
 								dispose: () => tunnel.dispose(),
 							};
 						}
 					}
 				}
+
+				if (!options?.openExternal) {
+					const canHandleResource = await this.fileService.canHandleResource(uri);
+					if (canHandleResource) {
+						return {
+							resolved: URI.from({
+								scheme: this.productService.urlProtocol,
+								path: 'workspace',
+								query: uri.toString()
+							}),
+							dispose() { }
+						};
+					}
+				}
+
 				return undefined;
 			}
 		});
@@ -537,11 +824,12 @@ export class NativeWindow extends Disposable {
 
 		const actions: Array<MenuItemAction | Separator> = [];
 
-		const disabled = this.configurationService.getValue<boolean>('keyboard.touchbar.enabled') === false;
-		const ignoredItems = this.configurationService.getValue<string[]>('keyboard.touchbar.ignored') || [];
+		const disabled = this.configurationService.getValue('keyboard.touchbar.enabled') === false;
+		const touchbarIgnored = this.configurationService.getValue('keyboard.touchbar.ignored');
+		const ignoredItems = Array.isArray(touchbarIgnored) ? touchbarIgnored : [];
 
 		// Fill actions into groups respecting order
-		this.touchBarDisposables.add(createAndFillInActionBarActions(this.touchBarMenu, undefined, actions));
+		createAndFillInActionBarActions(this.touchBarMenu, undefined, actions);
 
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];
@@ -594,9 +882,9 @@ export class NativeWindow extends Disposable {
 	private doAddFolders(): void {
 		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
 
-		this.pendingFoldersToAdd.forEach(folder => {
+		for (const folder of this.pendingFoldersToAdd) {
 			foldersToAdd.push(({ uri: folder }));
-		});
+		}
 
 		this.pendingFoldersToAdd = [];
 
@@ -604,248 +892,63 @@ export class NativeWindow extends Disposable {
 	}
 
 	private async onOpenFiles(request: INativeOpenFileRequest): Promise<void> {
-		const inputs: IResourceEditorInputType[] = [];
 		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
+		const mergeMode = !!(request.filesToMerge && (request.filesToMerge.length === 4));
 
-		if (!diffMode && request.filesToOpenOrCreate) {
-			inputs.push(...(await pathsToEditors(request.filesToOpenOrCreate, this.fileService)));
-		}
-
-		if (diffMode && request.filesToDiff) {
-			inputs.push(...(await pathsToEditors(request.filesToDiff, this.fileService)));
-		}
-
+		const inputs = coalesce(await pathsToEditors(mergeMode ? request.filesToMerge : diffMode ? request.filesToDiff : request.filesToOpenOrCreate, this.fileService));
 		if (inputs.length) {
-			this.openResources(inputs, diffMode);
-		}
+			const openedEditorPanes = await this.openResources(inputs, diffMode, mergeMode);
 
-		if (request.filesToWait && inputs.length) {
-			// In wait mode, listen to changes to the editors and wait until the files
-			// are closed that the user wants to wait for. When this happens we delete
-			// the wait marker file to signal to the outside that editing is done.
-			this.trackClosedWaitFiles(URI.revive(request.filesToWait.waitMarkerFileUri), coalesce(request.filesToWait.paths.map(p => URI.revive(p.fileUri))));
+			if (request.filesToWait) {
+
+				// In wait mode, listen to changes to the editors and wait until the files
+				// are closed that the user wants to wait for. When this happens we delete
+				// the wait marker file to signal to the outside that editing is done.
+				// However, it is possible that opening of the editors failed, as such we
+				// check for whether editor panes got opened and otherwise delete the marker
+				// right away.
+
+				if (openedEditorPanes.length) {
+					return this.trackClosedWaitFiles(URI.revive(request.filesToWait.waitMarkerFileUri), coalesce(request.filesToWait.paths.map(path => URI.revive(path.fileUri))));
+				} else {
+					return this.fileService.del(URI.revive(request.filesToWait.waitMarkerFileUri));
+				}
+			}
 		}
 	}
 
 	private async trackClosedWaitFiles(waitMarkerFile: URI, resourcesToWaitFor: URI[]): Promise<void> {
 
-		// Wait for the resources to be closed in the editor...
-		await this.editorService.whenClosed(resourcesToWaitFor.map(resource => ({ resource })), { waitForSaved: true });
+		// Wait for the resources to be closed in the text editor...
+		await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, resourcesToWaitFor));
 
 		// ...before deleting the wait marker file
 		await this.fileService.del(waitMarkerFile);
 	}
 
-	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean): Promise<unknown> {
-		await this.lifecycleService.when(LifecyclePhase.Ready);
+	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean, mergeMode: boolean): Promise<readonly IEditorPane[]> {
+		const editors: IUntypedEditorInput[] = [];
 
-		// In diffMode we open 2 resources as diff
-		if (diffMode && resources.length === 2 && resources[0].resource && resources[1].resource) {
-			return this.editorService.openEditor({ leftResource: resources[0].resource, rightResource: resources[1].resource, options: { pinned: true } });
+		if (mergeMode && isResourceEditorInput(resources[0]) && isResourceEditorInput(resources[1]) && isResourceEditorInput(resources[2]) && isResourceEditorInput(resources[3])) {
+			const mergeEditor: IResourceMergeEditorInput = {
+				input1: { resource: resources[0].resource },
+				input2: { resource: resources[1].resource },
+				base: { resource: resources[2].resource },
+				result: { resource: resources[3].resource },
+				options: { pinned: true }
+			};
+			editors.push(mergeEditor);
+		} else if (diffMode && isResourceEditorInput(resources[0]) && isResourceEditorInput(resources[1])) {
+			const diffEditor: IResourceDiffEditorInput = {
+				original: { resource: resources[0].resource },
+				modified: { resource: resources[1].resource },
+				options: { pinned: true }
+			};
+			editors.push(diffEditor);
+		} else {
+			editors.push(...resources);
 		}
 
-		// For one file, just put it into the current active editor
-		if (resources.length === 1) {
-			return this.editorService.openEditor(resources[0]);
-		}
-
-		// Otherwise open all
-		return this.editorService.openEditors(resources);
-	}
-}
-
-class NativeMenubarControl extends MenubarControl {
-	constructor(
-		@IMenuService menuService: IMenuService,
-		@IWorkspacesService workspacesService: IWorkspacesService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ILabelService labelService: ILabelService,
-		@IUpdateService updateService: IUpdateService,
-		@IStorageService storageService: IStorageService,
-		@INotificationService notificationService: INotificationService,
-		@IPreferencesService preferencesService: IPreferencesService,
-		@INativeWorkbenchEnvironmentService protected readonly environmentService: INativeWorkbenchEnvironmentService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IMenubarService private readonly menubarService: IMenubarService,
-		@IHostService hostService: IHostService,
-		@INativeHostService private readonly nativeHostService: INativeHostService
-	) {
-		super(
-			menuService,
-			workspacesService,
-			contextKeyService,
-			keybindingService,
-			configurationService,
-			labelService,
-			updateService,
-			storageService,
-			notificationService,
-			preferencesService,
-			environmentService,
-			accessibilityService,
-			hostService
-		);
-
-		if (isMacintosh) {
-			this.menus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
-			this.topLevelTitles['Preferences'] = nls.localize('mPreferences', "Preferences");
-		}
-
-		for (const topLevelMenuName of Object.keys(this.topLevelTitles)) {
-			const menu = this.menus[topLevelMenuName];
-			if (menu) {
-				this._register(menu.onDidChange(() => this.updateMenubar()));
-			}
-		}
-
-		(async () => {
-			this.recentlyOpened = await this.workspacesService.getRecentlyOpened();
-
-			this.doUpdateMenubar();
-		})();
-
-		this.registerListeners();
-	}
-
-	protected doUpdateMenubar(): void {
-		// Since the native menubar is shared between windows (main process)
-		// only allow the focused window to update the menubar
-		if (!this.hostService.hasFocus) {
-			return;
-		}
-
-		// Send menus to main process to be rendered by Electron
-		const menubarData = { menus: {}, keybindings: {} };
-		if (this.getMenubarMenus(menubarData)) {
-			this.menubarService.updateMenubar(this.nativeHostService.windowId, menubarData);
-		}
-	}
-
-	private getMenubarMenus(menubarData: IMenubarData): boolean {
-		if (!menubarData) {
-			return false;
-		}
-
-		menubarData.keybindings = this.getAdditionalKeybindings();
-		for (const topLevelMenuName of Object.keys(this.topLevelTitles)) {
-			const menu = this.menus[topLevelMenuName];
-			if (menu) {
-				const menubarMenu: IMenubarMenu = { items: [] };
-				this.populateMenuItems(menu, menubarMenu, menubarData.keybindings);
-				if (menubarMenu.items.length === 0) {
-					return false; // Menus are incomplete
-				}
-				menubarData.menus[topLevelMenuName] = menubarMenu;
-			}
-		}
-
-		return true;
-	}
-
-	private populateMenuItems(menu: IMenu, menuToPopulate: IMenubarMenu, keybindings: { [id: string]: IMenubarKeybinding | undefined }) {
-		let groups = menu.getActions();
-		for (let group of groups) {
-			const [, actions] = group;
-
-			actions.forEach(menuItem => {
-
-				if (menuItem instanceof SubmenuItemAction) {
-					const submenu = { items: [] };
-
-					if (!this.menus[menuItem.item.submenu.id]) {
-						const menu = this.menus[menuItem.item.submenu.id] = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
-						this._register(menu.onDidChange(() => this.updateMenubar()));
-					}
-
-					const menuToDispose = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
-					this.populateMenuItems(menuToDispose, submenu, keybindings);
-
-					let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
-						id: menuItem.id,
-						label: menuItem.label,
-						submenu: submenu
-					};
-
-					menuToPopulate.items.push(menubarSubmenuItem);
-					menuToDispose.dispose();
-				} else {
-					if (menuItem.id === 'workbench.action.openRecent') {
-						const actions = this.getOpenRecentActions().map(this.transformOpenRecentAction);
-						menuToPopulate.items.push(...actions);
-					}
-
-					let menubarMenuItem: IMenubarMenuItemAction = {
-						id: menuItem.id,
-						label: menuItem.label
-					};
-
-					if (menuItem.checked) {
-						menubarMenuItem.checked = true;
-					}
-
-					if (!menuItem.enabled) {
-						menubarMenuItem.enabled = false;
-					}
-
-					menubarMenuItem.label = this.calculateActionLabel(menubarMenuItem);
-					keybindings[menuItem.id] = this.getMenubarKeybinding(menuItem.id);
-					menuToPopulate.items.push(menubarMenuItem);
-				}
-			});
-
-			menuToPopulate.items.push({ id: 'vscode.menubar.separator' });
-		}
-
-		if (menuToPopulate.items.length > 0) {
-			menuToPopulate.items.pop();
-		}
-	}
-
-	private transformOpenRecentAction(action: Separator | (IAction & { uri: URI })): MenubarMenuItem {
-		if (action instanceof Separator) {
-			return { id: 'vscode.menubar.separator' };
-		}
-
-		return {
-			id: action.id,
-			uri: action.uri,
-			enabled: action.enabled,
-			label: action.label
-		};
-	}
-
-	private getAdditionalKeybindings(): { [id: string]: IMenubarKeybinding } {
-		const keybindings: { [id: string]: IMenubarKeybinding } = {};
-		if (isMacintosh) {
-			const keybinding = this.getMenubarKeybinding('workbench.action.quit');
-			if (keybinding) {
-				keybindings['workbench.action.quit'] = keybinding;
-			}
-		}
-
-		return keybindings;
-	}
-
-	private getMenubarKeybinding(id: string): IMenubarKeybinding | undefined {
-		const binding = this.keybindingService.lookupKeybinding(id);
-		if (!binding) {
-			return undefined;
-		}
-
-		// first try to resolve a native accelerator
-		const electronAccelerator = binding.getElectronAccelerator();
-		if (electronAccelerator) {
-			return { label: electronAccelerator, userSettingsLabel: withNullAsUndefined(binding.getUserSettingsLabel()) };
-		}
-
-		// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
-		const acceleratorLabel = binding.getLabel();
-		if (acceleratorLabel) {
-			return { label: acceleratorLabel, isNative: false, userSettingsLabel: withNullAsUndefined(binding.getUserSettingsLabel()) };
-		}
-
-		return undefined;
+		return this.editorService.openEditors(editors, undefined, { validateTrust: true });
 	}
 }

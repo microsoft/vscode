@@ -10,10 +10,12 @@ import type { Readable } from 'stream';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
+import API from '../utils/api';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
-import { TsServerProcess, TsServerProcessKind } from './server';
+import { TsServerProcess, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
+import { TypeScriptVersion } from './versionProvider';
 
 const localize = nls.loadMessageBundle();
 
@@ -39,7 +41,7 @@ class ProtocolBuffer {
 		if (this.buffer.length - this.index >= toAppend.length) {
 			toAppend.copy(this.buffer, this.index, 0, toAppend.length);
 		} else {
-			let newSize = (Math.ceil((this.index + toAppend.length) / defaultSize) + 1) * defaultSize;
+			const newSize = (Math.ceil((this.index + toAppend.length) / defaultSize) + 1) * defaultSize;
 			if (this.index === 0) {
 				this.buffer = Buffer.allocUnsafe(newSize);
 				toAppend.copy(this.buffer, 0, 0, toAppend.length);
@@ -61,14 +63,14 @@ class ProtocolBuffer {
 			return result;
 		}
 		current += contentLengthSize;
-		let start = current;
+		const start = current;
 		while (current < this.index && this.buffer[current] !== backslashR) {
 			current++;
 		}
 		if (current + 3 >= this.index || this.buffer[current + 1] !== backslashN || this.buffer[current + 2] !== backslashR || this.buffer[current + 3] !== backslashN) {
 			return result;
 		}
-		let data = this.buffer.toString('utf8', start, current);
+		const data = this.buffer.toString('utf8', start, current);
 		result = parseInt(data);
 		this.buffer = this.buffer.slice(current + 4);
 		this.index = this.index - (current + 4);
@@ -79,7 +81,7 @@ class ProtocolBuffer {
 		if (this.index < length) {
 			return null;
 		}
-		let result = this.buffer.toString('utf8', 0, length);
+		const result = this.buffer.toString('utf8', 0, length);
 		let sourceStart = length;
 		while (sourceStart < this.index && (this.buffer[sourceStart] === backslashR || this.buffer[sourceStart] === backslashN)) {
 			sourceStart++;
@@ -134,84 +136,89 @@ class Reader<T> extends Disposable {
 	}
 }
 
-export class ChildServerProcess extends Disposable implements TsServerProcess {
-	private readonly _reader: Reader<Proto.Response>;
+function generatePatchedEnv(env: any, modulePath: string): any {
+	const newEnv = Object.assign({}, env);
 
-	public static fork(
-		tsServerPath: string,
-		args: readonly string[],
-		kind: TsServerProcessKind,
-		configuration: TypeScriptServiceConfiguration,
-		versionManager: TypeScriptVersionManager,
-	): ChildServerProcess {
-		if (!fs.existsSync(tsServerPath)) {
-			vscode.window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', tsServerPath));
-			versionManager.reset();
-			tsServerPath = versionManager.currentVersion.tsServerPath;
-		}
+	newEnv['ELECTRON_RUN_AS_NODE'] = '1';
+	newEnv['NODE_PATH'] = path.join(modulePath, '..', '..', '..');
 
-		const childProcess = child_process.fork(tsServerPath, args, {
-			silent: true,
-			cwd: undefined,
-			env: this.generatePatchedEnv(process.env, tsServerPath),
-			execArgv: this.getExecArgv(kind, configuration),
-		});
+	// Ensure we always have a PATH set
+	newEnv['PATH'] = newEnv['PATH'] || process.env.PATH;
 
-		return new ChildServerProcess(childProcess);
+	return newEnv;
+}
+
+function getExecArgv(kind: TsServerProcessKind, configuration: TypeScriptServiceConfiguration): string[] {
+	const args: string[] = [];
+
+	const debugPort = getDebugPort(kind);
+	if (debugPort) {
+		const inspectFlag = getTssDebugBrk() ? '--inspect-brk' : '--inspect';
+		args.push(`${inspectFlag}=${debugPort}`);
 	}
 
-	private static generatePatchedEnv(env: any, modulePath: string): any {
-		const newEnv = Object.assign({}, env);
-
-		newEnv['ELECTRON_RUN_AS_NODE'] = '1';
-		newEnv['NODE_PATH'] = path.join(modulePath, '..', '..', '..');
-
-		// Ensure we always have a PATH set
-		newEnv['PATH'] = newEnv['PATH'] || process.env.PATH;
-
-		return newEnv;
+	if (configuration.maxTsServerMemory) {
+		args.push(`--max-old-space-size=${configuration.maxTsServerMemory}`);
 	}
 
-	private static getExecArgv(kind: TsServerProcessKind, configuration: TypeScriptServiceConfiguration): string[] {
-		const args: string[] = [];
+	return args;
+}
 
-		const debugPort = this.getDebugPort(kind);
-		if (debugPort) {
-			const inspectFlag = ChildServerProcess.getTssDebugBrk() ? '--inspect-brk' : '--inspect';
-			args.push(`${inspectFlag}=${debugPort}`);
-		}
-
-		if (configuration.maxTsServerMemory) {
-			args.push(`--max-old-space-size=${configuration.maxTsServerMemory}`);
-		}
-
-		return args;
-	}
-
-	private static getDebugPort(kind: TsServerProcessKind): number | undefined {
-		if (kind === TsServerProcessKind.Syntax) {
-			// We typically only want to debug the main semantic server
-			return undefined;
-		}
-		const value = ChildServerProcess.getTssDebugBrk() || ChildServerProcess.getTssDebug();
-		if (value) {
-			const port = parseInt(value);
-			if (!isNaN(port)) {
-				return port;
-			}
-		}
+function getDebugPort(kind: TsServerProcessKind): number | undefined {
+	if (kind === TsServerProcessKind.Syntax) {
+		// We typically only want to debug the main semantic server
 		return undefined;
 	}
+	const value = getTssDebugBrk() || getTssDebug();
+	if (value) {
+		const port = parseInt(value);
+		if (!isNaN(port)) {
+			return port;
+		}
+	}
+	return undefined;
+}
 
-	private static getTssDebug(): string | undefined {
-		return process.env[vscode.env.remoteName ? 'TSS_REMOTE_DEBUG' : 'TSS_DEBUG'];
+function getTssDebug(): string | undefined {
+	return process.env[vscode.env.remoteName ? 'TSS_REMOTE_DEBUG' : 'TSS_DEBUG'];
+}
+
+function getTssDebugBrk(): string | undefined {
+	return process.env[vscode.env.remoteName ? 'TSS_REMOTE_DEBUG_BRK' : 'TSS_DEBUG_BRK'];
+}
+
+class IpcChildServerProcess extends Disposable implements TsServerProcess {
+	constructor(
+		private readonly _process: child_process.ChildProcess,
+	) {
+		super();
 	}
 
-	private static getTssDebugBrk(): string | undefined {
-		return process.env[vscode.env.remoteName ? 'TSS_REMOTE_DEBUG_BRK' : 'TSS_DEBUG_BRK'];
+	write(serverRequest: Proto.Request): void {
+		this._process.send(serverRequest);
 	}
 
-	private constructor(
+	onData(handler: (data: Proto.Response) => void): void {
+		this._process.on('message', handler);
+	}
+
+	onExit(handler: (code: number | null, signal: string | null) => void): void {
+		this._process.on('exit', handler);
+	}
+
+	onError(handler: (err: Error) => void): void {
+		this._process.on('error', handler);
+	}
+
+	kill(): void {
+		this._process.kill();
+	}
+}
+
+class StdioChildServerProcess extends Disposable implements TsServerProcess {
+	private readonly _reader: Reader<Proto.Response>;
+
+	constructor(
 		private readonly _process: child_process.ChildProcess,
 	) {
 		super();
@@ -226,7 +233,7 @@ export class ChildServerProcess extends Disposable implements TsServerProcess {
 		this._reader.onData(handler);
 	}
 
-	onExit(handler: (code: number | null) => void): void {
+	onExit(handler: (code: number | null, signal: string | null) => void): void {
 		this._process.on('exit', handler);
 	}
 
@@ -238,5 +245,40 @@ export class ChildServerProcess extends Disposable implements TsServerProcess {
 	kill(): void {
 		this._process.kill();
 		this._reader.dispose();
+	}
+}
+
+export class ElectronServiceProcessFactory implements TsServerProcessFactory {
+	fork(
+		version: TypeScriptVersion,
+		args: readonly string[],
+		kind: TsServerProcessKind,
+		configuration: TypeScriptServiceConfiguration,
+		versionManager: TypeScriptVersionManager,
+	): TsServerProcess {
+		let tsServerPath = version.tsServerPath;
+
+		if (!fs.existsSync(tsServerPath)) {
+			vscode.window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', tsServerPath));
+			versionManager.reset();
+			tsServerPath = versionManager.currentVersion.tsServerPath;
+		}
+
+		const useIpc = version.apiVersion?.gte(API.v460);
+
+		const runtimeArgs = [...args];
+		if (useIpc) {
+			runtimeArgs.push('--useNodeIpc');
+		}
+
+		const childProcess = child_process.fork(tsServerPath, runtimeArgs, {
+			silent: true,
+			cwd: undefined,
+			env: generatePatchedEnv(process.env, tsServerPath),
+			execArgv: getExecArgv(kind, configuration),
+			stdio: useIpc ? ['pipe', 'pipe', 'pipe', 'ipc'] : undefined,
+		});
+
+		return useIpc ? new IpcChildServerProcess(childProcess) : new StdioChildServerProcess(childProcess);
 	}
 }

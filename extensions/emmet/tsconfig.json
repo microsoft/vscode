@@ -1,5 +1,5 @@
 {
-	"extends": "../shared.tsconfig.json",
+	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"outDir": "./out"
 	},
@@ -8,6 +8,8 @@
 		".vscode-test"
 	],
 	"include": [
-		"src/**/*"
+		"src/**/*",
+		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/vscode-dts/vscode.proposed.inlineCompletionsNew.d.ts",
 	]
 }

@@ -22,25 +22,45 @@ export function isImplicitProjectConfigFile(configFileName: string) {
 	return configFileName.startsWith('/dev/null/');
 }
 
+const defaultProjectConfig = Object.freeze<Proto.ExternalProjectCompilerOptions>({
+	module: 'ESNext' as Proto.ModuleKind,
+	moduleResolution: 'Node' as Proto.ModuleResolutionKind,
+	target: 'ES2020' as Proto.ScriptTarget,
+	jsx: 'react' as Proto.JsxEmit,
+});
+
 export function inferredProjectCompilerOptions(
 	projectType: ProjectType,
 	serviceConfig: TypeScriptServiceConfiguration,
 ): Proto.ExternalProjectCompilerOptions {
-	const projectConfig: Proto.ExternalProjectCompilerOptions = {
-		module: 'commonjs' as Proto.ModuleKind,
-		target: 'es2016' as Proto.ScriptTarget,
-		jsx: 'preserve' as Proto.JsxEmit,
-	};
+	const projectConfig = { ...defaultProjectConfig };
 
-	if (serviceConfig.checkJs) {
+	if (serviceConfig.implicitProjectConfiguration.checkJs) {
 		projectConfig.checkJs = true;
 		if (projectType === ProjectType.TypeScript) {
 			projectConfig.allowJs = true;
 		}
 	}
 
-	if (serviceConfig.experimentalDecorators) {
+	if (serviceConfig.implicitProjectConfiguration.experimentalDecorators) {
 		projectConfig.experimentalDecorators = true;
+	}
+
+	if (serviceConfig.implicitProjectConfiguration.strictNullChecks) {
+		projectConfig.strictNullChecks = true;
+	}
+
+	if (serviceConfig.implicitProjectConfiguration.strictFunctionTypes) {
+		projectConfig.strictFunctionTypes = true;
+	}
+
+
+	if (serviceConfig.implicitProjectConfiguration.module) {
+		projectConfig.module = serviceConfig.implicitProjectConfiguration.module as Proto.ModuleKind;
+	}
+
+	if (serviceConfig.implicitProjectConfiguration.target) {
+		projectConfig.target = serviceConfig.implicitProjectConfiguration.target as Proto.ScriptTarget;
 	}
 
 	if (projectType === ProjectType.TypeScript) {
@@ -107,8 +127,8 @@ export async function openProjectConfigOrPromptToCreate(
 
 	const selected = await vscode.window.showInformationMessage(
 		(projectType === ProjectType.TypeScript
-			? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project. Click [here]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=841896')
-			: localize('typescript.noJavaScriptProjectConfig', 'File is not part of a JavaScript project Click [here]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=759670')
+			? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project. View the [tsconfig.json documentation]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=841896')
+			: localize('typescript.noJavaScriptProjectConfig', 'File is not part of a JavaScript project. View the [jsconfig.json documentation]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=759670')
 		),
 		CreateConfigItem);
 
@@ -143,7 +163,7 @@ export async function openProjectConfigForFile(
 		return;
 	}
 
-	let res: ServerResponse.Response<protocol.ProjectInfoResponse> | undefined;
+	let res: ServerResponse.Response<Proto.ProjectInfoResponse> | undefined;
 	try {
 		res = await client.execute('projectInfo', { file, needFileNameList: false }, nulToken);
 	} catch {

@@ -5,15 +5,14 @@
 
 import 'vs/css!./media/scm';
 import { localize } from 'vs/nls';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $ } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
-import { ISCMRepository, ISCMService, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IAction, IActionViewItem } from 'vs/base/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -22,8 +21,9 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
-import { collectContextMenuActions, StatusBarAction, StatusBarActionViewItem } from 'vs/workbench/contrib/scm/browser/util';
+import { collectContextMenuActions, getActionViewItemProvider } from 'vs/workbench/contrib/scm/browser/util';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
+import { Iterable } from 'vs/base/common/iterator';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -42,10 +42,9 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
-		@ISCMService protected scmService: ISCMService,
 		@ISCMViewService protected scmViewService: ISCMViewService,
-		@IKeybindingService protected keybindingService: IKeybindingService,
-		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -57,13 +56,13 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 	}
 
-	protected renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		const listContainer = append(container, $('.scm-view.scm-repositories-view'));
 
 		const delegate = new ListDelegate();
-		const renderer = this.instantiationService.createInstance(RepositoryRenderer, a => this.getActionViewItem(a),);
+		const renderer = this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService));
 		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Main`, listContainer, delegate, [renderer], {
@@ -86,14 +85,8 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		this._register(this.list.onDidChangeSelection(this.onListSelectionChange, this));
 		this._register(this.list.onContextMenu(this.onListContextMenu, this));
 
+		this._register(this.scmViewService.onDidChangeRepositories(this.onDidChangeRepositories, this));
 		this._register(this.scmViewService.onDidChangeVisibleRepositories(this.updateListSelection, this));
-
-		this._register(this.scmService.onDidAddRepository(this.onDidAddRepository, this));
-		this._register(this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this));
-
-		for (const repository of this.scmService.repositories) {
-			this.onDidAddRepository(repository);
-		}
 
 		if (this.orientation === Orientation.VERTICAL) {
 			this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -103,29 +96,20 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			}));
 		}
 
+		this.onDidChangeRepositories();
 		this.updateListSelection();
 	}
 
-	private onDidAddRepository(repository: ISCMRepository): void {
-		this.list.splice(this.list.length, 0, [repository]);
+	private onDidChangeRepositories(): void {
+		this.list.splice(0, this.list.length, this.scmViewService.repositories);
 		this.updateBodySize();
 	}
 
-	private onDidRemoveRepository(repository: ISCMRepository): void {
-		const index = this.list.indexOf(repository);
-
-		if (index > -1) {
-			this.list.splice(index, 1);
-		}
-
-		this.updateBodySize();
-	}
-
-	focus(): void {
+	override focus(): void {
 		this.list.domFocus();
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.list.layout(height, width);
 	}
@@ -151,15 +135,12 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		const provider = e.element.provider;
 		const menus = this.scmViewService.menus.getRepositoryMenus(provider);
 		const menu = menus.repositoryMenu;
-		const [actions, disposable] = collectContextMenuActions(menu);
+		const actions = collectContextMenuActions(menu);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
-			getActionsContext: () => provider,
-			onHide() {
-				disposable.dispose();
-			}
+			getActionsContext: () => provider
 		});
 	}
 
@@ -172,32 +153,30 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	}
 
 	private updateListSelection(): void {
-		const set = new Set();
+		const oldSelection = this.list.getSelection();
+		const oldSet = new Set(Iterable.map(oldSelection, i => this.list.element(i)));
+		const set = new Set(this.scmViewService.visibleRepositories);
+		const added = new Set(Iterable.filter(set, r => !oldSet.has(r)));
+		const removed = new Set(Iterable.filter(oldSet, r => !set.has(r)));
 
-		for (const repository of this.scmViewService.visibleRepositories) {
-			set.add(repository);
+		if (added.size === 0 && removed.size === 0) {
+			return;
 		}
 
-		const selection: number[] = [];
+		const selection = oldSelection
+			.filter(i => !removed.has(this.list.element(i)));
 
 		for (let i = 0; i < this.list.length; i++) {
-			if (set.has(this.list.element(i))) {
+			if (added.has(this.list.element(i))) {
 				selection.push(i);
 			}
 		}
 
 		this.list.setSelection(selection);
 
-		if (selection.length > 0) {
+		if (selection.length > 0 && selection.indexOf(this.list.getFocus()[0]) === -1) {
+			this.list.setAnchor(selection[0]);
 			this.list.setFocus([selection[0]]);
 		}
-	}
-
-	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (action instanceof StatusBarAction) {
-			return new StatusBarActionViewItem(action);
-		}
-
-		return super.getActionViewItem(action);
 	}
 }

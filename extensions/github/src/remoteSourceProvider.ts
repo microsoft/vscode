@@ -3,16 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { API as GitAPI, RemoteSourceProvider, RemoteSource, Repository } from './typings/git';
+import { workspace } from 'vscode';
+import { RemoteSourceProvider, RemoteSource } from './typings/git-base';
 import { getOctokit } from './auth';
 import { Octokit } from '@octokit/rest';
-import { publishRepository } from './publish';
+import { getRepositoryFromQuery, getRepositoryFromUrl } from './util';
 
 function asRemoteSource(raw: any): RemoteSource {
+	const protocol = workspace.getConfiguration('github').get<'https' | 'ssh'>('gitProtocol');
 	return {
 		name: `$(github) ${raw.full_name}`,
-		description: raw.description || undefined,
-		url: raw.clone_url
+		description: `${raw.stargazers_count > 0 ? `$(star-full) ${raw.stargazers_count}` : ''
+			}`,
+		detail: raw.description || undefined,
+		url: protocol === 'https' ? raw.clone_url : raw.ssh_url
 	};
 }
 
@@ -24,28 +28,39 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 
 	private userReposCache: RemoteSource[] = [];
 
-	constructor(private gitAPI: GitAPI) { }
-
 	async getRemoteSources(query?: string): Promise<RemoteSource[]> {
 		const octokit = await getOctokit();
-		const [fromUser, fromQuery] = await Promise.all([
+
+		if (query) {
+			const repository = getRepositoryFromUrl(query);
+
+			if (repository) {
+				const raw = await octokit.repos.get(repository);
+				return [asRemoteSource(raw.data)];
+			}
+		}
+
+		const all = await Promise.all([
+			this.getQueryRemoteSources(octokit, query),
 			this.getUserRemoteSources(octokit, query),
-			this.getQueryRemoteSources(octokit, query)
 		]);
 
-		const userRepos = new Set(fromUser.map(r => r.name));
+		const map = new Map<string, RemoteSource>();
 
-		return [
-			...fromUser,
-			...fromQuery.filter(r => !userRepos.has(r.name))
-		];
+		for (const group of all) {
+			for (const remoteSource of group) {
+				map.set(remoteSource.name, remoteSource);
+			}
+		}
+
+		return [...map.values()];
 	}
 
 	private async getUserRemoteSources(octokit: Octokit, query?: string): Promise<RemoteSource[]> {
 		if (!query) {
 			const user = await octokit.users.getAuthenticated({});
 			const username = user.data.login;
-			const res = await octokit.repos.listForUser({ username, sort: 'updated', per_page: 100 });
+			const res = await octokit.repos.listForAuthenticatedUser({ username, sort: 'updated', per_page: 100 });
 			this.userReposCache = res.data.map(asRemoteSource);
 		}
 
@@ -57,11 +72,44 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 			return [];
 		}
 
-		const raw = await octokit.search.repos({ q: query, sort: 'updated' });
+		const repository = getRepositoryFromQuery(query);
+
+		if (repository) {
+			query = `user:${repository.owner}+${repository.repo}`;
+		}
+
+		query += ` fork:true`;
+
+		const raw = await octokit.search.repos({ q: query, sort: 'stars' });
 		return raw.data.items.map(asRemoteSource);
 	}
 
-	publishRepository(repository: Repository): Promise<void> {
-		return publishRepository(this.gitAPI, repository);
+	async getBranches(url: string): Promise<string[]> {
+		const repository = getRepositoryFromUrl(url);
+
+		if (!repository) {
+			return [];
+		}
+
+		const octokit = await getOctokit();
+
+		const branches: string[] = [];
+		let page = 1;
+
+		while (true) {
+			const res = await octokit.repos.listBranches({ ...repository, per_page: 100, page });
+
+			if (res.data.length === 0) {
+				break;
+			}
+
+			branches.push(...res.data.map(b => b.name));
+			page++;
+		}
+
+		const repo = await octokit.repos.get(repository);
+		const defaultBranch = repo.data.default_branch;
+
+		return branches.sort((a, b) => a === defaultBranch ? -1 : b === defaultBranch ? 1 : 0);
 	}
 }

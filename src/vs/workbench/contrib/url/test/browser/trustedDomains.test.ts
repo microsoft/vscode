@@ -18,7 +18,7 @@ function linkNotAllowedByRules(link: string, rules: string[]) {
 
 suite('GitHub remote extraction', () => {
 	test('All known formats', () => {
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			extractGitHubRemotesFromGitConfig(
 				`
 [remote "1"]
@@ -116,9 +116,22 @@ suite('Link protection domain matching', () => {
 		linkNotAllowedByRules('http://192.168.1.7:3000/', ['http://192.168.*.6:*']);
 	});
 
+	test('scheme match', () => {
+		linkAllowedByRules('http://192.168.1.7/', ['http://*']);
+		linkAllowedByRules('http://twitter.com', ['http://*']);
+		linkAllowedByRules('http://twitter.com/hello', ['http://*']);
+		linkNotAllowedByRules('https://192.168.1.7/', ['http://*']);
+		linkNotAllowedByRules('https://twitter.com/', ['http://*']);
+	});
+
 	test('case normalization', () => {
 		// https://github.com/microsoft/vscode/issues/99294
 		linkAllowedByRules('https://github.com/microsoft/vscode/issues/new', ['https://github.com/microsoft']);
 		linkAllowedByRules('https://github.com/microsoft/vscode/issues/new', ['https://github.com/microsoft']);
+	});
+
+	test('ignore query & fragment - https://github.com/microsoft/vscode/issues/156839', () => {
+		linkAllowedByRules('https://github.com/login/oauth/authorize?foo=4', ['https://github.com/login/oauth/authorize']);
+		linkAllowedByRules('https://github.com/login/oauth/authorize#foo', ['https://github.com/login/oauth/authorize']);
 	});
 });

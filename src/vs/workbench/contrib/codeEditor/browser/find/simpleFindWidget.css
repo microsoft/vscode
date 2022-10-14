@@ -9,10 +9,13 @@
 	position: absolute;
 	top: 0;
 	right: 18px;
-	width: 220px;
 	max-width: calc(100% - 28px - 28px - 8px);
 	pointer-events: none;
-	padding: 0 10px 10px;
+	padding: 0 10px 0px 10px;
+}
+
+.simple-find-part .monaco-inputbox > .ibwrapper > input {
+	text-overflow: clip;
 }
 
 .monaco-workbench .simple-find-part {
@@ -27,8 +30,16 @@
 	transition: top 200ms linear;
 }
 
+.monaco-workbench.reduce-motion .monaco-editor .find-widget {
+	transition: top 0ms linear;
+}
+
 .monaco-workbench .simple-find-part.visible {
 	visibility: visible;
+}
+
+.monaco-workbench .simple-find-part.suppress-transition {
+	transition: none;
 }
 
 .monaco-workbench .simple-find-part.visible-transition {
@@ -37,6 +48,17 @@
 
 .monaco-workbench .simple-find-part .monaco-findInput {
 	flex: 1;
+}
+
+.monaco-workbench .simple-find-part .matchesCount {
+	width: 68px;
+	max-width: 68px;
+	min-width: 68px;
+	padding-left: 5px;
+}
+
+.monaco-workbench .simple-find-part.reduced-find-widget .matchesCount {
+	display: none;
 }
 
 .monaco-workbench .simple-find-part .button {
@@ -53,7 +75,11 @@
 	cursor: pointer;
 }
 
-.monaco-workbench .simple-find-part .button.disabled {
-	opacity: 0.3;
+.monaco-workbench div.simple-find-part div.button.disabled {
+	opacity: 0.3 !important;
 	cursor: default;
+}
+
+div.simple-find-part-wrapper div.button {
+	border-radius: 5px;
 }

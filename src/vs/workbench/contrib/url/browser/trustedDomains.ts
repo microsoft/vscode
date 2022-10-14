@@ -8,15 +8,14 @@ import { localize } from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
 const TRUSTED_DOMAINS_URI = URI.parse('trustedDomains:/Trusted Domains');
 
@@ -31,16 +30,12 @@ export const manageTrustedDomainSettingsCommand = {
 	},
 	handler: async (accessor: ServicesAccessor) => {
 		const editorService = accessor.get(IEditorService);
-		editorService.openEditor({ resource: TRUSTED_DOMAINS_URI, mode: 'jsonc', options: { pinned: true } });
+		editorService.openEditor({ resource: TRUSTED_DOMAINS_URI, languageId: 'jsonc', options: { pinned: true } });
 		return;
 	}
 };
 
-type ConfigureTrustedDomainsQuickPickItem = IQuickPickItem & ({ id: 'manage'; } | { id: 'trust'; toTrust: string });
-
-type ConfigureTrustedDomainsChoiceClassification = {
-	choice: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-};
+type ConfigureTrustedDomainsQuickPickItem = IQuickPickItem & ({ id: 'manage' } | { id: 'trust'; toTrust: string });
 
 export async function configureOpenerTrustedDomainsHandler(
 	trustedDomains: string[],
@@ -50,8 +45,6 @@ export async function configureOpenerTrustedDomainsHandler(
 	storageService: IStorageService,
 	editorService: IEditorService,
 	telemetryService: ITelemetryService,
-	notificationService: INotificationService,
-	clipboardService: IClipboardService,
 ) {
 	const parsedDomainToConfigure = URI.parse(domainToConfigure);
 	const toplevelDomainSegements = parsedDomainToConfigure.authority.split('.');
@@ -108,33 +101,28 @@ export async function configureOpenerTrustedDomainsHandler(
 	);
 
 	if (pickedResult && pickedResult.id) {
-		telemetryService.publicLog2<{ choice: string }, ConfigureTrustedDomainsChoiceClassification>(
-			'trustedDomains.configureTrustedDomainsQuickPickChoice',
-			{ choice: pickedResult.id }
-		);
-
 		switch (pickedResult.id) {
 			case 'manage':
 				await editorService.openEditor({
-					resource: TRUSTED_DOMAINS_URI,
-					mode: 'jsonc',
+					resource: TRUSTED_DOMAINS_URI.with({ fragment: resource.toString() }),
+					languageId: 'jsonc',
 					options: { pinned: true }
 				});
-				notificationService.prompt(Severity.Info, localize('configuringURL', "Configuring trust for: {0}", resource.toString()),
-					[{ label: 'Copy', run: () => clipboardService.writeText(resource.toString()) }]);
 				return trustedDomains;
-			case 'trust':
+			case 'trust': {
 				const itemToTrust = pickedResult.toTrust;
 				if (trustedDomains.indexOf(itemToTrust) === -1) {
-					storageService.remove(TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, StorageScope.GLOBAL);
+					storageService.remove(TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, StorageScope.APPLICATION);
 					storageService.store(
 						TRUSTED_DOMAINS_STORAGE_KEY,
 						JSON.stringify([...trustedDomains, itemToTrust]),
-						StorageScope.GLOBAL
+						StorageScope.APPLICATION,
+						StorageTarget.USER
 					);
 
 					return [...trustedDomains, itemToTrust];
 				}
+			}
 		}
 	}
 
@@ -161,14 +149,18 @@ async function getRemotes(fileService: IFileService, textFileService: ITextFileS
 	const domains = await Promise.race([
 		new Promise<string[][]>(resolve => setTimeout(() => resolve([]), 2000)),
 		Promise.all<string[]>(workspaceUris.map(async workspaceUri => {
-			const path = workspaceUri.path;
-			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-			const exists = await fileService.exists(uri);
-			if (!exists) {
+			try {
+				const path = workspaceUri.path;
+				const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
+				const exists = await fileService.exists(uri);
+				if (!exists) {
+					return [];
+				}
+				const gitConfig = (await (textFileService.read(uri, { acceptTextOnly: true }).catch(() => ({ value: '' })))).value;
+				return extractGitHubRemotesFromGitConfig(gitConfig);
+			} catch {
 				return [];
 			}
-			const gitConfig = (await (textFileService.read(uri, { acceptTextOnly: true }).catch(() => ({ value: '' })))).value;
-			return extractGitHubRemotesFromGitConfig(gitConfig);
 		}))]);
 
 	const set = domains.reduce((set, list) => list.reduce((set, item) => set.add(item), set), new Set<string>());
@@ -213,14 +205,16 @@ export async function readAuthenticationTrustedDomains(accessor: ServicesAccesso
 export function readStaticTrustedDomains(accessor: ServicesAccessor): IStaticTrustedDomains {
 	const storageService = accessor.get(IStorageService);
 	const productService = accessor.get(IProductService);
+	const environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
 
-	const defaultTrustedDomains: string[] = productService.linkProtectionTrustedDomains
-		? [...productService.linkProtectionTrustedDomains]
-		: [];
+	const defaultTrustedDomains = [
+		...productService.linkProtectionTrustedDomains ?? [],
+		...environmentService.options?.additionalTrustedDomains ?? []
+	];
 
 	let trustedDomains: string[] = [];
 	try {
-		const trustedDomainsSrc = storageService.get(TRUSTED_DOMAINS_STORAGE_KEY, StorageScope.GLOBAL);
+		const trustedDomainsSrc = storageService.get(TRUSTED_DOMAINS_STORAGE_KEY, StorageScope.APPLICATION);
 		if (trustedDomainsSrc) {
 			trustedDomains = JSON.parse(trustedDomainsSrc);
 		}

@@ -15,6 +15,7 @@ import { Action } from 'vs/base/common/actions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Promises } from 'vs/base/common/async';
 
 export class ExtensionDependencyChecker extends Disposable implements IWorkbenchContribution {
 
@@ -42,10 +43,10 @@ export class ExtensionDependencyChecker extends Disposable implements IWorkbench
 	}
 
 	private async getAllMissingDependencies(): Promise<string[]> {
-		const runningExtensions = await this.extensionService.getExtensions();
-		const runningExtensionsIds: Set<string> = runningExtensions.reduce((result, r) => { result.add(r.identifier.value.toLowerCase()); return result; }, new Set<string>());
+		await this.extensionService.whenInstalledExtensionsRegistered();
+		const runningExtensionsIds: Set<string> = this.extensionService.extensions.reduce((result, r) => { result.add(r.identifier.value.toLowerCase()); return result; }, new Set<string>());
 		const missingDependencies: Set<string> = new Set<string>();
-		for (const extension of runningExtensions) {
+		for (const extension of this.extensionService.extensions) {
 			if (extension.extensionDependencies) {
 				extension.extensionDependencies.forEach(dep => {
 					if (!runningExtensionsIds.has(dep.toLowerCase())) {
@@ -60,9 +61,9 @@ export class ExtensionDependencyChecker extends Disposable implements IWorkbench
 	private async installMissingDependencies(): Promise<void> {
 		const missingDependencies = await this.getUninstalledMissingDependencies();
 		if (missingDependencies.length) {
-			const extensions = (await this.extensionsWorkbenchService.queryGallery({ names: missingDependencies, pageSize: missingDependencies.length }, CancellationToken.None)).firstPage;
+			const extensions = await this.extensionsWorkbenchService.getExtensions(missingDependencies.map(id => ({ id })), CancellationToken.None);
 			if (extensions.length) {
-				await Promise.all(extensions.map(extension => this.extensionsWorkbenchService.install(extension)));
+				await Promises.settled(extensions.map(extension => this.extensionsWorkbenchService.install(extension)));
 				this.notificationService.notify({
 					severity: Severity.Info,
 					message: localize('finished installing missing deps', "Finished installing missing dependencies. Please reload the window now."),

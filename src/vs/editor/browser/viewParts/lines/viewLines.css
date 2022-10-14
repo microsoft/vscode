@@ -14,12 +14,30 @@
 	100% { background-color: none }
 }*/
 
+.mtkcontrol {
+	color: rgb(255, 255, 255) !important;
+	background: rgb(150, 0, 0) !important;
+}
+
 .monaco-editor.no-user-select .lines-content,
 .monaco-editor.no-user-select .view-line,
 .monaco-editor.no-user-select .view-lines {
 	user-select: none;
 	-webkit-user-select: none;
-	-ms-user-select: none;
+}
+/* Use user-select: text for lookup feature on macOS */
+/* https://github.com/microsoft/vscode/issues/85632 */
+.monaco-editor.mac .lines-content:hover,
+.monaco-editor.mac .view-line:hover,
+.monaco-editor.mac .view-lines:hover {
+	user-select: text;
+	-webkit-user-select: text;
+	-ms-user-select: text;
+}
+
+.monaco-editor.enable-user-select {
+	user-select: initial;
+	-webkit-user-select: initial;
 }
 
 .monaco-editor .view-lines {
