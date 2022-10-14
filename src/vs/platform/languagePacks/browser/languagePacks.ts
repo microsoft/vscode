@@ -62,11 +62,13 @@ export class WebLanguagePacksService extends LanguagePackBaseService {
 			name: manifest!.name,
 			publisher: manifest!.publisher,
 			version: manifest!.version
-		}, translation.path);
+		});
 		if (!uri) {
 			this.logService.trace('Gallery does not provide extension resources.');
+			return undefined;
 		}
-		return uri;
+
+		return URI.joinPath(uri, translation.path);
 	}
 
 	// Web doesn't have a concept of language packs, so we just return an empty array
