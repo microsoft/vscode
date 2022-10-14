@@ -63,6 +63,8 @@ export class WebviewViewPane extends ViewPane {
 	private readonly viewState: MementoObject;
 	private readonly extensionId?: ExtensionIdentifier;
 
+	private _repositionTimeout?: any;
+
 	constructor(
 		options: IViewletViewOptions,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -109,6 +111,8 @@ export class WebviewViewPane extends ViewPane {
 
 	override dispose() {
 		this._onDispose.fire();
+
+		clearTimeout(this._repositionTimeout);
 
 		super.dispose();
 	}
@@ -286,16 +290,21 @@ export class WebviewViewPane extends ViewPane {
 			return;
 		}
 
-		webviewEntry.layoutWebviewOverElement(this._container);
-
 		if (!this._rootContainer || !this._rootContainer.isConnected) {
 			this._rootContainer = this.findRootContainer(this._container);
 		}
+
+		webviewEntry.layoutWebviewOverElement(this._container);
 
 		if (this._rootContainer) {
 			const { top, left, right, bottom } = computeClippingRect(this._container, this._rootContainer);
 			webviewEntry.container.style.clipPath = `polygon(${left}px ${top}px, ${right}px ${top}px, ${right}px ${bottom}px, ${left}px ${bottom}px)`;
 		}
+
+		// Temporary fix for https://github.com/microsoft/vscode/issues/110450
+		// There is an animation that lasts about 200ms, update the webview positioning once this animation is complete.
+		clearTimeout(this._repositionTimeout);
+		this._repositionTimeout = setTimeout(() => this.layoutWebview(), 200);
 	}
 
 	private findRootContainer(container: HTMLElement): HTMLElement | undefined {
