@@ -42,19 +42,14 @@ steps:
       set -e
       npm config set registry "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/" --location=project
       npm config set always-auth=true --location=project
-      cat .npmrc
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
     displayName: Setup NPM
 
-  # - task: npmAuthenticate@0
-  #   inputs:
-  #     workingFile: .npmrc
-  #   condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
-  #   displayName: Setup NPM Authentication
-
-  - script: cat .npmrc
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: .npmrc
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
-    displayName: Setup NPM
+    displayName: Setup NPM Authentication
 
   - script: node build/setup-terrapin.js https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
