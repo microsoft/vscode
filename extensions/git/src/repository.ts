@@ -525,6 +525,7 @@ class FileEventLogger {
 
 	private onDidChangeLogLevel(logLevel: LogLevel): void {
 		this.eventDisposable.dispose();
+		this.logger.appendLine(localize('logLevel', "Log level: {0}", LogLevel[logLevel]));
 
 		if (logLevel > LogLevel.Debug) {
 			return;

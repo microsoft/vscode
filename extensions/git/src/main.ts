@@ -6,7 +6,7 @@
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel, LogLevel } from 'vscode';
+import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
@@ -178,16 +178,8 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 	const disposables: Disposable[] = [];
 	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
 
-
 	const logger = window.createOutputChannel('Git', { log: true });
 	disposables.push(logger);
-
-	const onDidChangeLogLevel = (logLevel: LogLevel) => {
-		logger.appendLine(localize('logLevel', "Log level: {0}", LogLevel[logLevel]));
-	};
-
-	logger.onDidChangeLogLevel(onDidChangeLogLevel);
-	onDidChangeLogLevel(logger.logLevel);
 
 	const { name, version, aiKey } = require('../package.json') as { name: string; version: string; aiKey: string };
 	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
