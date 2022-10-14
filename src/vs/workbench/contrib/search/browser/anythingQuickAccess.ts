@@ -359,11 +359,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		} else {
 			picks = [];
 			if (options.includeHelp) {
-				picks.concat(this.getHelpPicks(query, token));
+				picks.push(...this.getHelpPicks(query, token));
 			}
 			if (historyEditorPicks.length !== 0) {
 				picks.push({ type: 'separator', label: localize('recentlyOpenedSeparator', "recently opened") } as IQuickPickSeparator);
-				picks.concat(historyEditorPicks);
+				picks.push(...historyEditorPicks);
 			}
 		}
 
@@ -779,9 +779,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 				// If the user chooses 'Go to File' the help should go away as if they were
 				// entering a new mode
-				const providerSpecificOptions = provider.prefix === AnythingQuickAccessProvider.PREFIX
+				const providerSpecificOptions: AnythingQuickAccessProviderRunOptions | undefined = provider.prefix === AnythingQuickAccessProvider.PREFIX
 					? undefined
-					: { includeModes: true };
+					: { includeHelp: true };
 
 				importantProviders.push({
 					...mapOfProviders.get(prefix)!,
