@@ -11,7 +11,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITranslations, localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { ILogService } from 'vs/platform/log/common/log';
