@@ -15,7 +15,6 @@ import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebo
 import { IWebviewService, WebviewContentOptions, WebviewContentPurpose, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { DeserializedWebview, restoreWebviewContentOptions, restoreWebviewOptions, reviveWebviewExtensionDescription, SerializedWebview, SerializedWebviewOptions, WebviewEditorInputSerializer } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInputSerializer';
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
@@ -58,7 +57,6 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
-		@IEditorResolverService private readonly _editorResolverService: IEditorResolverService
 	) {
 		super(webviewWorkbenchService);
 	}
@@ -92,12 +90,6 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 		serializedEditorInput: string
 	): CustomEditorInput {
 		const data = this.fromJson(JSON.parse(serializedEditorInput));
-		if (data.viewType === 'jupyter.notebook.ipynb') {
-			const editorAssociation = this._editorResolverService.getAssociationsForResource(data.editorResource);
-			if (!editorAssociation.find(association => association.viewType === 'jupyter.notebook.ipynb')) {
-				return NotebookEditorInput.create(this._instantiationService, data.editorResource, 'jupyter-notebook', { _backupId: data.backupId, startDirty: data.dirty }) as any;
-			}
-		}
 
 		const webview = reviveWebview(this._webviewService, data);
 		const customInput = this._instantiationService.createInstance(CustomEditorInput, { resource: data.editorResource, viewType: data.viewType, id: data.id }, webview, { startsDirty: data.dirty, backupId: data.backupId });
@@ -131,7 +123,6 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkingCopyEditorService private readonly _workingCopyEditorService: IWorkingCopyEditorService,
 		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
-		@IEditorResolverService private readonly _editorResolverService: IEditorResolverService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@ICustomEditorService _customEditorService: ICustomEditorService // DO NOT REMOVE (needed on startup to register overrides properly)
 	) {
@@ -177,13 +168,6 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 				}
 
 				const backupData = backup.meta;
-				if (backupData.viewType === 'jupyter.notebook.ipynb') {
-					const editorAssociation = this._editorResolverService.getAssociationsForResource(URI.revive(backupData.editorResource));
-					if (!editorAssociation.find(association => association.viewType === 'jupyter.notebook.ipynb')) {
-						return NotebookEditorInput.create(this._instantiationService, URI.revive(backupData.editorResource), 'jupyter-notebook', { startDirty: !!backupData.backupId, _backupId: backupData.backupId, _workingCopy: workingCopy }) as any;
-					}
-				}
-
 				const id = backupData.webview.id;
 				const extension = reviveWebviewExtensionDescription(backupData.extension?.id, backupData.extension?.location);
 				const webview = reviveWebview(this._webviewService, {
