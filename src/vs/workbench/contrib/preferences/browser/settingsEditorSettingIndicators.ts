@@ -14,6 +14,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { getDefaultIgnoredSettings, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
@@ -49,10 +50,11 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	constructor(
 		container: HTMLElement,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ILanguageService private readonly languageService: ILanguageService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ICommandService private readonly commandService: ICommandService) {
 		this.indicatorsContainerElement = DOM.append(container, $('.misc-label'));
 		this.indicatorsContainerElement.style.display = 'inline';
@@ -74,7 +76,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		this.syncIgnoredElement = this.createSyncIgnoredElement();
 		this.defaultOverrideIndicatorElement = this.createDefaultOverrideIndicator();
 		this.scopeOverridesHover = new MutableDisposable();
-		this.profilesEnabled = this.configurationService.getValue<boolean>('workbench.experimental.settingsProfiles.enabled');
+		this.profilesEnabled = this.userDataProfilesService.isEnabled();
 	}
 
 	private createWorkspaceTrustElement(): HTMLElement {
@@ -354,7 +356,7 @@ function getAccessibleScopeDisplayMidSentenceText(completeScope: string, languag
 	return localizedScope;
 }
 
-export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IConfigurationService, languageService: ILanguageService): string {
+export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IConfigurationService, userDataProfilesService: IUserDataProfilesService, languageService: ILanguageService): string {
 	const ariaLabelSections: string[] = [];
 
 	// Add workspace trust text
@@ -362,7 +364,7 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 		ariaLabelSections.push(localize('workspaceUntrustedAriaLabel', "Workspace untrusted; setting value will not take effect"));
 	}
 
-	const profilesEnabled = configurationService.getValue<boolean>('workbench.experimental.settingsProfiles.enabled');
+	const profilesEnabled = userDataProfilesService.isEnabled();
 	if (element.hasPolicyValue) {
 		ariaLabelSections.push(localize('policyDescriptionAccessible', "Managed by organization policy"));
 	} else if (profilesEnabled && element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
