@@ -233,6 +233,7 @@ stages:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
                   VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
+                  VSCODE_BUILD_WIN32_32BIT: ${{ parameters.VSCODE_BUILD_WIN32_32BIT }}
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true)) }}:
       - stage: Windows
@@ -339,6 +340,7 @@ stages:
                     parameters:
                       VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
                       VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
+                      VSCODE_BUILD_WIN32_32BIT: ${{ parameters.VSCODE_BUILD_WIN32_32BIT }}
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
       - stage: LinuxServerDependencies

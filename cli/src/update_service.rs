@@ -220,6 +220,7 @@ pub enum Platform {
 	DarwinARM64,
 	WindowsX64,
 	WindowsX86,
+	WindowsARM64
 }
 
 impl Platform {
@@ -232,6 +233,7 @@ impl Platform {
 			Platform::DarwinARM64 => Some("darwin-arm64".to_owned()),
 			Platform::WindowsX64 => Some("win32-x64-archive".to_owned()),
 			Platform::WindowsX86 => Some("win32-archive".to_owned()),
+			Platform::WindowsARM64 => Some("win32-arm64-archive".to_owned()),
 			_ => None,
 		}
 	}
@@ -246,6 +248,7 @@ impl Platform {
 			Platform::DarwinARM64 => "server-darwin-arm64",
 			Platform::WindowsX64 => "server-win32-x64",
 			Platform::WindowsX86 => "server-win32",
+			Platform::WindowsARM64 => "server-win32-arm64",
 		}
 		.to_owned()
 	}
@@ -253,14 +256,15 @@ impl Platform {
 	pub fn cli(&self) -> String {
 		match self {
 			Platform::LinuxAlpineARM64 => "cli-alpine-arm64",
-			Platform::LinuxAlpineX64 => "cli-linux-alpine",
+			Platform::LinuxAlpineX64 => "cli-alpine-x64",
 			Platform::LinuxX64 => "cli-linux-x64",
 			Platform::LinuxARM64 => "cli-linux-arm64",
 			Platform::LinuxARM32 => "cli-linux-armhf",
 			Platform::DarwinX64 => "cli-darwin-x64",
 			Platform::DarwinARM64 => "cli-darwin-arm64",
+			Platform::WindowsARM64 => "cli-win32-arm64",
 			Platform::WindowsX64 => "cli-win32-x64",
-			Platform::WindowsX86 => "cli-win32-x84",
+			Platform::WindowsX86 => "cli-win32",
 		}
 		.to_owned()
 	}

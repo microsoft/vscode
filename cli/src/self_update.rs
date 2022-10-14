@@ -3,20 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::{
-	fs::{rename, set_permissions},
-	path::Path,
-};
+use std::{fs, path::Path, process::Command};
 use tempfile::tempdir;
 
 use crate::{
 	constants::{VSCODE_CLI_COMMIT, VSCODE_CLI_QUALITY},
 	options::Quality,
-	update_service::{Platform, Release, TargetKind, UpdateService},
+	update_service::{unzip_downloaded_release, Platform, Release, TargetKind, UpdateService},
 	util::{
-		errors::{wrap, AnyError, UpdatesNotConfigured},
+		errors::{wrap, AnyError, CorruptDownload, UpdatesNotConfigured},
 		http,
-		io::ReportCopyProgress,
+		io::{ReportCopyProgress, SilentCopyProgress},
 	},
 };
 
@@ -66,30 +63,78 @@ impl<'a> SelfUpdate<'a> {
 		release: &Release,
 		progress: impl ReportCopyProgress,
 	) -> Result<(), AnyError> {
+		// 1. Download the archive into a temporary directory
+		let tempdir = tempdir().map_err(|e| wrap(e, "Failed to create temp dir"))?;
+		let archive_path = tempdir.path().join("archive");
 		let stream = self.update_service.get_download_stream(release).await?;
+		http::download_into_file(&archive_path, progress, stream).await?;
+
+		// 2. Unzip the archive and get the binary
 		let target_path =
 			std::env::current_exe().map_err(|e| wrap(e, "could not get current exe"))?;
 		let staging_path = target_path.with_extension(".update");
+		let archive_contents_path = tempdir.path().join("content");
+		// unzipping the single binary is pretty small and fast--don't bother with passing progress
+		unzip_downloaded_release(&archive_path, &archive_contents_path, SilentCopyProgress())?;
+		copy_updated_cli_to_path(&archive_contents_path, &staging_path)?;
 
-		http::download_into_file(&staging_path, progress, stream).await?;
-
+		// 3. Copy file metadata, make sure the new binary is executable\
 		copy_file_metadata(&target_path, &staging_path)
 			.map_err(|e| wrap(e, "failed to set file permissions"))?;
+		validate_cli_is_good(&staging_path)?;
 
-		// Try to rename the old CLI to a tempdir, where it can get cleaned up by the
+		// Try to rename the old CLI to the tempdir, where it can get cleaned up by the
 		// OS later. However, this can fail if the tempdir is on a different drive
 		// than the installation dir. In this case just rename it to ".old".
-		let disposal_dir = tempdir().map_err(|e| wrap(e, "Failed to create disposal dir"))?;
-		if rename(&target_path, &disposal_dir.path().join("old-code-cli")).is_err() {
-			rename(&target_path, &target_path.with_extension(".old"))
+		if fs::rename(&target_path, &tempdir.path().join("old-code-cli")).is_err() {
+			fs::rename(&target_path, &target_path.with_extension(".old"))
 				.map_err(|e| wrap(e, "failed to rename old CLI"))?;
 		}
 
-		rename(&staging_path, &target_path)
+		fs::rename(&staging_path, &target_path)
 			.map_err(|e| wrap(e, "failed to rename newly installed CLI"))?;
 
 		Ok(())
 	}
+}
+
+fn validate_cli_is_good(exe_path: &Path) -> Result<(), AnyError> {
+	let o = Command::new(exe_path)
+		.args(["--version"])
+		.output()
+		.map_err(|e| CorruptDownload(format!("could not execute new binary, aborting: {}", e)))?;
+
+	if !o.status.success() {
+		let msg = format!(
+			"could not execute new binary, aborting. Stdout:\r\n\r\n{}\r\n\r\nStderr:\r\n\r\n{}",
+			String::from_utf8_lossy(&o.stdout),
+			String::from_utf8_lossy(&o.stderr),
+		);
+
+		return Err(CorruptDownload(msg).into());
+	}
+
+	Ok(())
+}
+
+fn copy_updated_cli_to_path(unzipped_content: &Path, staging_path: &Path) -> Result<(), AnyError> {
+	let unzipped_files = fs::read_dir(unzipped_content)
+		.map_err(|e| wrap(e, "could not read update contents"))?
+		.collect::<Vec<_>>();
+	if unzipped_files.len() != 1 {
+		let msg = format!(
+			"expected exactly one file in update, got {}",
+			unzipped_files.len()
+		);
+		return Err(CorruptDownload(msg).into());
+	}
+
+	let archive_file = unzipped_files[0]
+		.as_ref()
+		.map_err(|e| wrap(e, "error listing update files"))?;
+	fs::copy(&archive_file.path(), staging_path)
+		.map_err(|e| wrap(e, "error copying to staging file"))?;
+	Ok(())
 }
 
 #[cfg(target_os = "windows")]
@@ -105,7 +150,7 @@ fn copy_file_metadata(from: &Path, to: &Path) -> Result<(), std::io::Error> {
 	use std::os::unix::fs::MetadataExt;
 
 	let metadata = from.metadata()?;
-	set_permissions(&to, metadata.permissions())?;
+	fs::set_permissions(&to, metadata.permissions())?;
 
 	// based on coreutils' chown https://github.com/uutils/coreutils/blob/72b4629916abe0852ad27286f4e307fbca546b6e/src/chown/chown.rs#L266-L281
 	let s = std::ffi::CString::new(to.as_os_str().as_bytes()).unwrap();

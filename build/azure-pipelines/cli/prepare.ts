@@ -22,6 +22,7 @@ const setLauncherEnvironmentVars = () => {
 		['VSCODE_CLI_AI_KEY', product.aiConfig?.cliKey],
 		['VSCODE_CLI_AI_ENDPOINT', product.aiConfig?.cliEndpoint],
 		['VSCODE_CLI_VERSION', packageJson.version],
+		['VSCODE_CLI_UPDATE_ENDPOINT', product.updateUrl],
 		['VSCODE_CLI_QUALIY', product.quality],
 		['VSCODE_CLI_COMMIT', commit],
 	]);

@@ -362,6 +362,15 @@ impl std::fmt::Display for WindowsNeedsElevation {
 	}
 }
 
+#[derive(Debug)]
+pub struct CorruptDownload(pub String);
+
+impl std::fmt::Display for CorruptDownload {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "Error updating the VS Code CLI: {}", self.0)
+	}
+}
+
 // Makes an "AnyError" enum that contains any of the given errors, in the form
 // `enum AnyError { FooError(FooError) }` (when given `makeAnyError!(FooError)`).
 // Useful to easily deal with application error types without making tons of "From"
@@ -423,7 +432,8 @@ makeAnyError!(
 	ServerHasClosed,
 	ServiceAlreadyRegistered,
 	WindowsNeedsElevation,
-	UpdatesNotConfigured
+	UpdatesNotConfigured,
+	CorruptDownload
 );
 
 impl From<reqwest::Error> for AnyError {
