@@ -53,57 +53,17 @@ export namespace Event {
 		}
 	}
 
-	// TODO: This boolean will go away once it's stable
 	/**
-	 * Whether to enable the {@link Event.defer}.
-	 */
-	// eslint-disable-next-line prefer-const
-	export let enableDefer: boolean = false;
-
-	/**
-	 * Given an event, returns another event which defers the listener to a later task via a shared `setTimeout`. This
-	 * is useful for deferring non-critical work (eg. general UI updates) to ensure it does not block critical work (eg.
-	 * latency of keypress to text rendered).
+	 * Given an event, returns another event which debounces calls and defers the listeners to a
+	 * later task via a shared `setTimeout`. The event is converted into a signal (`Event<void>`) to
+	 * avoid additional object creation as a result of merging events and to try prevent race
+	 * conditions that could arise when using related deferred and non-deferred events.
 	 *
-	 * *NOTE* when using this it's important to consider race conditions that could arise when using related deferred
-	 * and non-deferred events.
+	 * This is useful for deferring non-critical work (eg. general UI updates) to ensure it does not
+	 * block critical work (eg. latency of keypress to text rendered).
 	 */
 	export function defer(event: Event<unknown>): Event<void> {
-		const listeners: { listener: () => any; thisArgs?: any; disposables?: IDisposable[] | DisposableStore }[] = [];
-		let primaryListener: IDisposable | undefined;
-		return (listener, thisArgs = null, disposables?) => {
-			const entry = { listener, thisArgs, disposables };
-			listeners.push(entry);
-			if (!primaryListener) {
-				// TODO: Use debounce?
-				// TODO: Use signal?
-				primaryListener = event(e => {
-					if (enableDefer) {
-						setTimeout(() => {
-							for (const l of listeners) {
-								l.listener.call(l.thisArgs);
-							}
-						}, 0);
-					} else {
-						for (const l of listeners) {
-							l.listener.call(l.thisArgs);
-						}
-					}
-				});
-			}
-			return toDisposable(() => {
-				const index = listeners.indexOf(entry);
-				if (index === -1) {
-					return;
-				}
-				listeners.splice(index, 1);
-				// Clear out the primary listener if all the other listeners are gone
-				if (listeners.length === 0) {
-					primaryListener?.dispose();
-					primaryListener = undefined;
-				}
-			});
-		};
+		return debounce<unknown, void>(event, () => void 0, 0);
 	}
 
 	/**
