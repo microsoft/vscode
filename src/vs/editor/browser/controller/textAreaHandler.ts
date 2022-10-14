@@ -575,7 +575,11 @@ export class TextAreaHandler extends ViewPart {
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._selections = e.selections.slice(0);
 		this._modelSelections = e.modelSelections.slice(0);
-		this._textAreaInput.writeScreenReaderContent('selection changed');
+		if (this._accessibilitySupport === AccessibilitySupport.Enabled) {
+			this._textAreaInput.writeScreenReaderContent('selection changed');
+		} else {
+			setTimeout(() => this._textAreaInput.writeScreenReaderContent('selection changed'), 0);
+		}
 		return true;
 	}
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
