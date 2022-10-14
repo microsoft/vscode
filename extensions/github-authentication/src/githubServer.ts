@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vscode-nls';
 import * as vscode from 'vscode';
 import fetch, { Response } from 'node-fetch';
 import { v4 as uuid } from 'uuid';
@@ -15,7 +14,6 @@ import { isSupportedEnvironment } from './common/env';
 import { LoopbackAuthServer } from './authServer';
 import path = require('path');
 
-const localize = nls.loadMessageBundle();
 const CLIENT_ID = '01ab8ac9400c4e429b23';
 const GITHUB_TOKEN_URL = 'https://vscode.dev/codeExchangeProxyEndpoints/github/login/oauth/access_token';
 const NETWORK_ERROR = 'network error';
@@ -156,16 +154,16 @@ export class GitHubServer implements IGitHubServer {
 
 		// Used for showing a friendlier message to the user when the explicitly cancel a flow.
 		let userCancelled: boolean | undefined;
-		const yes = localize('yes', "Yes");
-		const no = localize('no', "No");
+		const yes = vscode.l10n.t('Yes');
+		const no = vscode.l10n.t('No');
 		const promptToContinue = async () => {
 			if (userCancelled === undefined) {
 				// We haven't had a failure yet so wait to prompt
 				return;
 			}
 			const message = userCancelled
-				? localize('userCancelledMessage', "Having trouble logging in? Would you like to try a different way?")
-				: localize('otherReasonMessage', "You have not yet finished authorizing this extension to use GitHub. Would you like to keep trying?");
+				? vscode.l10n.t('Having trouble logging in? Would you like to try a different way?')
+				: vscode.l10n.t('otherReasonMessage', 'You have not yet finished authorizing this extension to use GitHub. Would you like to keep trying?');
 			const result = await vscode.window.showWarningMessage(message, yes, no);
 			if (result !== yes) {
 				throw new Error('Cancelled');
@@ -221,7 +219,11 @@ export class GitHubServer implements IGitHubServer {
 		this._logger.info(`Trying without local server... (${scopes})`);
 		return await vscode.window.withProgress<string>({
 			location: vscode.ProgressLocation.Notification,
-			title: localize('signingIn', 'Signing in to {0}...', this.baseUri.authority),
+			title: vscode.l10n.t({
+				message: 'Signing in to {0}...',
+				args: [this.baseUri.authority],
+				comment: ['The {0} will be a url, e.g. github.com']
+			}),
 			cancellable: true
 		}, async (_, token) => {
 			const existingNonces = this._pendingNonces.get(scopes) || [];
@@ -266,7 +268,11 @@ export class GitHubServer implements IGitHubServer {
 		this._logger.info(`Trying with local server... (${scopes})`);
 		return await vscode.window.withProgress<string>({
 			location: vscode.ProgressLocation.Notification,
-			title: localize('signingInAnotherWay', "Signing in to {0}...", this.baseUri.authority),
+			title: vscode.l10n.t({
+				message: 'Signing in to {0}...',
+				args: [this.baseUri.authority],
+				comment: ['The {0} will be a url, e.g. github.com']
+			}),
 			cancellable: true
 		}, async (_, token) => {
 			const redirectUri = await this.getRedirectEndpoint();
@@ -323,15 +329,15 @@ export class GitHubServer implements IGitHubServer {
 
 		const json = await result.json() as IGitHubDeviceCodeResponse;
 
-
+		const button = vscode.l10n.t('Copy & Continue to GitHub');
 		const modalResult = await vscode.window.showInformationMessage(
-			localize('code.title', "Your Code: {0}", json.user_code),
+			vscode.l10n.t({ message: 'Your Code: {0}', args: [json.user_code], comment: ['The {0} will be a code, e.g. 123-456'] }),
 			{
 				modal: true,
-				detail: localize('code.detail', "To finish authenticating, navigate to GitHub and paste in the above one-time code.")
-			}, 'Copy & Continue to GitHub');
+				detail: vscode.l10n.t('To finish authenticating, navigate to GitHub and paste in the above one-time code.')
+			}, button);
 
-		if (modalResult !== 'Copy & Continue to GitHub') {
+		if (modalResult !== button) {
 			throw new Error('User Cancelled');
 		}
 
@@ -372,11 +378,14 @@ export class GitHubServer implements IGitHubServer {
 		return await vscode.window.withProgress<string>({
 			location: vscode.ProgressLocation.Notification,
 			cancellable: true,
-			title: localize(
-				'progress',
-				"Open [{0}]({0}) in a new tab and paste your one-time code: {1}",
-				json.verification_uri,
-				json.user_code)
+			title: vscode.l10n.t({
+				message: 'Open [{0}]({0}) in a new tab and paste your one-time code: {1}',
+				args: [json.verification_uri, json.user_code],
+				comment: [
+					'The [{0}]({0}) will be a url and the {1} will be a code, e.g. 123-456',
+					'{Locked="[{0}]({0})"}'
+				]
+			})
 		}, async (_, token) => {
 			const refreshTokenUri = this.baseUri.with({
 				path: '/login/oauth/access_token',

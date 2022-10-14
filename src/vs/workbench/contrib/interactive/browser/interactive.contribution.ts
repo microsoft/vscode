@@ -32,7 +32,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { EditorActivation, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -317,8 +317,8 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
 		InteractiveEditorSerializer.ID,
 		InteractiveEditorSerializer);
 
-registerSingleton(IInteractiveHistoryService, InteractiveHistoryService, false);
-registerSingleton(IInteractiveDocumentService, InteractiveDocumentService, false);
+registerSingleton(IInteractiveHistoryService, InteractiveHistoryService, InstantiationType.Delayed);
+registerSingleton(IInteractiveDocumentService, InteractiveDocumentService, InstantiationType.Delayed);
 
 registerAction2(class extends Action2 {
 	constructor() {

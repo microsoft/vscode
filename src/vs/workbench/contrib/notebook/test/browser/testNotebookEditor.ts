@@ -413,11 +413,6 @@ class TestCellExecution implements INotebookCellExecution {
 }
 
 class TestNotebookExecutionStateService implements INotebookExecutionStateService {
-
-	getLastFailedCellForNotebook(notebook: URI): number | undefined {
-		return;
-	}
-
 	_serviceBrand: undefined;
 
 	private _executions = new ResourceMap<INotebookCellExecution>();
@@ -428,7 +423,7 @@ class TestNotebookExecutionStateService implements INotebookExecutionStateServic
 	forceCancelNotebookExecutions(notebookUri: URI): void {
 	}
 
-	getCellExecutionStatesForNotebook(notebook: URI): INotebookCellExecution[] {
+	getCellExecutionsForNotebook(notebook: URI): INotebookCellExecution[] {
 		return [];
 	}
 
@@ -441,5 +436,13 @@ class TestNotebookExecutionStateService implements INotebookExecutionStateServic
 		const exe = new TestCellExecution(notebook, cellHandle, onComplete);
 		this._executions.set(CellUri.generate(notebook, cellHandle), exe);
 		return exe;
+	}
+
+	getCellExecutionsByHandleForNotebook(notebook: URI): Map<number, INotebookCellExecution> | undefined {
+		return;
+	}
+
+	getLastFailedCellForNotebook(notebook: URI): number | undefined {
+		return;
 	}
 }

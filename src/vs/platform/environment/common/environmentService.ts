@@ -14,6 +14,8 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ExtensionKind, IDebugParams, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
 
+export const EXTENSION_IDENTIFIER_WITH_LOG_REGEX = /^([^.]+\..+):(.+)$/;
+
 export interface INativeEnvironmentPaths {
 
 	/**
@@ -216,7 +218,20 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	get isBuilt(): boolean { return !env['VSCODE_DEV']; }
 	get verbose(): boolean { return !!this.args.verbose; }
-	get logLevel(): string | undefined { return this.args.log; }
+
+	@memoize
+	get logLevel(): string | undefined { return this.args.log?.find(entry => !EXTENSION_IDENTIFIER_WITH_LOG_REGEX.test(entry)); }
+	@memoize
+	get extensionLogLevel(): [string, string][] | undefined {
+		const result: [string, string][] = [];
+		for (const entry of this.args.log || []) {
+			const matches = EXTENSION_IDENTIFIER_WITH_LOG_REGEX.exec(entry);
+			if (matches && matches[1] && matches[2]) {
+				result.push([matches[1], matches[2]]);
+			}
+		}
+		return result.length ? result : undefined;
+	}
 
 	@memoize
 	get serviceMachineIdResource(): URI { return joinPath(URI.file(this.userDataPath), 'machineid'); }
@@ -226,7 +241,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	@memoize
 	get telemetryLogResource(): URI { return URI.file(join(this.logsPath, 'telemetry.log')); }
-	get extensionTelemetryLogResource(): URI { return URI.file(join(this.logsPath, 'extensionTelemetry.log')); }
 	get disableTelemetry(): boolean { return !!this.args['disable-telemetry']; }
 
 	@memoize

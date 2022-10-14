@@ -38,7 +38,7 @@ import { getMultiSelectedResources, IExplorerService } from 'vs/workbench/contri
 import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition, VIEWLET_ID as VIEWLET_ID_FILES } from 'vs/workbench/contrib/files/common/files';
 import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
 import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
-import { cancelSearch, clearHistoryCommand, clearSearchResults, CloseReplaceAction, collapseDeepestExpandedLevel, copyAllCommand, copyMatchCommand, copyPathCommand, expandAll, FindInFilesCommand, findOrReplaceInFiles, FocusNextInputAction, focusNextSearchResult, FocusPreviousInputAction, focusPreviousSearchResult, focusSearchListCommand, getSearchView, openSearchView, refreshSearch, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, toggleCaseSensitiveCommand, togglePreserveCaseCommand, toggleRegexCommand, toggleWholeWordCommand } from 'vs/workbench/contrib/search/browser/searchActions';
+import { cancelSearch, clearHistoryCommand, clearSearchResults, CloseReplaceAction, collapseDeepestExpandedLevel, copyAllCommand, copyMatchCommand, copyPathCommand, expandAll, FindInFilesCommand, findOrReplaceInFiles, FocusNextInputAction, focusNextSearchResult, FocusPreviousInputAction, focusPreviousSearchResult, focusSearchListCommand, getMultiSelectedSearchResources, getSearchView, openSearchView, refreshSearch, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, toggleCaseSensitiveCommand, togglePreserveCaseCommand, toggleRegexCommand, toggleWholeWordCommand } from 'vs/workbench/contrib/search/browser/searchActions';
 import { searchClearIcon, searchCollapseAllIcon, searchExpandAllIcon, searchRefreshIcon, searchStopIcon, searchShowAsTree, searchViewIcon, searchShowAsList } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
@@ -47,7 +47,7 @@ import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { resolveResourcesForSearchIncludes } from 'vs/workbench/services/search/common/queryBuilder';
 import { getWorkspaceSymbols, IWorkspaceSymbol, SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { FileMatch, FileMatchOrMatch, FolderMatch, ISearchWorkbenchService, Match, RenderableMatch, SearchWorkbenchService } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, ISearchWorkbenchService, Match, RenderableMatch, SearchWorkbenchService } from 'vs/workbench/contrib/search/common/searchModel';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -228,6 +228,19 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+const restrictSearchToFolderFromSearch: ICommandHandler = async (accessor, folderMatch?: FolderMatchWithResource) => {
+	return searchInFolderCommand(accessor, false, undefined, folderMatch);
+};
+
+const RESTRICT_SEARCH_TO_FOLDER_ID = 'search.restrictSearchToFolder';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: RESTRICT_SEARCH_TO_FOLDER_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ResourceFolderFocusKey),
+	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyF,
+	handler: restrictSearchToFolderFromSearch
+});
+
 MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 	command: {
 		id: Constants.ReplaceActionId,
@@ -266,6 +279,16 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 	when: Constants.FileMatchOrMatchFocusKey,
 	group: 'search',
 	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.SearchContext, {
+	group: 'search',
+	order: 3,
+	command: {
+		id: RESTRICT_SEARCH_TO_FOLDER_ID,
+		title: nls.localize('restrictResultsToFolder', "Restrict Search to Folder...")
+	},
+	when: ContextKeyExpr.and(Constants.ResourceFolderFocusKey)
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -583,16 +606,30 @@ const FocusSearchListCommand: ICommandAction = {
 };
 MenuRegistry.addCommand(FocusSearchListCommand);
 
+const searchInFolderFromExplorer: ICommandHandler = async (accessor, resource?: URI) => {
+	return searchInFolderCommand(accessor, true, resource);
+};
 
-const searchInFolderCommand: ICommandHandler = async (accessor, resource?: URI) => {
+const searchInFolderCommand: ICommandHandler = async (accessor, isFromExplorer: boolean, resource?: URI, folderMatch?: FolderMatchWithResource) => {
 	const listService = accessor.get(IListService);
 	const fileService = accessor.get(IFileService);
 	const viewsService = accessor.get(IViewsService);
 	const contextService = accessor.get(IWorkspaceContextService);
 	const commandService = accessor.get(ICommandService);
-	const resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService), accessor.get(IExplorerService));
 	const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
 	const mode = searchConfig.mode;
+
+	let resources: URI[];
+
+	if (isFromExplorer) {
+		resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService), accessor.get(IExplorerService));
+	} else {
+		const searchView = getSearchView(accessor.get(IViewsService));
+		if (!searchView) {
+			return;
+		}
+		resources = getMultiSelectedSearchResources(searchView.getControl(), folderMatch, searchConfig);
+	}
 
 	const resolvedResources = fileService.resolveAll(resources.map(resource => ({ resource }))).then(results => {
 		const folders: URI[] = [];
@@ -619,13 +656,13 @@ const searchInFolderCommand: ICommandHandler = async (accessor, resource?: URI) 
 	}
 };
 
-const FIND_IN_FOLDER_ID = 'filesExplorer.findInFolder';
+const FIND_IN_FOLDER_EXPLORER_ID = 'filesExplorer.findInFolder';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: FIND_IN_FOLDER_ID,
+	id: FIND_IN_FOLDER_EXPLORER_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerFolderContext),
 	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyF,
-	handler: searchInFolderCommand
+	handler: searchInFolderFromExplorer
 });
 
 const FIND_IN_WORKSPACE_ID = 'filesExplorer.findInWorkspace';
@@ -652,7 +689,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '4_search',
 	order: 10,
 	command: {
-		id: FIND_IN_FOLDER_ID,
+		id: FIND_IN_FOLDER_EXPLORER_ID,
 		title: nls.localize('findInFolder', "Find in Folder...")
 	},
 	when: ContextKeyExpr.and(ExplorerFolderContext)

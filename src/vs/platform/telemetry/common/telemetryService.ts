@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { cloneAndChange, mixin } from 'vs/base/common/objects';
+import { mixin } from 'vs/base/common/objects';
 import { MutableObservableValue } from 'vs/base/common/observableValue';
 import { isWeb } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
@@ -16,7 +16,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
-import { getTelemetryLevel, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { cleanData, getTelemetryLevel, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export interface ITelemetryServiceConfig {
 	appenders: ITelemetryAppender[];
@@ -117,12 +117,7 @@ export class TelemetryService implements ITelemetryService {
 			data = mixin(data, this._experimentProperties);
 
 			// (last) remove all PII from data
-			data = cloneAndChange(data, value => {
-				if (typeof value === 'string') {
-					return this._cleanupInfo(value, anonymizeFilePaths);
-				}
-				return undefined;
-			});
+			data = cleanData(data as Record<string, any>, this._cleanupPatterns);
 
 			// Log to the appenders of sufficient level
 			this._appenders.forEach(a => a.log(eventName, data));
@@ -152,88 +147,6 @@ export class TelemetryService implements ITelemetryService {
 
 	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<any> {
 		return this.publicLogError(eventName, data as ITelemetryData);
-	}
-
-	private _anonymizeFilePaths(stack: string): string {
-		let updatedStack = stack;
-
-		const cleanUpIndexes: [number, number][] = [];
-		for (const regexp of this._cleanupPatterns) {
-			while (true) {
-				const result = regexp.exec(stack);
-				if (!result) {
-					break;
-				}
-				cleanUpIndexes.push([result.index, regexp.lastIndex]);
-			}
-		}
-
-		const nodeModulesRegex = /^[\\\/]?(node_modules|node_modules\.asar)[\\\/]/;
-		const fileRegex = /(file:\/\/)?([a-zA-Z]:(\\\\|\\|\/)|(\\\\|\\|\/))?([\w-\._]+(\\\\|\\|\/))+[\w-\._]*/g;
-		let lastIndex = 0;
-		updatedStack = '';
-
-		while (true) {
-			const result = fileRegex.exec(stack);
-			if (!result) {
-				break;
-			}
-			// Anoynimize user file paths that do not need to be retained or cleaned up.
-			if (!nodeModulesRegex.test(result[0]) && cleanUpIndexes.every(([x, y]) => result.index < x || result.index >= y)) {
-				updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>';
-				lastIndex = fileRegex.lastIndex;
-			}
-		}
-		if (lastIndex < stack.length) {
-			updatedStack += stack.substr(lastIndex);
-		}
-
-		return updatedStack;
-	}
-
-	private _removePropertiesWithPossibleUserInfo(property: string): string {
-		// If for some reason it is undefined we skip it (this shouldn't be possible);
-		if (!property) {
-			return property;
-		}
-
-		const value = property.toLowerCase();
-
-		const userDataRegexes = [
-			{ label: 'Google API Key', regex: /AIza[A-Za-z0-9_\\\-]{35}/ },
-			{ label: 'Slack Token', regex: /xox[pbar]\-[A-Za-z0-9]/ },
-			{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/ },
-			{ label: 'Email', regex: /@[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+/ } // Regex which matches *@*.site
-		];
-
-		// Check for common user data in the telemetry events
-		for (const secretRegex of userDataRegexes) {
-			if (secretRegex.regex.test(value)) {
-				return `<REDACTED: ${secretRegex.label}>`;
-			}
-		}
-
-		return property;
-	}
-
-
-	private _cleanupInfo(property: string, anonymizeFilePaths?: boolean): string {
-		let updatedProperty = property;
-
-		// anonymize file paths
-		if (anonymizeFilePaths) {
-			updatedProperty = this._anonymizeFilePaths(updatedProperty);
-		}
-
-		// sanitize with configured cleanup patterns
-		for (const regexp of this._cleanupPatterns) {
-			updatedProperty = updatedProperty.replace(regexp, '');
-		}
-
-		// remove possible user info
-		updatedProperty = this._removePropertiesWithPossibleUserInfo(updatedProperty);
-
-		return updatedProperty;
 	}
 }
 

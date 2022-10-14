@@ -76,7 +76,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 		return this._parentThread;
 	}
 
-	protected _getActions(): EditorAction[] {
+	protected _getActions(): Iterable<EditorAction> {
 		return EditorExtensionsRegistry.getEditorActions();
 	}
 

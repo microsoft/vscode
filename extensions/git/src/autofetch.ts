@@ -114,7 +114,7 @@ export class AutoFetcher {
 
 			try {
 				if (this._fetchAll) {
-					await this.repository.fetchAll();
+					await this.repository.fetchAll({ silent: true });
 				} else {
 					await this.repository.fetchDefault({ silent: true });
 				}

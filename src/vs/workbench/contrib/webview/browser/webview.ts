@@ -10,10 +10,13 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWebviewPortMapping } from 'vs/platform/webview/common/webviewPortMapping';
+import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webviewElement';
 
 /**
@@ -85,9 +88,6 @@ export interface WebviewOptions {
 	transformCssVariables?(styles: WebviewStyles): WebviewStyles;
 }
 
-/**
- *
- */
 export interface WebviewContentOptions {
 	/**
 	 * Should the webview allow `acquireVsCodeApi` to be called multiple times? Defaults to false.
@@ -271,4 +271,41 @@ export interface IOverlayWebview extends IWebview {
 	 * @param clippingContainer Optional container to clip the webview to. This should generally be a parent of `element`.
 	 */
 	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement): void;
+}
+
+/**
+ * Stores the unique origins for a webview.
+ *
+ * These are randomly generated, but keyed on extension and webview viewType.
+ */
+export class WebviewOriginStore {
+
+	private readonly memento: Memento;
+	private readonly state: MementoObject;
+
+	constructor(
+		rootStorageKey: string,
+		@IStorageService storageService: IStorageService,
+	) {
+		this.memento = new Memento(rootStorageKey, storageService);
+		this.state = this.memento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	public getOrigin(viewType: string, extId: ExtensionIdentifier | undefined): string {
+		const key = this.getKey(viewType, extId);
+
+		const existing = this.state[key];
+		if (existing && typeof existing === 'string') {
+			return existing;
+		}
+
+		const newOrigin = generateUuid();
+		this.state[key] = newOrigin;
+		this.memento.saveMemento();
+		return newOrigin;
+	}
+
+	private getKey(viewType: string, extId: ExtensionIdentifier | undefined): string {
+		return JSON.stringify({ viewType, extension: extId?.value });
+	}
 }

@@ -21,5 +21,5 @@ mod service_windows;
 
 pub use control_server::serve;
 pub use service::{
-    create_service_manager, ServiceContainer, ServiceManager, SERVICE_LOG_FILE_NAME,
+	create_service_manager, ServiceContainer, ServiceManager, SERVICE_LOG_FILE_NAME,
 };
