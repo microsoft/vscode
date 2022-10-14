@@ -59,7 +59,7 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTr
 interface UriListSnippetOptions {
 	readonly placeholderText?: string;
 
-	readonly placeholderIndex?: number;
+	readonly placeholderStartIndex?: number;
 
 	/**
 	 * Should the snippet be for an image?
@@ -84,8 +84,13 @@ export function createUriListSnippet(document: vscode.TextDocument, uris: readon
 
 		const ext = URI.Utils.extname(uri).toLowerCase().replace('.', '');
 		const insertAsImage = typeof options?.insertAsImage === 'undefined' ? imageFileExtensions.has(ext) : !!options.insertAsImage;
+
 		snippet.appendText(insertAsImage ? '![' : '[');
-		snippet.appendPlaceholder(options?.placeholderText ?? (insertAsImage ? 'Alt text' : 'label'), options?.placeholderIndex);
+
+		const placeholderText = options?.placeholderText ?? (insertAsImage ? 'Alt text' : 'label');
+		const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : undefined;
+		snippet.appendPlaceholder(placeholderText, placeholderIndex);
+
 		snippet.appendText(`](${mdPath})`);
 
 		if (i <= uris.length - 1 && uris.length > 1) {

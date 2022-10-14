@@ -24,6 +24,7 @@ export class InsertLinkFromWorkspace implements Command {
 		resources ??= await vscode.window.showOpenDialog({
 			canSelectFiles: true,
 			canSelectFolders: true,
+			canSelectMany: true,
 			openLabel: localize('insertLink.openLabel', "Insert link"),
 			title: localize('insertLink.title', "Insert link"),
 			defaultUri: getParentDocumentUri(activeEditor.document),
@@ -45,6 +46,7 @@ export class InsertImageFromWorkspace implements Command {
 		resources ??= await vscode.window.showOpenDialog({
 			canSelectFiles: true,
 			canSelectFolders: false,
+			canSelectMany: true,
 			filters: {
 				[localize('insertImage.imagesLabel', "Images")]: Array.from(imageFileExtensions)
 			},
@@ -72,7 +74,7 @@ function createInsertLinkEdit(activeEditor: vscode.TextEditor, selectedFiles: vs
 		const snippet = createUriListSnippet(activeEditor.document, selectedFiles, {
 			insertAsImage: insertAsImage,
 			placeholderText: selectionText,
-			placeholderIndex: i + 1,
+			placeholderStartIndex: (i + 1) * selectedFiles.length,
 		});
 
 		return snippet ? new vscode.SnippetTextEdit(selection, snippet) : undefined;
