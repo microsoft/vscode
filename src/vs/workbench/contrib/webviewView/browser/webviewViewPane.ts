@@ -178,7 +178,7 @@ export class WebviewViewPane extends ViewPane {
 		this._activated = true;
 
 		const webviewId = generateUuid();
-		const origin = WebviewViewPane.getOriginStore(this.storageService).getOrigin(this.id, this.extensionId);
+		const origin = this.extensionId ? WebviewViewPane.getOriginStore(this.storageService).getOrigin(this.id, this.extensionId) : undefined;
 		const webview = this.webviewService.createWebviewOverlay({
 			id: webviewId,
 			origin,
