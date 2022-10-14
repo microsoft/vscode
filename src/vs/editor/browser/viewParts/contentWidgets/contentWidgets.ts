@@ -9,7 +9,7 @@ import { ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/brows
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Constants } from 'vs/base/common/uint';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { HorizontalRange, LineVisibleRanges, RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
@@ -404,54 +404,42 @@ class Widget {
 	/**
 	 * Compute `this._topLeft`
 	 */
-	private _getTopAndBottomLeft(ctx: RenderingContext): [Coordinate, Coordinate] | [null, null] {
+	private _getTopAndBottomLeft(ctx: RenderingContext): [Coordinate | null, Coordinate | null] {
 		if (!this._viewRange) {
 			return [null, null];
 		}
 
 		const visibleRangesForRange = ctx.linesVisibleRangesForRange(this._viewRange, false);
-		if (!visibleRangesForRange || visibleRangesForRange.length === 0) {
-			return [null, null];
-		}
-
-		let firstLine = visibleRangesForRange[0];
-		let lastLine = visibleRangesForRange[0];
-		for (const visibleRangesForLine of visibleRangesForRange) {
-			if (visibleRangesForLine.lineNumber < firstLine.lineNumber) {
-				firstLine = visibleRangesForLine;
-			}
-			if (visibleRangesForLine.lineNumber > lastLine.lineNumber) {
-				lastLine = visibleRangesForLine;
-			}
-		}
-
-		let firstLineMinLeft = Constants.MAX_SAFE_SMALL_INTEGER;//firstLine.Constants.MAX_SAFE_SMALL_INTEGER;
-		for (const visibleRange of firstLine.ranges) {
-			if (visibleRange.left < firstLineMinLeft) {
-				firstLineMinLeft = visibleRange.left;
-			}
-		}
-
-		// Left-align widgets that should appear :before content
-		if (this._affinity === PositionAffinity.LeftOfInjectedText &&
-			this._viewRange.startColumn === 1) {
-			firstLineMinLeft = 0;
-		}
-
-		let lastLineMinLeft = Constants.MAX_SAFE_SMALL_INTEGER;//lastLine.Constants.MAX_SAFE_SMALL_INTEGER;
-		for (const visibleRange of lastLine.ranges) {
-			if (visibleRange.left < lastLineMinLeft) {
-				lastLineMinLeft = visibleRange.left;
-			}
-		}
-
-		const topForPosition = ctx.getVerticalOffsetForLineNumber(firstLine.lineNumber) - ctx.scrollTop;
-		const topLeft = new Coordinate(topForPosition, firstLineMinLeft);
-
-		const topForBottomLine = ctx.getVerticalOffsetForLineNumber(lastLine.lineNumber) - ctx.scrollTop;
-		const bottomLeft = new Coordinate(topForBottomLine + this._lineHeight, lastLineMinLeft);
+		const topLeft = getCoordinate(LineVisibleRanges.firstLine(visibleRangesForRange), this._affinity, this._viewRange.startColumn, 0);
+		const bottomLeft = getCoordinate(LineVisibleRanges.lastLine(visibleRangesForRange), this._affinity, this._viewRange.startColumn, this._lineHeight);
 
 		return [topLeft, bottomLeft];
+
+		function getCoordinate(line: LineVisibleRanges | null, affinity: PositionAffinity | null, startColumn: number, deltaTop: number): Coordinate | null {
+			if (!line) {
+				return null;
+			}
+			const left = getLeft(line.ranges, affinity, startColumn);
+			const top = ctx.getVerticalOffsetForLineNumber(line.lineNumber) - ctx.scrollTop;
+			return new Coordinate(top + deltaTop, left);
+		}
+
+		/**
+		 * Return the left-most position from `ranges`.
+		 */
+		function getLeft(ranges: HorizontalRange[], affinity: PositionAffinity | null, startColumn: number): number {
+			// Left-align widgets that should appear :before content
+			if (startColumn === 1 && affinity === PositionAffinity.LeftOfInjectedText) {
+				return 0;
+			}
+			let result = Constants.MAX_SAFE_SMALL_INTEGER;
+			for (const range of ranges) {
+				if (range.left < result) {
+					result = range.left;
+				}
+			}
+			return result;
+		}
 	}
 
 	private _prepareRenderWidget(ctx: RenderingContext): IRenderData | null {
