@@ -30,6 +30,7 @@ import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/the
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
+import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ICreateTerminalOptions, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getCwdForSplit } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -220,17 +221,19 @@ export class TerminalService implements ITerminalService {
 		_lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
 		_lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
 
-		//in order to reconnect to tasks, we have to show the panel
-		const reconnectToTaskKey = 'reconnectToTasks';
-		this._storageService.onWillSaveState((e) => {
-			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				this._storageService.store(reconnectToTaskKey, this.instances.some(i => i.shellLaunchConfig.type === 'Task'), StorageScope.WORKSPACE, StorageTarget.USER);
-			}
-		});
-		if (this._storageService.getBoolean(reconnectToTaskKey, StorageScope.WORKSPACE)) {
-			this._viewsService.openView(TERMINAL_VIEW_ID).then(() => {
-				this._storageService.store(reconnectToTaskKey, false, StorageScope.WORKSPACE, StorageTarget.USER);
+		if (this._configurationService.getValue(TaskSettingId.Reconnection)) {
+			// in order to reconnect to tasks, we have to show the panel
+			const reconnectToTaskKey = 'reconnectToTasks';
+			this._storageService.onWillSaveState((e) => {
+				if (e.reason === WillSaveStateReason.SHUTDOWN) {
+					this._storageService.store(reconnectToTaskKey, this.instances.some(i => i.shellLaunchConfig.type === 'Task'), StorageScope.WORKSPACE, StorageTarget.USER);
+				}
 			});
+			if (this._storageService.getBoolean(reconnectToTaskKey, StorageScope.WORKSPACE)) {
+				this._viewsService.openView(TERMINAL_VIEW_ID).then(() => {
+					this._storageService.store(reconnectToTaskKey, false, StorageScope.WORKSPACE, StorageTarget.USER);
+				});
+			}
 		}
 
 		// Create async as the class depends on `this`
