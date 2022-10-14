@@ -95,8 +95,8 @@ suite('ExtHostTelemetry', function () {
 
 		// This is the appender which the extension would contribute
 		const appender: TelemetryAppender = {
-			logEvent: (data) => {
-				sentData.push(data);
+			logEvent: (eventName: string, data) => {
+				sentData.push({ eventName, data });
 			},
 			logException: (exception, data) => {
 				sentExceptions.push({ exception, data });
@@ -120,7 +120,7 @@ suite('ExtHostTelemetry', function () {
 
 		logger.logUsage('test-event', { 'test-data': 'test-data' });
 		assert.strictEqual(sentData.length, 1);
-		assert.strictEqual(sentData[0].eventName, 'test-event');
+		assert.strictEqual(sentData[0].eventName, `${mockExtensionIdentifier.name}/test-event`);
 		assert.strictEqual(sentData[0].data['test-data'], 'test-data');
 
 		logger.logUsage('test-event', { 'test-data': 'test-data' });

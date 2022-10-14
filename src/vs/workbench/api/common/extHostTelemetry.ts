@@ -182,16 +182,16 @@ export class ExtHostTelemetryLogger {
 		if (!this._apiObject) {
 			const that = this;
 			const obj: vscode.TelemetryLogger = {
-				logUsage: that.logUsage,
+				logUsage: that.logUsage.bind(that),
 				get isUsageEnabled() {
 					return that._telemetryEnablements.isUsageEnabled;
 				},
 				get isErrorsEnabled() {
 					return that._telemetryEnablements.isErrorsEnabled;
 				},
-				logError: that.logError,
-				dispose: that.dispose,
-				onDidChangeEnableStates: that._onDidChangeEnableStates.event
+				logError: that.logError.bind(that),
+				dispose: that.dispose.bind(that),
+				onDidChangeEnableStates: that._onDidChangeEnableStates.event.bind(that)
 			};
 			this._apiObject = Object.freeze(obj);
 		}
