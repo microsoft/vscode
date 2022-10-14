@@ -582,7 +582,7 @@ function getFlatSettings(settingsGroups: ISettingsGroup[]) {
 }
 
 interface IDisposableTemplate {
-	toDispose: DisposableStore;
+	readonly toDispose: DisposableStore;
 }
 
 interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
@@ -598,7 +598,7 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	deprecationWarningElement: HTMLElement;
 	indicatorsLabel: SettingsTreeIndicatorsLabel;
 	toolbar: ToolBar;
-	elementDisposables: DisposableStore;
+	readonly elementDisposables: DisposableStore;
 }
 
 interface ISettingBoolItemTemplate extends ISettingItemTemplate<boolean> {
@@ -808,7 +808,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const template: ISettingItemTemplate = {
 			toDispose,
-			elementDisposables: new DisposableStore(),
+			elementDisposables: toDispose.add(new DisposableStore()),
 
 			containerElement: container,
 			categoryElement,
@@ -895,7 +895,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.context = element;
 		template.toolbar.context = element;
 		const actions = this.disposableActionFactory(element.setting);
-		actions.forEach(a => isDisposable(a) && template.elementDisposables?.add(a));
+		actions.forEach(a => isDisposable(a) && template.elementDisposables.add(a));
 		template.toolbar.setActions([], [...this.settingActions, ...actions]);
 
 		const setting = element.setting;
@@ -913,9 +913,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		template.descriptionElement.innerText = '';
 		if (element.setting.descriptionIsMarkdown) {
-			const disposables = new DisposableStore();
-			template.elementDisposables.add(disposables);
-			const renderedDescription = this.renderSettingMarkdown(element, template.containerElement, element.description, disposables);
+			const renderedDescription = this.renderSettingMarkdown(element, template.containerElement, element.description, template.elementDisposables);
 			template.descriptionElement.appendChild(renderedDescription);
 		} else {
 			template.descriptionElement.innerText = element.description;
@@ -932,8 +930,6 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		});
 		const deprecationText = element.setting.deprecationMessage || '';
 		if (deprecationText && element.setting.deprecationMessageIsMarkdown) {
-			const disposables = new DisposableStore();
-			template.elementDisposables.add(disposables);
 			template.deprecationWarningElement.innerText = '';
 			template.deprecationWarningElement.appendChild(this.renderSettingMarkdown(element, template.containerElement, element.setting.deprecationMessage!, template.elementDisposables));
 		} else {
@@ -966,7 +962,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		}
 	}
 
-	private renderSettingMarkdown(element: SettingsTreeSettingElement, container: HTMLElement, text: string, disposeables: DisposableStore): HTMLElement {
+	private renderSettingMarkdown(element: SettingsTreeSettingElement, container: HTMLElement, text: string, disposables: DisposableStore): HTMLElement {
 		// Rewrite `#editor.fontSize#` to link format
 		text = fixSettingLinks(text);
 
@@ -983,7 +979,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 						this._openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
 					}
 				},
-				disposables: disposeables
+				disposables
 			},
 			asyncRenderCallback: () => {
 				const height = container.clientHeight;
@@ -992,7 +988,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 				}
 			},
 		});
-		disposeables.add(renderedMarkdown);
+		disposables.add(renderedMarkdown);
 
 		renderedMarkdown.element.classList.add('setting-item-markdown');
 		cleanRenderedMarkdown(renderedMarkdown.element);
@@ -1002,7 +998,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	protected abstract renderValue(dataElement: SettingsTreeSettingElement, template: ISettingItemTemplate, onChange: (value: any) => void): void;
 
 	disposeTemplate(template: IDisposableTemplate): void {
-		dispose(template.toDispose);
+		template.toDispose.dispose();
 	}
 
 	disposeElement(_element: ITreeNode<SettingsTreeElement>, _index: number, template: IDisposableTemplate, _height: number | undefined): void {
@@ -1864,7 +1860,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 
 		const template: ISettingBoolItemTemplate = {
 			toDispose,
-			elementDisposables: new DisposableStore(),
+			elementDisposables: toDispose.add(new DisposableStore()),
 
 			containerElement: container,
 			categoryElement,

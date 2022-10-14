@@ -9,6 +9,8 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
+  - name: VSCODE_BUILD_TUNNEL_CLI
+    type: boolean
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -106,7 +108,8 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { npx https://aka.ms/enablesecurefeed standAlone }
+      exec { npm install https://aka.ms/enablesecurefeed --global }
+      exec { npm exec terrapinadotask -- standAlone }
     timeoutInMinutes: 5
     retryCountOnTaskFailure: 3
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
@@ -174,6 +177,36 @@ steps:
         exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-min-ci" }
         echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)"
       displayName: Build
+
+  - ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: unsigned_vscode_cli_win32_arm64_cli
+        patterns: '**'
+        path: $(Build.ArtifactStagingDirectory)/cli
+      displayName: Download VS Code CLI
+      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
+
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: unsigned_vscode_cli_win32_x64_cli
+        patterns: '**'
+        path: $(Build.ArtifactStagingDirectory)/cli
+      displayName: Download VS Code CLI
+      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        $ArtifactName = (gci -Path "$(Build.ArtifactStagingDirectory)/cli" | Select-Object -last 1).FullName
+        Expand-Archive -Path $ArtifactName -DestinationPath "$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin"
+
+        if ("$(VSCODE_QUALITY)" -ne "stable")
+        {
+          Move-Item -Path "$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/code-tunnel.exe" -Destination "$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/code-tunnel-$(VSCODE_QUALITY).exe"
+        }
+
+      displayName: Move VS Code CLI
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
     - powershell: |

@@ -23,10 +23,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
-import product from 'vs/platform/product/common/product';
 import { IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { Promises } from 'vs/base/common/async';
@@ -38,7 +36,7 @@ export const RELEASE_NOTES_URL = new RawContextKey<string>('releaseNotesUrl', ''
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
-function showReleaseNotes(instantiationService: IInstantiationService, version: string) {
+export function showReleaseNotes(instantiationService: IInstantiationService, version: string) {
 	if (!releaseNotesManager) {
 		releaseNotesManager = instantiationService.createInstance(ReleaseNotesManager);
 	}
@@ -102,35 +100,6 @@ export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), version, instantiationService);
-	}
-}
-
-export class ShowCurrentReleaseNotesAction extends Action2 {
-
-	constructor() {
-		super({
-			id: ShowCurrentReleaseNotesActionId,
-			title: { value: nls.localize('showReleaseNotes', "Show Release Notes"), original: 'Show Release Notes' },
-			category: { value: product.nameShort, original: product.nameShort },
-			f1: true,
-			precondition: RELEASE_NOTES_URL,
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const instantiationService = accessor.get(IInstantiationService);
-		const productService = accessor.get(IProductService);
-
-		try {
-			await showReleaseNotes(instantiationService, productService.version);
-		} catch (err) {
-			const action = instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
-			try {
-				await action.run();
-			} catch (err2) {
-				throw new Error(`${err.message} and ${err2.message}`);
-			}
-		}
 	}
 }
 

@@ -38,7 +38,7 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 			return;
 		}
 
-		const executing = this._notebookExecutionStateService.getCellExecutionStatesForNotebook(this._notebookEditor.textModel?.uri)
+		const executing = this._notebookExecutionStateService.getCellExecutionsForNotebook(this._notebookEditor.textModel?.uri)
 			.filter(exe => exe.state === NotebookCellExecutionState.Executing);
 		const executionIsVisible = (exe: INotebookCellExecution) => {
 			for (const range of this._notebookEditor.visibleRanges) {

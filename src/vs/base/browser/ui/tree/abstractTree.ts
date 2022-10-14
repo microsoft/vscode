@@ -298,11 +298,6 @@ interface ITreeRendererOptions {
 	readonly hideTwistiesOfChildlessElements?: boolean;
 }
 
-interface IRenderData<TTemplateData> {
-	templateData: ITreeListTemplateData<TTemplateData>;
-	height: number;
-}
-
 interface Collection<T> {
 	readonly elements: T[];
 	readonly onDidChange: Event<T[]>;
@@ -332,7 +327,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 
 	readonly templateId: string;
 	private renderedElements = new Map<T, ITreeNode<T, TFilterData>>();
-	private renderedNodes = new Map<ITreeNode<T, TFilterData>, IRenderData<TTemplateData>>();
+	private renderedNodes = new Map<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>>();
 	private indent: number = TreeRenderer.DefaultIndent;
 	private hideTwistiesOfChildlessElements: boolean = false;
 
@@ -354,13 +349,20 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 		this.updateOptions(options);
 
 		Event.map(onDidChangeCollapseState, e => e.node)(this.onDidChangeNodeTwistieState, this, this.disposables);
-
 		renderer.onDidChangeTwistieState?.(this.onDidChangeTwistieState, this, this.disposables);
 	}
 
 	updateOptions(options: ITreeRendererOptions = {}): void {
 		if (typeof options.indent !== 'undefined') {
-			this.indent = clamp(options.indent, 0, 40);
+			const indent = clamp(options.indent, 0, 40);
+
+			if (indent !== this.indent) {
+				this.indent = indent;
+
+				for (const [node, templateData] of this.renderedNodes) {
+					this.renderTreeElement(node, templateData);
+				}
+			}
 		}
 
 		if (typeof options.renderIndentGuides !== 'undefined') {
@@ -396,21 +398,9 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	}
 
 	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, height: number | undefined): void {
-		if (typeof height === 'number') {
-			this.renderedNodes.set(node, { templateData, height });
-			this.renderedElements.set(node.element, node);
-		}
-
-		const indent = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
-		templateData.twistie.style.paddingLeft = `${indent}px`;
-		templateData.indent.style.width = `${indent + this.indent - 16}px`;
-
-		this.renderTwistie(node, templateData);
-
-		if (typeof height === 'number') {
-			this.renderIndentGuides(node, templateData);
-		}
-
+		this.renderedNodes.set(node, templateData);
+		this.renderedElements.set(node.element, node);
+		this.renderTreeElement(node, templateData);
 		this.renderer.renderElement(node, index, templateData.templateData, height);
 	}
 
@@ -440,18 +430,27 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	}
 
 	private onDidChangeNodeTwistieState(node: ITreeNode<T, TFilterData>): void {
-		const data = this.renderedNodes.get(node);
+		const templateData = this.renderedNodes.get(node);
 
-		if (!data) {
+		if (!templateData) {
 			return;
 		}
 
-		this.renderTwistie(node, data.templateData);
 		this._onDidChangeActiveNodes(this.activeNodes.elements);
-		this.renderIndentGuides(node, data.templateData);
+		this.renderTreeElement(node, templateData);
 	}
 
-	private renderTwistie(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>) {
+	private renderTreeElement(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>) {
+		const indent = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
+		templateData.twistie.style.paddingLeft = `${indent}px`;
+		templateData.indent.style.width = `${indent + this.indent - 16}px`;
+
+		if (node.collapsible) {
+			templateData.container.setAttribute('aria-expanded', String(!node.collapsed));
+		} else {
+			templateData.container.removeAttribute('aria-expanded');
+		}
+
 		templateData.twistie.classList.remove(...Codicon.treeItemExpanded.classNamesArray);
 
 		let twistieRendered = false;
@@ -471,14 +470,6 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 			templateData.twistie.classList.remove('collapsible', 'collapsed');
 		}
 
-		if (node.collapsible) {
-			templateData.container.setAttribute('aria-expanded', String(!node.collapsed));
-		} else {
-			templateData.container.removeAttribute('aria-expanded');
-		}
-	}
-
-	private renderIndentGuides(target: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>): void {
 		clearNode(templateData.indent);
 		templateData.indentGuidesDisposable.dispose();
 
@@ -488,8 +479,6 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 
 		const disposableStore = new DisposableStore();
 		const model = this.modelProvider();
-
-		let node = target;
 
 		while (true) {
 			const ref = model.getNodeLocation(node);

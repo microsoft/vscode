@@ -27,6 +27,8 @@ import { IDecoration, Terminal } from 'xterm';
 // eslint-disable-next-line local/code-import-patterns
 import type { ITerminalAddon } from 'xterm-headless';
 
+
+const quickFixSelectors = [DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration];
 export interface ITerminalQuickFix {
 	showMenu(): void;
 	/**
@@ -45,10 +47,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	readonly onDidRequestRerunCommand = this._onDidRequestRerunCommand.event;
 
 	private _terminal: Terminal | undefined;
-
-	private _currentQuickFixElement: HTMLElement | undefined;
-
-	private _decorationMarkerIds = new Set<number>();
 
 	private _commandListeners: Map<string, ITerminalQuickFixOptions[]> = new Map();
 
@@ -69,22 +67,23 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		super();
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (commandDetectionCapability) {
-			this._registerCommandFinishedHandler();
+			this._registerCommandHandlers();
 		} else {
 			this._capabilities.onDidAddCapability(c => {
 				if (c === TerminalCapability.CommandDetection) {
-					this._registerCommandFinishedHandler();
+					this._registerCommandHandlers();
 				}
 			});
 		}
 		this._terminalDecorationHoverService = instantiationService.createInstance(TerminalDecorationHoverManager);
 	}
+
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
 	}
 
 	showMenu(): void {
-		this._currentQuickFixElement?.click();
+		this._decoration?.element?.click();
 	}
 
 	registerCommandFinishedListener(options: ITerminalQuickFixOptions): void {
@@ -94,86 +93,110 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		this._commandListeners.set(matcherKey, currentOptions);
 	}
 
-	private _registerCommandFinishedHandler(): void {
+	private _registerCommandHandlers(): void {
 		const terminal = this._terminal;
 		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (!terminal || !commandDetection) {
 			return;
 		}
-		this._register(commandDetection.onCommandExecuted(() => {
-			this._decoration?.dispose();
-			this._decoration = undefined;
-		}));
-		this._register(commandDetection.onCommandFinished(async command => {
-			this._decoration?.dispose();
-			this._decoration = undefined;
-			this._quickFixes = getQuickFixes(command, this._commandListeners, this._openerService, this._onDidRequestRerunCommand);
-		}));
+		this._register(commandDetection.onCommandFinished(command => this._resolveQuickFixes(command)));
 		// The buffer is not ready by the time command finish
-		// is called. Add the decoration on command start using the actions, if any,
-		// from the last command
+		// is called. Add the decoration on command start if there are corresponding quick fixes
 		this._register(commandDetection.onCommandStarted(() => {
-			if (this._quickFixes) {
-				this._registerContextualDecoration();
-				this._quickFixes = undefined;
-			}
+			this._registerQuickFixDecoration();
+			this._quickFixes = undefined;
 		}));
 	}
 
-	private _registerContextualDecoration(): void {
+	/**
+	 * Resolves quick fixes, if any, based on the
+	 * @param command & its output
+	 */
+	private _resolveQuickFixes(command: ITerminalCommand): void {
+		if (command.command !== '') {
+			this._disposeQuickFix();
+		}
+		const result = getQuickFixesForCommand(command, this._commandListeners, this._openerService, this._onDidRequestRerunCommand);
+		if (!result) {
+			return;
+		}
+		const { fixes, onDidRunQuickFix } = result;
+		this._quickFixes = fixes;
+		onDidRunQuickFix(() => this._disposeQuickFix());
+	}
+
+	private _disposeQuickFix(): void {
+		this._decoration?.dispose();
+		this._decoration = undefined;
+		this._quickFixes = undefined;
+	}
+
+	/**
+	 * Registers a decoration with the quick fixes
+	 */
+	private _registerQuickFixDecoration(): void {
 		if (!this._terminal) {
+			return;
+		}
+		if (!this._quickFixes) {
 			return;
 		}
 		const marker = this._terminal.registerMarker();
 		if (!marker) {
 			return;
 		}
-		const actions = this._quickFixes;
 		const decoration = this._terminal.registerDecoration({ marker, layer: 'top' });
+		if (!decoration) {
+			return;
+		}
 		this._decoration = decoration;
 		const kb = this._keybindingService.lookupKeybinding(TerminalCommandId.QuickFix);
 		const hoverLabel = kb ? localize('terminalQuickFixWithKb', "Show Quick Fixes ({0})", kb.getLabel()) : '';
+		const fixes = this._quickFixes;
+		if (!fixes) {
+			decoration.dispose();
+			return;
+		}
 		decoration?.onRender((e: HTMLElement) => {
-			if (!this._decorationMarkerIds.has(decoration.marker.id)) {
-				this._currentQuickFixElement = e;
-				e.classList.add(DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration);
-				updateLayout(this._configurationService, e);
-				this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
-				if (actions) {
-					this._decorationMarkerIds.add(decoration.marker.id);
-					this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
-						this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => actions, autoSelectFirstItem: true });
-					}));
-					this._register(this._terminalDecorationHoverService.createHover(e, undefined, hoverLabel));
-				}
+			if (e.classList.contains(DecorationSelector.QuickFix)) {
+				return;
 			}
+			e.classList.add(...quickFixSelectors);
+			updateLayout(this._configurationService, e);
+			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
+			this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => {
+				this._contextMenuService.showContextMenu({ getAnchor: () => e, getActions: () => fixes, autoSelectFirstItem: true });
+			}));
+			this._register(this._terminalDecorationHoverService.createHover(e, undefined, hoverLabel));
 		});
 	}
 }
 
-export function getQuickFixes(
+export function getQuickFixesForCommand(
 	command: ITerminalCommand,
-	actionOptions: Map<string, ITerminalQuickFixOptions[]>,
+	quickFixOptions: Map<string, ITerminalQuickFixOptions[]>,
 	openerService: IOpenerService,
 	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>
-): IAction[] | undefined {
-	const actions: IAction[] = [];
+): { fixes: IAction[]; onDidRunQuickFix: Event<void> } | undefined {
+	const onDidRunQuickFixEmitter = new Emitter<void>();
+	const onDidRunQuickFix = onDidRunQuickFixEmitter.event;
+	const fixes: IAction[] = [];
 	const newCommand = command.command;
-	for (const options of actionOptions.values()) {
-		for (const actionOption of options) {
-			if (actionOption.exitStatus !== undefined && actionOption.exitStatus !== (command.exitCode === 0)) {
+	for (const options of quickFixOptions.values()) {
+		for (const option of options) {
+			if (option.exitStatus !== undefined && option.exitStatus !== (command.exitCode === 0)) {
 				continue;
 			}
-			const commandLineMatch = newCommand.match(actionOption.commandLineMatcher);
+			const commandLineMatch = newCommand.match(option.commandLineMatcher);
 			if (!commandLineMatch) {
 				continue;
 			}
-			const outputMatcher = actionOption.outputMatcher;
+			const outputMatcher = option.outputMatcher;
 			let outputMatch;
 			if (outputMatcher) {
 				outputMatch = command.getOutputMatch(outputMatcher);
 			}
-			const quickFixes = actionOption.getQuickFixes({ commandLineMatch, outputMatch }, command);
+			const quickFixes = option.getQuickFixes({ commandLineMatch, outputMatch }, command);
 			if (quickFixes) {
 				for (const quickFix of asArray(quickFixes)) {
 					let action: IAction | undefined;
@@ -204,7 +227,12 @@ export function getQuickFixes(
 									label,
 									class: undefined,
 									enabled: true,
-									run: () => openerService.open(quickFix.uri),
+									run: () => {
+										openerService.open(quickFix.uri);
+										// since no command gets run here, need to
+										// clear the decoration and quick fix
+										onDidRunQuickFixEmitter.fire();
+									},
 									tooltip: label,
 									uri: quickFix.uri
 								} as IAction;
@@ -222,13 +250,13 @@ export function getQuickFixes(
 						};
 					}
 					if (action) {
-						actions.push(action);
+						fixes.push(action);
 					}
 				}
 			}
 		}
 	}
-	return actions.length === 0 ? undefined : actions;
+	return fixes.length > 0 ? { fixes, onDidRunQuickFix } : undefined;
 }
 
 

@@ -257,3 +257,5 @@ async function whenFileExists(file: URI, trial: number, fileService: IFileServic
 	await timeout(1000, token);
 	await whenFileExists(file, trial + 1, fileService, logService, token);
 }
+
+export const ACTIVE_OUTPUT_CHANNEL_CONTEXT = new RawContextKey<string>('activeOutputChannel', '');

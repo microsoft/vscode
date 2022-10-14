@@ -18,6 +18,8 @@ import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
+import { OutputChannelLogger } from './log';
+import TelemetryReporter from '@vscode/extension-telemetry';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
@@ -373,11 +375,14 @@ export class Git {
 	private _onOutput = new EventEmitter();
 	get onOutput(): EventEmitter { return this._onOutput; }
 
-	constructor(options: IGitOptions) {
+	private readonly telemetryReporter: TelemetryReporter;
+
+	constructor(options: IGitOptions, telemetryReporter: TelemetryReporter) {
 		this.path = options.gitPath;
 		this.version = options.version;
 		this.userAgent = options.userAgent;
 		this.env = options.env || {};
+		this.telemetryReporter = telemetryReporter;
 
 		const onConfigurationChanged = (e?: ConfigurationChangeEvent) => {
 			if (e !== undefined && !e.affectsConfiguration('git.commandsToLog')) {
@@ -396,8 +401,8 @@ export class Git {
 		return Versions.compare(Versions.fromString(this.version), Versions.fromString(version));
 	}
 
-	open(repository: string, dotGit: { path: string; commonPath?: string }): Repository {
-		return new Repository(this, repository, dotGit);
+	open(repository: string, dotGit: { path: string; commonPath?: string }, outputChannelLogger: OutputChannelLogger): Repository {
+		return new Repository(this, repository, dotGit, outputChannelLogger);
 	}
 
 	async init(repository: string): Promise<void> {
@@ -555,7 +560,9 @@ export class Git {
 	}
 
 	private async _exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
+		const startSpawn = Date.now();
 		const child = this.spawn(args, options);
+		const durSpawn = Date.now() - startSpawn;
 
 		options.onSpawn?.(child);
 
@@ -563,12 +570,13 @@ export class Git {
 			child.stdin!.end(options.input, 'utf8');
 		}
 
-		const startTime = Date.now();
+		const startExec = Date.now();
 		const bufferResult = await exec(child, options.cancellationToken);
+		const durExec = Date.now() - startExec;
 
 		if (options.log !== false) {
 			// command
-			this.log(`> git ${args.join(' ')} [${Date.now() - startTime}ms]\n`);
+			this.log(`> git ${args.join(' ')} [${durExec}ms]\n`);
 
 			// stdout
 			if (bufferResult.stdout.length > 0 && args.find(a => this.commandsToLog.includes(a))) {
@@ -580,6 +588,16 @@ export class Git {
 				this.log(`${bufferResult.stderr}\n`);
 			}
 		}
+
+		/* __GDPR__
+			"git.execDuration" : {
+				"owner": "lszomoru",
+				"comment": "Time it takes to spawn and execute a git command",
+				"durSpawn": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth","isMeasurement": true, "comment": "Time it took to run spawn git" },
+				"durExec": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth","isMeasurement": true, "comment": "Time git took" }
+			}
+		*/
+		this.telemetryReporter.sendTelemetryEvent('git.execDuration', undefined, { durSpawn, durExec });
 
 		let encoding = options.encoding || 'utf8';
 		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
@@ -896,7 +914,8 @@ export class Repository {
 	constructor(
 		private _git: Git,
 		private repositoryRoot: string,
-		readonly dotGit: { path: string; commonPath?: string }
+		readonly dotGit: { path: string; commonPath?: string },
+		private outputChannelLogger: OutputChannelLogger
 	) { }
 
 	get git(): Git {
@@ -1979,6 +1998,16 @@ export class Repository {
 
 	async getHEAD(): Promise<Ref> {
 		try {
+			// Attempt to parse the HEAD file
+			const result = await this.getHEADFS();
+			return result;
+		}
+		catch (err) {
+			this.outputChannelLogger.logWarning(err.message);
+		}
+
+		try {
+			// Fallback to using git to determine HEAD
 			const result = await this.exec(['symbolic-ref', '--short', 'HEAD']);
 
 			if (!result.stdout) {
@@ -1986,15 +2015,35 @@ export class Repository {
 			}
 
 			return { name: result.stdout.trim(), commit: undefined, type: RefType.Head };
-		} catch (err) {
-			const result = await this.exec(['rev-parse', 'HEAD']);
-
-			if (!result.stdout) {
-				throw new Error('Error parsing HEAD');
-			}
-
-			return { name: undefined, commit: result.stdout.trim(), type: RefType.Head };
 		}
+		catch (err) { }
+
+		// Detached HEAD
+		const result = await this.exec(['rev-parse', 'HEAD']);
+
+		if (!result.stdout) {
+			throw new Error('Error parsing HEAD');
+		}
+
+		return { name: undefined, commit: result.stdout.trim(), type: RefType.Head };
+	}
+
+	async getHEADFS(): Promise<Ref> {
+		const raw = await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'HEAD'), 'utf8');
+
+		// Branch
+		const branchMatch = raw.match(/^ref: refs\/heads\/(?<name>.*)$/m);
+		if (branchMatch?.groups?.name) {
+			return { name: branchMatch.groups.name, commit: undefined, type: RefType.Head };
+		}
+
+		// Detached
+		const commitMatch = raw.match(/^(?<commit>[0-9a-f]{40})$/m);
+		if (commitMatch?.groups?.commit) {
+			return { name: undefined, commit: commitMatch.groups.commit, type: RefType.Head };
+		}
+
+		throw new Error(`Unable to parse HEAD file. HEAD file contents: ${raw}.`);
 	}
 
 	async findTrackingBranches(upstreamBranch: string): Promise<Branch[]> {

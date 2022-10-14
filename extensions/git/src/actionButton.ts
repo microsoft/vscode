@@ -203,7 +203,7 @@ export class ActionButtonCommand {
 		this.state = {
 			...this.state,
 			HEAD: this.repository.HEAD,
-			isMergeInProgress: this.repository.mergeInProgress,
+			isMergeInProgress: this.repository.mergeGroup.resourceStates.length !== 0,
 			isRebaseInProgress: !!this.repository.rebaseCommit,
 			repositoryHasChangesToCommit: this.repositoryHasChangesToCommit()
 		};

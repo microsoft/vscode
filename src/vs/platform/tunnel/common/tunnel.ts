@@ -126,6 +126,7 @@ export interface ITunnelService {
 
 	canTunnel(uri: URI): boolean;
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number, elevateIfNeeded?: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
+	setEnvironmentTunnel(remoteHost: string, remotePort: number, localAddress: string, privacy: string, protocol: string): void;
 	closeTunnel(remoteHost: string, remotePort: number): Promise<void>;
 	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable;
 	setTunnelFeatures(features: TunnelProviderFeatures): void;
@@ -268,6 +269,17 @@ export abstract class AbstractTunnelService implements ITunnelService {
 			portMap.clear();
 		}
 		this._tunnels.clear();
+	}
+
+	setEnvironmentTunnel(remoteHost: string, remotePort: number, localAddress: string, privacy: string, protocol: string): void {
+		this.addTunnelToMap(remoteHost, remotePort, Promise.resolve({
+			tunnelRemoteHost: remoteHost,
+			tunnelRemotePort: remotePort,
+			localAddress,
+			privacy,
+			protocol,
+			dispose: () => Promise.resolve()
+		}));
 	}
 
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number, elevateIfNeeded: boolean = false, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
