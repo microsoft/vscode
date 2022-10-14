@@ -57,6 +57,7 @@ export const FileMatchOrFolderMatchFocusKey = new RawContextKey<boolean>('fileMa
 export const FileMatchOrFolderMatchWithResourceFocusKey = new RawContextKey<boolean>('fileMatchOrFolderMatchWithResourceFocus', false); // Excludes "Other files"
 export const FileFocusKey = new RawContextKey<boolean>('fileMatchFocus', false);
 export const FolderFocusKey = new RawContextKey<boolean>('folderMatchFocus', false);
+export const ResourceFolderFocusKey = new RawContextKey<boolean>('folderMatchWithResourceFocus', false);
 export const MatchFocusKey = new RawContextKey<boolean>('matchFocus', false);
 export const ViewHasSearchPatternKey = new RawContextKey<boolean>('viewHasSearchPattern', false);
 export const ViewHasReplacePatternKey = new RawContextKey<boolean>('viewHasReplacePattern', false);
