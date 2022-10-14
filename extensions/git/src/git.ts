@@ -17,6 +17,7 @@ import { CancellationToken, ConfigurationChangeEvent, Progress, Uri, workspace }
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
+import * as ini from 'ini';
 import { StringDecoder } from 'string_decoder';
 import { OutputChannelLogger } from './log';
 import TelemetryReporter from '@vscode/extension-telemetry';
@@ -827,6 +828,26 @@ export function parseGitmodules(raw: string): Submodule[] {
 	}
 
 	return result;
+}
+
+export function parseRemotes(raw: string): Remote[] {
+	const remotes: Remote[] = [];
+	const config = ini.parse(raw);
+
+	for (const section of Object.keys(config)) {
+		const remoteMatch = /^remote\s"(?<name>[^"]+)"/.exec(section);
+		if (remoteMatch?.groups?.name) {
+			remotes.push({
+				name: remoteMatch.groups.name,
+				fetchUrl: config[section]['url'],
+				pushUrl: config[section]['pushurl'] ?? config[section]['url'],
+				// https://github.com/microsoft/vscode/issues/45271
+				isReadOnly: config[section]['pushurl'] === 'no_push'
+			});
+		}
+	}
+
+	return remotes;
 }
 
 const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
@@ -2110,6 +2131,16 @@ export class Repository {
 	}
 
 	async getRemotes(): Promise<Remote[]> {
+		try {
+			// Attempt to parse the config file
+			const result = await this.getRemotesFS();
+			return result;
+		}
+		catch (err) {
+			this.outputChannelLogger.logWarning(err.message);
+		}
+
+		// Fallback to using git to determine remotes
 		const result = await this.exec(['remote', '--verbose']);
 		const lines = result.stdout.trim().split('\n').filter(l => !!l);
 		const remotes: MutableRemote[] = [];
@@ -2139,6 +2170,10 @@ export class Repository {
 		}
 
 		return remotes;
+	}
+
+	async getRemotesFS(): Promise<Remote[]> {
+		return parseRemotes(await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'config'), 'utf8'));
 	}
 
 	async getBranch(name: string): Promise<Branch> {
