@@ -349,7 +349,7 @@ export class CommandCenter {
 	constructor(
 		private git: Git,
 		private model: Model,
-		private outputChannelLogger: LogOutputChannel,
+		private logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
 	) {
 		this.disposables = Commands.map(({ commandId, key, method, options }) => {
@@ -367,7 +367,7 @@ export class CommandCenter {
 
 	@command('git.showOutput')
 	showOutput(): void {
-		this.outputChannelLogger.show();
+		this.logger.show();
 	}
 
 	@command('git.refresh', { repository: true })
@@ -908,14 +908,14 @@ export class CommandCenter {
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		this.outputChannelLogger.debug(`git.stage ${resourceStates.length} `);
+		this.logger.debug(`git.stage ${resourceStates.length} `);
 
 		resourceStates = resourceStates.filter(s => !!s);
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
-			this.outputChannelLogger.debug(`git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null} `);
+			this.logger.debug(`git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null} `);
 
 			if (!resource) {
 				return;
@@ -958,7 +958,7 @@ export class CommandCenter {
 		const untracked = selection.filter(s => s.resourceGroupType === ResourceGroupType.Untracked);
 		const scmResources = [...workingTree, ...untracked, ...resolved, ...unresolved];
 
-		this.outputChannelLogger.debug(`git.stage.scmResources ${scmResources.length} `);
+		this.logger.debug(`git.stage.scmResources ${scmResources.length} `);
 		if (!scmResources.length) {
 			return;
 		}
@@ -3192,7 +3192,7 @@ export class CommandCenter {
 
 				const choices = new Map<string, () => void>();
 				const openOutputChannelChoice = localize('open git log', "Open Git Log");
-				const outputChannelLogger = this.outputChannelLogger;
+				const outputChannelLogger = this.logger;
 				choices.set(openOutputChannelChoice, () => outputChannelLogger.show());
 
 				const showCommandOutputChoice = localize('show command output', "Show Command Output");
@@ -3310,10 +3310,10 @@ export class CommandCenter {
 	private getSCMResource(uri?: Uri): Resource | undefined {
 		uri = uri ? uri : (window.activeTextEditor && window.activeTextEditor.document.uri);
 
-		this.outputChannelLogger.debug(`git.getSCMResource.uri ${uri && uri.toString()}`);
+		this.logger.debug(`git.getSCMResource.uri ${uri && uri.toString()}`);
 
 		for (const r of this.model.repositories.map(r => r.root)) {
-			this.outputChannelLogger.debug(`repo root ${r}`);
+			this.logger.debug(`repo root ${r}`);
 		}
 
 		if (!uri) {
