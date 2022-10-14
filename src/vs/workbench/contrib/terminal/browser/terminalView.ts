@@ -162,6 +162,7 @@ export class TerminalViewPane extends ViewPane {
 				}
 			}
 		}));
+		
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			this._viewShowing.set(visible);
 			if (visible) {
