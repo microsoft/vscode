@@ -24,7 +24,7 @@ import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IViewBadge, IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
-import { IOverlayWebview, IWebviewService, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
+import { IOverlayWebview, IWebviewService, WebviewContentPurpose, WebviewOriginStore } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -37,6 +37,13 @@ const storageKeys = {
 } as const;
 
 export class WebviewViewPane extends ViewPane {
+
+	private static _originStore?: WebviewOriginStore;
+
+	private static getOriginStore(storageService: IStorageService): WebviewOriginStore {
+		this._originStore ??= new WebviewOriginStore('webviewViews.origins', storageService);
+		return this._originStore;
+	}
 
 	private readonly _webview = this._register(new MutableDisposable<IOverlayWebview>());
 	private readonly _webviewDisposables = this._register(new DisposableStore());
@@ -56,24 +63,26 @@ export class WebviewViewPane extends ViewPane {
 	private readonly viewState: MementoObject;
 	private readonly extensionId?: ExtensionIdentifier;
 
+	private _repositionTimeout?: any;
+
 	constructor(
 		options: IViewletViewOptions,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService storageService: IStorageService,
+		@IThemeService themeService: IThemeService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IActivityService private readonly activityService: IActivityService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProgressService private readonly progressService: IProgressService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IViewsService private readonly viewService: IViewsService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWebviewViewService private readonly webviewViewService: IWebviewViewService,
-		@IViewsService private readonly viewService: IViewsService,
-		@IActivityService private activityService: IActivityService
 	) {
 		super({ ...options, titleMenuId: MenuId.ViewTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.extensionId = options.fromExtensionId;
@@ -102,6 +111,8 @@ export class WebviewViewPane extends ViewPane {
 
 	override dispose() {
 		this._onDispose.fire();
+
+		clearTimeout(this._repositionTimeout);
 
 		super.dispose();
 	}
@@ -167,8 +178,10 @@ export class WebviewViewPane extends ViewPane {
 		this._activated = true;
 
 		const webviewId = generateUuid();
+		const origin = WebviewViewPane.getOriginStore(this.storageService).getOrigin(this.id, this.extensionId);
 		const webview = this.webviewService.createWebviewOverlay({
 			id: webviewId,
+			origin,
 			providedViewType: this.id,
 			options: { purpose: WebviewContentPurpose.WebviewView },
 			contentOptions: {},
@@ -277,16 +290,21 @@ export class WebviewViewPane extends ViewPane {
 			return;
 		}
 
-		webviewEntry.layoutWebviewOverElement(this._container);
-
 		if (!this._rootContainer || !this._rootContainer.isConnected) {
 			this._rootContainer = this.findRootContainer(this._container);
 		}
+
+		webviewEntry.layoutWebviewOverElement(this._container);
 
 		if (this._rootContainer) {
 			const { top, left, right, bottom } = computeClippingRect(this._container, this._rootContainer);
 			webviewEntry.container.style.clipPath = `polygon(${left}px ${top}px, ${right}px ${top}px, ${right}px ${bottom}px, ${left}px ${bottom}px)`;
 		}
+
+		// Temporary fix for https://github.com/microsoft/vscode/issues/110450
+		// There is an animation that lasts about 200ms, update the webview positioning once this animation is complete.
+		clearTimeout(this._repositionTimeout);
+		this._repositionTimeout = setTimeout(() => this.layoutWebview(), 200);
 	}
 
 	private findRootContainer(container: HTMLElement): HTMLElement | undefined {

@@ -13,12 +13,15 @@ import { DocumentSymbol, SymbolKind } from 'vs/editor/common/languages';
 import { StickyLineCandidate, StickyLineCandidateProvider } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollProvider';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { mock } from 'vs/base/test/common/mock';
 
 suite('Sticky Scroll Tests', () => {
 
 	const serviceCollection = new ServiceCollection(
 		[ILanguageFeaturesService, new LanguageFeaturesService()],
-		[ILogService, new NullLogService()]
+		[ILogService, new NullLogService()],
+		[IContextMenuService, new class extends mock<IContextMenuService>() { }]
 	);
 
 	const text = [

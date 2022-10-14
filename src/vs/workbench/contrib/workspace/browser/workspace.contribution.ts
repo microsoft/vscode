@@ -72,7 +72,7 @@ export class WorkspaceTrustContextKeys extends Disposable implements IWorkbenchC
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustContextKeys, 'WorkspaceTrustContextKeys', LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustContextKeys, LifecyclePhase.Restored);
 
 
 /*
@@ -271,7 +271,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 							localize('addWorkspaceFolderMessage', "Do you trust the authors of the files in this folder?"),
 							[localize('yes', 'Yes'), localize('no', 'No')],
 							{
-								detail: localize('addWorkspaceFolderDetail', "You are adding files to a trusted workspace that are not currently trusted. Do you trust the authors of these new files?"),
+								detail: localize('addWorkspaceFolderDetail', "You are adding files that are not currently trusted to a trusted workspace. Do you trust the authors of these new files?"),
 								cancelId: 1,
 								custom: { icon: Codicon.shield }
 							}
@@ -578,8 +578,8 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	//#endregion
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustRequestHandler, 'WorkspaceTrustRequestHandler', LifecyclePhase.Ready);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustUXHandler, 'WorkspaceTrustUXHandler', LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustRequestHandler, LifecyclePhase.Ready);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustUXHandler, LifecyclePhase.Restored);
 
 
 /**
@@ -622,6 +622,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 // Configure Workspace Trust
 
 const CONFIGURE_TRUST_COMMAND_ID = 'workbench.trust.configure';
+const WORKSPACES_CATEGORY = { value: localize('workspacesCategory', "Workspaces"), original: 'Workspaces' };
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -629,7 +630,7 @@ registerAction2(class extends Action2 {
 			id: CONFIGURE_TRUST_COMMAND_ID,
 			title: { original: 'Configure Workspace Trust', value: localize('configureWorkspaceTrust', "Configure Workspace Trust") },
 			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
-			category: localize('workspacesCategory', "Workspaces"),
+			category: WORKSPACES_CATEGORY,
 			f1: true
 		});
 	}
@@ -647,7 +648,7 @@ registerAction2(class extends Action2 {
 			id: MANAGE_TRUST_COMMAND_ID,
 			title: { original: 'Manage Workspace Trust', value: localize('manageWorkspaceTrust', "Manage Workspace Trust") },
 			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
-			category: localize('workspacesCategory', "Workspaces"),
+			category: WORKSPACES_CATEGORY,
 			f1: true,
 			menu: {
 				id: MenuId.GlobalActivity,
@@ -857,4 +858,4 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WorkspaceTrustTelemetryContribution, 'WorkspaceTrustTelemetryContribution', LifecyclePhase.Restored);
+	.registerWorkbenchContribution(WorkspaceTrustTelemetryContribution, LifecyclePhase.Restored);

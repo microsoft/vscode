@@ -639,6 +639,13 @@ export const ACTIVITY_BAR_SETTINGS_PROFILE_HOVER_FOREGROUND = registerColor('act
 	hcLight: ACTIVITY_BAR_FOREGROUND
 }, localize('activityBarItem.settingsProfilesHoverForeground', "Foreground color for the settings profile entry on the activity bar when hovering."));
 
+export const ACTIVITY_BAR_SETTINGS_PROFILE_BACKGROUND = registerColor('activityBarItem.settingsProfilesBackground', {
+	dark: lighten(ACTIVITY_BAR_BACKGROUND, 0.5),
+	light: darken(ACTIVITY_BAR_BACKGROUND, 0.12),
+	hcDark: null,
+	hcLight: null
+}, localize('statusBarItemSettingsProfileBackground', "Background color for the settings profile entry on the activity bar."));
+
 // < --- Remote --- >
 
 export const STATUS_BAR_HOST_NAME_BACKGROUND = registerColor('statusBarItem.remoteBackground', {

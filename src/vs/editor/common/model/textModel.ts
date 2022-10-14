@@ -2231,6 +2231,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 
 	readonly description: string;
 	readonly blockClassName: string | null;
+	readonly blockIsAfterEnd: boolean | null;
 	readonly stickiness: model.TrackedRangeStickiness;
 	readonly zIndex: number;
 	readonly className: string | null;
@@ -2258,6 +2259,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	private constructor(options: model.IModelDecorationOptions) {
 		this.description = options.description;
 		this.blockClassName = options.blockClassName ? cleanClassName(options.blockClassName) : null;
+		this.blockIsAfterEnd = options.blockIsAfterEnd ?? null;
 		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : null;

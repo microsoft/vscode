@@ -50,16 +50,16 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	private readonly uninstallingExtensions = new Map<string, IUninstallExtensionTask>();
 
 	private readonly _onInstallExtension = this._register(new Emitter<InstallExtensionEvent>());
-	readonly onInstallExtension = this._onInstallExtension.event;
+	get onInstallExtension() { return this._onInstallExtension.event; }
 
 	protected readonly _onDidInstallExtensions = this._register(new Emitter<InstallExtensionResult[]>());
-	readonly onDidInstallExtensions = this._onDidInstallExtensions.event;
+	get onDidInstallExtensions() { return this._onDidInstallExtensions.event; }
 
 	protected readonly _onUninstallExtension = this._register(new Emitter<UninstallExtensionEvent>());
-	readonly onUninstallExtension = this._onUninstallExtension.event;
+	get onUninstallExtension() { return this._onUninstallExtension.event; }
 
 	protected _onDidUninstallExtension = this._register(new Emitter<DidUninstallExtensionEvent>());
-	readonly onDidUninstallExtension = this._onDidUninstallExtension.event;
+	get onDidUninstallExtension() { return this._onDidUninstallExtension.event; }
 
 	private readonly participants: IExtensionManagementParticipant[] = [];
 

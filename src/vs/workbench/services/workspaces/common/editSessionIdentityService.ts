@@ -5,7 +5,7 @@
 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEditSessionIdentityProvider, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -54,4 +54,4 @@ export class EditSessionIdentityService implements IEditSessionIdentityService {
 	}
 }
 
-registerSingleton(IEditSessionIdentityService, EditSessionIdentityService, true);
+registerSingleton(IEditSessionIdentityService, EditSessionIdentityService, InstantiationType.Delayed);

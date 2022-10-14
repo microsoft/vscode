@@ -64,9 +64,9 @@
 		"t": "source.css meta.property-list.css variable.css",
 		"r": {
 			"dark_plus": "variable.css: #9CDCFE",
-			"light_plus": "variable.css: #FF0000",
+			"light_plus": "variable.css: #E50000",
 			"dark_vs": "variable.css: #9CDCFE",
-			"light_vs": "variable.css: #FF0000",
+			"light_vs": "variable.css: #E50000",
 			"hc_black": "variable.css: #D4D4D4",
 			"hc_light": "variable.css: #264F78"
 		}
@@ -148,9 +148,9 @@
 		"t": "source.css meta.property-list.css variable.css",
 		"r": {
 			"dark_plus": "variable.css: #9CDCFE",
-			"light_plus": "variable.css: #FF0000",
+			"light_plus": "variable.css: #E50000",
 			"dark_vs": "variable.css: #9CDCFE",
-			"light_vs": "variable.css: #FF0000",
+			"light_vs": "variable.css: #E50000",
 			"hc_black": "variable.css: #D4D4D4",
 			"hc_light": "variable.css: #264F78"
 		}
@@ -352,9 +352,9 @@
 		"t": "source.css meta.property-list.css meta.property-name.css support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}

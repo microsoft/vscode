@@ -26,7 +26,7 @@ where
 				e,
 				format!(
 					"failed to execute command '{}'",
-					(&command_str).as_ref().to_string_lossy()
+					command_str.as_ref().to_string_lossy()
 				),
 			)
 		})

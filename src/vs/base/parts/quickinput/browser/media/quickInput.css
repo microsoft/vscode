@@ -10,6 +10,7 @@
 	left: 50%;
 	margin-left: -300px;
 	-webkit-app-region: no-drag;
+	border-radius: 4px;
 }
 
 .quick-input-titlebar {
@@ -56,7 +57,7 @@
 
 .quick-input-header {
 	display: flex;
-	padding: 6px 6px 0px 6px;
+	padding: 8px 6px 0px 6px;
 	margin-bottom: -2px;
 }
 
@@ -150,16 +151,21 @@
 .quick-input-list {
 	line-height: 22px;
 	margin-top: 6px;
-	padding: 0px 1px 1px 1px;
+	padding: 1px;
 }
 
 .quick-input-widget.hidden-input .quick-input-list {
-	margin-top: 0; /* reduce margins when input box hidden */
+	margin-top: 4px; /* reduce margins when input box hidden */
+	padding-bottom: 4px;
 }
 
 .quick-input-list .monaco-list {
 	overflow: hidden;
 	max-height: calc(20 * 22px);
+}
+
+.quick-input-list .monaco-scrollable-element {
+	padding: 0px 5px;
 }
 
 .quick-input-list .quick-input-list-entry {
@@ -173,6 +179,10 @@
 .quick-input-list .quick-input-list-entry.quick-input-list-separator-border {
 	border-top-width: 1px;
 	border-top-style: solid;
+}
+
+.quick-input-list .monaco-list-row {
+	border-radius: 3px;
 }
 
 .quick-input-list .monaco-list-row[data-index="0"] .quick-input-list-entry.quick-input-list-separator-border {
@@ -246,7 +256,7 @@
 }
 
 .quick-input-list .quick-input-list-entry .quick-input-list-separator {
-	margin-right: 8px; /* separate from keybindings or actions */
+	margin-right: 4px; /* separate from keybindings or actions */
 }
 
 .quick-input-list .quick-input-list-entry-action-bar {

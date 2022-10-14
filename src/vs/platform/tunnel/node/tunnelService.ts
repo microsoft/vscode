@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as net from 'net';
+import * as os from 'os';
 import { BROWSER_RESTRICTED_PORTS, findFreePortFaster } from 'vs/base/node/ports';
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
@@ -16,6 +17,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { connectRemoteAgentTunnel, IAddressProvider, IConnectionOptions, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { AbstractTunnelService, isAllInterfaces, ISharedTunnelsService as ISharedTunnelsService, isLocalhost, ITunnelService, RemoteTunnel, TunnelPrivacyId } from 'vs/platform/tunnel/common/tunnel';
 import { ISignService } from 'vs/platform/sign/common/sign';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 
 async function createRemoteTunnel(options: IConnectionOptions, defaultTunnelHost: string, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {
 	let readyTunnel: NodeRemoteTunnel | undefined;
@@ -163,6 +165,10 @@ export class BaseTunnelService extends AbstractTunnelService {
 	private get defaultTunnelHost(): string {
 		const settingValue = this.configurationService.getValue('remote.localPortHost');
 		return (!settingValue || settingValue === 'localhost') ? '127.0.0.1' : '0.0.0.0';
+	}
+
+	public isPortPrivileged(port: number): boolean {
+		return this.doIsPortPrivileged(port, isWindows, isMacintosh, os.release());
 	}
 
 	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {

@@ -294,7 +294,7 @@ export class BreakpointsView extends ViewPane {
 			return langId && dbg.interestedInLanguage(langId);
 		});
 
-		if (message && debuggerHasUnverifiedBps?.length) {
+		if (message && debuggerHasUnverifiedBps?.length && this.debugService.getModel().areBreakpointsActivated()) {
 			if (delayed) {
 				const mdown = new MarkdownString(undefined, { isTrusted: true }).appendMarkdown(message);
 				this.hintContainer.setLabel('$(warning)', undefined, { title: { markdown: mdown, markdownNotSupportedFallback: message } });

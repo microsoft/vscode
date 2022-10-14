@@ -84,8 +84,8 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		this.onDidChangeProfile = this._register(this.servers.reduce((emitter: EventMultiplexer<DidChangeProfileForServerEvent>, server) => { emitter.add(Event.map(server.extensionManagementService.onDidChangeProfile, e => ({ ...e, server }))); return emitter; }, new EventMultiplexer<DidChangeProfileForServerEvent>())).event;
 	}
 
-	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
-		const result = await Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.getInstalled(type)));
+	async getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]> {
+		const result = await Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.getInstalled(type, profileLocation)));
 		return flatten(result);
 	}
 
@@ -96,26 +96,26 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 		if (this.servers.length > 1) {
 			if (isLanguagePackExtension(extension.manifest)) {
-				return this.uninstallEverywhere(extension);
+				return this.uninstallEverywhere(extension, options);
 			}
 			return this.uninstallInServer(extension, server, options);
 		}
-		return server.extensionManagementService.uninstall(extension);
+		return server.extensionManagementService.uninstall(extension, options);
 	}
 
-	private async uninstallEverywhere(extension: ILocalExtension): Promise<void> {
+	private async uninstallEverywhere(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
 		const server = this.getServer(extension);
 		if (!server) {
 			return Promise.reject(`Invalid location ${extension.location.toString()}`);
 		}
-		const promise = server.extensionManagementService.uninstall(extension);
+		const promise = server.extensionManagementService.uninstall(extension, options);
 		const otherServers: IExtensionManagementServer[] = this.servers.filter(s => s !== server);
 		if (otherServers.length) {
 			for (const otherServer of otherServers) {
 				const installed = await otherServer.extensionManagementService.getInstalled();
 				extension = installed.filter(i => !i.isBuiltin && areSameExtensions(i.identifier, extension.identifier))[0];
 				if (extension) {
-					await otherServer.extensionManagementService.uninstall(extension);
+					await otherServer.extensionManagementService.uninstall(extension, options);
 				}
 			}
 		}

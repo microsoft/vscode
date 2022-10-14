@@ -8,21 +8,16 @@ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
-import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { autorun, autorunWithStore, derived, IObservable, ISettableObservable, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
-import { CodeLens, CodeLensProvider, Command } from 'vs/editor/common/languages';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -63,14 +58,6 @@ export class InputCodeEditorView extends CodeEditorView {
 					);
 				}
 			}, 'update checkboxes')
-		);
-
-		this._register(
-			autorunWithStore((reader, store) => {
-				if (this.codeLensesVisible.read(reader)) {
-					store.add(instantiationService.createInstance(CodeLensPart, this));
-				}
-			}, 'update code lens part')
 		);
 
 		this._register(
@@ -135,12 +122,14 @@ export class InputCodeEditorView extends CodeEditorView {
 			return [];
 		}
 		const model = viewModel.model;
+		const textModel = (this.inputNumber === 1 ? model.input1 : model.input2).textModel;
 
 		const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
 
 		const result = new Array<IModelDeltaDecoration>();
 
 		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
+		const showDeletionMarkers = this.showDeletionMarkers.read(reader);
 
 		for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
 			const range = modifiedBaseRange.getInputRange(this.inputNumber);
@@ -159,7 +148,7 @@ export class InputCodeEditorView extends CodeEditorView {
 			if (modifiedBaseRange.isConflicting) {
 				blockClassNames.push('conflicting');
 			}
-			const inputClassName = this.inputNumber === 1 ? 'input1' : 'input2';
+			const inputClassName = this.inputNumber === 1 ? 'input 1' : 'input 2';
 			blockClassNames.push(inputClassName);
 
 			if (!modifiedBaseRange.isConflicting && !showNonConflictingChanges && isHandled) {
@@ -171,6 +160,7 @@ export class InputCodeEditorView extends CodeEditorView {
 				options: {
 					showIfCollapsed: true,
 					blockClassName: blockClassNames.join(' '),
+					blockIsAfterEnd: range.startLineNumber > textModel.getLineCount(),
 					description: 'Merge Editor',
 					minimap: {
 						position: MinimapPosition.Gutter,
@@ -200,13 +190,16 @@ export class InputCodeEditorView extends CodeEditorView {
 
 					if (diff.rangeMappings) {
 						for (const d of diff.rangeMappings) {
-							result.push({
-								range: d.outputRange,
-								options: {
-									className: `merge-editor-diff-word ${inputClassName}`,
-									description: 'Merge Editor'
-								}
-							});
+							if (showDeletionMarkers || !d.outputRange.isEmpty()) {
+								result.push({
+									range: d.outputRange,
+									options: {
+										className: d.outputRange.isEmpty() ? `merge-editor-diff-empty-word ${inputClassName}` : `merge-editor-diff-word ${inputClassName}`,
+										description: 'Merge Editor',
+										showIfCollapsed: true,
+									}
+								});
+							}
 						}
 					}
 				}
@@ -216,140 +209,7 @@ export class InputCodeEditorView extends CodeEditorView {
 	});
 
 	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
-		if (this.codeLensesVisible.get()) {
-			return undefined;
-		}
 		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeLensContribution.ID);
-	}
-}
-
-class CodeLensPart extends Disposable {
-	public static commandCounter = 0;
-
-	constructor(
-		inputCodeEditorView: InputCodeEditorView,
-		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
-	) {
-		super();
-
-		const codeLensCommandId = `mergeEditor.codeLensCommandInput${CodeLensPart.commandCounter++}`;
-		this._register(CommandsRegistry.registerCommand(codeLensCommandId, (accessor, arg) => {
-			arg();
-		}));
-
-		function command(title: string, callback: () => Promise<void>): Command {
-			return {
-				title,
-				id: codeLensCommandId,
-				arguments: [callback],
-			};
-		}
-
-		const codeLenses = derived<{ codeLenses: CodeLens[]; uri: URI } | undefined>('codeLenses', reader => {
-			const viewModel = inputCodeEditorView.viewModel.read(reader);
-			if (!viewModel) {
-				return undefined;
-			}
-			const model = viewModel.model;
-			const inputData = inputCodeEditorView.inputNumber === 1 ? viewModel.model.input1 : viewModel.model.input2;
-
-			const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
-
-			return {
-				codeLenses: viewModel.model.modifiedBaseRanges.read(reader).flatMap<CodeLens>(r => {
-					const range = r.getInputRange(inputCodeEditorView.inputNumber).toRange();
-
-					const handled = model.isHandled(r).read(reader);
-					const state = model.getState(r).read(reader);
-					const result: CodeLens[] = [];
-
-					if (!r.isConflicting && handled && !showNonConflictingChanges) {
-						return [];
-					}
-
-					if (!state.conflicting && !state.isInputIncluded(inputCodeEditorView.inputNumber)) {
-						result.push(
-							{
-								range,
-								command:
-									!state.isInputIncluded(inputCodeEditorView.inputNumber)
-										? command(`$(pass) Accept ${inputData.title}`, async () => {
-											transaction((tx) => {
-												model.setState(
-													r,
-													state.withInputValue(inputCodeEditorView.inputNumber, true),
-													true,
-													tx
-												);
-											});
-										})
-										: command(`$(error) Remove ${inputData.title}`, async () => {
-											transaction((tx) => {
-												model.setState(
-													r,
-													state.withInputValue(inputCodeEditorView.inputNumber, false),
-													true,
-													tx
-												);
-											});
-										}),
-							}
-						);
-
-						if (r.canBeCombined && state.isEmpty) {
-							result.push({
-								range,
-								command:
-									state.input1 && state.input2
-										? command(`$(error) Remove Both`, async () => {
-											transaction((tx) => {
-												model.setState(
-													r,
-													ModifiedBaseRangeState.default,
-													true,
-													tx
-												);
-											});
-										})
-										: command(`$(pass) Accept Both`, async () => {
-											transaction((tx) => {
-												model.setState(
-													r,
-													state
-														.withInputValue(inputCodeEditorView.inputNumber, true)
-														.withInputValue(inputCodeEditorView.otherInputNumber, true),
-													true,
-													tx
-												);
-											});
-										}),
-							});
-						}
-					}
-					if (result.length === 0) {
-						result.push({
-							range: range,
-							command: command(` `, async () => { })
-						});
-					}
-					return result;
-				}),
-				uri: inputData.textModel.uri
-			};
-		});
-
-		const codeLensProvider: CodeLensProvider = {
-			onDidChange: Event.map(Event.fromObservable(codeLenses), () => codeLensProvider),
-			async provideCodeLenses(model, token) {
-				const result = codeLenses.get();
-				if (!result || result.uri.toString() !== model.uri.toString()) {
-					return { lenses: [], dispose: () => { } };
-				}
-				return { lenses: result.codeLenses, dispose: () => { } };
-			}
-		};
-
-		this._register(languageFeaturesService.codeLensProvider.register({ pattern: '**/*' }, codeLensProvider));
 	}
 }
 

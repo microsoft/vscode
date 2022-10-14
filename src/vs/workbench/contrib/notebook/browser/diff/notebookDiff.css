@@ -16,6 +16,10 @@
 	width: 50%;
 } */
 
+.notebook-text-diff-editor {
+	position: relative;
+}
+
 .notebook-text-diff-editor .cell-body {
 	display: flex;
 	flex-direction: row;
@@ -61,7 +65,7 @@
 	/* overflow: hidden; */
 }
 
-.notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
+.notebook-text-diff-editor > .notebook-diff-list-view > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
 	cursor: default;
 }
 
@@ -142,13 +146,13 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
+.monaco-workbench .notebook-text-diff-editor > .notebook-diff-list-view > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
 	overflow: visible !important;
 }
 
-.monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row,
-.monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover,
-.monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused {
+.monaco-workbench .notebook-text-diff-editor > .notebook-diff-list-view > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row,
+.monaco-workbench .notebook-text-diff-editor > .notebook-diff-list-view > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover,
+.monaco-workbench .notebook-text-diff-editor > .notebook-diff-list-view > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused {
 	outline: none !important;
 	background-color: transparent !important;
 }
@@ -286,4 +290,19 @@
 .notebook-text-diff-editor .cell-body .codicon-diff-insert {
 	left: 4px !important;
 	width: 15px !important;
+}
+
+.monaco-workbench .notebook-text-diff-editor  > .monaco-list > .monaco-scrollable-element > .scrollbar.visible {
+	z-index: var(--z-index-notebook-scrollbar);
+	cursor: default;
+}
+
+.notebook-text-diff-editor .notebook-overview-ruler-container {
+	position: absolute;
+	top: 0;
+	right: 0;
+}
+
+.notebook-text-diff-editor .notebook-overview-ruler-container .diffViewport {
+	z-index: var(--notebook-diff-view-viewport-slider);
 }

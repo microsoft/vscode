@@ -11,12 +11,13 @@ const vfs = require("vinyl-fs");
 const filter = require("gulp-filter");
 const _ = require("underscore");
 const util = require("./util");
+const getVersion_1 = require("./getVersion");
 function isDocumentSuffix(str) {
     return str === 'document' || str === 'script' || str === 'file' || str === 'source code';
 }
 const root = path.dirname(path.dirname(__dirname));
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
-const commit = util.getVersion(root);
+const commit = (0, getVersion_1.getVersion)(root);
 const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
 /**
  * Generate a `DarwinDocumentType` given a list of file extensions, an icon name, and an optional suffix or file type name.

@@ -18,12 +18,12 @@ import { localize } from 'vs/nls';
 import { ConfirmResult, IDialogOptions, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IRevertOptions } from 'vs/workbench/common/editor';
+import { IRevertOptions, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
+import { conflictMarkers } from 'vs/workbench/contrib/mergeEditor/browser/mergeMarkers/mergeMarkersController';
 import { MergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { InputData, MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
-import { ProjectedDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/projectedDocumentDiffProvider';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileEditorModel, ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
@@ -109,7 +109,7 @@ export class TempFileMergeEditorModeFactory implements IMergeEditorInputModelFac
 			input2Data,
 			temporaryResultModel,
 			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
-			this._instantiationService.createInstance(MergeDiffComputer, this._instantiationService.createInstance(ProjectedDiffComputer, diffProvider)),
+			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
 			{
 				resetResult: true,
 			}
@@ -269,6 +269,8 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 	) {
 	}
 
+	private static readonly FILE_SAVED_SOURCE = SaveSourceRegistry.registerSource('merge-editor.source', localize('merge-editor.source', "Before Resolving Conflicts In Merge Editor"));
+
 	public async createInputModel(args: MergeEditorArgs): Promise<IMergeEditorInputModel> {
 		const store = new DisposableStore();
 
@@ -302,7 +304,11 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 			throw new BugIndicatingError();
 		}
 		// So that "Don't save" does revert the file
-		await resultTextFileModel.save();
+		await resultTextFileModel.save({ source: WorkspaceMergeEditorModeFactory.FILE_SAVED_SOURCE });
+
+		const lines = resultTextFileModel.textEditorModel!.getLinesContent();
+		const hasConflictMarkers = lines.some(l => l.startsWith(conflictMarkers.start));
+		const resetResult = hasConflictMarkers;
 
 		const diffProvider = this._instantiationService.createInstance(WorkerBasedDocumentDiffProvider);
 		const model = this._instantiationService.createInstance(
@@ -312,9 +318,9 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 			input2Data,
 			result.object.textEditorModel,
 			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
-			this._instantiationService.createInstance(MergeDiffComputer, this._instantiationService.createInstance(ProjectedDiffComputer, diffProvider)),
+			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
 			{
-				resetResult: true
+				resetResult
 			}
 		);
 		store.add(model);
@@ -365,7 +371,6 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 	shouldConfirmClose(): boolean {
 		// Always confirm
 		return true;
-		//return this.resultTextFileModel.isDirty();
 	}
 
 	async confirmClose(inputModels: IMergeEditorInputModel[]): Promise<ConfirmResult> {
@@ -394,7 +399,6 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 					ConfirmResult.SAVE,
 				],
 				[localize('workspace.doNotSave', "Don't Save"), ConfirmResult.DONT_SAVE],
-				// TODO [localize('workspace.discard', "Discard changes"), ConfirmResult.DONT_SAVE],
 				[localize('workspace.cancel', 'Cancel'), ConfirmResult.CANCEL],
 			];
 
@@ -420,7 +424,6 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 						: localize('workspace.close', 'Close'),
 					ConfirmResult.SAVE,
 				],
-				// TODO [localize('workspace.discard', "Discard changes"), ConfirmResult.DONT_SAVE],
 				[localize('workspace.cancel', 'Cancel'), ConfirmResult.CANCEL],
 			];
 

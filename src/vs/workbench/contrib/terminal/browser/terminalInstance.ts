@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { AutoOpenBarrier, Promises } from 'vs/base/common/async';
+import { AutoOpenBarrier, Promises, timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
@@ -60,9 +60,9 @@ import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/brows
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
-import { IRequestAddInstanceToGroupEvent, ITerminalContextualActionOptions, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRequestAddInstanceToGroupEvent, ITerminalQuickFixOptions, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { gitSimilarCommand, gitCreatePr, gitPushSetUpstream, freePort } from 'vs/workbench/contrib/terminal/browser/terminalBaseContextualActions';
+import { gitSimilarCommand, gitCreatePr, gitPushSetUpstream, freePort, gitTwoDashes } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
@@ -74,7 +74,7 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { getTerminalResourcesFromDragEvent, getTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ContextualActionAddon, IContextualAction } from 'vs/workbench/contrib/terminal/browser/xterm/contextualActionAddon';
+import { ITerminalQuickFix, TerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
@@ -207,7 +207,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _target?: TerminalLocation | undefined;
 	private _disableShellIntegrationReporting: boolean | undefined;
 	private _usedShellIntegrationInjection: boolean = false;
-	private _contextualActionAddon: ContextualActionAddon | undefined;
+	get usedShellIntegrationInjection(): boolean { return this._usedShellIntegrationInjection; }
+	private _quickFixAddon: TerminalQuickFixAddon | undefined;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
@@ -216,7 +217,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * Enables opening the contextual actions, if any, that are available
 	 * and registering of command finished listeners
 	 */
-	get contextualActions(): IContextualAction | undefined { return this._contextualActionAddon; }
+	get quickFix(): ITerminalQuickFix | undefined { return this._quickFixAddon; }
 
 	readonly findWidget: Lazy<TerminalFindWidget>;
 
@@ -610,9 +611,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return undefined;
 	}
 
-	registerContextualActions(...actionOptions: ITerminalContextualActionOptions[]): void {
-		for (const actionOption of actionOptions) {
-			this.contextualActions?.registerCommandFinishedListener(actionOption);
+	registerQuickFixProvider(...options: ITerminalQuickFixOptions[]): void {
+		for (const actionOption of options) {
+			this.quickFix?.registerCommandFinishedListener(actionOption);
 		}
 	}
 
@@ -728,10 +729,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		const xterm = this._scopedInstantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel, this.capabilities, this.disableShellIntegrationReporting);
 		this.xterm = xterm;
-		this._contextualActionAddon = this._scopedInstantiationService.createInstance(ContextualActionAddon, this.capabilities);
-		this.xterm?.raw.loadAddon(this._contextualActionAddon);
-		this.registerContextualActions(gitSimilarCommand(), gitCreatePr(this._openerService), gitPushSetUpstream(), freePort(this));
-		this._register(this._contextualActionAddon.onDidRequestRerunCommand((e) => this.sendText(e.command, e.addNewLine || false)));
+		this._quickFixAddon = this._scopedInstantiationService.createInstance(TerminalQuickFixAddon, this.capabilities);
+		this.xterm?.raw.loadAddon(this._quickFixAddon);
+		this.registerQuickFixProvider(gitSimilarCommand(), gitTwoDashes(), gitCreatePr(), gitPushSetUpstream(), freePort(this));
+		this._register(this._quickFixAddon.onDidRequestRerunCommand(async (e) => await this.runCommand(e.command, e.addNewLine || false)));
 		const lineDataEventAddon = new LineDataEventAddon();
 		this.xterm.raw.loadAddon(lineDataEventAddon);
 		this.updateAccessibilitySupport();
@@ -819,6 +820,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		return xterm;
 	}
+
+	async runCommand(commandLine: string, addNewLine: boolean): Promise<void> {
+		// Determine whether to send ETX (ctrl+c) before running the command. This should always
+		// happen unless command detection can reliably say that a command is being entered and
+		// there is no content in the prompt
+		if (this.capabilities.get(TerminalCapability.CommandDetection)?.hasInput !== false) {
+			await this.sendText('\x03', false);
+			// Wait a little before running the command to avoid the sequences being echoed while the ^C
+			// is being evaluated
+			await timeout(100);
+		}
+		// Use bracketed paste mode only when not running the command
+		await this.sendText(commandLine, addNewLine, !addNewLine);
+	}
+
 
 	private _loadTypeAheadAddon(xterm: XtermTerminal): void {
 		const enabled = this._configHelper.config.localEchoEnabled;
@@ -1193,6 +1209,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	override dispose(reason?: TerminalExitReason): void {
+		if (this._isDisposed) {
+			return;
+		}
+		this._isDisposed = true;
 		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
 		dispose(this._linkManager);
 		this._linkManager = undefined;
@@ -1209,7 +1229,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._horizontalScrollbar.dispose();
 			this._horizontalScrollbar = undefined;
 		}
-		this.xterm?.dispose();
+
+		try {
+			this.xterm?.dispose();
+		} catch (err: unknown) {
+			// See https://github.com/microsoft/vscode/issues/153486
+			this._logService.error('Exception occurred during xterm disposal', err);
+		}
 
 		// HACK: Workaround for Firefox bug https://bugzilla.mozilla.org/show_bug.cgi?id=559561,
 		// as 'blur' event in xterm.raw.textarea is not triggered on xterm.dispose()
@@ -1234,10 +1260,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// hasn't happened yet
 		this._onProcessExit(undefined);
 
-		if (!this._isDisposed) {
-			this._isDisposed = true;
-			this._onDisposed.fire(this);
-		}
+		this._onDisposed.fire(this);
+
 		super.dispose();
 	}
 
@@ -1709,6 +1733,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Print initialText if specified
 			if (shell.initialText) {
+				this._shellLaunchConfig.initialText = shell.initialText;
 				await new Promise<void>(r => this._writeInitialText(xterm, r));
 			}
 

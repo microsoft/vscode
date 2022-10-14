@@ -43,11 +43,20 @@ export function getWorkerBootstrapUrl(scriptPath: string, label: string): string
 		return URL.createObjectURL(blob);
 	}
 
-	const result = new URL(scriptPath);
-	COI.addSearchParam(result.searchParams, true, true);
-	result.hash = label;
-	return result.href;
+	const start = scriptPath.lastIndexOf('?');
+	const end = scriptPath.lastIndexOf('#', start);
+	const params = start > 0
+		? new URLSearchParams(scriptPath.substring(start + 1, ~end ? end : undefined))
+		: new URLSearchParams();
 
+	COI.addSearchParam(params, true, true);
+	const search = params.toString();
+
+	if (!search) {
+		return `${scriptPath}#${label}`;
+	} else {
+		return `${scriptPath}?${params.toString()}#${label}`;
+	}
 }
 // ESM-comment-end
 

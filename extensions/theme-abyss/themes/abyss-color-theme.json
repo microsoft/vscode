@@ -409,6 +409,7 @@
 		// "activityBar.foreground": "",
 		// "activityBarBadge.background": "",
 		// "activityBarBadge.foreground": "",
+		"activityBarItem.settingsProfilesBackground": "#082877",
 
 		// Workbench: Panel
 		// "panel.background": "",

@@ -168,7 +168,7 @@ suite('Search - Viewlet', () => {
 			resource: createFileUriFromPathFromRoot(path),
 			results: lineMatches
 		};
-		return instantiation.createInstance(FileMatch, null, null, null, parentFolder, rawMatch);
+		return instantiation.createInstance(FileMatch, null, null, null, parentFolder, rawMatch, parentFolder);
 	}
 
 	function aFolderMatch(path: string, index: number, parent?: SearchResult): FolderMatch {

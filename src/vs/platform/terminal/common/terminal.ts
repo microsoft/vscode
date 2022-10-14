@@ -331,7 +331,7 @@ export interface IPtyService extends IPtyHostController {
 	reduceConnectionGraceTime(): Promise<void>;
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
 	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
-	freePortKillProcess?(id: number, port: string): Promise<{ port: string; processId: string }>;
+	freePortKillProcess?(port: string): Promise<{ port: string; processId: string }>;
 	/**
 	 * Serializes and returns terminal state.
 	 * @param ids The persistent terminal IDs to serialize.
@@ -486,7 +486,7 @@ export interface IShellLaunchConfig {
 	 * Whether the terminal process environment should be exactly as provided in
 	 * `TerminalOptions.env`. When this is false (default), the environment will be based on the
 	 * window's environment and also apply configured platform settings like
-	 * `terminal.integrated.windows.env` on top. When this is true, the complete environment must be
+	 * `terminal.integrated.env.windows` on top. When this is true, the complete environment must be
 	 * provided as nothing will be inherited from the process or any configuration.
 	 */
 	strictEnv?: boolean;

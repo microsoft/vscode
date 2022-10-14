@@ -178,10 +178,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		try {
 			if (this._process?.freePortKillProcess) {
 				const result = await this._process?.freePortKillProcess(port);
-				this._notificationService.notify({ message: `Killed process w ID: ${result.processId} to free port ${result.port}`, severity: Severity.Info });
+				this._notificationService.notify({ message: localize('killportsuccess', 'Killed process with PID {0} listening on port {1}', result.processId, result.port), severity: Severity.Info });
 			}
 		} catch (e) {
-			this._notificationService.notify({ message: `Could not kill process for port ${port} wth error ${e}`, severity: Severity.Warning });
+			this._notificationService.notify({ message: localize('killportfailure', 'Could not kill process listening on port {0}, command exited with error {1}', port, e), severity: Severity.Warning });
 		}
 	}
 

@@ -50,7 +50,7 @@ export class CommandCenterControl {
 			telemetrySource: 'commandCenter',
 			actionViewItemProvider: (action) => {
 
-				if (action instanceof MenuItemAction && action.id === 'workbench.action.quickOpen') {
+				if (action instanceof MenuItemAction && action.id === 'workbench.action.quickOpenWithModes') {
 
 					class CommandCenterViewItem extends BaseActionViewItem {
 
@@ -72,6 +72,7 @@ export class CommandCenterControl {
 							// label: just workspace name and optional decorations
 							const label = this._getLabel();
 							const labelElement = document.createElement('span');
+							labelElement.classList.add('search-label');
 							labelElement.innerText = label;
 							reset(left, searchIcon, labelElement);
 

@@ -27,7 +27,7 @@ import { PaneCompositeDescriptor, PaneCompositeRegistry, Extensions as PaneCompo
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { URI } from 'vs/base/common/uri';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
@@ -139,7 +139,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		for (const viewDescriptor of views) {
 			const disposables = new DisposableStore();
 			disposables.add(this.registerOpenViewAction(viewDescriptor));
-			disposables.add(this.registerFocusViewAction(viewDescriptor, composite?.name && composite.name !== composite.id ? composite.name : CATEGORIES.View));
+			disposables.add(this.registerFocusViewAction(viewDescriptor, composite?.name && composite.name !== composite.id ? composite.name : Categories.View));
 			disposables.add(this.registerResetViewLocationAction(viewDescriptor));
 			this.viewDisposable.set(viewDescriptor, disposables);
 		}
@@ -354,7 +354,7 @@ export class ViewsService extends Disposable implements IViewsService {
 								return { value: localize('toggle view', "Toggle {0}", localizedTitle), original: `Toggle ${originalTitle}` };
 							}
 						},
-						category: CATEGORIES.View,
+						category: Categories.View,
 						precondition: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
 						keybinding: keybindings ? { ...keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined,
 						f1: true
@@ -422,7 +422,7 @@ export class ViewsService extends Disposable implements IViewsService {
 								return { value: localize('toggle view', "Toggle {0}", localizedTitle), original: `Toggle ${originalTitle}` };
 							}
 						},
-						category: CATEGORIES.View,
+						category: Categories.View,
 						precondition: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
 						keybinding: viewDescriptor.openCommandActionDescriptor!.keybindings ? { ...viewDescriptor.openCommandActionDescriptor!.keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined,
 						f1: true

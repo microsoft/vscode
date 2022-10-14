@@ -432,6 +432,12 @@ class Widget {
 			}
 		}
 
+		// Left-align widgets that should appear :before content
+		if (this._affinity === PositionAffinity.LeftOfInjectedText &&
+			this._viewRange.startColumn === 1) {
+			firstLineMinLeft = 0;
+		}
+
 		let lastLineMinLeft = Constants.MAX_SAFE_SMALL_INTEGER;//lastLine.Constants.MAX_SAFE_SMALL_INTEGER;
 		for (const visibleRange of lastLine.ranges) {
 			if (visibleRange.left < lastLineMinLeft) {

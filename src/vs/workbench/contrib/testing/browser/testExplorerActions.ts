@@ -21,7 +21,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -40,8 +40,10 @@ import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResu
 import { expandAndGetTestById, IMainThreadTestCollection, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-const category = CATEGORIES.Test;
+const category = Categories.Test;
 
 const enum ActionOrder {
 	// Navigation:
@@ -679,9 +681,15 @@ abstract class ExecuteTestAtCursor extends Action2 {
 	 * @override
 	 */
 	public async run(accessor: ServicesAccessor) {
-		const control = accessor.get(IEditorService).activeTextEditorControl;
-		const position = control?.getPosition();
-		const model = control?.getModel();
+		const editorService = accessor.get(IEditorService);
+		const activeEditorPane = editorService.activeEditorPane;
+		const activeControl = editorService.activeTextEditorControl;
+		if (!activeEditorPane || !activeControl) {
+			return;
+		}
+
+		const position = activeControl?.getPosition();
+		const model = activeControl?.getModel();
 		if (!position || !model || !('uri' in model)) {
 			return;
 		}
@@ -689,12 +697,20 @@ abstract class ExecuteTestAtCursor extends Action2 {
 		const testService = accessor.get(ITestService);
 		const profileService = accessor.get(ITestProfileService);
 		const uriIdentityService = accessor.get(IUriIdentityService);
+		const progressService = accessor.get(IProgressService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		let bestNodes: InternalTestItem[] = [];
 		let bestRange: Range | undefined;
 
 		let bestNodesBefore: InternalTestItem[] = [];
 		let bestRangeBefore: Range | undefined;
+
+		const saveBeforeTest = getTestingConfiguration(configurationService, TestingConfigKeys.SaveBeforeTest);
+		if (saveBeforeTest) {
+			await editorService.save({ editor: activeEditorPane.input, groupId: activeEditorPane.group.id });
+			await testService.syncTests();
+		}
 
 		// testsInFile will descend in the test tree. We assume that as we go
 		// deeper, ranges get more specific. We'll want to run all tests whose
@@ -703,8 +719,8 @@ abstract class ExecuteTestAtCursor extends Action2 {
 		// If we don't find any test whose range contains the position, we pick
 		// the closest one before the position. Again, if we find several tests
 		// whose range is equal to the closest one, we run them all.
-		await showDiscoveringWhile(accessor.get(IProgressService), (async () => {
-			for await (const test of testsInFile(testService.collection, uriIdentityService, model.uri)) {
+		await showDiscoveringWhile(progressService, (async () => {
+			for await (const test of testsInFile(testService, uriIdentityService, model.uri)) {
 				if (!test.item.range || !(profileService.capabilitiesForTest(test) & this.group)) {
 					continue;
 				}

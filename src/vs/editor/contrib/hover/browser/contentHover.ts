@@ -13,7 +13,7 @@ import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IConte
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model';
+import { IModelDecoration, PositionAffinity } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
@@ -24,6 +24,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { Constants } from 'vs/base/common/uint';
 
 const $ = dom.$;
 
@@ -129,8 +130,8 @@ export class ContentHoverController extends Disposable {
 		}
 
 		// The hover is currently visible
-
-		const isGettingCloser = (mouseEvent && this._widget.isMouseGettingCloser(mouseEvent.event.posx, mouseEvent.event.posy));
+		const hoverIsSticky = this._editor.getOption(EditorOption.hover).sticky;
+		const isGettingCloser = (hoverIsSticky && mouseEvent && this._widget.isMouseGettingCloser(mouseEvent.event.posx, mouseEvent.event.posy));
 		if (isGettingCloser) {
 			// The mouse is getting closer to the hover, so we will keep the hover untouched
 			// But we will kick off a hover update at the new anchor, insisting on keeping the hover visible.
@@ -240,7 +241,7 @@ export class ContentHoverController extends Disposable {
 	}
 
 	private _renderMessages(anchor: HoverAnchor, messages: IHoverPart[]): void {
-		const { showAtPosition, showAtRange, highlightRange } = ContentHoverController.computeHoverRanges(anchor.range, messages);
+		const { showAtPosition, showAtRange, highlightRange } = ContentHoverController.computeHoverRanges(this._editor, anchor.range, messages);
 
 		const disposables = new DisposableStore();
 		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
@@ -261,6 +262,9 @@ export class ContentHoverController extends Disposable {
 				disposables.add(participant.renderHoverParts(context, hoverParts));
 			}
 		}
+
+		const isBeforeContent = messages.some(m => m.isBeforeContent);
+
 		if (statusBar.hasContent) {
 			fragment.appendChild(statusBar.hoverElement);
 		}
@@ -283,6 +287,7 @@ export class ContentHoverController extends Disposable {
 				showAtRange,
 				this._editor.getOption(EditorOption.hover).above,
 				this._computer.shouldFocus,
+				isBeforeContent,
 				anchor.initialMousePosX,
 				anchor.initialMousePosY,
 				disposables
@@ -297,7 +302,19 @@ export class ContentHoverController extends Disposable {
 		className: 'hoverHighlight'
 	});
 
-	public static computeHoverRanges(anchorRange: Range, messages: IHoverPart[]) {
+	public static computeHoverRanges(editor: ICodeEditor, anchorRange: Range, messages: IHoverPart[]) {
+		let startColumnBoundary = 1;
+		let endColumnBoundary = Constants.MAX_SAFE_SMALL_INTEGER;
+		if (editor.hasModel()) {
+			// Ensure the range is on the current view line
+			const viewModel = editor._getViewModel();
+			const coordinatesConverter = viewModel.coordinatesConverter;
+			const anchorViewRange = coordinatesConverter.convertModelRangeToViewRange(anchorRange);
+			const anchorViewRangeStart = new Position(anchorViewRange.startLineNumber, viewModel.getLineMinColumn(anchorViewRange.startLineNumber));
+			const anchorViewRangeEnd = new Position(anchorViewRange.endLineNumber, viewModel.getLineMaxColumn(anchorViewRange.endLineNumber));
+			startColumnBoundary = coordinatesConverter.convertViewPositionToModelPosition(anchorViewRangeStart).column;
+			endColumnBoundary = coordinatesConverter.convertViewPositionToModelPosition(anchorViewRangeEnd).column;
+		}
 		// The anchor range is always on a single line
 		const anchorLineNumber = anchorRange.startLineNumber;
 		let renderStartColumn = anchorRange.startColumn;
@@ -309,8 +326,8 @@ export class ContentHoverController extends Disposable {
 			highlightRange = Range.plusRange(highlightRange, msg.range);
 			if (msg.range.startLineNumber === anchorLineNumber && msg.range.endLineNumber === anchorLineNumber) {
 				// this message has a range that is completely sitting on the line of the anchor
-				renderStartColumn = Math.min(renderStartColumn, msg.range.startColumn);
-				renderEndColumn = Math.max(renderEndColumn, msg.range.endColumn);
+				renderStartColumn = Math.max(Math.min(renderStartColumn, msg.range.startColumn), startColumnBoundary);
+				renderEndColumn = Math.min(Math.max(renderEndColumn, msg.range.endColumn), endColumnBoundary);
 			}
 			if (msg.forceShowAtRange) {
 				forceShowAtRange = msg.range;
@@ -368,6 +385,7 @@ class ContentHoverVisibleData {
 		public readonly showAtRange: Range,
 		public readonly preferAbove: boolean,
 		public readonly stoleFocus: boolean,
+		public readonly isBeforeContent: boolean,
 		public initialMousePosX: number | undefined,
 		public initialMousePosY: number | undefined,
 		public readonly disposables: DisposableStore
@@ -439,6 +457,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			// Prefer rendering above if the suggest widget is visible
 			preferAbove = true;
 		}
+
+		// :before content can align left of the text content
+		const affinity = this._visibleData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined;
+
 		return {
 			position: this._visibleData.showAtPosition,
 			range: this._visibleData.showAtRange,
@@ -447,6 +469,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 					? [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]
 					: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
 			),
+			positionAffinity: affinity
 		};
 	}
 

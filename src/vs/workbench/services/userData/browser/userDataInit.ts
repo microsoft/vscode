@@ -445,5 +445,5 @@ class InitializeOtherResourcesContribution implements IWorkbenchContribution {
 
 if (isWeb) {
 	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-	workbenchRegistry.registerWorkbenchContribution(InitializeOtherResourcesContribution, 'InitializeOtherResourcesContribution', LifecyclePhase.Restored);
+	workbenchRegistry.registerWorkbenchContribution(InitializeOtherResourcesContribution, LifecyclePhase.Restored);
 }

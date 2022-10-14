@@ -1,0 +1,63 @@
+parameters:
+  - name: VSCODE_BUILD_WIN32
+    type: boolean
+  - name: VSCODE_BUILD_WIN32_ARM64
+    type: boolean
+  - name: VSCODE_QUALITY
+    type: string
+  - name: channel
+    type: string
+    default: stable
+
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "16.x"
+
+  - template: ../mixin-distro-win32.yml
+    parameters:
+      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { node build/azure-pipelines/cli/prepare.js }
+    displayName: Prepare CLI build
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+
+  - template: ../cli/install-rust-win32.yml
+    parameters:
+      targets:
+        - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+          - x86_64-pc-windows-msvc
+        - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
+          - aarch64-pc-windows-msvc
+
+  - template: ../vcpkg-install.yml
+    parameters:
+      targets:
+        - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+          - x64-windows-static-md
+        - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
+          - arm64-windows-static-md
+      vcpkgDir: $(Build.SourcesDirectory)/build/azure-pipelines/cli/vcpkg
+      targetDirectory: $(Build.ArtifactStagingDirectory)/deps
+
+  - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+    - template: ../cli/cli-compile-and-publish.yml
+      parameters:
+        VSCODE_CLI_TARGET: x86_64-pc-windows-msvc
+        VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_x64_cli
+        VSCODE_CLI_ENV:
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/deps/x64-windows-static-md/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/deps/x64-windows-static-md/include
+
+  - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
+    - template: ../cli/cli-compile-and-publish.yml
+      parameters:
+        VSCODE_CLI_TARGET: aarch64-pc-windows-msvc
+        VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_arm64_cli
+        VSCODE_CLI_ENV:
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/deps/arm64-windows-static-md/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/deps/arm64-windows-static-md/include

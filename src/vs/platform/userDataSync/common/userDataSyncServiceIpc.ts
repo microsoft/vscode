@@ -17,8 +17,8 @@ import {
 
 type ManualSyncTaskEvent<T> = { manualSyncTaskId: string; data: T };
 
-function reviewSyncResource(syncResource: IUserDataSyncResource, userDataProfilesService: IUserDataProfilesService) {
-	return { ...syncResource, profie: reviveProfile(syncResource.profile, userDataProfilesService.profilesHome.scheme) };
+function reviewSyncResource(syncResource: IUserDataSyncResource, userDataProfilesService: IUserDataProfilesService): IUserDataSyncResource {
+	return { ...syncResource, profile: reviveProfile(syncResource.profile, userDataProfilesService.profilesHome.scheme) };
 }
 
 export class UserDataSyncChannel implements IServerChannel {

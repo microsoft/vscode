@@ -181,7 +181,7 @@ export class MergeEditorModel extends EditorModel {
 
 		appendLinesToResult(baseLines, LineRange.fromLineNumbers(baseStartLineNumber, baseLines.length + 1));
 
-		return resultLines.join('\n');
+		return resultLines.join(this.resultTextModel.getEOL());
 	}
 
 	public hasBaseRange(baseRange: ModifiedBaseRange): boolean {
@@ -435,34 +435,6 @@ export class MergeEditorModel extends EditorModel {
 			}
 			this.resultTextModel.pushStackElement();
 		});
-	}
-
-	public acceptNonConflictingDiffs(): void {
-		transaction((tx) => {
-			/** @description Merge None Conflicting Diffs */
-			this.resultTextModel.pushStackElement();
-			for (const m of this.modifiedBaseRanges.get()) {
-				if (m.isConflicting) {
-					continue;
-				}
-				this.setState(
-					m,
-					m.input1Diffs.length > 0
-						? ModifiedBaseRangeState.default.withInput1(true)
-						: ModifiedBaseRangeState.default.withInput2(true),
-					true,
-					tx,
-					false
-				);
-			}
-			this.resultTextModel.pushStackElement();
-		});
-	}
-
-	public async resetResultToBaseAndAutoMerge() {
-		await waitForState(this.inputDiffComputingState, state => state === MergeEditorModelState.upToDate);
-		this.resultTextModel.setValue(this.base.getValue());
-		this.acceptNonConflictingDiffs();
 	}
 
 	public isHandled(baseRange: ModifiedBaseRange): IObservable<boolean> {

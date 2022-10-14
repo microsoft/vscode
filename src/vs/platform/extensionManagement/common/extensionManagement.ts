@@ -496,7 +496,6 @@ export interface IExtensionTipsService {
 
 export const ExtensionsLabel = localize('extensions', "Extensions");
 export const ExtensionsLocalizedLabel = { value: ExtensionsLabel, original: 'Extensions' };
-export const ExtensionsChannelId = 'extensions';
 export const PreferencesLabel = localize('preferences', "Preferences");
 export const PreferencesLocalizedLabel = { value: PreferencesLabel, original: 'Preferences' };
 

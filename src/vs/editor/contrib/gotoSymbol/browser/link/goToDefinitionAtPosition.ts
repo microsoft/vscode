@@ -277,11 +277,12 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 	}
 
 	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): boolean {
-		return this.editor.hasModel() &&
-			mouseEvent.isNoneOrSingleMouseDown &&
-			(mouseEvent.target.type === MouseTargetType.CONTENT_TEXT) &&
-			(mouseEvent.hasTriggerModifier || (withKey ? withKey.keyCodeIsTriggerKey : false)) &&
-			this.languageFeaturesService.definitionProvider.has(this.editor.getModel());
+		return this.editor.hasModel()
+			&& mouseEvent.isLeftClick
+			&& mouseEvent.isNoneOrSingleMouseDown
+			&& mouseEvent.target.type === MouseTargetType.CONTENT_TEXT
+			&& (mouseEvent.hasTriggerModifier || (withKey ? withKey.keyCodeIsTriggerKey : false))
+			&& this.languageFeaturesService.definitionProvider.has(this.editor.getModel());
 	}
 
 	private findDefinition(position: Position, token: CancellationToken): Promise<LocationLink[] | null> {
@@ -297,7 +298,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		this.editor.setPosition(position);
 		return this.editor.invokeWithinContext((accessor) => {
 			const canPeek = !openToSide && this.editor.getOption(EditorOption.definitionLinkOpensInPeek) && !this.isInPeekEditor(accessor);
-			const action = new DefinitionAction({ openToSide, openInPeek: canPeek, muteMessage: true }, { title: '', id: '', precondition: undefined });
+			const action = new DefinitionAction({ openToSide, openInPeek: canPeek, muteMessage: true }, { title: { value: '', original: '' }, id: '', precondition: undefined });
 			return action.run(accessor, this.editor);
 		});
 	}

@@ -12,7 +12,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { CompletionItemKind, CompletionItemKinds } from 'vs/editor/common/languages';
 import { CompletionItem } from 'vs/editor/contrib/suggest/browser/suggest';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 
@@ -306,4 +306,4 @@ export interface ISuggestMemoryService {
 	select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number;
 }
 
-registerSingleton(ISuggestMemoryService, SuggestMemoryService, true);
+registerSingleton(ISuggestMemoryService, SuggestMemoryService, InstantiationType.Delayed);

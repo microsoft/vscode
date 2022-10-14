@@ -12,6 +12,7 @@ import * as querystring from 'querystring';
 import { OutputChannelLogger } from './log';
 
 const schemes = new Set(['file', 'git', 'http', 'https', 'ssh']);
+const refRegEx = /^$|[~\^:\\\*\s\[\]]|^-|^\.|\/\.|\.\.|\.lock\/|\.lock$|\/$|\.$/;
 
 export class GitProtocolHandler implements UriHandler {
 
@@ -44,7 +45,7 @@ export class GitProtocolHandler implements UriHandler {
 		}
 
 		if (ref !== undefined && typeof ref !== 'string') {
-			this.outputChannelLogger.logWarning('Failed to open URI:' + uri.toString());
+			this.outputChannelLogger.logWarning('Failed to open URI due to multiple references:' + uri.toString());
 			return;
 		}
 
@@ -61,6 +62,11 @@ export class GitProtocolHandler implements UriHandler {
 			// Validate against supported schemes
 			if (!schemes.has(cloneUri.scheme.toLowerCase())) {
 				throw new Error('Unsupported scheme.');
+			}
+
+			// Validate the reference
+			if (typeof ref === 'string' && refRegEx.test(ref)) {
+				throw new Error('Invalid reference.');
 			}
 		}
 		catch (ex) {

@@ -106,6 +106,7 @@ export interface IUserDataProfilesService {
 
 	readonly onDidResetWorkspaces: Event<void>;
 
+	isEnabled(): boolean;
 	createNamedProfile(name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile>;
 	createTransientProfile(workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile>;
 	createProfile(id: string, name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile>;
@@ -223,6 +224,10 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 			this._profilesObject = undefined;
 			this.enabled = enabled;
 		}
+	}
+
+	isEnabled(): boolean {
+		return this.enabled;
 	}
 
 	protected _profilesObject: UserDataProfilesObject | undefined;
@@ -354,7 +359,12 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 				joiners.push(promise);
 			}
 		});
-		await Promises.settled(joiners);
+
+		try {
+			await Promise.allSettled(joiners);
+		} catch (error) {
+			this.logService.error(error);
+		}
 
 		if (profile.id === this.profilesObject.emptyWindow?.id) {
 			this.profilesObject.emptyWindow = undefined;

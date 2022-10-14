@@ -7,7 +7,7 @@ import { timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IKeyMods, IQuickPickDidAcceptEvent, IQuickPickSeparator } from 'vs/base/parts/quickinput/common/quickInput';
-import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
+import { IQuickAccessProvider, IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 export enum TriggerAction {
@@ -97,7 +97,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 		super();
 	}
 
-	provide(picker: IQuickPick<T>, token: CancellationToken): IDisposable {
+	provide(picker: IQuickPick<T>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Apply options if any
@@ -122,7 +122,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			// Collect picks and support both long running and short or combined
 			const picksToken = picksCts.token;
 			const picksFilter = picker.value.substr(this.prefix.length).trim();
-			const providedPicks = this._getPicks(picksFilter, picksDisposables, picksToken);
+			const providedPicks = this._getPicks(picksFilter, picksDisposables, picksToken, runOptions);
 
 			const applyPicks = (picks: Picks<T>, skipEmpty?: boolean): boolean => {
 				let items: readonly Pick<T>[];
@@ -338,5 +338,5 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 	 * @returns the picks either directly, as promise or combined fast and slow results.
 	 * Pickers can return `null` to signal that no change in picks is needed.
 	 */
-	protected abstract _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Picks<T> | Promise<Picks<T>> | FastAndSlowPicks<T> | null;
+	protected abstract _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): Picks<T> | Promise<Picks<T>> | FastAndSlowPicks<T> | null;
 }

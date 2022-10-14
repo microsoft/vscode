@@ -40,6 +40,7 @@ import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatch
 import { registerIcon, widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
+import { assertIsDefined } from 'vs/base/common/types';
 
 const findSelectionIcon = registerIcon('find-selection', Codicon.selection, nls.localize('findSelectionIcon', 'Icon for \'Find in Selection\' in the editor find widget.'));
 const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));
@@ -1033,7 +1034,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.PreviousMatchFindAction),
 			icon: findPreviousMatchIcon,
 			onTrigger: () => {
-				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().then(undefined, onUnexpectedError);
+				assertIsDefined(this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
 		}));
 
@@ -1042,7 +1043,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			label: NLS_NEXT_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.NextMatchFindAction),
 			icon: findNextMatchIcon,
 			onTrigger: () => {
-				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().then(undefined, onUnexpectedError);
+				assertIsDefined(this._codeEditor.getAction(FIND_IDS.NextMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
 		}));
 

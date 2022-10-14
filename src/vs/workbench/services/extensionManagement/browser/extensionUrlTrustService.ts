@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 class ExtensionUrlTrustService implements IExtensionUrlTrustService {
 
@@ -15,4 +15,4 @@ class ExtensionUrlTrustService implements IExtensionUrlTrustService {
 	}
 }
 
-registerSingleton(IExtensionUrlTrustService, ExtensionUrlTrustService, false);
+registerSingleton(IExtensionUrlTrustService, ExtensionUrlTrustService, InstantiationType.Delayed);
