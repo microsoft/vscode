@@ -286,9 +286,8 @@ export function getPiiPathsFromEnvironment(paths: IPathEnvironment): string[] {
  * @returns The cleaned stack
  */
 function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
-	// Detect if it's a user agent and don't sanitize it
-	// As the / is a false positive for file paths
-	if (stack.indexOf('Mozilla/') >= 0) {
+	// Detect if the satck is a user agent, as those are not file paths and trigger false positives
+	if (stack.startsWith('Mozilla/') || stack.startsWith('Opera/')) {
 		return stack;
 	}
 
