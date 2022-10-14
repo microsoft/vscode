@@ -23,7 +23,7 @@ export class MainThreadLocalization extends Disposable implements MainThreadLoca
 
 	async $fetchBuiltInBundleUri(id: string): Promise<URI | undefined> {
 		try {
-			const uri = await this.languagePackService.getTranslationsUri(id);
+			const uri = await this.languagePackService.getBuiltInExtensionTranslationsUri(id);
 			return uri;
 		} catch (e) {
 			return undefined;
