@@ -286,6 +286,12 @@ export function getPiiPathsFromEnvironment(paths: IPathEnvironment): string[] {
  * @returns The cleaned stack
  */
 function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
+	// Detect if it's a user agent and don't sanitize it
+	// As the / is a false positive for file paths
+	if (stack.indexOf('Mozilla/') >= 0) {
+		return stack;
+	}
+
 	let updatedStack = stack;
 
 	const cleanUpIndexes: [number, number][] = [];
