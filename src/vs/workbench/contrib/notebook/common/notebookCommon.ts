@@ -176,6 +176,11 @@ export interface INotebookRendererInfo {
 	matches(mimeType: string, kernelProvides: ReadonlyArray<string>): NotebookRendererMatch;
 }
 
+export interface INotebookStaticPreloadInfo {
+	readonly type: string;
+	readonly entrypoint: URI;
+	readonly extensionLocation: URI;
+}
 
 export interface IOrderedMimeType {
 	mimeType: string;

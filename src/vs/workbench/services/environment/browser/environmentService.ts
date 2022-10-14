@@ -72,7 +72,10 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	}
 
 	@memoize
-	get logFile(): URI { return joinPath(this.logsHome, 'window.log'); }
+	get windowLogsPath(): URI { return this.logsHome; }
+
+	@memoize
+	get logFile(): URI { return joinPath(this.windowLogsPath, 'window.log'); }
 
 	@memoize
 	get userRoamingDataHome(): URI { return URI.file('/User').with({ scheme: Schemas.vscodeUserData }); }

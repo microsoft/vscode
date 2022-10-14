@@ -30,10 +30,7 @@ class FileReferencesCommand implements Command {
 			return;
 		}
 
-		if (!resource) {
-			resource = vscode.window.activeTextEditor?.document.uri;
-		}
-
+		resource ??= vscode.window.activeTextEditor?.document.uri;
 		if (!resource) {
 			vscode.window.showErrorMessage(localize('error.noResource', "Find file references failed. No resource provided."));
 			return;
