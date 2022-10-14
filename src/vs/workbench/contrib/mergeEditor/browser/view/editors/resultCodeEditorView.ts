@@ -223,7 +223,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 		return result;
 	});
 
-	protected override getEditorContributions(): Iterable<IEditorContributionDescription> | undefined {
-		return Iterable.filter(EditorExtensionsRegistry.getEditorContributions(), c => c.id !== CodeLensContribution.ID);
+	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
+		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeLensContribution.ID);
 	}
 }

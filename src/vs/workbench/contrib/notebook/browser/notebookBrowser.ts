@@ -323,8 +323,8 @@ export interface INotebookEditorContributionDescription {
 export interface INotebookEditorCreationOptions {
 	readonly isEmbedded?: boolean;
 	readonly isReadOnly?: boolean;
-	readonly contributions?: Iterable<INotebookEditorContributionDescription>;
-	readonly cellEditorContributions?: Iterable<IEditorContributionDescription>;
+	readonly contributions?: INotebookEditorContributionDescription[];
+	readonly cellEditorContributions?: IEditorContributionDescription[];
 	readonly menuIds: {
 		notebookToolbar: MenuId;
 		cellTitleToolbar: MenuId;

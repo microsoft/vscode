@@ -108,7 +108,7 @@ export abstract class CodeEditorView extends Disposable {
 
 	}
 
-	protected getEditorContributions(): Iterable<IEditorContributionDescription> | undefined {
+	protected getEditorContributions(): IEditorContributionDescription[] | undefined {
 		return undefined;
 	}
 }
