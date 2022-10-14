@@ -46,11 +46,11 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
     displayName: Setup NPM
 
-  - task: npmAuthenticate@0
-    inputs:
-      workingFile: .npmrc
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
-    displayName: Setup NPM Authentication
+  # - task: npmAuthenticate@0
+  #   inputs:
+  #     workingFile: .npmrc
+  #   condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
+  #   displayName: Setup NPM Authentication
 
   - script: cat .npmrc
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
