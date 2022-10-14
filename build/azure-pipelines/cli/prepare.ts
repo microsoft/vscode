@@ -9,7 +9,16 @@ import * as path from 'path';
 import * as packageJson from '../../../package.json';
 
 const root = path.dirname(path.dirname(path.dirname(__dirname)));
-const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
+
+let productJsonPath: string;
+if (process.env.VSCODE_QUALITY === 'oss' || !process.env.VSCODE_QUALITY) {
+	productJsonPath = path.join(root, 'product.json');
+} else {
+	productJsonPath = path.join(root, 'quality', process.env.VSCODE_QUALITY, 'product.json');
+}
+
+console.log('Loading product.json from', productJsonPath);
+const product = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
 const commit = getVersion(root);
 
 /**

@@ -140,7 +140,7 @@ fn copy_updated_cli_to_path(unzipped_content: &Path, staging_path: &Path) -> Res
 #[cfg(target_os = "windows")]
 fn copy_file_metadata(from: &Path, to: &Path) -> Result<(), std::io::Error> {
 	let permissions = from.metadata()?.permissions();
-	set_permissions(&to, permissions)?;
+	fs::set_permissions(&to, permissions)?;
 	Ok(())
 }
 

@@ -57,7 +57,7 @@ tar = { version = "0.4" }
 russh = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
 russh-cryptovec = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
 russh-keys = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
-secret-service = { git = "https://github.com/microsoft/vscode-secret-service-rs", rev = "ccef335714cdf3744ff85f812b8fba5b6194dcfa" }
+# secret-service = { git = "https://github.com/microsoft/vscode-secret-service-rs", rev = "ccef335714cdf3744ff85f812b8fba5b6194dcfa" }
 
 [profile.release]
 strip = true
