@@ -37,6 +37,12 @@ suite('ExtHostTelemetry', function () {
 		machineId: 'test',
 	};
 
+	const mockRemote = {
+		authority: 'test',
+		isRemote: false,
+		connectionData: null
+	};
+
 	const mockExtensionIdentifier: IExtensionDescription = {
 		identifier: new ExtensionIdentifier('test-extension'),
 		targetPlatform: TargetPlatform.UNIVERSAL,
@@ -54,6 +60,7 @@ suite('ExtHostTelemetry', function () {
 		const extensionTelemetry = new ExtHostTelemetry(new class extends mock<IExtHostInitDataService>() {
 			override environment: IEnvironment = mockEnvironment;
 			override telemetryInfo: ITelemetryInfo = mockTelemetryInfo;
+			override remote = mockRemote;
 		}, new TestTelemetryLoggerService(DEFAULT_LOG_LEVEL));
 		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.USAGE, { usage: true, error: true });
 		let config = extensionTelemetry.getTelemetryDetails();
@@ -103,6 +110,7 @@ suite('ExtHostTelemetry', function () {
 		const extensionTelemetry = new ExtHostTelemetry(new class extends mock<IExtHostInitDataService>() {
 			override environment: IEnvironment = mockEnvironment;
 			override telemetryInfo: ITelemetryInfo = mockTelemetryInfo;
+			override remote = mockRemote;
 		}, new TestTelemetryLoggerService(DEFAULT_LOG_LEVEL));
 
 		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.USAGE, { usage: true, error: true });
