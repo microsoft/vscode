@@ -12,16 +12,16 @@ import { coalesce } from '../util/arrays';
 const localize = nls.loadMessageBundle();
 
 
-export class InsertLocalFileLink implements Command {
-	public readonly id = 'markdown.editor.insertLinkToLocalFile';
+export class InsertLinkFromWorkspace implements Command {
+	public readonly id = 'markdown.editor.insertLinkFromWorkspace';
 
-	public async execute() {
+	public async execute(resources?: vscode.Uri[]) {
 		const activeEditor = vscode.window.activeTextEditor;
 		if (!activeEditor) {
 			return;
 		}
 
-		const selectedFiles = await vscode.window.showOpenDialog({
+		resources ??= await vscode.window.showOpenDialog({
 			canSelectFiles: true,
 			canSelectFolders: true,
 			openLabel: localize('insertLink.openLabel', "Insert link"),
@@ -29,20 +29,20 @@ export class InsertLocalFileLink implements Command {
 			defaultUri: getParentDocumentUri(activeEditor.document),
 		});
 
-		return insertLink(activeEditor, selectedFiles ?? [], false);
+		return insertLink(activeEditor, resources ?? [], false);
 	}
 }
 
-export class InsertLocalImage implements Command {
-	public readonly id = 'markdown.editor.insertLocalImage';
+export class InsertImageFromWorkspace implements Command {
+	public readonly id = 'markdown.editor.insertImageFromWorkspace';
 
-	public async execute() {
+	public async execute(resources?: vscode.Uri[]) {
 		const activeEditor = vscode.window.activeTextEditor;
 		if (!activeEditor) {
 			return;
 		}
 
-		const selectedFiles = await vscode.window.showOpenDialog({
+		resources ??= await vscode.window.showOpenDialog({
 			canSelectFiles: true,
 			canSelectFolders: false,
 			filters: {
@@ -53,7 +53,7 @@ export class InsertLocalImage implements Command {
 			defaultUri: getParentDocumentUri(activeEditor.document),
 		});
 
-		return insertLink(activeEditor, selectedFiles ?? [], true);
+		return insertLink(activeEditor, resources ?? [], true);
 	}
 }
 
@@ -69,8 +69,6 @@ async function insertLink(activeEditor: vscode.TextEditor, selectedFiles: vscode
 function createInsertLinkEdit(activeEditor: vscode.TextEditor, selectedFiles: vscode.Uri[], insertAsImage: boolean) {
 	const snippetEdits = coalesce(activeEditor.selections.map((selection, i): vscode.SnippetTextEdit | undefined => {
 		const selectionText = activeEditor.document.getText(selection);
-		console.log(selectionText);
-
 		const snippet = createUriListSnippet(activeEditor.document, selectedFiles, {
 			insertAsImage: insertAsImage,
 			placeholderText: selectionText,
