@@ -1136,7 +1136,9 @@ export class DirtyDiffModel extends Disposable {
 			)(this.triggerDiff, this)
 		);
 		this._register(scmService.onDidAddRepository(this.onDidAddRepository, this));
-		Iterable.forEach(scmService.repositories, r => this.onDidAddRepository(r));
+
+		//Iterable.forEach(scmService.repositories, r => this.onDidAddRepository(r));
+		//removed because of https://github.com/microsoft/vscode/issues/163499
 
 		this._register(this._model.onDidChangeEncoding(() => {
 			this.diffDelayer.cancel();
