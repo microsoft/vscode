@@ -123,15 +123,15 @@ export function transformErrorForSerialization(error: any): any {
 
 // see https://github.com/v8/v8/wiki/Stack%20Trace%20API#basic-stack-traces
 export interface V8CallSite {
-	getThis(): any;
-	getTypeName(): string;
-	getFunction(): string;
-	getFunctionName(): string;
-	getMethodName(): string;
-	getFileName(): string;
-	getLineNumber(): number;
-	getColumnNumber(): number;
-	getEvalOrigin(): string;
+	getThis(): unknown;
+	getTypeName(): string | null;
+	getFunction(): Function | undefined;
+	getFunctionName(): string | null;
+	getMethodName(): string | null;
+	getFileName(): string | null;
+	getLineNumber(): number | null;
+	getColumnNumber(): number | null;
+	getEvalOrigin(): string | undefined;
 	isToplevel(): boolean;
 	isEval(): boolean;
 	isNative(): boolean;

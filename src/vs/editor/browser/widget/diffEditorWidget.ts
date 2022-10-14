@@ -172,6 +172,8 @@ const diffInsertIcon = registerIcon('diff-insert', Codicon.add, nls.localize('di
 const diffRemoveIcon = registerIcon('diff-remove', Codicon.remove, nls.localize('diffRemoveIcon', 'Line decoration for removals in the diff editor.'));
 const ttPolicy = window.trustedTypes?.createPolicy('diffEditorWidget', { createHTML: value => value });
 
+const ariaNavigationTip = nls.localize('diff-aria-navigation-tip', ' use Shift + F7 to navigate changes');
+
 export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffEditor {
 
 	private static readonly ONE_OVERVIEW_WIDTH = 15;
@@ -1246,6 +1248,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (options.originalAriaLabel) {
 			result.ariaLabel = options.originalAriaLabel;
 		}
+		result.ariaLabel += ariaNavigationTip;
 		result.readOnly = !this._options.originalEditable;
 		result.dropIntoEditor = { enabled: !result.readOnly };
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
@@ -1263,7 +1266,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (options.modifiedAriaLabel) {
 			result.ariaLabel = options.modifiedAriaLabel;
 		}
-
+		result.ariaLabel += ariaNavigationTip;
 		result.wordWrapOverride1 = this._options.diffWordWrap;
 		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar!.verticalHasArrows = false;

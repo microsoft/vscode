@@ -10,7 +10,7 @@ import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common
 import { OperatingSystem, isWeb, OS } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { LogLevelChannel, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/services/output/common/output';
 import { localize } from 'vs/nls';
@@ -33,6 +33,7 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { timeout } from 'vs/base/common/async';
 import { TerminalLogConstants } from 'vs/platform/terminal/common/terminal';
+import { remotePtyHostLog, remoteServerLog } from 'vs/workbench/contrib/logs/common/logConstants';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -71,7 +72,8 @@ class RemoteChannelsContribution extends Disposable implements IWorkbenchContrib
 	constructor(
 		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IDownloadService downloadService: IDownloadService
+		@IDownloadService downloadService: IDownloadService,
+		@ILoggerService loggerService: ILoggerService,
 	) {
 		super();
 		const updateRemoteLogLevel = () => {
@@ -86,7 +88,7 @@ class RemoteChannelsContribution extends Disposable implements IWorkbenchContrib
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
-			connection.registerChannel('logger', new LogLevelChannel(logService));
+			connection.registerChannel('logger', new LogLevelChannel(logService, loggerService));
 		}
 	}
 }
@@ -99,8 +101,8 @@ class RemoteLogOutputChannels implements IWorkbenchContribution {
 		remoteAgentService.getEnvironment().then(remoteEnv => {
 			if (remoteEnv) {
 				const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-				outputChannelRegistry.registerChannel({ id: 'remoteExtensionLog', label: localize('remoteExtensionLog', "Remote Server"), file: joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`), log: true });
-				outputChannelRegistry.registerChannel({ id: 'remotePtyHostLog', label: localize('remotePtyHostLog', "Remote Pty Host"), file: joinPath(remoteEnv.logsPath, `${TerminalLogConstants.FileName}.log`), log: true });
+				outputChannelRegistry.registerChannel({ id: remoteServerLog, label: localize('remoteExtensionLog', "Remote Server"), file: joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`), log: true });
+				outputChannelRegistry.registerChannel({ id: remotePtyHostLog, label: localize('remotePtyHostLog', "Remote Pty Host"), file: joinPath(remoteEnv.logsPath, `${TerminalLogConstants.FileName}.log`), log: true });
 			}
 		});
 	}

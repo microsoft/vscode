@@ -54,6 +54,7 @@ export interface IEnvironment {
 	workspaceStorageHome: URI;
 	useHostProxy?: boolean;
 	skipWorkspaceStorageLock?: boolean;
+	extensionLogLevel?: [string, string][];
 }
 
 export interface IStaticWorkspaceData {

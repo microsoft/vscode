@@ -7,41 +7,9 @@ steps:
     inputs:
       versionSpec: "16.x"
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - task: AzureKeyVault@1
-      displayName: "Azure Key Vault: Get Secrets"
-      inputs:
-        azureSubscription: "vscode-builds-subscription"
-        KeyVaultName: vscode
-        SecretsFilter: "github-distro-mixin-password"
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        cat << EOF > ~/.netrc
-        machine github.com
-        login vscode
-        password $(github-distro-mixin-password)
-        EOF
-
-        git config user.email "vscode@microsoft.com"
-        git config user.name "VSCode"
-      displayName: Prepare tooling
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
-        echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
-        git checkout FETCH_HEAD
-      condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-      displayName: Checkout override commit
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-      displayName: Merge distro
+  - template: ./mixin-distro-posix.yml
+    parameters:
+      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
 
   - script: |
       mkdir -p .build
@@ -72,7 +40,7 @@ steps:
 
   - script: |
       set -e
-      npx https://aka.ms/enablesecurefeed standAlone
+      npm install https://aka.ms/enablesecurefeed --global && npm exec terrapinadotask -- standAlone
     timeoutInMinutes: 5
     retryCountOnTaskFailure: 3
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
@@ -118,11 +86,11 @@ steps:
     displayName: Create node_modules archive
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    # Mixin must run before optimize, because the CSS loader will inline small SVGs
-    - script: |
-        set -e
-        node build/azure-pipelines/mixin
-      displayName: Mix in quality
+      # Mixin must run before optimize, because the CSS loader will inline small SVGs
+      - script: |
+          set -e
+          node build/azure-pipelines/mixin
+        displayName: Mix in quality
 
   - script: |
       set -e
@@ -132,71 +100,71 @@ steps:
     displayName: Compile & Hygiene
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        yarn --cwd build compile
-        ./.github/workflows/check-clean-git-state.sh
-      displayName: Check /build/ folder
+      - script: |
+          set -e
+          yarn --cwd build compile
+          ./.github/workflows/check-clean-git-state.sh
+        displayName: Check /build/ folder
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        yarn --cwd test/smoke compile
-        yarn --cwd test/integration/browser compile
-      displayName: Compile test suites
-      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+      - script: |
+          set -e
+          yarn --cwd test/smoke compile
+          yarn --cwd test/integration/browser compile
+        displayName: Compile test suites
+        condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - task: AzureCLI@2
-      inputs:
-        azureSubscription: "vscode-builds-subscription"
-        scriptType: pscore
-        scriptLocation: inlineScript
-        addSpnToEnvironment: true
-        inlineScript: |
-          Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
-          Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
-          Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
+      - task: AzureCLI@2
+        inputs:
+          azureSubscription: "vscode-builds-subscription"
+          scriptType: pscore
+          scriptLocation: inlineScript
+          addSpnToEnvironment: true
+          inlineScript: |
+            Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
+            Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
+            Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        AZURE_STORAGE_ACCOUNT="ticino" \
-        AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
-        AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
-        AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
-          node build/azure-pipelines/upload-sourcemaps
-      displayName: Upload sourcemaps
+      - script: |
+          set -e
+          AZURE_STORAGE_ACCOUNT="ticino" \
+          AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+          AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+          AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
+            node build/azure-pipelines/upload-sourcemaps
+        displayName: Upload sourcemaps
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -
-        ./build/azure-pipelines/common/extract-telemetry.sh
-      displayName: Extract Telemetry
+      - script: |
+          set -
+          ./build/azure-pipelines/common/extract-telemetry.sh
+        displayName: Extract Telemetry
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        tar -cz --ignore-failed-read -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
-      displayName: Compress compilation artifact
+      - script: |
+          set -e
+          tar -cz --ignore-failed-read -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
+        displayName: Compress compilation artifact
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - task: PublishPipelineArtifact@1
-      inputs:
-        targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-        artifactName: Compilation
-      displayName: Publish compilation artifact
+      - task: PublishPipelineArtifact@1
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+          artifactName: Compilation
+        displayName: Publish compilation artifact
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-          yarn download-builtin-extensions-cg
-      displayName: Built-in extensions component details
+      - script: |
+          set -e
+          VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+            yarn download-builtin-extensions-cg
+        displayName: Built-in extensions component details
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
-      displayName: "Component Detection"
-      inputs:
-        sourceScanPath: $(Build.SourcesDirectory)
-      continueOnError: true
+      - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+        displayName: "Component Detection"
+        inputs:
+          sourceScanPath: $(Build.SourcesDirectory)
+        continueOnError: true
