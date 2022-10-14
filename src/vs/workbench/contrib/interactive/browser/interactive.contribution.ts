@@ -177,9 +177,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 
 		const info = notebookService.getContributedNotebookType('interactive');
 
-		if (info) {
-			info.update({ selectors: ['*.interactive'] });
-		} else {
+		if (!info) {
 			this._register(notebookService.registerContributedNotebookType('interactive', {
 				providerDisplayName: 'Interactive Notebook',
 				displayName: 'Interactive',
