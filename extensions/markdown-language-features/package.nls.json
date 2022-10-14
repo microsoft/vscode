@@ -22,6 +22,8 @@
 	"markdown.preview.refresh.title": "Refresh Preview",
 	"markdown.preview.toggleLock.title": "Toggle Preview Locking",
 	"markdown.findAllFileReferences": "Find File References",
+	"markdown.editor.insertLinkFromWorkspace": "Insert Link to File in Workspace",
+	"markdown.editor.insertImageFromWorkspace": "Insert Image from Workspace",
 	"configuration.markdown.preview.openMarkdownLinks.description": "Controls how links to other Markdown files in the Markdown preview should be opened.",
 	"configuration.markdown.preview.openMarkdownLinks.inEditor": "Try to open links in the editor.",
 	"configuration.markdown.preview.openMarkdownLinks.inPreview": "Try to open links in the Markdown preview.",
