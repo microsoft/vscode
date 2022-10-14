@@ -300,7 +300,7 @@ class Widget {
 		const heightAboveLine = aboveLineTop;
 
 		// b) the box under the line
-		const underLineTop = bottomLeft.top + this._lineHeight;
+		const underLineTop = bottomLeft.top;
 		const heightUnderLine = ctx.viewportHeight - underLineTop;
 
 		const aboveTop = aboveLineTop - height;
@@ -359,7 +359,7 @@ class Widget {
 
 	private _layoutBoxInPage(topLeft: Coordinate, bottomLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult | null {
 		const aboveTop = topLeft.top - height;
-		const belowTop = bottomLeft.top + this._lineHeight;
+		const belowTop = bottomLeft.top;
 
 		const domNodePosition = dom.getDomNodePagePosition(this._viewDomNode.domNode);
 		const absoluteAboveTop = domNodePosition.top + aboveTop - window.scrollY;
@@ -449,7 +449,7 @@ class Widget {
 		const topLeft = new Coordinate(topForPosition, firstLineMinLeft);
 
 		const topForBottomLine = ctx.getVerticalOffsetForLineNumber(lastLine.lineNumber) - ctx.scrollTop;
-		const bottomLeft = new Coordinate(topForBottomLine, lastLineMinLeft);
+		const bottomLeft = new Coordinate(topForBottomLine + this._lineHeight, lastLineMinLeft);
 
 		return [topLeft, bottomLeft];
 	}
