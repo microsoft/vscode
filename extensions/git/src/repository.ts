@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as picomatch from 'picomatch';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, CancellationTokenSource } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
@@ -892,6 +892,7 @@ export class Repository implements Disposable {
 	private isBranchProtectedMatcher: picomatch.Matcher | undefined;
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
+	private updateModelStateCancellationTokenSource: CancellationTokenSource | undefined;
 	private disposables: Disposable[] = [];
 
 	constructor(
@@ -970,7 +971,7 @@ export class Repository implements Disposable {
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
 			|| e.affectsConfiguration('git.showActionButton', root)
-		)(this.updateModelState, this, this.disposables);
+		)(() => this.updateModelState(), this, this.disposables);
 
 		const updateInputBoxVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
@@ -1876,7 +1877,13 @@ export class Repository implements Disposable {
 			const result = await this.retryRun(operation, runOperation);
 
 			if (!isReadOnly(operation)) {
-				await this.updateModelState();
+				if (this.updateModelStateCancellationTokenSource) {
+					this.updateModelStateCancellationTokenSource.cancel();
+				}
+
+				this.updateModelStateCancellationTokenSource = new CancellationTokenSource();
+				await this.updateModelState(this.updateModelStateCancellationTokenSource.token);
+				this.updateModelStateCancellationTokenSource = undefined;
 			}
 
 			return result;
@@ -1936,176 +1943,190 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	private async updateModelState(): Promise<void> {
-		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const untrackedChanges = scopedConfig.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
-		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
+	private async updateModelState(cancellationToken?: CancellationToken): Promise<void> {
+		console.log('updateModelState start');
+		try {
+			const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
+			const untrackedChanges = scopedConfig.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
+			const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
 
-		const limit = scopedConfig.get<number>('statusLimit', 10000);
+			const limit = scopedConfig.get<number>('statusLimit', 10000);
 
-		const start = new Date().getTime();
-		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges });
-		const totalTime = new Date().getTime() - start;
+			const start = new Date().getTime();
+			const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges, cancellationToken });
+			const totalTime = new Date().getTime() - start;
 
-		if (didHitLimit) {
-			/* __GDPR__
-				"statusLimit" : {
-					"owner": "lszomoru",
-					"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Setting indicating whether submodules are ignored" },
-					"limit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Setting indicating the limit of status entries" },
-					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of status entries" },
-					"totalTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of ms the operation took" }
-				}
-			*/
-			this.telemetryReporter.sendTelemetryEvent('statusLimit', { ignoreSubmodules: String(ignoreSubmodules) }, { limit, statusLength, totalTime });
-		}
+			if (didHitLimit) {
+				/* __GDPR__
+					"statusLimit" : {
+						"owner": "lszomoru",
+						"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Setting indicating whether submodules are ignored" },
+						"limit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Setting indicating the limit of status entries" },
+						"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of status entries" },
+						"totalTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of ms the operation took" }
+					}
+				*/
+				this.telemetryReporter.sendTelemetryEvent('statusLimit', { ignoreSubmodules: String(ignoreSubmodules) }, { limit, statusLength, totalTime });
+			}
 
-		const config = workspace.getConfiguration('git');
-		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
-		const useIcons = !config.get<boolean>('decorations.enabled', true);
-		this.isRepositoryHuge = didHitLimit ? { limit } : false;
-		// Triggers or clears any validation warning
-		this._sourceControl.inputBox.validateInput = this._sourceControl.inputBox.validateInput;
+			const config = workspace.getConfiguration('git');
+			const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
+			const useIcons = !config.get<boolean>('decorations.enabled', true);
+			this.isRepositoryHuge = didHitLimit ? { limit } : false;
+			// Triggers or clears any validation warning
+			this._sourceControl.inputBox.validateInput = this._sourceControl.inputBox.validateInput;
 
-		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
-			const knownHugeFolderPaths = await this.findKnownHugeFolderPathsToIgnore();
-			const gitWarn = localize('huge', "The git repository at '{0}' has too many active changes, only a subset of Git features will be enabled.", this.repository.root);
-			const neverAgain = { title: localize('neveragain', "Don't Show Again") };
+			if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
+				const knownHugeFolderPaths = await this.findKnownHugeFolderPathsToIgnore();
+				const gitWarn = localize('huge', "The git repository at '{0}' has too many active changes, only a subset of Git features will be enabled.", this.repository.root);
+				const neverAgain = { title: localize('neveragain', "Don't Show Again") };
 
-			if (knownHugeFolderPaths.length > 0) {
-				const folderPath = knownHugeFolderPaths[0];
-				const folderName = path.basename(folderPath);
+				if (knownHugeFolderPaths.length > 0) {
+					const folderPath = knownHugeFolderPaths[0];
+					const folderName = path.basename(folderPath);
 
-				const addKnown = localize('add known', "Would you like to add '{0}' to .gitignore?", folderName);
-				const yes = { title: localize('yes', "Yes") };
-				const no = { title: localize('no', "No") };
+					const addKnown = localize('add known', "Would you like to add '{0}' to .gitignore?", folderName);
+					const yes = { title: localize('yes', "Yes") };
+					const no = { title: localize('no', "No") };
 
-				const result = await window.showWarningMessage(`${gitWarn} ${addKnown}`, yes, no, neverAgain);
-				if (result === yes) {
-					this.ignore([Uri.file(folderPath)]);
+					const result = await window.showWarningMessage(`${gitWarn} ${addKnown}`, yes, no, neverAgain);
+					if (result === yes) {
+						this.ignore([Uri.file(folderPath)]);
+					} else {
+						if (result === neverAgain) {
+							config.update('ignoreLimitWarning', true, false);
+						}
+
+						this.didWarnAboutLimit = true;
+					}
 				} else {
+					const ok = { title: localize('ok', "OK") };
+					const result = await window.showWarningMessage(gitWarn, ok, neverAgain);
 					if (result === neverAgain) {
 						config.update('ignoreLimitWarning', true, false);
 					}
 
 					this.didWarnAboutLimit = true;
 				}
-			} else {
-				const ok = { title: localize('ok', "OK") };
-				const result = await window.showWarningMessage(gitWarn, ok, neverAgain);
-				if (result === neverAgain) {
-					config.update('ignoreLimitWarning', true, false);
+			}
+
+			if (totalTime > 5000) {
+				/* __GDPR__
+					"statusSlow" : {
+						"owner": "digitarald",
+						"comment": "Reports when git status is slower than 5s",
+						"expiration": "1.73",
+						"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Setting indicating whether submodules are ignored" },
+						"didHitLimit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Total number of status entries" },
+						"didWarnAboutLimit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "True when the user was warned about slow git status" },
+						"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of status entries" },
+						"totalTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of ms the operation took" }
+					}
+				*/
+				this.telemetryReporter.sendTelemetryEvent('statusSlow', { ignoreSubmodules: String(ignoreSubmodules), didHitLimit: String(didHitLimit), didWarnAboutLimit: String(this.didWarnAboutLimit) }, { statusLength, totalTime });
+			}
+
+			let HEAD: Branch | undefined;
+
+			try {
+				HEAD = await this.repository.getHEAD();
+
+				if (HEAD.name) {
+					try {
+						HEAD = await this.repository.getBranch(HEAD.name);
+					} catch (err) {
+						// noop
+					}
+				}
+			} catch (err) {
+				// noop
+			}
+
+			let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
+			if (sort !== 'alphabetically' && sort !== 'committerdate') {
+				sort = 'alphabetically';
+			}
+			const [refs, remotes, submodules, rebaseCommit, mergeInProgress, commitTemplate] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit(), this.isMergeInProgress(), this.getInputTemplate()]);
+
+			this._HEAD = HEAD;
+			this._refs = refs!;
+			this._remotes = remotes!;
+			this._submodules = submodules!;
+			this.rebaseCommit = rebaseCommit;
+			this.mergeInProgress = mergeInProgress;
+
+			const index: Resource[] = [];
+			const workingTree: Resource[] = [];
+			const merge: Resource[] = [];
+			const untracked: Resource[] = [];
+
+			status.forEach(raw => {
+				const uri = Uri.file(path.join(this.repository.root, raw.path));
+				const renameUri = raw.rename
+					? Uri.file(path.join(this.repository.root, raw.rename))
+					: undefined;
+
+				switch (raw.x + raw.y) {
+					case '??': switch (untrackedChanges) {
+						case 'mixed': return workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.UNTRACKED, useIcons));
+						case 'separate': return untracked.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Untracked, uri, Status.UNTRACKED, useIcons));
+						default: return undefined;
+					}
+					case '!!': switch (untrackedChanges) {
+						case 'mixed': return workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
+						case 'separate': return untracked.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Untracked, uri, Status.IGNORED, useIcons));
+						default: return undefined;
+					}
+					case 'DD': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.BOTH_DELETED, useIcons));
+					case 'AU': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.ADDED_BY_US, useIcons));
+					case 'UD': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.DELETED_BY_THEM, useIcons));
+					case 'UA': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.ADDED_BY_THEM, useIcons));
+					case 'DU': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.DELETED_BY_US, useIcons));
+					case 'AA': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.BOTH_ADDED, useIcons));
+					case 'UU': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.BOTH_MODIFIED, useIcons));
 				}
 
-				this.didWarnAboutLimit = true;
-			}
+				switch (raw.x) {
+					case 'M': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons)); break;
+					case 'A': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_ADDED, useIcons)); break;
+					case 'D': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_DELETED, useIcons)); break;
+					case 'R': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_RENAMED, useIcons, renameUri)); break;
+					case 'C': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_COPIED, useIcons, renameUri)); break;
+				}
+
+				switch (raw.y) {
+					case 'M': workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.MODIFIED, useIcons, renameUri)); break;
+					case 'D': workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri)); break;
+					case 'A': workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_ADD, useIcons, renameUri)); break;
+				}
+
+				return undefined;
+			});
+
+			// set resource groups
+			this.mergeGroup.resourceStates = merge;
+			this.indexGroup.resourceStates = index;
+			this.workingTreeGroup.resourceStates = workingTree;
+			this.untrackedGroup.resourceStates = untracked;
+
+			// set count badge
+			this.setCountBadge();
+
+			this._onDidChangeStatus.fire();
+
+			this._sourceControl.commitTemplate = commitTemplate;
 		}
+		catch (err) {
+			console.log('CANCELLED?');
+			if (err instanceof GitError && err.message === 'Cancelled') {
+				return;
+			}
 
-		if (totalTime > 5000) {
-			/* __GDPR__
-				"statusSlow" : {
-					"owner": "digitarald",
-					"comment": "Reports when git status is slower than 5s",
-					"expiration": "1.73",
-					"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Setting indicating whether submodules are ignored" },
-					"didHitLimit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Total number of status entries" },
-					"didWarnAboutLimit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "True when the user was warned about slow git status" },
-					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of status entries" },
-					"totalTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of ms the operation took" }
-				}
-			*/
-			this.telemetryReporter.sendTelemetryEvent('statusSlow', { ignoreSubmodules: String(ignoreSubmodules), didHitLimit: String(didHitLimit), didWarnAboutLimit: String(this.didWarnAboutLimit) }, { statusLength, totalTime });
+			throw err;
 		}
-
-		let HEAD: Branch | undefined;
-
-		try {
-			HEAD = await this.repository.getHEAD();
-
-			if (HEAD.name) {
-				try {
-					HEAD = await this.repository.getBranch(HEAD.name);
-				} catch (err) {
-					// noop
-				}
-			}
-		} catch (err) {
-			// noop
+		finally {
+			console.log('updateModelState end');
 		}
-
-		let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
-		if (sort !== 'alphabetically' && sort !== 'committerdate') {
-			sort = 'alphabetically';
-		}
-		const [refs, remotes, submodules, rebaseCommit, mergeInProgress, commitTemplate] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit(), this.isMergeInProgress(), this.getInputTemplate()]);
-
-		this._HEAD = HEAD;
-		this._refs = refs!;
-		this._remotes = remotes!;
-		this._submodules = submodules!;
-		this.rebaseCommit = rebaseCommit;
-		this.mergeInProgress = mergeInProgress;
-
-		const index: Resource[] = [];
-		const workingTree: Resource[] = [];
-		const merge: Resource[] = [];
-		const untracked: Resource[] = [];
-
-		status.forEach(raw => {
-			const uri = Uri.file(path.join(this.repository.root, raw.path));
-			const renameUri = raw.rename
-				? Uri.file(path.join(this.repository.root, raw.rename))
-				: undefined;
-
-			switch (raw.x + raw.y) {
-				case '??': switch (untrackedChanges) {
-					case 'mixed': return workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.UNTRACKED, useIcons));
-					case 'separate': return untracked.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Untracked, uri, Status.UNTRACKED, useIcons));
-					default: return undefined;
-				}
-				case '!!': switch (untrackedChanges) {
-					case 'mixed': return workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
-					case 'separate': return untracked.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Untracked, uri, Status.IGNORED, useIcons));
-					default: return undefined;
-				}
-				case 'DD': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.BOTH_DELETED, useIcons));
-				case 'AU': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.ADDED_BY_US, useIcons));
-				case 'UD': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.DELETED_BY_THEM, useIcons));
-				case 'UA': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.ADDED_BY_THEM, useIcons));
-				case 'DU': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.DELETED_BY_US, useIcons));
-				case 'AA': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.BOTH_ADDED, useIcons));
-				case 'UU': return merge.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.BOTH_MODIFIED, useIcons));
-			}
-
-			switch (raw.x) {
-				case 'M': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons)); break;
-				case 'A': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_ADDED, useIcons)); break;
-				case 'D': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_DELETED, useIcons)); break;
-				case 'R': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_RENAMED, useIcons, renameUri)); break;
-				case 'C': index.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_COPIED, useIcons, renameUri)); break;
-			}
-
-			switch (raw.y) {
-				case 'M': workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.MODIFIED, useIcons, renameUri)); break;
-				case 'D': workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri)); break;
-				case 'A': workingTree.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_ADD, useIcons, renameUri)); break;
-			}
-
-			return undefined;
-		});
-
-		// set resource groups
-		this.mergeGroup.resourceStates = merge;
-		this.indexGroup.resourceStates = index;
-		this.workingTreeGroup.resourceStates = workingTree;
-		this.untrackedGroup.resourceStates = untracked;
-
-		// set count badge
-		this.setCountBadge();
-
-		this._onDidChangeStatus.fire();
-
-		this._sourceControl.commitTemplate = commitTemplate;
 	}
 
 	private setCountBadge(): void {

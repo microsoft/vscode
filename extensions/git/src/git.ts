@@ -1937,23 +1937,28 @@ export class Repository {
 		}
 	}
 
-	getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; untrackedChanges?: 'mixed' | 'separate' | 'hidden' }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
-		return new Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }>((c, e) => {
+	getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
+		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
+			throw new GitError({ message: 'Cancelled' });
+		}
+
+		const env = { GIT_OPTIONAL_LOCKS: '0' };
+		const args = ['status', '-z'];
+
+		if (opts?.untrackedChanges === 'hidden') {
+			args.push('-uno');
+		} else {
+			args.push('-uall');
+		}
+
+		if (opts?.ignoreSubmodules) {
+			args.push('--ignore-submodules');
+		}
+
+		const child = this.stream(args, { env });
+
+		let result = new Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }>((c, e) => {
 			const parser = new GitStatusParser();
-			const env = { GIT_OPTIONAL_LOCKS: '0' };
-			const args = ['status', '-z'];
-
-			if (opts?.untrackedChanges === 'hidden') {
-				args.push('-uno');
-			} else {
-				args.push('-uall');
-			}
-
-			if (opts?.ignoreSubmodules) {
-				args.push('--ignore-submodules');
-			}
-
-			const child = this.stream(args, { env });
 
 			const onExit = (exitCode: number) => {
 				if (exitCode !== 0) {
@@ -1994,6 +1999,24 @@ export class Repository {
 			child.on('error', cpErrorHandler(e));
 			child.on('exit', onExit);
 		});
+
+		if (opts?.cancellationToken) {
+			const cancellationPromise = new Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }>((_, e) => {
+				onceEvent(opts.cancellationToken!.onCancellationRequested)(() => {
+					try {
+						child.kill();
+					} catch (err) {
+						// noop
+					}
+
+					e(new GitError({ message: 'Cancelled' }));
+				});
+			});
+
+			result = Promise.race([result, cancellationPromise]);
+		}
+
+		return result;
 	}
 
 	async getHEAD(): Promise<Ref> {
