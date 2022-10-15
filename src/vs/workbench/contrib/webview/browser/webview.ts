@@ -291,7 +291,7 @@ export class WebviewOriginStore {
 		this.state = this.memento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
-	public getOrigin(viewType: string, extId: ExtensionIdentifier | undefined): string {
+	public getOrigin(viewType: string, extId: ExtensionIdentifier): string {
 		const key = this.getKey(viewType, extId);
 
 		const existing = this.state[key];
@@ -305,7 +305,7 @@ export class WebviewOriginStore {
 		return newOrigin;
 	}
 
-	private getKey(viewType: string, extId: ExtensionIdentifier | undefined): string {
-		return JSON.stringify({ viewType, extension: extId?.value });
+	private getKey(viewType: string, extId: ExtensionIdentifier): string {
+		return JSON.stringify({ viewType, extension: extId.value });
 	}
 }
