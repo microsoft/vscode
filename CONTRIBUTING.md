@@ -65,9 +65,9 @@ Please include the following with each issue:
 
 * A code snippet that demonstrates the issue or a link to a code repository the developers can easily pull down to recreate the issue locally
 
-  * **Note:** Because the developers need to copy and paste the code snippet, including a code snippet as a media file (i.e. .gif) is not sufficient.
+  [ **Note:** Because the developers need to copy and paste the code snippet, including a code snippet as a media file (i.e. .gif) is not sufficient.]
 
-* Errors from the Dev Tools Console (open from the menu: Help > Toggle Developer Tools)
+* Errors from the Dev Tools Console (open from the menu: `Help > Toggle Developer Tools`)
 
 ### Creating Pull Requests
 
