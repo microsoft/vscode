@@ -126,6 +126,38 @@ class LogPointAction extends EditorAction {
 	}
 }
 
+class EditBreakpointAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.debug.action.editBreakpoint',
+			label: nls.localize('EditBreakpointEditorAction', "Debug: Edit Breakpoint"),
+			alias: 'Debug: Edit Existing Breakpoint',
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
+			menuOpts: {
+				menuId: MenuId.MenubarNewBreakpointMenu,
+				title: nls.localize({ key: 'miEditBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Edit Breakpoint"),
+				group: '1_breakpoints',
+				order: 1,
+				when: CONTEXT_DEBUGGERS_AVAILABLE
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const debugService = accessor.get(IDebugService);
+
+		const position = editor.getPosition();
+		const debugModel = debugService.getModel();
+		if (position && editor.hasModel() && debugModel.getBreakpoints({ lineNumber: position.lineNumber }).length > 0) {
+			if (debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, column: position.column }).length > 0) {
+				editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)?.showBreakpointWidget(position.lineNumber, position.column);
+			} else {
+				editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)?.showBreakpointWidget(position.lineNumber, undefined);
+			}
+		}
+	}
+}
+
 class OpenDisassemblyViewAction extends EditorAction2 {
 
 	public static readonly ID = 'editor.debug.action.openDisassemblyView';
@@ -501,6 +533,7 @@ registerAction2(ToggleDisassemblyViewSourceCodeAction);
 registerEditorAction(ToggleBreakpointAction);
 registerEditorAction(ConditionalBreakpointAction);
 registerEditorAction(LogPointAction);
+registerEditorAction(EditBreakpointAction);
 registerEditorAction(RunToCursorAction);
 registerEditorAction(StepIntoTargetsAction);
 registerEditorAction(SelectionToReplAction);
