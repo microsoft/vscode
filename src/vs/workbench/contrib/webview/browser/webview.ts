@@ -17,7 +17,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWebviewPortMapping } from 'vs/platform/webview/common/webviewPortMapping';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webviewElement';
 
 /**
  * Set when the find widget in a webview in a webview is visible.
@@ -66,6 +65,17 @@ export interface IWebviewService {
 	 * moving webview around the workbench.
 	 */
 	createWebviewOverlay(initInfo: WebviewInitInfo): IOverlayWebview;
+}
+
+export interface WebviewInitInfo {
+	readonly id: string;
+	readonly providedViewType?: string;
+	readonly origin?: string;
+
+	readonly options: WebviewOptions;
+	readonly contentOptions: WebviewContentOptions;
+
+	readonly extension: WebviewExtensionDescription | undefined;
 }
 
 export const enum WebviewContentPurpose {
