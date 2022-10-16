@@ -47,7 +47,6 @@ import { ILifecycleMainService, LifecycleMainService } from 'vs/platform/lifecyc
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { ConsoleMainLogger, getLogLevel, ILoggerService, ILogService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
-import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
@@ -117,6 +116,7 @@ class CodeMain {
 				const logService = accessor.get(ILogService);
 				const lifecycleMainService = accessor.get(ILifecycleMainService);
 				const fileService = accessor.get(IFileService);
+				const loggerService = accessor.get(ILoggerService);
 
 				// Create the main IPC server by trying to be the server
 				// If this throws an error it means we are not the first
@@ -129,7 +129,7 @@ class CodeMain {
 				});
 
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
-				bufferLogService.logger = new SpdLogLogger('main', join(environmentMainService.logsPath, 'main.log'), true, false, bufferLogService.getLevel());
+				bufferLogService.logger = loggerService.createLogger(URI.file(join(environmentMainService.logsPath, 'main.log')), { name: 'main' });
 
 				// Lifecycle
 				once(lifecycleMainService.onWillShutdown)(evt => {
@@ -177,7 +177,7 @@ class CodeMain {
 		services.set(IUriIdentityService, uriIdentityService);
 
 		// Logger
-		services.set(ILoggerService, new LoggerService(logService, fileService));
+		services.set(ILoggerService, new LoggerService(logService));
 
 		// State
 		const stateMainService = new StateMainService(environmentMainService, logService, fileService);

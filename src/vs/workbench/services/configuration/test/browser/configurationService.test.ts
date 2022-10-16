@@ -1184,6 +1184,25 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		});
 	}));
 
+	test('inspect restricted settings after change', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		testObject.updateWorkspaceTrust(false);
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userRestrictedValue" }'));
+		await testObject.reloadConfiguration();
+
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceRestrictedValue" }'));
+		const event = await promise;
+
+		const actual = testObject.inspect('configurationService.folder.restrictedSetting');
+		assert.strictEqual(actual.defaultValue, 'isSet');
+		assert.strictEqual(actual.application, undefined);
+		assert.strictEqual(actual.userValue, 'userRestrictedValue');
+		assert.strictEqual(actual.workspaceValue, 'workspaceRestrictedValue');
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.strictEqual(actual.value, 'userRestrictedValue');
+		assert.strictEqual(event.affectsConfiguration('configurationService.folder.restrictedSetting'), true);
+	}));
+
 	test('keys', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		let actual = testObject.keys();
 		assert.ok(actual.default.indexOf('configurationService.folder.testSetting') !== -1);
@@ -2094,6 +2113,38 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		assert.strictEqual(actual.workspaceValue, 'workspaceRestrictedValue');
 		assert.strictEqual(actual.workspaceFolderValue, 'workspaceFolderRestrictedValue');
 		assert.strictEqual(actual.value, 'workspaceFolderRestrictedValue');
+	}));
+
+	test('inspect restricted settings after change', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		testObject.updateWorkspaceTrust(false);
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testRestrictedSetting1": "userRestrictedValue" }'));
+		await testObject.reloadConfiguration();
+
+		let promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testRestrictedSetting1': 'workspaceRestrictedValue' } }], true);
+		let event = await promise;
+
+		let actual = testObject.inspect('configurationService.workspace.testRestrictedSetting1', { resource: workspaceContextService.getWorkspace().folders[0].uri });
+		assert.strictEqual(actual.defaultValue, 'isSet');
+		assert.strictEqual(actual.application, undefined);
+		assert.strictEqual(actual.userValue, 'userRestrictedValue');
+		assert.strictEqual(actual.workspaceValue, 'workspaceRestrictedValue');
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.strictEqual(actual.value, 'userRestrictedValue');
+		assert.strictEqual(event.affectsConfiguration('configurationService.workspace.testRestrictedSetting1'), true);
+
+		promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testRestrictedSetting1": "workspaceFolderRestrictedValue" }'));
+		event = await promise;
+
+		actual = testObject.inspect('configurationService.workspace.testRestrictedSetting1', { resource: workspaceContextService.getWorkspace().folders[0].uri });
+		assert.strictEqual(actual.defaultValue, 'isSet');
+		assert.strictEqual(actual.application, undefined);
+		assert.strictEqual(actual.userValue, 'userRestrictedValue');
+		assert.strictEqual(actual.workspaceValue, 'workspaceRestrictedValue');
+		assert.strictEqual(actual.workspaceFolderValue, 'workspaceFolderRestrictedValue');
+		assert.strictEqual(actual.value, 'userRestrictedValue');
+		assert.strictEqual(event.affectsConfiguration('configurationService.workspace.testRestrictedSetting1'), true);
 	}));
 
 	test('get launch configuration', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

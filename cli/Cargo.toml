@@ -39,7 +39,7 @@ serde_bytes = "0.11.5"
 chrono = { version = "0.4", features = ["serde"] }
 gethostname = "0.2.3"
 libc = "0.2"
-tunnels = { git = "https://github.com/connor4312/dev-tunnels", branch = "host-relay", features = ["connections", "vendored-openssl"] }
+tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "3870e9133dfb9557774521bb447827f19b26e55d", default-features = false, features = ["connections", "vendored-openssl"] }
 keyring = "1.1"
 dialoguer = "0.10"
 hyper = "0.14"
@@ -56,10 +56,17 @@ windows-service = "0.5"
 [target.'cfg(target_os = "linux")'.dependencies]
 tar = { version = "0.4" }
 
+[patch.crates-io]
+russh = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
+russh-cryptovec = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
+russh-keys = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
+secret-service = { git = "https://github.com/microsoft/vscode-secret-service-rs", rev = "ccef335714cdf3744ff85f812b8fba5b6194dcfa" }
+
 [profile.release]
 strip = true
 lto = true
 codegen-units = 1
 
 [features]
+default = []
 vscode-encrypt = []

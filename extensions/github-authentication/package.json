@@ -34,16 +34,16 @@
         "id": "github"
       },
       {
-        "label": "GitHub Enterprise",
+        "label": "GitHub Enterprise Server",
         "id": "github-enterprise"
       }
     ],
     "configuration": {
-      "title": "GitHub Enterprise Authentication Provider",
+      "title": "GitHub Enterprise Server Authentication Provider",
       "properties": {
         "github-enterprise.uri": {
           "type": "string",
-          "description": "URI of your GitHub Enterprise Instance"
+          "description": "GitHub Enterprise Server URI"
         }
       }
     }
@@ -65,7 +65,6 @@
     "node-fetch": "2.6.7",
     "uuid": "8.1.0",
     "@vscode/extension-telemetry": "0.6.2",
-    "vscode-nls": "^5.2.0",
     "vscode-tas-client": "^0.1.47"
   },
   "devDependencies": {

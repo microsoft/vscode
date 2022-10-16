@@ -5,10 +5,45 @@
 
 declare module 'vscode' {
 
+	export enum LogLevel {
+		Trace = 0,
+		Debug = 1,
+		Info = 2,
+		Warning = 3,
+		Error = 4,
+		Critical = 5,
+		Off = 6
+	}
+
+	export namespace env {
+
+		/**
+		 * The current log level of the application.
+		 */
+		export const logLevel: LogLevel;
+
+		/**
+		 * An {@link Event} which fires when the log level of the application changes.
+		 */
+		export const onDidChangeLogLevel: Event<LogLevel>;
+
+	}
+
 	/**
 	 * A channel for containing log output.
 	 */
 	export interface LogOutputChannel extends OutputChannel {
+
+		/**
+		 * The current log level of the channel.
+		 */
+		readonly logLevel: LogLevel;
+
+		/**
+		 * An {@link Event} which fires when the log level of the channel changes.
+		 */
+		readonly onDidChangeLogLevel: Event<LogLevel>;
+
 		/**
 		 * Log the given trace message to the channel.
 		 *

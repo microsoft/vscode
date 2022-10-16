@@ -8,7 +8,7 @@ import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync
 import { homedir, release, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { Event } from 'vs/base/common/event';
-import { isAbsolute, resolve, join } from 'vs/base/common/path';
+import { isAbsolute, resolve, join, dirname } from 'vs/base/common/path';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { randomPort } from 'vs/base/common/ports';
 import { isString } from 'vs/base/common/types';
@@ -24,7 +24,6 @@ import product from 'vs/platform/product/common/product';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { randomPath } from 'vs/base/common/extpath';
 import { Utils } from 'vs/platform/profiling/common/profiling';
-import { dirname } from 'vs/base/common/resources';
 import { FileAccess } from 'vs/base/common/network';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
@@ -48,6 +47,31 @@ export async function main(argv: string[]): Promise<any> {
 	} catch (err) {
 		console.error(err.message);
 		return;
+	}
+
+	if (args.tunnel) {
+		if (!product.tunnelApplicationName) {
+			console.error(`'tunnel' command not supported in ${product.applicationName}`);
+			return;
+		}
+		return new Promise((resolve, reject) => {
+			let tunnelProcess;
+			if (process.env['VSCODE_DEV']) {
+				tunnelProcess = spawn('cargo', ['run', '--bin', 'code-tunnel', ...argv.slice(5)], { cwd: join(getAppRoot(), 'cli') });
+			} else {
+				const tunnelCommand = join(dirname(process.execPath), 'bin', `${product.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
+				const tunnelArgs = argv.slice(3);
+				tunnelProcess = spawn(tunnelCommand, tunnelArgs);
+			}
+			tunnelProcess.stdout.on('data', data => {
+				console.log(data.toString());
+			});
+			tunnelProcess.stderr.on('data', data => {
+				console.error(data.toString());
+			});
+			tunnelProcess.on('exit', resolve);
+			tunnelProcess.on('error', reject);
+		});
 	}
 
 	// Help
@@ -75,7 +99,7 @@ export async function main(argv: string[]): Promise<any> {
 			case 'fish': file = 'shellIntegration.fish'; break;
 			default: throw new Error('Error using --locate-shell-integration-path: Invalid shell type');
 		}
-		console.log(join(dirname(FileAccess.asFileUri('', require)).fsPath, 'out', 'vs', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
+		console.log(join(getAppRoot(), 'out', 'vs', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
 	}
 
 	// Extensions Management
@@ -465,6 +489,10 @@ export async function main(argv: string[]): Promise<any> {
 
 		return Promise.all(processCallbacks.map(callback => callback(child)));
 	}
+}
+
+function getAppRoot() {
+	return dirname(FileAccess.asFileUri('', require).fsPath);
 }
 
 function eventuallyExit(code: number): void {

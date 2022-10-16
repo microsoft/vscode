@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-wwaDxsm1+SKIUb5YJXiZlYMyV7QPB8+zd6HPcTjigZs=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-WedTLLcy1WD2tkMNIDWTY7p5GAXwF+3pVt9Bd3nh6x4=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -513,8 +513,8 @@
 				}
 
 				// Re-add new properties
-				for (const variable of Object.keys(initData.styles)) {
-					documentStyle.setProperty(`--${variable}`, initData.styles[variable]);
+				for (const [variable, value] of Object.entries(initData.styles)) {
+					documentStyle.setProperty(`--${variable}`, value);
 				}
 			}
 		};
