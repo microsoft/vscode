@@ -42,7 +42,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDiffLinesChange, InlineDiffMargin } from 'vs/editor/browser/widget/inlineDiffMargin';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { Constants } from 'vs/base/common/uint';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { EditorExtensionsRegistry, IDiffEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
@@ -368,7 +368,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			this._containerDomElement.className = DiffEditorWidget._getClassName(this._themeService.getColorTheme(), this._options.renderSideBySide);
 		}));
 
-		const contributions = EditorExtensionsRegistry.getDiffEditorContributions();
+		const contributions: IDiffEditorContributionDescription[] = EditorExtensionsRegistry.getDiffEditorContributions();
 		for (const desc of contributions) {
 			try {
 				this._register(instantiationService.createInstance(desc.ctor, this));

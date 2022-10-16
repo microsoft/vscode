@@ -13,7 +13,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { ExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/electron-sandbox/extensionResourceLoaderService';
+import { ExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/electron-sandbox/extensionResourceLoaderService';
 import { ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { mock, TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IRequestService } from 'vs/platform/request/common/request';

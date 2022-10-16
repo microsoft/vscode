@@ -23,7 +23,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { FindInFrameOptions, IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { WebviewElement, WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewElement } from 'vs/workbench/contrib/webview/browser/webviewElement';
 import { WindowIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-sandbox/windowIgnoreMenuShortcutsManager';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
