@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import * as util from 'util';
 import * as nls from 'vscode-nls';
+import { randomUUID } from 'crypto';
 
 const localize = nls.loadMessageBundle();
 
@@ -20,6 +21,7 @@ interface ServerReadyAction {
 	uriFormat?: string;
 	webRoot?: string;
 	name?: string;
+	killOnServerStop?: boolean;
 }
 
 class Trigger {
@@ -156,25 +158,25 @@ class ServerReadyDetector extends vscode.Disposable {
 		this.openExternalWithUri(session, uri);
 	}
 
-	private openExternalWithUri(session: vscode.DebugSession, uri: string) {
+	private async openExternalWithUri(session: vscode.DebugSession, uri: string) {
 
 		const args: ServerReadyAction = session.configuration.serverReadyAction;
 		switch (args.action || 'openExternally') {
 
 			case 'openExternally':
-				vscode.env.openExternal(vscode.Uri.parse(uri));
+				await vscode.env.openExternal(vscode.Uri.parse(uri));
 				break;
 
 			case 'debugWithChrome':
-				this.debugWithBrowser('pwa-chrome', session, uri);
+				await this.debugWithBrowser('pwa-chrome', session, uri);
 				break;
 
 			case 'debugWithEdge':
-				this.debugWithBrowser('pwa-msedge', session, uri);
+				await this.debugWithBrowser('pwa-msedge', session, uri);
 				break;
 
 			case 'startDebugging':
-				vscode.debug.startDebugging(session.workspaceFolder, args.name || 'unspecified');
+				await this.startNamedDebugSession(session, args.name || 'unspecified');
 				break;
 
 			default:
@@ -183,14 +185,78 @@ class ServerReadyDetector extends vscode.Disposable {
 		}
 	}
 
-	private debugWithBrowser(type: string, session: vscode.DebugSession, uri: string) {
+	private async debugWithBrowser(type: string, session: vscode.DebugSession, uri: string) {
+		const args = session.configuration.serverReadyAction as ServerReadyAction;
+		if (!args.killOnServerStop) {
+			await this.startBrowserDebugSession(type, session, uri);
+			return;
+		}
+
+		const trackerId = randomUUID();
+		const newSessionPromise = new Promise<vscode.DebugSession>(resolve => {
+			const listener = vscode.debug.onDidStartDebugSession(newSession => {
+				if (newSession.configuration.trackerId === trackerId) {
+					listener.dispose();
+					resolve(newSession);
+				}
+			});
+			this.disposables.push(listener); // In case `trackerId` of interest was never caught anyhow.
+		});
+
+		if (!await this.startBrowserDebugSession(type, session, uri, trackerId)) {
+			return;
+		}
+
+		const createdSession = await newSessionPromise;
+		const listener = vscode.debug.onDidTerminateDebugSession(async (terminated) => {
+			if (terminated === session) {
+				listener.dispose();
+				await vscode.debug.stopDebugging(createdSession);
+			}
+		});
+		this.disposables.push(listener);
+	}
+
+	private startBrowserDebugSession(type: string, session: vscode.DebugSession, uri: string, trackerId?: string) {
 		return vscode.debug.startDebugging(session.workspaceFolder, {
 			type,
 			name: 'Browser Debug',
 			request: 'launch',
 			url: uri,
-			webRoot: session.configuration.serverReadyAction.webRoot || WEB_ROOT
+			webRoot: session.configuration.serverReadyAction.webRoot || WEB_ROOT,
+			trackerId,
 		});
+	}
+
+	private async startNamedDebugSession(session: vscode.DebugSession, name: string) {
+		const args = session.configuration.serverReadyAction as ServerReadyAction;
+		if (!args.killOnServerStop) {
+			await vscode.debug.startDebugging(session.workspaceFolder, name);
+			return;
+		}
+
+		const newSessionPromise = new Promise<vscode.DebugSession>(resolve => {
+			const listener = vscode.debug.onDidStartDebugSession(newSession => {
+				if (newSession.name === name) {
+					listener.dispose();
+					resolve(newSession);
+				}
+			});
+			this.disposables.push(listener); // In case `name` of interest was never caught anyhow.
+		});
+
+		if (!await vscode.debug.startDebugging(session.workspaceFolder, name)) {
+			return;
+		}
+
+		const createdSession = await newSessionPromise;
+		const listener = vscode.debug.onDidTerminateDebugSession(async (terminated) => {
+			if (terminated === session) {
+				listener.dispose();
+				await vscode.debug.stopDebugging(createdSession);
+			}
+		});
+		this.disposables.push(listener);
 	}
 }
 
