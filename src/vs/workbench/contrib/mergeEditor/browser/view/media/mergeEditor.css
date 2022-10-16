@@ -226,10 +226,6 @@
 	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 }
 
-.merge-conflict-input-selection {
-	background-color: red;
-}
-
 .merge-editor-conflict-actions {
 	margin: 0px 3px;
 	overflow: hidden;
@@ -271,4 +267,22 @@
 
 .fixed-zone-widget {
 	width: 100%;
+}
+
+.merge-editor-diff-empty-word.base {
+	margin-left: 3px;
+	border-left: solid var(--vscode-mergeEditor-changeBase-word-background) 3px;
+}
+
+.merge-editor-diff-empty-word.input {
+	margin-left: 3px;
+	border-left: solid var(--vscode-mergeEditor-change-word-background) 3px;
+}
+
+.merge-editor-diff-word.base {
+	background-color: var(--vscode-mergeEditor-changeBase-word-background);
+}
+
+.merge-editor-diff.base {
+	background-color: var(--vscode-mergeEditor-changeBase-background);
 }

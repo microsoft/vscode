@@ -8,7 +8,6 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { CompareResult } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { Iterable } from 'vs/base/common/iterator';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { autorun, autorunWithStore, derived, IObservable } from 'vs/base/common/observable';
 import { IEditorContributionDescription, EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -223,7 +222,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 		return result;
 	});
 
-	protected override getEditorContributions(): Iterable<IEditorContributionDescription> | undefined {
-		return Iterable.filter(EditorExtensionsRegistry.getEditorContributions(), c => c.id !== CodeLensContribution.ID);
+	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
+		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeLensContribution.ID);
 	}
 }

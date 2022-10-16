@@ -48,7 +48,7 @@ export interface NativeParsedArgs {
 	'trace-category-filter'?: string;
 	'trace-options'?: string;
 	'open-devtools'?: boolean;
-	log?: string;
+	log?: string[];
 	logExtensionHostCommunication?: boolean;
 	'extensions-dir'?: string;
 	'extensions-download-dir'?: string;

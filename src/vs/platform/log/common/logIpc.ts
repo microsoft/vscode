@@ -111,7 +111,7 @@ export class LoggerChannel implements IServerChannel {
 export class LoggerChannelClient extends AbstractLoggerService implements ILoggerService {
 
 	constructor(logLevel: LogLevel, onDidChangeLogLevel: Event<LogLevel>, private readonly channel: IChannel) {
-		super(logLevel, onDidChangeLogLevel, []);
+		super(logLevel, onDidChangeLogLevel);
 	}
 
 	createConsoleMainLogger(): ILogger {

@@ -60,7 +60,8 @@ export interface INotebookExecutionStateService {
 	onDidChangeLastRunFailState: Event<INotebookFailStateChangedEvent>;
 
 	forceCancelNotebookExecutions(notebookUri: URI): void;
-	getCellExecutionStatesForNotebook(notebook: URI): INotebookCellExecution[];
+	getCellExecutionsForNotebook(notebook: URI): INotebookCellExecution[];
+	getCellExecutionsByHandleForNotebook(notebook: URI): Map<number, INotebookCellExecution> | undefined;
 	getCellExecution(cellUri: URI): INotebookCellExecution | undefined;
 	createCellExecution(notebook: URI, cellHandle: number): INotebookCellExecution;
 	getLastFailedCellForNotebook(notebook: URI): number | undefined;

@@ -53,7 +53,6 @@ import 'vs/workbench/services/dialogs/browser/fileDialogService';
 import 'vs/workbench/services/host/browser/browserHostService';
 import 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import 'vs/workbench/services/clipboard/browser/clipboardService';
-import 'vs/workbench/services/extensionResourceLoader/browser/extensionResourceLoaderService';
 import 'vs/workbench/services/path/browser/pathService';
 import 'vs/workbench/services/themes/browser/browserHostColorSchemeService';
 import 'vs/workbench/services/encryption/browser/encryptionService';
@@ -64,6 +63,7 @@ import 'vs/workbench/services/workingCopy/browser/workingCopyHistoryService';
 import 'vs/workbench/services/userDataSync/browser/webUserDataSyncEnablementService';
 import 'vs/workbench/services/userDataSync/browser/userDataSyncProfilesStorageService';
 import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
+import 'vs/platform/extensionResourceLoader/browser/extensionResourceLoaderService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -111,9 +111,6 @@ registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationTy
 
 
 //#region --- workbench contributions
-
-// Output
-import 'vs/workbench/contrib/output/common/outputChannelModelService';
 
 // Logs
 import 'vs/workbench/contrib/logs/browser/logs.contribution';

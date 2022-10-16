@@ -35,9 +35,7 @@ export class SimpleBrowserManager {
 		const url = state?.url ?? '';
 		const view = SimpleBrowserView.restore(this.extensionUri, url, panel);
 		this.registerWebviewListeners(view);
-		if (!this._activeView) {
-			this._activeView = view;
-		}
+		this._activeView ??= view;
 	}
 
 	private registerWebviewListeners(view: SimpleBrowserView) {

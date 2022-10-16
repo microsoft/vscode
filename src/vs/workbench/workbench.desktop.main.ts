@@ -46,7 +46,6 @@ import 'vs/workbench/services/lifecycle/electron-sandbox/lifecycleService';
 import 'vs/workbench/services/title/electron-sandbox/titleService';
 import 'vs/workbench/services/host/electron-sandbox/nativeHostService';
 import 'vs/workbench/services/request/electron-sandbox/requestService';
-import 'vs/workbench/services/extensionResourceLoader/electron-sandbox/extensionResourceLoaderService';
 import 'vs/workbench/services/clipboard/electron-sandbox/clipboardService';
 import 'vs/workbench/services/contextmenu/electron-sandbox/contextmenuService';
 import 'vs/workbench/services/workspaces/electron-sandbox/workspaceEditingService';
@@ -61,6 +60,7 @@ import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
 import 'vs/workbench/services/localization/electron-sandbox/languagePackService';
 import 'vs/workbench/services/telemetry/electron-sandbox/telemetryService';
 import 'vs/workbench/services/extensions/electron-sandbox/extensionHostStarter';
+import 'vs/platform/extensionResourceLoader/electron-sandbox/extensionResourceLoaderService';
 import 'vs/platform/extensionManagement/electron-sandbox/extensionsScannerService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementServerService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionTipsService';
@@ -132,9 +132,6 @@ import 'vs/workbench/contrib/themes/browser/themes.test.contribution';
 
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/electron-sandbox/userDataSync.contribution';
-
-// Output
-import 'vs/workbench/contrib/output/electron-sandbox/outputChannelModelService';
 
 // Tags
 import 'vs/workbench/contrib/tags/electron-sandbox/workspaceTagsService';

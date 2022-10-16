@@ -46,7 +46,7 @@ import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeg
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EDITOR_PANE_BACKGROUND, PANEL_BORDER, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { CellEditState, CellFindMatchWithIndex, CellFocusMode, CellLayoutContext, CellRevealType, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IInsetRenderOutput, IModelDecorationsChangeAccessor, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorCreationOptions, INotebookEditorDelegate, INotebookEditorMouseEvent, INotebookEditorOptions, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookWebviewMessage, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatchWithIndex, CellFocusMode, CellLayoutContext, CellRevealType, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IInsetRenderOutput, IModelDecorationsChangeAccessor, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorDelegate, INotebookEditorMouseEvent, INotebookEditorOptions, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookWebviewMessage, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { notebookDebug } from 'vs/workbench/contrib/notebook/browser/notebookLogger';
@@ -85,14 +85,13 @@ import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebook
 import { BaseCellEditorOptions } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEditorOptions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { FloatingClickMenu } from 'vs/workbench/browser/codeeditor';
-import { Iterable } from 'vs/base/common/iterator';
 
 const $ = DOM.$;
 
 export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOptions {
 	// We inlined the id to avoid loading comment contrib in tests
 	const skipContributions = ['editor.contrib.review', FloatingClickMenu.ID];
-	const contributions = Iterable.filter(EditorExtensionsRegistry.getEditorContributions(), c => skipContributions.indexOf(c.id) === -1);
+	const contributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
 
 	return {
 		menuIds: {
@@ -350,7 +349,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._editorEditable.set(!creationOptions.isReadOnly);
 
-		const contributions = this.creationOptions.contributions ?? NotebookEditorExtensionsRegistry.getEditorContributions();
+		let contributions: INotebookEditorContributionDescription[];
+		if (Array.isArray(this.creationOptions.contributions)) {
+			contributions = this.creationOptions.contributions;
+		} else {
+			contributions = NotebookEditorExtensionsRegistry.getEditorContributions();
+		}
 		for (const desc of contributions) {
 			let contribution: INotebookEditorContribution | undefined;
 			try {
@@ -1236,7 +1240,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		if (!this._webview) {
-			this._createWebview(this.getId(), this.textModel.uri);
+			this._createWebview(this.getId(), this.textModel.viewType, this.textModel.uri);
 		}
 
 		this._webviewResolvePromise = (async () => {
@@ -1273,7 +1277,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._webviewResolvePromise;
 	}
 
-	private async _createWebview(id: string, resource: URI): Promise<void> {
+	private async _createWebview(id: string, viewType: string, resource: URI): Promise<void> {
 		const that = this;
 
 		this._webview = this.instantiationService.createInstance(BackLayerWebView, {
@@ -1294,7 +1298,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			didDropMarkupCell: that._didDropMarkupCell.bind(that),
 			didEndDragMarkupCell: that._didEndDragMarkupCell.bind(that),
 			didResizeOutput: that._didResizeOutput.bind(that)
-		}, id, resource, {
+		}, id, viewType, resource, {
 			...this._notebookOptions.computeWebviewOptions(),
 			fontFamily: this._generateFontFamily()
 		}, this.notebookRendererMessaging.getScoped(this._uuid));
@@ -1306,7 +1310,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private async _attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined, perf?: NotebookPerfMarks) {
-		await this._createWebview(this.getId(), textModel.uri);
+		await this._createWebview(this.getId(), textModel.viewType, textModel.uri);
 		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this._viewContext, this.getLayoutInfo(), { isReadOnly: this._readOnly });
 		this._viewContext.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 
@@ -2060,7 +2064,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		if (!cells) {
 			cells = this.viewModel.viewCells;
 		}
-		return this.notebookExecutionService.executeNotebookCells(this.textModel, Array.from(cells).map(c => c.model));
+		return this.notebookExecutionService.executeNotebookCells(this.textModel, Array.from(cells).map(c => c.model), this.scopedContextKeyService);
 	}
 
 	//#endregion

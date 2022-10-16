@@ -17,7 +17,7 @@ import { isObject, isString } from 'vs/base/common/types';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IconDefinition, getIconRegistry, IconContribution, IconFontDefinition, IconFontSource } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 
 export const DEFAULT_PRODUCT_ICON_THEME_ID = ''; // TODO
 
