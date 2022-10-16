@@ -45,6 +45,7 @@ class ServerReadyDetector extends vscode.Disposable {
 	private shellPid?: number;
 	private regexp: RegExp;
 	private disposables: vscode.Disposable[] = [];
+	private lateDisposables: vscode.Disposable[] = [];
 
 	static start(session: vscode.DebugSession): ServerReadyDetector | undefined {
 		if (session.configuration.serverReadyAction) {
@@ -112,6 +113,11 @@ class ServerReadyDetector extends vscode.Disposable {
 	private internalDispose() {
 		this.disposables.forEach(d => d.dispose());
 		this.disposables = [];
+	}
+
+	override dispose() {
+		this.lateDisposables.forEach(d => d.dispose());
+		return super.dispose();
 	}
 
 	detectPattern(s: string): boolean {
@@ -200,7 +206,7 @@ class ServerReadyDetector extends vscode.Disposable {
 					resolve(newSession);
 				}
 			});
-			this.disposables.push(listener); // In case `trackerId` of interest was never caught anyhow.
+			this.lateDisposables.push(listener); // In case `trackerId` of interest was never caught anyhow.
 		});
 
 		if (!await this.startBrowserDebugSession(type, session, uri, trackerId)) {
@@ -214,7 +220,7 @@ class ServerReadyDetector extends vscode.Disposable {
 				await vscode.debug.stopDebugging(createdSession);
 			}
 		});
-		this.disposables.push(listener);
+		this.lateDisposables.push(listener);
 	}
 
 	private startBrowserDebugSession(type: string, session: vscode.DebugSession, uri: string, trackerId?: string) {
@@ -242,7 +248,7 @@ class ServerReadyDetector extends vscode.Disposable {
 					resolve(newSession);
 				}
 			});
-			this.disposables.push(listener); // In case `name` of interest was never caught anyhow.
+			this.lateDisposables.push(listener); // In case `name` of interest was never caught anyhow.
 		});
 
 		if (!await vscode.debug.startDebugging(session.workspaceFolder, name)) {
@@ -256,7 +262,7 @@ class ServerReadyDetector extends vscode.Disposable {
 				await vscode.debug.stopDebugging(createdSession);
 			}
 		});
-		this.disposables.push(listener);
+		this.lateDisposables.push(listener);
 	}
 }
 
