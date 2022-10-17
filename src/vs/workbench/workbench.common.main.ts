@@ -270,6 +270,9 @@ import 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 // Formatter Help
 import 'vs/workbench/contrib/format/browser/format.contribution';
 
+// Folding Limit Indicator
+import 'vs/workbench/contrib/folding/browser/folding.contribution';
+
 // Inlay Hint Accessibility
 import 'vs/workbench/contrib/inlayHints/browser/inlayHintsAccessibilty';
 
