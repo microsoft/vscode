@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, LogOutputChannel } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
@@ -424,8 +424,23 @@ export class CommandCenter {
 
 		type InputData = { uri: Uri; title?: string; detail?: string; description?: string };
 		const mergeUris = toMergeUris(uri);
+
+		let isStashConflict = false;
+		try {
+			// Look at the conflict markers to check if this is a stash conflict
+			const document = await workspace.openTextDocument(uri);
+			const firstConflictInfo = findFirstConflictMarker(document);
+			isStashConflict = firstConflictInfo?.incomingChangeLabel === 'Stashed changes';
+		} catch (error) {
+			console.error(error);
+		}
+
 		const current: InputData = { uri: mergeUris.ours, title: localize('Current', 'Current') };
 		const incoming: InputData = { uri: mergeUris.theirs, title: localize('Incoming', 'Incoming') };
+
+		if (isStashConflict) {
+			incoming.title = localize('stashedChanges', 'Stashed Changes');
+		}
 
 		try {
 			const [head, rebaseOrMergeHead] = await Promise.all([
@@ -457,6 +472,39 @@ export class CommandCenter {
 			'_open.mergeEditor',
 			options
 		);
+
+		function findFirstConflictMarker(doc: TextDocument): { currentChangeLabel: string; incomingChangeLabel: string } | undefined {
+			const conflictMarkerStart = '<<<<<<<';
+			const conflictMarkerEnd = '>>>>>>>';
+			let inConflict = false;
+			let currentChangeLabel: string = '';
+			let incomingChangeLabel: string = '';
+			let hasConflict = false;
+
+			for (let lineIdx = 0; lineIdx < doc.lineCount; lineIdx++) {
+				const lineStr = doc.lineAt(lineIdx).text;
+				if (!inConflict) {
+					if (lineStr.startsWith(conflictMarkerStart)) {
+						currentChangeLabel = lineStr.substring(conflictMarkerStart.length).trim();
+						inConflict = true;
+						hasConflict = true;
+					}
+				} else {
+					if (lineStr.startsWith(conflictMarkerEnd)) {
+						incomingChangeLabel = lineStr.substring(conflictMarkerStart.length).trim();
+						inConflict = false;
+						break;
+					}
+				}
+			}
+			if (hasConflict) {
+				return {
+					currentChangeLabel,
+					incomingChangeLabel
+				};
+			}
+			return undefined;
+		}
 	}
 
 	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string } = {}): Promise<void> {
