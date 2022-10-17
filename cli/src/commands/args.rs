@@ -510,6 +510,10 @@ pub struct TunnelServeArgs {
 	/// Randomly name machine for port forwarding service
 	#[clap(long)]
 	pub random_name: bool,
+
+	/// Sets the machine name for port forwarding service
+	#[clap(long)]
+	pub name: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]

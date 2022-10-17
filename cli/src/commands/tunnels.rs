@@ -222,7 +222,7 @@ async fn serve_with_csa(
 	let tunnel = if let Some(d) = gateway_args.tunnel.clone().into() {
 		dt.start_existing_tunnel(d).await
 	} else {
-		dt.start_new_launcher_tunnel(gateway_args.random_name).await
+		dt.start_new_launcher_tunnel(gateway_args.name, gateway_args.random_name).await
 	}?;
 
 	let shutdown_tx = if let Some(tx) = shutdown_rx {
