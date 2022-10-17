@@ -17,7 +17,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWebviewPortMapping } from 'vs/platform/webview/common/webviewPortMapping';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webviewElement';
 
 /**
  * Set when the find widget in a webview in a webview is visible.
@@ -66,6 +65,17 @@ export interface IWebviewService {
 	 * moving webview around the workbench.
 	 */
 	createWebviewOverlay(initInfo: WebviewInitInfo): IOverlayWebview;
+}
+
+export interface WebviewInitInfo {
+	readonly id: string;
+	readonly providedViewType?: string;
+	readonly origin?: string;
+
+	readonly options: WebviewOptions;
+	readonly contentOptions: WebviewContentOptions;
+
+	readonly extension: WebviewExtensionDescription | undefined;
 }
 
 export const enum WebviewContentPurpose {
@@ -291,7 +301,7 @@ export class WebviewOriginStore {
 		this.state = this.memento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
-	public getOrigin(viewType: string, extId: ExtensionIdentifier | undefined): string {
+	public getOrigin(viewType: string, extId: ExtensionIdentifier): string {
 		const key = this.getKey(viewType, extId);
 
 		const existing = this.state[key];
@@ -305,7 +315,7 @@ export class WebviewOriginStore {
 		return newOrigin;
 	}
 
-	private getKey(viewType: string, extId: ExtensionIdentifier | undefined): string {
-		return JSON.stringify({ viewType, extension: extId?.value });
+	private getKey(viewType: string, extId: ExtensionIdentifier): string {
+		return JSON.stringify({ viewType, extension: extId.value });
 	}
 }

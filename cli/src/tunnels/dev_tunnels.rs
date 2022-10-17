@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::{mpsc, watch};
-use tunnels::connections::{ForwardedPortConnection, HostRelay};
+use tunnels::connections::{ForwardedPortConnection, RelayTunnelHost};
 use tunnels::contracts::{
 	Tunnel, TunnelPort, TunnelRelayTunnelEndpoint, PORT_TOKEN, TUNNEL_PROTOCOL_AUTO,
 };
@@ -607,7 +607,7 @@ impl DevTunnels {
 struct ActiveTunnelManager {
 	close_tx: Option<mpsc::Sender<()>>,
 	endpoint_rx: watch::Receiver<Option<Result<TunnelRelayTunnelEndpoint, WrappedError>>>,
-	relay: Arc<tokio::sync::Mutex<HostRelay>>,
+	relay: Arc<tokio::sync::Mutex<RelayTunnelHost>>,
 }
 
 impl ActiveTunnelManager {
@@ -620,7 +620,7 @@ impl ActiveTunnelManager {
 		let (endpoint_tx, endpoint_rx) = watch::channel(None);
 		let (close_tx, close_rx) = mpsc::channel(1);
 
-		let relay = Arc::new(tokio::sync::Mutex::new(HostRelay::new(locator, mgmt)));
+		let relay = Arc::new(tokio::sync::Mutex::new(RelayTunnelHost::new(locator, mgmt)));
 		let relay_spawned = relay.clone();
 
 		tokio::spawn(async move {
@@ -719,7 +719,7 @@ impl ActiveTunnelManager {
 
 	async fn spawn_tunnel(
 		log: log::Logger,
-		relay: Arc<tokio::sync::Mutex<HostRelay>>,
+		relay: Arc<tokio::sync::Mutex<RelayTunnelHost>>,
 		mut close_rx: mpsc::Receiver<()>,
 		endpoint_tx: watch::Sender<Option<Result<TunnelRelayTunnelEndpoint, WrappedError>>>,
 		access_token_provider: impl AccessTokenProvider + 'static,
