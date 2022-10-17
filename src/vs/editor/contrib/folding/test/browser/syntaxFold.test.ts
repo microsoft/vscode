@@ -83,7 +83,7 @@ suite('Syntax folding', () => {
 				for (let i = 0; i < indentRanges.length; i++) {
 					actual.push({ start: indentRanges.getStartLineNumber(i), end: indentRanges.getEndLineNumber(i) });
 				}
-				assert.equal(reported, indentRanges.length < maxEntries ? false : maxEntries, 'limited');
+				assert.equal(reported, 9 <= maxEntries ? false : maxEntries, 'limited');
 			}
 			assert.deepStrictEqual(actual, expectedRanges, message);
 
