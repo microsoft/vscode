@@ -125,12 +125,6 @@ export class WorkspaceTags implements IWorkbenchContribution {
 		}, onUnexpectedError);
 	}
 
-	private reportRemotes(workspaceUris: URI[]): void {
-		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
-			return this.workspaceTagsService.getHashedRemotesFromUri(workspaceUri, true);
-		})).then(() => { }, onUnexpectedError);
-	}
-
 	/* __GDPR__FRAGMENT__
 		"AzureTags" : {
 			"node" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
@@ -209,7 +203,6 @@ export class WorkspaceTags implements IWorkbenchContribution {
 		const uris = this.contextService.getWorkspace().folders.map(folder => folder.uri);
 		if (uris.length && this.fileService) {
 			this.reportRemoteDomains(uris);
-			this.reportRemotes(uris);
 			this.reportAzure(uris);
 		}
 	}
