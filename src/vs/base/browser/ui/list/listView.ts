@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFirefox } from 'vs/base/browser/browser';
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { $, addDisposableListener, animate, getContentHeight, getContentWidth, getTopLeftOffset, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
@@ -844,7 +843,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			return;
 		}
 
-		item.row.domNode.style.width = isFirefox ? '-moz-fit-content' : 'fit-content';
+		item.row.domNode.style.width = 'fit-content';
 		item.width = getContentWidth(item.row.domNode);
 		const style = window.getComputedStyle(item.row.domNode);
 
