@@ -284,7 +284,10 @@ export class TextAreaHandler extends ViewPart {
 					return TextAreaState.EMPTY;
 				}
 				if (this._textAreaWrapping) {
-					return new TextAreaState(this._context.viewModel.getViewLineRenderingData(this._primaryCursorPosition.lineNumber).content, this._primaryCursorPosition.column, this._primaryCursorPosition.column, this._primaryCursorPosition, this._primaryCursorPosition);
+					const content = this._context.viewModel.getViewLineRenderingData(this._primaryCursorPosition.lineNumber).content;
+					if (content && this._primaryCursorPosition.delta(currentState.selectionStart)) {
+						return new TextAreaState(content, this._primaryCursorPosition.column, this._primaryCursorPosition.column + content.length, new Position(this._primaryCursorPosition.lineNumber, 0), new Position(this._primaryCursorPosition.lineNumber, content.length));
+					}
 				}
 				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 			},

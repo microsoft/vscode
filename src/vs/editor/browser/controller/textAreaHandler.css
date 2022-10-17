@@ -13,9 +13,9 @@
 	resize: none;
 	border: none;
 	overflow: hidden;
-	color: transparent;
-	background-color: transparent;
+	color: transparent !important;
 	z-index: -10;
+	background-color: transparent !important;
 }
 /*.monaco-editor .inputarea {
 	position: fixed !important;
@@ -29,8 +29,9 @@
 	background: white !important;
 	line-height: 15px !important;
 	font-size: 14px !important;
-}*/
-.monaco-editor .inputarea.monaco-mouse-cursor-text,
+}
+
+*/
 .monaco-editor .inputarea.ime-input {
-	z-index: 50;
+	z-index: 10;
 }
