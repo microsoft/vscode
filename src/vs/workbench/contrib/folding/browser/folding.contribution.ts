@@ -30,7 +30,7 @@ export class FoldingLimitIndicatorContribution extends Disposable implements IWo
 		let changeListener: IDisposable | undefined;
 		let control: any;
 
-		this._register(this.editorService.onDidActiveEditorChange(() => {
+		const onActiveEditorChanged = () => {
 			const activeControl = editorService.activeTextEditorControl;
 			if (activeControl === control) {
 				return;
@@ -56,7 +56,11 @@ export class FoldingLimitIndicatorContribution extends Disposable implements IWo
 			} else {
 				this.updateLimitInfo(undefined);
 			}
-		}));
+		};
+
+		this._register(this.editorService.onDidActiveEditorChange(onActiveEditorChanged));
+
+		onActiveEditorChanged();
 	}
 
 	private _limitStatusItem: IDisposable | undefined;
@@ -73,7 +77,7 @@ export class FoldingLimitIndicatorContribution extends Disposable implements IWo
 				name: nls.localize('foldingRangesStatusItem.name', 'Folding Status'),
 				severity: Severity.Warning,
 				label: nls.localize('status.limitedFoldingRanges.short', 'Folding Ranges Limited'),
-				detail: nls.localize('status.limitedFoldingRanges.details', 'only {0} folding ranges shown', info.limited),
+				detail: nls.localize('status.limitedFoldingRanges.details', 'only {0} folding ranges shown for performance reasons', info.limited),
 				command: { id: openSettingsCommand, arguments: [foldingMaximumRegionsSettingsId], title: configureSettingsLabel },
 				accessibilityInfo: undefined,
 				source: nls.localize('foldingRangesStatusItem.source', 'Folding'),
