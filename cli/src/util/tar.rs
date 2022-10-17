@@ -39,13 +39,11 @@ fn should_skip_first_segment(file: &fs::File) -> Result<bool, WrappedError> {
 	};
 
 	let mut had_multiple = false;
-	for file in entries {
-		if let Ok(file) = file {
-			had_multiple = true;
-			if let Ok(name) = file.path() {
-				if name.iter().next() != Some(&first_name) {
-					return Ok(false);
-				}
+	for file in entries.flatten() {
+		had_multiple = true;
+		if let Ok(name) = file.path() {
+			if name.iter().next() != Some(&first_name) {
+				return Ok(false);
 			}
 		}
 	}

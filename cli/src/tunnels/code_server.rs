@@ -239,7 +239,7 @@ pub enum AnyCodeServer {
 
 pub enum CodeServerOrigin {
 	/// A new code server, that opens the barrier when it exits.
-	New(Child),
+	New(Box<Child>),
 	/// An existing code server with a PID.
 	Existing(u32),
 }
@@ -687,7 +687,7 @@ where
 		}
 	});
 
-	let origin = CodeServerOrigin::New(child);
+	let origin = CodeServerOrigin::New(Box::new(child));
 	(origin, listen_rx)
 }
 
