@@ -1706,18 +1706,6 @@ export class DragAndDropObserver extends Disposable {
 	}
 }
 
-export function computeClippingRect(elementOrRect: HTMLElement | DOMRectReadOnly, clipper: HTMLElement) {
-	const frameRect = (elementOrRect instanceof HTMLElement ? elementOrRect.getBoundingClientRect() : elementOrRect);
-	const rootRect = clipper.getBoundingClientRect();
-
-	const top = Math.max(rootRect.top - frameRect.top, 0);
-	const right = Math.max(frameRect.width - (frameRect.right - rootRect.right), 0);
-	const bottom = Math.max(frameRect.height - (frameRect.bottom - rootRect.bottom), 0);
-	const left = Math.max(rootRect.left - frameRect.left, 0);
-
-	return { top, right, bottom, left };
-}
-
 type HTMLElementAttributeKeys<T> = Partial<{ [K in keyof T]: T[K] extends Function ? never : T[K] extends object ? HTMLElementAttributeKeys<T[K]> : T[K] }>;
 type ElementAttributes<T> = HTMLElementAttributeKeys<T> & Record<string, any>;
 type RemoveHTMLElement<T> = T extends HTMLElement ? never : T;

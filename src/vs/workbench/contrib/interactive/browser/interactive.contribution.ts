@@ -56,7 +56,7 @@ import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/no
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { CellEditType, CellKind, CellUri, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, CellUri, ICellOutput, INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -70,7 +70,7 @@ const interactiveWindowCategory: ILocalizedString = { value: localize('interacti
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		InteractiveEditor,
-		InteractiveEditor.ID,
+		INTERACTIVE_WINDOW_EDITOR_ID,
 		'Interactive Window'
 	),
 	[

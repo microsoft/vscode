@@ -17,7 +17,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWebviewPortMapping } from 'vs/platform/webview/common/webviewPortMapping';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webviewElement';
 
 /**
  * Set when the find widget in a webview in a webview is visible.
@@ -68,6 +67,17 @@ export interface IWebviewService {
 	createWebviewOverlay(initInfo: WebviewInitInfo): IOverlayWebview;
 }
 
+export interface WebviewInitInfo {
+	readonly id: string;
+	readonly providedViewType?: string;
+	readonly origin?: string;
+
+	readonly options: WebviewOptions;
+	readonly contentOptions: WebviewContentOptions;
+
+	readonly extension: WebviewExtensionDescription | undefined;
+}
+
 export const enum WebviewContentPurpose {
 	NotebookRenderer = 'notebookRenderer',
 	CustomEditor = 'customEditor',
@@ -116,8 +126,10 @@ export interface WebviewContentOptions {
 
 	/**
 	 * Are command uris enabled in the webview? Defaults to false.
+	 *
+	 * TODO: This is only supported by mainThreadWebviews and should be removed from here.
 	 */
-	readonly enableCommandUris?: boolean;
+	readonly enableCommandUris?: boolean | readonly string[];
 }
 
 /**
@@ -130,8 +142,20 @@ export function areWebviewContentOptionsEqual(a: WebviewContentOptions, b: Webvi
 		&& a.allowForms === b.allowForms
 		&& equals(a.localResourceRoots, b.localResourceRoots, isEqual)
 		&& equals(a.portMapping, b.portMapping, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort)
-		&& a.enableCommandUris === b.enableCommandUris
+		&& areEnableCommandUrisEqual(a, b)
 	);
+}
+
+function areEnableCommandUrisEqual(a: WebviewContentOptions, b: WebviewContentOptions): boolean {
+	if (a.enableCommandUris === b.enableCommandUris) {
+		return true;
+	}
+
+	if (Array.isArray(a.enableCommandUris) && Array.isArray(b.enableCommandUris)) {
+		return equals(a.enableCommandUris, b.enableCommandUris);
+	}
+
+	return false;
 }
 
 export interface WebviewExtensionDescription {
@@ -291,7 +315,7 @@ export class WebviewOriginStore {
 		this.state = this.memento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
-	public getOrigin(viewType: string, extId: ExtensionIdentifier | undefined): string {
+	public getOrigin(viewType: string, extId: ExtensionIdentifier): string {
 		const key = this.getKey(viewType, extId);
 
 		const existing = this.state[key];
@@ -305,7 +329,7 @@ export class WebviewOriginStore {
 		return newOrigin;
 	}
 
-	private getKey(viewType: string, extId: ExtensionIdentifier | undefined): string {
-		return JSON.stringify({ viewType, extension: extId?.value });
+	private getKey(viewType: string, extId: ExtensionIdentifier): string {
+		return JSON.stringify({ viewType, extension: extId.value });
 	}
 }
