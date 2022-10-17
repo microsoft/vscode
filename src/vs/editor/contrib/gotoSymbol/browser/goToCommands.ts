@@ -40,7 +40,7 @@ import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { getDeclarationsAtPosition, getDefinitionsAtPosition, getImplementationsAtPosition, getReferencesAtPosition, getTypeDefinitionsAtPosition } from './goToSymbol';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { Iterable } from 'vs/base/common/iterator';
+import { asArray } from 'vs/base/common/arrays';
 
 MenuRegistry.appendMenuItem(MenuId.EditorContext, <ISubmenuItem>{
 	submenu: MenuId.EditorContextPeek,
@@ -86,8 +86,7 @@ export abstract class SymbolNavigationAction extends EditorAction2 {
 		const result = { ...opts, f1: true };
 		// patch context menu when clause
 		if (result.menu) {
-			const iterable = Array.isArray(result.menu) ? result.menu : Iterable.single(result.menu);
-			for (const item of iterable) {
+			for (const item of asArray(result.menu)) {
 				if (item.id === MenuId.EditorContext || item.id === MenuId.EditorContextPeek) {
 					item.when = ContextKeyExpr.and(opts.precondition, item.when);
 				}
