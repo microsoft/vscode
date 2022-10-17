@@ -224,7 +224,7 @@ export class PagedScreenReaderStrategy {
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	public static fromEditorSelection(previousState: TextAreaState, model: ISimpleModel, selection: Range, linesPerPage: number, trimLongText: boolean): TextAreaState {
+	public static fromEditorSelection(previousState: TextAreaState, model: ISimpleModel, selection: Range, linesPerPage: number, trimLongText: boolean, content?: string): TextAreaState {
 
 		const selectionStartPage = PagedScreenReaderStrategy._getPageOfLine(selection.startLineNumber, linesPerPage);
 		const selectionStartPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionStartPage, linesPerPage);
@@ -233,15 +233,16 @@ export class PagedScreenReaderStrategy {
 		const selectionEndPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionEndPage, linesPerPage);
 
 		const pretextRange = selectionStartPageRange.intersectRanges(new Range(1, 1, selection.startLineNumber, selection.startColumn))!;
-		let pretext = model.getValueInRange(pretextRange, EndOfLinePreference.LF);
+		let pretext = content ? undefined : model.getValueInRange(pretextRange, EndOfLinePreference.LF);
 
 		const lastLine = model.getLineCount();
 		const lastLineMaxColumn = model.getLineMaxColumn(lastLine);
 		const posttextRange = selectionEndPageRange.intersectRanges(new Range(selection.endLineNumber, selection.endColumn, lastLine, lastLineMaxColumn))!;
-		let posttext = model.getValueInRange(posttextRange, EndOfLinePreference.LF);
+		let posttext = content ? undefined : model.getValueInRange(posttextRange, EndOfLinePreference.LF);
 
 
-		let text: string;
+		let text: string | undefined = content;
+
 		if (selectionStartPage === selectionEndPage || selectionStartPage + 1 === selectionEndPage) {
 			// take full selection
 			text = model.getValueInRange(selection, EndOfLinePreference.LF);
@@ -253,23 +254,22 @@ export class PagedScreenReaderStrategy {
 				+ String.fromCharCode(8230)
 				+ model.getValueInRange(selectionRange2, EndOfLinePreference.LF)
 			);
-		}
 
-		// Chromium handles very poorly text even of a few thousand chars
-		// Cut text to avoid stalling the entire UI
-		if (trimLongText) {
-			const LIMIT_CHARS = 500;
-			if (pretext.length > LIMIT_CHARS) {
-				pretext = pretext.substring(pretext.length - LIMIT_CHARS, pretext.length);
-			}
-			if (posttext.length > LIMIT_CHARS) {
-				posttext = posttext.substring(0, LIMIT_CHARS);
-			}
-			if (text.length > 2 * LIMIT_CHARS) {
-				text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
+			// Chromium handles very poorly text even of a few thousand chars
+			// Cut text to avoid stalling the entire UI
+			if (trimLongText) {
+				const LIMIT_CHARS = 500;
+				if (pretext && pretext.length > LIMIT_CHARS) {
+					pretext = pretext.substring(pretext.length - LIMIT_CHARS, pretext.length);
+				}
+				if (posttext && posttext.length > LIMIT_CHARS) {
+					posttext = posttext.substring(0, LIMIT_CHARS);
+				}
+				if (text.length > 2 * LIMIT_CHARS) {
+					text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
+				}
 			}
 		}
-
-		return new TextAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, new Position(selection.startLineNumber, selection.startColumn), new Position(selection.endLineNumber, selection.endColumn));
+		return new TextAreaState(pretext + text + posttext, pretext?.length ?? 0, pretext?.length ?? 0 + text.length, new Position(selection.startLineNumber, selection.startColumn), new Position(selection.endLineNumber, selection.endColumn));
 	}
 }
