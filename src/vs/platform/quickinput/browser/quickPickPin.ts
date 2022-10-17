@@ -79,7 +79,7 @@ function updateButtons(item: QuickPickItem, removePin: boolean): void {
 	}
 
 	// remove button classes before adding the new one
-	const newButtons = item.buttons ? item.buttons?.filter(button => button.iconClass && !buttonClasses.includes(button.iconClass)) : [];
+	const newButtons = item.buttons?.filter(button => button.iconClass && !buttonClasses.includes(button.iconClass)) ?? [];
 	newButtons.unshift({
 		iconClass: removePin ? pinButtonClass : pinnedButtonClass,
 		tooltip: removePin ? localize('pinCommand', "Pin command") : localize('pinnedCommand', "Pinned command"),
