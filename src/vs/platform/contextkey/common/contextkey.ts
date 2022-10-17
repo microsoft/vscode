@@ -1680,22 +1680,66 @@ function cmp2(key1: string, value1: any, key2: string, value2: any): number {
  */
 export function implies(p: ContextKeyExpression, q: ContextKeyExpression): boolean {
 
-	const notP = p.negate();
-	const expr = getTerminals(notP).concat(getTerminals(q));
-	expr.sort(cmp);
+	if (p.type === ContextKeyExprType.False || q.type === ContextKeyExprType.True) {
+		// false implies anything
+		// anything implies true
+		return true;
+	}
 
-	for (let i = 0; i < expr.length; i++) {
-		const a = expr[i];
-		const notA = a.negate();
-		for (let j = i + 1; j < expr.length; j++) {
-			const b = expr[j];
-			if (notA.equals(b)) {
+	if (p.type === ContextKeyExprType.Or) {
+		if (q.type === ContextKeyExprType.Or) {
+			// `a || b || c` can only imply something like `a || b || c || d`
+			return allElementsIncluded(p.expr, q.expr);
+		}
+		return false;
+	}
+
+	if (q.type === ContextKeyExprType.Or) {
+		for (const element of q.expr) {
+			if (implies(p, element)) {
 				return true;
 			}
 		}
+		return false;
 	}
 
-	return false;
+	if (p.type === ContextKeyExprType.And) {
+		if (q.type === ContextKeyExprType.And) {
+			// `a && b && c` implies `a && c`
+			return allElementsIncluded(q.expr, p.expr);
+		}
+		for (const element of p.expr) {
+			if (implies(element, q)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	return p.equals(q);
+}
+
+/**
+ * Returns true if all elements in `p` are also present in `q`.
+ * The two arrays are assumed to be sorted
+ */
+function allElementsIncluded(p: ContextKeyExpression[], q: ContextKeyExpression[]): boolean {
+	let pIndex = 0;
+	let qIndex = 0;
+	while (pIndex < p.length && qIndex < q.length) {
+		const cmp = p[pIndex].cmp(q[qIndex]);
+
+		if (cmp < 0) {
+			// an element from `p` is missing from `q`
+			return false;
+		} else if (cmp === 0) {
+			pIndex++;
+			qIndex++;
+		} else {
+			qIndex++;
+		}
+	}
+	return (pIndex === p.length);
 }
 
 function getTerminals(node: ContextKeyExpression) {

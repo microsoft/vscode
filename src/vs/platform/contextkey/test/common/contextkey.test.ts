@@ -273,6 +273,26 @@ suite('ContextKeyExpr', () => {
 		assert.strictEqual(strImplies('a', 'a && b'), false);
 	});
 
+	test('implies', () => {
+		function strImplies(p0: string, q0: string): boolean {
+			const p = ContextKeyExpr.deserialize(p0)!;
+			const q = ContextKeyExpr.deserialize(q0)!;
+			return implies(p, q);
+		}
+		assert.strictEqual(strImplies('a', 'a'), true);
+		assert.strictEqual(strImplies('a', 'a || b'), true);
+		assert.strictEqual(strImplies('a', 'a && b'), false);
+		assert.strictEqual(strImplies('a', 'a && b || a && c'), false);
+		assert.strictEqual(strImplies('a && b', 'a'), true);
+		assert.strictEqual(strImplies('a && b', 'b'), true);
+		assert.strictEqual(strImplies('a && b', 'a && b || c'), true);
+		assert.strictEqual(strImplies('a || b', 'a || c'), false);
+		assert.strictEqual(strImplies('a || b', 'a || b'), true);
+		assert.strictEqual(strImplies('a && b', 'a && b'), true);
+		assert.strictEqual(strImplies('a || b', 'a || b || c'), true);
+		assert.strictEqual(strImplies('c && a && b', 'c && a'), true);
+	});
+
 	test('Greater, GreaterEquals, Smaller, SmallerEquals evaluate', () => {
 		function checkEvaluate(expr: string, ctx: any, expected: any): void {
 			const _expr = ContextKeyExpr.deserialize(expr)!;
