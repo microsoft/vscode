@@ -41,7 +41,7 @@ fn should_skip_first_segment(archive: &mut ZipArchive<File>) -> bool {
 		}
 	}
 
-	true
+	archive.len() > 1 // prefix removal is invalid if there's only a single file
 }
 
 pub fn unzip_file<T>(path: &Path, parent_path: &Path, mut reporter: T) -> Result<(), WrappedError>
@@ -59,7 +59,7 @@ where
 	} else {
 		0
 	};
-
+println!("len: {}", archive.len());
 	for i in 0..archive.len() {
 		reporter.report_progress(i as u64, archive.len() as u64);
 		let mut file = archive
