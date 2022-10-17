@@ -1425,9 +1425,6 @@ begin
   if (CurStep = ssInstall) and IsWindows11OrLater() and QualityIsInsiders() then begin
     ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Remove-AppxPackage -Package ''{#AppxPackageFullname}'''), '', SW_HIDE, ewWaitUntilTerminated, UpdateResultCode);
   end;
-  if (CurStep = ssPostInstall) and IsWindows11OrLater() and QualityIsInsiders() then begin
-    ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Add-AppxPackage -Path ''' + ExpandConstant('{app}\appx\{#AppxPackage}') + ''' -ExternalLocation ''' + ExpandConstant('{app}\appx') + ''''), '', SW_HIDE, ewWaitUntilTerminated, UpdateResultCode);
-  end;
   if IsBackgroundUpdate() and (CurStep = ssPostInstall) then
   begin
     CreateMutex('{#AppMutex}-ready');
@@ -1439,6 +1436,9 @@ begin
     end;
 
     Exec(ExpandConstant('{app}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists())), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+  end;
+  if (CurStep = ssPostInstall) and IsWindows11OrLater() and QualityIsInsiders() then begin
+    ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Add-AppxPackage -Path ''' + ExpandConstant('{app}\appx\{#AppxPackage}') + ''' -ExternalLocation ''' + ExpandConstant('{app}\appx') + ''''), '', SW_HIDE, ewWaitUntilTerminated, UpdateResultCode);
   end;
 end;
 
