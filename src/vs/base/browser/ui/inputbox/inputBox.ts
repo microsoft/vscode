@@ -220,7 +220,7 @@ export class InputBox extends Widget {
 		this.onblur(this.input, () => this.onBlur());
 		this.onfocus(this.input, () => this.onFocus());
 
-		this.ignoreGesture(this.input);
+		this._register(this.ignoreGesture(this.input));
 
 		setTimeout(() => this.updateMirror(), 0);
 
