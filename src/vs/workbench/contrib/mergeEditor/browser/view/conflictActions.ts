@@ -74,118 +74,32 @@ export class ConflictActionsFactory extends Disposable {
 		};
 	}
 
-	addResultWidget(viewZoneChangeAccessor: IViewZoneChangeAccessor, lineNumber: number, viewModel: MergeEditorViewModel, modifiedBaseRange: ModifiedBaseRange): IDisposable {
-		function command(title: string, action: () => Promise<void>, tooltip?: string): IContentWidgetAction {
-			return {
-				text: title,
-				action,
-				tooltip
-			};
-		}
-
-		const items = derived('items', reader => {
-			const state = viewModel.model.getState(modifiedBaseRange).read(reader);
-			const model = viewModel.model;
-
-			const result: IContentWidgetAction[] = [];
-
-
-			if (state.conflicting) {
-				result.push({
-					text: localize('manualResolution', "Manual Resolution"),
-					tooltip: localize('manualResolutionTooltip', "This conflict has been resolved manually."),
-				});
-			} else if (state.isEmpty) {
-				result.push({
-					text: localize('noChangesAccepted', 'No Changes Accepted'),
-					tooltip: localize(
-						'noChangesAcceptedTooltip',
-						'The current resolution of this conflict equals the common ancestor of both the right and left changes.'
-					),
-				});
-
-			} else {
-				const labels = [];
-				if (state.input1) {
-					labels.push(model.input1.title);
-				}
-				if (state.input2) {
-					labels.push(model.input2.title);
-				}
-				if (state.input2First) {
-					labels.reverse();
-				}
-				result.push({
-					text: `${labels.join(' + ')}`
-				});
-			}
-
-			const stateToggles: IContentWidgetAction[] = [];
-			if (state.input1) {
-				result.push(command(localize('remove', "Remove {0}", model.input1.title), async () => {
-					transaction((tx) => {
-						model.setState(
-							modifiedBaseRange,
-							state.withInputValue(1, false),
-							true,
-							tx
-						);
-					});
-				}, localize('removeTooltip', "Remove {0} from the result document.", model.input1.title)),
-				);
-			}
-			if (state.input2) {
-				result.push(command(localize('remove', "Remove {0}", model.input2.title), async () => {
-					transaction((tx) => {
-						model.setState(
-							modifiedBaseRange,
-							state.withInputValue(2, false),
-							true,
-							tx
-						);
-					});
-				}, localize('removeTooltip', "Remove {0} from the result document.", model.input2.title)),
-				);
-			}
-			if (state.input2First) {
-				stateToggles.reverse();
-			}
-			result.push(...stateToggles);
-
-
-
-			if (state.conflicting) {
-				result.push(
-					command(localize('resetToBase', "Reset to base"), async () => {
-						transaction((tx) => {
-							model.setState(
-								modifiedBaseRange,
-								ModifiedBaseRangeState.default,
-								true,
-								tx
-							);
-						});
-					}, localize('resetToBaseTooltip', "Reset this conflict to the common ancestor of both the right and left changes.")),
-				);
-			}
-			return result;
-		});
-
+	public createWidget(viewZoneChangeAccessor: IViewZoneChangeAccessor, lineNumber: number, items: IObservable<IContentWidgetAction[]>, viewZoneIdsToCleanUp: string[]): IDisposable {
 		const layoutInfo = this._getLayoutInfo();
+		return new ActionsContentWidget(
+			this._editor,
+			viewZoneChangeAccessor,
+			lineNumber,
+			layoutInfo.codeLensHeight + 2,
+			this._styleClassName,
+			items,
+			viewZoneIdsToCleanUp,
+		);
+	}
+}
 
-		return new ActionsContentWidget(this._editor, viewZoneChangeAccessor, lineNumber, layoutInfo.codeLensHeight + 2, this._styleClassName, items);
+export class ActionsSource {
+	constructor(
+		private readonly viewModel: MergeEditorViewModel,
+		private readonly modifiedBaseRange: ModifiedBaseRange,
+	) {
 	}
 
-	addContentWidget(viewZoneChangeAccessor: IViewZoneChangeAccessor, lineNumber: number, viewModel: MergeEditorViewModel, modifiedBaseRange: ModifiedBaseRange, inputNumber: 1 | 2): IDisposable {
-		function command(title: string, action: () => Promise<void>, tooltip?: string): IContentWidgetAction {
-			return {
-				text: title,
-				action,
-				tooltip,
-			};
-		}
+	private getItemsInput(inputNumber: 1 | 2): IObservable<IContentWidgetAction[]> {
+		return derived('items', reader => {
+			const viewModel = this.viewModel;
+			const modifiedBaseRange = this.modifiedBaseRange;
 
-		const items = derived('items', reader => {
 			if (!viewModel.model.hasBaseRange(modifiedBaseRange)) {
 				return [];
 			}
@@ -260,15 +174,120 @@ export class ConflictActionsFactory extends Disposable {
 			}
 			return result;
 		});
-
-		const layoutInfo = this._getLayoutInfo();
-
-		return new ActionsContentWidget(this._editor, viewZoneChangeAccessor, lineNumber, layoutInfo.codeLensHeight + 2, this._styleClassName, items);
 	}
+
+	public readonly itemsInput1 = this.getItemsInput(1);
+	public readonly itemsInput2 = this.getItemsInput(2);
+
+	public readonly resultItems = derived('items', reader => {
+		const viewModel = this.viewModel;
+		const modifiedBaseRange = this.modifiedBaseRange;
+
+		const state = viewModel.model.getState(modifiedBaseRange).read(reader);
+		const model = viewModel.model;
+
+		const result: IContentWidgetAction[] = [];
+
+
+		if (state.conflicting) {
+			result.push({
+				text: localize('manualResolution', "Manual Resolution"),
+				tooltip: localize('manualResolutionTooltip', "This conflict has been resolved manually."),
+			});
+		} else if (state.isEmpty) {
+			result.push({
+				text: localize('noChangesAccepted', 'No Changes Accepted'),
+				tooltip: localize(
+					'noChangesAcceptedTooltip',
+					'The current resolution of this conflict equals the common ancestor of both the right and left changes.'
+				),
+			});
+
+		} else {
+			const labels = [];
+			if (state.input1) {
+				labels.push(model.input1.title);
+			}
+			if (state.input2) {
+				labels.push(model.input2.title);
+			}
+			if (state.input2First) {
+				labels.reverse();
+			}
+			result.push({
+				text: `${labels.join(' + ')}`
+			});
+		}
+
+		const stateToggles: IContentWidgetAction[] = [];
+		if (state.input1) {
+			result.push(command(localize('remove', "Remove {0}", model.input1.title), async () => {
+				transaction((tx) => {
+					model.setState(
+						modifiedBaseRange,
+						state.withInputValue(1, false),
+						true,
+						tx
+					);
+				});
+			}, localize('removeTooltip', "Remove {0} from the result document.", model.input1.title)),
+			);
+		}
+		if (state.input2) {
+			result.push(command(localize('remove', "Remove {0}", model.input2.title), async () => {
+				transaction((tx) => {
+					model.setState(
+						modifiedBaseRange,
+						state.withInputValue(2, false),
+						true,
+						tx
+					);
+				});
+			}, localize('removeTooltip', "Remove {0} from the result document.", model.input2.title)),
+			);
+		}
+		if (state.input2First) {
+			stateToggles.reverse();
+		}
+		result.push(...stateToggles);
+
+
+
+		if (state.conflicting) {
+			result.push(
+				command(localize('resetToBase', "Reset to base"), async () => {
+					transaction((tx) => {
+						model.setState(
+							modifiedBaseRange,
+							ModifiedBaseRangeState.default,
+							true,
+							tx
+						);
+					});
+				}, localize('resetToBaseTooltip', "Reset this conflict to the common ancestor of both the right and left changes.")),
+			);
+		}
+		return result;
+	});
+
+	public readonly isEmpty = derived('isEmpty', reader => {
+		return this.itemsInput1.read(reader).length + this.itemsInput2.read(reader).length + this.resultItems.read(reader).length === 0;
+	});
+
+	public readonly inputIsEmpty = derived('inputIsEmpty', reader => {
+		return this.itemsInput1.read(reader).length + this.itemsInput2.read(reader).length === 0;
+	});
 }
 
+function command(title: string, action: () => Promise<void>, tooltip?: string): IContentWidgetAction {
+	return {
+		text: title,
+		action,
+		tooltip,
+	};
+}
 
-interface IContentWidgetAction {
+export interface IContentWidgetAction {
 	text: string;
 	tooltip?: string;
 	action?: () => Promise<void>;
@@ -285,8 +304,9 @@ class ActionsContentWidget extends FixedZoneWidget {
 
 		className: string,
 		items: IObservable<IContentWidgetAction[]>,
+		viewZoneIdsToCleanUp: string[],
 	) {
-		super(editor, viewZoneAccessor, afterLineNumber, height);
+		super(editor, viewZoneAccessor, afterLineNumber, height, viewZoneIdsToCleanUp);
 
 		this.widgetDomNode.appendChild(this._domNode);
 

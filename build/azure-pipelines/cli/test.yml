@@ -7,7 +7,7 @@ parameters:
     default: stable
 
 steps:
-  - template: ./install-rust.yml
+  - template: ./install-rust-posix.yml
     parameters:
       targets: []
       channel: ${{ parameters.VSCODE_CLI_RUST_CHANNEL }}

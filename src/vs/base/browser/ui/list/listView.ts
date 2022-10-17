@@ -342,6 +342,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const transformOptimization = options.transformOptimization ?? DefaultOptions.transformOptimization;
 		if (transformOptimization) {
 			this.rowsContainer.style.transform = 'translate3d(0px, 0px, 0px)';
+			this.rowsContainer.style.overflow = 'hidden';
+			this.rowsContainer.style.contain = 'strict';
 		}
 
 		this.disposables.add(Gesture.addTarget(this.rowsContainer));

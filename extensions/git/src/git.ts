@@ -13,12 +13,11 @@ import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows } from './util';
-import { CancellationToken, ConfigurationChangeEvent, Progress, Uri, workspace } from 'vscode';
+import { CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
-import { OutputChannelLogger } from './log';
 import TelemetryReporter from '@vscode/extension-telemetry';
 
 // https://github.com/microsoft/vscode/issues/65693
@@ -401,8 +400,8 @@ export class Git {
 		return Versions.compare(Versions.fromString(this.version), Versions.fromString(version));
 	}
 
-	open(repository: string, dotGit: { path: string; commonPath?: string }, outputChannelLogger: OutputChannelLogger): Repository {
-		return new Repository(this, repository, dotGit, outputChannelLogger);
+	open(repository: string, dotGit: { path: string; commonPath?: string }, logger: LogOutputChannel): Repository {
+		return new Repository(this, repository, dotGit, logger);
 	}
 
 	async init(repository: string): Promise<void> {
@@ -915,7 +914,7 @@ export class Repository {
 		private _git: Git,
 		private repositoryRoot: string,
 		readonly dotGit: { path: string; commonPath?: string },
-		private outputChannelLogger: OutputChannelLogger
+		private logger: LogOutputChannel
 	) { }
 
 	get git(): Git {
@@ -2003,7 +2002,7 @@ export class Repository {
 			return result;
 		}
 		catch (err) {
-			this.outputChannelLogger.logWarning(err.message);
+			this.logger.warn(err.message);
 		}
 
 		try {

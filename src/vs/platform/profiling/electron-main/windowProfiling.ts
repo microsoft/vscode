@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Profile, ProfileNode, ProfileResult } from 'v8-inspect-profiler';
+import type { Profile, ProfileResult } from 'v8-inspect-profiler';
 import { BrowserWindow } from 'electron';
 import { timeout } from 'vs/base/common/async';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
@@ -13,57 +13,9 @@ import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Utils } from 'vs/platform/profiling/common/profiling';
+import { bottomUp, } from 'vs/platform/profiling/common/profilingModel';
+import { TelemetrySampleData, TelemetrySampleDataClassification } from 'vs/platform/profiling/common/profilingTelemetrySpec';
 
-
-type TelemetrySampleData = {
-	sessionId: string;
-	selfTime: number;
-	totalTime: number;
-	functionName: string;
-	callstack: string;
-};
-
-type TelemetrySampleDataClassification = {
-	owner: 'jrieken';
-	comment: 'A callstack that took a long time to execute';
-	sessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Session identifier that allows to correlate samples from one profile' };
-	selfTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Self time of the sample' };
-	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Total time of the sample' };
-	functionName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the sample' };
-	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The stacktrace leading into the sample' };
-};
-
-class Node {
-
-	// these are set later
-	parent: Node | undefined;
-	children: Node[] = [];
-	selfTime: number = -1;
-	totalTime: number = -1;
-
-	constructor(
-		readonly node: ProfileNode,
-		readonly callFrame: typeof node.callFrame,
-	) {
-		// noop
-	}
-
-	toString() {
-		return `${this.callFrame.url}#${this.callFrame.functionName}@${this.callFrame.lineNumber}:${this.callFrame.columnNumber}`;
-	}
-
-	static makeTotals(call: Node) {
-		if (call.totalTime !== -1) {
-			return call.totalTime;
-		}
-		let result = call.selfTime;
-		for (const child of call.children) {
-			result += Node.makeTotals(child);
-		}
-		call.totalTime = result;
-		return result;
-	}
-}
 
 export class WindowProfiler {
 
@@ -173,85 +125,22 @@ export class WindowProfiler {
 	private _digest(profile: Profile): void {
 		// https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#type-Profile
 
-		if (!profile.samples || !profile.timeDeltas) {
+		if (!Utils.isValidProfile(profile)) {
 			this._logService.warn('[perf] INVALID profile: no samples or timeDeltas', this._sessionId);
 			return;
 		}
 
-		// PII removal - no absolute paths
-		Utils.rewriteAbsolutePaths(profile, 'piiRemoved');
+		const samples = bottomUp(profile, 5, false);
 
-		// create nodes
-		const all = new Map<number, Node>();
-		for (const node of profile.nodes) {
-			all.set(node.id, new Node(node, node.callFrame));
-		}
-
-		// set children/parents
-		for (const node of profile.nodes) {
-			if (node.children) {
-				const parent = all.get(node.id)!;
-				for (const id of node.children) {
-					const child = all.get(id)!;
-					parent.children.push(child);
-					child.parent = parent;
-				}
-			}
-		}
-
-		// SELF times
-		const duration = (profile.endTime - profile.startTime);
-		let lastNodeTime = duration - profile.timeDeltas[0];
-		for (let i = 0; i < profile.samples.length - 1; i++) {
-			const sample = profile.samples[i];
-			const node = all.get(sample);
-			if (node) {
-				const duration = profile.timeDeltas[i + 1];
-				node.selfTime += duration;
-				lastNodeTime -= duration;
-			}
-		}
-		const lastNode = all.get(profile.samples[profile.samples.length - 1]);
-		if (lastNode) {
-			lastNode.selfTime += lastNodeTime;
-		}
-
-		// TOTAL times
-		all.forEach(Node.makeTotals);
-
-		const sorted = Array.from(all.values()).sort((a, b) => b.selfTime - a.selfTime);
-
-		if (sorted[0].callFrame.functionName === '(idle)') {
-			this._logService.warn('[perf] top stack is IDLE, ignoring this profile...', this._sessionId);
-			this._telemetryService.publicLog2<TelemetrySampleData, TelemetrySampleDataClassification>('prof.sample', {
-				sessionId: this._sessionId,
-				selfTime: 0,
-				totalTime: 0,
-				functionName: '(idle)',
-				callstack: ''
-			});
-			return;
-		}
-
-		for (let i = 0; i < sorted.length; i++) {
-			if (i > 4) {
-				// report top 5
-				break;
-			}
-			const node = sorted[i];
-			const callstack: string[] = [];
-			let candidate: Node | undefined = node;
-			while (candidate) {
-				callstack.push(candidate.toString());
-				candidate = candidate.parent;
-			}
-
+		for (const sample of samples) {
 			const data: TelemetrySampleData = {
 				sessionId: this._sessionId,
-				selfTime: node.selfTime / 1000,
-				totalTime: node.totalTime / 1000,
-				functionName: node.callFrame.functionName,
-				callstack: callstack.join('\n')
+				selfTime: sample.selfTime,
+				totalTime: sample.totalTime,
+				percentage: sample.percentage,
+				functionName: sample.location,
+				callstack: sample.caller.map(c => `${c.percentage}|${c.location}`).join('<'),
+				extensionId: ''
 			};
 			this._telemetryService.publicLog2<TelemetrySampleData, TelemetrySampleDataClassification>('prof.freeze.sample', data);
 		}

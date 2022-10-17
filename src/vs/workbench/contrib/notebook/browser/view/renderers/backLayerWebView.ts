@@ -43,7 +43,7 @@ import { IWebviewElement, IWebviewService, WebviewContentPurpose } from 'vs/work
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, ToWebviewMessage } from './webviewMessages';
+import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, StaticPreloadMetadata, ToWebviewMessage } from './webviewMessages';
 import { DeferredPromise } from 'vs/base/common/async';
 
 export interface ICachedInset<K extends ICommonCellInfo> {
@@ -121,6 +121,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	constructor(
 		public notebookEditor: INotebookDelegateForWebview,
 		public readonly id: string,
+		public readonly notebookViewType: string,
 		public readonly documentUri: URI,
 		private options: BacklayerWebviewOptions,
 		private readonly rendererMessaging: IScopedRendererMessaging | undefined,
@@ -225,10 +226,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 	private generateContent(coreDependencies: string, baseUrl: string) {
 		const renderersData = this.getRendererData();
+		const preloadsData = this.getStaticPreloadsData();
 		const preloadScript = preloadsScriptStr(
 			this.options,
 			{ dragAndDropEnabled: this.options.dragAndDropEnabled },
 			renderersData,
+			preloadsData,
 			this.workspaceTrustManagementService.isWorkspaceTrusted(),
 			this.configurationService.getValue<number>(NotebookSetting.textOutputLineLimit) ?? 30,
 			this.nonce);
@@ -403,15 +406,23 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 	private getRendererData(): RendererMetadata[] {
 		return this.notebookService.getRenderers().map((renderer): RendererMetadata => {
-			const entrypoint = this.asWebviewUri(renderer.entrypoint, renderer.extensionLocation).toString();
+			const entrypoint = {
+				extends: renderer.entrypoint.extends,
+				path: this.asWebviewUri(renderer.entrypoint.path, renderer.extensionLocation).toString()
+			};
 			return {
 				id: renderer.id,
 				entrypoint,
 				mimeTypes: renderer.mimeTypes,
-				extends: renderer.extends,
 				messaging: renderer.messaging !== RendererMessagingSpec.Never,
 				isBuiltin: renderer.isBuiltin
 			};
+		});
+	}
+
+	private getStaticPreloadsData(): StaticPreloadMetadata[] {
+		return Array.from(this.notebookService.getStaticPreloads(this.notebookViewType), preload => {
+			return { entrypoint: this.asWebviewUri(preload.entrypoint, preload.extensionLocation).toString().toString() };
 		});
 	}
 
@@ -918,16 +929,17 @@ var requirejs = (function() {
 		return webview;
 	}
 
-	private _getResourceRootsCache() {
+	private _getResourceRootsCache(): URI[] {
 		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
 		const notebookDir = this.getNotebookBaseUri();
 		return [
-			...this.notebookService.getNotebookProviderResourceRoots(),
-			...this.notebookService.getRenderers().map(x => dirname(x.entrypoint)),
-			...workspaceFolders,
+			this.notebookService.getNotebookProviderResourceRoots(),
+			this.notebookService.getRenderers().map(x => dirname(x.entrypoint.path)),
+			Array.from(this.notebookService.getStaticPreloads(this.notebookViewType), x => dirname(x.entrypoint)),
+			workspaceFolders,
 			notebookDir,
-			...this.getBuiltinLocalResourceRoots()
-		];
+			this.getBuiltinLocalResourceRoots()
+		].flat();
 	}
 
 	private initializeWebViewState() {

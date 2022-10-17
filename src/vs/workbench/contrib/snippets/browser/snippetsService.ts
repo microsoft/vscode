@@ -22,7 +22,7 @@ import { Snippet, SnippetFile, SnippetSource } from 'vs/workbench/contrib/snippe
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/language/common/languageService';
 import { SnippetCompletionProvider } from './snippetCompletionProvider';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { ResourceMap } from 'vs/base/common/map';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isStringArray } from 'vs/base/common/types';

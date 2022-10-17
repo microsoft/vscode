@@ -11,16 +11,17 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService, ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IURITransformerService, URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostExtensionService, IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
+import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 
 export interface IExitFn {
 	(code?: number): any;
@@ -28,6 +29,75 @@ export interface IExitFn {
 
 export interface IConsolePatchFn {
 	(mainThreadConsole: MainThreadConsoleShape): any;
+}
+
+abstract class ErrorHandler {
+
+	static {
+		// increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
+		Error.stackTraceLimit = 100;
+	}
+
+	static async installEarlyHandler(accessor: ServicesAccessor): Promise<void> {
+		// does NOT dependent of extension information, can be installed immediately, and simply forwards
+		// to the log service and main thread errors
+		const logService = accessor.get(ILogService);
+		const rpcService = accessor.get(IExtHostRpcService);
+		const mainThreadErrors = rpcService.getProxy(MainContext.MainThreadErrors);
+
+		errors.setUnexpectedErrorHandler(err => {
+			logService.error(err);
+			const data = errors.transformErrorForSerialization(err);
+			mainThreadErrors.$onUnexpectedError(data);
+		});
+	}
+
+	static async installFullHandler(accessor: ServicesAccessor): Promise<void> {
+		// uses extension knowledges to correlate errors with extensions
+
+		const logService = accessor.get(ILogService);
+		const rpcService = accessor.get(IExtHostRpcService);
+		const extensionService = accessor.get(IExtHostExtensionService);
+		const extensionTelemetry = accessor.get(IExtHostTelemetry);
+
+		const mainThreadExtensions = rpcService.getProxy(MainContext.MainThreadExtensionService);
+		const mainThreadErrors = rpcService.getProxy(MainContext.MainThreadErrors);
+
+		const map = await extensionService.getExtensionPathIndex();
+		const extensionErrors = new WeakMap<Error, ExtensionIdentifier | undefined>();
+
+		// set the prepareStackTrace-handle and use it as a side-effect to associate errors
+		// with extensions - this works by looking up callsites in the extension path index
+		(<any>Error).prepareStackTrace = (error: Error, stackTrace: errors.V8CallSite[]) => {
+			let stackTraceMessage = '';
+			let extension: IExtensionDescription | undefined;
+			let fileName: string | null;
+			for (const call of stackTrace) {
+				stackTraceMessage += `\n\tat ${call.toString()}`;
+				fileName = call.getFileName();
+				if (!extension && fileName) {
+					extension = map.findSubstr(URI.file(fileName));
+				}
+			}
+			extensionErrors.set(error, extension?.identifier);
+			return `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
+		};
+
+		errors.setUnexpectedErrorHandler(err => {
+			logService.error(err);
+
+			const data = errors.transformErrorForSerialization(err);
+			const extension = extensionErrors.get(err);
+			if (!extension) {
+				mainThreadErrors.$onUnexpectedError(data);
+				return;
+			}
+
+			mainThreadExtensions.$onExtensionRuntimeError(extension, data);
+			const reported = extensionTelemetry.onExtensionError(extension, err);
+			logService.trace('forwarded error to extension?', reported, extension);
+		});
+	}
 }
 
 export class ExtensionHostMain {
@@ -59,6 +129,8 @@ export class ExtensionHostMain {
 
 		const instaService: IInstantiationService = new InstantiationService(services, true);
 
+		instaService.invokeFunction(ErrorHandler.installEarlyHandler);
+
 		// ugly self - inject
 		this._logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
 
@@ -76,38 +148,8 @@ export class ExtensionHostMain {
 		this._extensionService = instaService.invokeFunction(accessor => accessor.get(IExtHostExtensionService));
 		this._extensionService.initialize();
 
-		// error forwarding and stack trace scanning
-		Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
-		const extensionErrors = new WeakMap<Error, IExtensionDescription | undefined>();
-		this._extensionService.getExtensionPathIndex().then(map => {
-			(<any>Error).prepareStackTrace = (error: Error, stackTrace: errors.V8CallSite[]) => {
-				let stackTraceMessage = '';
-				let extension: IExtensionDescription | undefined;
-				let fileName: string;
-				for (const call of stackTrace) {
-					stackTraceMessage += `\n\tat ${call.toString()}`;
-					fileName = call.getFileName();
-					if (!extension && fileName) {
-						extension = map.findSubstr(URI.file(fileName));
-					}
-
-				}
-				extensionErrors.set(error, extension);
-				return `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
-			};
-		});
-
-		const mainThreadExtensions = this._rpcProtocol.getProxy(MainContext.MainThreadExtensionService);
-		const mainThreadErrors = this._rpcProtocol.getProxy(MainContext.MainThreadErrors);
-		errors.setUnexpectedErrorHandler(err => {
-			const data = errors.transformErrorForSerialization(err);
-			const extension = extensionErrors.get(err);
-			if (extension) {
-				mainThreadExtensions.$onExtensionRuntimeError(extension.identifier, data);
-			} else {
-				mainThreadErrors.$onUnexpectedError(data);
-			}
-		});
+		// install error handler that is extension-aware
+		instaService.invokeFunction(ErrorHandler.installFullHandler);
 	}
 
 	async asBrowserUri(uri: URI): Promise<URI> {

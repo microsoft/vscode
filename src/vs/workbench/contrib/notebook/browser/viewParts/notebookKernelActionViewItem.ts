@@ -13,6 +13,7 @@ import { INotebookKernel, INotebookKernelMatchResult, INotebookKernelService, IS
 import { Event } from 'vs/base/common/event';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class NotebooKernelActionViewItem extends ActionViewItem {
 
@@ -20,7 +21,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 
 	constructor(
 		actualAction: IAction,
-		private readonly _editor: { onDidChangeModel: Event<void>; textModel: NotebookTextModel | undefined } | INotebookEditor,
+		private readonly _editor: { onDidChangeModel: Event<void>; textModel: NotebookTextModel | undefined; scopedContextKeyService?: IContextKeyService } | INotebookEditor,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 	) {
 		super(
@@ -59,7 +60,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 			return;
 		}
 
-		const runningActions = this._notebookKernelService.getRunningSourceActions();
+		const runningActions = this._notebookKernelService.getRunningSourceActions(notebook);
 		if (runningActions.length) {
 			return this._updateActionFromSourceAction(runningActions[0] /** TODO handle multiple actions state */, true);
 		}
@@ -82,7 +83,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 
 	private _updateActionsFromSourceActions() {
 		this._action.enabled = true;
-		const sourceActions = this._notebookKernelService.getSourceActions();
+		const sourceActions = this._editor.textModel ? this._notebookKernelService.getSourceActions(this._editor.textModel, this._editor.scopedContextKeyService) : [];
 		if (sourceActions.length === 1) {
 			// exact one action
 			this._updateActionFromSourceAction(sourceActions[0], false);

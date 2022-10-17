@@ -92,13 +92,17 @@ export type AuthenticationSessionInfo = { readonly id: string; readonly accessTo
 export async function getCurrentAuthenticationSessionInfo(credentialsService: ICredentialsService, productService: IProductService): Promise<AuthenticationSessionInfo | undefined> {
 	const authenticationSessionValue = await credentialsService.getPassword(`${productService.urlProtocol}.login`, 'account');
 	if (authenticationSessionValue) {
-		const authenticationSessionInfo: AuthenticationSessionInfo = JSON.parse(authenticationSessionValue);
-		if (authenticationSessionInfo
-			&& isString(authenticationSessionInfo.id)
-			&& isString(authenticationSessionInfo.accessToken)
-			&& isString(authenticationSessionInfo.providerId)
-		) {
-			return authenticationSessionInfo;
+		try {
+			const authenticationSessionInfo: AuthenticationSessionInfo = JSON.parse(authenticationSessionValue);
+			if (authenticationSessionInfo
+				&& isString(authenticationSessionInfo.id)
+				&& isString(authenticationSessionInfo.accessToken)
+				&& isString(authenticationSessionInfo.providerId)
+			) {
+				return authenticationSessionInfo;
+			}
+		} catch (e) {
+			// ignore as this is a best effort operation.
 		}
 	}
 	return undefined;
