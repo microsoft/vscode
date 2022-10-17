@@ -87,7 +87,12 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 	private checkAndInstall(): void {
 		const language = platform.language;
-		const locale = platform.locale; // might contain trailing country code
+		let locale = platform.locale ?? '';
+		if (locale.startsWith('zh-hans')) {
+			locale = 'zh-cn';
+		} else if (locale.startsWith('zh-hant')) {
+			locale = 'zh-tw';
+		}
 		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get(LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY, StorageScope.APPLICATION, '[]'));
 
 		if (!this.galleryService.isEnabled()) {
