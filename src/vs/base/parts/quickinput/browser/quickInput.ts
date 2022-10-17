@@ -1798,7 +1798,6 @@ export class QuickInputController extends Disposable {
 			const style = this.ui.container.style;
 			const width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
 			style.width = width + 'px';
-			style.marginLeft = '-' + (width / 2) + 'px';
 
 			this.ui.inputBox.layout();
 			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);
