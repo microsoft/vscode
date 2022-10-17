@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { isWindows, OperatingSystem } from 'vs/base/common/platform';
+import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -157,12 +157,22 @@ export function isAllInterfaces(host: string): boolean {
 	return ALL_INTERFACES_ADDRESSES.indexOf(host) >= 0;
 }
 
-export function isPortPrivileged(port: number, os?: OperatingSystem): boolean {
-	if (os) {
-		return os !== OperatingSystem.Windows && (port < 1024);
-	} else {
-		return !isWindows && (port < 1024);
+export function isPortPrivileged(port: number, host: string, os: OperatingSystem, osRelease: string): boolean {
+	if (os === OperatingSystem.Windows) {
+		return false;
 	}
+	if (os === OperatingSystem.Macintosh) {
+		if (isAllInterfaces(host)) {
+			const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(osRelease);
+			if (osVersion?.length === 4) {
+				const major = parseInt(osVersion[1]);
+				if (major >= 18 /* since macOS Mojave, darwin version 18.0.0 */) {
+					return false;
+				}
+			}
+		}
+	}
+	return port < 1024;
 }
 
 export class DisposableTunnel {
@@ -417,22 +427,6 @@ export abstract class AbstractTunnelService implements ITunnelService {
 
 	public abstract isPortPrivileged(port: number): boolean;
 
-	protected doIsPortPrivileged(port: number, isWindows: boolean, isMacintosh: boolean, osRelease: string): boolean {
-		if (isWindows) {
-			return false;
-		} else if (isMacintosh) {
-			const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(osRelease);
-			if (osVersion?.length === 4) {
-				const major = parseInt(osVersion[1]);
-				const minor = parseInt(osVersion[2]);
-				if (((major > 10) || (major === 10 && minor >= 14))) {
-					return false;
-				}
-			}
-		}
-		return port < 1024;
-	}
-
 	protected abstract retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
 
 	protected createWithProvider(tunnelProvider: ITunnelProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
@@ -455,5 +449,3 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		return tunnel;
 	}
 }
-
-
