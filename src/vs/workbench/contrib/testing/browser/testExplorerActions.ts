@@ -5,7 +5,6 @@
 
 import { distinct } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
-import { Iterable } from 'vs/base/common/iterator';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
 import { Position } from 'vs/editor/common/core/position';
@@ -154,7 +153,7 @@ export class DebugAction extends Action2 {
 
 	public override run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
 		return acessor.get(ITestService).runTests({
-			tests: [...Iterable.concatNested(elements.map(e => e.tests))],
+			tests: elements.flatMap(e => [...e.tests]),
 			group: TestRunProfileBitset.Debug,
 		});
 	}
@@ -216,7 +215,7 @@ export class RunAction extends Action2 {
 	 */
 	public override run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
 		return acessor.get(ITestService).runTests({
-			tests: [...Iterable.concatNested(elements.map(e => e.tests))],
+			tests: elements.flatMap(e => [...e.tests]),
 			group: TestRunProfileBitset.Run,
 		});
 	}

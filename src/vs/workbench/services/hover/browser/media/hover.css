@@ -51,26 +51,18 @@
 .monaco-workbench .workbench-hover-pointer.bottom { bottom: 3px; }
 
 .monaco-workbench .workbench-hover-pointer.left:after {
-	-moz-transform: rotate(135deg);
-	-webkit-transform: rotate(135deg);
 	transform: rotate(135deg);
 }
 
 .monaco-workbench .workbench-hover-pointer.right:after {
-	-moz-transform: rotate(315deg);
-	-webkit-transform: rotate(315deg);
 	transform: rotate(315deg);
 }
 
 .monaco-workbench .workbench-hover-pointer.top:after {
-	-moz-transform: rotate(225deg);
-	-webkit-transform: rotate(225deg);
 	transform: rotate(225deg);
 }
 
 .monaco-workbench .workbench-hover-pointer.bottom:after {
-	-moz-transform: rotate(45deg);
-	-webkit-transform: rotate(45deg);
 	transform: rotate(45deg);
 }
 
