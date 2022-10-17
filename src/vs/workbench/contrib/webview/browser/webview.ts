@@ -126,8 +126,10 @@ export interface WebviewContentOptions {
 
 	/**
 	 * Are command uris enabled in the webview? Defaults to false.
+	 *
+	 * TODO: This is only supported by mainThreadWebviews and should be removed from here.
 	 */
-	readonly enableCommandUris?: boolean;
+	readonly enableCommandUris?: boolean | readonly string[];
 }
 
 /**
@@ -140,8 +142,20 @@ export function areWebviewContentOptionsEqual(a: WebviewContentOptions, b: Webvi
 		&& a.allowForms === b.allowForms
 		&& equals(a.localResourceRoots, b.localResourceRoots, isEqual)
 		&& equals(a.portMapping, b.portMapping, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort)
-		&& a.enableCommandUris === b.enableCommandUris
+		&& areEnableCommandUrisEqual(a, b)
 	);
+}
+
+function areEnableCommandUrisEqual(a: WebviewContentOptions, b: WebviewContentOptions): boolean {
+	if (a.enableCommandUris === b.enableCommandUris) {
+		return true;
+	}
+
+	if (Array.isArray(a.enableCommandUris) && Array.isArray(b.enableCommandUris)) {
+		return equals(a.enableCommandUris, b.enableCommandUris);
+	}
+
+	return false;
 }
 
 export interface WebviewExtensionDescription {
