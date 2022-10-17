@@ -184,6 +184,9 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	}
 
 	public hide(): void {
+		if (this.state === LightBulbState.Hidden) {
+			return;
+		}
 		this.state = LightBulbState.Hidden;
 		this._editor.layoutContentWidget(this);
 	}

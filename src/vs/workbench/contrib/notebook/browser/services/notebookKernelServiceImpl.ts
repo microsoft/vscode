@@ -15,6 +15,7 @@ import { runWhenIdle } from 'vs/base/common/async';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction } from 'vs/base/common/actions';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 
 class KernelInfo {
 
@@ -53,6 +54,7 @@ class SourceAction extends Disposable implements ISourceAction {
 
 	constructor(
 		readonly action: IAction,
+		readonly model: INotebookTextModelLike,
 		readonly isPrimary: boolean
 	) {
 		super();
@@ -72,7 +74,11 @@ class SourceAction extends Disposable implements ISourceAction {
 
 	private async _runAction(): Promise<void> {
 		try {
-			await this.action.run();
+			await this.action.run({
+				uri: this.model.uri,
+				$mid: MarshalledId.NotebookActionContext
+			});
+
 		} catch (error) {
 			console.warn(`Kernel source command failed: ${error}`);
 		}
@@ -314,7 +320,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 			groups.forEach(group => {
 				const isPrimary = /^primary/.test(group[0]);
 				group[1].forEach(action => {
-					const sourceAction = new SourceAction(action, isPrimary);
+					const sourceAction = new SourceAction(action, notebook, isPrimary);
 					const stateChangeListener = sourceAction.onDidChangeState(() => {
 						this._onDidChangeSourceActions.fire({
 							notebook: notebook.uri

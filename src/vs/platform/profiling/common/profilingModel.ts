@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Profile, ProfileNode } from 'v8-inspect-profiler';
 import { basename } from 'vs/base/common/path';
+import type { IV8Profile, IV8ProfileNode } from 'vs/platform/profiling/common/profiling';
 
 // #region
 // https://github.com/microsoft/vscode-js-profile-visualizer/blob/6e7401128ee860be113a916f80fcfe20ac99418e/packages/vscode-js-profile-core/src/cpu/model.ts#L4
@@ -65,7 +65,7 @@ interface IAnnotationLocation {
 	locations: ISourceLocation[];
 }
 
-interface IProfileNode extends ProfileNode {
+interface IProfileNode extends IV8ProfileNode {
 	locationId?: number;
 	positionTicks?: (CdpPositionTickInfo & {
 		startLocationId?: number;
@@ -73,7 +73,7 @@ interface IProfileNode extends ProfileNode {
 	})[];
 }
 
-interface ICpuProfileRaw extends Profile {
+interface ICpuProfileRaw extends IV8Profile {
 	//   $vscode?: IJsDebugAnnotations;
 	nodes: IProfileNode[];
 }
@@ -331,17 +331,28 @@ function isSpecial(call: CdpCallFrame): boolean {
 	return call.functionName.startsWith('(') && call.functionName.endsWith(')');
 }
 
+function isModel(arg: IV8Profile | IProfileModel): arg is IProfileModel {
+	return Array.isArray((<IProfileModel>arg).locations)
+		&& Array.isArray((<IProfileModel>arg).samples)
+		&& Array.isArray((<IProfileModel>arg).timeDeltas);
+}
+
 export interface BottomUpSample {
 	selfTime: number;
 	totalTime: number;
 	location: string;
+	url: string;
 	caller: { percentage: number; location: string }[];
 	percentage: number;
 	isSpecial: boolean;
 }
 
-export function bottomUp(p: Profile, topN: number, fullPaths: boolean = false) {
-	const model = buildModel(p);
+export function bottomUp(profileOrModel: IV8Profile | IProfileModel, topN: number, fullPaths: boolean = false) {
+
+	const model = isModel(profileOrModel)
+		? profileOrModel
+		: buildModel(profileOrModel);
+
 	const root = BottomUpNode.root();
 	for (const node of model.nodes) {
 		processNode(root, node, model);
@@ -375,6 +386,7 @@ export function bottomUp(p: Profile, topN: number, fullPaths: boolean = false) {
 			selfTime: node.selfTime / 1000,
 			totalTime: node.aggregateTime / 1000,
 			location: printCallFrame(node.callFrame),
+			url: node.callFrame.url,
 			caller: [],
 			percentage: Math.round(node.selfTime / (model.duration / 100)),
 			isSpecial: isSpecial(node.callFrame)
