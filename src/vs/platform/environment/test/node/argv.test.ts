@@ -111,13 +111,13 @@ suite('parseArgs', () => {
 		assertParse(
 			options1,
 			['testcmd', '--testArg=foo'],
-			{ testcmd: { testArg: 'foo', '_': [] } },
+			{ testcmd: { testArg: 'foo', '_': [] }, '_': [] },
 			[]
 		);
 		assertParse(
 			options1,
 			['testcmd', '--testArg=foo', '--testX'],
-			{ testcmd: { testArg: 'foo', '_': [] } },
+			{ testcmd: { testArg: 'foo', '_': [] }, '_': [] },
 			['testcmd-onUnknownOption testX']
 		);
 		const options2 = {
@@ -129,7 +129,7 @@ suite('parseArgs', () => {
 		assertParse(
 			options2,
 			['testcmd', '--testArg=foo', '--testX'],
-			{ testcmd: { testArg: 'foo', testX: true, '_': [] } },
+			{ testcmd: { testArg: 'foo', testX: true, '_': [] }, '_': [] },
 			[]
 		);
 	});
