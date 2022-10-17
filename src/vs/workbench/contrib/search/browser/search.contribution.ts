@@ -305,7 +305,7 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 	order: 4,
 	command: {
 		id: Constants.ExcludeFolderFromSearchId,
-		title: nls.localize('excludeFolderFromSearch', "Exclude Folder From Search...")
+		title: nls.localize('excludeFolderFromSearch', "Exclude Folder from Search...")
 	},
 	when: ContextKeyExpr.and(Constants.ResourceFolderFocusKey)
 });
