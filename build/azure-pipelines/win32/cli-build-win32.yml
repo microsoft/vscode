@@ -18,7 +18,7 @@ steps:
 
   - template: ../mixin-distro-win32.yml
     parameters:
-      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -27,6 +27,7 @@ steps:
     displayName: Prepare CLI build
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
 
   - template: ../cli/install-rust-win32.yml
     parameters:

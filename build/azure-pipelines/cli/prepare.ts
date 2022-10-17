@@ -26,13 +26,13 @@ const commit = getVersion(root);
  */
 const setLauncherEnvironmentVars = () => {
 	const vars = new Map([
-		['VSCODE_CLI_REMOTE_LICENSE_TEXT', product.serverLicense?.join('\r\n')],
+		['VSCODE_CLI_REMOTE_LICENSE_TEXT', product.serverLicense?.join('\\n')],
 		['VSCODE_CLI_REMOTE_LICENSE_PROMPT', product.serverLicensePrompt],
 		['VSCODE_CLI_AI_KEY', product.aiConfig?.cliKey],
 		['VSCODE_CLI_AI_ENDPOINT', product.aiConfig?.cliEndpoint],
 		['VSCODE_CLI_VERSION', packageJson.version],
 		['VSCODE_CLI_UPDATE_ENDPOINT', product.updateUrl],
-		['VSCODE_CLI_QUALIY', product.quality],
+		['VSCODE_CLI_QUALITY', product.quality],
 		['VSCODE_CLI_COMMIT', commit],
 	]);
 
