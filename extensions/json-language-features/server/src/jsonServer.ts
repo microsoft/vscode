@@ -220,10 +220,10 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		keepLinesEnabled = settings.json?.keepLines?.enable || false;
 		updateConfiguration();
 
-		resultLimit = Math.trunc(Math.max(settings.json?.resultLimit || Number.MAX_VALUE, 0));
-		jsonFoldingRangeLimit = Math.trunc(Math.max(settings.json?.jsonFoldingLimit || foldingRangeLimitDefault, 0));
-		jsoncFoldingRangeLimit = Math.trunc(Math.max(settings.json?.jsoncFoldingLimit || foldingRangeLimitDefault, 0));
-
+		const sanitizeLimitSetting = (settingValue: any) => Math.trunc(Math.max(settingValue, 0));
+		resultLimit = sanitizeLimitSetting(settings.json?.resultLimit || Number.MAX_VALUE);
+		jsonFoldingRangeLimit = sanitizeLimitSetting(settings.json?.jsonFoldingLimit || foldingRangeLimitDefault);
+		jsoncFoldingRangeLimit = sanitizeLimitSetting(settings.json?.jsoncFoldingLimit || foldingRangeLimitDefault);
 
 		// dynamically enable & disable the formatter
 		if (dynamicFormatterRegistration) {
@@ -443,10 +443,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
 				const rangeLimit = document.languageId === 'jsonc' ? jsoncFoldingRangeLimit : jsonFoldingRangeLimit;
-				console.log('XXX' + rangeLimit);
-				const ranges = languageService.getFoldingRanges(document, { rangeLimit });
-				console.log('XXX2' + ranges.length);
-				return ranges;
+				return languageService.getFoldingRanges(document, { rangeLimit });
 			}
 			return null;
 		}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
