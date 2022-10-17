@@ -54,6 +54,7 @@ import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { AutomaticLanguageDetectionLikelyWrongClassification, AutomaticLanguageDetectionLikelyWrongId, IAutomaticLanguageDetectionLikelyWrongData, ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -671,7 +672,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			}));
 
 			// Hook Listener for Selection changes
-			this.activeEditorListeners.add(activeCodeEditor.onDidChangeCursorPosition(() => {
+			this.activeEditorListeners.add(activeCodeEditor.onDidChangeCursorPositionDeferred(() => {
+				console.log('cursor position change');
 				this.onSelectionChange(activeCodeEditor);
 				this.currentProblemStatus.update(activeCodeEditor);
 			}));
@@ -682,16 +684,24 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			}));
 
 			// Hook Listener for content changes
-			this.activeEditorListeners.add(activeCodeEditor.onDidChangeModelContent(e => {
+			this.activeEditorListeners.add(Event.debounce<IModelContentChangedEvent, IModelContentChangedEvent[]>(activeCodeEditor.onDidChangeModelContent, (last, e) => {
+				if (!last) {
+					return [e];
+				}
+				last.push(e);
+				return last;
+			}, 0)(e => {
 				this.onEOLChange(activeCodeEditor);
 				this.currentProblemStatus.update(activeCodeEditor);
 
 				const selections = activeCodeEditor.getSelections();
 				if (selections) {
-					for (const change of e.changes) {
-						if (selections.some(selection => Range.areIntersecting(selection, change.range))) {
-							this.onSelectionChange(activeCodeEditor);
-							break;
+					for (const inner of e) {
+						for (const change of inner.changes) {
+							if (selections.some(selection => Range.areIntersecting(selection, change.range))) {
+								this.onSelectionChange(activeCodeEditor);
+								break;
+							}
 						}
 					}
 				}

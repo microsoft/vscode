@@ -53,6 +53,18 @@ export namespace Event {
 		}
 	}
 
+	/**
+	 * Given an event, returns another event which debounces calls and defers the listeners to a
+	 * later task via a shared `setTimeout`. The event is converted into a signal (`Event<void>`) to
+	 * avoid additional object creation as a result of merging events and to try prevent race
+	 * conditions that could arise when using related deferred and non-deferred events.
+	 *
+	 * This is useful for deferring non-critical work (eg. general UI updates) to ensure it does not
+	 * block critical work (eg. latency of keypress to text rendered).
+	 */
+	export function defer(event: Event<unknown>): Event<void> {
+		return debounce<unknown, void>(event, () => void 0, 0);
+	}
 
 	/**
 	 * Given an event, returns another event which only fires once.
