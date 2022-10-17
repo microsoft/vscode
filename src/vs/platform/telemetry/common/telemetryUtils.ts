@@ -286,10 +286,6 @@ export function getPiiPathsFromEnvironment(paths: IPathEnvironment): string[] {
  * @returns The cleaned stack
  */
 function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
-	// Detect if the satck is a user agent, as those are not file paths and trigger false positives
-	if (stack.startsWith('Mozilla/') || stack.startsWith('Opera/')) {
-		return stack;
-	}
 
 	let updatedStack = stack;
 
