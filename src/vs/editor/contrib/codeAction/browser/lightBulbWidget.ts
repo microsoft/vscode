@@ -6,8 +6,9 @@
 import * as dom from 'vs/base/browser/dom';
 import { Gesture } from 'vs/base/browser/touch';
 import { Codicon } from 'vs/base/common/codicons';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -55,11 +56,14 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	private _state: LightBulbState.State = LightBulbState.Hidden;
 
+	private _preferredKbLabel?: string;
+	private _quickFixKbLabel?: string;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _quickFixActionId: string,
-		private readonly _preferredFixActionId: string,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		quickFixActionId: string,
+		preferredFixActionId: string,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super();
 		this._domNode = document.createElement('div');
@@ -101,6 +105,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				trigger: this.state.trigger,
 			});
 		}));
+
 		this._register(dom.addDisposableListener(this._domNode, 'mouseenter', (e: MouseEvent) => {
 			if ((e.buttons & 1) !== 1) {
 				return;
@@ -109,6 +114,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			// is being pressed -> hide the lightbulb
 			this.hide();
 		}));
+
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			// hide when told to do so
 			if (e.hasChanged(EditorOption.lightbulb) && !this._editor.getOption(EditorOption.lightbulb).enabled) {
@@ -116,8 +122,12 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 		}));
 
-		this._updateLightBulbTitleAndIcon();
-		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitleAndIcon, this));
+		this._register(Event.runAndSubscribe(keybindingService.onDidUpdateKeybindings, () => {
+			this._preferredKbLabel = withNullAsUndefined(keybindingService.lookupKeybinding(preferredFixActionId)?.getLabel());
+			this._quickFixKbLabel = withNullAsUndefined(keybindingService.lookupKeybinding(quickFixActionId)?.getLabel());
+
+			this._updateLightBulbTitleAndIcon();
+		}));
 	}
 
 	override dispose(): void {
@@ -187,6 +197,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		if (this.state === LightBulbState.Hidden) {
 			return;
 		}
+
 		this.state = LightBulbState.Hidden;
 		this._editor.layoutContentWidget(this);
 	}
@@ -204,9 +215,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			this._domNode.classList.remove(...Codicon.lightBulb.classNamesArray);
 			this._domNode.classList.add(...Codicon.lightbulbAutofix.classNamesArray);
 
-			const preferredKb = this._keybindingService.lookupKeybinding(this._preferredFixActionId);
-			if (preferredKb) {
-				this.title = nls.localize('preferredcodeActionWithKb', "Show Code Actions. Preferred Quick Fix Available ({0})", preferredKb.getLabel());
+			if (this._preferredKbLabel) {
+				this.title = nls.localize('preferredcodeActionWithKb', "Show Code Actions. Preferred Quick Fix Available ({0})", this._preferredKbLabel);
 				return;
 			}
 		}
@@ -215,9 +225,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		this._domNode.classList.remove(...Codicon.lightbulbAutofix.classNamesArray);
 		this._domNode.classList.add(...Codicon.lightBulb.classNamesArray);
 
-		const kb = this._keybindingService.lookupKeybinding(this._quickFixActionId);
-		if (kb) {
-			this.title = nls.localize('codeActionWithKb', "Show Code Actions ({0})", kb.getLabel());
+		if (this._quickFixKbLabel) {
+			this.title = nls.localize('codeActionWithKb', "Show Code Actions ({0})", this._quickFixKbLabel);
 		} else {
 			this.title = nls.localize('codeAction', "Show Code Actions");
 		}
