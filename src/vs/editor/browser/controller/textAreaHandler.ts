@@ -283,7 +283,9 @@ export class TextAreaHandler extends ViewPart {
 					}
 					return TextAreaState.EMPTY;
 				}
-
+				if (this._textAreaWrapping) {
+					return new TextAreaState(this._context.viewModel.getViewLineRenderingData(this._primaryCursorPosition.lineNumber).content, this._primaryCursorPosition.column, this._primaryCursorPosition.column, this._primaryCursorPosition, this._primaryCursorPosition);
+				}
 				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 			},
 
@@ -765,7 +767,7 @@ export class TextAreaHandler extends ViewPart {
 			// We will also make the fontSize and lineHeight the correct dimensions to help with the placement of these pickers
 			this._doRender({
 				lastRenderPosition: this._primaryCursorPosition,
-				top: top,
+				top,
 				left: this._textAreaWrapping ? this._contentLeft : left,
 				width: this._textAreaWidth,
 				height: this._lineHeight,
