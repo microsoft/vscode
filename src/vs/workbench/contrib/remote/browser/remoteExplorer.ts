@@ -33,6 +33,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { ILogService } from 'vs/platform/log/common/log';
 
 export const VIEWLET_ID = 'workbench.view.remote';
+export const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
 
 export class ForwardedPortsView extends Disposable implements IWorkbenchContribution {
 	private contextKeyListener?: IDisposable;
@@ -336,9 +337,7 @@ class OnAutoForwardedAction extends Disposable {
 		this.lastNotification?.close();
 		let message = this.basicMessage(tunnel);
 		const choices = [this.openBrowserChoice(tunnel)];
-		const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
-		const openPreviewEnabled = openPreviewEnabledContext.getValue(this.contextKeyService);
-		if (!isWeb || openPreviewEnabled) {
+		if (!isWeb || openPreviewEnabledContext.getValue(this.contextKeyService)) {
 			choices.push(this.openPreviewChoice(tunnel));
 		}
 
