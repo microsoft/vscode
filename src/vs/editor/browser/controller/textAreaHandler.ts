@@ -121,6 +121,7 @@ export class TextAreaHandler extends ViewPart {
 	private _lineHeight: number;
 	private _emptySelectionClipboard: boolean;
 	private _copyWithSyntaxHighlighting: boolean;
+	private _wrappingColumn: number | undefined;
 
 	/**
 	 * Defined only when the text area is visible (composition case).
@@ -284,11 +285,8 @@ export class TextAreaHandler extends ViewPart {
 					return TextAreaState.EMPTY;
 				}
 				let content;
-				if (this._textAreaWrapping) {
+				if (this._wrappingColumn) {
 					content = this._context.viewModel.getViewLineRenderingData(this._primaryCursorPosition.lineNumber).content;
-					// if (content && this._primaryCursorPosition.delta(currentState.selectionStart)) {
-					// 	return new TextAreaState(content, this._primaryCursorPosition.column, this._primaryCursorPosition.column + content.length, new Position(this._primaryCursorPosition.lineNumber, 0), new Position(this._primaryCursorPosition.lineNumber, content.length));
-					// }
 				}
 				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown, content);
 			},
@@ -554,6 +552,7 @@ export class TextAreaHandler extends ViewPart {
 		// wrapping points in the textarea match the wrapping points in the editor.
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const wrappingColumn = layoutInfo.wrappingColumn;
+		this._wrappingColumn = wrappingColumn;
 		if (wrappingColumn !== -1 && this._accessibilitySupport !== AccessibilitySupport.Disabled) {
 			const fontInfo = options.get(EditorOption.fontInfo);
 			this._textAreaWrapping = true;
@@ -772,7 +771,7 @@ export class TextAreaHandler extends ViewPart {
 			this._doRender({
 				lastRenderPosition: this._primaryCursorPosition,
 				top,
-				left: this._textAreaWrapping ? this._contentLeft : left,
+				left: this._wrappingColumn ? this._contentLeft : left,
 				width: this._textAreaWidth,
 				height: this._lineHeight,
 				useCover: false
@@ -788,7 +787,7 @@ export class TextAreaHandler extends ViewPart {
 		this._doRender({
 			lastRenderPosition: this._primaryCursorPosition,
 			top: top,
-			left: this._textAreaWrapping ? this._contentLeft : left,
+			left: this._wrappingColumn ? this._contentLeft : left,
 			width: this._textAreaWidth,
 			height: (canUseZeroSizeTextarea ? 0 : 1),
 			useCover: false

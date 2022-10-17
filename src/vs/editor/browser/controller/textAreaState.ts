@@ -270,6 +270,10 @@ export class PagedScreenReaderStrategy {
 				}
 			}
 		}
-		return new TextAreaState(pretext + text + posttext, pretext?.length ?? 0, pretext?.length ?? 0 + text.length, new Position(selection.startLineNumber, selection.startColumn), new Position(selection.endLineNumber, selection.endColumn));
+		if (!pretext) {
+			return new TextAreaState(text, 0, text.length, new Position(selection.startLineNumber, selection.startColumn), new Position(selection.endLineNumber, selection.endColumn));
+		} else {
+			return new TextAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, new Position(selection.startLineNumber, selection.startColumn), new Position(selection.endLineNumber, selection.endColumn));
+		}
 	}
 }
