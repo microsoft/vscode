@@ -246,7 +246,7 @@ const PyModulesToLookFor = [
 
 export class WorkspaceTagsService implements IWorkspaceTagsService {
 	declare readonly _serviceBrand: undefined;
-	private _tags: Tags | undefined;
+	private _tags: Promise<Tags> | undefined;
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -255,9 +255,9 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 		@ITextFileService private readonly textFileService: ITextFileService
 	) { }
 
-	async getTags(): Promise<Tags> {
+	getTags(): Promise<Tags> {
 		if (!this._tags) {
-			this._tags = await this.resolveWorkspaceTags();
+			this._tags = this.resolveWorkspaceTags();
 		}
 
 		return this._tags;
