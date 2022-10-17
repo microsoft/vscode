@@ -662,6 +662,10 @@ export class FolderMatch extends Disposable {
 		return this.downstreamFileMatches().length;
 	}
 
+	recursiveMatchCount(): number {
+		return this.downstreamFileMatches().reduce<number>((prev, match) => prev + match.count(), 0);
+	}
+
 	get query(): ITextQuery | null {
 		return this._query;
 	}

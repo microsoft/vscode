@@ -129,6 +129,7 @@ export class InputCodeEditorView extends CodeEditorView {
 		const result = new Array<IModelDeltaDecoration>();
 
 		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
+		const showDeletionMarkers = this.showDeletionMarkers.read(reader);
 
 		for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
 			const range = modifiedBaseRange.getInputRange(this.inputNumber);
@@ -147,7 +148,7 @@ export class InputCodeEditorView extends CodeEditorView {
 			if (modifiedBaseRange.isConflicting) {
 				blockClassNames.push('conflicting');
 			}
-			const inputClassName = this.inputNumber === 1 ? 'input1' : 'input2';
+			const inputClassName = this.inputNumber === 1 ? 'input 1' : 'input 2';
 			blockClassNames.push(inputClassName);
 
 			if (!modifiedBaseRange.isConflicting && !showNonConflictingChanges && isHandled) {
@@ -189,13 +190,16 @@ export class InputCodeEditorView extends CodeEditorView {
 
 					if (diff.rangeMappings) {
 						for (const d of diff.rangeMappings) {
-							result.push({
-								range: d.outputRange,
-								options: {
-									className: `merge-editor-diff-word ${inputClassName}`,
-									description: 'Merge Editor'
-								}
-							});
+							if (showDeletionMarkers || !d.outputRange.isEmpty()) {
+								result.push({
+									range: d.outputRange,
+									options: {
+										className: d.outputRange.isEmpty() ? `merge-editor-diff-empty-word ${inputClassName}` : `merge-editor-diff-word ${inputClassName}`,
+										description: 'Merge Editor',
+										showIfCollapsed: true,
+									}
+								});
+							}
 						}
 					}
 				}

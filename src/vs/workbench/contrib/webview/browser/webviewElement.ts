@@ -11,7 +11,7 @@ import { streamToBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { COI, Schemas } from 'vs/base/common/network';
+import { COI } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
@@ -30,14 +30,14 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
 import { parentOriginHash } from 'vs/workbench/browser/webview';
-import { asWebviewUri, decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/common/webview';
+import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/common/webview';
 import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib/webview/browser/resourceLoading';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
-export const enum WebviewMessageChannels {
+const enum WebviewMessageChannels {
 	onmessage = 'onmessage',
 	didClickLink = 'did-click-link',
 	didScroll = 'did-scroll',
@@ -96,17 +96,6 @@ namespace WebviewState {
 	export const Ready = { type: Type.Ready } as const;
 
 	export type State = typeof Ready | Initializing;
-}
-
-export interface WebviewInitInfo {
-	readonly id: string;
-	readonly providedViewType?: string;
-	readonly origin?: string;
-
-	readonly options: WebviewOptions;
-	readonly contentOptions: WebviewContentOptions;
-
-	readonly extension: WebviewExtensionDescription | undefined;
 }
 
 interface WebviewActionContext {
@@ -303,12 +292,12 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			this.handleFocusChange(true);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.wheel, (event: IMouseWheelEvent) => {
-			this._onDidWheel.fire(event);
-		}));
-
 		this._register(this.on(WebviewMessageChannels.didBlur, () => {
 			this.handleFocusChange(false);
+		}));
+
+		this._register(this.on(WebviewMessageChannels.wheel, (event: IMouseWheelEvent) => {
+			this._onDidWheel.fire(event);
 		}));
 
 		this._register(this.on(WebviewMessageChannels.didFind, (didFind: boolean) => {
@@ -379,7 +368,6 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		}));
 
 		this._register(Event.runAndSubscribe(webviewThemeDataProvider.onThemeDataChanged, () => this.style()));
-
 		this._register(_accessibilityService.onDidChangeReducedMotion(() => this.style()));
 		this._register(_accessibilityService.onDidChangeScreenReaderOptimized(() => this.style()));
 
@@ -468,7 +456,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		return this._send('message', { message, transfer });
 	}
 
-	protected async _send(channel: string, data?: any, transferable: Transferable[] = []): Promise<boolean> {
+	private async _send(channel: string, data?: any, transferable: Transferable[] = []): Promise<boolean> {
 		if (this._state.type === WebviewState.Type.Initializing) {
 			let resolve: (x: boolean) => void;
 			const promise = new Promise<boolean>(r => resolve = r);
@@ -525,7 +513,6 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			params.purpose = options.purpose;
 		}
 
-
 		COI.addSearchParam(params, true, true);
 
 		const queryString = new URLSearchParams(params).toString();
@@ -545,15 +532,17 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			parent.appendChild(this._webviewFindWidget.getDomNode());
 		}
 
-		[EventType.MOUSE_DOWN, EventType.MOUSE_MOVE, EventType.DROP].forEach(eventName => {
+		for (const eventName of [EventType.MOUSE_DOWN, EventType.MOUSE_MOVE, EventType.DROP]) {
 			this._register(addDisposableListener(parent, eventName, () => {
 				this.stopBlockingIframeDragEvents();
 			}));
-		});
+		}
 
-		[parent, window].forEach(node => this._register(addDisposableListener(node as HTMLElement, EventType.DRAG_END, () => {
-			this.stopBlockingIframeDragEvents();
-		})));
+		for (const node of [parent, window]) {
+			this._register(addDisposableListener(node, EventType.DRAG_END, () => {
+				this.stopBlockingIframeDragEvents();
+			}));
+		}
 
 		parent.appendChild(this.element);
 	}
@@ -596,7 +585,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		return false;
 	}
 
-	protected on<T = unknown>(channel: WebviewMessageChannels, handler: (data: T, e: MessageEvent) => void): IDisposable {
+	private on<T = unknown>(channel: WebviewMessageChannels, handler: (data: T, e: MessageEvent) => void): IDisposable {
 		let handlers = this._messageHandlers.get(channel);
 		if (!handlers) {
 			handlers = new Set();
@@ -645,35 +634,12 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	}
 
 	public set html(value: string) {
-		const rewrittenHtml = this.rewriteVsCodeResourceUrls(value);
 		this.doUpdateContent({
-			html: rewrittenHtml,
+			html: value,
 			options: this.content.options,
 			state: this.content.state,
 		});
 		this._onDidHtmlChange.fire(value);
-	}
-
-	private rewriteVsCodeResourceUrls(value: string): string {
-		const isRemote = this.extension?.location?.scheme === Schemas.vscodeRemote;
-		const remoteAuthority = this.extension?.location?.scheme === Schemas.vscodeRemote ? this.extension.location.authority : undefined;
-		return value
-			.replace(/(["'])(?:vscode-resource):(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
-				const uri = URI.from({
-					scheme: scheme || 'file',
-					path: decodeURIComponent(path),
-				});
-				const webviewUri = asWebviewUri(uri, { isRemote, authority: remoteAuthority }).toString();
-				return `${startQuote}${webviewUri}${endQuote}`;
-			})
-			.replace(/(["'])(?:vscode-webview-resource):(\/\/[^\s\/'"]+\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
-				const uri = URI.from({
-					scheme: scheme || 'file',
-					path: decodeURIComponent(path),
-				});
-				const webviewUri = asWebviewUri(uri, { isRemote, authority: remoteAuthority }).toString();
-				return `${startQuote}${webviewUri}${endQuote}`;
-			});
 	}
 
 	public set contentOptions(options: WebviewContentOptions) {
@@ -747,7 +713,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this._webviewFindWidget?.updateTheme(this.webviewThemeDataProvider.getTheme());
 	}
 
-	private handleFocusChange(isFocused: boolean): void {
+	protected handleFocusChange(isFocused: boolean): void {
 		this._focused = isFocused;
 		if (isFocused) {
 			this._onDidFocus.fire();

@@ -31,6 +31,7 @@ import { SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/sea
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfiguration, ISearchConfigurationProperties, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { URI } from 'vs/base/common/uri';
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	const searchView = getSearchView(viewsService);
@@ -142,6 +143,7 @@ export interface IFindInFilesArgs {
 	useExcludeSettingsAndIgnoreFiles?: boolean;
 	onlyOpenEditors?: boolean;
 }
+
 export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFilesArgs = {}) => {
 	const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
 	const mode = searchConfig.mode;
@@ -341,67 +343,11 @@ export async function findOrReplaceInFiles(accessor: ServicesAccessor, expandSea
 	});
 }
 
-export abstract class AbstractSearchAndReplaceAction extends Action {
-
-	/**
-	 * Returns element to focus after removing the given element
-	 */
-	getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleObjectTree<RenderableMatch>, elementToRemove: RenderableMatch, isTreeViewVisible: boolean): RenderableMatch {
-		const elementToFocus = this.getNextElementAfterRemoved(viewer, elementToRemove);
-		return elementToFocus || this.getPreviousElementAfterRemoved(viewer, elementToRemove, isTreeViewVisible);
-	}
-
-	getNextElementAfterRemoved(viewer: WorkbenchCompressibleObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
-		const navigator: ITreeNavigator<any> = viewer.navigate(element);
-		if (element instanceof FolderMatch) {
-			while (!!navigator.next() && !(navigator.current() instanceof FolderMatch)) { }
-		} else if (element instanceof FileMatch) {
-			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) { }
-		} else {
-			while (navigator.next() && !(navigator.current() instanceof Match)) {
-				viewer.expand(navigator.current());
-			}
-		}
-		return navigator.current();
-	}
-
-	getPreviousElementAfterRemoved(viewer: WorkbenchCompressibleObjectTree<RenderableMatch>, element: RenderableMatch, isTreeViewVisible: boolean): RenderableMatch {
-		const navigator: ITreeNavigator<any> = viewer.navigate(element);
-		let previousElement = navigator.previous();
-		// Hence take the previous element.
-		const parent = getVisibleParent(element, isTreeViewVisible);
-		if (parent === previousElement) {
-			previousElement = navigator.previous();
-		}
-
-		if (parent instanceof FileMatch && getVisibleParent(parent, isTreeViewVisible) === previousElement) {
-			previousElement = navigator.previous();
-		}
-
-		// If the previous element is a File or Folder, expand it and go to its last child.
-		// Spell out the two cases, would be too easy to create an infinite loop, like by adding another level...
-		if (element instanceof Match && previousElement && previousElement instanceof FolderMatch) {
-			navigator.next();
-			viewer.expand(previousElement);
-			previousElement = navigator.previous();
-		}
-
-		if (element instanceof Match && previousElement && previousElement instanceof FileMatch) {
-			navigator.next();
-			viewer.expand(previousElement);
-			previousElement = navigator.previous();
-		}
-
-		return previousElement;
-	}
-}
 
 class ReplaceActionRunner {
 	constructor(
 		private viewer: WorkbenchCompressibleObjectTree<RenderableMatch>,
 		private viewlet: SearchView | undefined,
-		private getElementToFocusAfterRemoved: (viewer: WorkbenchCompressibleObjectTree<RenderableMatch>, lastElementToBeRemoved: RenderableMatch, isTreeViewVisible: boolean) => RenderableMatch,
-		private getPreviousElementAfterRemoved: (viewer: WorkbenchCompressibleObjectTree<RenderableMatch>, element: RenderableMatch, isTreeViewVisible: boolean) => RenderableMatch,
 		// Services
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -410,99 +356,55 @@ class ReplaceActionRunner {
 		@IViewsService private readonly viewsService: IViewsService
 	) { }
 
-	async performReplace(element: FolderMatch | FileMatch | Match): Promise<any> {
+	async performReplace(element: RenderableMatch): Promise<any> {
 		// since multiple elements can be selected, we need to check the type of the FolderMatch/FileMatch/Match before we perform the replace.
 		const opInfo = getElementsToOperateOnInfo(this.viewer, element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
 		const elementsToReplace = opInfo.elements;
+		let focusElement = this.viewer.getFocus()[0];
 
-		const searchView = getSearchView(this.viewsService);
-		const searchResult = searchView?.searchResult;
+		if (!focusElement || (focusElement && !arrayContainsElementOrParent(focusElement, elementsToReplace)) || (focusElement instanceof SearchResult)) {
+			focusElement = element;
+		}
+
+		if (elementsToReplace.length === 0) {
+			return;
+		}
+		let nextFocusElement;
+		if (focusElement) {
+			nextFocusElement = getElementToFocusAfterRemoved(this.viewer, focusElement, elementsToReplace);
+		}
+
+		const searchResult = getSearchView(this.viewsService)?.searchResult;
 
 		if (searchResult) {
 			searchResult.batchReplace(elementsToReplace);
 		}
 
-		const currentBottomFocusElement = elementsToReplace[elementsToReplace.length - 1];
-
-		if (currentBottomFocusElement instanceof Match) {
-			const elementToFocus = this.getElementToFocusAfterReplace(currentBottomFocusElement);
-
-			if (elementToFocus) {
-				this.viewer.setFocus([elementToFocus], getSelectionKeyboardEvent());
-				this.viewer.setSelection([elementToFocus], getSelectionKeyboardEvent());
+		if (focusElement) {
+			if (!nextFocusElement) {
+				nextFocusElement = getLastNodeFromSameType(this.viewer, focusElement);
 			}
-			const elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus, currentBottomFocusElement, searchView?.isTreeLayoutViewVisible ?? false);
-
-			this.viewer.domFocus();
-
-			const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
-			if (!useReplacePreview || !elementToShowReplacePreview || this.hasToOpenFile(currentBottomFocusElement)) {
-				this.viewlet?.open(currentBottomFocusElement, true);
-			} else {
-				this.replaceService.openReplacePreview(elementToShowReplacePreview, true);
-			}
-			return;
-		} else {
-			const nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, currentBottomFocusElement, searchView?.isTreeLayoutViewVisible ?? false);
 
 			if (nextFocusElement) {
+				this.viewer.reveal(nextFocusElement);
 				this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
 				this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
-			}
 
-			this.viewer.domFocus();
-
-			if (element instanceof FileMatch) {
-				this.viewlet?.open(element, true);
-			}
-
-			return;
-		}
-	}
-
-	private getElementToFocusAfterReplace(currElement: Match): RenderableMatch {
-		const navigator: ITreeNavigator<RenderableMatch | null> = this.viewer.navigate();
-		let fileMatched = false;
-		let elementToFocus: RenderableMatch | null = null;
-		do {
-			elementToFocus = navigator.current();
-			if (elementToFocus instanceof Match) {
-				if (elementToFocus.parent().id() === currElement.parent().id()) {
-					fileMatched = true;
-					if (currElement.range().getStartPosition().isBeforeOrEqual(elementToFocus.range().getStartPosition())) {
-						// Closest next match in the same file
-						break;
+				if (nextFocusElement instanceof Match) {
+					const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
+					if (!useReplacePreview || this.hasToOpenFile(nextFocusElement)) {
+						this.viewlet?.open(nextFocusElement, true);
+					} else {
+						this.replaceService.openReplacePreview(nextFocusElement, true);
 					}
-				} else if (fileMatched) {
-					// First match in the next file (if expanded)
-					break;
-				}
-			} else if (fileMatched) {
-				if (this.viewer.isCollapsed(elementToFocus)) {
-					// Next file match (if collapsed)
-					break;
+				} else if (nextFocusElement instanceof FileMatch) {
+					this.viewlet?.open(nextFocusElement, true);
 				}
 			}
-		} while (!!navigator.next());
-		return elementToFocus!;
-	}
 
-	private getElementToShowReplacePreview(elementToFocus: RenderableMatch, currBottomElem: RenderableMatch, isTreeViewVisible: boolean): Match | null {
-		if (this.hasSameParent(elementToFocus, currBottomElem)) {
-			return <Match>elementToFocus;
 		}
-		const previousElement = this.getPreviousElementAfterRemoved(this.viewer, elementToFocus, isTreeViewVisible);
-		if (this.hasSameParent(previousElement, currBottomElem)) {
-			return <Match>previousElement;
-		}
-		return null;
-	}
 
-	private hasSameParent(element: RenderableMatch, currBottomElem: RenderableMatch): boolean {
-		if (!(currBottomElem instanceof Match)) {
-			return false;
-		}
-		return element && element instanceof Match && this.uriIdentityService.extUri.isEqual(element.parent().resource, currBottomElem.parent().resource);
+		this.viewer.domFocus();
 	}
 
 	private hasToOpenFile(currBottomElem: RenderableMatch): boolean {
@@ -518,7 +420,7 @@ class ReplaceActionRunner {
 	}
 }
 
-export class RemoveAction extends AbstractSearchAndReplaceAction {
+export class RemoveAction extends Action {
 
 	static readonly LABEL = nls.localize('RemoveAction.label', "Dismiss");
 
@@ -535,29 +437,37 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 	override async run(): Promise<any> {
 		const opInfo = getElementsToOperateOnInfo(this.viewer, this.element, this.configurationService.getValue<ISearchConfigurationProperties>('search'));
 		const elementsToRemove = opInfo.elements;
-		const searchView = getSearchView(this.viewsService);
+		let focusElement = this.viewer.getFocus()[0];
+
 		if (elementsToRemove.length === 0) {
 			return;
 		}
 
-		if (opInfo.mustReselect) {
-			for (const currentElement of elementsToRemove) {
-				const nextFocusElement = !currentElement || currentElement instanceof SearchResult || arrayContainsElementOrParent(currentElement, elementsToRemove) ?
-					this.getElementToFocusAfterRemoved(this.viewer, currentElement, searchView?.isTreeLayoutViewVisible ?? false) :
-					null;
-				if (nextFocusElement && !arrayContainsElementOrParent(nextFocusElement, elementsToRemove)) {
-					this.viewer.reveal(nextFocusElement);
-					this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
-					this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
-					break;
-				}
-			}
+		if (!focusElement || (focusElement instanceof SearchResult)) {
+			focusElement = this.element;
 		}
 
-		const searchResult = searchView?.searchResult;
+		let nextFocusElement;
+		if (opInfo.mustReselect && focusElement) {
+			nextFocusElement = getElementToFocusAfterRemoved(this.viewer, focusElement, elementsToRemove);
+		}
+
+		const searchResult = getSearchView(this.viewsService)?.searchResult;
 
 		if (searchResult) {
 			searchResult.batchRemove(elementsToRemove);
+		}
+
+		if (opInfo.mustReselect && focusElement) {
+			if (!nextFocusElement) {
+				nextFocusElement = getLastNodeFromSameType(this.viewer, focusElement);
+			}
+
+			if (nextFocusElement && !arrayContainsElementOrParent(nextFocusElement, elementsToRemove)) {
+				this.viewer.reveal(nextFocusElement);
+				this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
+				this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
+			}
 		}
 
 		this.viewer.domFocus();
@@ -565,45 +475,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 	}
 }
 
-
-export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
-
-	static readonly LABEL = nls.localize('file.replaceAll.label', "Replace All");
-	private replaceRunner: ReplaceActionRunner;
-	constructor(
-		viewlet: SearchView,
-		private fileMatch: FileMatch,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IKeybindingService keyBindingService: IKeybindingService,
-	) {
-		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(ReplaceAllAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceAllIcon));
-		this.replaceRunner = this.instantiationService.createInstance(ReplaceActionRunner, viewlet.getControl(), viewlet, this.getElementToFocusAfterRemoved, this.getPreviousElementAfterRemoved);
-	}
-
-	override async run(): Promise<any> {
-		return this.replaceRunner.performReplace(this.fileMatch);
-	}
-}
-
-export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
-
-	static readonly LABEL = nls.localize('file.replaceAll.label', "Replace All");
-	private replaceRunner: ReplaceActionRunner;
-
-	constructor(viewer: WorkbenchCompressibleObjectTree<RenderableMatch>, private folderMatch: FolderMatch,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IKeybindingService keyBindingService: IKeybindingService
-	) {
-		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceAllIcon));
-		this.replaceRunner = this.instantiationService.createInstance(ReplaceActionRunner, viewer, undefined, this.getElementToFocusAfterRemoved, this.getPreviousElementAfterRemoved);
-	}
-
-	override run(): Promise<any> {
-		return this.replaceRunner.performReplace(this.folderMatch);
-	}
-}
-
-export class ReplaceAction extends AbstractSearchAndReplaceAction {
+export class ReplaceAction extends Action {
 
 	static readonly LABEL = nls.localize('match.replace.label', "Replace");
 
@@ -615,11 +487,48 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		@IKeybindingService keyBindingService: IKeybindingService,
 	) {
 		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceIcon));
-		this.replaceRunner = this.instantiationService.createInstance(ReplaceActionRunner, viewer, viewlet, this.getElementToFocusAfterRemoved, this.getPreviousElementAfterRemoved);
+		this.replaceRunner = this.instantiationService.createInstance(ReplaceActionRunner, viewer, viewlet);
 	}
 
 	override async run(): Promise<any> {
 		return this.replaceRunner.performReplace(this.element);
+	}
+}
+
+export class ReplaceAllAction extends Action {
+
+	static readonly LABEL = nls.localize('file.replaceAll.label', "Replace All");
+	private replaceRunner: ReplaceActionRunner;
+	constructor(
+		viewlet: SearchView,
+		private fileMatch: FileMatch,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IKeybindingService keyBindingService: IKeybindingService,
+	) {
+		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(ReplaceAllAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceAllIcon));
+		this.replaceRunner = this.instantiationService.createInstance(ReplaceActionRunner, viewlet.getControl(), viewlet);
+	}
+
+	override async run(): Promise<any> {
+		return this.replaceRunner.performReplace(this.fileMatch);
+	}
+}
+
+export class ReplaceAllInFolderAction extends Action {
+
+	static readonly LABEL = nls.localize('file.replaceAll.label', "Replace All");
+	private replaceRunner: ReplaceActionRunner;
+
+	constructor(viewer: WorkbenchCompressibleObjectTree<RenderableMatch>, private folderMatch: FolderMatch,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IKeybindingService keyBindingService: IKeybindingService
+	) {
+		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceAllIcon));
+		this.replaceRunner = this.instantiationService.createInstance(ReplaceActionRunner, viewer, undefined);
+	}
+
+	override run(): Promise<any> {
+		return this.replaceRunner.performReplace(this.folderMatch);
 	}
 }
 
@@ -775,19 +684,89 @@ export const focusSearchListCommand: ICommandHandler = accessor => {
 	});
 };
 
-function getElementsToOperateOnInfo(viewer: WorkbenchCompressibleObjectTree<RenderableMatch, void>, currElement: RenderableMatch, sortConfig: ISearchConfigurationProperties): { elements: RenderableMatch[]; mustReselect: boolean } {
+export function getMultiSelectedSearchResources(viewer: WorkbenchCompressibleObjectTree<RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): URI[] {
+	return getElementsToOperateOnInfo(viewer, currElement, sortConfig).elements
+		.map((renderableMatch) => ((renderableMatch instanceof Match) ? null : renderableMatch.resource))
+		.filter((renderableMatch): renderableMatch is URI => (renderableMatch !== null));
+}
+
+function getElementsToOperateOnInfo(viewer: WorkbenchCompressibleObjectTree<RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): { elements: RenderableMatch[]; mustReselect: boolean } {
 	let elements: RenderableMatch[] = viewer.getSelection().filter((x): x is RenderableMatch => x !== null).sort((a, b) => searchComparer(a, b, sortConfig.sortOrder));
 
-	const mustReselect = elements.includes(currElement); // this indicates whether we need to re-focus/re-select on a remove.
+	const mustReselect = !currElement || elements.includes(currElement); // this indicates whether we need to re-focus/re-select on a remove.
 
 	// if selection doesn't include multiple elements, just return current focus element.
-	if (!(elements.length > 1 && elements.includes(currElement))) {
+	if (currElement && !(elements.length > 1 && elements.includes(currElement))) {
 		elements = [currElement];
 	}
 
 	return { elements, mustReselect };
 }
 
-function getVisibleParent(element: RenderableMatch, isTreeViewVisible: boolean): FileMatch | FolderMatch | SearchResult | null {
-	return (isTreeViewVisible || element instanceof Match) ? element.parent() : element.closestRoot;
+
+function compareLevels(elem1: RenderableMatch, elem2: RenderableMatch) {
+	if (elem1 instanceof Match) {
+		if (elem2 instanceof Match) {
+			return 0;
+		} else {
+			return -1;
+		}
+
+	} else if (elem1 instanceof FileMatch) {
+		if (elem2 instanceof Match) {
+			return 1;
+		} else if (elem2 instanceof FileMatch) {
+			return 0;
+		} else {
+			return -1;
+		}
+
+	} else {
+		// FolderMatch
+		if (elem2 instanceof FolderMatch) {
+			return 0;
+		} else {
+			return 1;
+		}
+	}
+}
+
+/**
+ * Returns element to focus after removing the given element
+ */
+export function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleObjectTree<RenderableMatch>, element: RenderableMatch, elementsToRemove: RenderableMatch[]): RenderableMatch | undefined {
+	const navigator: ITreeNavigator<any> = viewer.navigate(element);
+	if (element instanceof FolderMatch) {
+		while (!!navigator.next() && (!(navigator.current() instanceof FolderMatch) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) { }
+	} else if (element instanceof FileMatch) {
+		while (!!navigator.next() && (!(navigator.current() instanceof FileMatch) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
+			viewer.expand(navigator.current());
+		}
+	} else {
+		while (navigator.next() && (!(navigator.current() instanceof Match) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
+			viewer.expand(navigator.current());
+		}
+	}
+	return navigator.current();
+}
+
+/***
+ * Finds the last element in the tree with the same type as `element`
+ */
+export function getLastNodeFromSameType(viewer: WorkbenchCompressibleObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch | undefined {
+	let lastElem: RenderableMatch | null = viewer.lastVisibleElement ?? null;
+
+	while (lastElem) {
+		const compareVal = compareLevels(element, lastElem);
+		if (compareVal === -1) {
+			viewer.expand(lastElem);
+			lastElem = viewer.lastVisibleElement;
+		} else if (compareVal === 1) {
+			lastElem = viewer.getParentElement(lastElem);
+		} else {
+			return lastElem;
+		}
+	}
+
+	return undefined;
 }

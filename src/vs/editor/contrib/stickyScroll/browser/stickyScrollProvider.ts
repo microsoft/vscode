@@ -225,7 +225,7 @@ class StickyOutlineElement {
 				outlineElements = provider.children;
 			} else {
 				let tempID = '';
-				let maxTotalSumOfRanges = 0;
+				let maxTotalSumOfRanges = -1;
 				let optimalOutlineGroup = undefined;
 				for (const [_key, outlineGroup] of outlineModel.children.entries()) {
 					const totalSumRanges = StickyOutlineElement.findSumOfRangesOfGroup(outlineGroup);

@@ -161,9 +161,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	get offset() {
 		let top = 0;
 		let quickPickTop = 0;
+		if (this.isVisible(Parts.BANNER_PART)) {
+			top = this.getPart(Parts.BANNER_PART).maximumHeight;
+			quickPickTop = top;
+		}
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
-			top = this.getPart(Parts.TITLEBAR_PART).maximumHeight;
-			quickPickTop = this.titleService.isCommandCenterVisible ? 0 : top;
+			top += this.getPart(Parts.TITLEBAR_PART).maximumHeight;
+			quickPickTop = this.titleService.isCommandCenterVisible ? quickPickTop : top;
 		}
 		return { top, quickPickTop };
 	}
@@ -1019,6 +1023,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					return !this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN);
 				case Parts.EDITOR_PART:
 					return !this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN);
+				case Parts.BANNER_PART:
+					return this.workbenchGrid.isViewVisible(this.bannerPartView);
 				default:
 					return false; // any other part cannot be hidden
 			}
@@ -1301,7 +1307,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid = workbenchGrid;
 		this.workbenchGrid.edgeSnapping = this.state.runtime.fullscreen;
 
-		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart]) {
+		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
 			this._register(part.onDidVisibilityChange((visible) => {
 				if (part === sideBar) {
 					this.setSideBarHidden(!visible, true);
@@ -2096,6 +2102,21 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const activityBarWidth = this.activityBarPartView.minimumWidth;
 		const middleSectionHeight = height - titleBarHeight - statusBarHeight;
 
+		const titleAndBanner: ISerializedNode[] = [
+			{
+				type: 'leaf',
+				data: { type: Parts.TITLEBAR_PART },
+				size: titleBarHeight,
+				visible: this.isVisible(Parts.TITLEBAR_PART)
+			},
+			{
+				type: 'leaf',
+				data: { type: Parts.BANNER_PART },
+				size: bannerHeight,
+				visible: false
+			}
+		];
+
 		const activityBarNode: ISerializedLeafNode = {
 			type: 'leaf',
 			data: { type: Parts.ACTIVITYBAR_PART },
@@ -2145,18 +2166,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				type: 'branch',
 				size: width,
 				data: [
-					{
-						type: 'leaf',
-						data: { type: Parts.TITLEBAR_PART },
-						size: titleBarHeight,
-						visible: this.isVisible(Parts.TITLEBAR_PART)
-					},
-					{
-						type: 'leaf',
-						data: { type: Parts.BANNER_PART },
-						size: bannerHeight,
-						visible: false
-					},
+					...(isWeb ? titleAndBanner.reverse() : titleAndBanner),
 					{
 						type: 'branch',
 						data: middleSection,

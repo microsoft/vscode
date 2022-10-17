@@ -155,7 +155,8 @@ class DownloadAction extends Action2 {
 			precondition: IsWebContext, // Only show when running in a web browser
 			f1: true,
 			menu: [{
-				id: MenuId.StatusBarRemoteIndicatorMenu,
+				id: MenuId.StatusBarWindowIndicatorMenu,
+				when: IsWebContext
 			}]
 		});
 	}

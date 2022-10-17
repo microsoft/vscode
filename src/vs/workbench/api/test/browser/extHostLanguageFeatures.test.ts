@@ -55,6 +55,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 
 suite('ExtHostLanguageFeatures', function () {
 
@@ -121,7 +122,7 @@ suite('ExtHostLanguageFeatures', function () {
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService(), new class extends mock<IExtHostFileSystemInfo>() { });
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(null), extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService);
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(null), extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService, new class extends mock<IExtHostTelemetry>() { });
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));

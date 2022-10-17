@@ -13,7 +13,7 @@ import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows } from './util';
-import { CancellationToken, ConfigurationChangeEvent, Progress, Uri, workspace } from 'vscode';
+import { CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
@@ -400,8 +400,8 @@ export class Git {
 		return Versions.compare(Versions.fromString(this.version), Versions.fromString(version));
 	}
 
-	open(repository: string, dotGit: { path: string; commonPath?: string }): Repository {
-		return new Repository(this, repository, dotGit);
+	open(repository: string, dotGit: { path: string; commonPath?: string }, logger: LogOutputChannel): Repository {
+		return new Repository(this, repository, dotGit, logger);
 	}
 
 	async init(repository: string): Promise<void> {
@@ -913,7 +913,8 @@ export class Repository {
 	constructor(
 		private _git: Git,
 		private repositoryRoot: string,
-		readonly dotGit: { path: string; commonPath?: string }
+		readonly dotGit: { path: string; commonPath?: string },
+		private logger: LogOutputChannel
 	) { }
 
 	get git(): Git {
@@ -1996,6 +1997,16 @@ export class Repository {
 
 	async getHEAD(): Promise<Ref> {
 		try {
+			// Attempt to parse the HEAD file
+			const result = await this.getHEADFS();
+			return result;
+		}
+		catch (err) {
+			this.logger.warn(err.message);
+		}
+
+		try {
+			// Fallback to using git to determine HEAD
 			const result = await this.exec(['symbolic-ref', '--short', 'HEAD']);
 
 			if (!result.stdout) {
@@ -2003,15 +2014,35 @@ export class Repository {
 			}
 
 			return { name: result.stdout.trim(), commit: undefined, type: RefType.Head };
-		} catch (err) {
-			const result = await this.exec(['rev-parse', 'HEAD']);
-
-			if (!result.stdout) {
-				throw new Error('Error parsing HEAD');
-			}
-
-			return { name: undefined, commit: result.stdout.trim(), type: RefType.Head };
 		}
+		catch (err) { }
+
+		// Detached HEAD
+		const result = await this.exec(['rev-parse', 'HEAD']);
+
+		if (!result.stdout) {
+			throw new Error('Error parsing HEAD');
+		}
+
+		return { name: undefined, commit: result.stdout.trim(), type: RefType.Head };
+	}
+
+	async getHEADFS(): Promise<Ref> {
+		const raw = await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'HEAD'), 'utf8');
+
+		// Branch
+		const branchMatch = raw.match(/^ref: refs\/heads\/(?<name>.*)$/m);
+		if (branchMatch?.groups?.name) {
+			return { name: branchMatch.groups.name, commit: undefined, type: RefType.Head };
+		}
+
+		// Detached
+		const commitMatch = raw.match(/^(?<commit>[0-9a-f]{40})$/m);
+		if (commitMatch?.groups?.commit) {
+			return { name: undefined, commit: commitMatch.groups.commit, type: RefType.Head };
+		}
+
+		throw new Error(`Unable to parse HEAD file. HEAD file contents: ${raw}.`);
 	}
 
 	async findTrackingBranches(upstreamBranch: string): Promise<Branch[]> {
