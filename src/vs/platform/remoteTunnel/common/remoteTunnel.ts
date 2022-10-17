@@ -31,3 +31,5 @@ export const enum TunnelStatus {
 	Connecting = 'connecting',
 	Connected = 'connected',
 }
+
+export const HOST_NAME_CONFIGURATION_KEY = 'remoteTunnel.hostNameOverride';

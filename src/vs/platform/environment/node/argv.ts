@@ -249,7 +249,8 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		const reporter = errorReporter.getSubcommandReporter ? errorReporter.getSubcommandReporter(firstArg) : undefined;
 		const subcommandOptions = parseArgs(newArgs, options, reporter);
 		return <T>{
-			[firstArg]: subcommandOptions
+			[firstArg]: subcommandOptions,
+			_: []
 		};
 	}
 

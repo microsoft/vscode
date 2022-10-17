@@ -118,7 +118,7 @@ class SharedProcessMain extends Disposable {
 
 	private sharedProcessWorkerService: ISharedProcessWorkerService | undefined = undefined;
 
-	private lifecycleService: SharedProcessLifecycleService | undefined = undefined;;
+	private lifecycleService: SharedProcessLifecycleService | undefined = undefined;
 
 	constructor(private configuration: ISharedProcessConfiguration) {
 		super();
