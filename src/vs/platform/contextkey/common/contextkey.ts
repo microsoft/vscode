@@ -106,7 +106,7 @@ export abstract class ContextKeyExpr {
 		return ContextKeyNotExpr.create(key);
 	}
 	public static and(...expr: Array<ContextKeyExpression | undefined | null>): ContextKeyExpression | undefined {
-		return ContextKeyAndExpr.create(expr, null);
+		return ContextKeyAndExpr.create(expr, null, true);
 	}
 	public static or(...expr: Array<ContextKeyExpression | undefined | null>): ContextKeyExpression | undefined {
 		return ContextKeyOrExpr.create(expr, null, true);
@@ -139,7 +139,7 @@ export abstract class ContextKeyExpr {
 
 	private static _deserializeAndExpression(serialized: string, strict: boolean): ContextKeyExpression | undefined {
 		const pieces = serialized.split('&&');
-		return ContextKeyAndExpr.create(pieces.map(p => this._deserializeOne(p, strict)), null);
+		return ContextKeyAndExpr.create(pieces.map(p => this._deserializeOne(p, strict)), null, true);
 	}
 
 	private static _deserializeOne(serializedOne: string, strict: boolean): ContextKeyExpression {
@@ -1163,8 +1163,8 @@ function eliminateConstantsInArray(arr: ContextKeyExpression[]): (ContextKeyExpr
 
 class ContextKeyAndExpr implements IContextKeyExpression {
 
-	public static create(_expr: ReadonlyArray<ContextKeyExpression | null | undefined>, negated: ContextKeyExpression | null): ContextKeyExpression | undefined {
-		return ContextKeyAndExpr._normalizeArr(_expr, negated);
+	public static create(_expr: ReadonlyArray<ContextKeyExpression | null | undefined>, negated: ContextKeyExpression | null, extraRedundantCheck: boolean): ContextKeyExpression | undefined {
+		return ContextKeyAndExpr._normalizeArr(_expr, negated, extraRedundantCheck);
 	}
 
 	public readonly type = ContextKeyExprType.And;
@@ -1215,7 +1215,7 @@ class ContextKeyAndExpr implements IContextKeyExpression {
 			// no change
 			return this;
 		}
-		return ContextKeyAndExpr.create(exprArr, this.negated);
+		return ContextKeyAndExpr.create(exprArr, this.negated, false);
 	}
 
 	public evaluate(context: IContext): boolean {
@@ -1227,7 +1227,7 @@ class ContextKeyAndExpr implements IContextKeyExpression {
 		return true;
 	}
 
-	private static _normalizeArr(arr: ReadonlyArray<ContextKeyExpression | null | undefined>, negated: ContextKeyExpression | null): ContextKeyExpression | undefined {
+	private static _normalizeArr(arr: ReadonlyArray<ContextKeyExpression | null | undefined>, negated: ContextKeyExpression | null, extraRedundantCheck: boolean): ContextKeyExpression | undefined {
 		const expr: ContextKeyExpression[] = [];
 		let hasTrue = false;
 
@@ -1298,7 +1298,7 @@ class ContextKeyAndExpr implements IContextKeyExpression {
 
 			// distribute `lastElement` over `secondToLastElement`
 			const resultElement = ContextKeyOrExpr.create(
-				lastElement.expr.map(el => ContextKeyAndExpr.create([el, secondToLastElement], null)),
+				lastElement.expr.map(el => ContextKeyAndExpr.create([el, secondToLastElement], null, extraRedundantCheck)),
 				null,
 				isFinished
 			);
@@ -1311,6 +1311,22 @@ class ContextKeyAndExpr implements IContextKeyExpression {
 
 		if (expr.length === 1) {
 			return expr[0];
+		}
+
+		// resolve false AND expressions
+		if (extraRedundantCheck) {
+			for (let i = 0; i < expr.length; i++) {
+				for (let j = i + 1; j < expr.length; j++) {
+					if (expr[i].negate().equals(expr[j])) {
+						// A && !A case
+						return ContextKeyFalseExpr.INSTANCE;
+					}
+				}
+			}
+
+			if (expr.length === 1) {
+				return expr[0];
+			}
 		}
 
 		return new ContextKeyAndExpr(expr, negated);
@@ -1467,13 +1483,13 @@ class ContextKeyOrExpr implements IContextKeyExpression {
 			return expr[0];
 		}
 
-		// eliminate redundant terms
+		// resolve true OR expressions
 		if (extraRedundantCheck) {
 			for (let i = 0; i < expr.length; i++) {
 				for (let j = i + 1; j < expr.length; j++) {
-					if (implies(expr[i], expr[j])) {
-						expr.splice(j, 1);
-						j--;
+					if (expr[i].negate().equals(expr[j])) {
+						// A || !A case
+						return ContextKeyTrueExpr.INSTANCE;
 					}
 				}
 			}
@@ -1518,15 +1534,14 @@ class ContextKeyOrExpr implements IContextKeyExpression {
 				const all: ContextKeyExpression[] = [];
 				for (const left of getTerminals(LEFT)) {
 					for (const right of getTerminals(RIGHT)) {
-						all.push(ContextKeyAndExpr.create([left, right], null)!);
+						all.push(ContextKeyAndExpr.create([left, right], null, false)!);
 					}
 				}
 
-				const isFinished = (result.length === 0);
-				result.unshift(ContextKeyOrExpr.create(all, null, isFinished)!);
+				result.unshift(ContextKeyOrExpr.create(all, null, false)!);
 			}
 
-			this.negated = result[0];
+			this.negated = ContextKeyOrExpr.create(result, this, true)!;
 		}
 		return this.negated;
 	}
@@ -1664,15 +1679,6 @@ function cmp2(key1: string, value1: any, key2: string, value2: any): number {
  * Returns true if it is provable `p` implies `q`.
  */
 export function implies(p: ContextKeyExpression, q: ContextKeyExpression): boolean {
-
-	if (q.type === ContextKeyExprType.And && (p.type !== ContextKeyExprType.Or && p.type !== ContextKeyExprType.And)) {
-		// covers the case: A implies A && B
-		for (const qTerm of q.expr) {
-			if (p.equals(qTerm)) {
-				return true;
-			}
-		}
-	}
 
 	const notP = p.negate();
 	const expr = getTerminals(notP).concat(getTerminals(q));
