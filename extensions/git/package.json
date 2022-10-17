@@ -19,7 +19,8 @@
     "scmValidation",
     "tabInputTextMerge",
     "timeline",
-    "contribMergeEditorMenus"
+    "contribMergeEditorMenus",
+    "extensionLog"
   ],
   "categories": [
     "Other"
@@ -49,11 +50,6 @@
   },
   "contributes": {
     "commands": [
-      {
-        "command": "git.setLogLevel",
-        "title": "%command.setLogLevel%",
-        "category": "Git"
-      },
       {
         "command": "git.clone",
         "title": "%command.clone%",
@@ -651,10 +647,6 @@
     ],
     "menus": {
       "commandPalette": [
-        {
-          "command": "git.setLogLevel",
-          "when": "config.git.enabled && !git.missing"
-        },
         {
           "command": "git.clone",
           "when": "config.git.enabled && !git.missing"
@@ -2545,30 +2537,6 @@
           },
           "default": [],
           "markdownDescription": "%config.commandsToLog%"
-        },
-        "git.logLevel": {
-          "type": "string",
-          "default": "Info",
-          "enum": [
-            "Trace",
-            "Debug",
-            "Info",
-            "Warning",
-            "Error",
-            "Critical",
-            "Off"
-          ],
-          "enumDescriptions": [
-            "%config.logLevel.trace%",
-            "%config.logLevel.debug%",
-            "%config.logLevel.info%",
-            "%config.logLevel.warn%",
-            "%config.logLevel.error%",
-            "%config.logLevel.critical%",
-            "%config.logLevel.off%"
-          ],
-          "markdownDescription": "%config.logLevel%",
-          "scope": "window"
         },
         "git.mergeEditor": {
           "type": "boolean",
