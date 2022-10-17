@@ -229,9 +229,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 const restrictSearchToFolderFromSearch: ICommandHandler = async (accessor, folderMatch?: FolderMatchWithResource) => {
-	return searchInFolderCommand(accessor, false, undefined, folderMatch);
+	return searchWithFolderCommand(accessor, false, true, undefined, folderMatch);
 };
-
+const excludeFolderFromSearch: ICommandHandler = async (accessor, folderMatch?: FolderMatchWithResource) => {
+	return searchWithFolderCommand(accessor, false, false, undefined, folderMatch);
+};
 const RESTRICT_SEARCH_TO_FOLDER_ID = 'search.restrictSearchToFolder';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: RESTRICT_SEARCH_TO_FOLDER_ID,
@@ -239,6 +241,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ResourceFolderFocusKey),
 	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyF,
 	handler: restrictSearchToFolderFromSearch
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: Constants.ExcludeFolderFromSearchId,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ResourceFolderFocusKey),
+	handler: excludeFolderFromSearch
 });
 
 MenuRegistry.appendMenuItem(MenuId.SearchContext, {
@@ -286,7 +295,17 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 	order: 3,
 	command: {
 		id: RESTRICT_SEARCH_TO_FOLDER_ID,
-		title: nls.localize('restrictResultsToFolder', "Restrict Search to Folder...")
+		title: nls.localize('restrictResultsToFolder', "Restrict Search to Folder")
+	},
+	when: ContextKeyExpr.and(Constants.ResourceFolderFocusKey)
+});
+
+MenuRegistry.appendMenuItem(MenuId.SearchContext, {
+	group: 'search',
+	order: 4,
+	command: {
+		id: Constants.ExcludeFolderFromSearchId,
+		title: nls.localize('excludeFolderFromSearch', "Exclude Folder from Search")
 	},
 	when: ContextKeyExpr.and(Constants.ResourceFolderFocusKey)
 });
@@ -607,10 +626,10 @@ const FocusSearchListCommand: ICommandAction = {
 MenuRegistry.addCommand(FocusSearchListCommand);
 
 const searchInFolderFromExplorer: ICommandHandler = async (accessor, resource?: URI) => {
-	return searchInFolderCommand(accessor, true, resource);
+	return searchWithFolderCommand(accessor, true, true, resource);
 };
 
-const searchInFolderCommand: ICommandHandler = async (accessor, isFromExplorer: boolean, resource?: URI, folderMatch?: FolderMatchWithResource) => {
+const searchWithFolderCommand: ICommandHandler = async (accessor, isFromExplorer: boolean, isIncludes: boolean, resource?: URI, folderMatch?: FolderMatchWithResource) => {
 	const listService = accessor.get(IListService);
 	const fileService = accessor.get(IFileService);
 	const viewsService = accessor.get(IViewsService);
@@ -644,15 +663,28 @@ const searchInFolderCommand: ICommandHandler = async (accessor, isFromExplorer: 
 	if (mode === 'view') {
 		const searchView = await openSearchView(viewsService, true);
 		if (resources && resources.length && searchView) {
-			searchView.searchInFolders(await resolvedResources);
+			if (isIncludes) {
+				searchView.searchInFolders(await resolvedResources);
+			} else {
+				searchView.searchOutsideOfFolders(await resolvedResources);
+			}
 		}
 		return undefined;
 	} else {
-		return commandService.executeCommand(SearchEditorConstants.OpenEditorCommandId, {
-			filesToInclude: (await resolvedResources).join(', '),
-			showIncludesExcludes: true,
-			location: mode === 'newEditor' ? 'new' : 'reuse',
-		});
+		if (isIncludes) {
+			return commandService.executeCommand(SearchEditorConstants.OpenEditorCommandId, {
+				filesToInclude: (await resolvedResources).join(', '),
+				showIncludesExcludes: true,
+				location: mode === 'newEditor' ? 'new' : 'reuse',
+			});
+		}
+		else {
+			return commandService.executeCommand(SearchEditorConstants.OpenEditorCommandId, {
+				filesToExclude: (await resolvedResources).join(', '),
+				showIncludesExcludes: true,
+				location: mode === 'newEditor' ? 'new' : 'reuse',
+			});
+		}
 	}
 };
 
