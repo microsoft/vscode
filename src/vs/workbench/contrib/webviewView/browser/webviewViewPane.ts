@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, computeClippingRect, EventType } from 'vs/base/browser/dom';
+import { addDisposableListener, Dimension, EventType, findParentWithClass } from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { generateUuid } from 'vs/base/common/uuid';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -154,11 +155,7 @@ export class WebviewViewPane extends ViewPane {
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 
-		if (!this._webview.value) {
-			return;
-		}
-
-		this.layoutWebview();
+		this.layoutWebview(new Dimension(width, height));
 	}
 
 	private updateTreeVisibility() {
@@ -284,7 +281,7 @@ export class WebviewViewPane extends ViewPane {
 		this.layoutWebview();
 	}
 
-	private layoutWebview() {
+	private layoutWebview(dimension?: Dimension) {
 		const webviewEntry = this._webview.value;
 		if (!this._container || !webviewEntry) {
 			return;
@@ -294,12 +291,7 @@ export class WebviewViewPane extends ViewPane {
 			this._rootContainer = this.findRootContainer(this._container);
 		}
 
-		webviewEntry.layoutWebviewOverElement(this._container);
-
-		if (this._rootContainer) {
-			const { top, left, right, bottom } = computeClippingRect(this._container, this._rootContainer);
-			webviewEntry.container.style.clipPath = `polygon(${left}px ${top}px, ${right}px ${top}px, ${right}px ${bottom}px, ${left}px ${bottom}px)`;
-		}
+		webviewEntry.layoutWebviewOverElement(this._container, dimension, this._rootContainer);
 
 		// Temporary fix for https://github.com/microsoft/vscode/issues/110450
 		// There is an animation that lasts about 200ms, update the webview positioning once this animation is complete.
@@ -308,13 +300,6 @@ export class WebviewViewPane extends ViewPane {
 	}
 
 	private findRootContainer(container: HTMLElement): HTMLElement | undefined {
-		for (let el: Node | null = container; el; el = el.parentNode) {
-			if (el instanceof HTMLElement) {
-				if (el.classList.contains('monaco-scrollable-element')) {
-					return el;
-				}
-			}
-		}
-		return undefined;
+		return withNullAsUndefined(findParentWithClass(container, 'monaco-scrollable-element'));
 	}
 }
