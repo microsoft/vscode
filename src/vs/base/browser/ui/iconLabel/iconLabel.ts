@@ -14,22 +14,22 @@ import { equals } from 'vs/base/common/objects';
 import { Range } from 'vs/base/common/range';
 
 export interface IIconLabelCreationOptions {
-	supportHighlights?: boolean;
-	supportDescriptionHighlights?: boolean;
-	supportIcons?: boolean;
-	hoverDelegate?: IHoverDelegate;
+	readonly supportHighlights?: boolean;
+	readonly supportDescriptionHighlights?: boolean;
+	readonly supportIcons?: boolean;
+	readonly hoverDelegate?: IHoverDelegate;
 }
 
 export interface IIconLabelValueOptions {
 	title?: string | ITooltipMarkdownString;
 	descriptionTitle?: string;
 	hideIcon?: boolean;
-	extraClasses?: string[];
+	extraClasses?: readonly string[];
 	italic?: boolean;
 	strikethrough?: boolean;
-	matches?: IMatch[];
+	matches?: readonly IMatch[];
 	labelEscapeNewLines?: boolean;
-	descriptionMatches?: IMatch[];
+	descriptionMatches?: readonly IMatch[];
 	disabledCommand?: boolean;
 	readonly separator?: string;
 	readonly domId?: string;
@@ -241,7 +241,7 @@ class Label {
 	}
 }
 
-function splitMatches(labels: string[], separator: string, matches: IMatch[] | undefined): IMatch[][] | undefined {
+function splitMatches(labels: string[], separator: string, matches: readonly IMatch[] | undefined): IMatch[][] | undefined {
 	if (!matches) {
 		return undefined;
 	}
