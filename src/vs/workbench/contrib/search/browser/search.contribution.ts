@@ -295,7 +295,7 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 	order: 3,
 	command: {
 		id: RESTRICT_SEARCH_TO_FOLDER_ID,
-		title: nls.localize('restrictResultsToFolder', "Restrict Search to Folder...")
+		title: nls.localize('restrictResultsToFolder', "Restrict Search to Folder")
 	},
 	when: ContextKeyExpr.and(Constants.ResourceFolderFocusKey)
 });
@@ -305,7 +305,7 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 	order: 4,
 	command: {
 		id: Constants.ExcludeFolderFromSearchId,
-		title: nls.localize('excludeFolderFromSearch', "Exclude Folder from Search...")
+		title: nls.localize('excludeFolderFromSearch', "Exclude Folder from Search")
 	},
 	when: ContextKeyExpr.and(Constants.ResourceFolderFocusKey)
 });
