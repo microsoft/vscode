@@ -766,7 +766,7 @@ export class TextAreaHandler extends ViewPart {
 			this._doRender({
 				lastRenderPosition: this._primaryCursorPosition,
 				top: top,
-				left: left,
+				left: this._textAreaWrapping ? this._contentLeft : left,
 				width: this._textAreaWidth,
 				height: this._lineHeight,
 				useCover: false
@@ -782,7 +782,7 @@ export class TextAreaHandler extends ViewPart {
 		this._doRender({
 			lastRenderPosition: this._primaryCursorPosition,
 			top: top,
-			left: left,
+			left: this._textAreaWrapping ? this._contentLeft : left,
 			width: this._textAreaWidth,
 			height: (canUseZeroSizeTextarea ? 0 : 1),
 			useCover: false
