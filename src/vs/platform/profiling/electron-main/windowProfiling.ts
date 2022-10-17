@@ -13,7 +13,7 @@ import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Utils } from 'vs/platform/profiling/common/profiling';
-import { bottomUp, } from 'vs/platform/profiling/node/profilingModel';
+import { bottomUp, } from 'vs/platform/profiling/common/profilingModel';
 
 
 type TelemetrySampleData = {

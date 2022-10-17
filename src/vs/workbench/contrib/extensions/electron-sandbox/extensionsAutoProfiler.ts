@@ -16,7 +16,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { localize } from 'vs/nls';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { createSlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsSlowActions';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-sandbox/extensionHostProfiler';
@@ -24,6 +24,10 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { timeout } from 'vs/base/common/async';
+import { buildModel } from 'vs/platform/profiling/common/profilingModel';
+import { TernarySearchTree } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
@@ -103,47 +107,47 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 
 	private async _processCpuProfile(profile: IExtensionHostProfile) {
 
-		interface NamedSlice {
-			id: string;
-			total: number;
-			percentage: number;
-		}
-
-		let data: NamedSlice[] = [];
-		for (let i = 0; i < profile.ids.length; i++) {
-			const id = profile.ids[i];
-			const total = profile.deltas[i];
-			data.push({ id, total, percentage: 0 });
-		}
-
-		// merge data by identifier
-		let anchor = 0;
-		data.sort((a, b) => a.id.localeCompare(b.id));
-		for (let i = 1; i < data.length; i++) {
-			if (data[anchor].id === data[i].id) {
-				data[anchor].total += data[i].total;
-			} else {
-				anchor += 1;
-				data[anchor] = data[i];
-			}
-		}
-		data = data.slice(0, anchor + 1);
-
-		const duration = profile.endTime - profile.startTime;
-		const percentage = duration / 100;
-		let top: NamedSlice | undefined;
-		for (const slice of data) {
-			slice.percentage = Math.round(slice.total / percentage);
-			if (!top || top.percentage < slice.percentage) {
-				top = slice;
+		// get all extensions
+		await this._extensionService.whenInstalledExtensionsRegistered();
+		const extensions = this._extensionService.extensions;
+		const searchTree = TernarySearchTree.forUris<IExtensionDescription>();
+		for (const extension of extensions) {
+			if (extension.extensionLocation.scheme === Schemas.file) {
+				searchTree.set(URI.file(extension.extensionLocation.fsPath), extension);
 			}
 		}
 
-		if (!top) {
-			return;
+		// associate extensions to profile node
+		const model = buildModel(profile.data);
+		const extensionTimes = new Map<string, number>();
+		for (const node of model.nodes) {
+			const loc = model.locations[node.locationId];
+			let extension: IExtensionDescription | undefined;
+			try {
+				extension = searchTree.findSubstr(URI.parse(loc.callFrame.url));
+			} catch {
+				// ignore
+			}
+			if (extension) {
+				const key = ExtensionIdentifier.toKey(extension.identifier);
+				const value = extensionTimes.get(key) ?? 0;
+				extensionTimes.set(key, value + node.selfTime);
+			}
 		}
 
-		const extension = await this._extensionService.getExtension(top.id);
+		// find max
+		let top: string = '';
+		let topAggregation = -1;
+		for (const [id, aggregated] of extensionTimes) {
+			if (aggregated > topAggregation) {
+				topAggregation = aggregated;
+				top = id;
+			}
+		}
+		const topPercentage = topAggregation / (model.duration / 100);
+
+
+		const extension = await this._extensionService.getExtension(top);
 		if (!extension) {
 			// not an extension => idle, gc, self?
 			return;
@@ -153,11 +157,11 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		// print message to log
 		const path = joinPath(this._environmentServie.tmpDir, `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
 		await this._fileService.writeFile(path, VSBuffer.fromString(JSON.stringify(profile.data)));
-		this._logService.warn(`UNRESPONSIVE extension host: '${top.id}' took ${top.percentage}% of ${duration / 1e3}ms, saved PROFILE here: '${path}'`, data);
+		this._logService.warn(`UNRESPONSIVE extension host: '${top}' took ${topPercentage}% of ${topAggregation / 1e3}ms, saved PROFILE here: '${path}'`, profile);
 
 		type UnresponsiveData = {
 			duration: number;
-			data: NamedSlice[];
+			data: string[];
 			id: string;
 		};
 		type UnresponsiveDataClassification = {
@@ -168,8 +172,8 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			id: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Top extensions id that took most of the duration' };
 		};
 		this._telemetryService.publicLog2<UnresponsiveData, UnresponsiveDataClassification>('exthostunresponsive', {
-			duration,
-			data,
+			duration: model.duration,
+			data: Array.from(extensionTimes.keys()),
 			id: ExtensionIdentifier.toKey(extension.identifier),
 		});
 
@@ -177,7 +181,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		this._extensionProfileService.setUnresponsiveProfile(extension.identifier, profile);
 
 		// prompt: when really slow/greedy
-		if (!(top.percentage >= 99 && top.total >= 5e6)) {
+		if (!(topPercentage >= 99 && topAggregation >= 5e6)) {
 			return;
 		}
 
