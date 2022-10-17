@@ -93,6 +93,7 @@ import { combinedDisposable } from 'vs/base/common/lifecycle';
 import { checkProposedApiEnabled, ExtensionIdentifierSet, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
+import { EditSessionIdentityMatch } from 'vs/platform/workspace/common/editSessions';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -1393,6 +1394,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TabInputInteractiveWindow: extHostTypes.InteractiveWindowInput,
 			TerminalExitReason: extHostTypes.TerminalExitReason,
 			LogLevel: LogLevel,
+			EditSessionIdentityMatch: EditSessionIdentityMatch
 		};
 	};
 }
