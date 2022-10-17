@@ -87,9 +87,8 @@ Name: "runcode"; Description: "{cm:RunAfter,{#NameShort}}"; GroupDescription: "{
 Name: "{app}"; AfterInstall: DisableAppDirInheritance
 
 [Files]
-Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\appx,\appx\*,\resources\app\product.json"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\resources\app\product.json"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "tools\*"; DestDir: "{app}\tools"; Flags: ignoreversion
-Source: "appx\*"; DestDir: "{app}\appx"; BeforeInstall: RemoveAppxPackage; AfterInstall: AddAppxPackage; Flags: ignoreversion
 Source: "{#ProductJsonPath}"; DestDir: "{code:GetDestDir}\resources\app"; Flags: ignoreversion
 
 [Icons]
@@ -1419,28 +1418,16 @@ begin
     Result := False;
 end;
 
-procedure AddAppxPackage();
-var
-  AddAppxPackageResultCode: Integer;
-begin
-  if IsWindows11OrLater() and QualityIsInsiders() then begin
-    Exec('powershell.exe', '-Command ''Add-AppxPackage -Path """' + ExpandConstant('{app}') + '\appx\{#AppxPackage}""" -ExternalLocation """' + ExpandConstant('{app}') + '\appx"""''', '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
-  end;
-end;
-
-procedure RemoveAppxPackage();
-var
-  RemoveAppxPackageResultCode: Integer;
-begin
-  if IsWindows11OrLater() and QualityIsInsiders() then begin
-    Exec('powershell.exe', '-Command ''Remove-AppxPackage -Package """{#AppxPackageFullname}"""}''', '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
-  end;
-end;
-
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   UpdateResultCode: Integer;
 begin
+  if (CurStep = ssInstall) and IsWindows11OrLater() and QualityIsInsiders() then begin
+    ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Remove-AppxPackage -Package ''{#AppxPackageFullname}'''), '', SW_HIDE, ewWaitUntilTerminated, UpdateResultCode);
+  end;
+  if (CurStep = ssPostInstall) and IsWindows11OrLater() and QualityIsInsiders() then begin
+    ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Add-AppxPackage -Path ''' + ExpandConstant('{app}\appx\{#AppxPackage}') + ''' -ExternalLocation ''' + ExpandConstant('{app}\appx') + ''''), '', SW_HIDE, ewWaitUntilTerminated, UpdateResultCode);
+  end;
   if IsBackgroundUpdate() and (CurStep = ssPostInstall) then
   begin
     CreateMutex('{#AppMutex}-ready');
