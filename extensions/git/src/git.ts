@@ -17,7 +17,6 @@ import { CancellationToken, ConfigurationChangeEvent, Progress, Uri, workspace }
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
-import * as ini from 'ini';
 import { StringDecoder } from 'string_decoder';
 import { OutputChannelLogger } from './log';
 import TelemetryReporter from '@vscode/extension-telemetry';
@@ -830,20 +829,62 @@ export function parseGitmodules(raw: string): Submodule[] {
 	return result;
 }
 
+function parseGitConfigSections(raw: string, sectionRegex: RegExp): Iterable<string> {
+	const regex = /^\[.+\]$/gm;
+	const sections: string[] = [];
+
+	let position = 0;
+	let match: RegExpExecArray | null = null;
+
+	const sectionMatch = (sectionRaw: string) => {
+		if (sectionRegex.test(sectionRaw)) {
+			sections.push(sectionRaw);
+		}
+	};
+
+	while (match = regex.exec(raw)) {
+		sectionMatch(raw.substring(position, match.index));
+		position = match.index;
+	}
+	sectionMatch(raw.substring(position));
+
+	return sections;
+}
+
 export function parseRemotes(raw: string): Remote[] {
 	const remotes: Remote[] = [];
-	const config = ini.parse(raw);
+	const sectionRegEx = /^\[remote\s+"([^"]+)"\]$/m;
 
-	for (const section of Object.keys(config)) {
-		const remoteMatch = /^remote\s"(?<name>[^"]+)"/.exec(section);
-		if (remoteMatch?.groups?.name) {
-			remotes.push({
-				name: remoteMatch.groups.name,
-				fetchUrl: config[section]['url'],
-				pushUrl: config[section]['pushurl'] ?? config[section]['url'],
+	// Remote sections
+	for (const sectionRaw of parseGitConfigSections(raw, sectionRegEx)) {
+		const remoteMatch = sectionRegEx.exec(sectionRaw);
+		if (remoteMatch?.length === 2) {
+			const remote: MutableRemote = { name: remoteMatch[1], isReadOnly: false };
+
+			// Properties
+			for (const propertyLine of sectionRaw.substring(remoteMatch[0].length).split(/\r?\n/)) {
+				const propertyMatch = /^\s*(\w+)\s*=\s*(.*)$/.exec(propertyLine);
+
+				if (!propertyMatch) {
+					continue;
+				}
+
+				const [, key, value] = propertyMatch;
+
+				if (key === 'url' && !remote.fetchUrl) {
+					remote.fetchUrl = value;
+				}
+				if (key === 'pushurl' && !remote.pushUrl) {
+					remote.pushUrl = value;
+				}
 				// https://github.com/microsoft/vscode/issues/45271
-				isReadOnly: config[section]['pushurl'] === 'no_push'
-			});
+				if (key === 'pushurl' && value === 'no_push') {
+					remote.isReadOnly = true;
+				}
+			}
+
+			remote.pushUrl ??= remote.fetchUrl;
+			remotes.push(remote);
 		}
 	}
 
@@ -2133,8 +2174,8 @@ export class Repository {
 	async getRemotes(): Promise<Remote[]> {
 		try {
 			// Attempt to parse the config file
-			const result = await this.getRemotesFS();
-			return result;
+			const remotes = await this.getRemotesFS();
+			return remotes;
 		}
 		catch (err) {
 			this.outputChannelLogger.logWarning(err.message);
