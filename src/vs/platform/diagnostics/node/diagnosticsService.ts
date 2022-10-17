@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { virtualMachineHint } from 'vs/base/node/id';
 import { IDirent, Promises as pfs } from 'vs/base/node/pfs';
 import { listProcesses } from 'vs/base/node/ps';
-import { IDiagnosticsService, IMachineInfo, IMainProcessDiagnostics, IRemoteDiagnosticError, IRemoteDiagnosticInfo, isRemoteDiagnosticError, IWorkspaceInformation, PerformanceInfo, SystemInfo, WorkspaceStatItem, WorkspaceStats } from 'vs/platform/diagnostics/common/diagnostics';
+import { IDiagnosticsService, IMachineInfo, IMainProcessDiagnostics, IRemoteDiagnosticError, IRemoteDiagnosticInfo, isRemoteDiagnosticError, IWorkspaceFilesInfo, IWorkspaceInformation, PerformanceInfo, SystemInfo, WorkspaceStatItem, WorkspaceStats } from 'vs/platform/diagnostics/common/diagnostics';
 import { ByteSize } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -508,8 +508,10 @@ export class DiagnosticsService implements IDiagnosticsService {
 		}
 	}
 
-	public async getWorkspaceFileExtensions(workspace: IWorkspace): Promise<{ extensions: string[] }> {
-		const items = new Set<string>();
+	public async getWorkspaceFilesInfo(workspace: IWorkspace): Promise<IWorkspaceFilesInfo> {
+		const extensions = new Set<string>();
+		const configFiles = new Set<string>();
+		const launchConfigFiles = new Set<string>();
 		for (const { uri } of workspace.folders) {
 			const folderUri = URI.revive(uri);
 			if (folderUri.scheme !== Schemas.file) {
@@ -518,10 +520,16 @@ export class DiagnosticsService implements IDiagnosticsService {
 			const folder = folderUri.fsPath;
 			try {
 				const stats = await collectWorkspaceStats(folder, ['node_modules', '.git']);
-				stats.fileTypes.forEach(item => items.add(item.name));
+				stats.fileTypes.forEach(item => extensions.add(item.name));
+				stats.configFiles.forEach(item => configFiles.add(item.name));
+				stats.launchConfigFiles.forEach(item => launchConfigFiles.add(item.name));
 			} catch { }
 		}
-		return { extensions: [...items] };
+		return {
+			extensions: [...extensions],
+			configFiles: [...configFiles],
+			launchConfigFiles: [...launchConfigFiles]
+		};
 	}
 
 	public async reportWorkspaceStats(workspace: IWorkspaceInformation): Promise<void> {

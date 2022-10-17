@@ -12,7 +12,7 @@ import { distinct, shuffle } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { LifecyclePhase, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { DynamicWorkspaceRecommendations } from 'vs/workbench/contrib/extensions/browser/dynamicWorkspaceRecommendations';
+import { DynamicWorkspaceRecommendations } from 'vs/workbench/contrib/extensions/browser/dynamicWorkspaceRecommendations2';
 import { ExeBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/exeBasedRecommendations';
 import { ExperimentalRecommendations } from 'vs/workbench/contrib/extensions/browser/experimentalRecommendations';
 import { WorkspaceRecommendations } from 'vs/workbench/contrib/extensions/browser/workspaceRecommendations';
@@ -161,6 +161,11 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			important: this.toExtensionRecommendations(this.configBasedRecommendations.importantRecommendations),
 			others: this.toExtensionRecommendations(this.configBasedRecommendations.otherRecommendations)
 		};
+	}
+
+	async getDynamicRecommendations(): Promise<string[]> {
+		await this.dynamicWorkspaceRecommendations.activate();
+		return this.toExtensionRecommendations(this.dynamicWorkspaceRecommendations.recommendations);
 	}
 
 	async getOtherRecommendations(): Promise<string[]> {

@@ -18,7 +18,7 @@ export interface IDiagnosticsService {
 	getPerformanceInfo(mainProcessInfo: IMainProcessDiagnostics, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo>;
 	getSystemInfo(mainProcessInfo: IMainProcessDiagnostics, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<SystemInfo>;
 	getDiagnostics(mainProcessInfo: IMainProcessDiagnostics, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<string>;
-	getWorkspaceFileExtensions(workspace: IWorkspace): Promise<{ extensions: string[] }>;
+	getWorkspaceFilesInfo(workspace: IWorkspace): Promise<IWorkspaceFilesInfo>;
 	reportWorkspaceStats(workspace: IWorkspaceInformation): Promise<void>;
 }
 
@@ -42,6 +42,7 @@ export interface IDiagnosticInfo {
 	workspaceMetadata?: IStringDictionary<WorkspaceStats>;
 	processes?: ProcessItem;
 }
+
 export interface SystemInfo extends IMachineInfo {
 	processArgs: string;
 	gpuStatus: any;
@@ -63,6 +64,12 @@ export interface IDiagnosticInfoOptions {
 	includeProcesses?: boolean;
 	folders?: UriComponents[];
 	includeExtensions?: boolean;
+}
+
+export interface IWorkspaceFilesInfo {
+	readonly extensions: string[];
+	readonly configFiles: string[];
+	readonly launchConfigFiles: string[];
 }
 
 export interface WorkspaceStatItem {
@@ -115,8 +122,8 @@ export class NullDiagnosticsService implements IDiagnosticsService {
 		return '';
 	}
 
-	async getWorkspaceFileExtensions(workspace: IWorkspace): Promise<{ extensions: string[] }> {
-		return { extensions: [] };
+	async getWorkspaceFilesInfo(workspace: IWorkspace): Promise<IWorkspaceFilesInfo> {
+		return { extensions: [], configFiles: [], launchConfigFiles: [] };
 	}
 
 	async reportWorkspaceStats(workspace: IWorkspaceInformation): Promise<void> { }

@@ -15,6 +15,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { asJson, IRequestService } from 'vs/platform/request/common/request';
+import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 export class ExtensionTipsService extends Disposable implements IExtensionTipsService {
 
@@ -47,6 +48,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	async getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
+		return [];
+	}
+
+	async getDynamicWrokspaceTips(workspace: IWorkspace, workspaceDependencies?: string[], openedFileTypes?: string[], activatedExtensions?: string[]): Promise<string[]> {
 		return [];
 	}
 

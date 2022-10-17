@@ -25,6 +25,10 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { SessionOperations } from '@vscode/vscode-extension-recommender';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
+import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+
 
 type ExeExtensionRecommendationsClassification = {
 	owner: 'sandy081';
@@ -60,6 +64,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		@IStorageService private readonly storageService: IStorageService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
+		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
 		@IRequestService requestService: IRequestService,
@@ -113,6 +118,24 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 
 	override getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
 		return this.getValidExecutableBasedExtensionTips(this.allOtherExecutableTips);
+	}
+
+	private sessionOperations: SessionOperations | undefined;
+	override async getDynamicWrokspaceTips(workspace: IWorkspace, workspaceDependencies?: string[], openedFileTypes?: string[], activatedExtensions?: string[]): Promise<string[]> {
+		if (!this.sessionOperations) {
+			this.sessionOperations = new SessionOperations();
+		}
+		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const { extensions: workspaceFileTypes, configFiles: workspaceConfigTypes } = await this.diagnosticsService.getWorkspaceFilesInfo(workspace);
+		const result = await this.sessionOperations.run({
+			workspaceDependencies,
+			activatedExtensions,
+			openedFileTypes,
+			previouslyInstalled: installed.map(i => i.identifier.id.toLowerCase()),
+			workspaceFileTypes,
+			workspaceConfigTypes,
+		}, 0.8);
+		return result.map(({ extensionId }) => extensionId);
 	}
 
 	private async collectTips(): Promise<void> {

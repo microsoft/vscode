@@ -33,7 +33,7 @@ import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagemen
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementChannel, ExtensionTipsChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
+import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-browser/extensionTipsService';
 import { ExtensionManagementService, INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { ExtensionRecommendationNotificationServiceChannelClient } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
@@ -118,7 +118,7 @@ class SharedProcessMain extends Disposable {
 
 	private sharedProcessWorkerService: ISharedProcessWorkerService | undefined = undefined;
 
-	private lifecycleService: SharedProcessLifecycleService | undefined = undefined;;
+	private lifecycleService: SharedProcessLifecycleService | undefined = undefined;
 
 	constructor(private configuration: ISharedProcessConfiguration) {
 		super();

@@ -45,13 +45,13 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
 import { Schemas } from 'vs/base/common/network';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 

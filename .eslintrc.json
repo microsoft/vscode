@@ -268,7 +268,8 @@
 							"xterm-headless",
 							"yauzl",
 							"yazl",
-							"zlib"
+							"zlib",
+							"@vscode/vscode-extension-recommender"
 						]
 					},
 					{

@@ -834,6 +834,7 @@ export class ExtensionsListView extends ViewPane {
 
 	private isRecommendationsQuery(query: Query): boolean {
 		return ExtensionsListView.isWorkspaceRecommendedExtensionsQuery(query.value)
+			|| ExtensionsListView.isDynamicRecommendedExtensionsQuery(query.value)
 			|| ExtensionsListView.isKeymapsRecommendedExtensionsQuery(query.value)
 			|| ExtensionsListView.isLanguageRecommendedExtensionsQuery(query.value)
 			|| ExtensionsListView.isExeRecommendedExtensionsQuery(query.value)
@@ -861,6 +862,11 @@ export class ExtensionsListView extends ViewPane {
 		// Exe recommendations
 		if (ExtensionsListView.isExeRecommendedExtensionsQuery(query.value)) {
 			return this.getExeRecommendationsModel(query, options, token);
+		}
+
+		// Dynamic recommendations
+		if (ExtensionsListView.isDynamicRecommendedExtensionsQuery(query.value)) {
+			return this.getDynamicRecommendationsModel(query, options, token);
 		}
 
 		// All recommendations
@@ -909,6 +915,13 @@ export class ExtensionsListView extends ViewPane {
 	private async getWorkspaceRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
 		const recommendations = await this.getWorkspaceRecommendations();
 		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations-workspace' }, token));
+		const result: IExtension[] = coalesce(recommendations.map(id => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
+		return new PagedModel(result);
+	}
+
+	private async getDynamicRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
+		const recommendations = await this.extensionRecommendationsService.getDynamicRecommendations();
+		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations-dynamic' }, token));
 		const result: IExtension[] = coalesce(recommendations.map(id => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
 		return new PagedModel(result);
 	}
@@ -1151,6 +1164,10 @@ export class ExtensionsListView extends ViewPane {
 
 	static isExeRecommendedExtensionsQuery(query: string): boolean {
 		return /@exe:.+/i.test(query);
+	}
+
+	static isDynamicRecommendedExtensionsQuery(query: string): boolean {
+		return /@recommended:dynamic/i.test(query);
 	}
 
 	static isKeymapsRecommendedExtensionsQuery(query: string): boolean {

@@ -42,6 +42,7 @@ export interface IExtensionRecommendationsService {
 	getFileBasedRecommendations(): string[];
 	getExeBasedRecommendations(exe?: string): Promise<{ important: string[]; others: string[] }>;
 	getConfigBasedRecommendations(): Promise<{ important: string[]; others: string[] }>;
+	getDynamicRecommendations(): Promise<string[]>;
 	getWorkspaceRecommendations(): Promise<string[]>;
 	getKeymapRecommendations(): string[];
 	getLanguageRecommendations(): string[];

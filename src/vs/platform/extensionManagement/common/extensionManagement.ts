@@ -12,6 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
@@ -491,6 +492,8 @@ export interface IExtensionTipsService {
 	getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;
 	getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;
 	getAllWorkspacesTips(): Promise<IWorkspaceTips[]>;
+
+	getDynamicWrokspaceTips(workspace: IWorkspace, workspaceDependencies?: string[], openedFileTypes?: string[], activatedExtensions?: string[]): Promise<string[]>;
 }
 
 

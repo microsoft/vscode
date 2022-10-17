@@ -92,7 +92,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	private async resolveWorkspaceLanguageIds() {
 		if (this.hasResolvedWorkspaceLanguageIds) { return; }
 		this.hasResolvedWorkspaceLanguageIds = true;
-		const fileExtensions = await this._diagnosticsService.getWorkspaceFileExtensions(this._workspaceContextService.getWorkspace());
+		const fileExtensions = await this._diagnosticsService.getWorkspaceFilesInfo(this._workspaceContextService.getWorkspace());
 
 		let count = 0;
 		for (const ext of fileExtensions.extensions) {
