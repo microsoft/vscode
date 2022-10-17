@@ -59,7 +59,7 @@ where
 	} else {
 		0
 	};
-println!("len: {}", archive.len());
+
 	for i in 0..archive.len() {
 		reporter.report_progress(i as u64, archive.len() as u64);
 		let mut file = archive
