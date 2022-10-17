@@ -66,7 +66,6 @@ abstract class BaseOrganizeImportsCommand implements Command {
 			},
 			// Deprecated in 4.9; `mode` takes priority
 			skipDestructiveCodeActions: this.mode === OrganizeImportsMode.SortAndCombine,
-			// @ts-expect-error until 4.9
 			mode: typeConverters.OrganizeImportsMode.toProtocolOrganizeImportsMode(this.mode),
 		};
 		const response = await this.client.interruptGetErr(() => this.client.execute('organizeImports', args, nulToken));
