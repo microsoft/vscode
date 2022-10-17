@@ -64,6 +64,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		super();
 		this._domNode = document.createElement('div');
 		this._domNode.className = Codicon.lightBulb.classNames;
+		this._register(Gesture.ignoreTarget(this._domNode));
 
 		this._editor.addContentWidget(this);
 
@@ -75,7 +76,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 		}));
 
-		Gesture.ignoreTarget(this._domNode);
 		this._register(dom.addStandardDisposableGenericMouseDownListener(this._domNode, e => {
 			if (this.state.type !== LightBulbState.Type.Showing) {
 				return;
