@@ -24,10 +24,12 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { timeout } from 'vs/base/common/async';
-import { buildModel } from 'vs/platform/profiling/common/profilingModel';
+import { bottomUp, buildModel } from 'vs/platform/profiling/common/profilingModel';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { TelemetrySampleData, TelemetrySampleDataClassification } from 'vs/platform/profiling/common/profilingTelemetrySpec';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
@@ -154,6 +156,8 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		}
 
 
+		const sessionId = generateUuid();
+
 		// print message to log
 		const path = joinPath(this._environmentServie.tmpDir, `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
 		await this._fileService.writeFile(path, VSBuffer.fromString(JSON.stringify(profile.data)));
@@ -161,27 +165,45 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 
 		type UnresponsiveData = {
 			duration: number;
+			sessionId: string;
 			data: string[];
 			id: string;
 		};
 		type UnresponsiveDataClassification = {
 			owner: 'jrieken';
 			comment: 'Profiling data that was collected while the extension host was unresponsive';
+			sessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Identifier of a profiling session' };
 			duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration for which the extension host was unresponsive' };
 			data: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Extensions ids and core parts that were active while the extension host was frozen' };
 			id: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Top extensions id that took most of the duration' };
 		};
 		this._telemetryService.publicLog2<UnresponsiveData, UnresponsiveDataClassification>('exthostunresponsive', {
+			sessionId,
 			duration: model.duration,
 			data: Array.from(extensionTimes.keys()),
 			id: ExtensionIdentifier.toKey(extension.identifier),
 		});
 
+		// send heavy samples
+		const samples = bottomUp(model, 5, false);
+		for (const sample of samples) {
+			const data: TelemetrySampleData = {
+				sessionId,
+				selfTime: sample.selfTime,
+				totalTime: sample.totalTime,
+				percentage: sample.percentage,
+				functionName: sample.location,
+				callstack: sample.caller.map(c => `${c.percentage}|${c.location}`).join('<'),
+				extensionId: searchTree.findSubstr(URI.parse(sample.url))?.identifier.value ?? '<not_extension>'
+			};
+			this._telemetryService.publicLog2<TelemetrySampleData, TelemetrySampleDataClassification>('exthostunresponsive.sample', data);
+		}
+
 		// add to running extensions view
 		this._extensionProfileService.setUnresponsiveProfile(extension.identifier, profile);
 
 		// prompt: when really slow/greedy
-		if (!(topPercentage >= 99 && topAggregation >= 5e6)) {
+		if (!(topPercentage >= 95 && topAggregation >= 5e6)) {
 			return;
 		}
 

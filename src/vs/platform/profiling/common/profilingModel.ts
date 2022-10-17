@@ -331,17 +331,28 @@ function isSpecial(call: CdpCallFrame): boolean {
 	return call.functionName.startsWith('(') && call.functionName.endsWith(')');
 }
 
+function isModel(arg: IV8Profile | IProfileModel): arg is IProfileModel {
+	return Array.isArray((<IProfileModel>arg).locations)
+		&& Array.isArray((<IProfileModel>arg).samples)
+		&& Array.isArray((<IProfileModel>arg).timeDeltas);
+}
+
 export interface BottomUpSample {
 	selfTime: number;
 	totalTime: number;
 	location: string;
+	url: string;
 	caller: { percentage: number; location: string }[];
 	percentage: number;
 	isSpecial: boolean;
 }
 
-export function bottomUp(p: IV8Profile, topN: number, fullPaths: boolean = false) {
-	const model = buildModel(p);
+export function bottomUp(profileOrModel: IV8Profile | IProfileModel, topN: number, fullPaths: boolean = false) {
+
+	const model = isModel(profileOrModel)
+		? profileOrModel
+		: buildModel(profileOrModel);
+
 	const root = BottomUpNode.root();
 	for (const node of model.nodes) {
 		processNode(root, node, model);
@@ -375,6 +386,7 @@ export function bottomUp(p: IV8Profile, topN: number, fullPaths: boolean = false
 			selfTime: node.selfTime / 1000,
 			totalTime: node.aggregateTime / 1000,
 			location: printCallFrame(node.callFrame),
+			url: node.callFrame.url,
 			caller: [],
 			percentage: Math.round(node.selfTime / (model.duration / 100)),
 			isSpecial: isSpecial(node.callFrame)
