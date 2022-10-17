@@ -69,6 +69,7 @@ import { ILanguageStatus } from 'vs/workbench/services/languageStatus/common/lan
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import * as search from 'vs/workbench/services/search/common/search';
+import { EditSessionIdentityMatch } from 'vs/platform/workspace/common/editSessions';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -1421,6 +1422,7 @@ export interface ExtHostWorkspaceShape {
 	$handleTextSearchResult(result: search.IRawFileMatch2, requestId: number): void;
 	$onDidGrantWorkspaceTrust(): void;
 	$getEditSessionIdentifier(folder: UriComponents, token: CancellationToken): Promise<string | undefined>;
+	$provideEditSessionIdentityMatch(folder: UriComponents, identity1: string, identity2: string, token: CancellationToken): Promise<EditSessionIdentityMatch | undefined>;
 }
 
 export interface ExtHostFileSystemInfoShape {
