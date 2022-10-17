@@ -248,7 +248,12 @@ export abstract class EditorCommand extends Command {
 		};
 	}
 
-	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
+	public static runEditorCommand(
+		accessor: ServicesAccessor,
+		args: any,
+		precondition: ContextKeyExpression | undefined,
+		runner: (accessor: ServicesAccessor | null, editor: ICodeEditor, args: any) => void | Promise<void>
+	): void | Promise<void> {
 		const codeEditorService = accessor.get(ICodeEditorService);
 
 		// Find the editor with text focus or active
@@ -260,13 +265,17 @@ export abstract class EditorCommand extends Command {
 
 		return editor.invokeWithinContext((editorAccessor) => {
 			const kbService = editorAccessor.get(IContextKeyService);
-			if (!kbService.contextMatchesRules(withNullAsUndefined(this.precondition))) {
+			if (!kbService.contextMatchesRules(withNullAsUndefined(precondition))) {
 				// precondition does not hold
 				return;
 			}
 
-			return this.runEditorCommand(editorAccessor, editor!, args);
+			return runner(editorAccessor, editor, args);
 		});
+	}
+
+	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
+		return EditorCommand.runEditorCommand(accessor, args, this.precondition, (accessor, editor, args) => this.runEditorCommand(accessor, editor, args));
 	}
 
 	public abstract runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void>;
