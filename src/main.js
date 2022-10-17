@@ -201,10 +201,6 @@ function configureCommandlineSwitchesSync(cliArgs) {
 					// If the locale is `qps-ploc`, the Microsoft
 					// Pseudo Language Language Pack is being used.
 					// In that case, use `en` as the Electron locale.
-					// The if statement can be removed when Electron officially
-					// adopts the getSystemLocale API.
-					// Ref https://github.com/microsoft/vscode/issues/159813
-					// and https://github.com/electron/electron/pull/35697
 					const localeToUse = (!argvValue || argvValue === 'qps-ploc') ?
 						'en' : argvValue;
 					app.commandLine.appendSwitch('lang', localeToUse);
@@ -574,14 +570,16 @@ async function resolveNlsConfiguration() {
 		// code is here.
 
 		// The ternary and ts-ignore can both be removed once Electron
-		// officially adopts the getSystemLocale API.
-		// Ref https://github.com/electron/electron/pull/35697
+		// officially adopts the getSystemPreferredLanguages API.
+		// Ref https://github.com/microsoft/vscode/issues/159813
+		// and https://github.com/electron/electron/pull/36035
 		/**
 		 * @type string
 		 */
-		let appLocale = (product.quality === 'insider' || product.quality === 'exploration') ?
+		// @ts-ignore API not yet available in the official Electron
+		let appLocale = ((product.quality === 'insider' || product.quality === 'exploration') && app?.getSystemPreferredLanguages()?.length) ?
 			// @ts-ignore API not yet available in the official Electron
-			app.getSystemLocale() : app.getLocale();
+			app.getSystemPreferredLanguages()[0] : app.getLocale();
 		if (!appLocale) {
 			nlsConfiguration = { locale: 'en', availableLanguages: {} };
 		} else {
