@@ -8,7 +8,7 @@
  */
 
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
 
@@ -140,9 +140,9 @@ export namespace CompletionTriggerKind {
 export namespace OrganizeImportsMode {
 	export function toProtocolOrganizeImportsMode(mode: PConst.OrganizeImportsMode): Proto.OrganizeImportsMode {
 		switch (mode) {
-			case PConst.OrganizeImportsMode.All: return Proto.OrganizeImportsMode.All;
-			case PConst.OrganizeImportsMode.SortAndCombine: return Proto.OrganizeImportsMode.SortAndCombine;
-			case PConst.OrganizeImportsMode.RemoveUnused: return Proto.OrganizeImportsMode.RemoveUnused;
+			case PConst.OrganizeImportsMode.All: return 'All' as Proto.OrganizeImportsMode.All;
+			case PConst.OrganizeImportsMode.SortAndCombine: return 'SortAndCombine' as Proto.OrganizeImportsMode.SortAndCombine;
+			case PConst.OrganizeImportsMode.RemoveUnused: return 'RemoveUnused' as Proto.OrganizeImportsMode.RemoveUnused;
 		}
 	}
 }
