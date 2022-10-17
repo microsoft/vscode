@@ -105,6 +105,11 @@ export class HoverService implements IHoverService {
 			hover.isLocked = true;
 			return;
 		}
+		if (hover.isFocused && e.key === 'Tab') {
+			// Don't let focus go elsewhere
+			return;
+		}
+
 		const event = new StandardKeyboardEvent(e);
 		const keybinding = this._keybindingService.resolveKeyboardEvent(event);
 		if (keybinding.getSingleModifierDispatchParts().some(value => !!value) || this._keybindingService.softDispatch(event, event.target)) {

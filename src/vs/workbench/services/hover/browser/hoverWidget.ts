@@ -52,9 +52,11 @@ export class HoverWidget extends Widget {
 	private _x: number = 0;
 	private _y: number = 0;
 	private _isLocked: boolean = false;
+	private _isFocused: boolean = false;
 
 	get isDisposed(): boolean { return this._isDisposed; }
 	get isMouseIn(): boolean { return this._lockMouseTracker.isMouseIn; }
+	get isFocused(): boolean { return this._isFocused; }
 	get domNode(): HTMLElement { return this._hover.containerDomNode; }
 
 	private readonly _onDispose = this._register(new Emitter<void>());
@@ -120,6 +122,13 @@ export class HoverWidget extends Widget {
 				this.dispose();
 			}
 		});
+
+		this._register(dom.addDisposableListener(this._hover.containerDomNode, 'focusin', e => {
+			this._isFocused = true;
+		}));
+		this._register(dom.addDisposableListener(this._hover.containerDomNode, 'focusout', e => {
+			this._isFocused = false;
+		}));
 
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
