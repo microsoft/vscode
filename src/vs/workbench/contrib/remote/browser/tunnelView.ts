@@ -56,6 +56,7 @@ import { STATUS_BAR_HOST_NAME_BACKGROUND } from 'vs/workbench/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
+export const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
 
 class TunnelTreeVirtualDelegate implements ITableVirtualDelegate<ITunnelItem> {
 
@@ -1624,7 +1625,6 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	},
 	when: ContextKeyExpr.and(isForwardedOrDetectedExpr, isNotMultiSelectionExpr)
 }));
-const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '._open',
 	order: 1,
