@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { BracketInfo, BracketPairWithMinIndentationInfo, IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
@@ -40,6 +40,9 @@ export class BracketPairsTree extends Disposable {
 	private readonly denseKeyProvider = new DenseKeyProvider<string>();
 	private readonly brackets = new LanguageAgnosticBracketTokens(this.denseKeyProvider, this.getLanguageConfiguration);
 
+	private readonly parseQueue: TextEditInfo[][] = [];
+	private parseTimeout: any | undefined;
+
 	public didLanguageChange(languageId: string): boolean {
 		return this.brackets.didLanguageChange(languageId);
 	}
@@ -67,6 +70,12 @@ export class BracketPairsTree extends Disposable {
 			this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer([], undefined, true);
 			this.astWithTokens = this.initialAstWithoutTokens;
 		}
+
+		this._register(toDisposable(() => {
+			if (this.parseTimeout) {
+				clearImmediate(this.parseTimeout);
+			}
+		}));
 	}
 
 	//#region TextModel events
@@ -90,10 +99,7 @@ export class BracketPairsTree extends Disposable {
 				toLength(r.toLineNumber - r.fromLineNumber + 1, 0)
 			)
 		);
-		this.astWithTokens = this.parseDocumentFromTextBuffer(edits, this.astWithTokens, false);
-		if (!this.initialAstWithoutTokens) {
-			this.didChangeEmitter.fire();
-		}
+		this.queueParsing(edits);
 	}
 
 	public handleContentChanged(change: IModelContentChangedEvent) {
@@ -105,11 +111,28 @@ export class BracketPairsTree extends Disposable {
 				lengthOfString(c.text)
 			);
 		}).reverse();
+		this.queueParsing(edits);
+	}
 
-		this.astWithTokens = this.parseDocumentFromTextBuffer(edits, this.astWithTokens, false);
-		if (this.initialAstWithoutTokens) {
-			this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer(edits, this.initialAstWithoutTokens, false);
+	private queueParsing(edits: TextEditInfo[]): void {
+		// Queues parsing of the document so that it does not block editor input latency. This is
+		// done via setImmediate such that it is called before any timers, the only downside to this
+		// is that changing a character adjacent to a bracket may appear white for a single frame.
+		this.parseQueue.push(edits);
+		if (!this.parseTimeout) {
+			this.parseTimeout = setImmediate(() => this.doParse());
 		}
+	}
+
+	private doParse() {
+		for (const edits of this.parseQueue) {
+			this.astWithTokens = this.parseDocumentFromTextBuffer(edits, this.astWithTokens, false);
+			if (this.initialAstWithoutTokens) {
+				this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer(edits, this.initialAstWithoutTokens, false);
+			}
+		}
+		this.parseQueue.length = 0;
+		this.parseTimeout = undefined;
 	}
 
 	//#endregion
