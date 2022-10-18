@@ -424,13 +424,17 @@ declare namespace monaco {
 
 	export interface IMarkdownString {
 		readonly value: string;
-		readonly isTrusted?: boolean;
+		readonly isTrusted?: boolean | MarkdownStringIsTrustedOptions;
 		readonly supportThemeIcons?: boolean;
 		readonly supportHtml?: boolean;
 		readonly baseUri?: UriComponents;
 		uris?: {
 			[href: string]: UriComponents;
 		};
+	}
+
+	export interface MarkdownStringIsTrustedOptions {
+		readonly enabledCommands: readonly string[];
 	}
 
 	export interface IKeyboardEvent {
