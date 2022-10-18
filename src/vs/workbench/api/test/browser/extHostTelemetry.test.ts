@@ -142,4 +142,48 @@ suite('ExtHostTelemetry', function () {
 		assert.strictEqual(flushCalled, true);
 
 	});
+
+	test('Ensure logger properly cleans PII', function () {
+		const sentData: any[] = [];
+
+		// This is the appender which the extension would contribute
+		const appender: TelemetryAppender = {
+			logEvent: (eventName: string, data) => {
+				sentData.push({ eventName, data });
+			},
+			logException: (exception, data) => {
+				// no-op
+			},
+			ignoreBuiltInCommonProperties: false,
+		};
+
+		const extensionTelemetry = new ExtHostTelemetry(new class extends mock<IExtHostInitDataService>() {
+			override environment: IEnvironment = mockEnvironment;
+			override telemetryInfo: ITelemetryInfo = mockTelemetryInfo;
+			override remote = mockRemote;
+		}, new TestTelemetryLoggerService(DEFAULT_LOG_LEVEL));
+
+		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.USAGE, { usage: true, error: true });
+
+		// Create the logger usting the appender
+		const logger = extensionTelemetry.instantiateLogger(mockExtensionIdentifier, appender);
+
+		// Log an event with a bunch of PII, this should all get cleaned out
+		logger.logUsage('test-event', {
+			'fake-password': 'pwd=123',
+			'fake-email': 'no-reply@microsoft.com',
+			'fake-token': 'token=123',
+			'fake-slack-token': 'xoxp-123',
+			'fake-path': '/Users/username/.vscode/extensions',
+		});
+
+		assert.strictEqual(sentData.length, 1);
+		assert.strictEqual(sentData[0].eventName, `${mockExtensionIdentifier.name}/test-event`);
+		assert.strictEqual(sentData[0].data['fake-password'], '<REDACTED: Generic Secret>');
+		assert.strictEqual(sentData[0].data['fake-email'], '<REDACTED: Email>');
+		assert.strictEqual(sentData[0].data['fake-token'], '<REDACTED: Generic Secret>');
+		assert.strictEqual(sentData[0].data['fake-slack-token'], '<REDACTED: Slack Token>');
+		assert.strictEqual(sentData[0].data['fake-path'], '<REDACTED: user-file-path>');
+
+	});
 });
