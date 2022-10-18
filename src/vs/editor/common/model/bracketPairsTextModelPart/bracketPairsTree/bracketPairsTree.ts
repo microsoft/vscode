@@ -73,7 +73,7 @@ export class BracketPairsTree extends Disposable {
 
 		this._register(toDisposable(() => {
 			if (this.parseTimeout) {
-				clearImmediate(this.parseTimeout);
+				window.clearImmediate(this.parseTimeout);
 			}
 		}));
 	}
@@ -120,7 +120,7 @@ export class BracketPairsTree extends Disposable {
 		// is that changing a character adjacent to a bracket may appear white for a single frame.
 		this.parseQueue.push(edits);
 		if (!this.parseTimeout) {
-			this.parseTimeout = setImmediate(() => this.doParse());
+			this.parseTimeout = window.setImmediate(() => this.doParse());
 		}
 	}
 
