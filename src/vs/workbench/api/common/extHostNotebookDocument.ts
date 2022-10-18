@@ -247,7 +247,7 @@ export class ExtHostNotebookDocument {
 				this._spliceNotebookCells(rawEvent.changes, false, result.contentChanges);
 
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.Move) {
-				this._moveCell(rawEvent.index, rawEvent.newIdx, result.contentChanges);
+				this._moveCells(rawEvent.index, rawEvent.length, rawEvent.newIdx, result.contentChanges);
 
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.Output) {
 				this._setCellOutputs(rawEvent.index, rawEvent.outputs);
@@ -387,11 +387,11 @@ export class ExtHostNotebookDocument {
 		}
 	}
 
-	private _moveCell(index: number, newIdx: number, bucket: vscode.NotebookDocumentContentChange[]): void {
-		const cells = this._cells.splice(index, 1);
+	private _moveCells(index: number, length: number, newIdx: number, bucket: vscode.NotebookDocumentContentChange[]): void {
+		const cells = this._cells.splice(index, length);
 		this._cells.splice(newIdx, 0, ...cells);
 		const changes = [
-			new RawContentChangeEvent(index, 1, cells.map(c => c.apiCell), []),
+			new RawContentChangeEvent(index, length, cells.map(c => c.apiCell), []),
 			new RawContentChangeEvent(newIdx, 0, [], cells)
 		];
 		for (const change of changes) {

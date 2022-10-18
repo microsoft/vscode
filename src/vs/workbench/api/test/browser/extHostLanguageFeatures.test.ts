@@ -53,7 +53,7 @@ import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransfo
 import { OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
+import { CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 

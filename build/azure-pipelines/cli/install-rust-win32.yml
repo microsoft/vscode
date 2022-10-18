@@ -9,11 +9,14 @@ parameters:
 # Todo: use 1ES pipeline once extension is installed in ADO
 
 steps:
-  - task: RustInstaller@1
-    inputs:
-      rustVersion: ms-1.64
-      authenticationToken: $(RustInstallerToken)
-    displayName: Install Rust toolchain
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      Invoke-WebRequest -Uri "https://win.rustup.rs" -Outfile $(Build.ArtifactStagingDirectory)/rustup-init.exe
+      exec { $(Build.ArtifactStagingDirectory)/rustup-init.exe -y --profile minimal --default-toolchain $env:RUSTUP_TOOLCHAIN --default-host x86_64-pc-windows-msvc }
+      echo "##vso[task.prependpath]$env:USERPROFILE\.cargo\bin"
+    env:
+      RUSTUP_TOOLCHAIN: ${{ parameters.channel }}
+    displayName: "Install Rust"
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1

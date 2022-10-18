@@ -11,7 +11,7 @@ parameters:
     default: ''
 
 steps:
-  - powershell: |
+  - script: |
       set -e
       git clone https://github.com/microsoft/vcpkg.git $(Build.ArtifactStagingDirectory)/vcpkg
       cd $(Build.ArtifactStagingDirectory)/vcpkg && git checkout 3b3bd424827a1f7f4813216f6b32b6c61e386b2e
@@ -33,7 +33,7 @@ steps:
       workingDirectory: ${{ parameters.vcpkgDir }}
       condition: ne(variables.VCPKG_CACHE_RESTORED, 'true')
 
-    - powershell: |
+    - script: |
         mkdir -p ${{ parameters.targetDirectory }}
         mv ${{ parameters.vcpkgDir }}/vcpkg_installed/${{ target }} ${{ parameters.targetDirectory }}
         rm -rf ${{ parameters.vcpkgDir }}/vcpkg_installed

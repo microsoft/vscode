@@ -2017,27 +2017,19 @@ export class Repository implements Disposable {
 			this.telemetryReporter.sendTelemetryEvent('statusSlow', { ignoreSubmodules: String(ignoreSubmodules), didHitLimit: String(didHitLimit), didWarnAboutLimit: String(this.didWarnAboutLimit) }, { statusLength, totalTime });
 		}
 
-		let HEAD: Branch | undefined;
-
-		try {
-			HEAD = await this.repository.getHEAD();
-
-			if (HEAD.name) {
-				try {
-					HEAD = await this.repository.getBranch(HEAD.name);
-				} catch (err) {
-					// noop
-				}
-			}
-		} catch (err) {
-			// noop
-		}
-
 		let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
 		if (sort !== 'alphabetically' && sort !== 'committerdate') {
 			sort = 'alphabetically';
 		}
-		const [refs, remotes, submodules, rebaseCommit, mergeInProgress, commitTemplate] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit(), this.isMergeInProgress(), this.getInputTemplate()]);
+		const [HEAD, refs, remotes, submodules, rebaseCommit, mergeInProgress, commitTemplate] =
+			await Promise.all([
+				this.repository.getHEADBranch(),
+				this.repository.getRefs({ sort }),
+				this.repository.getRemotes(),
+				this.repository.getSubmodules(),
+				this.getRebaseCommit(),
+				this.isMergeInProgress(),
+				this.getInputTemplate()]);
 
 		this._HEAD = HEAD;
 		this._refs = refs!;

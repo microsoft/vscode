@@ -259,7 +259,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 				// Support mergeMode
 				if (options?.mergeMode && fileOpenables.length === 4) {
-					const editors = coalesce(await pathsToEditors(fileOpenables, this.fileService));
+					const editors = coalesce(await pathsToEditors(fileOpenables, this.fileService, this.logService));
 					if (editors.length !== 4 || !isResourceEditorInput(editors[0]) || !isResourceEditorInput(editors[1]) || !isResourceEditorInput(editors[2]) || !isResourceEditorInput(editors[3])) {
 						return; // invalid resources
 					}
@@ -289,7 +289,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 				// Support diffMode
 				if (options?.diffMode && fileOpenables.length === 2) {
-					const editors = coalesce(await pathsToEditors(fileOpenables, this.fileService));
+					const editors = coalesce(await pathsToEditors(fileOpenables, this.fileService, this.logService));
 					if (editors.length !== 2 || !isResourceEditorInput(editors[0]) || !isResourceEditorInput(editors[1])) {
 						return; // invalid resources
 					}
@@ -334,7 +334,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 								openables = [openable];
 							}
 
-							editorService.openEditors(coalesce(await pathsToEditors(openables, this.fileService)), undefined, { validateTrust: true });
+							editorService.openEditors(coalesce(await pathsToEditors(openables, this.fileService, this.logService)), undefined, { validateTrust: true });
 						}
 
 						// New Window: open into empty window

@@ -116,7 +116,6 @@
 
 .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-text-button {
 	width: fit-content;
-	width: -moz-fit-content;
 	padding: 5px 10px;
 	display: inline-block;	/* to enable ellipsis in text overflow */
 	font-size: 12px;
