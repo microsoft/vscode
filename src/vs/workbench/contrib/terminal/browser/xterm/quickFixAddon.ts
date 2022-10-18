@@ -28,15 +28,17 @@ import { IDecoration, Terminal } from 'xterm';
 import type { ITerminalAddon } from 'xterm-headless';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
-
+const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
+	type: string;
 	fixesShown: boolean;
-	expectedCommand?: boolean;
+	ranQuickFixCommand?: boolean;
 };
 type QuickFixClassification = {
 	owner: 'meganrogge';
+	type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of quick fix that was run' };
 	fixesShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the fixes were shown by the user' };
-	expectedCommand?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If the command that was executed matched a quick fix suggested one. Undefined if no command is expected.' };
+	ranQuickFixCommand?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If the command that was executed matched a quick fix suggested one. Undefined if no command is expected.' };
 	comment: 'Terminal quick fixes';
 };
 const quickFixSelectors = [DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration];
@@ -118,14 +120,16 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		}
 		this._register(commandDetection.onCommandFinished(command => {
 			if (this._expectedCommands) {
-				const expectedCommand = this._expectedCommands.includes(command.command);
-				this._logService.debug(`terminal/quick-fix/command`, {
+				const ranQuickFixCommand = this._expectedCommands.includes(command.command);
+				this._logService.debug(quickFixTelemetryTitle, {
+					type: 'command',
 					fixesShown: this._fixesShown,
-					expectedCommand
+					ranQuickFixCommand
 				});
-				this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(`terminal/quick-fix/command`, {
+				this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(quickFixTelemetryTitle, {
+					type: 'command',
 					fixesShown: this._fixesShown,
-					expectedCommand
+					ranQuickFixCommand
 				});
 				this._expectedCommands = undefined;
 			}
@@ -159,15 +163,16 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		this._expectedCommands = expectedCommands;
 		this._quickFixes = fixes;
 		this._register(onDidRunQuickFix((id) => {
-			const quickFixType = `terminal/quick-fix/${id}`;
-			const expectedCommand = id === 'opener' ? undefined : (this._expectedCommands?.includes(command.command) || false);
-			this._logService.debug(quickFixType, {
+			const ranQuickFixCommand = id === 'opener' ? undefined : (this._expectedCommands?.includes(command.command) || false);
+			this._logService.debug(quickFixTelemetryTitle, {
+				type: id,
 				fixesShown: this._fixesShown,
-				expectedCommand
+				ranQuickFixCommand
 			});
-			this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(quickFixType, {
+			this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(quickFixTelemetryTitle, {
+				type: id,
 				fixesShown: this._fixesShown,
-				expectedCommand
+				ranQuickFixCommand
 			});
 			this._disposeQuickFix();
 			this._fixesShown = false;
