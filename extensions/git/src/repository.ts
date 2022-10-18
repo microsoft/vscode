@@ -971,7 +971,7 @@ export class Repository implements Disposable {
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
 			|| e.affectsConfiguration('git.showActionButton', root)
-		)(() => this.updateModelState(), this, this.disposables);
+		)(this.updateModelState, this, this.disposables);
 
 		const updateInputBoxVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
