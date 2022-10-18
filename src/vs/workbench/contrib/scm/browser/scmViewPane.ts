@@ -2132,7 +2132,8 @@ class SCMInputWidget {
 						this.contextViewService.hideContextView();
 					}));
 
-					const { element: mdElement } = this.instantiationService.createInstance(MarkdownRenderer, {}).render(message, {
+					const renderer = disposables.add(this.instantiationService.createInstance(MarkdownRenderer, {}));
+					const renderedMarkdown = renderer.render(message, {
 						actionHandler: {
 							callback: (content) => {
 								this.openerService.open(content, { allowCommands: typeof message !== 'string' && message.isTrusted });
@@ -2141,7 +2142,8 @@ class SCMInputWidget {
 							disposables: disposables
 						},
 					});
-					element.appendChild(mdElement);
+					disposables.add(renderedMarkdown);
+					element.appendChild(renderedMarkdown.element);
 				}
 				const actionsContainer = append(validationContainer, $('.scm-editor-validation-actions'));
 				const actionbar = new ActionBar(actionsContainer);

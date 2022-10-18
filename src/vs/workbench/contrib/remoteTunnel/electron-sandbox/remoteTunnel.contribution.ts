@@ -6,7 +6,7 @@
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IRemoteTunnelService, TunnelStatus } from 'vs/platform/remoteTunnel/common/remoteTunnel';
+import { HOST_NAME_CONFIGURATION_KEY, IRemoteTunnelService, TunnelStatus } from 'vs/platform/remoteTunnel/common/remoteTunnel';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { localize } from 'vs/nls';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -25,6 +25,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { registerLogChannel } from 'vs/workbench/services/output/common/output';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 export const REMOTE_TUNNEL_CATEGORY: ILocalizedString = {
 	original: 'Remote Tunnel',
@@ -380,3 +381,17 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(RemoteTunnelWorkbenchContribution, LifecyclePhase.Restored);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	'type': 'object',
+	'properties': {
+		[HOST_NAME_CONFIGURATION_KEY]: {
+			'description': localize('remoteTunnel.machineName', "The name under which the machine is remote tunnel is registered. If not set, the host name is used."),
+			'type': 'string',
+			'pattern': '[\\w-]+',
+			'patternErrorMessage': localize('remoteTunnel.machineNameRegex', "The name can only consist of letters, numbers, underscore and minus."),
+			'maxLength': 20,
+			'default': ''
+		}
+	}
+});

@@ -5,7 +5,7 @@
 
 import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
-	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionsControlManifest, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions, InstallVSIXOptions, InstallExtensionResult, ExtensionManagementError, ExtensionManagementErrorCode, Metadata
+	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionsControlManifest, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions, InstallVSIXOptions, InstallExtensionResult, ExtensionManagementError, ExtensionManagementErrorCode, Metadata, InstallOperation
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage, TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -186,6 +186,13 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			// Filter out web server
 			.filter(server => server !== this.extensionManagementServerService.webExtensionManagementServer)
 			.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation))).then(([extensionIdentifier]) => extensionIdentifier);
+	}
+
+	download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {
+		if (this.extensionManagementServerService.localExtensionManagementServer) {
+			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.download(extension, operation);
+		}
+		throw new Error('Cannot download extension');
 	}
 
 	async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {

@@ -144,9 +144,7 @@ class VSCodeExtensionMarkdownContributionProvider extends Disposable implements 
 	public readonly onContributionsChanged = this._onContributionsChanged.event;
 
 	public get contributions(): MarkdownContributions {
-		if (!this._contributions) {
-			this._contributions = this.getCurrentContributions();
-		}
+		this._contributions ??= this.getCurrentContributions();
 		return this._contributions;
 	}
 

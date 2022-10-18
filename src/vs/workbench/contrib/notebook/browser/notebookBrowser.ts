@@ -27,6 +27,7 @@ import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOp
 import { cellRangesToIndexes, ICellRange, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 //#region Shared commands
 export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
@@ -323,8 +324,8 @@ export interface INotebookEditorContributionDescription {
 export interface INotebookEditorCreationOptions {
 	readonly isEmbedded?: boolean;
 	readonly isReadOnly?: boolean;
-	readonly contributions?: Iterable<INotebookEditorContributionDescription>;
-	readonly cellEditorContributions?: Iterable<IEditorContributionDescription>;
+	readonly contributions?: INotebookEditorContributionDescription[];
+	readonly cellEditorContributions?: IEditorContributionDescription[];
 	readonly menuIds: {
 		notebookToolbar: MenuId;
 		cellTitleToolbar: MenuId;
@@ -428,6 +429,7 @@ export interface INotebookEditor {
 	readonly isDisposed: boolean;
 	readonly activeKernel: INotebookKernel | undefined;
 	readonly scrollTop: number;
+	readonly scopedContextKeyService: IContextKeyService;
 	//#endregion
 
 	getLength(): number;

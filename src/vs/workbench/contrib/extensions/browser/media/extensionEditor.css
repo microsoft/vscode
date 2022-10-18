@@ -770,3 +770,7 @@
 .extension-editor > .body > .content .runtime-status .message-entry .codicon {
 	padding-right: 2px;
 }
+
+.monaco-workbench .extension-editor > .header > .details > .recommendation .codicon {
+	color: var(--vscode-extensionButton-prominentBackground);
+}

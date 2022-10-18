@@ -129,13 +129,13 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return normalize(join(FileAccess.asFileUri('', require).fsPath, '..', 'extensions'));
 	}
 
-	get extensionsDownloadPath(): string {
+	get extensionsDownloadLocation(): URI {
 		const cliExtensionsDownloadDir = this.args['extensions-download-dir'];
 		if (cliExtensionsDownloadDir) {
-			return resolve(cliExtensionsDownloadDir);
+			return URI.file(resolve(cliExtensionsDownloadDir));
 		}
 
-		return join(this.userDataPath, 'CachedExtensionVSIXs');
+		return URI.file(join(this.userDataPath, 'CachedExtensionVSIXs'));
 	}
 
 	@memoize

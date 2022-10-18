@@ -23,18 +23,18 @@ export interface ILanguagePackService {
 	readonly _serviceBrand: undefined;
 	getAvailableLanguages(): Promise<Array<ILanguagePackItem>>;
 	getInstalledLanguages(): Promise<Array<ILanguagePackItem>>;
-	getTranslationsUri(id: string): Promise<URI | undefined>;
+	getBuiltInExtensionTranslationsUri(id: string): Promise<URI | undefined>;
 	getLocale(extension: IGalleryExtension): string | undefined;
 }
 
 export abstract class LanguagePackBaseService extends Disposable implements ILanguagePackService {
 	declare readonly _serviceBrand: undefined;
 
-	constructor(@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService) {
+	constructor(@IExtensionGalleryService protected readonly extensionGalleryService: IExtensionGalleryService) {
 		super();
 	}
 
-	abstract getTranslationsUri(id: string): Promise<URI | undefined>;
+	abstract getBuiltInExtensionTranslationsUri(id: string): Promise<URI | undefined>;
 
 	abstract getInstalledLanguages(): Promise<Array<ILanguagePackItem>>;
 

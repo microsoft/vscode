@@ -34,6 +34,7 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { ColorId, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
 import { Color } from 'vs/base/common/color';
+import { TimeoutTimer } from 'vs/base/common/async';
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
@@ -112,6 +113,7 @@ export class TextAreaHandler extends ViewPart {
 
 	private _accessibilitySupport!: AccessibilitySupport;
 	private _accessibilityPageSize!: number;
+	private _accessibilityWriteTimer: TimeoutTimer;
 	private _contentLeft: number;
 	private _contentWidth: number;
 	private _contentHeight: number;
@@ -149,6 +151,7 @@ export class TextAreaHandler extends ViewPart {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
 		this._setAccessibilityOptions(options);
+		this._accessibilityWriteTimer = this._register(new TimeoutTimer());
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
@@ -575,7 +578,11 @@ export class TextAreaHandler extends ViewPart {
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._selections = e.selections.slice(0);
 		this._modelSelections = e.modelSelections.slice(0);
-		this._textAreaInput.writeScreenReaderContent('selection changed');
+		if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
+			this._accessibilityWriteTimer.cancelAndSet(() => this._textAreaInput.writeScreenReaderContent('selection changed'), 0);
+		} else {
+			this._textAreaInput.writeScreenReaderContent('selection changed');
+		}
 		return true;
 	}
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {

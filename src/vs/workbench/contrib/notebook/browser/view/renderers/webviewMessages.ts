@@ -281,6 +281,10 @@ export interface RendererMetadata {
 	readonly isBuiltin: boolean;
 }
 
+export interface StaticPreloadMetadata {
+	readonly entrypoint: string;
+}
+
 export interface IUpdateRenderersMessage {
 	readonly type: 'updateRenderers';
 	readonly rendererData: readonly RendererMetadata[];

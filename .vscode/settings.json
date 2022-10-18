@@ -92,6 +92,9 @@
 		"editor.defaultFormatter": "rust-lang.rust-analyzer",
 		"editor.formatOnSave": true,
 	},
+	"rust-analyzer.linkedProjects": [
+		"cli/Cargo.toml"
+	],
 	"typescript.tsc.autoDetect": "off",
 	"testing.autoRun.mode": "rerun",
 	"conventionalCommits.scopes": [

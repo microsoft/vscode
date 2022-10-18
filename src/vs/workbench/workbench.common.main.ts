@@ -234,6 +234,7 @@ import 'vs/workbench/contrib/extensions/browser/extensions.contribution';
 import 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
 
 // Output View
+import 'vs/workbench/contrib/output/common/outputChannelModelService';
 import 'vs/workbench/contrib/output/browser/output.contribution';
 import 'vs/workbench/contrib/output/browser/outputView';
 
@@ -268,6 +269,9 @@ import 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 
 // Formatter Help
 import 'vs/workbench/contrib/format/browser/format.contribution';
+
+// Folding Limit Indicator
+import 'vs/workbench/contrib/folding/browser/folding.contribution';
 
 // Inlay Hint Accessibility
 import 'vs/workbench/contrib/inlayHints/browser/inlayHintsAccessibilty';

@@ -15,6 +15,7 @@ import { CellKind, INotebookTextModel, NotebookCellExecutionState } from 'vs/wor
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class NotebookExecutionService implements INotebookExecutionService, IDisposable {
 	declare _serviceBrand: undefined;
@@ -29,7 +30,7 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 	) {
 	}
 
-	async executeNotebookCells(notebook: INotebookTextModel, cells: Iterable<NotebookCellTextModel>): Promise<void> {
+	async executeNotebookCells(notebook: INotebookTextModel, cells: Iterable<NotebookCellTextModel>, contextKeyService: IContextKeyService): Promise<void> {
 		const cellsArr = Array.from(cells);
 		this._logService.debug(`NotebookExecutionService#executeNotebookCells ${JSON.stringify(cellsArr.map(c => c.handle))}`);
 		const message = nls.localize('notebookRunTrust', "Executing a notebook cell will run code from this workspace.");
@@ -50,7 +51,7 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 
 		let kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
 		if (!kernel) {
-			kernel = await this.resolveSourceActions(notebook);
+			kernel = await this.resolveSourceActions(notebook, contextKeyService);
 		}
 
 		if (!kernel) {
@@ -87,12 +88,12 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 		}
 	}
 
-	private async resolveSourceActions(notebook: INotebookTextModel) {
+	private async resolveSourceActions(notebook: INotebookTextModel, contextKeyService: IContextKeyService) {
 		let kernel: INotebookKernel | undefined;
 		const info = this._notebookKernelService.getMatchingKernel(notebook);
 		if (info.all.length === 0) {
 			// no kernel at all
-			const sourceActions = this._notebookKernelService.getSourceActions();
+			const sourceActions = this._notebookKernelService.getSourceActions(notebook, contextKeyService);
 			const primaryActions = sourceActions.filter(action => action.isPrimary);
 			const action = sourceActions.length === 1
 				? sourceActions[0]

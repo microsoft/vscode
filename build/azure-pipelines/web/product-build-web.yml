@@ -73,7 +73,7 @@ steps:
 
   - script: |
       set -e
-      npx https://aka.ms/enablesecurefeed standAlone
+      npm install https://aka.ms/enablesecurefeed --global && npm exec terrapinadotask -- standAlone
     timeoutInMinutes: 5
     retryCountOnTaskFailure: 3
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))

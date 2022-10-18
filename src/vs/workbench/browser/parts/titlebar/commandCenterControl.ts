@@ -50,7 +50,7 @@ export class CommandCenterControl {
 			telemetrySource: 'commandCenter',
 			actionViewItemProvider: (action) => {
 
-				if (action instanceof MenuItemAction && action.id === 'workbench.action.quickOpen') {
+				if (action instanceof MenuItemAction && action.id === 'workbench.action.quickOpenWithModes') {
 
 					class CommandCenterViewItem extends BaseActionViewItem {
 

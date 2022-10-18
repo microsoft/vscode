@@ -25,6 +25,7 @@ import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMai
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
 import { ExtensionManagementCLI } from 'vs/platform/extensionManagement/common/extensionManagementCLI';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { ExtensionManagementService, INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
@@ -172,6 +173,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 	services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
 	services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
+	services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService));
 	services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
