@@ -1995,6 +1995,26 @@ export class Repository {
 		});
 	}
 
+	async getHEADBranch(): Promise<Branch | undefined> {
+		let HEAD: Branch | undefined;
+
+		try {
+			HEAD = await this.getHEAD();
+
+			if (HEAD.name) {
+				try {
+					HEAD = await this.getBranch(HEAD.name);
+				} catch (err) {
+					// noop
+				}
+			}
+		} catch (err) {
+			// noop
+		}
+
+		return HEAD;
+	}
+
 	async getHEAD(): Promise<Ref> {
 		try {
 			// Attempt to parse the HEAD file
