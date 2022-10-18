@@ -14,6 +14,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
+import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 class NativeExtensionTipsService extends ExtensionTipsService implements IExtensionTipsService {
 
@@ -49,6 +50,10 @@ class NativeExtensionTipsService extends ExtensionTipsService implements IExtens
 
 	override getAllWorkspacesTips(): Promise<IWorkspaceTips[]> {
 		return this.channel.call<IWorkspaceTips[]>('getAllWorkspacesTips');
+	}
+
+	override getDynamicWrokspaceTips(workspace: IWorkspace, workspaceDependencies?: string[] | undefined, openedFileTypes?: string[] | undefined, activatedExtensions?: string[] | undefined): Promise<string[]> {
+		return this.channel.call<string[]>('getDynamicWrokspaceTips', [workspace, workspaceDependencies, openedFileTypes, activatedExtensions]);
 	}
 
 }

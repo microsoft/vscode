@@ -1314,10 +1314,10 @@
     playwright "^1.23.1"
     vscode-uri "^3.0.3"
 
-"@vscode/vscode-extension-recommender@^0.0.2":
-  version "0.0.2"
-  resolved "https://registry.yarnpkg.com/@vscode/vscode-extension-recommender/-/vscode-extension-recommender-0.0.2.tgz#1f1e127dac1a1f09722adb7202f793f1ca0464e4"
-  integrity sha512-ABUxkcz+2WiRUZ9GRFth8PFj/AaFl5+J2CHmxLsjNZ+WF46yNe2mvCDYCf7lh21cRan55zmuQUO5szpPgRpYSQ==
+"@vscode/vscode-extension-recommender@^0.0.4":
+  version "0.0.4"
+  resolved "https://registry.yarnpkg.com/@vscode/vscode-extension-recommender/-/vscode-extension-recommender-0.0.4.tgz#130f495b0dc7ed65d183634730889b231181e939"
+  integrity sha512-uY2s/6DOLBYSXgTt4ESRF5ZbB2jOj98ftIdpd6CmLRNdLkED+kPiRRlBgHOvm9suZIipkttFP3q0nL9r1S2PKQ==
 
 "@vscode/vscode-languagedetection@1.0.21":
   version "1.0.21"

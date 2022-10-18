@@ -28,6 +28,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SessionOperations } from '@vscode/vscode-extension-recommender';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { isNumber } from 'vs/base/common/types';
 
 
 type ExeExtensionRecommendationsClassification = {
@@ -65,6 +67,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
 		@IRequestService requestService: IRequestService,
@@ -127,6 +130,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		}
 		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
 		const { extensions: workspaceFileTypes, configFiles: workspaceConfigTypes } = await this.diagnosticsService.getWorkspaceFilesInfo(workspace);
+		const confidencePass = this.configurationService.getValue('extensionRecommender.minConfidence');
 		const result = await this.sessionOperations.run({
 			workspaceDependencies,
 			activatedExtensions,
@@ -134,7 +138,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 			previouslyInstalled: installed.map(i => i.identifier.id.toLowerCase()),
 			workspaceFileTypes,
 			workspaceConfigTypes,
-		}, 0.8);
+		}, isNumber(confidencePass) ? confidencePass : 0.6);
 		return result.map(({ extensionId }) => extensionId);
 	}
 

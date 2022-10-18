@@ -8,9 +8,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
-import { isNumber } from 'vs/base/common/types';
 import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { localize } from 'vs/nls';
@@ -27,7 +25,6 @@ type DynamicWorkspaceRecommendationsClassification = {
 
 type IStoredDynamicWorkspaceRecommendations = { recommendations: string[]; timestamp: number };
 const dynamicWorkspaceRecommendationsStorageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations2';
-const milliSecondsInADay = 1000 * 60 * 60 * 24;
 
 export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
 
@@ -66,13 +63,6 @@ export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
 		}
 
 		const folder = this.contextService.getWorkspace().folders[0];
-		const cachedDynamicWorkspaceRecommendations = this.getCachedDynamicWorkspaceRecommendations();
-		if (cachedDynamicWorkspaceRecommendations) {
-			this._recommendations = cachedDynamicWorkspaceRecommendations.map(id => this.toExtensionRecommendation(id, folder));
-			this.telemetryService.publicLog2<{ count: number; cache: number }, DynamicWorkspaceRecommendationsClassification>('dynamicWorkspaceRecommendations2', { count: this._recommendations.length, cache: 1 });
-			return;
-		}
-
 		const tags = await this.workspaceTagsService.getTags();
 		const workspaceDependencies = Object.keys(tags).reduce<string[]>((result, key) => tags[key] === true ? [...result, key] : result, []);
 		const extensionsStatus = this.extensionService.getExtensionsStatus();
@@ -84,27 +74,12 @@ export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
 		this.telemetryService.publicLog2<{ count: number; cache: number }, DynamicWorkspaceRecommendationsClassification>('dynamicWorkspaceRecommendations2', { count: this._recommendations.length, cache: 0 });
 	}
 
-	private getCachedDynamicWorkspaceRecommendations(): string[] | undefined {
-		try {
-			const storedDynamicWorkspaceRecommendations: IStoredDynamicWorkspaceRecommendations = JSON.parse(this.storageService.get(dynamicWorkspaceRecommendationsStorageKey, StorageScope.WORKSPACE, '{}'));
-			if (isNonEmptyArray(storedDynamicWorkspaceRecommendations.recommendations)
-				&& isNumber(storedDynamicWorkspaceRecommendations.timestamp)
-				&& storedDynamicWorkspaceRecommendations.timestamp > 0
-				&& (Date.now() - storedDynamicWorkspaceRecommendations.timestamp) / milliSecondsInADay < 14) {
-				return storedDynamicWorkspaceRecommendations.recommendations;
-			}
-		} catch (e) {
-			this.storageService.remove(dynamicWorkspaceRecommendationsStorageKey, StorageScope.WORKSPACE);
-		}
-		return undefined;
-	}
-
 	private toExtensionRecommendation(extensionId: string, folder: IWorkspaceFolder): ExtensionRecommendation {
 		return {
 			extensionId: extensionId.toLowerCase(),
 			reason: {
 				reasonId: ExtensionRecommendationReason.DynamicWorkspace,
-				reasonText: localize('dynamicWorkspaceRecommendation', "This extension may interest you because it's popular among users of the {0} repository.", folder.name)
+				reasonText: localize('dynamicWorkspaceRecommendation', "This extension may interest you because it's popular among users of the similar workspace", folder.name)
 			}
 		};
 	}

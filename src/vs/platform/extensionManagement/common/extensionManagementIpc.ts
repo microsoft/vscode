@@ -201,6 +201,7 @@ export class ExtensionTipsChannel implements IServerChannel {
 			case 'getImportantExecutableBasedTips': return this.service.getImportantExecutableBasedTips();
 			case 'getOtherExecutableBasedTips': return this.service.getOtherExecutableBasedTips();
 			case 'getAllWorkspacesTips': return this.service.getAllWorkspacesTips();
+			case 'getDynamicWrokspaceTips': return this.service.getDynamicWrokspaceTips(args[0], args[1], args[2], args[3]);
 		}
 
 		throw new Error('Invalid call');
