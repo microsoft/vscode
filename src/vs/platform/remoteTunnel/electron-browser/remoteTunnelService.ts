@@ -145,7 +145,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				hostName = undefined;
 			}
 		}
-		const args = hostName ? [] : ['--random-name'];
+		const args = hostName ? [] : ['--random-name', '--parent-process-id', String(process.pid)];
 		const serveCommand = this.runCodeTunneCommand('tunnel', args, (message: string) => {
 		});
 		this._tunnelProcess = serveCommand;
