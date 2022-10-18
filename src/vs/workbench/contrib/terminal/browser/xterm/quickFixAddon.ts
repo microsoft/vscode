@@ -122,12 +122,12 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			if (this._expectedCommands) {
 				const ranQuickFixCommand = this._expectedCommands.includes(command.command);
 				this._logService.debug(quickFixTelemetryTitle, {
-					type: 'command',
+					type: this._expectedCommands.join(' '),
 					fixesShown: this._fixesShown,
 					ranQuickFixCommand
 				});
 				this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(quickFixTelemetryTitle, {
-					type: 'command',
+					type: this._expectedCommands.join(' '),
 					fixesShown: this._fixesShown,
 					ranQuickFixCommand
 				});
@@ -161,7 +161,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		this._expectedCommands = expectedCommands;
 		this._quickFixes = fixes;
 		this._register(onDidRunQuickFix((id) => {
-			const ranQuickFixCommand = id === 'opener' ? undefined : (this._expectedCommands?.includes(command.command) || false);
+			const ranQuickFixCommand = (this._expectedCommands?.includes(command.command) || false);
 			this._logService.debug(quickFixTelemetryTitle, {
 				type: id,
 				fixesShown: this._fixesShown,
@@ -249,6 +249,7 @@ export function getQuickFixesForCommand(
 			if (outputMatcher) {
 				outputMatch = command.getOutputMatch(outputMatcher);
 			}
+			const id = option.id;
 			const quickFixes = option.getQuickFixes({ commandLineMatch, outputMatch }, command);
 			if (quickFixes) {
 				for (const quickFix of asArray(quickFixes)) {
@@ -285,7 +286,7 @@ export function getQuickFixesForCommand(
 										openerService.open(quickFix.uri);
 										// since no command gets run here, need to
 										// clear the decoration and quick fix
-										onDidRunQuickFixEmitter.fire(`opener`);
+										onDidRunQuickFixEmitter.fire(id);
 									},
 									tooltip: label,
 									uri: quickFix.uri
@@ -301,7 +302,7 @@ export function getQuickFixesForCommand(
 							enabled: quickFix.enabled,
 							run: () => {
 								quickFix.run();
-								onDidRunQuickFixEmitter.fire(quickFix.id);
+								onDidRunQuickFixEmitter.fire(id);
 							},
 							tooltip: quickFix.tooltip
 						};
