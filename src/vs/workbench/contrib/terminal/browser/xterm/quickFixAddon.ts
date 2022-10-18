@@ -31,12 +31,12 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 type QuickFixResultTelemetryEvent = {
 	fixesShown: boolean;
-	expectedCommand: boolean;
+	expectedCommand?: boolean;
 };
 type QuickFixClassification = {
 	owner: 'meganrogge';
 	fixesShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the fixes were shown by the user' };
-	expectedCommand: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If the command that was executed matched a quick fix suggested one' };
+	expectedCommand?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If the command that was executed matched a quick fix suggested one. Undefined if no command is expected.' };
 	comment: 'Terminal quick fixes';
 };
 const quickFixSelectors = [DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration];
@@ -165,7 +165,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			});
 			this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(info, {
 				fixesShown: this._fixesShown,
-				expectedCommand: this._expectedCommands?.includes(command.command) || false,
+				expectedCommand: this._expectedCommands?.includes(command.command),
 			});
 			this._disposeQuickFix();
 			this._fixesShown = false;
