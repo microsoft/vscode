@@ -63,9 +63,9 @@ export class TunnelService extends AbstractTunnelService {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@INativeWorkbenchEnvironmentService private readonly _nativeWorkbenchEnvironmentService: INativeWorkbenchEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(logService);
+		super(logService, configurationService);
 
 		// Destroy any shared process tunnels that might still be active
 		lifecycleService.onDidShutdown(() => {
@@ -73,11 +73,6 @@ export class TunnelService extends AbstractTunnelService {
 				this._sharedProcessTunnelService.destroyTunnel(id);
 			});
 		});
-	}
-
-	private get defaultTunnelHost(): string {
-		const settingValue = this.configurationService.getValue('remote.localPortHost');
-		return (!settingValue || settingValue === 'localhost') ? '127.0.0.1' : '0.0.0.0';
 	}
 
 	public isPortPrivileged(port: number): boolean {

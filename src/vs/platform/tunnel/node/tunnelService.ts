@@ -83,9 +83,9 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 	}
 
 	public async waitForReady(): Promise<this> {
-		// try to get the same port number as the remote port number...
 		const startPort = this.suggestedLocalPort ?? this.tunnelRemotePort;
-		const hostname = isMacintosh && startPort < 1024 && !isPortPrivileged(startPort, this.defaultTunnelHost, OS, os.release()) ? '0.0.0.0' : '127.0.0.1';
+		const hostname = isMacintosh && startPort < 1024 && isAllInterfaces(this.defaultTunnelHost) && !isPortPrivileged(startPort, this.defaultTunnelHost, OS, os.release()) ? '0.0.0.0' : '127.0.0.1';
+		// try to get the same port number as the remote port number...
 		let localPort = await findFreePortFaster(startPort, 2, 1000, hostname);
 
 		// if that fails, the method above returns 0, which works out fine below...
@@ -159,14 +159,9 @@ export class BaseTunnelService extends AbstractTunnelService {
 		@ILogService logService: ILogService,
 		@ISignService private readonly signService: ISignService,
 		@IProductService private readonly productService: IProductService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(logService);
-	}
-
-	private get defaultTunnelHost(): string {
-		const settingValue = this.configurationService.getValue('remote.localPortHost');
-		return (!settingValue || settingValue === 'localhost') ? '127.0.0.1' : '0.0.0.0';
+		super(logService, configurationService);
 	}
 
 	public isPortPrivileged(port: number): boolean {

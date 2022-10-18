@@ -8,6 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
@@ -206,11 +207,17 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	private _factoryInProgress: Set<number/*port*/> = new Set();
 
 	public constructor(
-		@ILogService protected readonly logService: ILogService
+		@ILogService protected readonly logService: ILogService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService
 	) { }
 
 	get hasTunnelProvider(): boolean {
 		return !!this._tunnelProvider;
+	}
+
+	protected get defaultTunnelHost(): string {
+		const settingValue = this.configurationService.getValue('remote.localPortHost');
+		return (!settingValue || settingValue === 'localhost') ? '127.0.0.1' : '0.0.0.0';
 	}
 
 	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable {
