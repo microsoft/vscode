@@ -52,11 +52,9 @@ export class HoverWidget extends Widget {
 	private _x: number = 0;
 	private _y: number = 0;
 	private _isLocked: boolean = false;
-	private _isFocused: boolean = false;
 
 	get isDisposed(): boolean { return this._isDisposed; }
 	get isMouseIn(): boolean { return this._lockMouseTracker.isMouseIn; }
-	get isFocused(): boolean { return this._isFocused; }
 	get domNode(): HTMLElement { return this._hover.containerDomNode; }
 
 	private readonly _onDispose = this._register(new Emitter<void>());
@@ -122,13 +120,6 @@ export class HoverWidget extends Widget {
 				this.dispose();
 			}
 		});
-
-		this._register(dom.addDisposableListener(this._hover.containerDomNode, 'focusin', e => {
-			this._isFocused = true;
-		}));
-		this._register(dom.addDisposableListener(this._hover.containerDomNode, 'focusout', e => {
-			this._isFocused = false;
-		}));
 
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
@@ -269,6 +260,7 @@ export class HoverWidget extends Widget {
 
 		this.adjustHorizontalHoverPosition(targetRect);
 		this.adjustVerticalHoverPosition(targetRect);
+		this.adjustHoverMaxHeight(targetRect);
 
 		// Offset the hover position if there is a pointer so it aligns with the target element
 		this._hoverContainer.style.padding = '';
@@ -419,19 +411,9 @@ export class HoverWidget extends Widget {
 	}
 
 	private adjustVerticalHoverPosition(target: TargetRect): void {
-		// Do not adjust vertical hover position if y cordiante is provided
-		if (this._target.y !== undefined) {
-			return;
-		}
-
-		// When force position is enabled, restrict max height
-		if (this._forcePosition) {
-			const padding = (this._hoverPointer ? Constants.PointerSize : 0) + Constants.HoverBorderWidth;
-			if (this._hoverPosition === HoverPosition.ABOVE) {
-				this._hover.containerDomNode.style.maxHeight = `${target.top - padding}px`;
-			} else if (this._hoverPosition === HoverPosition.BELOW) {
-				this._hover.containerDomNode.style.maxHeight = `${window.innerHeight - target.bottom - padding}px`;
-			}
+		// Do not adjust vertical hover position if y coordiante is provided
+		// or the position is forced
+		if (this._target.y !== undefined || this._forcePosition) {
 			return;
 		}
 
@@ -450,6 +432,22 @@ export class HoverWidget extends Widget {
 				this._hoverPosition = HoverPosition.ABOVE;
 			}
 		}
+	}
+
+	private adjustHoverMaxHeight(target: TargetRect): void {
+		let maxHeight = 250;
+
+		// When force position is enabled, restrict max height
+		if (this._forcePosition) {
+			const padding = (this._hoverPointer ? Constants.PointerSize : 0) + Constants.HoverBorderWidth;
+			if (this._hoverPosition === HoverPosition.ABOVE) {
+				maxHeight = Math.min(maxHeight, target.top - padding);
+			} else if (this._hoverPosition === HoverPosition.BELOW) {
+				maxHeight = Math.min(maxHeight, window.innerHeight - target.bottom - padding);
+			}
+		}
+
+		this._hover.containerDomNode.style.maxHeight = `${maxHeight}px`;
 	}
 
 	private setHoverPointerPosition(target: TargetRect): void {
