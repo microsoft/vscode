@@ -551,8 +551,8 @@ export class Git {
 
 		if (options.log !== false) {
 			const startTime = Date.now();
-			child.on('exit', (_) => {
-				this.log(`> git ${args.join(' ')} [${Date.now() - startTime}ms]\n`);
+			child.on('exit', (code) => {
+				this.log(`> git ${args.join(' ')} [${Date.now() - startTime}ms]${code === null ? ' (cancelled)' : ''}\n`);
 			});
 		}
 
