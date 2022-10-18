@@ -510,6 +510,10 @@ pub struct TunnelServeArgs {
 	/// Randomly name machine for port forwarding service
 	#[clap(long)]
 	pub random_name: bool,
+
+	/// Optional parent process id. If provided, the server will be stopped when the process of the given pid no longer exists
+	#[clap(long)]
+	pub parent_process_id: Option<i32>,
 }
 
 #[derive(Args, Debug, Clone)]

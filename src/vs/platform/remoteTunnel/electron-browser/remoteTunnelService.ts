@@ -117,7 +117,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			this.setTunnelStatus(TunnelStatus.Disconnected);
 		}
 		if (this._tunnelProcess === loginProcess) {
-			const serveCommand = this.runCodeTunneCommand('tunnel', ['--random-name'], (message: string) => {
+			const serveCommand = this.runCodeTunneCommand('tunnel', ['--random-name', '--parent-process-id', String(process.pid)], (message: string) => {
 			});
 			this._tunnelProcess = serveCommand;
 			serveCommand.finally(() => {
