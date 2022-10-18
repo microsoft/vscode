@@ -29,7 +29,16 @@ import type { ITerminalAddon } from 'xterm-headless';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
 
-
+type QuickFixResultTelemetryEvent = {
+	fixesShown: boolean;
+	expectedCommand: boolean;
+};
+type QuickFixClassification = {
+	owner: 'meganrogge';
+	fixesShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the fixes were shown by the user' };
+	expectedCommand: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If the command that was executed matched a quick fix suggested one' };
+	comment: 'Terminal quick fixes';
+};
 const quickFixSelectors = [DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration];
 export interface ITerminalQuickFix {
 	showMenu(): void;
@@ -109,9 +118,14 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		}
 		this._register(commandDetection.onCommandFinished(command => {
 			if (this._expectedCommands) {
-				const info = `terminal/quick-fix/command/fixes-shown:${this._fixesShown}/expected-command:${this._expectedCommands.includes(command.command)}`;
-				this._logService.debug(info);
-				this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(info);
+				this._logService.debug(`terminal/quick-fix/command`, {
+					fixesShown: this._fixesShown,
+					expectedCommand: this._expectedCommands.includes(command.command),
+				});
+				this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(`terminal/quick-fix/command`, {
+					fixesShown: this._fixesShown,
+					expectedCommand: this._expectedCommands.includes(command.command),
+				});
 				this._expectedCommands = undefined;
 			}
 			this._resolveQuickFixes(command);
@@ -125,6 +139,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			this._quickFixes = undefined;
 		}));
 	}
+
+
 
 	/**
 	 * Resolves quick fixes, if any, based on the
@@ -143,8 +159,14 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		this._quickFixes = fixes;
 		this._register(onDidRunQuickFix((id) => {
 			const info = `terminal/quick-fix/${id}`;
-			this._logService.debug(info);
-			this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(info);
+			this._logService.debug(info, {
+				fixesShown: this._fixesShown,
+				expectedCommand: this._expectedCommands?.includes(command.command) || false,
+			});
+			this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(info, {
+				fixesShown: this._fixesShown,
+				expectedCommand: this._expectedCommands?.includes(command.command) || false,
+			});
 			this._disposeQuickFix();
 			this._fixesShown = false;
 		}));
