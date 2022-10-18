@@ -292,25 +292,25 @@ class Widget {
 		this._cachedDomNodeOffsetHeight = -1;
 	}
 
-	private _layoutBoxInViewport(topLeft: Coordinate, bottomLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult {
+	private _layoutBoxInViewport(aboveAnchor: Coordinate, belowAnchor: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult {
 		// Our visible box is split horizontally by the current line => 2 boxes
 
 		// a) the box above the line
-		const aboveLineTop = topLeft.top;
-		const heightAboveLine = aboveLineTop;
+		const aboveLineTop = aboveAnchor.top;
+		const heightAvailableAboveLine = aboveLineTop;
 
 		// b) the box under the line
-		const underLineTop = bottomLeft.top;
-		const heightUnderLine = ctx.viewportHeight - underLineTop;
+		const underLineTop = belowAnchor.top;
+		const heightAvailableUnderLine = ctx.viewportHeight - underLineTop;
 
 		const aboveTop = aboveLineTop - height;
-		const fitsAbove = (heightAboveLine >= height);
+		const fitsAbove = (heightAvailableAboveLine >= height);
 		const belowTop = underLineTop;
-		const fitsBelow = (heightUnderLine >= height);
+		const fitsBelow = (heightAvailableUnderLine >= height);
 
 		// And its left
-		let actualAboveLeft = topLeft.left;
-		let actualBelowLeft = bottomLeft.left;
+		let actualAboveLeft = aboveAnchor.left;
+		let actualBelowLeft = belowAnchor.left;
 		if (actualAboveLeft + width > ctx.scrollLeft + ctx.viewportWidth) {
 			actualAboveLeft = ctx.scrollLeft + ctx.viewportWidth - width;
 		}
@@ -357,17 +357,17 @@ class Widget {
 		return [left, absoluteLeft];
 	}
 
-	private _layoutBoxInPage(topLeft: Coordinate, bottomLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult | null {
-		const aboveTop = topLeft.top - height;
-		const belowTop = bottomLeft.top;
+	private _layoutBoxInPage(aboveAnchor: Coordinate, belowAnchor: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult | null {
+		const aboveTop = aboveAnchor.top - height;
+		const belowTop = belowAnchor.top;
 
 		const domNodePosition = dom.getDomNodePagePosition(this._viewDomNode.domNode);
 		const absoluteAboveTop = domNodePosition.top + aboveTop - window.scrollY;
 		const absoluteBelowTop = domNodePosition.top + belowTop - window.scrollY;
 
 		const windowSize = dom.getClientArea(document.body);
-		const [aboveLeft, absoluteAboveLeft] = this._layoutHorizontalSegmentInPage(windowSize, domNodePosition, topLeft.left - ctx.scrollLeft + this._contentLeft, width);
-		const [belowLeft, absoluteBelowLeft] = this._layoutHorizontalSegmentInPage(windowSize, domNodePosition, bottomLeft.left - ctx.scrollLeft + this._contentLeft, width);
+		const [aboveLeft, absoluteAboveLeft] = this._layoutHorizontalSegmentInPage(windowSize, domNodePosition, aboveAnchor.left - ctx.scrollLeft + this._contentLeft, width);
+		const [belowLeft, absoluteBelowLeft] = this._layoutHorizontalSegmentInPage(windowSize, domNodePosition, belowAnchor.left - ctx.scrollLeft + this._contentLeft, width);
 
 		// Leave some clearance to the top/bottom
 		const TOP_PADDING = 22;
@@ -389,7 +389,7 @@ class Widget {
 
 		return {
 			fitsAbove,
-			aboveTop: aboveTop,
+			aboveTop,
 			aboveLeft,
 			fitsBelow,
 			belowTop,
@@ -402,18 +402,17 @@ class Widget {
 	}
 
 	/**
-	 * Compute `this._topLeft`
+	 * Compute the above and below anchors
 	 */
-	private _getTopAndBottomLeft(ctx: RenderingContext): [Coordinate | null, Coordinate | null] {
+	private _getAnchors(ctx: RenderingContext): [Coordinate | null, Coordinate | null] {
 		if (!this._viewRange) {
 			return [null, null];
 		}
 
 		const visibleRangesForRange = ctx.linesVisibleRangesForRange(this._viewRange, false);
-		const topLeft = getCoordinate(LineVisibleRanges.firstLine(visibleRangesForRange), this._affinity, this._viewRange.startColumn, 0);
-		const bottomLeft = getCoordinate(LineVisibleRanges.lastLine(visibleRangesForRange), this._affinity, this._viewRange.startColumn, this._lineHeight);
-
-		return [topLeft, bottomLeft];
+		const aboveAnchor = getCoordinate(LineVisibleRanges.firstLine(visibleRangesForRange), this._affinity, this._viewRange.startColumn, 0);
+		const belowAnchor = getCoordinate(LineVisibleRanges.lastLine(visibleRangesForRange), this._affinity, this._viewRange.startColumn, this._lineHeight);
+		return [aboveAnchor, belowAnchor];
 
 		function getCoordinate(line: LineVisibleRanges | null, affinity: PositionAffinity | null, startColumn: number, deltaTop: number): Coordinate | null {
 			if (!line) {
@@ -447,8 +446,8 @@ class Widget {
 			return null;
 		}
 
-		const [topLeft, bottomLeft] = this._getTopAndBottomLeft(ctx);
-		if (!topLeft || !bottomLeft) {
+		const [aboveAnchor, belowAnchor] = this._getAnchors(ctx);
+		if (!aboveAnchor || !belowAnchor) {
 			return null;
 		}
 
@@ -471,9 +470,9 @@ class Widget {
 
 		let placement: IBoxLayoutResult | null;
 		if (this.allowEditorOverflow) {
-			placement = this._layoutBoxInPage(topLeft, bottomLeft, this._cachedDomNodeOffsetWidth, this._cachedDomNodeOffsetHeight, ctx);
+			placement = this._layoutBoxInPage(aboveAnchor, belowAnchor, this._cachedDomNodeOffsetWidth, this._cachedDomNodeOffsetHeight, ctx);
 		} else {
-			placement = this._layoutBoxInViewport(topLeft, bottomLeft, this._cachedDomNodeOffsetWidth, this._cachedDomNodeOffsetHeight, ctx);
+			placement = this._layoutBoxInViewport(aboveAnchor, belowAnchor, this._cachedDomNodeOffsetWidth, this._cachedDomNodeOffsetHeight, ctx);
 		}
 
 		// Do two passes, first for perfect fit, second picks first option
@@ -498,9 +497,9 @@ class Widget {
 					}
 				} else {
 					if (this.allowEditorOverflow) {
-						return { coordinate: this._prepareRenderWidgetAtExactPositionOverflowing(topLeft), position: ContentWidgetPositionPreference.EXACT };
+						return { coordinate: this._prepareRenderWidgetAtExactPositionOverflowing(aboveAnchor), position: ContentWidgetPositionPreference.EXACT };
 					} else {
-						return { coordinate: topLeft, position: ContentWidgetPositionPreference.EXACT };
+						return { coordinate: aboveAnchor, position: ContentWidgetPositionPreference.EXACT };
 					}
 				}
 			}
