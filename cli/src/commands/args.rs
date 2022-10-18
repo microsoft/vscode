@@ -512,7 +512,7 @@ pub struct TunnelServeArgs {
 	pub random_name: bool,
 
 	/// Optional parent process id. If provided, the server will be stopped when the process of the given pid no longer exists
-	#[clap(long)]
+	#[clap(long, hide = true)]
 	pub parent_process_id: Option<i32>,
 }
 
