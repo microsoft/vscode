@@ -9,7 +9,7 @@ import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
 import { IOpenerService, IOpener, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeURLService } from 'vs/platform/url/common/urlService';
@@ -73,4 +73,4 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 	}
 }
 
-registerSingleton(IURLService, RelayURLService, false);
+registerSingleton(IURLService, RelayURLService, InstantiationType.Eager);

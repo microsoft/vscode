@@ -168,15 +168,16 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 	}
 
 	renderElement(node: ITreeNode<OutlineEntry, FuzzyScore>, _index: number, template: NotebookOutlineTemplate, _height: number | undefined): void {
+		const extraClasses: string[] = [];
 		const options: IIconLabelValueOptions = {
 			matches: createMatches(node.filterData),
 			labelEscapeNewLines: true,
-			extraClasses: []
+			extraClasses,
 		};
 
 		if (node.element.cell.cellKind === CellKind.Code && this._themeService.getFileIconTheme().hasFileIcons && !node.element.isExecuting) {
 			template.iconClass.className = '';
-			options.extraClasses?.push(...getIconClassesForLanguageId(node.element.cell.language ?? ''));
+			extraClasses.push(...getIconClassesForLanguageId(node.element.cell.language ?? ''));
 		} else {
 			template.iconClass.className = 'element-icon ' + ThemeIcon.asClassNameArray(node.element.icon).join(' ');
 		}

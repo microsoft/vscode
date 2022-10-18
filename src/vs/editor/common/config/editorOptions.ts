@@ -262,8 +262,7 @@ export interface IEditorOptions {
 	 */
 	smoothScrolling?: boolean;
 	/**
-	 * Enable that the editor will install an interval to check if its container dom node size has changed.
-	 * Enabling this might have a severe performance impact.
+	 * Enable that the editor will install a ResizeObserver to check if its container dom node size has changed.
 	 * Defaults to false.
 	 */
 	automaticLayout?: boolean;
@@ -1183,6 +1182,7 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 					nls.localize('accessibilitySupport.off', "The editor will never be optimized for usage with a Screen Reader."),
 				],
 				default: 'auto',
+				tags: ['accessibility'],
 				description: nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers. Setting to on will disable word wrapping.")
 			}
 		);
@@ -4702,7 +4702,8 @@ export const EditorOptions = {
 	accessibilitySupport: register(new EditorAccessibilitySupport()),
 	accessibilityPageSize: register(new EditorIntOption(EditorOption.accessibilityPageSize, 'accessibilityPageSize', 10, 1, Constants.MAX_SAFE_SMALL_INTEGER,
 		{
-			description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader at once. When we detect a screen reader we automatically set the default to be 500. Warning: this has a performance implication for numbers larger than the default.")
+			description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader at once. When we detect a screen reader we automatically set the default to be 500. Warning: this has a performance implication for numbers larger than the default."),
+			tags: ['accessibility']
 		})),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")

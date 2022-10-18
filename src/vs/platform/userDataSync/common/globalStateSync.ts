@@ -37,7 +37,7 @@ type StorageKeys = { machine: string[]; user: string[]; unregistered: string[] }
 
 interface IGlobalStateResourceMergeResult extends IAcceptResult {
 	readonly local: { added: IStringDictionary<IStorageValue>; removed: string[]; updated: IStringDictionary<IStorageValue> };
-	readonly remote: IStringDictionary<IStorageValue> | null;
+	readonly remote: { added: string[]; removed: string[]; updated: string[]; all: IStringDictionary<IStorageValue> | null };
 }
 
 export interface IGlobalStateResourcePreview extends IResourcePreview {
@@ -133,7 +133,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			local,
 			remote,
 			localChange: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0 ? Change.Modified : Change.None,
-			remoteChange: remote !== null ? Change.Modified : Change.None,
+			remoteChange: remote.all !== null ? Change.Modified : Change.None,
 		};
 
 		const localContent = stringify(localGlobalState, false);
@@ -162,7 +162,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		const localGlobalState = await this.getLocalGlobalState();
 		const storageKeys = await this.getStorageKeys(lastSyncGlobalState);
 		const { remote } = merge(localGlobalState.storage, lastSyncGlobalState.storage, lastSyncGlobalState.storage, storageKeys, this.logService);
-		return remote !== null;
+		return remote.all !== null;
 	}
 
 	protected async getMergeResult(resourcePreview: IGlobalStateResourcePreview, token: CancellationToken): Promise<IMergeResult> {
@@ -193,7 +193,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		return {
 			content: resourcePreview.localContent,
 			local: { added: {}, removed: [], updated: {} },
-			remote: resourcePreview.localUserData.storage,
+			remote: { added: Object.keys(resourcePreview.localUserData.storage), removed: [], updated: [], all: resourcePreview.localUserData.storage },
 			localChange: Change.None,
 			remoteChange: Change.Modified,
 		};
@@ -214,7 +214,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			return {
 				content: resourcePreview.remoteContent,
 				local: { added: {}, removed: [], updated: {} },
-				remote: null,
+				remote: { added: [], removed: [], updated: [], all: null },
 				localChange: Change.None,
 				remoteChange: Change.None,
 			};
@@ -240,9 +240,9 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		if (remoteChange !== Change.None) {
 			// update remote
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote ui state...`);
-			const content = JSON.stringify(<IGlobalState>{ storage: remote });
+			const content = JSON.stringify(<IGlobalState>{ storage: remote.all });
 			remoteUserData = await this.updateRemoteUserData(content, force ? null : remoteUserData.ref);
-			this.logService.info(`${this.syncResourceLogLabel}: Updated remote ui state`);
+			this.logService.info(`${this.syncResourceLogLabel}: Updated remote ui state.${remote.added.length ? ` Added: ${remote.added}.` : ''}${remote.updated.length ? ` Updated: ${remote.updated}.` : ''}${remote.removed.length ? ` Removed: ${remote.removed}.` : ''}`);
 		}
 
 		if (lastSyncUserData?.ref !== remoteUserData.ref) {

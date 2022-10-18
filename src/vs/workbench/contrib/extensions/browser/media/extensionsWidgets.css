@@ -58,3 +58,8 @@
 	color: inherit;
 	font-size: 80%;
 }
+
+.extension-bookmark .recommendation {
+	border-top-color: var(--vscode-extensionButton-prominentBackground);
+	color: var(--vscode-extensionButton-prominentForeground);
+}

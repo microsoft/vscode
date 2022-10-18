@@ -8,9 +8,8 @@ import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfileUpdateOptions, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ContextKeyDefinedExpr, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ProductQualityContext } from 'vs/platform/contextkey/common/contextkeys';
+import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfileUpdateOptions } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export interface DidChangeUserDataProfileEvent {
 	readonly preserveData: boolean;
@@ -78,7 +77,7 @@ export const PROFILES_TTILE = { value: localize('settings profiles', "Settings P
 export const PROFILES_CATEGORY = { ...PROFILES_TTILE };
 export const PROFILE_EXTENSION = 'code-profile';
 export const PROFILE_FILTER = [{ name: localize('profile', "Settings Profile"), extensions: [PROFILE_EXTENSION] }];
-export const PROFILES_ENABLEMENT_CONTEXT = ContextKeyExpr.or(ProductQualityContext.notEqualsTo('stable'), ContextKeyDefinedExpr.create(`config.${PROFILES_ENABLEMENT_CONFIG}`));
+export const PROFILES_ENABLEMENT_CONTEXT = new RawContextKey<boolean>('profiles.enabled', true);
 export const CURRENT_PROFILE_CONTEXT = new RawContextKey<string>('currentSettingsProfile', '');
 export const IS_CURRENT_PROFILE_TRANSIENT_CONTEXT = new RawContextKey<boolean>('isCurrentSettingsProfileTransient', false);
 export const HAS_PROFILES_CONTEXT = new RawContextKey<boolean>('hasSettingsProfiles', false);

@@ -69,6 +69,7 @@ import { ILanguageStatus } from 'vs/workbench/services/languageStatus/common/lan
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import * as search from 'vs/workbench/services/search/common/search';
+import { EditSessionIdentityMatch } from 'vs/platform/workspace/common/editSessions';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -598,7 +599,6 @@ export interface MainThreadStorageShape extends IDisposable {
 export interface MainThreadTelemetryShape extends IDisposable {
 	$publicLog(eventName: string, data?: any): void;
 	$publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void;
-	$logTelemetryToOutputChannel(eventName: string, data: Record<string, any>): void;
 }
 
 export interface MainThreadEditorInsetsShape extends IDisposable {
@@ -768,7 +768,7 @@ export interface IWebviewPortMapping {
 export interface IWebviewContentOptions {
 	readonly enableScripts?: boolean;
 	readonly enableForms?: boolean;
-	readonly enableCommandUris?: boolean;
+	readonly enableCommandUris?: boolean | readonly string[];
 	readonly localResourceRoots?: readonly UriComponents[];
 	readonly portMapping?: readonly IWebviewPortMapping[];
 }
@@ -903,8 +903,8 @@ export interface ExtHostCustomEditorsShape {
 		viewType: string,
 		initData: {
 			title: string;
-			webviewOptions: IWebviewContentOptions;
-			panelOptions: IWebviewPanelOptions;
+			contentOptions: IWebviewContentOptions;
+			options: IWebviewPanelOptions;
 		},
 		position: EditorGroupColumn,
 		cancellation: CancellationToken
@@ -1227,9 +1227,9 @@ export interface IStartDebuggingOptions {
 	repl?: IDebugSessionReplMode;
 	noDebug?: boolean;
 	compact?: boolean;
-	debugUI?: {
-		simple?: boolean;
-	};
+	suppressDebugToolbar?: boolean;
+	suppressDebugStatusbar?: boolean;
+	suppressDebugView?: boolean;
 	suppressSaveBeforeStart?: boolean;
 }
 
@@ -1422,6 +1422,7 @@ export interface ExtHostWorkspaceShape {
 	$handleTextSearchResult(result: search.IRawFileMatch2, requestId: number): void;
 	$onDidGrantWorkspaceTrust(): void;
 	$getEditSessionIdentifier(folder: UriComponents, token: CancellationToken): Promise<string | undefined>;
+	$provideEditSessionIdentityMatch(folder: UriComponents, identity1: string, identity2: string, token: CancellationToken): Promise<EditSessionIdentityMatch | undefined>;
 }
 
 export interface ExtHostFileSystemInfoShape {
@@ -1945,7 +1946,7 @@ export interface ExtHostWindowShape {
 }
 
 export interface ExtHostLogLevelServiceShape {
-	$setLevel(level: LogLevel): void;
+	$setLevel(level: LogLevel, resource?: UriComponents): void;
 }
 
 export interface MainThreadLoggerShape {
@@ -2145,6 +2146,7 @@ export interface MainThreadThemingShape extends IDisposable {
 }
 
 export interface MainThreadLocalizationShape extends IDisposable {
+	$fetchBuiltInBundleUri(id: string): Promise<UriComponents | undefined>;
 	$fetchBundleContents(uriComponents: UriComponents): Promise<string>;
 }
 
@@ -2209,7 +2211,7 @@ export interface ExtHostLocalizationShape {
 export interface IStringDetails {
 	message: string;
 	args?: Record<string | number, any>;
-	comment?: string[];
+	comment?: string | string[];
 }
 
 export interface ITestControllerPatch {

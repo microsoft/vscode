@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { MdLanguageClient } from './client/client';
 import { CommandManager } from './commandManager';
-import * as commands from './commands/index';
+import { registerMarkdownCommands } from './commands/index';
 import { registerPasteSupport } from './languageFeatures/copyPaste';
 import { registerDiagnosticSupport } from './languageFeatures/diagnostics';
 import { registerDropIntoEditorSupport } from './languageFeatures/dropIntoEditor';
@@ -17,8 +17,8 @@ import { MarkdownItEngine } from './markdownEngine';
 import { MarkdownContributionProvider } from './markdownExtensions';
 import { MdDocumentRenderer } from './preview/documentRenderer';
 import { MarkdownPreviewManager } from './preview/previewManager';
-import { ContentSecurityPolicyArbiter, ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './preview/security';
-import { loadDefaultTelemetryReporter, TelemetryReporter } from './telemetryReporter';
+import { ExtensionContentSecurityPolicyArbiter } from './preview/security';
+import { loadDefaultTelemetryReporter } from './telemetryReporter';
 import { MdLinkOpener } from './util/openDocumentLink';
 
 export function activateShared(
@@ -63,23 +63,3 @@ function registerMarkdownLanguageFeatures(
 	);
 }
 
-function registerMarkdownCommands(
-	commandManager: CommandManager,
-	previewManager: MarkdownPreviewManager,
-	telemetryReporter: TelemetryReporter,
-	cspArbiter: ContentSecurityPolicyArbiter,
-	engine: MarkdownItEngine,
-): vscode.Disposable {
-	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, previewManager);
-
-	commandManager.register(new commands.ShowPreviewCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowPreviewToSideCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowLockedPreviewToSideCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowSourceCommand(previewManager));
-	commandManager.register(new commands.RefreshPreviewCommand(previewManager, engine));
-	commandManager.register(new commands.ShowPreviewSecuritySelectorCommand(previewSecuritySelector, previewManager));
-	commandManager.register(new commands.ToggleLockCommand(previewManager));
-	commandManager.register(new commands.RenderDocument(engine));
-	commandManager.register(new commands.ReloadPlugins(previewManager, engine));
-	return commandManager;
-}

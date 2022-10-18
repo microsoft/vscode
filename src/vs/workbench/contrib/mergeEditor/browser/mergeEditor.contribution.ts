@@ -50,6 +50,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('diffAlgorithm.experimental', "Uses an experimental diffing algorithm."),
 			]
 		},
+		'mergeEditor.showDeletionMarkers': {
+			type: 'boolean',
+			default: true,
+			description: 'Controls if deletions in base or one of the inputs should be indicated by a vertical bar.',
+		},
 	}
 });
 

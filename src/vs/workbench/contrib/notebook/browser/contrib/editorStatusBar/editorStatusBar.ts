@@ -209,7 +209,7 @@ registerAction2(class extends Action2 {
 			});
 		}
 
-		const sourceActions = notebookKernelService.getSourceActions();
+		const sourceActions = notebookKernelService.getSourceActions(notebook, editor.scopedContextKeyService);
 		if (sourceActions.length) {
 			quickPickItems.push({
 				type: 'separator',

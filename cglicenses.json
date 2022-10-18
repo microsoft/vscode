@@ -258,5 +258,30 @@
 			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN",
 			"THE SOFTWARE."
 		]
+	},
+	{
+		// Reason: repo URI is wrong on crate, pending https://github.com/warp-tech/russh/pull/53
+		"name": "russh-cryptovec",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/warp-tech/russh/1da80d0d599b6ee2d257c544c0d6af4f649c9029/LICENSE-2.0.txt"
+	},
+	{
+		// Reason: repo URI is wrong on crate, pending https://github.com/warp-tech/russh/pull/53
+		"name": "russh-keys",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/warp-tech/russh/1da80d0d599b6ee2d257c544c0d6af4f649c9029/LICENSE-2.0.txt"
+	},
+	{
+		// Reason: license is in a subdirectory in repo
+		"name": "dirs-next",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/xdg-rs/dirs/af4aa39daba0ac68e222962a5aca17360158b7cc/dirs/LICENSE-MIT"
+	},
+	{
+		// Reason: license is in a subdirectory in repo
+		"name": "openssl",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/sfackler/rust-openssl/e43eb58540b27a17f8029c397e3edc12bbc9011f/openssl/LICENSE"
+	},
+	{
+		// Reason: license is in a subdirectory in repo
+		"name": "openssl-sys",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/sfackler/rust-openssl/e43eb58540b27a17f8029c397e3edc12bbc9011f/openssl-sys/LICENSE-MIT"
 	}
 ]

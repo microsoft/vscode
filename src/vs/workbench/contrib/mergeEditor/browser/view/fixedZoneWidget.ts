@@ -24,6 +24,7 @@ export abstract class FixedZoneWidget extends Disposable {
 		viewZoneAccessor: IViewZoneChangeAccessor,
 		afterLineNumber: number,
 		height: number,
+		viewZoneIdsToCleanUp: string[],
 	) {
 		super();
 
@@ -38,6 +39,7 @@ export abstract class FixedZoneWidget extends Disposable {
 				this.widgetDomNode.style.top = `${top}px`;
 			}
 		});
+		viewZoneIdsToCleanUp.push(this.viewZoneId);
 
 		this.widgetDomNode.style.left = this.editor.getLayoutInfo().contentLeft + 'px';
 
@@ -46,9 +48,6 @@ export abstract class FixedZoneWidget extends Disposable {
 		this._register({
 			dispose: () => {
 				this.editor.removeOverlayWidget(this.overlayWidget);
-				this.editor.changeViewZones(accessor => {
-					accessor.removeZone(this.viewZoneId);
-				});
 			},
 		});
 	}

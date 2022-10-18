@@ -157,7 +157,6 @@
 .scm-view .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
 	display: none;
 	max-width: fit-content;
-	max-width: -moz-fit-content;
 }
 
 .scm-view .monaco-list .monaco-list-row:hover .resource-group > .actions,

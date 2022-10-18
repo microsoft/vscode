@@ -10,7 +10,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/path';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -33,7 +33,8 @@ interface IFolderMatchTemplate {
 	label: IResourceLabel;
 	badge: CountBadge;
 	actions: ActionBar;
-	disposables: IDisposable[];
+	disposables: DisposableStore;
+	disposableActions: DisposableStore;
 }
 
 interface IFileMatchTemplate {
@@ -41,7 +42,7 @@ interface IFileMatchTemplate {
 	label: IResourceLabel;
 	badge: CountBadge;
 	actions: ActionBar;
-	disposables: IDisposable[];
+	disposables: DisposableStore;
 }
 
 interface IMatchTemplate {
@@ -114,22 +115,26 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 	}
 
 	renderTemplate(container: HTMLElement): IFolderMatchTemplate {
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		const folderMatchElement = DOM.append(container, DOM.$('.foldermatch'));
 		const label = this.labels.create(folderMatchElement, { supportDescriptionHighlights: true, supportHighlights: true });
-		disposables.push(label);
+		disposables.add(label);
 		const badge = new CountBadge(DOM.append(folderMatchElement, DOM.$('.badge')));
-		disposables.push(attachBadgeStyler(badge, this.themeService));
+		disposables.add(attachBadgeStyler(badge, this.themeService));
 		const actionBarContainer = DOM.append(folderMatchElement, DOM.$('.actionBarContainer'));
 		const actions = new ActionBar(actionBarContainer, { animated: false });
-		disposables.push(actions);
+		disposables.add(actions);
+
+		const disposableElements = new DisposableStore();
+		disposables.add(disposableElements);
 
 		return {
 			label,
 			badge,
 			actions,
-			disposables
+			disposables,
+			disposableActions: disposableElements
 		};
 	}
 
@@ -151,23 +156,32 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 	}
 
 	disposeElement(element: ITreeNode<RenderableMatch, any>, index: number, templateData: IFolderMatchTemplate): void {
+		templateData.disposableActions.clear();
+	}
+
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<FolderMatch>, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): void {
+		templateData.disposableActions.clear();
 	}
 
 	disposeTemplate(templateData: IFolderMatchTemplate): void {
-		dispose(templateData.disposables);
+		templateData.disposables.dispose();
 	}
 
 	private renderFolderDetails(folder: FolderMatch, templateData: IFolderMatchTemplate) {
-		const count = this.searchView.isTreeLayoutViewVisible ? folder.count() : folder.recursiveFileCount();
+		const count = folder.recursiveMatchCount();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchFileMatches', "{0} files found", count) : nls.localize('searchFileMatch', "{0} file found", count));
 
 		const actions: IAction[] = [];
 		if (this.searchModel.isReplaceActive() && count > 0) {
-			actions.push(this.instantiationService.createInstance(ReplaceAllInFolderAction, this.searchView.getControl(), folder));
+			const replaceAction = this.instantiationService.createInstance(ReplaceAllInFolderAction, this.searchView.getControl(), folder);
+			actions.push(replaceAction);
+			templateData.disposableActions.add(replaceAction);
 		}
+		const removeAction = this.instantiationService.createInstance(RemoveAction, this.searchView.getControl(), folder);
+		actions.push(removeAction);
+		templateData.disposableActions.add(removeAction);
 
-		actions.push(this.instantiationService.createInstance(RemoveAction, this.searchView.getControl(), folder));
 		templateData.actions.push(actions, { icon: true, label: false });
 	}
 }
@@ -194,15 +208,15 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 	}
 
 	renderTemplate(container: HTMLElement): IFileMatchTemplate {
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 		const fileMatchElement = DOM.append(container, DOM.$('.filematch'));
 		const label = this.labels.create(fileMatchElement);
-		disposables.push(label);
+		disposables.add(label);
 		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')));
-		disposables.push(attachBadgeStyler(badge, this.themeService));
+		disposables.add(attachBadgeStyler(badge, this.themeService));
 		const actionBarContainer = DOM.append(fileMatchElement, DOM.$('.actionBarContainer'));
 		const actions = new ActionBar(actionBarContainer, { animated: false });
-		disposables.push(actions);
+		disposables.add(actions);
 
 		return {
 			el: fileMatchElement,
@@ -237,7 +251,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 	}
 
 	disposeTemplate(templateData: IFileMatchTemplate): void {
-		dispose(templateData.disposables);
+		templateData.disposables.dispose();
 	}
 }
 
