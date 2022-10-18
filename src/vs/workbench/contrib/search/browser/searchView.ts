@@ -579,6 +579,7 @@ export class SearchView extends ViewPane {
 
 	private createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults'], childFolderIncompressible: boolean): Iterable<ICompressedTreeElement<RenderableMatch>> {
 		const sortOrder = this.searchConfig.sortOrder;
+
 		const matchArray = this.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.downstreamFileMatches();
 		const matches = matchArray.sort((a, b) => searchMatchComparer(a, b, sortOrder));
 
@@ -590,10 +591,7 @@ export class SearchView extends ViewPane {
 				children = this.createFolderIterator(match, collapseResults, false);
 			}
 			let nodeExists = true;
-			try { this.tree.getNode(match); } catch (e) {
-				nodeExists = false;
-				console.log('here');
-			}
+			try { this.tree.getNode(match); } catch (e) { nodeExists = false; }
 
 			const collapsed = nodeExists ? undefined :
 				(collapseResults === 'alwaysCollapse' || (match.count() > 10 && collapseResults !== 'alwaysExpand'));
