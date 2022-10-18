@@ -963,8 +963,6 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 		throw new Error('Bad use of emmet');
 	}
 
-	attrs = { ...(attrs || {}) };
-
 	const tagName = match[1] || 'div';
 	let result: T;
 
@@ -981,24 +979,24 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 		result.className = match[4].replace(/\./g, ' ').trim();
 	}
 
-	Object.keys(attrs).forEach(name => {
-		const value = attrs![name];
-
-		if (typeof value === 'undefined') {
-			return;
-		}
-
-		if (/^on\w+$/.test(name)) {
-			(<any>result)[name] = value;
-		} else if (name === 'selected') {
-			if (value) {
-				result.setAttribute(name, 'true');
+	if (attrs) {
+		Object.entries(attrs).forEach(([name, value]) => {
+			if (typeof value === 'undefined') {
+				return;
 			}
 
-		} else {
-			result.setAttribute(name, value);
-		}
-	});
+			if (/^on\w+$/.test(name)) {
+				(<any>result)[name] = value;
+			} else if (name === 'selected') {
+				if (value) {
+					result.setAttribute(name, 'true');
+				}
+
+			} else {
+				result.setAttribute(name, value);
+			}
+		});
+	}
 
 	result.append(...children);
 
