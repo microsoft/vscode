@@ -64,15 +64,15 @@ else {
 	// Running out of sources
 	if (Object.keys(product).length === 0) {
 		Object.assign(product, {
-			version: '1.72.0-dev',
-			nameShort: 'Code - OSS Dev',
-			nameLong: 'Code - OSS Dev',
-			applicationName: 'code-oss',
-			dataFolderName: '.vscode-oss',
-			urlProtocol: 'code-oss',
-			reportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',
+			version: '1.72.2',
+			nameShort: 'RunCode - OSS',
+			nameLong: 'RunCode - OSS',
+			applicationName: 'runcode-oss',
+			dataFolderName: '.runcode-oss',
+			urlProtocol: 'runcode-oss',
+			reportIssueUrl: 'https://github.com/runcode-io/runcode-oss/issues/new',
 			licenseName: 'MIT',
-			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt'
+			licenseUrl: 'https://github.com/runcode-io/runcode-oss/blob/main/LICENSE.txt'
 		});
 	}
 }
