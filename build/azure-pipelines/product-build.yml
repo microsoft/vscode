@@ -179,37 +179,15 @@ stages:
     - stage: CompileCLI
       dependsOn: []
       jobs:
-        - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true)) }}:
-          - job: LinuxX86
+        - ${{ if eq(variables.VSCODE_BUILD_STAGE_LINUX, true) }}:
+          - job: Linux
             pool: vscode-1es-linux
-            variables:
-              VSCODE_ARCH: x64
             steps:
               - template: ./linux/cli-build-linux.yml
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_LINUX_ALPINE: ${{ parameters.VSCODE_BUILD_LINUX_ALPINE }}
                   VSCODE_BUILD_LINUX: ${{ parameters.VSCODE_BUILD_LINUX }}
-
-        - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64, true)) }}:
-          - job: LinuxArm64
-            pool: vscode-1es-linux-20.04-arm64
-            variables:
-              VSCODE_ARCH: arm64
-            steps:
-              - task: NodeTool@0
-                displayName: Install Node.js
-                inputs:
-                  versionSpec: 16.x
-              - script: |
-                  set -e
-                  npm install -g yarn
-                  sudo apt update -y
-                  sudo apt install -y build-essential pkg-config
-                displayName: Install build dependencies
-              - template: ./linux/cli-build-linux.yml
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_LINUX_ALPINE_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64 }}
                   VSCODE_BUILD_LINUX_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ARM64 }}
 
