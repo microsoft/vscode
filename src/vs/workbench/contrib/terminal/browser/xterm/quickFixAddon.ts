@@ -145,8 +145,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		}));
 	}
 
-
-
 	/**
 	 * Resolves quick fixes, if any, based on the
 	 * @param command & its output
