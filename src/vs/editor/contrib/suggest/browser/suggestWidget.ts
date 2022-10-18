@@ -104,6 +104,7 @@ export class SuggestWidget implements IDisposable {
 	private _state: State = State.Hidden;
 	private _isAuto: boolean = false;
 	private _loadingTimeout?: IDisposable;
+	private _pendingLayout?: IDisposable;
 	private _currentSuggestionDetails?: CancelablePromise<void>;
 	private _focusedItem?: CompletionItem;
 	private _ignoreFocusEvents: boolean = false;
@@ -559,9 +560,13 @@ export class SuggestWidget implements IDisposable {
 			this._onDidSelect.resume();
 		}
 
-		this._layout(this.element.size);
-		// Reset focus border
-		this._details.widget.domNode.classList.remove('focused');
+		this._pendingLayout?.dispose();
+		this._pendingLayout = dom.runAtThisOrScheduleAtNextAnimationFrame(() => {
+			this._pendingLayout = undefined;
+			this._layout(this.element.size);
+			// Reset focus border
+			this._details.widget.domNode.classList.remove('focused');
+		});
 	}
 
 	selectNextPage(): boolean {
