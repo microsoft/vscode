@@ -2004,6 +2004,9 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	async updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension> { return local; }
 	registerParticipant(pariticipant: IExtensionManagementParticipant): void { }
 	async getTargetPlatform(): Promise<TargetPlatform> { return TargetPlatform.UNDEFINED; }
+	download(): Promise<URI> {
+		throw new Error('Method not implemented.');
+	}
 }
 
 export class TestUserDataProfileService implements IUserDataProfileService {

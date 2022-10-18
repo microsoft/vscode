@@ -89,7 +89,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	private onDidClickLink(handle: extHostProtocol.WebviewHandle, link: string): void {
 		const webview = this.getWebview(handle);
 		if (this.isSupportedLink(webview, URI.parse(link))) {
-			this._openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: true, fromWorkspace: true });
+			this._openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: Array.isArray(webview.contentOptions.enableCommandUris) || webview.contentOptions.enableCommandUris === true, fromWorkspace: true });
 		}
 	}
 
@@ -97,10 +97,20 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		if (MainThreadWebviews.standardSupportedLinkSchemes.has(link.scheme)) {
 			return true;
 		}
+
 		if (!isWeb && this._productService.urlProtocol === link.scheme) {
 			return true;
 		}
-		return !!webview.contentOptions.enableCommandUris && link.scheme === Schemas.command;
+
+		if (link.scheme === Schemas.command) {
+			if (Array.isArray(webview.contentOptions.enableCommandUris)) {
+				return webview.contentOptions.enableCommandUris.includes(link.path);
+			}
+
+			return webview.contentOptions.enableCommandUris === true;
+		}
+
+		return false;
 	}
 
 	private getWebview(handle: extHostProtocol.WebviewHandle): IWebview {
