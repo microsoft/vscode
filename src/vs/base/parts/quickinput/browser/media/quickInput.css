@@ -164,10 +164,6 @@
 	max-height: calc(20 * 22px);
 }
 
-.quick-input-list .monaco-scrollable-element {
-	padding: 0px 5px;
-}
-
 .quick-input-list .quick-input-list-entry {
 	box-sizing: border-box;
 	overflow: hidden;
@@ -179,10 +175,6 @@
 .quick-input-list .quick-input-list-entry.quick-input-list-separator-border {
 	border-top-width: 1px;
 	border-top-style: solid;
-}
-
-.quick-input-list .monaco-list-row {
-	border-radius: 3px;
 }
 
 .quick-input-list .monaco-list-row[data-index="0"] .quick-input-list-entry.quick-input-list-separator-border {
