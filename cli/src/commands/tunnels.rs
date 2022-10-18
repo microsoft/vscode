@@ -253,7 +253,7 @@ async fn serve_with_csa(
 				let mut s = sysinfo::System::new();
 				let pid = Pid::from(process_id);
 				while s.refresh_process(pid) {
-					sleep(Duration::from_millis(500)).await;
+					sleep(Duration::from_millis(2000)).await;
 				}
 				tx.send(ShutdownSignal::ParentProcessKilled).await.ok();
 			});
