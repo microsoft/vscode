@@ -424,7 +424,7 @@ declare namespace monaco {
 
 	export interface IMarkdownString {
 		readonly value: string;
-		readonly isTrusted?: boolean | MarkdownStringIsTrustedOptions;
+		readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
 		readonly supportThemeIcons?: boolean;
 		readonly supportHtml?: boolean;
 		readonly baseUri?: UriComponents;
@@ -433,7 +433,7 @@ declare namespace monaco {
 		};
 	}
 
-	export interface MarkdownStringIsTrustedOptions {
+	export interface MarkdownStringTrustedOptions {
 		readonly enabledCommands: readonly string[];
 	}
 
