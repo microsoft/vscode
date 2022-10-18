@@ -171,7 +171,7 @@ suite('ExtHostTelemetry', function () {
 		// Log an event with a bunch of PII, this should all get cleaned out
 		logger.logUsage('test-event', {
 			'fake-password': 'pwd=123',
-			'fake-email': 'no-reply@microsoft.com',
+			'fake-email': 'no-reply@example.com',
 			'fake-token': 'token=123',
 			'fake-slack-token': 'xoxp-123',
 			'fake-path': '/Users/username/.vscode/extensions',
