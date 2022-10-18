@@ -437,7 +437,7 @@ export interface IGetOutputItemMessage extends BaseToWebviewMessage {
 	readonly type: 'getOutputItem';
 	readonly requestId: number;
 	readonly outputId: string;
-	readonly mimeType: string;
+	readonly mime: string;
 }
 
 export interface IReturnOutputItemMessage {

@@ -847,7 +847,7 @@ var requirejs = (function() {
 				}
 				case 'getOutputItem': {
 					const resolvedResult = this.resolveOutputId(data.outputId);
-					const output = resolvedResult?.output.model.outputs.find(output => output.mime === data.mimeType);
+					const output = resolvedResult?.output.model.outputs.find(output => output.mime === data.mime);
 
 					this._sendMessageToWebview({
 						type: 'returnOutputItem',

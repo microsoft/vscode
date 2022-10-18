@@ -725,16 +725,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	const outputItemRequests = new class {
 		private _requestPool = 0;
-		private readonly _requests = new Map<number, { resolve: (x: webviewMessages.OutputItemEntry | undefined) => void }>();
+		private readonly _requests = new Map</*requestId*/number, { resolve: (x: webviewMessages.OutputItemEntry | undefined) => void }>();
 
 		getOutputItem(outputId: string, mime: string) {
-			const id = this._requestPool++;
+			const requestId = this._requestPool++;
 
 			let resolve: ((x: webviewMessages.OutputItemEntry | undefined) => void) | undefined;
 			const p = new Promise<webviewMessages.OutputItemEntry | undefined>(r => resolve = r);
-			this._requests.set(id, { resolve: resolve! });
+			this._requests.set(requestId, { resolve: resolve! });
 
-			postNotebookMessage<webviewMessages.IGetOutputItemMessage>('getOutputItem', { requestId: id, outputId, mimeType: mime });
+			postNotebookMessage<webviewMessages.IGetOutputItemMessage>('getOutputItem', { requestId, outputId, mime });
 			return p;
 		}
 
@@ -744,6 +744,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				return;
 			}
 
+			this._requests.delete(requestId);
 			request.resolve(output);
 		}
 	};
