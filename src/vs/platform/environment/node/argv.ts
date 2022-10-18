@@ -38,9 +38,9 @@ export interface Subcommand<T> {
 
 export type OptionDescriptions<T> = {
 	[P in keyof T]:
-	T[P] extends boolean ? Option<'boolean'> :
-	T[P] extends string ? Option<'string'> :
-	T[P] extends string[] ? Option<'string[]'> :
+	T[P] extends boolean | undefined ? Option<'boolean'> :
+	T[P] extends string | undefined ? Option<'string'> :
+	T[P] extends string[] | undefined ? Option<'string[]'> :
 	Subcommand<T[P]>
 };
 

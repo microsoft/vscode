@@ -103,10 +103,21 @@ suite('parseArgs', () => {
 	}
 
 	test('subcommands', () => {
-		const options1 = {
+
+		interface TestArgs1 {
+			testcmd?: {
+				testArg?: string;
+				_: string[];
+			};
+			_: string[];
+		}
+
+		const options1: OptionDescriptions<TestArgs1> = {
 			'testcmd': c('A test command', {
-				testArg: o('A test command option')
-			})
+				testArg: o('A test command option'),
+				_: { type: 'string[]' }
+			}),
+			_: { type: 'string[]' }
 		};
 		assertParse(
 			options1,
@@ -120,11 +131,23 @@ suite('parseArgs', () => {
 			{ testcmd: { testArg: 'foo', '_': [] }, '_': [] },
 			['testcmd-onUnknownOption testX']
 		);
-		const options2 = {
+
+		interface TestArgs2 {
+			testcmd?: {
+				testArg?: string;
+				testX?: boolean;
+				_: string[];
+			};
+			testX?: boolean;
+			_: string[];
+		}
+
+		const options2: OptionDescriptions<TestArgs2> = {
 			'testcmd': c('A test command', {
 				testArg: o('A test command option')
 			}),
-			testX: { global: true }
+			testX: { type: 'boolean', global: true, description: '' },
+			_: { type: 'string[]' }
 		};
 		assertParse(
 			options2,
