@@ -536,7 +536,7 @@ export class SearchView extends ViewPane {
 	}
 
 	refreshTree(event?: IChangeEvent): void {
-		const setChildrenOpts: IObjectTreeSetChildrenOptions<RenderableMatch> = { diffIdentityProvider: { getId(element: RenderableMatch) { return element.id; }, }, diffDepth: 100 };
+		const setChildrenOpts: IObjectTreeSetChildrenOptions<RenderableMatch> = { diffIdentityProvider: { getId(element: RenderableMatch) { return element.id(); }, }, diffDepth: 100 };
 		const collapseResults = this.searchConfig.collapseResults;
 		if (!event || event.added || event.removed) {
 			// Refresh whole tree
