@@ -30,13 +30,13 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
 const quickFixTelemetryTitle = 'terminal/quick-fix';
 type QuickFixResultTelemetryEvent = {
-	type: string;
+	id: string;
 	fixesShown: boolean;
 	ranQuickFixCommand?: boolean;
 };
 type QuickFixClassification = {
 	owner: 'meganrogge';
-	type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of quick fix that was run' };
+	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The quick fix ID' };
 	fixesShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the fixes were shown by the user' };
 	ranQuickFixCommand?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If the command that was executed matched a quick fix suggested one. Undefined if no command is expected.' };
 	comment: 'Terminal quick fixes';
@@ -122,12 +122,12 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			if (this._expectedCommands) {
 				const ranQuickFixCommand = this._expectedCommands.includes(command.command);
 				this._logService.debug(quickFixTelemetryTitle, {
-					type: this._expectedCommands.join(' '),
+					id: this._expectedCommands.join(' '),
 					fixesShown: this._fixesShown,
 					ranQuickFixCommand
 				});
 				this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(quickFixTelemetryTitle, {
-					type: this._expectedCommands.join(' '),
+					id: this._expectedCommands.join(' '),
 					fixesShown: this._fixesShown,
 					ranQuickFixCommand
 				});
@@ -163,12 +163,12 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		this._register(onDidRunQuickFix((id) => {
 			const ranQuickFixCommand = (this._expectedCommands?.includes(command.command) || false);
 			this._logService.debug(quickFixTelemetryTitle, {
-				type: id,
+				id,
 				fixesShown: this._fixesShown,
 				ranQuickFixCommand
 			});
 			this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(quickFixTelemetryTitle, {
-				type: id,
+				id,
 				fixesShown: this._fixesShown,
 				ranQuickFixCommand
 			});
