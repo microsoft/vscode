@@ -105,6 +105,7 @@ export class SuggestWidget implements IDisposable {
 	private _isAuto: boolean = false;
 	private _loadingTimeout?: IDisposable;
 	private _pendingLayout?: IDisposable;
+	private _pendingShowDetails?: IDisposable;
 	private _currentSuggestionDetails?: CancelablePromise<void>;
 	private _focusedItem?: CompletionItem;
 	private _ignoreFocusEvents: boolean = false;
@@ -697,15 +698,19 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	showDetails(loading: boolean): void {
-		this._details.show();
-		if (loading) {
-			this._details.widget.renderLoading();
-		} else {
-			this._details.widget.renderItem(this._list.getFocusedElements()[0], this._explainMode);
-		}
-		this._positionDetails();
-		this.editor.focus();
-		this.element.domNode.classList.add('shows-details');
+		this._pendingShowDetails?.dispose();
+		this._pendingShowDetails = dom.runAtThisOrScheduleAtNextAnimationFrame(() => {
+			this._pendingShowDetails = undefined;
+			this._details.show();
+			if (loading) {
+				this._details.widget.renderLoading();
+			} else {
+				this._details.widget.renderItem(this._list.getFocusedElements()[0], this._explainMode);
+			}
+			this._positionDetails();
+			this.editor.focus();
+			this.element.domNode.classList.add('shows-details');
+		});
 	}
 
 	toggleExplainMode(): void {
