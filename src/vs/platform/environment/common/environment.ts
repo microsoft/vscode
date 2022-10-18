@@ -142,7 +142,7 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 
 	// --- extensions
 	extensionsPath: string;
-	extensionsDownloadPath: string;
+	extensionsDownloadLocation: URI;
 	builtinExtensionsPath: string;
 
 	// --- use keytar for credentials
