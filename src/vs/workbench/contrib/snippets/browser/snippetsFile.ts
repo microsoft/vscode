@@ -15,8 +15,7 @@ import { IdleValue } from 'vs/base/common/async';
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { relativePath } from 'vs/base/common/resources';
 import { isObject } from 'vs/base/common/types';
-import { Iterable } from 'vs/base/common/iterator';
-import { tail } from 'vs/base/common/arrays';
+import { asArray, tail } from 'vs/base/common/arrays';
 
 class SnippetBodyInsights {
 
@@ -304,7 +303,7 @@ export class SnippetFile {
 			}
 		}
 
-		for (const _prefix of Array.isArray(prefix) ? prefix : Iterable.single(prefix)) {
+		for (const _prefix of asArray(prefix)) {
 			bucket.push(new Snippet(
 				Boolean(isFileTemplate),
 				scopes,

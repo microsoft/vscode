@@ -13,28 +13,9 @@ import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Utils } from 'vs/platform/profiling/common/profiling';
-import { bottomUp, } from 'vs/platform/profiling/node/profilingModel';
+import { bottomUp, } from 'vs/platform/profiling/common/profilingModel';
+import { TelemetrySampleData, TelemetrySampleDataClassification } from 'vs/platform/profiling/common/profilingTelemetrySpec';
 
-
-type TelemetrySampleData = {
-	sessionId: string;
-	selfTime: number;
-	totalTime: number;
-	percentage: number;
-	functionName: string;
-	callstack: string;
-};
-
-type TelemetrySampleDataClassification = {
-	owner: 'jrieken';
-	comment: 'A callstack that took a long time to execute';
-	sessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Session identifier that allows to correlate samples from one profile' };
-	selfTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Self time of the sample' };
-	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time of the sample' };
-	percentage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Relative time (percentage) of the sample' };
-	functionName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the sample' };
-	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The stacktrace leading into the sample' };
-};
 
 export class WindowProfiler {
 
@@ -158,7 +139,8 @@ export class WindowProfiler {
 				totalTime: sample.totalTime,
 				percentage: sample.percentage,
 				functionName: sample.location,
-				callstack: sample.caller.map(c => `${c.percentage}|${c.location}`).join('<')
+				callstack: sample.caller.map(c => `${c.percentage}|${c.location}`).join('<'),
+				extensionId: ''
 			};
 			this._telemetryService.publicLog2<TelemetrySampleData, TelemetrySampleDataClassification>('prof.freeze.sample', data);
 		}

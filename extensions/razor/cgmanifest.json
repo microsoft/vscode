@@ -4,13 +4,13 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "OmniSharp/omnisharp-vscode",
-					"repositoryUrl": "https://github.com/OmniSharp/omnisharp-vscode",
-					"commitHash": "85d6eeea14e9aef51934697de78c77fbddbf1aa8"
+					"name": "dotnet/razor-tooling",
+					"repositoryUrl": "https://github.com/dotnet/razor-tooling",
+					"commitHash": "558b502fbef5ecdf386ccd6d47b0b40b5f8800a7"
 				}
 			},
 			"license": "MIT",
-			"version": "1.24.0",
+			"version": "1.0.0",
 			"licenseDetail": [
 				"MIT License",
 				"",
