@@ -118,13 +118,14 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		}
 		this._register(commandDetection.onCommandFinished(command => {
 			if (this._expectedCommands) {
+				const expectedCommand = this._expectedCommands.includes(command.command);
 				this._logService.debug(`terminal/quick-fix/command`, {
 					fixesShown: this._fixesShown,
-					expectedCommand: this._expectedCommands.includes(command.command),
+					expectedCommand
 				});
 				this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(`terminal/quick-fix/command`, {
 					fixesShown: this._fixesShown,
-					expectedCommand: this._expectedCommands.includes(command.command),
+					expectedCommand
 				});
 				this._expectedCommands = undefined;
 			}
@@ -158,14 +159,15 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		this._expectedCommands = expectedCommands;
 		this._quickFixes = fixes;
 		this._register(onDidRunQuickFix((id) => {
-			const info = `terminal/quick-fix/${id}`;
-			this._logService.debug(info, {
+			const quickFixType = `terminal/quick-fix/${id}`;
+			const expectedCommand = id === 'opener' ? undefined : (this._expectedCommands?.includes(command.command) || false);
+			this._logService.debug(quickFixType, {
 				fixesShown: this._fixesShown,
-				expectedCommand: this._expectedCommands?.includes(command.command),
+				expectedCommand
 			});
-			this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(info, {
+			this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(quickFixType, {
 				fixesShown: this._fixesShown,
-				expectedCommand: this._expectedCommands?.includes(command.command),
+				expectedCommand
 			});
 			this._disposeQuickFix();
 			this._fixesShown = false;
