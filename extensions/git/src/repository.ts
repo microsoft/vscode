@@ -1877,13 +1877,7 @@ export class Repository implements Disposable {
 			const result = await this.retryRun(operation, runOperation);
 
 			if (!isReadOnly(operation)) {
-				if (this.updateModelStateCancellationTokenSource) {
-					this.updateModelStateCancellationTokenSource.cancel();
-				}
-
-				this.updateModelStateCancellationTokenSource = new CancellationTokenSource();
-				await this.updateModelState(this.updateModelStateCancellationTokenSource.token);
-				this.updateModelStateCancellationTokenSource = undefined;
+				await this.updateModelState();
 			}
 
 			return result;
@@ -1942,9 +1936,18 @@ export class Repository implements Disposable {
 		return folderPaths.filter(p => !ignored.has(p));
 	}
 
-	@throttle
-	private async updateModelState(cancellationToken?: CancellationToken): Promise<void> {
-		console.log('updateModelState start');
+	private async updateModelState() {
+		this.updateModelStateCancellationTokenSource?.cancel();
+
+		this.updateModelStateCancellationTokenSource = new CancellationTokenSource();
+		await this._updateModelState(this.updateModelStateCancellationTokenSource.token);
+	}
+
+	private async _updateModelState(cancellationToken?: CancellationToken): Promise<void> {
+		if (cancellationToken && cancellationToken.isCancellationRequested) {
+			return;
+		}
+
 		try {
 			const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 			const untrackedChanges = scopedConfig.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
@@ -2117,15 +2120,11 @@ export class Repository implements Disposable {
 			this._sourceControl.commitTemplate = commitTemplate;
 		}
 		catch (err) {
-			console.log('CANCELLED?');
 			if (err instanceof GitError && err.message === 'Cancelled') {
 				return;
 			}
 
 			throw err;
-		}
-		finally {
-			console.log('updateModelState end');
 		}
 	}
 
