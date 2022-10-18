@@ -9,9 +9,10 @@ pub const CONTROL_PORT: u16 = 31545;
 pub const PROTOCOL_VERSION: u32 = 1;
 
 pub const VSCODE_CLI_VERSION: Option<&'static str> = option_env!("VSCODE_CLI_VERSION");
-pub const VSCODE_CLI_ASSET_NAME: Option<&'static str> = option_env!("VSCODE_CLI_ASSET_NAME");
 pub const VSCODE_CLI_AI_KEY: Option<&'static str> = option_env!("VSCODE_CLI_AI_KEY");
 pub const VSCODE_CLI_AI_ENDPOINT: Option<&'static str> = option_env!("VSCODE_CLI_AI_ENDPOINT");
+pub const VSCODE_CLI_QUALITY: Option<&'static str> = option_env!("VSCODE_CLI_QUALITY");
+pub const VSCODE_CLI_COMMIT: Option<&'static str> = option_env!("VSCODE_CLI_COMMIT");
 pub const VSCODE_CLI_UPDATE_ENDPOINT: Option<&'static str> =
 	option_env!("VSCODE_CLI_UPDATE_ENDPOINT");
 
