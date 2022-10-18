@@ -161,7 +161,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			const info = `terminal/quick-fix/${id}`;
 			this._logService.debug(info, {
 				fixesShown: this._fixesShown,
-				expectedCommand: this._expectedCommands?.includes(command.command) || false,
+				expectedCommand: this._expectedCommands?.includes(command.command),
 			});
 			this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(info, {
 				fixesShown: this._fixesShown,
