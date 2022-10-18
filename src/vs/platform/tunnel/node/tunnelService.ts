@@ -17,7 +17,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { connectRemoteAgentTunnel, IAddressProvider, IConnectionOptions, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { AbstractTunnelService, isAllInterfaces, ISharedTunnelsService as ISharedTunnelsService, isLocalhost, isPortPrivileged, ITunnelService, RemoteTunnel, TunnelPrivacyId } from 'vs/platform/tunnel/common/tunnel';
 import { ISignService } from 'vs/platform/sign/common/sign';
-import { isMacintosh, OS } from 'vs/base/common/platform';
+import { OS } from 'vs/base/common/platform';
 
 async function createRemoteTunnel(options: IConnectionOptions, defaultTunnelHost: string, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {
 	let readyTunnel: NodeRemoteTunnel | undefined;
@@ -84,7 +84,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 
 	public async waitForReady(): Promise<this> {
 		const startPort = this.suggestedLocalPort ?? this.tunnelRemotePort;
-		const hostname = isMacintosh && startPort < 1024 && isAllInterfaces(this.defaultTunnelHost) && !isPortPrivileged(startPort, this.defaultTunnelHost, OS, os.release()) ? '0.0.0.0' : '127.0.0.1';
+		const hostname = isAllInterfaces(this.defaultTunnelHost) ? '0.0.0.0' : '127.0.0.1';
 		// try to get the same port number as the remote port number...
 		let localPort = await findFreePortFaster(startPort, 2, 1000, hostname);
 
