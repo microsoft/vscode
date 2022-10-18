@@ -926,6 +926,50 @@ declare namespace monaco.editor {
 	export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: IDiffNavigatorOptions): IDiffNavigator;
 
 	/**
+	 * Description of a command contribution
+	 */
+	export interface ICommandDescriptor {
+		/**
+		 * An unique identifier of the contributed command.
+		 */
+		id: string;
+		/**
+		 * Callback that will be executed when the command is triggered.
+		 */
+		run: ICommandHandler;
+	}
+
+	/**
+	 * Add a command.
+	 */
+	export function addCommand(descriptor: ICommandDescriptor): IDisposable;
+
+	/**
+	 * Add an action to all editors.
+	 */
+	export function addEditorAction(descriptor: IActionDescriptor): IDisposable;
+
+	/**
+	 * A keybinding rule.
+	 */
+	export interface IKeybindingRule {
+		keybinding: number;
+		command?: string | null;
+		commandArgs?: any;
+		when?: string | null;
+	}
+
+	/**
+	 * Add a keybinding rule.
+	 */
+	export function addKeybindingRule(rule: IKeybindingRule): IDisposable;
+
+	/**
+	 * Add keybinding rules.
+	 */
+	export function addKeybindingRules(rules: IKeybindingRule[]): IDisposable;
+
+	/**
 	 * Create a new editor model.
 	 * You can specify the language that should be set for this model or let the language be inferred from the `uri`.
 	 */
