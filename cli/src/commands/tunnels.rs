@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::process::Stdio;
-
 use async_trait::async_trait;
 use tokio::sync::oneshot;
 
 use super::{
 	args::{
-		AuthProvider, Cli, ExistingTunnelArgs, TunnelRenameArgs, TunnelServeArgs,
+		AuthProvider, CliCore, ExistingTunnelArgs, TunnelRenameArgs, TunnelServeArgs,
 		TunnelServiceSubCommands, TunnelUserSubCommands,
 	},
 	CommandContext,
@@ -57,11 +55,11 @@ impl From<ExistingTunnelArgs> for Option<dev_tunnels::ExistingTunnel> {
 }
 
 struct TunnelServiceContainer {
-	args: Cli,
+	args: CliCore,
 }
 
 impl TunnelServiceContainer {
-	fn new(args: Cli) -> Self {
+	fn new(args: CliCore) -> Self {
 		Self { args }
 	}
 }
@@ -215,6 +213,10 @@ async fn serve_with_csa(
 	csa: CodeServerArgs,
 	shutdown_rx: Option<oneshot::Receiver<()>>,
 ) -> Result<i32, AnyError> {
+	// Intentionally read before starting the server. If the server updated and
+	// respawn is requested, the old binary will get renamed, and then
+	// current_exe will point to the wrong path.
+	let current_exe = std::env::current_exe().unwrap();
 	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
 
 	let auth = Auth::new(&paths, log.clone());
@@ -244,11 +246,8 @@ async fn serve_with_csa(
 		// reuse current args, but specify no-forward since tunnels will
 		// already be running in this process, and we cannot do a login
 		let args = std::env::args().skip(1).collect::<Vec<String>>();
-		let exit = std::process::Command::new(std::env::current_exe().unwrap())
+		let exit = std::process::Command::new(current_exe)
 			.args(args)
-			.stdout(Stdio::inherit())
-			.stderr(Stdio::inherit())
-			.stdin(Stdio::inherit())
 			.spawn()
 			.map_err(|e| wrap(e, "error respawning after update"))?
 			.wait()

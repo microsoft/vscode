@@ -3,6 +3,8 @@ parameters:
     type: boolean
   - name: VSCODE_BUILD_WIN32_ARM64
     type: boolean
+  - name: VSCODE_BUILD_WIN32_32BIT
+    type: boolean
   - name: VSCODE_QUALITY
     type: string
   - name: channel
@@ -16,7 +18,7 @@ steps:
 
   - template: ../mixin-distro-win32.yml
     parameters:
-      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -25,6 +27,7 @@ steps:
     displayName: Prepare CLI build
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
 
   - template: ../cli/install-rust-win32.yml
     parameters:
@@ -33,6 +36,8 @@ steps:
           - x86_64-pc-windows-msvc
         - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
           - aarch64-pc-windows-msvc
+        - ${{ if eq(parameters.VSCODE_BUILD_WIN32_32BIT, true) }}:
+          - i686-pc-windows-msvc
 
   - template: ../vcpkg-install.yml
     parameters:
@@ -41,6 +46,8 @@ steps:
           - x64-windows-static-md
         - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
           - arm64-windows-static-md
+        - ${{ if eq(parameters.VSCODE_BUILD_WIN32_32BIT, true) }}:
+          - x86-windows-static-md
       vcpkgDir: $(Build.SourcesDirectory)/build/azure-pipelines/cli/vcpkg
       targetDirectory: $(Build.ArtifactStagingDirectory)/deps
 
@@ -61,3 +68,12 @@ steps:
         VSCODE_CLI_ENV:
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/deps/arm64-windows-static-md/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/deps/arm64-windows-static-md/include
+
+  - ${{ if eq(parameters.VSCODE_BUILD_WIN32_32BIT, true) }}:
+    - template: ../cli/cli-compile-and-publish.yml
+      parameters:
+        VSCODE_CLI_TARGET: i686-pc-windows-msvc
+        VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_ia32_cli
+        VSCODE_CLI_ENV:
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/deps/x86-windows-static-md/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/deps/x86-windows-static-md/include
