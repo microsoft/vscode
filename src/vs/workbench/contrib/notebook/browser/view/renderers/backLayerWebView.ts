@@ -706,7 +706,7 @@ var requirejs = (function() {
 							}
 							case 'github-issues.authNow':
 							case 'workbench.extensions.search':
-							case 'workbench.action.openSettings': {
+							case 'workbench.extensions.openSettings': {
 								this.openerService.open(data.href, { fromUserGesture: true, allowCommands: true, fromWorkspace: true });
 								return;
 							}
