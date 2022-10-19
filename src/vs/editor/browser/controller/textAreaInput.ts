@@ -193,6 +193,11 @@ export class TextAreaInput extends Disposable {
 	private readonly _asyncFocusGainWriteScreenReaderContent: RunOnceScheduler;
 
 	private _textAreaState: TextAreaState;
+
+	public get textAreaState(): TextAreaState {
+		return this._textAreaState;
+	}
+
 	private _selectionChangeListener: IDisposable | null;
 
 	private _hasFocus: boolean;
