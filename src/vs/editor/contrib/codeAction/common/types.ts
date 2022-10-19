@@ -213,7 +213,7 @@ export class CodeActionItem {
 
 export interface CodeActionSet extends IDisposable {
 	readonly validActions: readonly CodeActionItem[];
-	readonly allActions: readonly CodeActionItem[];
+	readonly allActions: CodeActionItem[];
 	readonly hasAutoFix: boolean;
 
 	readonly documentation: readonly languages.Command[];
