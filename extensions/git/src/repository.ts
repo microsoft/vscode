@@ -1937,6 +1937,45 @@ export class Repository implements Disposable {
 
 	@throttle
 	private async updateModelState(): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
+		if (sort !== 'alphabetically' && sort !== 'committerdate') {
+			sort = 'alphabetically';
+		}
+
+		const [HEAD, refs, remotes, submodules, status, rebaseCommit, mergeInProgress, commitTemplate] =
+			await Promise.all([
+				this.repository.getHEADBranch(),
+				this.repository.getRefs({ sort }),
+				this.repository.getRemotes(),
+				this.repository.getSubmodules(),
+				this.getStatus(),
+				this.getRebaseCommit(),
+				this.isMergeInProgress(),
+				this.getInputTemplate()]);
+
+		this._HEAD = HEAD;
+		this._refs = refs!;
+		this._remotes = remotes!;
+		this._submodules = submodules!;
+		this.rebaseCommit = rebaseCommit;
+		this.mergeInProgress = mergeInProgress;
+
+		// set resource groups
+		this.mergeGroup.resourceStates = status.merge;
+		this.indexGroup.resourceStates = status.index;
+		this.workingTreeGroup.resourceStates = status.workingTree;
+		this.untrackedGroup.resourceStates = status.untracked;
+
+		// set count badge
+		this.setCountBadge();
+
+		this._onDidChangeStatus.fire();
+
+		this._sourceControl.commitTemplate = commitTemplate;
+	}
+
+	private async getStatus(): Promise<{ index: Resource[]; workingTree: Resource[]; merge: Resource[]; untracked: Resource[] }> {
 		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const untrackedChanges = scopedConfig.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
 		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
@@ -1946,6 +1985,8 @@ export class Repository implements Disposable {
 		const start = new Date().getTime();
 		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges });
 		const totalTime = new Date().getTime() - start;
+
+		this.isRepositoryHuge = didHitLimit ? { limit } : false;
 
 		if (didHitLimit) {
 			/* __GDPR__
@@ -1960,12 +2001,28 @@ export class Repository implements Disposable {
 			this.telemetryReporter.sendTelemetryEvent('statusLimit', { ignoreSubmodules: String(ignoreSubmodules) }, { limit, statusLength, totalTime });
 		}
 
+		if (totalTime > 5000) {
+			/* __GDPR__
+				"statusSlow" : {
+					"owner": "digitarald",
+					"comment": "Reports when git status is slower than 5s",
+					"expiration": "1.73",
+					"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Setting indicating whether submodules are ignored" },
+					"didHitLimit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Total number of status entries" },
+					"didWarnAboutLimit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "True when the user was warned about slow git status" },
+					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of status entries" },
+					"totalTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of ms the operation took" }
+				}
+			*/
+			this.telemetryReporter.sendTelemetryEvent('statusSlow', { ignoreSubmodules: String(ignoreSubmodules), didHitLimit: String(didHitLimit), didWarnAboutLimit: String(this.didWarnAboutLimit) }, { statusLength, totalTime });
+		}
+
+		// Triggers or clears any validation warning
+		this._sourceControl.inputBox.validateInput = this._sourceControl.inputBox.validateInput;
+
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
 		const useIcons = !config.get<boolean>('decorations.enabled', true);
-		this.isRepositoryHuge = didHitLimit ? { limit } : false;
-		// Triggers or clears any validation warning
-		this._sourceControl.inputBox.validateInput = this._sourceControl.inputBox.validateInput;
 
 		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
 			const knownHugeFolderPaths = await this.findKnownHugeFolderPathsToIgnore();
@@ -2001,47 +2058,10 @@ export class Repository implements Disposable {
 			}
 		}
 
-		if (totalTime > 5000) {
-			/* __GDPR__
-				"statusSlow" : {
-					"owner": "digitarald",
-					"comment": "Reports when git status is slower than 5s",
-					"expiration": "1.73",
-					"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Setting indicating whether submodules are ignored" },
-					"didHitLimit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Total number of status entries" },
-					"didWarnAboutLimit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "True when the user was warned about slow git status" },
-					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of status entries" },
-					"totalTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of ms the operation took" }
-				}
-			*/
-			this.telemetryReporter.sendTelemetryEvent('statusSlow', { ignoreSubmodules: String(ignoreSubmodules), didHitLimit: String(didHitLimit), didWarnAboutLimit: String(this.didWarnAboutLimit) }, { statusLength, totalTime });
-		}
-
-		let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
-		if (sort !== 'alphabetically' && sort !== 'committerdate') {
-			sort = 'alphabetically';
-		}
-		const [HEAD, refs, remotes, submodules, rebaseCommit, mergeInProgress, commitTemplate] =
-			await Promise.all([
-				this.repository.getHEADBranch(),
-				this.repository.getRefs({ sort }),
-				this.repository.getRemotes(),
-				this.repository.getSubmodules(),
-				this.getRebaseCommit(),
-				this.isMergeInProgress(),
-				this.getInputTemplate()]);
-
-		this._HEAD = HEAD;
-		this._refs = refs!;
-		this._remotes = remotes!;
-		this._submodules = submodules!;
-		this.rebaseCommit = rebaseCommit;
-		this.mergeInProgress = mergeInProgress;
-
-		const index: Resource[] = [];
-		const workingTree: Resource[] = [];
-		const merge: Resource[] = [];
-		const untracked: Resource[] = [];
+		const index: Resource[] = [],
+			workingTree: Resource[] = [],
+			merge: Resource[] = [],
+			untracked: Resource[] = [];
 
 		status.forEach(raw => {
 			const uri = Uri.file(path.join(this.repository.root, raw.path));
@@ -2086,18 +2106,7 @@ export class Repository implements Disposable {
 			return undefined;
 		});
 
-		// set resource groups
-		this.mergeGroup.resourceStates = merge;
-		this.indexGroup.resourceStates = index;
-		this.workingTreeGroup.resourceStates = workingTree;
-		this.untrackedGroup.resourceStates = untracked;
-
-		// set count badge
-		this.setCountBadge();
-
-		this._onDidChangeStatus.fire();
-
-		this._sourceControl.commitTemplate = commitTemplate;
+		return { index, workingTree, merge, untracked };
 	}
 
 	private setCountBadge(): void {
