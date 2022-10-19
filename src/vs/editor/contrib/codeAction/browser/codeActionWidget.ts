@@ -13,7 +13,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { QuickFixList, QuickFixWidget } from 'vs/base/browser/ui/quickFixWidget/quickFixWidget';
 import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import 'vs/css!./codeActionWidget';
 import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
@@ -245,7 +245,7 @@ class CodeActionList extends QuickFixList {
 // TODO: Take a look at user storage for this so it is preserved across windows and on reload.
 let showDisabled = false;
 
-export class CodeActionWidget extends Disposable {
+export class CodeActionWidget extends QuickFixWidget {
 
 	private static _instance?: CodeActionWidget;
 
@@ -257,8 +257,6 @@ export class CodeActionWidget extends Disposable {
 		}
 		return this._instance;
 	}
-
-	private readonly _widget: QuickFixWidget;
 
 	private currentShowingContext?: {
 		readonly options: CodeActionShowOptions;
@@ -277,7 +275,6 @@ export class CodeActionWidget extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
-		this._widget = this._register(new QuickFixWidget());
 	}
 
 	get isVisible(): boolean {
@@ -309,40 +306,35 @@ export class CodeActionWidget extends Disposable {
 		}, container, false);
 	}
 
-	public focusPrevious() {
-		this._widget.focusPrevious(element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled);
+	public override focusPrevious() {
+		super.focusPrevious(element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled);
 	}
 
-	public focusNext() {
-		this._widget.focusNext(element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled);
+	public override focusNext() {
+		super.focusNext(element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled);
 	}
 
-	public acceptSelected(options?: { readonly preview?: string }) {
-		this._widget.acceptSelected((element) => element.kind !== CodeActionListItemKind.CodeAction || element.action.action.disabled, options);
+	public override acceptSelected(options?: any) {
+		super.acceptSelected((element) => element.kind !== CodeActionListItemKind.CodeAction || element.action.action.disabled, options);
 	}
 
-	public hide() {
-		this._widget.clear();
-		this._contextViewService.hideContextView();
+	public override onListSelection(e: IListEvent<any>): void {
+		super.onListSelection(e, element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled, e => e.browserEvent?.type === 'previewSelectedEventType');
 	}
 
-	public onListSelection(e: IListEvent<any>): void {
-		this._widget.onListSelection(e, element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled, e => e.browserEvent?.type === 'previewSelectedEventType');
+	public override onListClick(e: IListMouseEvent<any>): void {
+		super.onListClick(e, e => e.element && e.element.kind === CodeActionListItemKind.CodeAction && e.element.action.action.disabled);
 	}
 
-	public onListClick(e: IListMouseEvent<any>): void {
-		this._widget.onListClick(e, e => e.element && e.element.kind === CodeActionListItemKind.CodeAction && e.element.action.action.disabled);
-	}
-
-	public onListHover(e: IListMouseEvent<any>): void {
-		this._widget.onListHover(e);
+	public override onListHover(e: IListMouseEvent<any>): void {
+		super.onListHover(e);
 	}
 
 	private renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: CodeActionShowOptions, showingCodeActions: readonly CodeActionItem[], delegate: CodeActionWidgetDelegate): IDisposable {
 		const renderDisposables = new DisposableStore();
-		const widget = this._widget.render();
+		const widget = super.render();
 		element.appendChild(widget);
-		this._widget.setQuickFixes(new CodeActionList(
+		super.setQuickFixes(new CodeActionList(
 			showingCodeActions,
 			options.showHeaders ?? true,
 			(action, options) => {
@@ -393,7 +385,7 @@ export class CodeActionWidget extends Disposable {
 		}
 
 
-		const width = this._widget.layout(actionBarWidth, item => item.kind === CodeActionListItemKind.Header);
+		const width = super.layout(actionBarWidth, item => item.kind === CodeActionListItemKind.Header);
 		widget.style.width = `${width}px`;
 
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
