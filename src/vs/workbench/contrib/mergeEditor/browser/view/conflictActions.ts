@@ -292,6 +292,20 @@ export class ActionsSource {
 			);
 		}
 
+		if (state.kind === ModifiedBaseRangeStateKind.base && !model.isHandled(modifiedBaseRange).read(reader)) {
+			result.push(
+				command(
+					localize('markAsHandled', 'Mark As Handled'),
+					async () => {
+						transaction((tx) => {
+							model.setHandled(modifiedBaseRange, true, tx);
+						});
+					},
+					localize('markAsHandledTooltip', 'Marks this conflict as handled.')
+				)
+			);
+		}
+
 		return result;
 	});
 
