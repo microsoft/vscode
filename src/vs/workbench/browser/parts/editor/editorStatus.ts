@@ -683,13 +683,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			}));
 
 			// Hook Listener for content changes
-			this.activeEditorListeners.add(Event.debounce<IModelContentChangedEvent, IModelContentChangedEvent[]>(activeCodeEditor.onDidChangeModelContent, (last, e) => {
-				if (!last) {
-					return [e];
-				}
-				last.push(e);
-				return last;
-			}, 0)(e => {
+			this.activeEditorListeners.add(Event.accumulate(activeCodeEditor.onDidChangeModelContent, this._store)(e => {
 				this.onEOLChange(activeCodeEditor);
 				this.currentProblemStatus.update(activeCodeEditor);
 
