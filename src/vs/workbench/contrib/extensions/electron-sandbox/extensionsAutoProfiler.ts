@@ -161,7 +161,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		// print message to log
 		const path = joinPath(this._environmentServie.tmpDir, `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
 		await this._fileService.writeFile(path, VSBuffer.fromString(JSON.stringify(profile.data)));
-		this._logService.warn(`UNRESPONSIVE extension host: '${top}' took ${topPercentage}% of ${topAggregation / 1e3}ms, saved PROFILE here: '${path}'`, profile);
+		this._logService.warn(`UNRESPONSIVE extension host: '${top}' took ${topPercentage}% of ${topAggregation / 1e3}ms, saved PROFILE here: '${path}'`);
 
 		type UnresponsiveData = {
 			duration: number;
