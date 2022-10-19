@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./standalone-tokens';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { splitLines } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
@@ -23,12 +23,16 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { createWebWorker as actualCreateWebWorker, IWebWorkerOptions, MonacoWebWorker } from 'vs/editor/browser/services/webWorker';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
-import { createTextModel, IStandaloneCodeEditor, IStandaloneDiffEditor, IStandaloneDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, StandaloneDiffEditor, StandaloneEditor } from 'vs/editor/standalone/browser/standaloneCodeEditor';
-import { IEditorOverrideServices, StandaloneServices } from 'vs/editor/standalone/browser/standaloneServices';
+import { createTextModel, IActionDescriptor, IStandaloneCodeEditor, IStandaloneDiffEditor, IStandaloneDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, StandaloneDiffEditor, StandaloneEditor } from 'vs/editor/standalone/browser/standaloneCodeEditor';
+import { IEditorOverrideServices, StandaloneKeybindingService, StandaloneServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IMarker, IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { IMenuItem, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * Create a new editor under `domElement`.
@@ -97,6 +101,119 @@ export interface IDiffNavigatorOptions {
 
 export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: IDiffNavigatorOptions): IDiffNavigator {
 	return new DiffNavigator(diffEditor, opts);
+}
+
+/**
+ * Description of a command contribution
+ */
+export interface ICommandDescriptor {
+	/**
+	 * An unique identifier of the contributed command.
+	 */
+	id: string;
+	/**
+	 * Callback that will be executed when the command is triggered.
+	 */
+	run: ICommandHandler;
+}
+
+/**
+ * Add a command.
+ */
+export function addCommand(descriptor: ICommandDescriptor): IDisposable {
+	if ((typeof descriptor.id !== 'string') || (typeof descriptor.run !== 'function')) {
+		throw new Error('Invalid command descriptor, `id` and `run` are required properties!');
+	}
+	return CommandsRegistry.registerCommand(descriptor.id, descriptor.run);
+}
+
+/**
+ * Add an action to all editors.
+ */
+export function addEditorAction(descriptor: IActionDescriptor): IDisposable {
+	if ((typeof descriptor.id !== 'string') || (typeof descriptor.label !== 'string') || (typeof descriptor.run !== 'function')) {
+		throw new Error('Invalid action descriptor, `id`, `label` and `run` are required properties!');
+	}
+
+	const precondition = ContextKeyExpr.deserialize(descriptor.precondition);
+	const run = (accessor: ServicesAccessor, ...args: any[]): void | Promise<void> => {
+		return EditorCommand.runEditorCommand(accessor, args, precondition, (accessor, editor, args) => Promise.resolve(descriptor.run(editor, ...args)));
+	};
+
+	const toDispose = new DisposableStore();
+
+	// Register the command
+	toDispose.add(CommandsRegistry.registerCommand(descriptor.id, run));
+
+	// Register the context menu item
+	if (descriptor.contextMenuGroupId) {
+		const menuItem: IMenuItem = {
+			command: {
+				id: descriptor.id,
+				title: descriptor.label
+			},
+			when: precondition,
+			group: descriptor.contextMenuGroupId,
+			order: descriptor.contextMenuOrder || 0
+		};
+		toDispose.add(MenuRegistry.appendMenuItem(MenuId.EditorContext, menuItem));
+	}
+
+	// Register the keybindings
+	if (Array.isArray(descriptor.keybindings)) {
+		const keybindingService = StandaloneServices.get(IKeybindingService);
+		if (!(keybindingService instanceof StandaloneKeybindingService)) {
+			console.warn('Cannot add keybinding because the editor is configured with an unrecognized KeybindingService');
+		} else {
+			const keybindingsWhen = ContextKeyExpr.and(precondition, ContextKeyExpr.deserialize(descriptor.keybindingContext));
+			toDispose.add(keybindingService.addDynamicKeybindings(descriptor.keybindings.map((keybinding) => {
+				return {
+					keybinding,
+					command: descriptor.id,
+					when: keybindingsWhen
+				};
+			})));
+		}
+	}
+
+	return toDispose;
+}
+
+/**
+ * A keybinding rule.
+ */
+export interface IKeybindingRule {
+	keybinding: number;
+	command?: string | null;
+	commandArgs?: any;
+	when?: string | null;
+}
+
+/**
+ * Add a keybinding rule.
+ */
+export function addKeybindingRule(rule: IKeybindingRule): IDisposable {
+	return addKeybindingRules([rule]);
+}
+
+/**
+ * Add keybinding rules.
+ */
+export function addKeybindingRules(rules: IKeybindingRule[]): IDisposable {
+	const keybindingService = StandaloneServices.get(IKeybindingService);
+	if (!(keybindingService instanceof StandaloneKeybindingService)) {
+		console.warn('Cannot add keybinding because the editor is configured with an unrecognized KeybindingService');
+		return Disposable.None;
+	}
+
+	return keybindingService.addDynamicKeybindings(rules.map((rule) => {
+		return {
+			keybinding: rule.keybinding,
+			command: rule.command,
+			commandArgs: rule.commandArgs,
+			when: ContextKeyExpr.deserialize(rule.when),
+		};
+	}));
 }
 
 /**
@@ -324,6 +441,11 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		onDidCreateDiffEditor: <any>onDidCreateDiffEditor,
 		createDiffEditor: <any>createDiffEditor,
 		createDiffNavigator: <any>createDiffNavigator,
+
+		addCommand: <any>addCommand,
+		addEditorAction: <any>addEditorAction,
+		addKeybindingRule: <any>addKeybindingRule,
+		addKeybindingRules: <any>addKeybindingRules,
 
 		createModel: <any>createModel,
 		setModelLanguage: <any>setModelLanguage,

@@ -168,7 +168,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 	}
 
 	private renderFolderDetails(folder: FolderMatch, templateData: IFolderMatchTemplate) {
-		const count = this.searchView.isTreeLayoutViewVisible ? folder.count() : folder.recursiveFileCount();
+		const count = folder.recursiveMatchCount();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchFileMatches', "{0} files found", count) : nls.localize('searchFileMatch', "{0} file found", count));
 

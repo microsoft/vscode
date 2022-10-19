@@ -209,9 +209,9 @@ impl Logger {
 		}
 	}
 
-	pub fn result(&self, message: &str) {
+	pub fn result(&self, message: impl AsRef<str>) {
 		for sink in &self.sink {
-			sink.write_result(message);
+			sink.write_result(message.as_ref());
 		}
 	}
 
