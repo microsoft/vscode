@@ -199,8 +199,11 @@ export class TextAreaHandler extends ViewPart {
 			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
 				return this._context.viewModel.getValueInRange(range, eol);
 			},
-			getValueLengthInRange: (range: Range): number => {
-				return this._context.viewModel.model.getValueLengthInRange(range);
+			getValueLengthInRange: (range: Range, eol: EndOfLinePreference): number => {
+				return this._context.viewModel.getValueLengthInRange(range, eol);
+			},
+			modifyPosition: (position: Position, offset: number): Position => {
+				return this._context.viewModel.modifyPosition(position, offset);
 			}
 		};
 
@@ -230,7 +233,7 @@ export class TextAreaHandler extends ViewPart {
 					mode
 				};
 			},
-			getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
+			getScreenReaderContent: (): TextAreaState => {
 				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
 					// On OSX, we write the character before the cursor to allow for "long-press" composition
@@ -245,7 +248,7 @@ export class TextAreaHandler extends ViewPart {
 						}
 
 						if (textBefore.length > 0) {
-							return new TextAreaState(textBefore, textBefore.length, textBefore.length, position, position);
+							return new TextAreaState(textBefore, textBefore.length, textBefore.length, Range.fromPositions(position), 0);
 						}
 					}
 					// on macOS, write current selection into textarea will allow system text services pick selected text,
@@ -253,9 +256,9 @@ export class TextAreaHandler extends ViewPart {
 					// thousand chars
 					// (https://github.com/microsoft/vscode/issues/27799)
 					const LIMIT_CHARS = 500;
-					if (platform.isMacintosh && !selection.isEmpty() && simpleModel.getValueLengthInRange(selection) < LIMIT_CHARS) {
+					if (platform.isMacintosh && !selection.isEmpty() && simpleModel.getValueLengthInRange(selection, EndOfLinePreference.TextDefined) < LIMIT_CHARS) {
 						const text = simpleModel.getValueInRange(selection, EndOfLinePreference.TextDefined);
-						return new TextAreaState(text, 0, text.length, selection.getStartPosition(), selection.getEndPosition());
+						return new TextAreaState(text, 0, text.length, selection, 0);
 					}
 
 					// on Safari, document.execCommand('cut') and document.execCommand('copy') will just not work
@@ -263,7 +266,7 @@ export class TextAreaHandler extends ViewPart {
 					// is selected in the textarea.
 					if (browser.isSafari && !selection.isEmpty()) {
 						const placeholderText = 'vscode-placeholder';
-						return new TextAreaState(placeholderText, 0, placeholderText.length, null, null);
+						return new TextAreaState(placeholderText, 0, placeholderText.length, null, undefined);
 					}
 
 					return TextAreaState.EMPTY;
@@ -279,13 +282,13 @@ export class TextAreaHandler extends ViewPart {
 						const position = selection.getStartPosition();
 						const [wordAtPosition, positionOffsetInWord] = this._getAndroidWordAtPosition(position);
 						if (wordAtPosition.length > 0) {
-							return new TextAreaState(wordAtPosition, positionOffsetInWord, positionOffsetInWord, position, position);
+							return new TextAreaState(wordAtPosition, positionOffsetInWord, positionOffsetInWord, Range.fromPositions(position), 0);
 						}
 					}
 					return TextAreaState.EMPTY;
 				}
 
-				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+				return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 			},
 
 			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
