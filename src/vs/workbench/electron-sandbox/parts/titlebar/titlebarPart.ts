@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomFactor } from 'vs/base/browser/browser';
-import { $, addDisposableListener, append, EventType, hide, prepend, show } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, EventType, hide, show } from 'vs/base/browser/dom';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
