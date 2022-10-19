@@ -59,14 +59,10 @@ export class Match {
 
 		this._fullPreviewRange = _fullPreviewRange;
 
-		this._id = this._parent.id() + '>' + this._range;
+		this._id = this._parent.id() + '>' + this._range + this.getMatchString();
 	}
 
 	id(): string {
-		return this._id + this.getMatchString();
-	}
-
-	idForDiff(): string {
 		return this._id;
 	}
 
@@ -369,10 +365,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return this.resource.toString();
 	}
 
-	idForDiff(): string {
-		return this.id();
-	}
-
 	parent(): FolderMatch {
 		return this._parent;
 	}
@@ -544,10 +536,6 @@ export class FolderMatch extends Disposable {
 
 	id(): string {
 		return this._id;
-	}
-
-	idForDiff(): string {
-		return this.id();
 	}
 
 	get resource(): URI | null {
