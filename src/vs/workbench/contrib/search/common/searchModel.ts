@@ -657,6 +657,10 @@ export class FolderMatch extends Disposable {
 		return this._query;
 	}
 
+	addRecursiveFileMatch(fileMatch: FileMatch) {
+		this._recursiveFileMatches.set(fileMatch.resource, fileMatch);
+	}
+
 	addFileMatch(raw: IFileMatch[], silent: boolean): void {
 		// when adding a fileMatch that has intermediate directories
 		const added: FileMatch[] = [];
@@ -679,7 +683,6 @@ export class FolderMatch extends Disposable {
 				if (this instanceof FolderMatchWorkspaceRoot || this instanceof FolderMatchNoRoot) {
 					const fileMatch = this.createAndConfigureFileMatch(rawFileMatch);
 					added.push(fileMatch);
-					this._recursiveFileMatches.set(rawFileMatch.resource, fileMatch);
 				}
 			}
 		});
@@ -852,9 +855,19 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 	private createFileMatch(query: IPatternInfo, previewOptions: ITextSearchPreviewOptions | undefined, maxResults: number | undefined, parent: FolderMatch, rawFileMatch: IFileMatch, closestRoot: FolderMatchWorkspaceRoot | null,): FileMatch {
 		const fileMatch = this.instantiationService.createInstance(FileMatch, query, previewOptions, maxResults, parent, rawFileMatch, closestRoot);
 		parent.doAddFile(fileMatch);
+		this.addRecursiveFileMatches(parent, fileMatch);
 		const disposable = fileMatch.onChange(({ didRemove }) => parent.onFileChange(fileMatch, didRemove));
 		fileMatch.onDispose(() => disposable.dispose());
 		return fileMatch;
+	}
+
+	private addRecursiveFileMatches(parent: FolderMatch, fileMatch: FileMatch) {
+		let currParent: FolderMatch | SearchResult = parent;
+
+		while (currParent instanceof FolderMatch) {
+			currParent.addRecursiveFileMatch(fileMatch);
+			currParent = currParent.parent();
+		}
 	}
 
 	createAndConfigureFileMatch(rawFileMatch: IFileMatch<URI>): FileMatch {
