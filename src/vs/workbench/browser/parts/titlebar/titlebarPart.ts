@@ -48,7 +48,8 @@ export class TitlebarPart extends Part implements ITitleService {
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	get minimumHeight(): number {
-		const value = this.isCommandCenterVisible ? 35 : 30;
+		const isPWAwithWCO = isWeb && (navigator as any)?.windowControlsOverlay?.visible;
+		const value = this.isCommandCenterVisible || isPWAwithWCO ? 35 : 30;
 		return value / (this.useCounterZoom ? getZoomFactor() : 1);
 	}
 
