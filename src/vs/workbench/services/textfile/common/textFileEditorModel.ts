@@ -51,7 +51,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
-	readonly onDidChangeContentDeferred = Event.defer(this._onDidChangeContent.event);
+	readonly onDidChangeContentDeferred = Event.defer(this._onDidChangeContent.event, this._store);
 
 	private readonly _onDidResolve = this._register(new Emitter<TextFileResolveReason>());
 	readonly onDidResolve = this._onDidResolve.event;
