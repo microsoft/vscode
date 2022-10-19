@@ -35,6 +35,7 @@ import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { ColorId, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
 import { Color } from 'vs/base/common/color';
 import { TimeoutTimer } from 'vs/base/common/async';
+import { inputLatency } from 'vs/base/browser/performance';
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
@@ -297,6 +298,7 @@ export class TextAreaHandler extends ViewPart {
 		this._textAreaInput = this._register(new TextAreaInput(textAreaInputHost, textAreaWrapper, platform.OS, browser));
 
 		this._register(this._textAreaInput.onKeyDown((e: IKeyboardEvent) => {
+			inputLatency.markKeydownStart();
 			this._viewController.emitKeyDown(e);
 		}));
 
