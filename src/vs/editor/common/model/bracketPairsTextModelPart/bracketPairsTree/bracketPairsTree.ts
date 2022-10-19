@@ -42,7 +42,7 @@ export class BracketPairsTree extends Disposable {
 	private readonly brackets = new LanguageAgnosticBracketTokens(this.denseKeyProvider, this.getLanguageConfiguration);
 
 	private readonly parseQueue: TextEditInfo[][] = [];
-	private parseTimer = new TimeoutTimer();
+	private parseTimer = this._register(new TimeoutTimer());
 
 	public didLanguageChange(languageId: string): boolean {
 		return this.brackets.didLanguageChange(languageId);
@@ -71,8 +71,6 @@ export class BracketPairsTree extends Disposable {
 			this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer([], undefined, true);
 			this.astWithTokens = this.initialAstWithoutTokens;
 		}
-
-		this._register(this.parseTimer);
 	}
 
 	//#region TextModel events
