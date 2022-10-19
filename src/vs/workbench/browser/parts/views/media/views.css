@@ -119,10 +119,6 @@
 	overflow: hidden;
 	flex-wrap: nowrap;
 	padding-left: 3px;
-	/* Supported everywhere: https://developer.mozilla.org/en-US/docs/Web/CSS/-webkit-line-clamp#browser_compatibility */
-	-webkit-line-clamp: 1;
-	display: -webkit-box;
-	-webkit-box-orient: vertical;
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-checkbox {
