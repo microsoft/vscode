@@ -38,6 +38,7 @@ export interface IRequestOptions {
 	data?: string;
 	followRedirects?: number;
 	proxyAuthorization?: string;
+	retries?: number;
 }
 
 export interface IRequestContext {

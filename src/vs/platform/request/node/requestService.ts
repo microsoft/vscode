@@ -6,7 +6,7 @@
 import * as http from 'http';
 import * as https from 'https';
 import { parse as parseUrl } from 'url';
-import { Promises } from 'vs/base/common/async';
+import { Promises, retry } from 'vs/base/common/async';
 import { streamToBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
@@ -93,7 +93,7 @@ export class RequestService extends Disposable implements IRequestService {
 		}
 
 		try {
-			const res = await this._request(options, token);
+			const res = await retry(() => this.request(options, token), 50, options.retries ?? 1);
 
 			this.logService.trace('RequestService#request (node) - success', options.url);
 

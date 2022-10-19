@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { retry } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { request } from 'vs/base/parts/request/browser/request';
 import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
@@ -32,7 +33,7 @@ export class RequestService implements IRequestService {
 		}
 
 		try {
-			const res = await request(options, token);
+			const res = await retry(() => request(options, token), 50, options.retries ?? 1);
 
 			this.logService.trace('RequestService#request (browser) - success', options.url);
 

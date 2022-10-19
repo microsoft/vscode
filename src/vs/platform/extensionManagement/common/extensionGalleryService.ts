@@ -945,7 +945,8 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				type: 'POST',
 				url: this.extensionsGallerySearchUrl && query.criteria.some(c => c.filterType === FilterType.SearchText) ? this.extensionsGallerySearchUrl : this.api('/extensionquery'),
 				data,
-				headers
+				headers,
+				retries: 3
 			}, token);
 
 			if (context.res.statusCode && context.res.statusCode >= 400 && context.res.statusCode < 500) {
