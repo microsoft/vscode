@@ -8,9 +8,9 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IListRenderer } from 'vs/base/browser/ui/list/list';
+import { IListEvent, IListMouseEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { QuickFixList, QuickFixWidget } from 'vs/base/browser/ui/quickFix/quickFixWidget';
+import { QuickFixList, QuickFixWidget } from 'vs/base/browser/ui/quickFixWidget/quickFixWidget';
 import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -175,16 +175,15 @@ class HeaderRenderer implements IListRenderer<CodeActionListItemHeader, HeaderTe
 	}
 }
 
-const previewSelectedEventType = 'previewSelectedCodeAction';
 class CodeActionList extends QuickFixList {
 
 	constructor(
 		codeActions: readonly CodeActionItem[],
 		showHeaders: boolean,
-		private readonly onDidSelect: (action: CodeActionItem, options: { readonly preview: boolean }) => void,
+		onDidSelect: (action: CodeActionItem, options: { readonly preview: boolean }) => void,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(new List('codeActionWidget', document.createElement('div'), {
+		super(codeActions, new List('codeActionWidget', document.createElement('div'), {
 			getHeight: element => element.kind === CodeActionListItemKind.Header ? 24 : 26,
 			getTemplateId: element => element.kind,
 		}, [
@@ -207,10 +206,10 @@ class CodeActionList extends QuickFixList {
 				getRole: () => 'option',
 				getWidgetRole: () => 'code-action-widget'
 			}
-		}), 24, 26);
+		}), onDidSelect);
 	}
 
-	private toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ICodeActionMenuItem[] {
+	public toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ICodeActionMenuItem[] {
 		if (!showHeaders) {
 			return inputCodeActions.map((action): ICodeActionMenuItem => ({ kind: CodeActionListItemKind.CodeAction, action, group: uncategorizedCodeActionGroup }));
 		}
@@ -241,6 +240,7 @@ class CodeActionList extends QuickFixList {
 		return allMenuItems;
 	}
 }
+
 
 // TODO: Take a look at user storage for this so it is preserved across windows and on reload.
 let showDisabled = false;
@@ -326,6 +326,18 @@ export class CodeActionWidget extends Disposable {
 		this._contextViewService.hideContextView();
 	}
 
+	public onListSelection(e: IListEvent<any>): void {
+		this._widget.onListSelection(e, element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled, e => e.browserEvent?.type === 'previewSelectedEventType');
+	}
+
+	public onListClick(e: IListMouseEvent<any>): void {
+		this._widget.onListClick(e, e => e.element && e.element.kind === CodeActionListItemKind.CodeAction && e.element.action.action.disabled);
+	}
+
+	public onListHover(e: IListMouseEvent<any>): void {
+		this._widget.onListHover(e);
+	}
+
 	private renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: CodeActionShowOptions, showingCodeActions: readonly CodeActionItem[], delegate: CodeActionWidgetDelegate): IDisposable {
 		const renderDisposables = new DisposableStore();
 		const widget = this._widget.render();
@@ -380,7 +392,8 @@ export class CodeActionWidget extends Disposable {
 			}
 		}
 
-		const width = this._widget.layout(actionBarWidth, codeActions.allActions, item => item.kind === CodeActionListItemKind.Header);
+
+		const width = this._widget.layout(actionBarWidth, item => item.kind === CodeActionListItemKind.Header);
 		widget.style.width = `${width}px`;
 
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
