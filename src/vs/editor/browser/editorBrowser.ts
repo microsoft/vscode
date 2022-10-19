@@ -519,12 +519,6 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	readonly onDidChangeCursorPosition: Event<ICursorPositionChangedEvent>;
 	/**
-	 * An event emitted when the cursor position has changed.
-	 * @event
-	 * @internal
-	 */
-	readonly onDidChangeCursorPositionDeferred: Event<void>;
-	/**
 	 * An event emitted when the cursor selection has changed.
 	 * @event
 	 */
