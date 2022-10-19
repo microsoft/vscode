@@ -1936,10 +1936,12 @@ export class Repository {
 		}
 	}
 
-	getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
+	async getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
 		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
 			throw new CancellationError();
 		}
+
+		const disposables: IDisposable[] = [];
 
 		const env = { GIT_OPTIONAL_LOCKS: '0' };
 		const args = ['status', '-z'];
@@ -2001,7 +2003,7 @@ export class Repository {
 
 		if (opts?.cancellationToken) {
 			const cancellationPromise = new Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }>((_, e) => {
-				onceEvent(opts.cancellationToken!.onCancellationRequested)(() => {
+				disposables.push(onceEvent(opts.cancellationToken!.onCancellationRequested)(() => {
 					try {
 						child.kill();
 					} catch (err) {
@@ -2009,13 +2011,19 @@ export class Repository {
 					}
 
 					e(new CancellationError());
-				});
+				}));
 			});
 
 			result = Promise.race([result, cancellationPromise]);
 		}
 
-		return result;
+		try {
+			const { status, statusLength, didHitLimit } = await result;
+			return { status, statusLength, didHitLimit };
+		}
+		finally {
+			dispose(disposables);
+		}
 	}
 
 	async getHEADBranch(): Promise<Branch | undefined> {
