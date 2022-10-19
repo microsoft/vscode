@@ -9,7 +9,7 @@
 // Simple module style to support node.js and browser environments
 (function (globalThis, factory) {
 
-	// Node.js
+	// Node.js & Node Express
 	if (typeof exports === 'object') {
 		module.exports = factory();
 	}
@@ -57,6 +57,7 @@
 		// as a way to ensure we do the right check on
 		// the node modules path: node.js might internally
 		// use a different case compared to what we have
+		
 		let NODE_MODULES_ALTERNATIVE_PATH;
 		if (appRoot /* only used from renderer until `sandbox` enabled */ && process.platform === 'win32') {
 			const driveLetter = appRoot.substr(0, 1);
@@ -108,7 +109,6 @@
 
 	//#endregion
 
-
 	//#region URI helpers
 
 	/**
@@ -144,7 +144,6 @@
 	}
 
 	//#endregion
-
 
 	//#region NLS helpers
 
@@ -195,6 +194,7 @@
 		return nlsConfig;
 	}
 
+	
 	/**
 	 * @returns {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals') | undefined}
 	 */
