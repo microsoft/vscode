@@ -673,7 +673,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 			// Hook Listener for Selection changes
 			this.activeEditorListeners.add(activeCodeEditor.onDidChangeCursorPositionDeferred(() => {
-				console.log('cursor position change');
 				this.onSelectionChange(activeCodeEditor);
 				this.currentProblemStatus.update(activeCodeEditor);
 			}));
