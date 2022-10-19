@@ -112,9 +112,9 @@ export class BracketPairsTree extends Disposable {
 	}
 
 	private queueParsing(edits: TextEditInfo[]): void {
-		// Queues parsing of the document so that it does not block editor input latency. This is
-		// done via setImmediate such that it is called before any timers, the only downside to this
-		// is that changing a character adjacent to a bracket may appear white for a single frame.
+		// Queues parsing of the document so that it does not block editor input latency. The only
+		// downside to this is that changing a character adjacent to a bracket may appear white for
+		// a brief period.
 		this.parseQueue.push(edits);
 		this.parseTimer.cancelAndSet(() => this.doParse(), 0);
 	}
