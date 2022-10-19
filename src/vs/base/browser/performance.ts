@@ -26,7 +26,7 @@ export namespace inputLatency {
 	const measurementsInput = new Float32Array(Constants.bufferLength);
 	const measurementsRender = new Float32Array(Constants.bufferLength);
 	const measurementsInputLatency = new Float32Array(Constants.bufferLength);
-	let measurementsIndex = 0;
+	let measurementsCount = 0;
 
 	export function markKeydownStart() {
 		performance.mark('inputlatency/start');
@@ -64,7 +64,6 @@ export namespace inputLatency {
 	}
 
 	function markRenderEnd() {
-		// Only measure the first render after keyboard input
 		performance.mark('render/end');
 		state.render = EventPhase.Finished;
 		record();
@@ -77,15 +76,15 @@ export namespace inputLatency {
 
 	function record() {
 		// Skip recording this frame if the buffer is full
-		if (measurementsIndex >= Constants.bufferLength) {
+		if (measurementsCount >= Constants.bufferLength) {
 			return;
 		}
 		// Selection and render must have finished to record
 		if (state.selection !== EventPhase.Finished || state.render !== EventPhase.Finished) {
 			return;
 		}
-		// Measures from cursor edit to the end of the task
-		window.queueMicrotask(() => {
+		// Finish the recording, using setImmediate to ensure that layout/paint is captured
+		setImmediate(() => {
 			if (state.keydown === EventPhase.Finished && state.input === EventPhase.Finished && state.selection === EventPhase.Finished && state.render === EventPhase.Finished) {
 				performance.mark('inputlatency/end');
 
@@ -94,26 +93,26 @@ export namespace inputLatency {
 				performance.measure('render', 'render/start', 'render/end');
 				performance.measure('inputlatency', 'inputlatency/start', 'inputlatency/end');
 
-				measurementsKeydown[measurementsIndex] = performance.getEntriesByName('keydown')[0].duration;
-				measurementsInput[measurementsIndex] = performance.getEntriesByName('input')[0].duration;
-				measurementsRender[measurementsIndex] = performance.getEntriesByName('render')[0].duration;
-				measurementsInputLatency[measurementsIndex] = performance.getEntriesByName('inputlatency')[0].duration;
+				measurementsKeydown[measurementsCount] = performance.getEntriesByName('keydown')[0].duration;
+				measurementsInput[measurementsCount] = performance.getEntriesByName('input')[0].duration;
+				measurementsRender[measurementsCount] = performance.getEntriesByName('render')[0].duration;
+				measurementsInputLatency[measurementsCount] = performance.getEntriesByName('inputlatency')[0].duration;
 
 				console.info(
-					`input latency=${measurementsInputLatency[measurementsIndex].toFixed(1)} [` +
-					`keydown=${measurementsKeydown[measurementsIndex].toFixed(1)}, ` +
-					`input=${measurementsInput[measurementsIndex].toFixed(1)}, ` +
-					`render=${measurementsRender[measurementsIndex].toFixed(1)}` +
+					`input latency=${measurementsInputLatency[measurementsCount].toFixed(1)} [` +
+					`keydown=${measurementsKeydown[measurementsCount].toFixed(1)}, ` +
+					`input=${measurementsInput[measurementsCount].toFixed(1)}, ` +
+					`render=${measurementsRender[measurementsCount].toFixed(1)}` +
 					`]`
 				);
 
-				measurementsIndex++;
+				measurementsCount++;
 
 				reset();
 			}
 		});
 	}
-
+	setInterval(() => console.log(getAndClearMeasurements()), 10000);
 	function reset() {
 		performance.clearMarks('keydown/start');
 		performance.clearMarks('keydown/end');
@@ -133,6 +132,60 @@ export namespace inputLatency {
 		state.input = EventPhase.Before;
 		state.render = EventPhase.Before;
 		state.selection = EventPhase.Before;
+	}
+
+	export interface IInputLatencyMeasurements {
+		keydown: IInputLatencySingleMeasurement;
+		input: IInputLatencySingleMeasurement;
+		render: IInputLatencySingleMeasurement;
+		total: IInputLatencySingleMeasurement;
+		sampleCount: number;
+	}
+
+	export interface IInputLatencySingleMeasurement {
+		average: number;
+		min: number;
+		max: number;
+	}
+
+	export function getAndClearMeasurements(): IInputLatencyMeasurements | undefined {
+		if (measurementsCount === 0) {
+			return undefined;
+		}
+
+		// Calculate the average, min and max of each measurement
+		const result = {
+			keydown: createSingleMeasurement(),
+			input: createSingleMeasurement(),
+			render: createSingleMeasurement(),
+			total: createSingleMeasurement(),
+			sampleCount: measurementsCount
+		};
+		for (let i = 0; i < result.sampleCount; i++) {
+			result.keydown.average += measurementsKeydown[i];
+			result.input.average += measurementsInput[i];
+			result.render.average += measurementsRender[i];
+			result.total.average += measurementsInputLatency[i];
+			result.keydown.min = Math.min(result.keydown.min, measurementsKeydown[i]);
+			result.input.min = Math.min(result.input.min, measurementsInput[i]);
+			result.render.min = Math.min(result.render.min, measurementsRender[i]);
+			result.total.min = Math.min(result.total.min, measurementsInputLatency[i]);
+			result.keydown.max = Math.max(result.keydown.max, measurementsKeydown[i]);
+			result.input.max = Math.max(result.input.max, measurementsInput[i]);
+			result.render.max = Math.max(result.render.max, measurementsRender[i]);
+			result.total.max = Math.max(result.total.max, measurementsInputLatency[i]);
+		}
+		result.keydown.average /= result.sampleCount;
+		result.input.average /= result.sampleCount;
+		result.render.average /= result.sampleCount;
+		result.total.average /= result.sampleCount;
+
+		measurementsCount = 0;
+		return result;
+	}
+
+	function createSingleMeasurement(): IInputLatencySingleMeasurement {
+		return { average: 0, min: Number.MAX_VALUE, max: 0 };
 	}
 
 }
