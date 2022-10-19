@@ -17,6 +17,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { tokenizeToStringSync } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -48,6 +49,7 @@ export class MarkupCell extends Disposable {
 		private readonly viewCell: MarkupCellViewModel,
 		private readonly templateData: MarkdownCellRenderTemplate,
 		private readonly renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -70,6 +72,10 @@ export class MarkupCell extends Disposable {
 		this.templateData.cellParts.forEach(cellPart => cellPart.renderCell(this.viewCell));
 		this._register(toDisposable(() => {
 			this.templateData.cellParts.forEach(cellPart => cellPart.unrenderCell(this.viewCell));
+		}));
+
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
+			this.viewUpdate();
 		}));
 
 		this.updateForHover();
@@ -384,7 +390,11 @@ export class MarkupCell extends Disposable {
 
 		this.markdownAccessibilityContainer.innerText = '';
 		if (this.viewCell.renderedHtml) {
-			DOM.safeInnerHtml(this.markdownAccessibilityContainer, this.viewCell.renderedHtml);
+			if (this.accessibilityService.isScreenReaderOptimized()) {
+				DOM.safeInnerHtml(this.markdownAccessibilityContainer, this.viewCell.renderedHtml);
+			} else {
+				DOM.clearNode(this.markdownAccessibilityContainer);
+			}
 		}
 
 		this.notebookEditor.createMarkupPreview(this.viewCell);
