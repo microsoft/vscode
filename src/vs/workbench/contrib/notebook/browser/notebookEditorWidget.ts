@@ -2384,6 +2384,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	async find(query: string, options: INotebookSearchOptions, token: CancellationToken, skipWarmup: boolean = false): Promise<CellFindMatchWithIndex[]> {
+		// here
 		if (!this._notebookViewModel) {
 			return [];
 		}
