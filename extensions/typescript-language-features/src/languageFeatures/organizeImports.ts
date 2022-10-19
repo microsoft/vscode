@@ -51,7 +51,7 @@ const removeUnusedImportsCommand: OrganizeImportsCommandMetadata = {
 	mode: OrganizeImportsMode.RemoveUnused,
 };
 
-class OrganizeImportsCommand implements Command {
+class OrganizeImportsCommandImpl implements Command {
 
 	constructor(
 		public readonly id: string,
@@ -121,7 +121,7 @@ class ImportsCodeActionProvider implements vscode.CodeActionProvider {
 		telemetryReporter: TelemetryReporter,
 	) {
 		for (const id of commandMetadata.ids) {
-			commandManager.register(new OrganizeImportsCommand(id, commandMetadata, client, telemetryReporter));
+			commandManager.register(new OrganizeImportsCommandImpl(id, commandMetadata, client, telemetryReporter));
 		}
 	}
 
