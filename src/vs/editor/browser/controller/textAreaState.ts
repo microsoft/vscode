@@ -35,32 +35,30 @@ export interface ITypeData {
 
 export class TextAreaState {
 
-	public static readonly EMPTY = new TextAreaState('', 0, 0, null, null);
+	public static readonly EMPTY = new TextAreaState('', null, 0, 0, null);
 
-	public readonly value: string;
-	public readonly selectionStart: number;
-	public readonly selectionEnd: number;
-	public readonly selectionStartPosition: Position | null;
-	public readonly selectionEndPosition: Position | null;
-
-	constructor(value: string, selectionStart: number, selectionEnd: number, selectionStartPosition: Position | null, selectionEndPosition: Position | null) {
-		this.value = value;
-		this.selectionStart = selectionStart;
-		this.selectionEnd = selectionEnd;
-		this.selectionStartPosition = selectionStartPosition;
-		this.selectionEndPosition = selectionEndPosition;
-	}
+	constructor(
+		public readonly value: string,
+		/** the editor start position in the view coordinate system that matches the start of `value` */
+		public readonly valueStartPositon: Position | null,
+		/** the offset where selection starts inside `value` */
+		public readonly selectionStart: number,
+		/** the offset where selection ends inside `value` */
+		public readonly selectionEnd: number,
+		/** the editor selection in the view coordinate system that matches the selection inside `value` */
+		public readonly selection: Range | null
+	) { }
 
 	public toString(): string {
 		return `[ <${this.value}>, selectionStart: ${this.selectionStart}, selectionEnd: ${this.selectionEnd}]`;
 	}
 
-	public static readFromTextArea(textArea: ITextAreaWrapper): TextAreaState {
-		return new TextAreaState(textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), null, null);
+	public static readFromTextArea(textArea: ITextAreaWrapper, valueStartPositon: Position | null): TextAreaState {
+		return new TextAreaState(textArea.getValue(), valueStartPositon, textArea.getSelectionStart(), textArea.getSelectionEnd(), null);
 	}
 
 	public collapseSelection(): TextAreaState {
-		return new TextAreaState(this.value, this.value.length, this.value.length, null, null);
+		return new TextAreaState(this.value, this.valueStartPositon, this.value.length, this.value.length, null);
 	}
 
 	public writeToTextArea(reason: string, textArea: ITextAreaWrapper, select: boolean): void {
@@ -76,18 +74,18 @@ export class TextAreaState {
 	public deduceEditorPosition(offset: number): [Position | null, number, number] {
 		if (offset <= this.selectionStart) {
 			const str = this.value.substring(offset, this.selectionStart);
-			return this._finishDeduceEditorPosition(this.selectionStartPosition, str, -1);
+			return this._finishDeduceEditorPosition(this.selection?.getStartPosition() ?? null, str, -1);
 		}
 		if (offset >= this.selectionEnd) {
 			const str = this.value.substring(this.selectionEnd, offset);
-			return this._finishDeduceEditorPosition(this.selectionEndPosition, str, 1);
+			return this._finishDeduceEditorPosition(this.selection?.getEndPosition() ?? null, str, 1);
 		}
 		const str1 = this.value.substring(this.selectionStart, offset);
 		if (str1.indexOf(String.fromCharCode(8230)) === -1) {
-			return this._finishDeduceEditorPosition(this.selectionStartPosition, str1, 1);
+			return this._finishDeduceEditorPosition(this.selection?.getStartPosition() ?? null, str1, 1);
 		}
 		const str2 = this.value.substring(offset, this.selectionEnd);
-		return this._finishDeduceEditorPosition(this.selectionEndPosition, str2, -1);
+		return this._finishDeduceEditorPosition(this.selection?.getEndPosition() ?? null, str2, -1);
 	}
 
 	private _finishDeduceEditorPosition(anchor: Position | null, deltaText: string, signum: number): [Position | null, number, number] {
@@ -270,6 +268,6 @@ export class PagedScreenReaderStrategy {
 			}
 		}
 
-		return new TextAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, new Position(selection.startLineNumber, selection.startColumn), new Position(selection.endLineNumber, selection.endColumn));
+		return new TextAreaState(pretext + text + posttext, pretextRange.getStartPosition(), pretext.length, pretext.length + text.length, selection);
 	}
 }

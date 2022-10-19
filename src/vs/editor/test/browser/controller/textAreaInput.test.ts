@@ -47,7 +47,7 @@ suite('TextAreaInput', () => {
 				throw new Error('Function not implemented.');
 			},
 			getScreenReaderContent: function (currentState: TextAreaState): TextAreaState {
-				return new TextAreaState('', 0, 0, null, null);
+				return new TextAreaState('', null, 0, 0, null);
 			},
 			deduceModelPosition: function (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
 				throw new Error('Function not implemented.');
