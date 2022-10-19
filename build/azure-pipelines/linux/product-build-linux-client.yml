@@ -273,7 +273,8 @@ steps:
 
       - script: |
           set -e
-          tar -xzvf $(Build.ArtifactStagingDirectory)/cli/*.tar.gz -C $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin
+          tar -xzvf $(Build.ArtifactStagingDirectory)/cli/*.tar.gz -C $(Build.ArtifactStagingDirectory)/cli
+          mv $(Build.ArtifactStagingDirectory)/cli/code $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/code-tunnel
           if [ "$(VSCODE_QUALITY)" != "stable" ]; then
             mv "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/code-tunnel" "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/code-tunnel-$(VSCODE_QUALITY)"
           fi

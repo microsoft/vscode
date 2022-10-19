@@ -286,6 +286,7 @@ export function getPiiPathsFromEnvironment(paths: IPathEnvironment): string[] {
  * @returns The cleaned stack
  */
 function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
+
 	let updatedStack = stack;
 
 	const cleanUpIndexes: [number, number][] = [];

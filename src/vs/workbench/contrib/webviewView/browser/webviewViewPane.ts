@@ -25,7 +25,7 @@ import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IViewBadge, IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
-import { IOverlayWebview, IWebviewService, WebviewContentPurpose, WebviewOriginStore } from 'vs/workbench/contrib/webview/browser/webview';
+import { ExtensionKeyedWebviewOriginStore, IOverlayWebview, IWebviewService, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -39,10 +39,10 @@ const storageKeys = {
 
 export class WebviewViewPane extends ViewPane {
 
-	private static _originStore?: WebviewOriginStore;
+	private static _originStore?: ExtensionKeyedWebviewOriginStore;
 
-	private static getOriginStore(storageService: IStorageService): WebviewOriginStore {
-		this._originStore ??= new WebviewOriginStore('webviewViews.origins', storageService);
+	private static getOriginStore(storageService: IStorageService): ExtensionKeyedWebviewOriginStore {
+		this._originStore ??= new ExtensionKeyedWebviewOriginStore('webviewViews.origins', storageService);
 		return this._originStore;
 	}
 

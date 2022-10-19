@@ -202,7 +202,8 @@ steps:
       - script: |
           set -e
           ARCHIVE_NAME=$(ls "$(Build.ArtifactStagingDirectory)/cli" | head -n 1)
-          unzip "$(Build.ArtifactStagingDirectory)/cli/$ARCHIVE_NAME" -d "$(APP_PATH)/Contents/Resources/app/bin"
+          unzip "$(Build.ArtifactStagingDirectory)/cli/$ARCHIVE_NAME" -d "$(Build.ArtifactStagingDirectory)/cli"
+          mv "$(Build.ArtifactStagingDirectory)/cli/code" "$(APP_PATH)/Contents/Resources/app/bin/code-tunnel"
           chmod +x "$(APP_PATH)/Contents/Resources/app/bin/code-tunnel"
           if [ "$(VSCODE_QUALITY)" != "stable" ]; then
             mv "$(APP_PATH)/Contents/Resources/app/bin/code-tunnel" "$(APP_PATH)/Contents/Resources/app/bin/code-tunnel-$(VSCODE_QUALITY)"
