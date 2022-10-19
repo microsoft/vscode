@@ -130,7 +130,7 @@
     "@typescript-eslint/parser": "^5.39.0",
     "@vscode/l10n-dev": "0.0.15",
     "@vscode/telemetry-extractor": "^1.9.8",
-    "@vscode/test-web": "^0.0.29",
+    "@vscode/test-web": "^0.0.32",
     "ansi-colors": "^3.2.3",
     "asar": "^3.0.3",
     "chromium-pickle-js": "^0.2.0",
