@@ -14,6 +14,6 @@ pub mod desktop;
 pub mod options;
 pub mod state;
 pub mod tunnels;
-pub mod update;
+pub mod self_update;
 pub mod update_service;
 pub mod util;

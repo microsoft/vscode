@@ -480,6 +480,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Layout Initialization State
 		const initialEditorsState = this.getInitialEditorsState();
+		if (initialEditorsState) {
+			this.logService.info('Initial editor state', initialEditorsState);
+		}
 		const initialLayoutState: ILayoutInitializationState = {
 			layout: {
 				editors: initialEditorsState?.layout
@@ -598,7 +601,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (initialEditorsState) {
 
 			// Merge editor (single)
-			const filesToMerge = coalesce(await pathsToEditors(initialEditorsState.filesToMerge, fileService));
+			const filesToMerge = coalesce(await pathsToEditors(initialEditorsState.filesToMerge, fileService, this.logService));
 			if (filesToMerge.length === 4 && isResourceEditorInput(filesToMerge[0]) && isResourceEditorInput(filesToMerge[1]) && isResourceEditorInput(filesToMerge[2]) && isResourceEditorInput(filesToMerge[3])) {
 				return [{
 					editor: {
@@ -612,7 +615,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			// Diff editor (single)
-			const filesToDiff = coalesce(await pathsToEditors(initialEditorsState.filesToDiff, fileService));
+			const filesToDiff = coalesce(await pathsToEditors(initialEditorsState.filesToDiff, fileService, this.logService));
 			if (filesToDiff.length === 2) {
 				return [{
 					editor: {
@@ -625,7 +628,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// Normal editor (multiple)
 			const filesToOpenOrCreate: IEditorToOpen[] = [];
-			const resolvedFilesToOpenOrCreate = await pathsToEditors(initialEditorsState.filesToOpenOrCreate, fileService);
+			const resolvedFilesToOpenOrCreate = await pathsToEditors(initialEditorsState.filesToOpenOrCreate, fileService, this.logService);
 			for (let i = 0; i < resolvedFilesToOpenOrCreate.length; i++) {
 				const resolvedFileToOpenOrCreate = resolvedFilesToOpenOrCreate[i];
 				if (resolvedFileToOpenOrCreate) {
@@ -767,7 +770,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 
 				openEditorsPromise = Promise.all(Array.from(mapEditorsToGroup).map(async ([groupId, editors]) => {
-					return this.editorService.openEditors(Array.from(editors), groupId, { validateTrust: true });
+					try {
+						await this.editorService.openEditors(Array.from(editors), groupId, { validateTrust: true });
+					} catch (error) {
+						this.logService.error(error);
+					}
 				}));
 			}
 

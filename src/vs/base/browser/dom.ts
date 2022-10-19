@@ -963,8 +963,6 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 		throw new Error('Bad use of emmet');
 	}
 
-	attrs = { ...(attrs || {}) };
-
 	const tagName = match[1] || 'div';
 	let result: T;
 
@@ -981,24 +979,24 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 		result.className = match[4].replace(/\./g, ' ').trim();
 	}
 
-	Object.keys(attrs).forEach(name => {
-		const value = attrs![name];
-
-		if (typeof value === 'undefined') {
-			return;
-		}
-
-		if (/^on\w+$/.test(name)) {
-			(<any>result)[name] = value;
-		} else if (name === 'selected') {
-			if (value) {
-				result.setAttribute(name, 'true');
+	if (attrs) {
+		Object.entries(attrs).forEach(([name, value]) => {
+			if (typeof value === 'undefined') {
+				return;
 			}
 
-		} else {
-			result.setAttribute(name, value);
-		}
-	});
+			if (/^on\w+$/.test(name)) {
+				(<any>result)[name] = value;
+			} else if (name === 'selected') {
+				if (value) {
+					result.setAttribute(name, 'true');
+				}
+
+			} else {
+				result.setAttribute(name, value);
+			}
+		});
+	}
 
 	result.append(...children);
 
@@ -1704,18 +1702,6 @@ export class DragAndDropObserver extends Disposable {
 			this.callbacks.onDrop(e);
 		}));
 	}
-}
-
-export function computeClippingRect(elementOrRect: HTMLElement | DOMRectReadOnly, clipper: HTMLElement) {
-	const frameRect = (elementOrRect instanceof HTMLElement ? elementOrRect.getBoundingClientRect() : elementOrRect);
-	const rootRect = clipper.getBoundingClientRect();
-
-	const top = Math.max(rootRect.top - frameRect.top, 0);
-	const right = Math.max(frameRect.width - (frameRect.right - rootRect.right), 0);
-	const bottom = Math.max(frameRect.height - (frameRect.bottom - rootRect.bottom), 0);
-	const left = Math.max(rootRect.left - frameRect.left, 0);
-
-	return { top, right, bottom, left };
 }
 
 type HTMLElementAttributeKeys<T> = Partial<{ [K in keyof T]: T[K] extends Function ? never : T[K] extends object ? HTMLElementAttributeKeys<T[K]> : T[K] }>;

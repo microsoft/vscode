@@ -132,10 +132,11 @@ export interface IContentWidgetPosition {
 	 */
 	position: IPosition | null;
 	/**
-	 * Optionally, a range can be provided to further
-	 * define the position of the content widget.
+	 * Optionally, a secondary position can be provided to further
+	 * define the position of the content widget. The secondary position
+	 * must have the same line number as the primary position.
 	 */
-	range?: IRange | null;
+	secondaryPosition?: IPosition | null;
 	/**
 	 * Placement preference for position, in order of preference.
 	 */

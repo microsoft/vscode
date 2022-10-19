@@ -1273,6 +1273,26 @@
         "command": "typescript.goToSourceDefinition",
         "title": "%typescript.goToSourceDefinition%",
         "category": "TypeScript"
+      },
+      {
+        "command": "typescript.sortImports",
+        "title": "%typescript.sortImports%",
+        "category": "TypeScript"
+      },
+      {
+        "command": "javascript.sortImports",
+        "title": "%typescript.sortImports%",
+        "category": "JavaScript"
+      },
+      {
+        "command": "typescript.removeUnusedImports",
+        "title": "%typescript.removeUnusedImports%",
+        "category": "TypeScript"
+      },
+      {
+        "command": "javascript.removeUnusedImports",
+        "title": "%typescript.removeUnusedImports%",
+        "category": "JavaScript"
       }
     ],
     "menus": {
@@ -1328,6 +1348,22 @@
         {
           "command": "typescript.goToSourceDefinition",
           "when": "tsSupportsSourceDefinition && typescript.isManagedFile"
+        },
+        {
+          "command": "typescript.sortImports",
+          "when": "tsSupportsSortImports && editorLangId =~ /^typescript(react)?$/"
+        },
+        {
+          "command": "javascript.sortImports",
+          "when": "tsSupportsSortImports && editorLangId =~ /^javascript(react)?$/"
+        },
+        {
+          "command": "typescript.removeUnusedImports",
+          "when": "tsSupportsRemoveUnusedImports && editorLangId =~ /^typescript(react)?$/"
+        },
+        {
+          "command": "javascript.removeUnusedImports",
+          "when": "tsSupportsRemoveUnusedImports && editorLangId =~ /^javascript(react)?$/"
         }
       ],
       "editor/context": [
