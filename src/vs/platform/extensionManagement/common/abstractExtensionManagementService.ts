@@ -28,6 +28,7 @@ export interface IInstallExtensionTask {
 	readonly identifier: IExtensionIdentifier;
 	readonly source: IGalleryExtension | URI;
 	readonly operation: InstallOperation;
+	readonly wasVerified?: boolean;
 	run(): Promise<{ local: ILocalExtension; metadata: Metadata }>;
 	waitUntilTaskIsFinished(): Promise<{ local: ILocalExtension; metadata: Metadata }>;
 	cancel(): void;
@@ -243,6 +244,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 							const durationSinceUpdate = isUpdate ? undefined : (new Date().getTime() - task.source.lastUpdated) / 1000;
 							reportTelemetry(this.telemetryService, isUpdate ? 'extensionGallery:update' : 'extensionGallery:install', {
 								extensionData: getGalleryExtensionTelemetryData(task.source),
+								wasVerified: task.wasVerified,
 								duration: new Date().getTime() - startTime,
 								durationSinceUpdate
 							});
@@ -256,7 +258,12 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						installResults.push({ local, identifier: task.identifier, operation: task.operation, source: task.source, context: options.context, profileLocation: options.profileLocation, applicationScoped: local.isApplicationScoped });
 					} catch (error) {
 						if (!URI.isUri(task.source)) {
-							reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', { extensionData: getGalleryExtensionTelemetryData(task.source), duration: new Date().getTime() - startTime, error });
+							reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', {
+								extensionData: getGalleryExtensionTelemetryData(task.source),
+								wasVerified: task.wasVerified,
+								duration: new Date().getTime() - startTime,
+								error
+							});
 						}
 						this.logService.error('Error while installing the extension:', task.identifier.id);
 						throw error;
@@ -665,6 +672,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	abstract getManifest(vsix: URI): Promise<IExtensionManifest>;
 	abstract install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension>;
 	abstract getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
+	abstract download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI>;
 
 	abstract getMetadata(extension: ILocalExtension): Promise<Metadata | undefined>;
 	abstract updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
@@ -693,8 +701,22 @@ function toExtensionManagementError(error: Error): ExtensionManagementError {
 	return e;
 }
 
-export function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, duration, error, durationSinceUpdate }: { extensionData: any; duration?: number; durationSinceUpdate?: number; error?: Error }): void {
-	const errorcode = error ? error instanceof ExtensionManagementError ? error.code : ExtensionManagementErrorCode.Internal : undefined;
+export function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, wasVerified, duration, error, durationSinceUpdate }: { extensionData: any; wasVerified?: boolean; duration?: number; durationSinceUpdate?: number; error?: Error }): void {
+	let errorcode: ExtensionManagementErrorCode | undefined;
+	let errorcodeDetail: string | undefined;
+
+	if (error) {
+		if (error instanceof ExtensionManagementError) {
+			errorcode = error.code;
+
+			if (error.code === ExtensionManagementErrorCode.Signature) {
+				errorcodeDetail = error.message;
+			}
+		} else {
+			errorcode = ExtensionManagementErrorCode.Internal;
+		}
+	}
+
 	/* __GDPR__
 		"extensionGallery:install" : {
 			"owner": "sandy081",
@@ -702,7 +724,9 @@ export function reportTelemetry(telemetryService: ITelemetryService, eventName: 
 			"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"durationSinceUpdate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+			"errorcodeDetail": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 			"recommendationReason": { "retiredFromVersion": "1.23.0", "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"wasVerified" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"${include}": [
 				"${GalleryExtensionTelemetryData}"
 			]
@@ -725,12 +749,14 @@ export function reportTelemetry(telemetryService: ITelemetryService, eventName: 
 			"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+			"errorcodeDetail": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+			"wasVerified" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"${include}": [
 				"${GalleryExtensionTelemetryData}"
 			]
 		}
 	*/
-	telemetryService.publicLog(eventName, { ...extensionData, success: !error, duration, errorcode, durationSinceUpdate });
+	telemetryService.publicLog(eventName, { ...extensionData, wasVerified, success: !error, duration, errorcode, errorcodeDetail, durationSinceUpdate });
 }
 
 export abstract class AbstractExtensionTask<T> {

@@ -6,10 +6,9 @@
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { UriHandler, Uri, window, Disposable, commands } from 'vscode';
+import { UriHandler, Uri, window, Disposable, commands, LogOutputChannel } from 'vscode';
 import { dispose } from './util';
 import * as querystring from 'querystring';
-import { OutputChannelLogger } from './log';
 
 const schemes = new Set(['file', 'git', 'http', 'https', 'ssh']);
 const refRegEx = /^$|[~\^:\\\*\s\[\]]|^-|^\.|\/\.|\.\.|\.lock\/|\.lock$|\/$|\.$/;
@@ -18,12 +17,12 @@ export class GitProtocolHandler implements UriHandler {
 
 	private disposables: Disposable[] = [];
 
-	constructor(private readonly outputChannelLogger: OutputChannelLogger) {
+	constructor(private readonly logger: LogOutputChannel) {
 		this.disposables.push(window.registerUriHandler(this));
 	}
 
 	handleUri(uri: Uri): void {
-		this.outputChannelLogger.logInfo(`GitProtocolHandler.handleUri(${uri.toString()})`);
+		this.logger.info(`GitProtocolHandler.handleUri(${uri.toString()})`);
 
 		switch (uri.path) {
 			case '/clone': this.clone(uri);
@@ -35,17 +34,17 @@ export class GitProtocolHandler implements UriHandler {
 		const ref = data.ref;
 
 		if (!data.url) {
-			this.outputChannelLogger.logWarning('Failed to open URI:' + uri.toString());
+			this.logger.warn('Failed to open URI:' + uri.toString());
 			return;
 		}
 
 		if (Array.isArray(data.url) && data.url.length === 0) {
-			this.outputChannelLogger.logWarning('Failed to open URI:' + uri.toString());
+			this.logger.warn('Failed to open URI:' + uri.toString());
 			return;
 		}
 
 		if (ref !== undefined && typeof ref !== 'string') {
-			this.outputChannelLogger.logWarning('Failed to open URI due to multiple references:' + uri.toString());
+			this.logger.warn('Failed to open URI due to multiple references:' + uri.toString());
 			return;
 		}
 
@@ -70,12 +69,12 @@ export class GitProtocolHandler implements UriHandler {
 			}
 		}
 		catch (ex) {
-			this.outputChannelLogger.logWarning('Invalid URI:' + uri.toString());
+			this.logger.warn('Invalid URI:' + uri.toString());
 			return;
 		}
 
 		if (!(await commands.getCommands(true)).includes('git.clone')) {
-			this.outputChannelLogger.logError('Could not complete git clone operation as git installation was not found.');
+			this.logger.error('Could not complete git clone operation as git installation was not found.');
 
 			const errorMessage = localize('no git', 'Could not clone your repository as Git is not installed.');
 			const downloadGit = localize('download git', 'Download Git');
@@ -87,7 +86,7 @@ export class GitProtocolHandler implements UriHandler {
 			return;
 		} else {
 			const cloneTarget = cloneUri.toString(true);
-			this.outputChannelLogger.logInfo(`Executing git.clone for ${cloneTarget}`);
+			this.logger.info(`Executing git.clone for ${cloneTarget}`);
 			commands.executeCommand('git.clone', cloneTarget, undefined, { ref: ref });
 		}
 	}

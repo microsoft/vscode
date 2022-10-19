@@ -589,8 +589,7 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 	protected abstract doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger;
 }
 
-export class NullLogService implements ILogService {
-	declare readonly _serviceBrand: undefined;
+export class NullLogger implements ILogger {
 	readonly onDidChangeLogLevel: Event<LogLevel> = new Emitter<LogLevel>().event;
 	setLevel(level: LogLevel): void { }
 	getLevel(): LogLevel { return LogLevel.Info; }
@@ -602,6 +601,19 @@ export class NullLogService implements ILogService {
 	critical(message: string | Error, ...args: any[]): void { }
 	dispose(): void { }
 	flush(): void { }
+}
+
+export class NullLogService extends NullLogger implements ILogService {
+	declare readonly _serviceBrand: undefined;
+}
+
+export class NullLoggerService extends AbstractLoggerService {
+
+	constructor() { super(LogLevel.Info, Event.None); }
+
+	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions | undefined): ILogger {
+		return new NullLogger();
+	}
 }
 
 export function getLogLevel(environmentService: IEnvironmentService): LogLevel {

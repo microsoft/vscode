@@ -32,6 +32,7 @@ import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/serv
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
+export const INTERACTIVE_WINDOW_EDITOR_ID = 'workbench.editor.interactive';
 
 
 export enum CellKind {
@@ -176,6 +177,11 @@ export interface INotebookRendererInfo {
 	matches(mimeType: string, kernelProvides: ReadonlyArray<string>): NotebookRendererMatch;
 }
 
+export interface INotebookStaticPreloadInfo {
+	readonly type: string;
+	readonly entrypoint: URI;
+	readonly extensionLocation: URI;
+}
 
 export interface IOrderedMimeType {
 	mimeType: string;

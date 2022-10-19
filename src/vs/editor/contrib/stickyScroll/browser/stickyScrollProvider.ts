@@ -16,6 +16,8 @@ import { binarySearch } from 'vs/base/common/arrays';
 import { Iterable } from 'vs/base/common/iterator';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
+import { URI } from 'vs/base/common/uri';
+import { isEqual } from 'vs/base/common/resources';
 
 export class StickyRange {
 	constructor(
@@ -33,19 +35,20 @@ export class StickyLineCandidate {
 }
 
 export class StickyLineCandidateProvider extends Disposable {
-	private readonly onStickyScrollChangeEmitter = this._register(new Emitter<void>());
-	public readonly onStickyScrollChange = this.onStickyScrollChangeEmitter.event;
 
 	static readonly ID = 'store.contrib.stickyScrollController';
+
+	private readonly _onDidChangeStickyScroll = this._store.add(new Emitter<void>());
+	public readonly onDidChangeStickyScroll = this._onDidChangeStickyScroll.event;
+
 	private readonly _editor: ICodeEditor;
 	private readonly _languageFeaturesService: ILanguageFeaturesService;
 	private readonly _updateSoon: RunOnceScheduler;
 
-	private _cts: CancellationTokenSource | undefined;
-	private _outlineModel: StickyOutlineElement | undefined;
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
-	private _modelVersionId: number = 0;
-	private _providerID: string | undefined = undefined;
+	private _cts: CancellationTokenSource | undefined;
+
+	private _model: StickyOutlineModel | undefined;
 
 	constructor(
 		editor: ICodeEditor,
@@ -63,6 +66,11 @@ export class StickyLineCandidateProvider extends Disposable {
 		this.readConfiguration();
 	}
 
+	override dispose(): void {
+		super.dispose();
+		this._sessionStore.dispose();
+	}
+
 	private readConfiguration() {
 		const options = this._editor.getOption(EditorOption.stickyScroll);
 		if (options.enabled === false) {
@@ -70,13 +78,12 @@ export class StickyLineCandidateProvider extends Disposable {
 			return;
 		} else {
 			this._sessionStore.add(this._editor.onDidChangeModel(() => {
-				this._providerID = undefined;
 				this.update();
 			}));
 			this._sessionStore.add(this._editor.onDidChangeHiddenAreas(() => this.update()));
 			this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
 			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => {
-				this._providerID = undefined;
+
 				this.update();
 			}));
 			this.update();
@@ -84,46 +91,56 @@ export class StickyLineCandidateProvider extends Disposable {
 	}
 
 	public getVersionId() {
-		return this._modelVersionId;
+		return this._model?.version ?? -1;
 	}
 
 	public async update(): Promise<void> {
 		this._cts?.dispose(true);
 		this._cts = new CancellationTokenSource();
 		await this.updateOutlineModel(this._cts.token);
-		this.onStickyScrollChangeEmitter.fire();
+		this._onDidChangeStickyScroll.fire();
 	}
 
-	private async updateOutlineModel(token: CancellationToken) {
-		if (this._editor.hasModel()) {
-			const model = this._editor.getModel();
-			const modelVersionId = model.getVersionId();
-			const outlineModel = await OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, model, token) as OutlineModel;
+	private async updateOutlineModel(token: CancellationToken): Promise<void> {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+
+		const model = this._editor.getModel();
+		const modelVersionId = model.getVersionId();
+		const isDifferentModel = this._model ? !isEqual(this._model.uri, model.uri) : false;
+
+		// clear sticky scroll to not show stale data for too long
+		const resetHandle = isDifferentModel ? setTimeout(() => {
+			if (!token.isCancellationRequested) {
+				this._model = new StickyOutlineModel(model.uri, model.getVersionId(), undefined, undefined);
+				this._onDidChangeStickyScroll.fire();
+			}
+		}, 75) : undefined;
+
+		// get elements from outline or folding model
+		const outlineModel = await OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, model, token);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		if (outlineModel.children.size !== 0) {
+			const { stickyOutlineElement, providerID } = StickyOutlineElement.fromOutlineModel(outlineModel, this._model?.outlineProviderId);
+			this._model = new StickyOutlineModel(model.uri, modelVersionId, stickyOutlineElement, providerID);
+
+		} else {
+			const foldingController = FoldingController.get(this._editor);
+			const foldingModel = await foldingController?.getFoldingModel();
 			if (token.isCancellationRequested) {
 				return;
 			}
-			if (outlineModel.children.size !== 0) {
-				const { stickyOutlineElement, providerID } = StickyOutlineElement.fromOutlineModel(outlineModel, this._providerID);
-				this._outlineModel = stickyOutlineElement;
-				this._providerID = providerID;
+			if (foldingModel && foldingModel.regions.length !== 0) {
+				const foldingElement = StickyOutlineElement.fromFoldingModel(foldingModel);
+				this._model = new StickyOutlineModel(model.uri, modelVersionId, foldingElement, undefined);
 			} else {
-				const foldingController = FoldingController.get(this._editor);
-				const foldingModel = await foldingController?.getFoldingModel();
-				if (token.isCancellationRequested) {
-					return;
-				}
-				if (foldingModel && foldingModel.regions.length !== 0) {
-					this._outlineModel = StickyOutlineElement.fromFoldingModel(foldingModel);
-				} else {
-					this._outlineModel = new StickyOutlineElement(
-						new StickyRange(-1, -1),
-						[],
-						undefined
-					);
-				}
+				this._model = undefined;
 			}
-			this._modelVersionId = modelVersionId;
 		}
+		clearTimeout(resetHandle);
 	}
 
 	private updateIndex(index: number) {
@@ -169,8 +186,11 @@ export class StickyLineCandidateProvider extends Disposable {
 	}
 
 	public getCandidateStickyLinesIntersecting(range: StickyRange): StickyLineCandidate[] {
+		if (!this._model?.element) {
+			return [];
+		}
 		let stickyLineCandidates: StickyLineCandidate[] = [];
-		this.getCandidateStickyLinesIntersectingFromOutline(range, this._outlineModel as StickyOutlineElement, stickyLineCandidates, 0, -1);
+		this.getCandidateStickyLinesIntersectingFromOutline(range, this._model.element, stickyLineCandidates, 0, -1);
 		const hiddenRanges: Range[] | undefined = this._editor._getViewModel()?.getHiddenAreas();
 		if (hiddenRanges) {
 			for (const hiddenRange of hiddenRanges) {
@@ -178,11 +198,6 @@ export class StickyLineCandidateProvider extends Disposable {
 			}
 		}
 		return stickyLineCandidates;
-	}
-
-	override dispose(): void {
-		super.dispose();
-		this._sessionStore.dispose();
 	}
 }
 
@@ -214,13 +229,12 @@ class StickyOutlineElement {
 		return new StickyOutlineElement(range, children, undefined);
 	}
 
-	public static fromOutlineModel(outlineModel: OutlineModel, providerID: string | undefined): { stickyOutlineElement: StickyOutlineElement; providerID: string | undefined } {
+	public static fromOutlineModel(outlineModel: OutlineModel, preferredProvider: string | undefined): { stickyOutlineElement: StickyOutlineElement; providerID: string | undefined } {
 
-		let ID: string | undefined = providerID;
 		let outlineElements: Map<string, OutlineElement>;
 		// When several possible outline providers
 		if (Iterable.first(outlineModel.children.values()) instanceof OutlineGroup) {
-			const provider = Iterable.find(outlineModel.children.values(), outlineGroupOfModel => outlineGroupOfModel.id === providerID);
+			const provider = Iterable.find(outlineModel.children.values(), outlineGroupOfModel => outlineGroupOfModel.id === preferredProvider);
 			if (provider) {
 				outlineElements = provider.children;
 			} else {
@@ -235,7 +249,7 @@ class StickyOutlineElement {
 						tempID = outlineGroup.id;
 					}
 				}
-				ID = tempID;
+				preferredProvider = tempID;
 				outlineElements = optimalOutlineGroup!.children;
 			}
 		} else {
@@ -254,7 +268,7 @@ class StickyOutlineElement {
 
 		return {
 			stickyOutlineElement: stickyOutlineElement,
-			providerID: ID
+			providerID: preferredProvider
 		};
 	}
 
@@ -318,4 +332,13 @@ class StickyOutlineElement {
 		public readonly parent: StickyOutlineElement | undefined
 	) {
 	}
+}
+
+class StickyOutlineModel {
+	constructor(
+		readonly uri: URI,
+		readonly version: number,
+		readonly element: StickyOutlineElement | undefined,
+		readonly outlineProviderId: string | undefined
+	) { }
 }

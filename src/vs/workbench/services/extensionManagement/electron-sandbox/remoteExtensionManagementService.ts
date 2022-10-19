@@ -16,10 +16,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { generateUuid } from 'vs/base/common/uuid';
-import { joinPath } from 'vs/base/common/resources';
 import { IExtensionManagementServer, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { Promises } from 'vs/base/common/async';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
@@ -40,7 +37,6 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
-		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
@@ -120,9 +116,8 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 
 	private async downloadCompatibleAndInstall(extension: IGalleryExtension, installed: ILocalExtension[], installOptions: InstallOptions): Promise<ILocalExtension> {
 		const compatible = await this.checkAndGetCompatible(extension, !!installOptions.installPreReleaseVersion);
-		const location = joinPath(URI.file(this.environmentService.extensionsDownloadPath), generateUuid());
 		this.logService.trace('Downloading extension:', compatible.identifier.id);
-		await this.galleryService.download(compatible, location, installed.filter(i => areSameExtensions(i.identifier, compatible.identifier))[0] ? InstallOperation.Update : InstallOperation.Install);
+		const location = await this.localExtensionManagementServer.extensionManagementService.download(compatible, installed.filter(i => areSameExtensions(i.identifier, compatible.identifier))[0] ? InstallOperation.Update : InstallOperation.Install);
 		this.logService.info('Downloaded extension:', compatible.identifier.id, location.path);
 		try {
 			const local = await super.install(location, installOptions);

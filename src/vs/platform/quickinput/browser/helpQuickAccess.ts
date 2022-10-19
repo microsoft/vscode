@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Extensions, IQuickAccessProvider, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
+import { Extensions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 interface IHelpQuickAccessPickItem extends IQuickPickItem {
@@ -46,34 +46,33 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 		}));
 
 		// Fill in all providers
-		picker.items = this.getQuickAccessProviders();
+		picker.items = this.getQuickAccessProviders().filter(p => p.prefix !== HelpQuickAccessProvider.PREFIX);
 
 		return disposables;
 	}
 
-	private getQuickAccessProviders(): IHelpQuickAccessPickItem[] {
-		const providers: IHelpQuickAccessPickItem[] = [];
-
-		for (const provider of this.registry.getQuickAccessProviders().sort((providerA, providerB) => providerA.prefix.localeCompare(providerB.prefix))) {
-			if (provider.prefix === HelpQuickAccessProvider.PREFIX) {
-				continue; // exclude help which is already active
-			}
-
-			for (const helpEntry of provider.helpEntries) {
-				const prefix = helpEntry.prefix || provider.prefix;
-				const label = prefix || '\u2026' /* ... */;
-
-				providers.push({
-					prefix,
-					label,
-					keybinding: helpEntry.commandId ? this.keybindingService.lookupKeybinding(helpEntry.commandId) : undefined,
-					ariaLabel: localize('helpPickAriaLabel', "{0}, {1}", label, helpEntry.description),
-					description: helpEntry.description
-				});
-			}
-		}
+	public getQuickAccessProviders(): IHelpQuickAccessPickItem[] {
+		const providers: IHelpQuickAccessPickItem[] = this.registry
+			.getQuickAccessProviders()
+			.sort((providerA, providerB) => providerA.prefix.localeCompare(providerB.prefix))
+			.flatMap(provider => this.createPicks(provider));
 
 		return providers;
+	}
+
+	private createPicks(provider: IQuickAccessProviderDescriptor): IHelpQuickAccessPickItem[] {
+		return provider.helpEntries.map(helpEntry => {
+			const prefix = helpEntry.prefix || provider.prefix;
+			const label = prefix || '\u2026' /* ... */;
+
+			return {
+				prefix,
+				label,
+				keybinding: helpEntry.commandId ? this.keybindingService.lookupKeybinding(helpEntry.commandId) : undefined,
+				ariaLabel: localize('helpPickAriaLabel', "{0}, {1}", label, helpEntry.description),
+				description: helpEntry.description
+			};
+		});
 	}
 }
 

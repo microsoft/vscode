@@ -92,6 +92,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 						return cell.apiCell;
 					}
 				}
+				if (arg && arg.$mid === MarshalledId.NotebookActionContext) {
+					const notebookUri = arg.uri;
+					const data = this._documents.get(notebookUri);
+					if (data) {
+						return data.apiNotebook;
+					}
+				}
 				return arg;
 			}
 		});

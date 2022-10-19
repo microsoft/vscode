@@ -317,11 +317,17 @@ impl std::fmt::Display for ServerHasClosed {
 }
 
 #[derive(Debug)]
-pub struct UpdatesNotConfigured();
+pub struct UpdatesNotConfigured(pub String);
+
+impl UpdatesNotConfigured {
+	pub fn no_url() -> Self {
+		UpdatesNotConfigured("no service url".to_owned())
+	}
+}
 
 impl std::fmt::Display for UpdatesNotConfigured {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Update service is not configured")
+		write!(f, "Update service is not configured: {}", self.0)
 	}
 }
 #[derive(Debug)]
@@ -353,6 +359,15 @@ impl std::fmt::Display for WindowsNeedsElevation {
 		} else {
 			writeln!(f, " 3. Run the same command again",)
 		}
+	}
+}
+
+#[derive(Debug)]
+pub struct CorruptDownload(pub String);
+
+impl std::fmt::Display for CorruptDownload {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "Error updating the VS Code CLI: {}", self.0)
 	}
 }
 
@@ -417,7 +432,8 @@ makeAnyError!(
 	ServerHasClosed,
 	ServiceAlreadyRegistered,
 	WindowsNeedsElevation,
-	UpdatesNotConfigured
+	UpdatesNotConfigured,
+	CorruptDownload
 );
 
 impl From<reqwest::Error> for AnyError {

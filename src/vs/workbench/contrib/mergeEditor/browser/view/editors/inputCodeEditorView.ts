@@ -8,7 +8,6 @@ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
-import { Iterable } from 'vs/base/common/iterator';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { autorun, autorunWithStore, derived, IObservable, ISettableObservable, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
@@ -209,8 +208,8 @@ export class InputCodeEditorView extends CodeEditorView {
 		return result;
 	});
 
-	protected override getEditorContributions(): Iterable<IEditorContributionDescription> | undefined {
-		return Iterable.filter(EditorExtensionsRegistry.getEditorContributions(), c => c.id !== CodeLensContribution.ID);
+	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
+		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeLensContribution.ID);
 	}
 }
 

@@ -309,7 +309,7 @@ export class BrowserMain extends Disposable {
 			})
 		]);
 
-		userDataProfilesService.setEnablement(productService.quality !== 'stable' || configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
+		userDataProfilesService.setEnablement(!environmentService.remoteAuthority && (productService.quality !== 'stable' || configurationService.getValue(PROFILES_ENABLEMENT_CONFIG)));
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(PROFILES_ENABLEMENT_CONFIG)) {
 				userDataProfilesService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
