@@ -829,63 +829,75 @@ export function parseGitmodules(raw: string): Submodule[] {
 	return result;
 }
 
-function parseGitConfigSections(raw: string, sectionRegex: RegExp): Iterable<string> {
-	const regex = /^\[.+\]$/gm;
-	const sections: string[] = [];
+interface GitConfigSection {
+	label?: string;
+	properties: { [key: string]: string };
+}
+
+function parseGitConfig(raw: string, section: string): Iterable<GitConfigSection> {
+	const sections: GitConfigSection[] = [];
+
+	const sectionHeaderRegex = /^\[.+\]$/gm;
+	const sectionRegex = new RegExp(`^\\[${section}\\s*"*([^"]*)"*\\]$`, 'm');
+
+	const parseSection = (sectionRaw: string) => {
+		const sectionMatch = sectionRegex.exec(sectionRaw);
+		if (!sectionMatch) {
+			return;
+		}
+
+		const section = {
+			label: sectionMatch.length === 2 && sectionMatch[1] !== '' ? sectionMatch[1] : undefined,
+			properties: Object.create({})
+		};
+
+		// Properties
+		for (const propertyLine of sectionRaw.substring(sectionMatch[0].length).split(/\r?\n/)) {
+			const propertyMatch = /^\s*(\w+)\s*=\s*(.*)$/.exec(propertyLine);
+
+			if (!propertyMatch) {
+				continue;
+			}
+
+			const [, key, value] = propertyMatch;
+
+			if (section.properties[key]) {
+				continue;
+			}
+			section.properties[key] = value;
+		}
+
+		sections.push(section);
+	};
 
 	let position = 0;
 	let match: RegExpExecArray | null = null;
 
-	const sectionMatch = (sectionRaw: string) => {
-		if (sectionRegex.test(sectionRaw)) {
-			sections.push(sectionRaw);
-		}
-	};
-
-	while (match = regex.exec(raw)) {
-		sectionMatch(raw.substring(position, match.index));
+	while (match = sectionHeaderRegex.exec(raw)) {
+		parseSection(raw.substring(position, match.index));
 		position = match.index;
 	}
-	sectionMatch(raw.substring(position));
+	parseSection(raw.substring(position));
 
 	return sections;
 }
 
 export function parseRemotes(raw: string): Remote[] {
 	const remotes: Remote[] = [];
-	const sectionRegEx = /^\[remote\s+"([^"]+)"\]$/m;
 
 	// Remote sections
-	for (const sectionRaw of parseGitConfigSections(raw, sectionRegEx)) {
-		const remoteMatch = sectionRegEx.exec(sectionRaw);
-		if (remoteMatch?.length === 2) {
-			const remote: MutableRemote = { name: remoteMatch[1], isReadOnly: false };
-
-			// Properties
-			for (const propertyLine of sectionRaw.substring(remoteMatch[0].length).split(/\r?\n/)) {
-				const propertyMatch = /^\s*(\w+)\s*=\s*(.*)$/.exec(propertyLine);
-
-				if (!propertyMatch) {
-					continue;
-				}
-
-				const [, key, value] = propertyMatch;
-
-				if (key === 'url' && !remote.fetchUrl) {
-					remote.fetchUrl = value;
-				}
-				if (key === 'pushurl' && !remote.pushUrl) {
-					remote.pushUrl = value;
-				}
-				// https://github.com/microsoft/vscode/issues/45271
-				if (key === 'pushurl' && value === 'no_push') {
-					remote.isReadOnly = true;
-				}
-			}
-
-			remote.pushUrl ??= remote.fetchUrl;
-			remotes.push(remote);
+	for (const remoteSection of parseGitConfig(raw, 'remote')) {
+		if (!remoteSection.label) {
+			continue;
 		}
+
+		remotes.push({
+			name: remoteSection.label,
+			fetchUrl: remoteSection.properties['url'],
+			pushUrl: remoteSection.properties['pushurl'] ?? remoteSection.properties['url'],
+			// https://github.com/microsoft/vscode/issues/45271
+			isReadOnly: remoteSection.properties['pushurl'] === 'no_push'
+		});
 	}
 
 	return remotes;
