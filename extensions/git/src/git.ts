@@ -13,7 +13,7 @@ import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows } from './util';
-import { CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
+import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
@@ -550,8 +550,8 @@ export class Git {
 
 		if (options.log !== false) {
 			const startTime = Date.now();
-			child.on('exit', (code) => {
-				this.log(`> git ${args.join(' ')} [${Date.now() - startTime}ms]${code === null ? ' (cancelled)' : ''}\n`);
+			child.on('exit', (_) => {
+				this.log(`> git ${args.join(' ')} [${Date.now() - startTime}ms]${child.killed ? ' (cancelled)' : ''}\n`);
 			});
 		}
 
@@ -1938,7 +1938,7 @@ export class Repository {
 
 	getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
 		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
-			throw new GitError({ message: 'Cancelled' });
+			throw new CancellationError();
 		}
 
 		const env = { GIT_OPTIONAL_LOCKS: '0' };
@@ -2008,7 +2008,7 @@ export class Repository {
 						// noop
 					}
 
-					e(new GitError({ message: 'Cancelled' }));
+					e(new CancellationError());
 				});
 			});
 
