@@ -72,7 +72,10 @@ suite('git smoke test', function () {
 		const appjs = await open('app.js');
 		await type(appjs, ' world');
 		await appjs.save();
+		console.log('status start');
 		await repository.status();
+		console.log('status end');
+		console.log(JSON.stringify(repository.state));
 		assert.strictEqual(repository.state.workingTreeChanges.length, 1);
 		repository.state.workingTreeChanges.some(r => r.uri.path === appjs.uri.path && r.status === Status.MODIFIED);
 
