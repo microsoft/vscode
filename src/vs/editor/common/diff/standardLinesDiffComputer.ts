@@ -8,6 +8,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { SequenceFromIntArray, OffsetRange, SequenceDiff, ISequence } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
 import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/algorithms/dynamicProgrammingDiffing';
+import { joinSequenceDiffs } from 'vs/editor/common/diff/algorithms/joinSequenceDiffs';
 import { MyersDiffAlgorithm } from 'vs/editor/common/diff/algorithms/myersDiffAlgorithm';
 import { ILinesDiff, ILinesDiffComputer, ILinesDiffComputerOptions, LineRange, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 
@@ -108,7 +109,8 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		const sourceSlice = new Slice(originalLines, diff.seq1Range);
 		const targetSlice = new Slice(modifiedLines, diff.seq2Range);
 
-		const diffs = this.myersDiffingAlgorithm.compute(sourceSlice, targetSlice);
+		const originalDiffs = this.myersDiffingAlgorithm.compute(sourceSlice, targetSlice);
+		const diffs = joinSequenceDiffs(sourceSlice, targetSlice, originalDiffs);
 		const result = diffs.map(
 			(d) =>
 				new RangeMapping(
