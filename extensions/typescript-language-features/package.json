@@ -1351,19 +1351,19 @@
         },
         {
           "command": "typescript.sortImports",
-          "when": "tsSupportsSortImports && editorLangId =~ /^typescript(react)?$/"
+          "when": "supportedCodeAction =~ /(\\s|^)source\\.sortImports\\b/ && editorLangId =~ /^typescript(react)?$/"
         },
         {
           "command": "javascript.sortImports",
-          "when": "tsSupportsSortImports && editorLangId =~ /^javascript(react)?$/"
+          "when": "supportedCodeAction =~ /(\\s|^)source\\.sortImports\\b/ && editorLangId =~ /^javascript(react)?$/"
         },
         {
           "command": "typescript.removeUnusedImports",
-          "when": "tsSupportsRemoveUnusedImports && editorLangId =~ /^typescript(react)?$/"
+          "when": "supportedCodeAction =~ /(\\s|^)source\\.removeUnusedImports\\b/ && editorLangId =~ /^typescript(react)?$/"
         },
         {
           "command": "javascript.removeUnusedImports",
-          "when": "tsSupportsRemoveUnusedImports && editorLangId =~ /^javascript(react)?$/"
+          "when": "supportedCodeAction =~ /(\\s|^)source\\.removeUnusedImports\\b/ && editorLangId =~ /^javascript(react)?$/"
         }
       ],
       "editor/context": [
