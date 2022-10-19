@@ -530,8 +530,8 @@ impl DevTunnels {
 		if let Some(machine_name) = preferred_name {
 			let name = machine_name;
 			if let Err(e) = is_valid_name(&name) {
-				info!(self.log, "{}", e);
-				return Err(AnyError::from(wrap(e, "failed to lookup tunnel")));
+				info!(self.log, "{} is an invalid name", e);
+				return Err(AnyError::from(wrap(e, "invalid name")));
 			}
 			if is_name_free(&name) {
 				return Ok(name);
