@@ -63,6 +63,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	getAllOverviewRulerDecorations(theme: EditorTheme): OverviewRulerDecorationsGroup[];
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
+	modifyPosition(position: Position, offset: number): Position;
 
 	getInjectedTextAt(viewPosition: Position): InjectedText | null;
 
