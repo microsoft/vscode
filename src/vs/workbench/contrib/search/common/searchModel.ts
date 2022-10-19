@@ -207,6 +207,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private _matches: Map<string, Match>;
 	private _removedMatches: Set<string>;
 	private _selectedMatch: Match | null = null;
+	private _name: string;
 
 	private _updateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
@@ -232,7 +233,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this._matches = new Map<string, Match>();
 		this._removedMatches = new Set<string>();
 		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
-
+		this._name = this.labelService.getUriBasenameLabel(this.resource);
 		this.createMatches();
 	}
 
@@ -425,7 +426,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	name(): string {
-		return this.labelService.getUriBasenameLabel(this.resource);
+		return this._name;
 	}
 
 	addContext(results: ITextSearchResult[] | undefined) {
@@ -493,6 +494,8 @@ export class FolderMatch extends Disposable {
 	protected _unDisposedFileMatches: ResourceMap<FileMatch>;
 	protected _unDisposedFolderMatches: ResourceMap<FolderMatchWithResource>;
 	private _replacingAll: boolean = false;
+	private _name: string;
+	private _recursiveFileMatches: ResourceMap<FileMatch>;
 
 	// if this is compressed in a node with other FolderMatches, then this is set to the parent where compression starts
 	public compressionStartParent: FolderMatch | undefined;
@@ -516,6 +519,8 @@ export class FolderMatch extends Disposable {
 		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
 		this._unDisposedFileMatches = new ResourceMap<FileMatch>();
 		this._unDisposedFolderMatches = new ResourceMap<FolderMatchWithResource>();
+		this._name = this.resource ? this.labelService.getUriBasenameLabel(this.resource) : '';
+		this._recursiveFileMatches = new ResourceMap<FileMatch>();
 	}
 
 	get searchModel(): SearchModel {
@@ -547,7 +552,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	name(): string {
-		return this.resource ? this.labelService.getUriBasenameLabel(this.resource) : '';
+		return this._name;
 	}
 
 	parent(): SearchResult | FolderMatch {
@@ -620,30 +625,12 @@ export class FolderMatch extends Disposable {
 		return (this.fileCount() + this.folderCount()) === 0;
 	}
 
-	hasFileUriDownstream(uri: URI): FileMatch | null {
-		const directChildFileMatch = this._fileMatches.get(uri);
-		if (directChildFileMatch) {
-			return directChildFileMatch;
-		}
-
-		const folderMatches = this.folderMatchesIterator();
-		for (const elem of folderMatches) {
-			const match = elem.hasFileUriDownstream(uri);
-			if (match) {
-				return match;
-			}
-		}
-		return null;
+	hasFileUriDownstream(uri: URI): FileMatch | undefined {
+		return this._recursiveFileMatches.get(uri);
 	}
 
 	downstreamFileMatches(): FileMatch[] {
-		let recursiveChildren: FileMatch[] = [];
-		const iterator = this.folderMatchesIterator();
-		for (const elem of iterator) {
-			recursiveChildren = recursiveChildren.concat(elem.downstreamFileMatches());
-		}
-
-		return [...this.fileMatchesIterator(), ...recursiveChildren];
+		return [...this._recursiveFileMatches.values()];
 	}
 
 	private fileCount(): number {
@@ -692,6 +679,7 @@ export class FolderMatch extends Disposable {
 				if (this instanceof FolderMatchWorkspaceRoot || this instanceof FolderMatchNoRoot) {
 					const fileMatch = this.createAndConfigureFileMatch(rawFileMatch);
 					added.push(fileMatch);
+					this._recursiveFileMatches.set(rawFileMatch.resource, fileMatch);
 				}
 			}
 		});
