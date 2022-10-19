@@ -7,7 +7,7 @@ import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { reportInputLatency } from 'vs/base/browser/performance';
+import { inputLatency } from 'vs/base/browser/performance';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -485,9 +485,7 @@ export class TextAreaInput extends Disposable {
 		let previousSelectionChangeEventTime = 0;
 		return dom.addDisposableListener(document, 'selectionchange', (e) => {
 
-			// Measures from cursor edit to the end of the task
-			(window as any).frameSelection = true;
-			reportInputLatency();
+			inputLatency.markTextareaSelection();
 
 			if (!this._hasFocus) {
 				return;
@@ -703,6 +701,9 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 	) {
 		super();
 		this._ignoreSelectionChangeTime = 0;
+
+		this.onBeforeInput(() => inputLatency.markInputStart());
+		this.onInput(() => inputLatency.markInputEnd());
 
 		this._register(dom.addDisposableListener(this._actual, TextAreaSyntethicEvents.Tap, () => this._onSyntheticTap.fire()));
 	}
