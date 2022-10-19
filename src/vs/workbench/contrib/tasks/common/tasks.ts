@@ -1141,7 +1141,7 @@ export const enum TaskRunSource {
 export namespace TaskEvent {
 	export function create(kind: TaskEventKind.ProcessStarted | TaskEventKind.ProcessEnded, task: Task, terminalId?: number, processIdOrExitCode?: number): ITaskEvent;
 	export function create(kind: TaskEventKind.Start, task: Task, terminalId?: number, resolvedVariables?: Map<string, string>): ITaskEvent;
-	export function create(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Start | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task, terminalId?: number, exitReason?: TerminalExitReason): ITaskEvent;
+	export function create(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task, terminalId?: number, exitReason?: TerminalExitReason): ITaskEvent;
 	export function create(kind: TaskEventKind.Changed): ITaskEvent;
 	export function create(kind: TaskEventKind, task?: Task, terminalId?: number, resolvedVariablesORProcessIdOrExitCodeOrExitReason?: number | Map<string, string> | TerminalExitReason): ITaskEvent {
 		if (task) {

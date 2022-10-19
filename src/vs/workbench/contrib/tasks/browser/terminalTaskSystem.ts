@@ -893,7 +893,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}, (_error) => {
 				this._logService.error('Task terminal process never got ready');
 			});
-			this._fireTaskEvent(TaskEvent.create(TaskEventKind.Start, task, terminal.instanceId));
+			this._fireTaskEvent(TaskEvent.create(TaskEventKind.Start, task, terminal.instanceId, resolver.values));
 			const onData = terminal.onLineData((line) => {
 				watchingProblemMatcher.processLine(line);
 				if (!delayer) {
@@ -982,7 +982,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			let processStartedSignaled = false;
 			terminal.processReady.then(() => {
 				if (!processStartedSignaled) {
-					this._fireTaskEvent(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.instanceId!));
+					this._fireTaskEvent(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.instanceId!, terminal!.processId!));
 					processStartedSignaled = true;
 				}
 			}, (_error) => {
@@ -1038,7 +1038,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						startStopProblemMatcher.dispose();
 					}, 100);
 					if (!processStartedSignaled && terminal) {
-						this._fireTaskEvent(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.instanceId!));
+						this._fireTaskEvent(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.instanceId!, terminal.processId!));
 						processStartedSignaled = true;
 					}
 
