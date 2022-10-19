@@ -62,6 +62,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 	getAllOverviewRulerDecorations(theme: EditorTheme): OverviewRulerDecorationsGroup[];
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
+	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
 
 	getInjectedTextAt(viewPosition: Position): InjectedText | null;
 

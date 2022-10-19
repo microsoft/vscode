@@ -200,7 +200,7 @@ export class TextAreaHandler extends ViewPart {
 				return this._context.viewModel.getValueInRange(range, eol);
 			},
 			getValueLengthInRange: (range: Range, eol: EndOfLinePreference): number => {
-				return this._context.viewModel.model.getValueLengthInRange(range, eol);
+				return this._context.viewModel.getValueLengthInRange(range, eol);
 			}
 		};
 

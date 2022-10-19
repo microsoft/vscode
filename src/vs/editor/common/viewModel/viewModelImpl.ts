@@ -783,6 +783,11 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this.model.getValueInRange(modelRange, eol);
 	}
 
+	public getValueLengthInRange(range: Range, eol: EndOfLinePreference): number {
+		const modelRange = this.coordinatesConverter.convertViewRangeToModelRange(range);
+		return this.model.getValueLengthInRange(modelRange, eol);
+	}
+
 	public deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
 		const modelAnchor = this.coordinatesConverter.convertViewPositionToModelPosition(viewAnchorPosition);
 		if (this.model.getEOL().length === 2) {
