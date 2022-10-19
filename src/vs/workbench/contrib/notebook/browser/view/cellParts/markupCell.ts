@@ -69,9 +69,10 @@ export class MarkupCell extends Disposable {
 		this.registerListeners();
 
 		// update for init state
-		this.templateData.cellParts.forEach(cellPart => cellPart.renderCell(this.viewCell));
+		this.templateData.cellParts.renderCell(this.viewCell);
+
 		this._register(toDisposable(() => {
-			this.templateData.cellParts.forEach(cellPart => cellPart.unrenderCell(this.viewCell));
+			this.templateData.cellParts.unrenderCell(this.viewCell);
 		}));
 
 		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
@@ -99,9 +100,7 @@ export class MarkupCell extends Disposable {
 	}
 
 	layoutCellParts() {
-		this.templateData.cellParts.forEach(part => {
-			part.updateInternalLayoutNow(this.viewCell);
-		});
+		this.templateData.cellParts.updateInternalLayoutNow(this.viewCell);
 	}
 
 	private constructDOM() {
@@ -123,9 +122,7 @@ export class MarkupCell extends Disposable {
 
 	private registerListeners() {
 		this._register(this.viewCell.onDidChangeState(e => {
-			this.templateData.cellParts.forEach(cellPart => {
-				cellPart.updateState(this.viewCell, e);
-			});
+			this.templateData.cellParts.updateState(this.viewCell, e);
 		}));
 
 		this._register(this.viewCell.model.onDidChangeMetadata(() => {
