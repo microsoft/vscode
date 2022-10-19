@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-WedTLLcy1WD2tkMNIDWTY7p5GAXwF+3pVt9Bd3nh6x4=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-lC8sxUeeYqUtmkCpPt/OX/HQdE0JbHG1Z3dzrilsRU0=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -537,8 +537,13 @@
 						event.view.scrollTo(0, 0);
 					} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href === baseElement.href + node.hash))) {
 						const fragment = node.hash.slice(1);
-						const scrollTarget = event.view.document.getElementById(fragment) ?? event.view.document.getElementById(decodeURIComponent(fragment));
-						scrollTarget?.scrollIntoView();
+						const decodedFragment = decodeURIComponent(fragment);
+						const scrollTarget = event.view.document.getElementById(fragment) ?? event.view.document.getElementById(decodedFragment);
+						if (scrollTarget) {
+							scrollTarget.scrollIntoView();
+						} else if (decodedFragment.toLowerCase() === 'top') {
+							event.view.scrollTo(0, 0);
+						}
 					} else {
 						hostMessaging.postMessage('did-click-link', node.href.baseVal || node.href);
 					}
