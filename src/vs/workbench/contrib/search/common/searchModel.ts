@@ -226,14 +226,14 @@ export class FileMatch extends Disposable implements IFileMatch {
 		private _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IModelService private readonly modelService: IModelService,
 		@IReplaceService private readonly replaceService: IReplaceService,
-		@ILabelService private readonly labelService: ILabelService,
+		@ILabelService readonly labelService: ILabelService,
 	) {
 		super();
 		this._resource = this.rawMatch.resource;
 		this._matches = new Map<string, Match>();
 		this._removedMatches = new Set<string>();
 		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
-		this._name = this.labelService.getUriBasenameLabel(this.resource);
+		this._name = labelService.getUriBasenameLabel(this.resource);
 		this.createMatches();
 	}
 
@@ -510,7 +510,7 @@ export class FolderMatch extends Disposable {
 		private _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@ILabelService private readonly labelService: ILabelService,
+		@ILabelService readonly labelService: ILabelService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
@@ -519,7 +519,7 @@ export class FolderMatch extends Disposable {
 		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
 		this._unDisposedFileMatches = new ResourceMap<FileMatch>();
 		this._unDisposedFolderMatches = new ResourceMap<FolderMatchWithResource>();
-		this._name = this.resource ? this.labelService.getUriBasenameLabel(this.resource) : '';
+		this._name = this.resource ? labelService.getUriBasenameLabel(this.resource) : '';
 		this._recursiveFileMatches = new ResourceMap<FileMatch>();
 	}
 
