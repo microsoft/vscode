@@ -1865,12 +1865,12 @@ declare namespace monaco.editor {
 		 * @param range The range describing what text length to get.
 		 * @return The text length.
 		 */
-		getValueLengthInRange(range: IRange): number;
+		getValueLengthInRange(range: IRange, eol?: EndOfLinePreference): number;
 		/**
 		 * Get the character count of text in a certain range.
 		 * @param range The range describing what text length to get.
 		 */
-		getCharacterCountInRange(range: IRange): number;
+		getCharacterCountInRange(range: IRange, eol?: EndOfLinePreference): number;
 		/**
 		 * Get the number of lines in the model.
 		 */

@@ -201,8 +201,8 @@ export class TextAreaHandler extends ViewPart {
 			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
 				return this._context.viewModel.getValueInRange(range, eol);
 			},
-			getValueLengthInRange: (range: Range): number => {
-				return this._context.viewModel.model.getValueLengthInRange(range);
+			getValueLengthInRange: (range: Range, eol: EndOfLinePreference): number => {
+				return this._context.viewModel.model.getValueLengthInRange(range, eol);
 			}
 		};
 
@@ -255,7 +255,7 @@ export class TextAreaHandler extends ViewPart {
 					// thousand chars
 					// (https://github.com/microsoft/vscode/issues/27799)
 					const LIMIT_CHARS = 500;
-					if (platform.isMacintosh && !selection.isEmpty() && simpleModel.getValueLengthInRange(selection) < LIMIT_CHARS) {
+					if (platform.isMacintosh && !selection.isEmpty() && simpleModel.getValueLengthInRange(selection, EndOfLinePreference.TextDefined) < LIMIT_CHARS) {
 						const text = simpleModel.getValueInRange(selection, EndOfLinePreference.TextDefined);
 						return new TextAreaState(text, selection.getStartPosition(), 0, text.length, selection);
 					}
