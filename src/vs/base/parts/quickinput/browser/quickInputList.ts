@@ -309,6 +309,7 @@ export class QuickInputList {
 	) {
 		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
+
 		const delegate = new ListElementDelegate();
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
 		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer()], {

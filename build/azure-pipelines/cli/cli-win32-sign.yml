@@ -56,7 +56,7 @@ steps:
 
     - task: ArchiveFiles@2
       inputs:
-        rootFolderOrFile: $(Build.ArtifactStagingDirectory)/sign/${{ target }}/code-tunnel.exe
+        rootFolderOrFile: $(Build.ArtifactStagingDirectory)/sign/${{ target }}/code.exe
         includeRootFolder: false
         archiveType: zip
         archiveFile: $(Build.ArtifactStagingDirectory)/$(ASSET_ID).zip

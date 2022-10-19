@@ -17,7 +17,7 @@ struct PersistedConsent {
 
 pub fn require_consent(paths: &LauncherPaths) -> Result<(), AnyError> {
 	match LICENSE_TEXT {
-		Some(t) => println!("{}", t),
+		Some(t) => println!("{}", t.replace("\\n", "\r\n")),
 		None => return Ok(()),
 	}
 

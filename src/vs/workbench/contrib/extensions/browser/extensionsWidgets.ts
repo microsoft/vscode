@@ -13,7 +13,7 @@ import { localize } from 'vs/nls';
 import { EnablementState, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { extensionButtonProminentBackground, extensionButtonProminentForeground, ExtensionStatusAction, ReloadAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { extensionButtonProminentBackground, ExtensionStatusAction, ReloadAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IThemeService, ThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -759,17 +759,6 @@ registerThemingParticipant((theme, collector) => {
 	if (extensionRatingIcon) {
 		collector.addRule(`.extension-ratings .codicon-extensions-star-full, .extension-ratings .codicon-extensions-star-half { color: ${extensionRatingIcon}; }`);
 		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(starFullIcon)} { color: ${extensionRatingIcon}; }`);
-	}
-
-	const fgColor = theme.getColor(extensionButtonProminentForeground);
-	if (fgColor) {
-		collector.addRule(`.extension-bookmark .recommendation { color: ${fgColor}; }`);
-	}
-
-	const bgColor = theme.getColor(extensionButtonProminentBackground);
-	if (bgColor) {
-		collector.addRule(`.extension-bookmark .recommendation { border-top-color: ${bgColor}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .recommendation .codicon { color: ${bgColor}; }`);
 	}
 
 	const extensionVerifiedPublisherIcon = theme.getColor(extensionVerifiedPublisherIconColor);

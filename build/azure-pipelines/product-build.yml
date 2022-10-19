@@ -233,6 +233,7 @@ stages:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
                   VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
+                  VSCODE_BUILD_WIN32_32BIT: ${{ parameters.VSCODE_BUILD_WIN32_32BIT }}
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true)) }}:
       - stage: Windows
@@ -311,7 +312,7 @@ stages:
                     parameters:
                       VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_TUNNEL_CLI: false # todo until 32 bit CLI is available
+                      VSCODE_BUILD_TUNNEL_CLI: ${{ parameters.VSCODE_BUILD_TUNNEL_CLI }}
                       VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
@@ -339,6 +340,7 @@ stages:
                     parameters:
                       VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
                       VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
+                      VSCODE_BUILD_WIN32_32BIT: ${{ parameters.VSCODE_BUILD_WIN32_32BIT }}
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
       - stage: LinuxServerDependencies

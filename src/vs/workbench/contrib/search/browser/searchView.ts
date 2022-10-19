@@ -1324,6 +1324,14 @@ export class SearchView extends ViewPane {
 	}
 
 	searchInFolders(folderPaths: string[] = []): void {
+		this._searchWithIncludeOrExclude(true, folderPaths);
+	}
+
+	searchOutsideOfFolders(folderPaths: string[] = []): void {
+		this._searchWithIncludeOrExclude(false, folderPaths);
+	}
+
+	private _searchWithIncludeOrExclude(include: boolean, folderPaths: string[]) {
 		if (!folderPaths.length || folderPaths.some(folderPath => folderPath === '.')) {
 			this.inputPatternIncludes.setValue('');
 			this.searchWidget.focus();
@@ -1335,7 +1343,7 @@ export class SearchView extends ViewPane {
 			this.toggleQueryDetails(true, true);
 		}
 
-		this.inputPatternIncludes.setValue(folderPaths.join(', '));
+		(include ? this.inputPatternIncludes : this.inputPatternExcludes).setValue(folderPaths.join(', '));
 		this.searchWidget.focus(false);
 	}
 

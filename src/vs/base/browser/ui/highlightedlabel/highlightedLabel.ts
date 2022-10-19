@@ -33,7 +33,7 @@ export class HighlightedLabel {
 	private readonly domNode: HTMLElement;
 	private text: string = '';
 	private title: string = '';
-	private highlights: IHighlight[] = [];
+	private highlights: readonly IHighlight[] = [];
 	private supportIcons: boolean;
 	private didEverRender: boolean = false;
 
@@ -63,7 +63,7 @@ export class HighlightedLabel {
 	 * @param escapeNewLines Whether to escape new lines.
 	 * @returns
 	 */
-	set(text: string | undefined, highlights: IHighlight[] = [], title: string = '', escapeNewLines?: boolean) {
+	set(text: string | undefined, highlights: readonly IHighlight[] = [], title: string = '', escapeNewLines?: boolean) {
 		if (!text) {
 			text = '';
 		}
@@ -126,7 +126,7 @@ export class HighlightedLabel {
 		this.didEverRender = true;
 	}
 
-	static escapeNewLines(text: string, highlights: IHighlight[]): string {
+	static escapeNewLines(text: string, highlights: readonly IHighlight[]): string {
 		let total = 0;
 		let extra = 0;
 

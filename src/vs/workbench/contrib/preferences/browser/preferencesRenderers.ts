@@ -21,7 +21,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as languages from 'vs/editor/common/languages';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';

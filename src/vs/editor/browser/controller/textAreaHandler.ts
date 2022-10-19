@@ -34,6 +34,7 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { ColorId, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
 import { Color } from 'vs/base/common/color';
+import { TimeoutTimer } from 'vs/base/common/async';
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
@@ -112,6 +113,7 @@ export class TextAreaHandler extends ViewPart {
 
 	private _accessibilitySupport!: AccessibilitySupport;
 	private _accessibilityPageSize!: number;
+	private _accessibilityWriteTimer: TimeoutTimer;
 	private _contentLeft: number;
 	private _contentWidth: number;
 	private _contentHeight: number;
@@ -149,6 +151,7 @@ export class TextAreaHandler extends ViewPart {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
 		this._setAccessibilityOptions(options);
+		this._accessibilityWriteTimer = this._register(new TimeoutTimer());
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
@@ -196,8 +199,11 @@ export class TextAreaHandler extends ViewPart {
 			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
 				return this._context.viewModel.getValueInRange(range, eol);
 			},
-			getValueLengthInRange: (range: Range): number => {
-				return this._context.viewModel.model.getValueLengthInRange(range);
+			getValueLengthInRange: (range: Range, eol: EndOfLinePreference): number => {
+				return this._context.viewModel.getValueLengthInRange(range, eol);
+			},
+			modifyPosition: (position: Position, offset: number): Position => {
+				return this._context.viewModel.modifyPosition(position, offset);
 			}
 		};
 
@@ -227,7 +233,7 @@ export class TextAreaHandler extends ViewPart {
 					mode
 				};
 			},
-			getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
+			getScreenReaderContent: (): TextAreaState => {
 				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
 					// On OSX, we write the character before the cursor to allow for "long-press" composition
@@ -242,7 +248,7 @@ export class TextAreaHandler extends ViewPart {
 						}
 
 						if (textBefore.length > 0) {
-							return new TextAreaState(textBefore, textBefore.length, textBefore.length, position, position);
+							return new TextAreaState(textBefore, textBefore.length, textBefore.length, Range.fromPositions(position), 0);
 						}
 					}
 					// on macOS, write current selection into textarea will allow system text services pick selected text,
@@ -250,9 +256,9 @@ export class TextAreaHandler extends ViewPart {
 					// thousand chars
 					// (https://github.com/microsoft/vscode/issues/27799)
 					const LIMIT_CHARS = 500;
-					if (platform.isMacintosh && !selection.isEmpty() && simpleModel.getValueLengthInRange(selection) < LIMIT_CHARS) {
+					if (platform.isMacintosh && !selection.isEmpty() && simpleModel.getValueLengthInRange(selection, EndOfLinePreference.TextDefined) < LIMIT_CHARS) {
 						const text = simpleModel.getValueInRange(selection, EndOfLinePreference.TextDefined);
-						return new TextAreaState(text, 0, text.length, selection.getStartPosition(), selection.getEndPosition());
+						return new TextAreaState(text, 0, text.length, selection, 0);
 					}
 
 					// on Safari, document.execCommand('cut') and document.execCommand('copy') will just not work
@@ -260,7 +266,7 @@ export class TextAreaHandler extends ViewPart {
 					// is selected in the textarea.
 					if (browser.isSafari && !selection.isEmpty()) {
 						const placeholderText = 'vscode-placeholder';
-						return new TextAreaState(placeholderText, 0, placeholderText.length, null, null);
+						return new TextAreaState(placeholderText, 0, placeholderText.length, null, undefined);
 					}
 
 					return TextAreaState.EMPTY;
@@ -276,13 +282,13 @@ export class TextAreaHandler extends ViewPart {
 						const position = selection.getStartPosition();
 						const [wordAtPosition, positionOffsetInWord] = this._getAndroidWordAtPosition(position);
 						if (wordAtPosition.length > 0) {
-							return new TextAreaState(wordAtPosition, positionOffsetInWord, positionOffsetInWord, position, position);
+							return new TextAreaState(wordAtPosition, positionOffsetInWord, positionOffsetInWord, Range.fromPositions(position), 0);
 						}
 					}
 					return TextAreaState.EMPTY;
 				}
 
-				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+				return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 			},
 
 			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
@@ -575,7 +581,11 @@ export class TextAreaHandler extends ViewPart {
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._selections = e.selections.slice(0);
 		this._modelSelections = e.modelSelections.slice(0);
-		this._textAreaInput.writeScreenReaderContent('selection changed');
+		if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
+			this._accessibilityWriteTimer.cancelAndSet(() => this._textAreaInput.writeScreenReaderContent('selection changed'), 0);
+		} else {
+			this._textAreaInput.writeScreenReaderContent('selection changed');
+		}
 		return true;
 	}
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {

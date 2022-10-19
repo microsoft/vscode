@@ -117,8 +117,8 @@ export class TerminalLinkManager extends DisposableStore {
 				activeTooltipScheduler = new RunOnceScheduler(() => {
 					const core = (this._xterm as any)._core as IXtermCore;
 					const cellDimensions = {
-						width: core._renderService.dimensions.actualCellWidth,
-						height: core._renderService.dimensions.actualCellHeight
+						width: core._renderService.dimensions.css.cell.width,
+						height: core._renderService.dimensions.css.cell.height
 					};
 					const terminalDimensions = {
 						width: this._xterm.cols,
@@ -256,8 +256,8 @@ export class TerminalLinkManager extends DisposableStore {
 
 		const core = (this._xterm as any)._core as IXtermCore;
 		const cellDimensions = {
-			width: core._renderService.dimensions.actualCellWidth,
-			height: core._renderService.dimensions.actualCellHeight
+			width: core._renderService.dimensions.css.cell.width,
+			height: core._renderService.dimensions.css.cell.height
 		};
 		const terminalDimensions = {
 			width: this._xterm.cols,
