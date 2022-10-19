@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { BracketInfo, BracketPairWithMinIndentationInfo, IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
@@ -21,6 +21,7 @@ import { FastTokenizer, TextBufferTokenizer } from './tokenizer';
 import { BackgroundTokenizationState } from 'vs/editor/common/tokenizationTextModelPart';
 import { Position } from 'vs/editor/common/core/position';
 import { CallbackIterable } from 'vs/base/common/arrays';
+import { TimeoutTimer } from 'vs/base/common/async';
 
 export class BracketPairsTree extends Disposable {
 	private readonly didChangeEmitter = new Emitter<void>();
@@ -41,7 +42,7 @@ export class BracketPairsTree extends Disposable {
 	private readonly brackets = new LanguageAgnosticBracketTokens(this.denseKeyProvider, this.getLanguageConfiguration);
 
 	private readonly parseQueue: TextEditInfo[][] = [];
-	private parseTimeout: any | undefined;
+	private parseTimer = new TimeoutTimer();
 
 	public didLanguageChange(languageId: string): boolean {
 		return this.brackets.didLanguageChange(languageId);
@@ -71,11 +72,7 @@ export class BracketPairsTree extends Disposable {
 			this.astWithTokens = this.initialAstWithoutTokens;
 		}
 
-		this._register(toDisposable(() => {
-			if (this.parseTimeout) {
-				window.clearImmediate(this.parseTimeout);
-			}
-		}));
+		this._register(this.parseTimer);
 	}
 
 	//#region TextModel events
@@ -119,9 +116,7 @@ export class BracketPairsTree extends Disposable {
 		// done via setImmediate such that it is called before any timers, the only downside to this
 		// is that changing a character adjacent to a bracket may appear white for a single frame.
 		this.parseQueue.push(edits);
-		if (!this.parseTimeout) {
-			this.parseTimeout = window.setImmediate(() => this.doParse());
-		}
+		this.parseTimer.cancelAndSet(() => this.doParse(), 0);
 	}
 
 	private doParse() {
@@ -132,7 +127,6 @@ export class BracketPairsTree extends Disposable {
 			}
 		}
 		this.parseQueue.length = 0;
-		this.parseTimeout = undefined;
 	}
 
 	//#endregion
