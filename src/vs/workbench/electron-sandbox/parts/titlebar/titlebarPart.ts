@@ -25,7 +25,6 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 export class TitlebarPart extends BrowserTitleBarPart {
 	private maxRestoreControl: HTMLElement | undefined;
-	private dragRegion: HTMLElement | undefined;
 	private resizer: HTMLElement | undefined;
 	private cachedWindowControlStyles: { bgColor: string; fgColor: string } | undefined;
 	private cachedWindowControlHeight: number | undefined;
@@ -164,9 +163,6 @@ export class TitlebarPart extends BrowserTitleBarPart {
 				this.nativeHostService.closeWindow();
 			})));
 		}
-
-		// Draggable region that we can manipulate for #52522
-		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
 
 		// Window Controls (Native Windows/Linux)
 		const hasWindowControlsOverlay = typeof (navigator as any).windowControlsOverlay !== 'undefined';

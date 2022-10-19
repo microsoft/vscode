@@ -64,6 +64,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	protected rootContainer!: HTMLElement;
 	protected windowControls: HTMLElement | undefined;
+	protected dragRegion: HTMLElement | undefined;
 	protected title!: HTMLElement;
 
 	protected customMenubar: CustomMenubarControl | undefined;
@@ -230,6 +231,9 @@ export class TitlebarPart extends Part implements ITitleService {
 	override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 		this.rootContainer = append(parent, $('.titlebar-container'));
+
+		// Draggable region that we can manipulate for #52522
+		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
 
 		// App Icon (Native Windows/Linux and Web)
 		if (!isMacintosh || isWeb) {
