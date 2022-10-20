@@ -717,6 +717,54 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 		description: nls.localize('vscode.extension.contributes.terminal', 'Contributes terminal functionality.'),
 		type: 'object',
 		properties: {
+			quickFixes: {
+				type: 'array',
+				description: nls.localize('vscode.extension.contributes.terminal.quickFixes', "Defines quick fixes for terminals with shell integration enabled."),
+				items: {
+					type: 'object',
+					required: ['id', 'commandLineMatcher', 'outputMatcher'],
+					defaultSnippets: [{
+						body: {
+							id: '$1',
+							commandLineMatcher: '$2',
+							outputMatcher: '$3'
+						}
+					}],
+					properties: {
+						id: {
+							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.id', "The ID of the quick fix."),
+							type: 'string',
+						},
+						commandLineMatcher: {
+							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.commandLineMatcher', "The command line to match."),
+							type: 'string',
+						},
+						outputMatcher: {
+							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.outputMatcher', "The output to match."),
+							type: 'object',
+							required: ['lineMatcher', 'anchor', 'offset', 'length'],
+							properties: {
+								lineMatcher: {
+									description: 'The command line to match',
+									type: 'string'
+								},
+								anchor: {
+									description: 'Which side of the output to anchor the offset and length against',
+									enum: ['top', 'bottom']
+								},
+								offset: {
+									description: 'How far from either the top or the bottom of the butter to start matching against.',
+									type: 'number'
+								},
+								length: {
+									description: 'The number of rows to match against, this should be as small as possible for performance reasons',
+									type: 'number'
+								}
+							}
+						},
+					},
+				}
+			},
 			profiles: {
 				type: 'array',
 				description: nls.localize('vscode.extension.contributes.terminal.profiles', "Defines additional terminal profiles that the user can create."),
