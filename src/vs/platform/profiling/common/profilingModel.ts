@@ -361,7 +361,6 @@ export function bottomUp(profileOrModel: IV8Profile | IProfileModel, topN: numbe
 
 	const result = Object.values(root.children)
 		.sort((a, b) => b.selfTime - a.selfTime)
-		// .filter(a => !isSpecial(a.callFrame))
 		.slice(0, topN);
 
 
@@ -383,8 +382,8 @@ export function bottomUp(profileOrModel: IV8Profile | IProfileModel, topN: numbe
 	for (const node of result) {
 
 		const sample: BottomUpSample = {
-			selfTime: node.selfTime / 1000,
-			totalTime: node.aggregateTime / 1000,
+			selfTime: Math.round(node.selfTime / 1000),
+			totalTime: Math.round(node.aggregateTime / 1000),
 			location: printCallFrame(node.callFrame),
 			url: node.callFrame.url,
 			caller: [],

@@ -6,24 +6,23 @@
 import type { Profile, ProfileResult } from 'v8-inspect-profiler';
 import { BrowserWindow } from 'electron';
 import { timeout } from 'vs/base/common/async';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Promises } from 'vs/base/node/pfs';
 import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Utils } from 'vs/platform/profiling/common/profiling';
-import { bottomUp, } from 'vs/platform/profiling/common/profilingModel';
+import { bottomUp, buildModel, } from 'vs/platform/profiling/common/profilingModel';
 import { TelemetrySampleData, TelemetrySampleDataClassification } from 'vs/platform/profiling/common/profilingTelemetrySpec';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
+export const enum ProfilingOutput {
+	Failure,
+	Irrelevant,
+	Interesting,
+}
 
 export class WindowProfiler {
-
-	private _profileAtOrAfter: number = 0;
-	private _session = new DisposableStore();
-	private _isProfiling?: Promise<any>;
-
-	private _isStarted: boolean = false;
 
 	constructor(
 		private readonly _window: BrowserWindow,
@@ -34,107 +33,68 @@ export class WindowProfiler {
 		// noop
 	}
 
-	async stop() {
+	async inspect(duration: number, baseline: number): Promise<ProfilingOutput> {
 
-		await this._isProfiling;
+		const success = await this._connect();
+		if (!success) {
+			return ProfilingOutput.Failure;
+		}
 
-		this._logService.warn('[perf] STOPPING to monitor renderer', this._sessionId);
-		this._session.clear();
+		const inspector = this._window.webContents.debugger;
+		await inspector.sendCommand('Profiler.start');
+		this._logService.warn('[perf] profiling STARTED', this._sessionId);
+		await timeout(duration);
+		const data: ProfileResult = await inspector.sendCommand('Profiler.stop');
+		this._logService.warn('[perf] profiling DONE', this._sessionId);
+		const result = this._digest(data.profile, baseline);
+		await this._disconnect();
+		return result;
+	}
 
+	private async _connect() {
+		try {
+			const inspector = this._window.webContents.debugger;
+			inspector.attach();
+			await inspector.sendCommand('Profiler.enable');
+			return true;
+		} catch (error) {
+			this._logService.error(error, '[perf] FAILED to enable profiler', this._sessionId);
+			return false;
+		}
+	}
+
+	private async _disconnect() {
 		try {
 			const inspector = this._window.webContents.debugger;
 			await inspector.sendCommand('Profiler.disable');
 			inspector.detach();
 		} catch (error) {
-			this._logService.error('[perf] FAILED to disable profiler', this._sessionId);
+			this._logService.error(error, '[perf] FAILED to disable profiler', this._sessionId);
 		}
 	}
 
-	receiveHeartbeat(): void {
-		this._profileAtOrAfter = Date.now() + 1000;
-		// this._logService.info('[perf] received heartbeat', this.id);
-	}
-
-	async start() {
-		if (this._isStarted) {
-			this._logService.warn('[perf] already STARTED, ignoring request', this._sessionId);
-			return;
-		}
-
-		try {
-			const inspector = this._window.webContents.debugger;
-			inspector.attach();
-			await inspector.sendCommand('Profiler.enable');
-		} catch (error) {
-			this._logService.error('[perf] FAILED to enable profiler', this._sessionId);
-			return;
-		}
-
-		this._logService.warn('[perf] started to EXPECT frequent heartbeat', this._sessionId);
-
-		this._session.clear();
-		this._profileAtOrAfter = Date.now();
-
-		const handle = setInterval(() => {
-			if (Date.now() >= this._profileAtOrAfter) {
-				clearInterval(handle);
-				this._captureRendererProfile();
-			}
-		}, 500);
-
-		this._session.add(toDisposable(() => {
-			this._isStarted = false;
-			clearInterval(handle);
-		}));
-	}
-
-
-	private async _captureRendererProfile(): Promise<void> {
-		this._logService.warn('[perf] MISSED heartbeat, trying to profile renderer', this._sessionId);
-
-		const profiling = (async () => {
-			const inspector = this._window.webContents.debugger;
-			await inspector.sendCommand('Profiler.start');
-			this._logService.warn('[perf] profiling STARTED', this._sessionId);
-			await timeout(5000);
-			const res: ProfileResult = await inspector.sendCommand('Profiler.stop');
-			this._logService.warn('[perf] profiling DONE', this._sessionId);
-			await this._store(res.profile);
-			this._digest(res.profile);
-		})();
-
-		this._isProfiling = profiling
-			.catch(err => {
-				this._logService.error('[perf] profiling the renderer FAILED', this._sessionId);
-				this._logService.error(err);
-			}).finally(() => {
-				this._isProfiling = undefined;
-			});
-	}
-
-	private async _store(profile: Profile): Promise<void> {
-		try {
-			const path = join(tmpdir(), `renderer-profile-${Date.now()}.cpuprofile`);
-			await Promises.writeFile(path, JSON.stringify(profile));
-			this._logService.info('[perf] stored profile to DISK', this._sessionId, path);
-		} catch (error) {
-			this._logService.error('[perf] FAILED to write profile to disk', this._sessionId, error);
-		}
-	}
-
-	private _digest(profile: Profile): void {
-		// https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#type-Profile
-
+	private _digest(profile: Profile, perfBaseline: number): ProfilingOutput {
 		if (!Utils.isValidProfile(profile)) {
 			this._logService.warn('[perf] INVALID profile: no samples or timeDeltas', this._sessionId);
-			return;
+			return ProfilingOutput.Irrelevant;
 		}
 
-		const samples = bottomUp(profile, 5, false);
+		const model = buildModel(profile);
+		const samples = bottomUp(model, 5, false)
+			.filter(s => !s.isSpecial);
 
+		if (samples.length === 0 || samples[1].percentage < 10) {
+			// ignore this profile because 90% of the time is spent inside "special" frames
+			// like idle, GC, or program
+			this._logService.warn('[perf] profiling did NOT reveal anything interesting', this._sessionId);
+			return ProfilingOutput.Irrelevant;
+		}
+
+		// send telemetry events
 		for (const sample of samples) {
 			const data: TelemetrySampleData = {
 				sessionId: this._sessionId,
+				perfBaseline,
 				selfTime: sample.selfTime,
 				totalTime: sample.totalTime,
 				percentage: sample.percentage,
@@ -143,6 +103,23 @@ export class WindowProfiler {
 				extensionId: ''
 			};
 			this._telemetryService.publicLog2<TelemetrySampleData, TelemetrySampleDataClassification>('prof.freeze.sample', data);
+
+			// log a fake error with a clearer stack
+			const fakeError = new Error();
+			fakeError.name = 'PerfHeavyFunction';
+			fakeError.stack = `Spend ${sample.selfTime}ms in ${sample.location}\n` + sample.caller.map(c => `\t at ${c.location} (${c.percentage}%)`).join('\n');
+			this._logService.error(fakeError, `[perf] HEAVY function sample`);
 		}
+
+		// save to disk
+		this._store(profile).catch(onUnexpectedError);
+
+		return ProfilingOutput.Interesting;
+	}
+
+	private async _store(profile: Profile): Promise<void> {
+		const path = join(tmpdir(), `renderer-profile-${Date.now()}.cpuprofile`);
+		await Promises.writeFile(path, JSON.stringify(profile));
+		this._logService.info(`[perf] stored profile to DISK '${path}'`, this._sessionId);
 	}
 }
