@@ -299,7 +299,7 @@ suite('ExtHostDiagnostics', () => {
 	});
 
 	test('diagnostic eventing', async function () {
-		const emitter = new Emitter<Array<URI>>();
+		const emitter = new Emitter<readonly URI[]>();
 		const collection = new DiagnosticCollection('ddd', 'test', 100, versionProvider, extUri, new DiagnosticsShape(), emitter);
 
 		const diag1 = new Diagnostic(new Range(1, 1, 2, 3), 'diag1');
@@ -337,7 +337,7 @@ suite('ExtHostDiagnostics', () => {
 	});
 
 	test('vscode.languages.onDidChangeDiagnostics Does Not Provide Document URI #49582', async function () {
-		const emitter = new Emitter<Array<URI>>();
+		const emitter = new Emitter<readonly URI[]>();
 		const collection = new DiagnosticCollection('ddd', 'test', 100, versionProvider, extUri, new DiagnosticsShape(), emitter);
 
 		const diag1 = new Diagnostic(new Range(1, 1, 2, 3), 'diag1');
