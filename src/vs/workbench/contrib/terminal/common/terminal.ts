@@ -727,7 +727,9 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 						body: {
 							id: '$1',
 							commandLineMatcher: '$2',
-							outputMatcher: '$3'
+							outputMatcher: '$3',
+							commandToRun: '$4',
+							linkToOpen: '$5'
 						}
 					}],
 					properties: {
@@ -740,7 +742,7 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 							type: 'string',
 						},
 						outputMatcher: {
-							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.outputMatcher', "The output to match."),
+							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.outputMatcher', "The output to match, which provides groups of the form <group_name> to be referenced via ${group:group_name} in commandToRun and linkToOpen."),
 							type: 'object',
 							required: ['lineMatcher', 'anchor', 'offset', 'length'],
 							properties: {
@@ -762,6 +764,14 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 								}
 							}
 						},
+						commandToRun: {
+							description: 'The command to run in the terminal for this match. Refer to a component of a regex match found within the output via ${group:group_name}. When provided, will take precedence over linkToOpen.',
+							type: 'string'
+						},
+						linkToOpen: {
+							description: 'The link to open for this match. Refer to a component of a regex match found within the output via ${group:group_name}. If a commandToRun is provided, this will be ignored.',
+							type: 'string'
+						}
 					},
 				}
 			},
