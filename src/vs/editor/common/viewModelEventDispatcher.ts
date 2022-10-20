@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
-import { ViewEvent } from 'vs/editor/common/viewEvents';
+import { ViewEvent, ViewRenderNowRequestEvent } from 'vs/editor/common/viewEvents';
 import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
 import { Emitter } from 'vs/base/common/event';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -23,6 +23,7 @@ export class ViewModelEventDispatcher extends Disposable {
 	private _collector: ViewModelEventsCollector | null;
 	private _collectorCnt: number;
 	private _outgoingEvents: OutgoingViewModelEvent[];
+	private _renderNowRequested: boolean;
 
 	constructor() {
 		super();
@@ -32,6 +33,7 @@ export class ViewModelEventDispatcher extends Disposable {
 		this._collector = null;
 		this._collectorCnt = 0;
 		this._outgoingEvents = [];
+		this._renderNowRequested = false;
 	}
 
 	public emitOutgoingEvent(e: OutgoingViewModelEvent): void {
@@ -96,6 +98,7 @@ export class ViewModelEventDispatcher extends Disposable {
 		if (this._collectorCnt === 0) {
 			const outgoingEvents = this._collector!.outgoingEvents;
 			const viewEvents = this._collector!.viewEvents;
+			this._renderNowRequested = this._collector!.renderNowRequested;
 			this._collector = null;
 
 			for (const outgoingEvent of outgoingEvents) {
@@ -151,6 +154,18 @@ export class ViewModelEventDispatcher extends Disposable {
 				eventHandler.handleEvents(events);
 			}
 		}
+		if (this._renderNowRequested) {
+			this._renderNowRequested = false;
+
+			// Create the render now request and deliver it
+			const artificialEvents = [new ViewRenderNowRequestEvent()];
+
+			// Use a clone of the event handlers list, as they might remove themselves
+			const eventHandlers = this._eventHandlers.slice(0);
+			for (const eventHandler of eventHandlers) {
+				eventHandler.handleEvents(artificialEvents);
+			}
+		}
 	}
 }
 
@@ -158,10 +173,12 @@ export class ViewModelEventsCollector {
 
 	public readonly viewEvents: ViewEvent[];
 	public readonly outgoingEvents: OutgoingViewModelEvent[];
+	public renderNowRequested: boolean;
 
 	constructor() {
 		this.viewEvents = [];
 		this.outgoingEvents = [];
+		this.renderNowRequested = false;
 	}
 
 	public emitViewEvent(event: ViewEvent) {
@@ -170,6 +187,10 @@ export class ViewModelEventsCollector {
 
 	public emitOutgoingEvent(e: OutgoingViewModelEvent): void {
 		this.outgoingEvents.push(e);
+	}
+
+	public requestRenderNow() {
+		this.renderNowRequested = true;
 	}
 }
 

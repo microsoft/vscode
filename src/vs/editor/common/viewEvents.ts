@@ -24,6 +24,7 @@ export const enum ViewEventType {
 	ViewLinesChanged,
 	ViewLinesDeleted,
 	ViewLinesInserted,
+	ViewRenderNowRequest,
 	ViewRevealRangeRequest,
 	ViewScrollChanged,
 	ViewThemeChanged,
@@ -176,6 +177,13 @@ export class ViewLinesInsertedEvent {
 	}
 }
 
+export class ViewRenderNowRequestEvent {
+
+	public readonly type = ViewEventType.ViewRenderNowRequest;
+
+	constructor() { }
+}
+
 export const enum VerticalRevealType {
 	Simple = 0,
 	Center = 1,
@@ -311,6 +319,7 @@ export type ViewEvent = (
 	| ViewLinesChangedEvent
 	| ViewLinesDeletedEvent
 	| ViewLinesInsertedEvent
+	| ViewRenderNowRequestEvent
 	| ViewRevealRangeRequestEvent
 	| ViewScrollChangedEvent
 	| ViewThemeChangedEvent

@@ -316,6 +316,9 @@ export class View extends ViewEventHandler {
 		this.domNode.setClassName(this._getEditorClassName());
 		return false;
 	}
+	public override onRenderNowRequest(e: viewEvents.ViewRenderNowRequestEvent): void {
+		this._renderNow();
+	}
 	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
 		this._context.theme.update(e.theme);
 		this.domNode.setClassName(this._getEditorClassName());

@@ -69,6 +69,8 @@ export class ViewEventHandler extends Disposable {
 	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return false;
 	}
+	public onRenderNowRequest(e: viewEvents.ViewRenderNowRequestEvent): void {
+	}
 	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
 		return false;
 	}
@@ -169,6 +171,10 @@ export class ViewEventHandler extends Disposable {
 					if (this.onLinesInserted(e)) {
 						shouldRender = true;
 					}
+					break;
+
+				case viewEvents.ViewEventType.ViewRenderNowRequest:
+					this.onRenderNowRequest(e);
 					break;
 
 				case viewEvents.ViewEventType.ViewRevealRangeRequest:
