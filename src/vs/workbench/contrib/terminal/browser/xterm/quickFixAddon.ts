@@ -356,13 +356,16 @@ export function convertExtensionQuickFixOptions(quickFix: IExtensionTerminalQuic
 			if (!groups) {
 				return;
 			}
+			const actions: TerminalQuickFixAction[] = [];
+			let fixedCommand = commandToRun;
 			for (const [key, value] of Object.entries(groups)) {
 				const varToResolve = '${group:' + `${key}` + '}';
-				const actions: TerminalQuickFixAction[] = [];
 				if (!commandToRun.includes(varToResolve)) {
 					return [];
 				}
-				const fixedCommand = commandToRun.replaceAll(varToResolve, value);
+				fixedCommand = fixedCommand.replaceAll(varToResolve, value);
+			}
+			if (fixedCommand) {
 				actions.push({
 					type: 'command',
 					command: fixedCommand,
@@ -381,15 +384,15 @@ export function convertExtensionQuickFixOptions(quickFix: IExtensionTerminalQuic
 			if (!groups) {
 				return;
 			}
+			let link = linkToOpen;
 			for (const [key, value] of Object.entries(groups)) {
 				const varToResolve = '${group:' + `${key}` + '}';
 				if (!linkToOpen?.includes(varToResolve)) {
 					return [];
 				}
-				const link = linkToOpen.replaceAll(varToResolve, value);
-				return { uri: URI.parse(link) } as ITerminalQuickFixOpenerAction;
+				link = link.replaceAll(varToResolve, value);
 			}
-			return;
+			return link ? { uri: URI.parse(link) } as ITerminalQuickFixOpenerAction : [];
 		},
 		exitStatus: quickFix.exitStatus,
 		source: quickFix.extensionIdentifier
