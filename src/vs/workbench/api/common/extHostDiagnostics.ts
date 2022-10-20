@@ -16,6 +16,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { IExtUri } from 'vs/base/common/resources';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
@@ -29,6 +30,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		private readonly _name: string,
 		private readonly _owner: string,
 		private readonly _maxDiagnosticsPerFile: number,
+		private readonly _modelVersionIdProvider: (uri: URI) => number | undefined,
 		extUri: IExtUri,
 		proxy: MainThreadDiagnosticsShape | undefined,
 		onDidChangeDiagnostics: Emitter<vscode.Uri[]>
@@ -131,7 +133,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 					orderLoop: for (let i = 0; i < 4; i++) {
 						for (const diagnostic of diagnostics) {
 							if (diagnostic.severity === order[i]) {
-								const len = marker.push(converter.Diagnostic.from(diagnostic));
+								const len = marker.push({ ...converter.Diagnostic.from(diagnostic), modelVersionId: this._modelVersionIdProvider(uri) });
 								if (len === this._maxDiagnosticsPerFile) {
 									break orderLoop;
 								}
@@ -149,7 +151,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 						endColumn: marker[marker.length - 1].endColumn
 					});
 				} else {
-					marker = diagnostics.map(diag => converter.Diagnostic.from(diag));
+					marker = diagnostics.map(diag => ({ ...converter.Diagnostic.from(diag), modelVersionId: this._modelVersionIdProvider(uri) }));
 				}
 			}
 
@@ -240,13 +242,14 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		mainContext: IMainContext,
 		@ILogService private readonly _logService: ILogService,
 		@IExtHostFileSystemInfo private readonly _fileSystemInfoService: IExtHostFileSystemInfo,
+		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDiagnostics);
 	}
 
 	createDiagnosticCollection(extensionId: ExtensionIdentifier, name?: string): vscode.DiagnosticCollection {
 
-		const { _collections, _proxy, _onDidChangeDiagnostics, _logService, _fileSystemInfoService } = this;
+		const { _collections, _proxy, _onDidChangeDiagnostics, _logService, _fileSystemInfoService, _extHostDocumentsAndEditors } = this;
 
 		const loggingProxy = new class implements MainThreadDiagnosticsShape {
 			$changeMany(owner: string, entries: [UriComponents, IMarkerData[] | undefined][]): void {
@@ -278,7 +281,11 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 		const result = new class extends DiagnosticCollection {
 			constructor() {
-				super(name!, owner, ExtHostDiagnostics._maxDiagnosticsPerFile, _fileSystemInfoService.extUri, loggingProxy, _onDidChangeDiagnostics);
+				super(
+					name!, owner, ExtHostDiagnostics._maxDiagnosticsPerFile,
+					uri => _extHostDocumentsAndEditors.getDocument(uri)?.version,
+					_fileSystemInfoService.extUri, loggingProxy, _onDidChangeDiagnostics
+				);
 				_collections.set(owner, this);
 			}
 			override dispose() {
@@ -330,7 +337,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 		if (!this._mirrorCollection) {
 			const name = '_generated_mirror';
-			const collection = new DiagnosticCollection(name, name, ExtHostDiagnostics._maxDiagnosticsPerFile, this._fileSystemInfoService.extUri, undefined, this._onDidChangeDiagnostics);
+			const collection = new DiagnosticCollection(name, name, ExtHostDiagnostics._maxDiagnosticsPerFile, _uri => undefined, this._fileSystemInfoService.extUri, undefined, this._onDidChangeDiagnostics);
 			this._collections.set(name, collection);
 			this._mirrorCollection = collection;
 		}
