@@ -839,19 +839,10 @@ function parseGitConfig(raw: string, section: string): Iterable<GitConfigSection
 	const sectionHeaderRegex = /^\[.+\]$/gm;
 	const sectionRegex = new RegExp(`^\\[${section}\\s*"*([^"]*)"*\\]$`, 'm');
 
-	const parseSection = (sectionRaw: string) => {
-		const sectionMatch = sectionRegex.exec(sectionRaw);
-		if (!sectionMatch) {
-			return;
-		}
+	const parseSectionProperties = (sectionRaw: string): { [key: string]: string } => {
+		const properties: { [key: string]: string } = {};
 
-		const section = {
-			label: sectionMatch.length === 2 && sectionMatch[1] !== '' ? sectionMatch[1] : undefined,
-			properties: Object.create({})
-		};
-
-		// Properties
-		for (const propertyLine of sectionRaw.substring(sectionMatch[0].length).split(/\r?\n/)) {
+		for (const propertyLine of sectionRaw.split(/\r?\n/)) {
 			const propertyMatch = /^\s*(\w+)\s*=\s*(.*)$/.exec(propertyLine);
 
 			if (!propertyMatch) {
@@ -860,13 +851,25 @@ function parseGitConfig(raw: string, section: string): Iterable<GitConfigSection
 
 			const [, key, value] = propertyMatch;
 
-			if (section.properties[key]) {
+			if (properties[key]) {
 				continue;
 			}
-			section.properties[key] = value;
+			properties[key] = value;
 		}
 
-		sections.push(section);
+		return properties;
+	};
+
+	const parseSection = (sectionRaw: string) => {
+		const sectionMatch = sectionRegex.exec(sectionRaw);
+		if (!sectionMatch) {
+			return;
+		}
+
+		sections.push({
+			label: sectionMatch.length === 2 && sectionMatch[1] !== '' ? sectionMatch[1] : undefined,
+			properties: parseSectionProperties(sectionRaw.substring(sectionMatch[0].length))
+		});
 	};
 
 	let position = 0;
@@ -2240,7 +2243,7 @@ export class Repository {
 			return remotes;
 		}
 		catch (err) {
-			this.outputChannelLogger.logWarning(err.message);
+			this.logger.warn(err.message);
 		}
 
 		// Fallback to using git to determine remotes
