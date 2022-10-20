@@ -171,7 +171,12 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'enable-proposed-api',
 
 		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
-		'log-level'
+		'log-level',
+
+		// Support storing dotfile dirs in a custom location (e.g. compatible with the XDG base dir convention)
+		// https://github.com/microsoft/vscode/issues/162712
+		'extensions-dir',
+		'user-data-dir'
 	];
 
 	// Read argv config
@@ -215,6 +220,11 @@ function configureCommandlineSwitchesSync(cliArgs) {
 					if (typeof argvValue === 'string') {
 						process.argv.push('--log', argvValue);
 					}
+					break;
+				case 'extensions-dir':
+					// fallthrough
+				case 'user-data-dir':
+					process.argv.push(`--${argvKey}`, argvValue);
 					break;
 			}
 		}
@@ -302,6 +312,14 @@ function getArgvConfigPath() {
 	let dataFolderName = product.dataFolderName;
 	if (process.env['VSCODE_DEV']) {
 		dataFolderName = `${dataFolderName}-dev`;
+	}
+
+	// Look for `argv.json` in a path adhering to the default config dir of the XDG base dir convention.
+	// If it exists, we use it. Else, we fall back to the home dir.
+	// https://github.com/microsoft/vscode/issues/162712
+	const xdgCompatiblePath = path.join(os.homedir(), '.config', dataFolderName.replace(/^\./, ''), 'argv.json');
+	if (fs.existsSync(xdgCompatiblePath)) {
+		return xdgCompatiblePath;
 	}
 
 	return path.join(os.homedir(), dataFolderName, 'argv.json');
