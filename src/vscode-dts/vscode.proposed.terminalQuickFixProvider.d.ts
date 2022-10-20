@@ -12,7 +12,7 @@ declare module 'vscode' {
 	 * @param provider The provider that provides the quick fixes.
 	 * @return Disposable that unregisters the provider.
 	 */
-	export function registerTerminalQuickFixProvider(provider: TerminalQuickFixProvider): Disposable;
+	export function registerTerminalLinkProvider(provider: TerminalLinkProvider): Disposable;
 
 	/**
 	 * A provider for terminal quick fixes.
