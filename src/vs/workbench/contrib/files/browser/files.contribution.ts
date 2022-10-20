@@ -459,7 +459,7 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('compressSingleChildFolders', "Controls whether the explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example."),
 			'default': true
 		},
-		'explorer.copyRelativePathSeparator': {
+		'explorer.copyPathSeparator': {
 			'type': 'string',
 			'enum': [
 				'/',
@@ -467,11 +467,11 @@ configurationRegistry.registerConfiguration({
 				'auto'
 			],
 			'enumDescriptions': [
-				nls.localize('copyRelativePathSeparator.slash', "Use slash as path separation character."),
-				nls.localize('copyRelativePathSeparator.backslash', "Use backslash as path separation character."),
-				nls.localize('copyRelativePathSeparator.auto', "Uses operating system specific path separation character."),
+				nls.localize('copyPathSeparator.slash', "Use slash as path separation character."),
+				nls.localize('copyPathSeparator.backslash', "Use backslash as path separation character."),
+				nls.localize('copyPathSeparator.auto', "Uses operating system specific path separation character."),
 			],
-			'description': nls.localize('copyRelativePathSeparator', "The path separation character used when copying relative file paths."),
+			'description': nls.localize('copyPathSeparator', "The path separation character used when copying file paths."),
 			'default': 'auto'
 		},
 		'explorer.excludeGitIgnore': {

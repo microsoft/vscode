@@ -236,11 +236,10 @@ async function resourcesToClipboard(resources: URI[], relative: boolean, clipboa
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
 
 		let separator: '/' | '\\' | undefined = undefined;
-		if (relative) {
-			const relativeSeparator = configurationService.getValue('explorer.copyRelativePathSeparator');
-			if (relativeSeparator === '/' || relativeSeparator === '\\') {
-				separator = relativeSeparator;
-			}
+
+		const configuredSeparator = configurationService.getValue('explorer.copyPathSeparator');
+		if (configuredSeparator === '/' || configuredSeparator === '\\') {
+			separator = configuredSeparator;
 		}
 
 		const text = resources.map(resource => labelService.getUriLabel(resource, { relative, noPrefix: true, separator })).join(lineDelimiter);
