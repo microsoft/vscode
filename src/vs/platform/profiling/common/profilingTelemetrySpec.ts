@@ -8,6 +8,7 @@ export type TelemetrySampleData = {
 	selfTime: number;
 	totalTime: number;
 	percentage: number;
+	perfBaseline: number;
 	functionName: string;
 	callstack: string;
 	extensionId: string;
@@ -20,6 +21,7 @@ export type TelemetrySampleDataClassification = {
 	selfTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Self time of the sample' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time of the sample' };
 	percentage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Relative time (percentage) of the sample' };
+	perfBaseline: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Performance baseline for the machine' };
 	functionName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the sample' };
 	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The stacktrace leading into the sample' };
 	extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The extension for the sample (iff applicable)' };
