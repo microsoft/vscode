@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::fmt;
 use async_trait::async_trait;
+use std::fmt;
 use sysinfo::{Pid, SystemExt};
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
@@ -253,6 +253,9 @@ async fn serve_with_csa(
 			info!(log, "checking for parent process {}", process_id);
 			tokio::spawn(async move {
 				let mut s = sysinfo::System::new();
+				#[cfg(windows)]
+				let pid = Pid::from(process_id as usize);
+				#[cfg(unix)]
 				let pid = Pid::from(process_id);
 				while s.refresh_process(pid) {
 					sleep(Duration::from_millis(2000)).await;
