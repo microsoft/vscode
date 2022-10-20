@@ -2,13 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { terminalContributionsDescriptor } from 'vs/workbench/contrib/terminal/common/terminal';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionTerminalQuickFix, ITerminalQuickFixContribution } from 'vs/platform/terminal/common/terminal';
-
-export const terminalQuickFixExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalQuickFixContribution>(terminalContributionsDescriptor);
+import { IExtensionTerminalQuickFix } from 'vs/platform/terminal/common/terminal';
+import { terminalsExtPoint } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 
 export interface ITerminalQuickFixContributionsService {
 	readonly _serviceBrand: undefined;
@@ -25,17 +21,18 @@ export class TerminalQuickFixContributionService implements ITerminalQuickFixCon
 	get quickFixes() { return this._quickFixes; }
 
 	constructor() {
-		terminalQuickFixExtPoint.setHandler(contributions => {
+		terminalsExtPoint.setHandler(contributions => {
 			for (const c of contributions) {
-				const fix = c.value;
-				this._quickFixes.push({
-					id: fix.id,
-					commandLineMatcher: fix.commandLineMatcher,
-					outputMatcher: fix.outputMatcher,
-					commandToRun: fix.commandToRun,
-					linkToOpen: fix.linkToOpen,
-					extensionIdentifier: c.description.identifier.value
-				});
+				const fixes = c.value.quickFixes;
+				if (fixes) {
+					for (const fix of fixes) {
+						this._quickFixes.push(
+							{
+								...fix,
+								extensionIdentifier: c.description.identifier.value
+							});
+					}
+				}
 			}
 			return this._quickFixes;
 		});

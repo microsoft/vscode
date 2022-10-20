@@ -797,6 +797,7 @@ export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
 
 export interface ITerminalContributions {
 	profiles?: ITerminalProfileContribution[];
+	quickFixes?: ITerminalQuickFixContribution[];
 }
 
 export interface ITerminalQuickFixContribution {
