@@ -33,7 +33,7 @@ import { parentOriginHash } from 'vs/workbench/browser/webview';
 import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/common/webview';
 import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib/webview/browser/resourceLoading';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -96,17 +96,6 @@ namespace WebviewState {
 	export const Ready = { type: Type.Ready } as const;
 
 	export type State = typeof Ready | Initializing;
-}
-
-export interface WebviewInitInfo {
-	readonly id: string;
-	readonly providedViewType?: string;
-	readonly origin?: string;
-
-	readonly options: WebviewOptions;
-	readonly contentOptions: WebviewContentOptions;
-
-	readonly extension: WebviewExtensionDescription | undefined;
 }
 
 interface WebviewActionContext {

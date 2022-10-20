@@ -11,8 +11,8 @@ parameters:
 steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
-      exec { curl -sSf -o rustup-init.exe https://win.rustup.rs }
-      exec { rustup-init.exe -y --profile minimal --default-toolchain %RUSTUP_TOOLCHAIN% --default-host x86_64-pc-windows-msvc }
+      Invoke-WebRequest -Uri "https://win.rustup.rs" -Outfile $(Build.ArtifactStagingDirectory)/rustup-init.exe
+      exec { $(Build.ArtifactStagingDirectory)/rustup-init.exe -y --profile minimal --default-toolchain $env:RUSTUP_TOOLCHAIN --default-host x86_64-pc-windows-msvc }
       echo "##vso[task.prependpath]$env:USERPROFILE\.cargo\bin"
     env:
       RUSTUP_TOOLCHAIN: ${{ parameters.channel }}

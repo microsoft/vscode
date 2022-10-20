@@ -954,6 +954,7 @@ export interface ITerminalInstance {
 }
 
 export interface ITerminalQuickFixOptions {
+	id: string;
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
 	getQuickFixes: TerminalQuickFixCallback;

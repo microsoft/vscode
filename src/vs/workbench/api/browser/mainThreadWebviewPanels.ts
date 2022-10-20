@@ -6,17 +6,14 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { MainThreadWebviews, reviveWebviewContentOptions, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { ExtensionKeyedWebviewOriginStore, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { IWebViewShowOptions, IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
@@ -79,43 +76,6 @@ class WebviewViewTypeTransformer {
 	}
 }
 
-/**
- * Stores the unique origins for webviews.
- *
- * These are randomly generated, but keyed on extension and webview viewType.
- */
-class WebviewOriginStore {
-
-	private readonly memento: Memento;
-	private readonly state: MementoObject;
-
-	constructor(
-		storageKey: string,
-		@IStorageService storageService: IStorageService,
-	) {
-		this.memento = new Memento(storageKey, storageService);
-		this.state = this.memento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
-	}
-
-	public getOrigin(extId: ExtensionIdentifier, viewType: string): string {
-		const key = this.getKey(extId, viewType);
-
-		const existing = this.state[key];
-		if (existing && typeof existing === 'string') {
-			return existing;
-		}
-
-		const newOrigin = generateUuid();
-		this.state[key] = newOrigin;
-		this.memento.saveMemento();
-		return newOrigin;
-	}
-
-	private getKey(extId: ExtensionIdentifier, viewType: string): string {
-		return JSON.stringify([extId.value, viewType]);
-	}
-}
-
 export class MainThreadWebviewPanels extends Disposable implements extHostProtocol.MainThreadWebviewPanelsShape {
 
 	private readonly webviewPanelViewType = new WebviewViewTypeTransformer('mainThreadWebview-');
@@ -126,7 +86,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 
 	private readonly _revivers = this._register(new DisposableMap<string>());
 
-	private readonly webviewOriginStore: WebviewOriginStore;
+	private readonly webviewOriginStore: ExtensionKeyedWebviewOriginStore;
 
 	constructor(
 		context: IExtHostContext,
@@ -141,7 +101,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	) {
 		super();
 
-		this.webviewOriginStore = new WebviewOriginStore('mainThreadWebviewPanel.origins', storageService);
+		this.webviewOriginStore = new ExtensionKeyedWebviewOriginStore('mainThreadWebviewPanel.origins', storageService);
 
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewPanels);
 
@@ -198,7 +158,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		} : {};
 
 		const extension = reviveWebviewExtension(extensionData);
-		const origin = this.webviewOriginStore.getOrigin(extension.id, viewType);
+		const origin = this.webviewOriginStore.getOrigin(viewType, extension.id);
 
 		const webview = this._webviewWorkbenchService.openWebview({
 			id: handle,

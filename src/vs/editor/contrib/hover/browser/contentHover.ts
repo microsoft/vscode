@@ -24,7 +24,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { Constants } from 'vs/base/common/uint';
 
 const $ = dom.$;
 
@@ -241,7 +240,7 @@ export class ContentHoverController extends Disposable {
 	}
 
 	private _renderMessages(anchor: HoverAnchor, messages: IHoverPart[]): void {
-		const { showAtPosition, showAtRange, highlightRange } = ContentHoverController.computeHoverRanges(this._editor, anchor.range, messages);
+		const { showAtPosition, showAtSecondaryPosition, highlightRange } = ContentHoverController.computeHoverRanges(this._editor, anchor.range, messages);
 
 		const disposables = new DisposableStore();
 		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
@@ -284,7 +283,7 @@ export class ContentHoverController extends Disposable {
 			this._widget.showAt(fragment, new ContentHoverVisibleData(
 				colorPicker,
 				showAtPosition,
-				showAtRange,
+				showAtSecondaryPosition,
 				this._editor.getOption(EditorOption.hover).above,
 				this._computer.shouldFocus,
 				isBeforeContent,
@@ -304,21 +303,17 @@ export class ContentHoverController extends Disposable {
 
 	public static computeHoverRanges(editor: ICodeEditor, anchorRange: Range, messages: IHoverPart[]) {
 		let startColumnBoundary = 1;
-		let endColumnBoundary = Constants.MAX_SAFE_SMALL_INTEGER;
 		if (editor.hasModel()) {
 			// Ensure the range is on the current view line
 			const viewModel = editor._getViewModel();
 			const coordinatesConverter = viewModel.coordinatesConverter;
 			const anchorViewRange = coordinatesConverter.convertModelRangeToViewRange(anchorRange);
 			const anchorViewRangeStart = new Position(anchorViewRange.startLineNumber, viewModel.getLineMinColumn(anchorViewRange.startLineNumber));
-			const anchorViewRangeEnd = new Position(anchorViewRange.endLineNumber, viewModel.getLineMaxColumn(anchorViewRange.endLineNumber));
 			startColumnBoundary = coordinatesConverter.convertViewPositionToModelPosition(anchorViewRangeStart).column;
-			endColumnBoundary = coordinatesConverter.convertViewPositionToModelPosition(anchorViewRangeEnd).column;
 		}
 		// The anchor range is always on a single line
 		const anchorLineNumber = anchorRange.startLineNumber;
 		let renderStartColumn = anchorRange.startColumn;
-		let renderEndColumn = anchorRange.endColumn;
 		let highlightRange: Range = messages[0].range;
 		let forceShowAtRange: Range | null = null;
 
@@ -327,7 +322,6 @@ export class ContentHoverController extends Disposable {
 			if (msg.range.startLineNumber === anchorLineNumber && msg.range.endLineNumber === anchorLineNumber) {
 				// this message has a range that is completely sitting on the line of the anchor
 				renderStartColumn = Math.max(Math.min(renderStartColumn, msg.range.startColumn), startColumnBoundary);
-				renderEndColumn = Math.min(Math.max(renderEndColumn, msg.range.endColumn), endColumnBoundary);
 			}
 			if (msg.forceShowAtRange) {
 				forceShowAtRange = msg.range;
@@ -335,8 +329,8 @@ export class ContentHoverController extends Disposable {
 		}
 
 		return {
-			showAtPosition: forceShowAtRange ? forceShowAtRange.getStartPosition() : new Position(anchorRange.startLineNumber, renderStartColumn),
-			showAtRange: forceShowAtRange ? forceShowAtRange : new Range(anchorLineNumber, renderStartColumn, anchorLineNumber, renderEndColumn),
+			showAtPosition: forceShowAtRange ? forceShowAtRange.getStartPosition() : new Position(anchorLineNumber, anchorRange.startColumn),
+			showAtSecondaryPosition: forceShowAtRange ? forceShowAtRange.getStartPosition() : new Position(anchorLineNumber, renderStartColumn),
 			highlightRange
 		};
 	}
@@ -382,7 +376,7 @@ class ContentHoverVisibleData {
 	constructor(
 		public readonly colorPicker: IEditorHoverColorPickerWidget | null,
 		public readonly showAtPosition: Position,
-		public readonly showAtRange: Range,
+		public readonly showAtSecondaryPosition: Position,
 		public readonly preferAbove: boolean,
 		public readonly stoleFocus: boolean,
 		public readonly isBeforeContent: boolean,
@@ -463,7 +457,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 		return {
 			position: this._visibleData.showAtPosition,
-			range: this._visibleData.showAtRange,
+			secondaryPosition: this._visibleData.showAtSecondaryPosition,
 			preference: (
 				preferAbove
 					? [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]

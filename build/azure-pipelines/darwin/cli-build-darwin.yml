@@ -16,7 +16,7 @@ steps:
 
   - template: ../mixin-distro-posix.yml
     parameters:
-      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
 
   - script: |
       set -e
@@ -24,6 +24,7 @@ steps:
     displayName: Prepare CLI build
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
 
   - template: ../cli/install-rust-posix.yml
     parameters:

@@ -520,7 +520,7 @@ function createL10nBundleForExtension(extensionName) {
         const json = (0, l10n_dev_1.getL10nJson)(files.map(file => {
             return file.contents.toString('utf8');
         }));
-        if (Object.keys(json)) {
+        if (Object.keys(json).length > 0) {
             result.emit('data', new File({
                 path: `${extensionName}/bundle.l10n.json`,
                 contents: Buffer.from(JSON.stringify(json), 'utf8')
@@ -586,7 +586,7 @@ function createXlfFilesForExtensions() {
                 }
             }
         }, function () {
-            if (_l10nMap) {
+            if (_l10nMap?.size > 0) {
                 const xlfFile = new File({
                     path: path.join(extensionsProject, extensionName + '.xlf'),
                     contents: Buffer.from((0, l10n_dev_1.getL10nXlf)(_l10nMap), 'utf8')

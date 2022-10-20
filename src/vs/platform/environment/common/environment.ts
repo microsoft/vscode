@@ -81,6 +81,7 @@ export interface IEnvironmentService {
 	// --- logging
 	logsPath: string;
 	logLevel?: string;
+	extensionLogLevel?: [string, string][];
 	verbose: boolean;
 	isBuilt: boolean;
 
@@ -141,7 +142,7 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 
 	// --- extensions
 	extensionsPath: string;
-	extensionsDownloadPath: string;
+	extensionsDownloadLocation: URI;
 	builtinExtensionsPath: string;
 
 	// --- use keytar for credentials

@@ -158,7 +158,6 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 	}
 
 	renderElement(element: ListElement, index: number, data: IListElementTemplateData): void {
-		data.toDisposeElement = dispose(data.toDisposeElement);
 		data.element = element;
 		const mainItem: QuickPickItem = element.item ? element.item : element.separator!;
 
@@ -206,7 +205,6 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		data.entry.classList.toggle('quick-input-list-separator-border', !!element.separator);
 
 		// Actions
-		data.actionBar.clear();
 		const buttons = mainItem.buttons;
 		if (buttons && buttons.length) {
 			data.actionBar.push(buttons.map((button, index) => {
@@ -236,6 +234,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 
 	disposeElement(element: ListElement, index: number, data: IListElementTemplateData): void {
 		data.toDisposeElement = dispose(data.toDisposeElement);
+		data.actionBar.clear();
 	}
 
 	disposeTemplate(data: IListElementTemplateData): void {
@@ -310,6 +309,7 @@ export class QuickInputList {
 	) {
 		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
+
 		const delegate = new ListElementDelegate();
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
 		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer()], {

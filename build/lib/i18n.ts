@@ -600,7 +600,7 @@ function createL10nBundleForExtension(extensionName: string): ThroughStream {
 			return file.contents.toString('utf8');
 		}));
 
-		if (Object.keys(json)) {
+		if (Object.keys(json).length > 0) {
 			result.emit('data', new File({
 				path: `${extensionName}/bundle.l10n.json`,
 				contents: Buffer.from(JSON.stringify(json), 'utf8')
@@ -669,7 +669,7 @@ export function createXlfFilesForExtensions(): ThroughStream {
 				}
 			}
 		}, function () {
-			if (_l10nMap) {
+			if (_l10nMap?.size > 0) {
 				const xlfFile = new File({
 					path: path.join(extensionsProject, extensionName + '.xlf'),
 					contents: Buffer.from(getL10nXlf(_l10nMap), 'utf8')

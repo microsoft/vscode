@@ -18,7 +18,7 @@ import { IURLHandler, IURLService, IOpenURLOptions } from 'vs/platform/url/commo
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -382,7 +382,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 }
 
-registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler, false);
+registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler, InstantiationType.Eager);
 
 /**
  * This class handles URLs before `ExtensionUrlHandler` is instantiated.

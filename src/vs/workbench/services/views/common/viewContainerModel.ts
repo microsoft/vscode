@@ -9,16 +9,40 @@ import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { coalesce, move } from 'vs/base/common/arrays';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, joinPath } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/userDataProfile/common/userDataProfileStorageRegistry';
 import { localize } from 'vs/nls';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { IOutputChannelRegistry, IOutputService, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
+
+function getViewsLogFile(environmentService: IWorkbenchEnvironmentService): URI { return joinPath(environmentService.windowLogsPath, 'views.log'); }
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: '_workbench.output.showViewsLog',
+			title: { value: 'Show Views Log', original: 'Show Views Log' },
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+	async run(servicesAccessor: ServicesAccessor): Promise<void> {
+		const outputService = servicesAccessor.get(IOutputService);
+		const environmentService = servicesAccessor.get(IWorkbenchEnvironmentService);
+		Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels).registerChannel({ id: 'viewsLog', label: localize('views log', "Views"), file: getViewsLogFile(environmentService), log: true });
+		outputService.showChannel('viewsLog');
+
+	}
+});
 
 export function getViewsStateStorageId(viewContainerStorageId: string): string { return `${viewContainerStorageId}.hidden`; }
 
@@ -85,13 +109,18 @@ class ViewDescriptorsState extends Disposable {
 	private _onDidChangeStoredState = this._register(new Emitter<{ id: string; visible: boolean }[]>());
 	readonly onDidChangeStoredState = this._onDidChangeStoredState.event;
 
+	private readonly logger: ILogger;
+
 	constructor(
 		viewContainerStorageId: string,
-		viewContainerName: string,
+		private readonly viewContainerName: string,
 		@IStorageService private readonly storageService: IStorageService,
-		@ILogService private readonly logService: ILogService,
+		@ILoggerService loggerService: ILoggerService,
+		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
+
+		this.logger = loggerService.createLogger(getViewsLogFile(workbenchEnvironmentService));
 
 		this.globalViewsStateStorageId = getViewsStateStorageId(viewContainerStorageId);
 		this.workspaceViewsStateStorageId = viewContainerStorageId;
@@ -165,7 +194,7 @@ class ViewDescriptorsState extends Disposable {
 				if (state) {
 					if (state.visibleGlobal !== !storedState.isHidden) {
 						if (!storedState.isHidden) {
-							this.logService.info(`View visibility state changed: ${id} is now visible`);
+							this.logger.info(`View visibility state changed: ${id} is now visible`, this.viewContainerName);
 						}
 						changedStates.push({ id, visible: !storedState.isHidden });
 					}
@@ -349,24 +378,29 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	private _onDidMoveVisibleViewDescriptors = this._register(new Emitter<{ from: IViewDescriptorRef; to: IViewDescriptorRef }>());
 	readonly onDidMoveVisibleViewDescriptors: Event<{ from: IViewDescriptorRef; to: IViewDescriptorRef }> = this._onDidMoveVisibleViewDescriptors.event;
 
+	private readonly logger: ILogger;
+
 	constructor(
 		readonly viewContainer: ViewContainer,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ILogService private readonly logService: ILogService,
+		@ILoggerService loggerService: ILoggerService,
+		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
+
+		this.logger = loggerService.createLogger(getViewsLogFile(workbenchEnvironmentService));
 
 		this._register(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(this.contextKeys))(() => this.onDidChangeContext()));
 		this.viewDescriptorsState = this._register(instantiationService.createInstance(ViewDescriptorsState, viewContainer.storageId || `${viewContainer.id}.state`, typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.original));
 		this._register(this.viewDescriptorsState.onDidChangeStoredState(items => this.updateVisibility(items)));
 
 		this._register(Event.any(
-			Event.map(this.onDidAddVisibleViewDescriptors, added => `Added views:${added.map(v => v.viewDescriptor.id).join(',')}`),
-			Event.map(this.onDidRemoveVisibleViewDescriptors, removed => `Removed views:${removed.map(v => v.viewDescriptor.id).join(',')}`),
-			Event.map(this.onDidMoveVisibleViewDescriptors, ({ from, to }) => `Moved view ${from.viewDescriptor.id} to ${to.viewDescriptor.id}`))
+			Event.map(this.onDidAddVisibleViewDescriptors, added => `Added views:${added.map(v => v.viewDescriptor.id).join(',')} in ${this.viewContainer.id}`),
+			Event.map(this.onDidRemoveVisibleViewDescriptors, removed => `Removed views:${removed.map(v => v.viewDescriptor.id).join(',')} from ${this.viewContainer.id}`),
+			Event.map(this.onDidMoveVisibleViewDescriptors, ({ from, to }) => `Moved view ${from.viewDescriptor.id} to ${to.viewDescriptor.id} in ${this.viewContainer.id}`))
 			(message => {
-				this.logService.info(message);
+				this.logger.info(message);
 				this.viewDescriptorsState.updateState(this.allViewDescriptors);
 				this.updateContainerInfo();
 			}));
@@ -472,7 +506,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		} else {
 			viewDescriptorItem.state.visibleGlobal = visible;
 			if (visible) {
-				this.logService.info(`Showing view ${viewDescriptorItem.viewDescriptor.id} in the container ${this.viewContainer.id}`);
+				this.logger.info(`Showing view ${viewDescriptorItem.viewDescriptor.id} in the container ${this.viewContainer.id}`);
 			}
 		}
 
@@ -545,7 +579,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 					const isVisible = state.visibleGlobal;
 					state.visibleGlobal = isUndefinedOrNull(addedViewDescriptorState.visible) ? (isUndefinedOrNull(state.visibleGlobal) ? !viewDescriptor.hideByDefault : state.visibleGlobal) : addedViewDescriptorState.visible;
 					if (state.visibleGlobal && !isVisible) {
-						this.logService.info(`Added view ${viewDescriptor.id} in the container ${this.viewContainer.id} and showing it`);
+						this.logger.info(`Added view ${viewDescriptor.id} in the container ${this.viewContainer.id} and showing it.`, `${isVisible}`, `${viewDescriptor.hideByDefault}`, `${addedViewDescriptorState.visible}`);
 					}
 				}
 				state.collapsed = isUndefinedOrNull(addedViewDescriptorState.collapsed) ? (isUndefinedOrNull(state.collapsed) ? !!viewDescriptor.collapsed : state.collapsed) : addedViewDescriptorState.collapsed;

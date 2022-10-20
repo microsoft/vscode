@@ -31,6 +31,61 @@
 	line-height: 14px;
 }
 
+.monaco-action-bar .action-item .action-label.extension-action.built-in-status {
+	border-color: var(--vscode-foreground);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.label,
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator{
+	background-color: var(--vscode-extensionButton-background);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.label {
+	color: var(--vscode-extensionButton-foreground);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.label:hover {
+	background-color: var(--vscode-extensionButton-hoverBackground);
+}
+
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div  {
+	background-color: var(--vscode-extensionButton-separator);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.label.prominent,
+.monaco-action-bar .action-item.action-dropdown-item>.action-dropdown-item-separator.prominent {
+	background-color: var(--vscode-extensionButton-prominentBackground);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.label.prominent {
+	color: var(--vscode-extensionButton-prominentForeground);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.label.prominent:hover {
+	background-color: var(--vscode-extensionButton-prominentHoverBackground);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action:not(.disabled) {
+	border: 1px solid var(--vscode-contrastBorder);
+}
+
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator {
+	border-top: 1px solid var(--vscode-contrastBorder);
+	border-bottom: 1px solid var(--vscode-contrastBorder);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.extension-status-error {
+	color: var(--vscode-editorError-foreground);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.extension-status-warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.extension-status-info {
+	color: var(--vscode-editorInfo-foreground);
+}
+
 .monaco-action-bar .action-item:not(.disabled) .action-label.extension-action.text,
 .monaco-action-bar .action-item:not(.disabled) .action-label.extension-action.label,
 .monaco-action-bar .action-item .action-label.extension-action.icon,

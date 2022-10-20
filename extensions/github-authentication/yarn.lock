@@ -143,11 +143,6 @@ uuid@8.1.0:
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-8.1.0.tgz#6f1536eb43249f473abc6bd58ff983da1ca30d8d"
   integrity sha512-CI18flHDznR0lq54xBycOVmphdCYnQLKn8abKn7PXUiKUGdEd+/l9LWNJmugXel4hXq7S+RMNl34ecyC9TntWg==
 
-vscode-nls@^5.2.0:
-  version "5.2.0"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-5.2.0.tgz#3cb6893dd9bd695244d8a024bdf746eea665cc3f"
-  integrity sha512-RAaHx7B14ZU04EU31pT+rKz2/zSl7xMsfIZuo8pd+KZO6PXtQmpevpq3vxvWNcrGbdmhM/rr5Uw5Mz+NBfhVng==
-
 vscode-tas-client@^0.1.47:
   version "0.1.47"
   resolved "https://registry.yarnpkg.com/vscode-tas-client/-/vscode-tas-client-0.1.47.tgz#d66795cbbaa231aba659b6c40d43927d73596375"

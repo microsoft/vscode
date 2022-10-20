@@ -8,7 +8,6 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { basename, dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ByteSize, FileOperationError, FileOperationResult, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { AbstractLogger, AbstractLoggerService, format, ILogger, ILoggerOptions, ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
 
@@ -146,7 +145,6 @@ export class FileLoggerService extends AbstractLoggerService implements ILoggerS
 
 	constructor(
 		@ILogService logService: ILogService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 	) {
 		super(logService.getLevel(), logService.onDidChangeLogLevel);
@@ -154,7 +152,7 @@ export class FileLoggerService extends AbstractLoggerService implements ILoggerS
 
 	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
 		const logger = new BufferLogService(logLevel);
-		whenProviderRegistered(resource, this.fileService).then(() => (<BufferLogService>logger).logger = this.instantiationService.createInstance(FileLogger, options?.name || basename(resource), resource, logger.getLevel(), !!options?.donotUseFormatters));
+		whenProviderRegistered(resource, this.fileService).then(() => (<BufferLogService>logger).logger = new FileLogger(options?.name || basename(resource), resource, logger.getLevel(), !!options?.donotUseFormatters, this.fileService));
 		return logger;
 	}
 }

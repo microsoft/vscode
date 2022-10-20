@@ -59,7 +59,8 @@ import { BrowserFileUpload, ExternalFileImport, getMultipleFilesOverwriteConfirm
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
-import { ResourceSet, TernarySearchTree } from 'vs/base/common/map';
+import { ResourceSet } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 

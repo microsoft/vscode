@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { computeClippingRect, Dimension } from 'vs/base/browser/dom';
+import { Dimension } from 'vs/base/browser/dom';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -12,8 +13,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, IWebview, WebviewContentOptions, IWebviewElement, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions, IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, IWebview, WebviewContentOptions, IWebviewElement, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions, IOverlayWebview, WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webview';
 
 /**
  * Webview that is absolutely positioned over another element and that can creates and destroys an underlying webview as needed.
@@ -31,7 +31,6 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private _html: string = '';
 	private _initialScrollProgress: number = 0;
 	private _state: string | undefined = undefined;
-	private _repositionTimeout: any | undefined = undefined;
 
 	private _extension: WebviewExtensionDescription | undefined;
 	private _contentOptions: WebviewContentOptions;
@@ -47,6 +46,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	public readonly id: string;
 	public readonly providedViewType?: string;
 	public readonly origin: string;
+
+	private _container: FastDomNode<HTMLDivElement> | undefined;
 
 	public constructor(
 		initInfo: WebviewInitInfo,
@@ -77,7 +78,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	override dispose() {
 		this._isDisposed = true;
 
-		this._container?.remove();
+		this._container?.domNode.remove();
 		this._container = undefined;
 
 		for (const msg of this._firstLoadPendingMessages) {
@@ -85,14 +86,11 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		}
 		this._firstLoadPendingMessages.clear();
 
-		clearTimeout(this._repositionTimeout);
-
 		this._onDidDispose.fire();
 
 		super.dispose();
 	}
 
-	private _container: HTMLElement | undefined;
 
 	public get container(): HTMLElement {
 		if (this._isDisposed) {
@@ -100,16 +98,19 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		}
 
 		if (!this._container) {
-			this._container = document.createElement('div');
-			this._container.id = `webview-${this.id}`;
-			this._container.style.visibility = 'hidden';
+			const node = document.createElement('div');
+			node.id = `webview-${this.id}`;
+			node.style.position = 'absolute';
+			node.style.overflow = 'hidden';
+			this._container = new FastDomNode(node);
+			this._container.setVisibility('hidden');
 
 			// Webviews cannot be reparented in the dom as it will destroy their contents.
 			// Mount them to a high level node to avoid this.
-			this._layoutService.container.appendChild(this._container);
+			this._layoutService.container.appendChild(node);
 		}
 
-		return this._container;
+		return this._container.domNode;
 	}
 
 	public claim(owner: any, scopedContextKeyService: IContextKeyService | undefined) {
@@ -148,7 +149,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 		this._owner = undefined;
 		if (this._container) {
-			this._container.style.visibility = 'hidden';
+			this._container.setVisibility('hidden');
 		}
 
 		if (this._options.retainContextWhenHidden) {
@@ -163,35 +164,23 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	}
 
 	public layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement) {
-		this.doLayoutWebviewOverElement(element, dimension, clippingContainer);
-
-		// Temporary fix for https://github.com/microsoft/vscode/issues/110450
-		// There is an animation that lasts about 200ms, update the webview positioning once this animation is complete.
-		clearTimeout(this._repositionTimeout);
-		this._repositionTimeout = setTimeout(() => {
-			this.doLayoutWebviewOverElement(element, dimension, clippingContainer);
-		}, 200);
-	}
-
-	public doLayoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement) {
-		if (!this._container || !this._container.parentElement) {
+		if (!this._container || !this._container.domNode.parentElement) {
 			return;
 		}
 
 		const frameRect = element.getBoundingClientRect();
-		const containerRect = this._container.parentElement.getBoundingClientRect();
-		const parentBorderTop = (containerRect.height - this._container.parentElement.clientHeight) / 2.0;
-		const parentBorderLeft = (containerRect.width - this._container.parentElement.clientWidth) / 2.0;
-		this._container.style.position = 'absolute';
-		this._container.style.overflow = 'hidden';
-		this._container.style.top = `${frameRect.top - containerRect.top - parentBorderTop}px`;
-		this._container.style.left = `${frameRect.left - containerRect.left - parentBorderLeft}px`;
-		this._container.style.width = `${dimension ? dimension.width : frameRect.width}px`;
-		this._container.style.height = `${dimension ? dimension.height : frameRect.height}px`;
+		const containerRect = this._container.domNode.parentElement.getBoundingClientRect();
+		const parentBorderTop = (containerRect.height - this._container.domNode.parentElement.clientHeight) / 2.0;
+		const parentBorderLeft = (containerRect.width - this._container.domNode.parentElement.clientWidth) / 2.0;
+
+		this._container.setTop(frameRect.top - containerRect.top - parentBorderTop);
+		this._container.setLeft(frameRect.left - containerRect.left - parentBorderLeft);
+		this._container.setWidth(dimension ? dimension.width : frameRect.width);
+		this._container.setHeight(dimension ? dimension.height : frameRect.height);
 
 		if (clippingContainer) {
 			const { top, left, right, bottom } = computeClippingRect(frameRect, clippingContainer);
-			this._container.style.clipPath = `polygon(${left}px ${top}px, ${right}px ${top}px, ${right}px ${bottom}px, ${left}px ${bottom}px)`;
+			this._container.domNode.style.clipPath = `polygon(${left}px ${top}px, ${right}px ${top}px, ${right}px ${bottom}px, ${left}px ${bottom}px)`;
 		}
 	}
 
@@ -264,7 +253,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			this._shouldShowFindWidgetOnRestore = false;
 		}
 
-		this.container.style.visibility = 'visible';
+		this._container?.setVisibility('visible');
 	}
 
 	public get html(): string { return this._html; }
@@ -383,4 +372,15 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	setContextKeyService(contextKeyService: IContextKeyService) {
 		this._webview.value?.setContextKeyService(contextKeyService);
 	}
+}
+
+function computeClippingRect(frameRect: DOMRectReadOnly, clipper: HTMLElement) {
+	const rootRect = clipper.getBoundingClientRect();
+
+	const top = Math.max(rootRect.top - frameRect.top, 0);
+	const right = Math.max(frameRect.width - (frameRect.right - rootRect.right), 0);
+	const bottom = Math.max(frameRect.height - (frameRect.bottom - rootRect.bottom), 0);
+	const left = Math.max(rootRect.left - frameRect.left, 0);
+
+	return { top, right, bottom, left };
 }

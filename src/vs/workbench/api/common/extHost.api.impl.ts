@@ -59,7 +59,7 @@ import { IExtHostDecorations } from 'vs/workbench/api/common/extHostDecorations'
 import { IExtHostTask } from 'vs/workbench/api/common/extHostTask';
 import { IExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
 import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
-import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
+import { ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -93,6 +93,7 @@ import { combinedDisposable } from 'vs/base/common/lifecycle';
 import { checkProposedApiEnabled, ExtensionIdentifierSet, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
+import { EditSessionIdentityMatch } from 'vs/platform/workspace/common/editSessions';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -167,7 +168,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostEditorInsets = rpcProtocol.set(ExtHostContext.ExtHostEditorInsets, new ExtHostEditorInsets(rpcProtocol.getProxy(MainContext.MainThreadEditorInsets), extHostEditors, initData.remote));
 	const extHostDiagnostics = rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(rpcProtocol, extHostLogService, extHostFileSystemInfo));
 	const extHostLanguages = rpcProtocol.set(ExtHostContext.ExtHostLanguages, new ExtHostLanguages(rpcProtocol, extHostDocuments, extHostCommands.converter, uriTransformer));
-	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, uriTransformer, extHostDocuments, extHostCommands, extHostDiagnostics, extHostLogService, extHostApiDeprecation));
+	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, uriTransformer, extHostDocuments, extHostCommands, extHostDiagnostics, extHostLogService, extHostApiDeprecation, extHostTelemetry));
 	const extHostFileSystem = rpcProtocol.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(rpcProtocol, extHostLanguageFeatures));
 	const extHostFileSystemEvent = rpcProtocol.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService(rpcProtocol, extHostLogService, extHostDocumentsAndEditors));
 	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, createExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
@@ -331,7 +332,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return isNewAppInstall(initData.telemetryInfo.firstSessionDate);
 			},
 			createTelemetryLogger(appender: vscode.TelemetryAppender): vscode.TelemetryLogger {
-				checkProposedApiEnabled(extension, 'telemetry');
+				checkProposedApiEnabled(extension, 'telemetryLogger');
 				return extHostTelemetry.instantiateLogger(extension, appender);
 			},
 			openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string }) {
@@ -364,6 +365,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get uiKind() {
 				return initData.uiKind;
+			},
+			get logLevel() {
+				checkProposedApiEnabled(extension, 'extensionLog');
+				return extHostLogService.getLevel();
+			},
+			get onDidChangeLogLevel() {
+				checkProposedApiEnabled(extension, 'extensionLog');
+				return extHostLogService.onDidChangeLogLevel;
 			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
@@ -1383,7 +1392,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TabInputWebview: extHostTypes.WebviewEditorTabInput,
 			TabInputTerminal: extHostTypes.TerminalEditorTabInput,
 			TabInputInteractiveWindow: extHostTypes.InteractiveWindowInput,
-			TerminalExitReason: extHostTypes.TerminalExitReason
+			TerminalExitReason: extHostTypes.TerminalExitReason,
+			LogLevel: LogLevel,
+			EditSessionIdentityMatch: EditSessionIdentityMatch
 		};
 	};
 }
