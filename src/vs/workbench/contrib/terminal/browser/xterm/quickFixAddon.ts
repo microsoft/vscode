@@ -356,9 +356,8 @@ export function convertExtensionQuickFixOptions(quickFix: IExtensionTerminalQuic
 				return;
 			}
 			for (const [key, value] of Object.entries(groups)) {
-				console.log('groups', key, value, matchResult);
 				const actions: TerminalQuickFixAction[] = [];
-				const fixedCommand = quickFix.commandToRun!.replace(`{${key}}`, value);
+				const fixedCommand = quickFix.commandToRun!.replaceAll(`{${key}}`, value);
 				actions.push({
 					type: 'command',
 					command: fixedCommand,
@@ -378,9 +377,7 @@ export function convertExtensionQuickFixOptions(quickFix: IExtensionTerminalQuic
 				return;
 			}
 			for (const [key, value] of Object.entries(groups)) {
-				console.log('groups', key, value, linkToOpen, matchResult);
-				const link = linkToOpen.replace(`{${key}}`, value);
-				console.log(link);
+				const link = linkToOpen.replaceAll(`{${key}}`, value);
 				return { uri: URI.parse(link) } as ITerminalQuickFixOpenerAction;
 			}
 			return;
