@@ -12,6 +12,11 @@ fsevents/src/**
 fsevents/test/**
 !fsevents/**/*.node
 
+node-vsce-sign/**
+!node-vsce-sign/bin/*
+!node-vsce-sign/src/main.js
+!node-vsce-sign/package.json
+
 @vscode/sqlite3/binding.gyp
 @vscode/sqlite3/benchmark/**
 @vscode/sqlite3/cloudformation/**
