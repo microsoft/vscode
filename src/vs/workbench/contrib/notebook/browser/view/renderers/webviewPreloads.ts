@@ -750,7 +750,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	};
 
 	interface ExtendedOutputItem {
-		readonly allOutputItems: ReadonlyArray<{ readonly mime: string; getItem(): Promise<rendererApi.OutputItem | undefined> }>;
+		readonly _allOutputItems: ReadonlyArray<{ readonly mime: string; getItem(): Promise<rendererApi.OutputItem | undefined> }>;
 	}
 
 	function createOutputItem(
@@ -788,7 +788,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					return new Blob([valueBytes], { type: this.mime });
 				},
 
-				allOutputItems: allOutputItemList,
+				_allOutputItems: allOutputItemList,
 			});
 		}
 
