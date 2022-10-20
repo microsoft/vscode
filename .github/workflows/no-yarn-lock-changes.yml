@@ -22,7 +22,7 @@ jobs:
           echo "should_run: ${{ !contains(fromJson('["admin", "write"]'), fromJson(steps.get_permissions.outputs.data).permission) }}"
           echo "::set-output name=should_run::${{ !contains(fromJson('["admin", "write"]'), fromJson(steps.get_permissions.outputs.data).permission) && github.event.pull_request.user.login != 'dependabot[bot]' }}"
       - name: Get file changes
-        uses: trilom/file-changes-action@ce38c8ce2459ca3c303415eec8cb0409857b4272
+        uses: trilom/file-changes-action@a6ca26c14274c33b15e6499323aac178af06ad4b
         if: ${{ steps.control.outputs.should_run == 'true' }}
       - name: Check for yarn.lock changes
         if: ${{ steps.control.outputs.should_run == 'true' }}
