@@ -9,8 +9,6 @@ import { flatten } from 'vs/base/common/arrays';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionTerminalProfile, IExtensionTerminalQuickFix, ITerminalContributions, ITerminalProfileContribution } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
-export const GitPushCommandLineRegex = /git\s+push/;
-export const GitPushOutputRegex = /git push --set-upstream origin (?<branch>[^\s]+)/;
 
 // terminal extension point
 export const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);
@@ -41,19 +39,6 @@ export class TerminalContributionService implements ITerminalContributionService
 				}) || [];
 			}));
 			this._quickFixes = flatten(contributions.map(c => c.value.quickFixes ? c.value.quickFixes.map(fix => { return { ...fix, extensionIdentifier: c.description.identifier.value }; }) : []));
-			this._quickFixes.push({
-				id: 'Git Push Set Upstream',
-				commandLineMatcher: GitPushCommandLineRegex,
-				outputMatcher: {
-					lineMatcher: GitPushOutputRegex,
-					anchor: 'bottom',
-					offset: 0,
-					length: 5
-				},
-				exitStatus: false,
-				extensionIdentifier: 'Git',
-				commandToRun: 'git push --set-upstream origin {branch}'
-			});
 		});
 	}
 }
