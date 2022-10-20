@@ -357,6 +357,9 @@ export function convertExtensionQuickFixOptions(quickFix: IExtensionTerminalQuic
 			}
 			for (const [key, value] of Object.entries(groups)) {
 				const actions: TerminalQuickFixAction[] = [];
+				if (!quickFix.commandToRun?.includes(`{${key}}`)) {
+					return [];
+				}
 				const fixedCommand = quickFix.commandToRun!.replaceAll(`{${key}}`, value);
 				actions.push({
 					type: 'command',
@@ -377,6 +380,9 @@ export function convertExtensionQuickFixOptions(quickFix: IExtensionTerminalQuic
 				return;
 			}
 			for (const [key, value] of Object.entries(groups)) {
+				if (!linkToOpen?.includes(`{${key}}`)) {
+					return [];
+				}
 				const link = linkToOpen.replaceAll(`{${key}}`, value);
 				return { uri: URI.parse(link) } as ITerminalQuickFixOpenerAction;
 			}
