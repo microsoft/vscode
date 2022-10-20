@@ -595,7 +595,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	dispose(): void {
 		this.configListener.dispose();
-		this.styler.innerText = '';
 	}
 }
 
