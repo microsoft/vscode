@@ -306,6 +306,11 @@ export class CodeActionWidget extends QuickFixWidget {
 		}, container, false);
 	}
 
+	public override hide() {
+		this._contextViewService.hideContextView();
+		super.hide();
+	}
+
 	public override focusPrevious() {
 		super.focusPrevious(element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled);
 	}
@@ -342,7 +347,6 @@ export class CodeActionWidget extends QuickFixWidget {
 				delegate.onSelectCodeAction(action, trigger, options);
 			},
 			this._keybindingService));
-
 
 		// Invisible div to block mouse interaction in the rest of the UI
 		const menuBlock = document.createElement('div');

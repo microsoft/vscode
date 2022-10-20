@@ -11,6 +11,7 @@ export class QuickFixWidget extends Disposable {
 
 	private _quickFixWidget: HTMLElement | undefined;
 	private _quickFixes = this._register(new MutableDisposable<QuickFixList>());
+	private _fixList: QuickFixList | undefined;
 
 	constructor() {
 		super();
@@ -23,25 +24,24 @@ export class QuickFixWidget extends Disposable {
 	}
 
 	public setQuickFixes(fixes: QuickFixList): void {
-		this._quickFixes.value = fixes;
-		this._quickFixWidget!.appendChild(this._quickFixes.value.domNode);
+		this._fixList = fixes;
+		this._quickFixWidget!.appendChild(this._fixList.domNode);
 	}
 
 	public focusPrevious(filter: (arg: any) => boolean) {
-		this._quickFixes?.value?.focusPrevious(filter);
+		this._fixList?.focusPrevious(filter);
 	}
 
 	public focusNext(filter: (arg: any) => boolean) {
-		this._quickFixes?.value?.focusNext(filter);
+		this._fixList?.focusNext(filter);
 	}
 
 	public acceptSelected(filter: (arg: any) => boolean, options?: any) {
-		this._quickFixes?.value?.acceptSelected(filter, options);
+		this._fixList?.acceptSelected(filter, options);
 	}
 
 	public hide() {
 		this._quickFixes.clear();
-		// this._quickFixes?.value?.hideContextView();
 	}
 
 	public clear() {
@@ -49,20 +49,20 @@ export class QuickFixWidget extends Disposable {
 	}
 
 	public layout(minWidth: number, filter: (arg: any) => boolean) {
-		this._quickFixes!.value!.layout(minWidth, filter);
+		this._fixList?.layout(minWidth, filter);
 	}
 
 	public onListSelection(e: IListEvent<any>, condition: (arg: any) => boolean, secondaryCondition: (arg: any) => boolean): void {
-		this._quickFixes!.value!.onListSelection(e, condition, secondaryCondition);
+		this._fixList?.onListSelection(e, condition, secondaryCondition);
 	}
 
 	public onListClick(e: IListMouseEvent<any>, condition: (arg: any) => boolean) {
-		this._quickFixes.value?.onListClick(e, condition);
+		this._fixList?.onListClick(e, condition);
 	}
 
 	public onListHover(e: IListMouseEvent<any>) {
 		const items = typeof e.index === 'number' ? [e.index] : [];
-		this._quickFixes.value?.onListHover(items);
+		this._fixList?.onListHover(items);
 	}
 }
 
