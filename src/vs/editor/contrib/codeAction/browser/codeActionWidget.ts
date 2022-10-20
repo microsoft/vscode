@@ -10,7 +10,7 @@ import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { QuickFixList, QuickFixWidget } from 'vs/base/browser/ui/quickFixWidget/quickFixWidget';
+import { ActionList, BaseActionWidget } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -175,7 +175,7 @@ class HeaderRenderer implements IListRenderer<CodeActionListItemHeader, HeaderTe
 	}
 }
 
-class CodeActionList extends QuickFixList {
+class CodeActionList extends ActionList {
 
 	constructor(
 		container: HTMLElement,
@@ -246,7 +246,7 @@ class CodeActionList extends QuickFixList {
 // TODO: Take a look at user storage for this so it is preserved across windows and on reload.
 let showDisabled = false;
 
-export class CodeActionWidget extends QuickFixWidget {
+export class CodeActionWidget extends BaseActionWidget {
 
 	private static _instance?: CodeActionWidget;
 

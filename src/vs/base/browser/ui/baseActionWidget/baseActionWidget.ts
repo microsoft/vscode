@@ -7,70 +7,70 @@ import { IListEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 
-export class QuickFixWidget extends Disposable {
+export class BaseActionWidget extends Disposable {
 
-	private _quickFixWidget: HTMLElement | undefined;
-	private _quickFixes = this._register(new MutableDisposable<QuickFixList>());
-	private _fixList: QuickFixList | undefined;
+	private _widget: HTMLElement | undefined;
+	private _actions = this._register(new MutableDisposable<ActionList>());
+	private _actionList: ActionList | undefined;
 
 	constructor() {
 		super();
 	}
 
 	public render(): HTMLElement {
-		this._quickFixWidget = document.createElement('div');
-		this._quickFixWidget.classList.add('codeActionWidget');
-		return this._quickFixWidget;
+		this._widget = document.createElement('div');
+		this._widget.classList.add('codeActionWidget');
+		return this._widget;
 	}
 
-	public setQuickFixes(fixes: QuickFixList): void {
-		this._fixList = fixes;
-		this._quickFixWidget?.appendChild(this._fixList.domNode);
+	public setQuickFixes(fixes: ActionList): void {
+		this._actionList = fixes;
+		this._widget?.appendChild(this._actionList.domNode);
 	}
 
 	public focusPrevious(filter: (arg: any) => boolean) {
-		this._fixList?.focusPrevious(filter);
+		this._actionList?.focusPrevious(filter);
 	}
 
 	public focusNext(filter?: (arg: any) => boolean) {
-		this._fixList?.focusNext(filter);
+		this._actionList?.focusNext(filter);
 	}
 
 	public acceptSelected(filter: (arg: any) => boolean, options?: any) {
-		this._fixList?.acceptSelected(filter, options);
+		this._actionList?.acceptSelected(filter, options);
 	}
 
 	public hide() {
-		this._quickFixes.clear();
+		this._actions.clear();
 	}
 
 	public clear() {
-		this._quickFixes.clear();
+		this._actions.clear();
 	}
 
 	public layout(minWidth: number, filter: (arg: any) => boolean) {
-		this._fixList?.layout(minWidth, filter);
+		this._actionList?.layout(minWidth, filter);
 	}
 
 	public onListSelection(e: IListEvent<any>, condition: (arg: any) => boolean, secondaryCondition: (arg: any) => boolean): void {
-		this._fixList?.onListSelection(e, condition, secondaryCondition);
+		this._actionList?.onListSelection(e, condition, secondaryCondition);
 	}
 
 	public onListClick(e: IListMouseEvent<any>, condition: (arg: any) => boolean) {
-		this._fixList?.onListClick(e, condition);
+		this._actionList?.onListClick(e, condition);
 	}
 
 	public onListHover(e: IListMouseEvent<any>) {
 		const items = typeof e.index === 'number' ? [e.index] : [];
-		this._fixList?.onListHover(items);
+		this._actionList?.onListHover(items);
 	}
 }
 
-export class QuickFixList extends Disposable {
+export class ActionList extends Disposable {
 	public readonly domNode: HTMLElement;
 	private readonly list: List<any>;
 	private readonly _actions: readonly any[];
-	private readonly _quickFixLineHeight = 26;
+	private readonly _actionLineHeight = 26;
 	private readonly _headerLineHeight = 24;
 	constructor(actions: readonly any[], _list: List<any>, private readonly _onDidSelect: (arg: any, arg2: any) => void) {
 		super();
@@ -86,8 +86,8 @@ export class QuickFixList extends Disposable {
 		// Updating list height, depending on how many separators and headers there are.
 
 		const numHeaders = this._actions.filter(item => filter(item)).length;
-		const height = this.list.length * this._quickFixLineHeight;
-		const heightWithHeaders = height + numHeaders * this._headerLineHeight - numHeaders * this._quickFixLineHeight;
+		const height = this.list.length * this._actionLineHeight;
+		const heightWithHeaders = height + numHeaders * this._headerLineHeight - numHeaders * this._actionLineHeight;
 		this.list.layout(heightWithHeaders);
 
 		// For finding width dynamically (not using resize observer)
