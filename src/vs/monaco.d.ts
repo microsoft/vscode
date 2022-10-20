@@ -1865,12 +1865,12 @@ declare namespace monaco.editor {
 		 * @param range The range describing what text length to get.
 		 * @return The text length.
 		 */
-		getValueLengthInRange(range: IRange): number;
+		getValueLengthInRange(range: IRange, eol?: EndOfLinePreference): number;
 		/**
 		 * Get the character count of text in a certain range.
 		 * @param range The range describing what text length to get.
 		 */
-		getCharacterCountInRange(range: IRange): number;
+		getCharacterCountInRange(range: IRange, eol?: EndOfLinePreference): number;
 		/**
 		 * Get the number of lines in the model.
 		 */
@@ -3100,8 +3100,7 @@ declare namespace monaco.editor {
 		 */
 		smoothScrolling?: boolean;
 		/**
-		 * Enable that the editor will install an interval to check if its container dom node size has changed.
-		 * Enabling this might have a severe performance impact.
+		 * Enable that the editor will install a ResizeObserver to check if its container dom node size has changed.
 		 * Defaults to false.
 		 */
 		automaticLayout?: boolean;
@@ -4824,10 +4823,11 @@ declare namespace monaco.editor {
 		 */
 		position: IPosition | null;
 		/**
-		 * Optionally, a range can be provided to further
-		 * define the position of the content widget.
+		 * Optionally, a secondary position can be provided to further
+		 * define the position of the content widget. The secondary position
+		 * must have the same line number as the primary position.
 		 */
-		range?: IRange | null;
+		secondaryPosition?: IPosition | null;
 		/**
 		 * Placement preference for position, in order of preference.
 		 */

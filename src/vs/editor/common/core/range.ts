@@ -267,6 +267,9 @@ export class Range {
 	 * Test if range `a` equals `b`.
 	 */
 	public static equalsRange(a: IRange | null, b: IRange | null): boolean {
+		if (!a && !b) {
+			return true;
+		}
 		return (
 			!!a &&
 			!!b &&

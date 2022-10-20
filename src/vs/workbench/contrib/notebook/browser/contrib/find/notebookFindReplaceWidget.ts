@@ -181,7 +181,7 @@ class NotebookFindInput extends FindInput {
 			}
 		}));
 
-		this.inputBox.paddingRight = this.caseSensitive.width() + this.wholeWords.width() + this.regex.width() + this.getFilterWidth();
+		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this.getFilterWidth();
 	}
 
 	private getFilterWidth() {
@@ -203,22 +203,24 @@ class NotebookFindInput extends FindInput {
 	override setEnabled(enabled: boolean) {
 		super.setEnabled(enabled);
 		if (enabled && !this._filterChecked) {
-			this.regex.enable();
+			this.regex?.enable();
 		} else {
-			this.regex.disable();
+			this.regex?.disable();
 		}
 	}
 
 	updateFilterState(changed: boolean) {
 		this._filterChecked = changed;
-		if (this._filterChecked) {
-			this.regex.disable();
-			this.regex.domNode.tabIndex = -1;
-			this.regex.domNode.classList.toggle('disabled', true);
-		} else {
-			this.regex.enable();
-			this.regex.domNode.tabIndex = 0;
-			this.regex.domNode.classList.toggle('disabled', false);
+		if (this.regex) {
+			if (this._filterChecked) {
+				this.regex.disable();
+				this.regex.domNode.tabIndex = -1;
+				this.regex.domNode.classList.toggle('disabled', true);
+			} else {
+				this.regex.enable();
+				this.regex.domNode.tabIndex = 0;
+				this.regex.domNode.classList.toggle('disabled', false);
+			}
 		}
 		this.applyStyles();
 	}

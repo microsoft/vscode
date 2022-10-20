@@ -300,7 +300,7 @@ export interface IOverlayWebview extends IWebview {
 /**
  * Stores the unique origins for a webview.
  *
- * These are randomly generated, but keyed on extension and webview viewType.
+ * These are randomly generated
  */
 export class WebviewOriginStore {
 
@@ -315,8 +315,8 @@ export class WebviewOriginStore {
 		this.state = this.memento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
-	public getOrigin(viewType: string, extId: ExtensionIdentifier): string {
-		const key = this.getKey(viewType, extId);
+	public getOrigin(viewType: string, additionalKey: string | undefined): string {
+		const key = this.getKey(viewType, additionalKey);
 
 		const existing = this.state[key];
 		if (existing && typeof existing === 'string') {
@@ -329,7 +329,28 @@ export class WebviewOriginStore {
 		return newOrigin;
 	}
 
-	private getKey(viewType: string, extId: ExtensionIdentifier): string {
-		return JSON.stringify({ viewType, extension: extId.value });
+	private getKey(viewType: string, additionalKey: string | undefined): string {
+		return JSON.stringify({ viewType, key: additionalKey });
+	}
+}
+
+/**
+ * Stores the unique origins for a webview.
+ *
+ * These are randomly generated, but keyed on extension and webview viewType.
+ */
+export class ExtensionKeyedWebviewOriginStore {
+
+	private readonly store: WebviewOriginStore;
+
+	constructor(
+		rootStorageKey: string,
+		@IStorageService storageService: IStorageService,
+	) {
+		this.store = new WebviewOriginStore(rootStorageKey, storageService);
+	}
+
+	public getOrigin(viewType: string, extId: ExtensionIdentifier): string {
+		return this.store.getOrigin(viewType, extId.value);
 	}
 }

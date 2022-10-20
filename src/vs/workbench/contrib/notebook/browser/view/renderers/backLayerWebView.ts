@@ -5,14 +5,15 @@
 
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { coalesce } from 'vs/base/common/arrays';
+import { DeferredPromise } from 'vs/base/common/async';
 import { decodeBase64 } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { FileAccess, Schemas } from 'vs/base/common/network';
+import { equals } from 'vs/base/common/objects';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { dirname, joinPath } from 'vs/base/common/resources';
-import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
@@ -27,6 +28,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService, matchesScheme, matchesSomeScheme } from 'vs/platform/opener/common/opener';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/common/webview';
@@ -39,12 +41,11 @@ import { CellUri, INotebookRendererInfo, NotebookSetting, RendererMessagingSpec 
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IWebviewElement, IWebviewService, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewElement, IWebviewService, WebviewContentPurpose, WebviewOriginStore } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, StaticPreloadMetadata, ToWebviewMessage } from './webviewMessages';
-import { DeferredPromise } from 'vs/base/common/async';
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -98,6 +99,14 @@ interface BacklayerWebviewOptions {
 }
 
 export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
+
+	private static _originStore?: WebviewOriginStore;
+
+	private static getOriginStore(storageService: IStorageService): WebviewOriginStore {
+		this._originStore ??= new WebviewOriginStore('notebook.backlayerWebview.origins', storageService);
+		return this._originStore;
+	}
+
 	element: HTMLElement;
 	webview: IWebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
@@ -139,6 +148,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
@@ -912,6 +922,7 @@ var requirejs = (function() {
 		this.localResourceRootsCache = this._getResourceRootsCache();
 		const webview = webviewService.createWebviewElement({
 			id: this.id,
+			origin: BackLayerWebView.getOriginStore(this.storageService).getOrigin(this.notebookViewType, undefined),
 			options: {
 				purpose: WebviewContentPurpose.NotebookRenderer,
 				enableFindWidget: false,

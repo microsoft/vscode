@@ -13,7 +13,7 @@ import { MainThreadWebviews, reviveWebviewContentOptions, reviveWebviewExtension
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { WebviewOptions, WebviewOriginStore } from 'vs/workbench/contrib/webview/browser/webview';
+import { ExtensionKeyedWebviewOriginStore, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { IWebViewShowOptions, IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
@@ -86,7 +86,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 
 	private readonly _revivers = this._register(new DisposableMap<string>());
 
-	private readonly webviewOriginStore: WebviewOriginStore;
+	private readonly webviewOriginStore: ExtensionKeyedWebviewOriginStore;
 
 	constructor(
 		context: IExtHostContext,
@@ -101,7 +101,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	) {
 		super();
 
-		this.webviewOriginStore = new WebviewOriginStore('mainThreadWebviewPanel.origins', storageService);
+		this.webviewOriginStore = new ExtensionKeyedWebviewOriginStore('mainThreadWebviewPanel.origins', storageService);
 
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewPanels);
 

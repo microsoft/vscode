@@ -26,8 +26,21 @@ import { IDecoration, Terminal } from 'xterm';
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
 import type { ITerminalAddon } from 'xterm-headless';
-
-
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ILogService } from 'vs/platform/log/common/log';
+const quickFixTelemetryTitle = 'terminal/quick-fix';
+type QuickFixResultTelemetryEvent = {
+	id: string;
+	fixesShown: boolean;
+	ranQuickFixCommand?: boolean;
+};
+type QuickFixClassification = {
+	owner: 'meganrogge';
+	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The quick fix ID' };
+	fixesShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the fixes were shown by the user' };
+	ranQuickFixCommand?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If the command that was executed matched a quick fix suggested one. Undefined if no command is expected.' };
+	comment: 'Terminal quick fixes';
+};
 const quickFixSelectors = [DecorationSelector.QuickFix, DecorationSelector.LightBulb, DecorationSelector.Codicon, DecorationSelector.CommandDecoration, DecorationSelector.XtermDecoration];
 export interface ITerminalQuickFix {
 	showMenu(): void;
@@ -56,13 +69,18 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private readonly _terminalDecorationHoverService: TerminalDecorationHoverManager;
 
+	private _fixesShown: boolean = false;
+	private _expectedCommands: string[] | undefined;
+
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IOpenerService private readonly _openerService: IOpenerService
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
@@ -83,6 +101,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	}
 
 	showMenu(): void {
+		this._fixesShown = true;
 		this._decoration?.element?.click();
 	}
 
@@ -99,7 +118,25 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (!terminal || !commandDetection) {
 			return;
 		}
-		this._register(commandDetection.onCommandFinished(command => this._resolveQuickFixes(command)));
+		this._register(commandDetection.onCommandFinished(command => {
+			if (this._expectedCommands) {
+				const ranQuickFixCommand = this._expectedCommands.includes(command.command);
+				this._logService.debug(quickFixTelemetryTitle, {
+					id: this._expectedCommands.join(' '),
+					fixesShown: this._fixesShown,
+					ranQuickFixCommand
+				});
+				this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(quickFixTelemetryTitle, {
+					id: this._expectedCommands.join(' '),
+					fixesShown: this._fixesShown,
+					ranQuickFixCommand
+				});
+				this._expectedCommands = undefined;
+			}
+			this._resolveQuickFixes(command);
+			this._fixesShown = false;
+		}));
+
 		// The buffer is not ready by the time command finish
 		// is called. Add the decoration on command start if there are corresponding quick fixes
 		this._register(commandDetection.onCommandStarted(() => {
@@ -120,9 +157,24 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (!result) {
 			return;
 		}
-		const { fixes, onDidRunQuickFix } = result;
+		const { fixes, onDidRunQuickFix, expectedCommands } = result;
+		this._expectedCommands = expectedCommands;
 		this._quickFixes = fixes;
-		onDidRunQuickFix(() => this._disposeQuickFix());
+		this._register(onDidRunQuickFix((id) => {
+			const ranQuickFixCommand = (this._expectedCommands?.includes(command.command) || false);
+			this._logService.debug(quickFixTelemetryTitle, {
+				id,
+				fixesShown: this._fixesShown,
+				ranQuickFixCommand
+			});
+			this._telemetryService?.publicLog2<QuickFixResultTelemetryEvent, QuickFixClassification>(quickFixTelemetryTitle, {
+				id,
+				fixesShown: this._fixesShown,
+				ranQuickFixCommand
+			});
+			this._disposeQuickFix();
+			this._fixesShown = false;
+		}));
 	}
 
 	private _disposeQuickFix(): void {
@@ -177,11 +229,12 @@ export function getQuickFixesForCommand(
 	quickFixOptions: Map<string, ITerminalQuickFixOptions[]>,
 	openerService: IOpenerService,
 	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>
-): { fixes: IAction[]; onDidRunQuickFix: Event<void> } | undefined {
-	const onDidRunQuickFixEmitter = new Emitter<void>();
+): { fixes: IAction[]; onDidRunQuickFix: Event<string>; expectedCommands?: string[] } | undefined {
+	const onDidRunQuickFixEmitter = new Emitter<string>();
 	const onDidRunQuickFix = onDidRunQuickFixEmitter.event;
 	const fixes: IAction[] = [];
 	const newCommand = command.command;
+	const expectedCommands = [];
 	for (const options of quickFixOptions.values()) {
 		for (const option of options) {
 			if (option.exitStatus !== undefined && option.exitStatus !== (command.exitCode === 0)) {
@@ -196,6 +249,7 @@ export function getQuickFixesForCommand(
 			if (outputMatcher) {
 				outputMatch = command.getOutputMatch(outputMatcher);
 			}
+			const id = option.id;
 			const quickFixes = option.getQuickFixes({ commandLineMatch, outputMatch }, command);
 			if (quickFixes) {
 				for (const quickFix of asArray(quickFixes)) {
@@ -218,6 +272,7 @@ export function getQuickFixesForCommand(
 									tooltip: label,
 									command: quickFix.command
 								} as IAction;
+								expectedCommands.push(quickFix.command);
 								break;
 							}
 							case 'opener': {
@@ -231,7 +286,7 @@ export function getQuickFixesForCommand(
 										openerService.open(quickFix.uri);
 										// since no command gets run here, need to
 										// clear the decoration and quick fix
-										onDidRunQuickFixEmitter.fire();
+										onDidRunQuickFixEmitter.fire(id);
 									},
 									tooltip: label,
 									uri: quickFix.uri
@@ -245,7 +300,10 @@ export function getQuickFixesForCommand(
 							label: quickFix.label,
 							class: quickFix.class,
 							enabled: quickFix.enabled,
-							run: () => quickFix.run(),
+							run: () => {
+								quickFix.run();
+								onDidRunQuickFixEmitter.fire(id);
+							},
 							tooltip: quickFix.tooltip
 						};
 					}
@@ -256,7 +314,7 @@ export function getQuickFixesForCommand(
 			}
 		}
 	}
-	return fixes.length > 0 ? { fixes, onDidRunQuickFix } : undefined;
+	return fixes.length > 0 ? { fixes, onDidRunQuickFix, expectedCommands } : undefined;
 }
 
 

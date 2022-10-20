@@ -2,14 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+use crate::commands::tunnels::ShutdownSignal;
 use crate::constants::{CONTROL_PORT, PROTOCOL_VERSION, VSCODE_CLI_VERSION};
 use crate::log;
+use crate::self_update::SelfUpdate;
 use crate::state::LauncherPaths;
-use crate::update::Update;
-use crate::update_service::Platform;
+use crate::update_service::{Platform, UpdateService};
 use crate::util::errors::{
 	wrap, AnyError, MismatchedLaunchModeError, NoAttachedServerError, ServerWriteError,
 };
+use crate::util::io::SilentCopyProgress;
 use crate::util::sync::{new_barrier, Barrier};
 use opentelemetry::trace::SpanKind;
 use opentelemetry::KeyValue;
@@ -22,7 +24,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::pin;
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{mpsc, Mutex};
 
 use super::code_server::{
 	AnyCodeServer, CodeServerArgs, ServerBuilder, ServerParamsRaw, SocketCodeServer,
@@ -180,7 +182,7 @@ pub async fn serve(
 	launcher_paths: &LauncherPaths,
 	code_server_args: &CodeServerArgs,
 	platform: Platform,
-	shutdown_rx: oneshot::Receiver<()>,
+	shutdown_rx: mpsc::Receiver<ShutdownSignal>,
 ) -> Result<ServerTermination, AnyError> {
 	let mut port = tunnel.add_port_direct(CONTROL_PORT).await?;
 	print_listening(log, &tunnel.name);
@@ -193,8 +195,8 @@ pub async fn serve(
 
 	loop {
 		tokio::select! {
-			_ = &mut shutdown_rx => {
-				info!(log, "Received interrupt, shutting down...");
+			Some(r) = shutdown_rx.recv() => {
+				info!(log, "Shutting down: {}", r );
 				drop(signal_exit);
 				return Ok(ServerTermination {
 					respawn: false,
@@ -617,13 +619,10 @@ async fn handle_update(
 	ctx: &HandlerContext,
 	params: &UpdateParams,
 ) -> Result<UpdateResult, AnyError> {
-	let updater = Update::new();
-	let latest_release = updater.get_latest_release().await?;
-
-	let up_to_date = match VSCODE_CLI_VERSION {
-		Some(v) => v == latest_release.version,
-		None => true,
-	};
+	let update_service = UpdateService::new(ctx.log.clone(), reqwest::Client::new());
+	let updater = SelfUpdate::new(&update_service)?;
+	let latest_release = updater.get_current_release().await?;
+	let up_to_date = updater.is_up_to_date_with(&latest_release);
 
 	if !params.do_update || up_to_date {
 		return Ok(UpdateResult {
@@ -632,12 +631,10 @@ async fn handle_update(
 		});
 	}
 
-	info!(ctx.log, "Updating CLI from {}", latest_release.version);
-
-	let current_exe = std::env::current_exe().map_err(|e| wrap(e, "could not get current exe"))?;
+	info!(ctx.log, "Updating CLI to {}", latest_release);
 
 	updater
-		.switch_to_release(&latest_release, &current_exe)
+		.do_update(&latest_release, SilentCopyProgress())
 		.await?;
 
 	Ok(UpdateResult {

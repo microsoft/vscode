@@ -9,9 +9,6 @@ name = "cli"
 path = "src/lib.rs"
 
 [[bin]]
-name = "code-tunnel"
-
-[[bin]]
 name = "code"
 
 [dependencies]

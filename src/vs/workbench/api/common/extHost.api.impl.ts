@@ -332,7 +332,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return isNewAppInstall(initData.telemetryInfo.firstSessionDate);
 			},
 			createTelemetryLogger(appender: vscode.TelemetryAppender): vscode.TelemetryLogger {
-				checkProposedApiEnabled(extension, 'telemetry');
+				checkProposedApiEnabled(extension, 'telemetryLogger');
 				return extHostTelemetry.instantiateLogger(extension, appender);
 			},
 			openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string }) {

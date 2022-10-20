@@ -1961,7 +1961,7 @@ export class Repository {
 		let result = new Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }>((c, e) => {
 			const parser = new GitStatusParser();
 
-			const onExit = (exitCode: number) => {
+			const onClose = (exitCode: number) => {
 				if (exitCode !== 0) {
 					const stderr = stderrData.join('');
 					return e(new GitError({
@@ -1982,7 +1982,7 @@ export class Repository {
 				parser.update(raw);
 
 				if (limit !== 0 && parser.status.length > limit) {
-					child.removeListener('exit', onExit);
+					child.removeListener('close', onClose);
 					child.stdout!.removeListener('data', onStdoutData);
 					child.kill();
 
@@ -1998,7 +1998,7 @@ export class Repository {
 			child.stderr!.on('data', raw => stderrData.push(raw as string));
 
 			child.on('error', cpErrorHandler(e));
-			child.on('exit', onExit);
+			child.on('close', onClose);
 		});
 
 		if (opts?.cancellationToken) {

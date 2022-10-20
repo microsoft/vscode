@@ -1162,7 +1162,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
 				strikethrough: treeItemLabel?.strikethrough,
-				disabledCommand: !commandEnabled
+				disabledCommand: !commandEnabled,
+				labelEscapeNewLines: true
 			});
 		} else {
 			templateData.resourceLabel.setResource({ name: label, description }, {
@@ -1171,7 +1172,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
 				strikethrough: treeItemLabel?.strikethrough,
-				disabledCommand: !commandEnabled
+				disabledCommand: !commandEnabled,
+				labelEscapeNewLines: true
 			});
 		}
 
