@@ -408,7 +408,7 @@ fn detect_installed_program(log: &log::Logger, quality: Quality) -> io::Result<V
 		let target: PathBuf = [dir, name].iter().collect();
 		match std::fs::canonicalize(&target) {
 			Ok(m) if m == current_exe => continue,
-			Ok(_) => {},
+			Ok(_) => {}
 			Err(_) => continue,
 		};
 
@@ -438,18 +438,13 @@ mod tests {
 
 	use super::*;
 
-	fn make_fake_vscode_install(path: &Path, quality: options::Quality) {
+	fn make_fake_vscode_install(path: &Path) {
 		let bin = DESKTOP_CLI_RELATIVE_PATH
 			.split(',')
 			.next()
 			.expect("expected exe path");
 
-		let binary_file_path = if cfg!(target_os = "macos") {
-			path.join(format!("{}/{}", quality.get_macos_app_name(), bin))
-		} else {
-			path.join(bin)
-		};
-
+		let binary_file_path = path.join(bin);
 		let parent_dir_path = binary_file_path.parent().expect("expected parent path");
 
 		create_dir_all(parent_dir_path).expect("expected to create parent dir");
@@ -462,8 +457,8 @@ mod tests {
 
 	fn make_multiple_vscode_install() -> tempfile::TempDir {
 		let dir = tempfile::tempdir().expect("expected to make temp dir");
-		make_fake_vscode_install(&dir.path().join("desktop/stable"), options::Quality::Stable);
-		make_fake_vscode_install(&dir.path().join("desktop/1.68.2"), options::Quality::Stable);
+		make_fake_vscode_install(&dir.path().join("desktop/stable"));
+		make_fake_vscode_install(&dir.path().join("desktop/1.68.2"));
 		dir
 	}
 
@@ -568,17 +563,17 @@ mod tests {
 	#[tokio::test]
 	async fn test_gets_entrypoint() {
 		let dir = make_multiple_vscode_install();
-		let lp = LauncherPaths::new_without_replacements(dir.path().to_owned());
-		let vm = CodeVersionManager::new(log::Logger::test(), &lp, Platform::LinuxARM64);
 
-		assert!(vm
-			.try_get_entrypoint(&RequestedVersion::Quality(options::Quality::Stable))
-			.await
-			.is_some());
+		assert!(CodeVersionManager::get_entrypoint_for_install_dir(
+			&dir.path().join("desktop").join("stable")
+		)
+		.await
+		.is_some());
 
-		assert!(vm
-			.try_get_entrypoint(&RequestedVersion::Quality(options::Quality::Exploration))
-			.await
-			.is_none());
+		assert!(
+			CodeVersionManager::get_entrypoint_for_install_dir(&dir.path().join("invalid"))
+				.await
+				.is_none()
+		);
 	}
 }
