@@ -25,14 +25,14 @@ export class QuickFixWidget extends Disposable {
 
 	public setQuickFixes(fixes: QuickFixList): void {
 		this._fixList = fixes;
-		this._quickFixWidget!.appendChild(this._fixList.domNode);
+		this._quickFixWidget?.appendChild(this._fixList.domNode);
 	}
 
 	public focusPrevious(filter: (arg: any) => boolean) {
 		this._fixList?.focusPrevious(filter);
 	}
 
-	public focusNext(filter: (arg: any) => boolean) {
+	public focusNext(filter?: (arg: any) => boolean) {
 		this._fixList?.focusNext(filter);
 	}
 
@@ -78,6 +78,8 @@ export class QuickFixList extends Disposable {
 		this._actions = actions;
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('codeActionList');
+		this.list.splice(0, 0, this._actions as any);
+		this.focusNext();
 	}
 
 	public layout(minWidth: number, filter: (item: any) => boolean): number {
@@ -114,8 +116,8 @@ export class QuickFixList extends Disposable {
 		this.list.focusPrevious(1, true, undefined, element => filter(element));
 	}
 
-	public focusNext(filter: (arg: any) => boolean) {
-		this.list.focusNext(1, true, undefined, element => filter(element));
+	public focusNext(filter?: (arg: any) => boolean) {
+		this.list.focusNext(1, true, undefined, element => filter ? filter(element) : true);
 	}
 
 	public acceptSelected(filter: (arg: any) => boolean, options?: any) {

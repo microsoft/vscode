@@ -178,12 +178,13 @@ class HeaderRenderer implements IListRenderer<CodeActionListItemHeader, HeaderTe
 class CodeActionList extends QuickFixList {
 
 	constructor(
+		container: HTMLElement,
 		codeActions: readonly CodeActionItem[],
 		showHeaders: boolean,
 		onDidSelect: (action: CodeActionItem, options: { readonly preview: boolean }) => void,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(codeActions, new List('codeActionWidget', document.createElement('div'), {
+		super(codeActions, new List('codeActionWidget', container, {
 			getHeight: element => element.kind === CodeActionListItemKind.Header ? 24 : 26,
 			getTemplateId: element => element.kind,
 		}, [
@@ -340,6 +341,7 @@ export class CodeActionWidget extends QuickFixWidget {
 		const widget = super.render();
 		element.appendChild(widget);
 		super.setQuickFixes(new CodeActionList(
+			widget,
 			showingCodeActions,
 			options.showHeaders ?? true,
 			(action, options) => {
