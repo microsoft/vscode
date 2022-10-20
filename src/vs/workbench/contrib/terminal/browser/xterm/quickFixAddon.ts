@@ -348,7 +348,8 @@ export function convertExtensionQuickFixOptions(quickFix: IExtensionTerminalQuic
 		type,
 		getQuickFixes: type === 'command' ? (matchResult: TerminalQuickFixMatchResult) => {
 			const matches = matchResult.outputMatch;
-			if (!matches) {
+			const commandToRun = quickFix.commandToRun;
+			if (!matches || !commandToRun) {
 				return;
 			}
 			const groups = matches.groups;
@@ -356,11 +357,12 @@ export function convertExtensionQuickFixOptions(quickFix: IExtensionTerminalQuic
 				return;
 			}
 			for (const [key, value] of Object.entries(groups)) {
+				const varToResolve = '${group:' + `${key}` + '}';
 				const actions: TerminalQuickFixAction[] = [];
-				if (!quickFix.commandToRun?.includes(`{${key}}`)) {
+				if (!commandToRun.includes(varToResolve)) {
 					return [];
 				}
-				const fixedCommand = quickFix.commandToRun!.replaceAll(`{${key}}`, value);
+				const fixedCommand = commandToRun.replaceAll(varToResolve, value);
 				actions.push({
 					type: 'command',
 					command: fixedCommand,
@@ -380,10 +382,11 @@ export function convertExtensionQuickFixOptions(quickFix: IExtensionTerminalQuic
 				return;
 			}
 			for (const [key, value] of Object.entries(groups)) {
-				if (!linkToOpen?.includes(`{${key}}`)) {
+				const varToResolve = '${group:' + `${key}` + '}';
+				if (!linkToOpen?.includes(varToResolve)) {
 					return [];
 				}
-				const link = linkToOpen.replaceAll(`{${key}}`, value);
+				const link = linkToOpen.replaceAll(varToResolve, value);
 				return { uri: URI.parse(link) } as ITerminalQuickFixOpenerAction;
 			}
 			return;
