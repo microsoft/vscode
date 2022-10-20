@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { createStyleSheet, EventHelper } from 'vs/base/browser/dom';
+import { createStyleSheet, Dimension, EventHelper } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture } from 'vs/base/browser/touch';
@@ -960,6 +960,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly smoothScrolling?: boolean;
 	readonly scrollableElementChangeOptions?: ScrollableElementChangeOptions;
 	readonly alwaysConsumeMouseWheel?: boolean;
+	readonly initialSize?: Dimension;
 }
 
 export interface IListStyles extends IFindInputStyles {
