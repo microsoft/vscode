@@ -195,6 +195,14 @@ steps:
       displayName: Download VS Code CLI
       condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: unsigned_vscode_cli_win32_ia32_cli
+        patterns: '**'
+        path: $(Build.ArtifactStagingDirectory)/cli
+      displayName: Download VS Code CLI
+      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'ia32'))
+
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"

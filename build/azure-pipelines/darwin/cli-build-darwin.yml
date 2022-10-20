@@ -16,7 +16,7 @@ steps:
 
   - template: ../mixin-distro-posix.yml
     parameters:
-      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
   - script: |
       set -e
@@ -24,7 +24,17 @@ steps:
     displayName: Prepare CLI build
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+
+  - template: ../vcpkg-install-posix.yml
+    parameters:
+      targets:
+        - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
+          - x64-osx
+        - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
+          - arm64-osx
+      vcpkgDir: $(Build.SourcesDirectory)/build/azure-pipelines/cli/vcpkg
+      vcpkgArgs: --overlay-ports=$(Build.SourcesDirectory)/build/azure-pipelines/cli/vcpkg-overlay-ports
+      targetDirectory: $(Build.ArtifactStagingDirectory)/deps
 
   - template: ../cli/install-rust-posix.yml
     parameters:
@@ -39,9 +49,15 @@ steps:
       parameters:
         VSCODE_CLI_TARGET: x86_64-apple-darwin
         VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_darwin_x64_cli
+        VSCODE_CLI_ENV:
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/deps/arm64-osx/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/deps/arm64-osx/include
 
   - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
       parameters:
         VSCODE_CLI_TARGET: aarch64-apple-darwin
         VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_darwin_arm64_cli
+        VSCODE_CLI_ENV:
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/deps/x64-osx/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/deps/x64-osx/include
