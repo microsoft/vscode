@@ -80,7 +80,7 @@ parameters:
   - name: VSCODE_BUILD_TUNNEL_CLI
     displayName: "Build Tunnel CLI"
     type: boolean
-    default: false
+    default: true
   - name: VSCODE_PUBLISH
     displayName: "Publish to builds.code.visualstudio.com"
     type: boolean
