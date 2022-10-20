@@ -1943,7 +1943,6 @@ export class Repository implements Disposable {
 			sort = 'alphabetically';
 		}
 
-		console.log('query start');
 		const [HEAD, refs, remotes, submodules, status, rebaseCommit, mergeInProgress, commitTemplate] =
 			await Promise.all([
 				this.repository.getHEADBranch(),
@@ -1954,8 +1953,6 @@ export class Repository implements Disposable {
 				this.getRebaseCommit(),
 				this.isMergeInProgress(),
 				this.getInputTemplate()]);
-		console.log('query end');
-		console.log('status: ', JSON.stringify(status));
 
 		this._HEAD = HEAD;
 		this._refs = refs!;
