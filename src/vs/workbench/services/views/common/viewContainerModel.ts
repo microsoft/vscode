@@ -113,7 +113,7 @@ class ViewDescriptorsState extends Disposable {
 
 	constructor(
 		viewContainerStorageId: string,
-		viewContainerName: string,
+		private readonly viewContainerName: string,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILoggerService loggerService: ILoggerService,
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
@@ -194,7 +194,7 @@ class ViewDescriptorsState extends Disposable {
 				if (state) {
 					if (state.visibleGlobal !== !storedState.isHidden) {
 						if (!storedState.isHidden) {
-							this.logger.info(`View visibility state changed: ${id} is now visible`);
+							this.logger.info(`View visibility state changed: ${id} is now visible`, this.viewContainerName);
 						}
 						changedStates.push({ id, visible: !storedState.isHidden });
 					}
@@ -396,9 +396,9 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		this._register(this.viewDescriptorsState.onDidChangeStoredState(items => this.updateVisibility(items)));
 
 		this._register(Event.any(
-			Event.map(this.onDidAddVisibleViewDescriptors, added => `Added views:${added.map(v => v.viewDescriptor.id).join(',')}`),
-			Event.map(this.onDidRemoveVisibleViewDescriptors, removed => `Removed views:${removed.map(v => v.viewDescriptor.id).join(',')}`),
-			Event.map(this.onDidMoveVisibleViewDescriptors, ({ from, to }) => `Moved view ${from.viewDescriptor.id} to ${to.viewDescriptor.id}`))
+			Event.map(this.onDidAddVisibleViewDescriptors, added => `Added views:${added.map(v => v.viewDescriptor.id).join(',')} in ${this.viewContainer.id}`),
+			Event.map(this.onDidRemoveVisibleViewDescriptors, removed => `Removed views:${removed.map(v => v.viewDescriptor.id).join(',')} from ${this.viewContainer.id}`),
+			Event.map(this.onDidMoveVisibleViewDescriptors, ({ from, to }) => `Moved view ${from.viewDescriptor.id} to ${to.viewDescriptor.id} in ${this.viewContainer.id}`))
 			(message => {
 				this.logger.info(message);
 				this.viewDescriptorsState.updateState(this.allViewDescriptors);
@@ -579,7 +579,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 					const isVisible = state.visibleGlobal;
 					state.visibleGlobal = isUndefinedOrNull(addedViewDescriptorState.visible) ? (isUndefinedOrNull(state.visibleGlobal) ? !viewDescriptor.hideByDefault : state.visibleGlobal) : addedViewDescriptorState.visible;
 					if (state.visibleGlobal && !isVisible) {
-						this.logger.info(`Added view ${viewDescriptor.id} in the container ${this.viewContainer.id} and showing it`);
+						this.logger.info(`Added view ${viewDescriptor.id} in the container ${this.viewContainer.id} and showing it.`, `${isVisible}`, `${viewDescriptor.hideByDefault}`, `${addedViewDescriptorState.visible}`);
 					}
 				}
 				state.collapsed = isUndefinedOrNull(addedViewDescriptorState.collapsed) ? (isUndefinedOrNull(state.collapsed) ? !!viewDescriptor.collapsed : state.collapsed) : addedViewDescriptorState.collapsed;

@@ -34,11 +34,11 @@ export interface IQuickPickItem {
 	 * keyboard shortcut.
 	 */
 	keybinding?: ResolvedKeybinding;
-	iconClasses?: string[];
+	iconClasses?: readonly string[];
 	italic?: boolean;
 	strikethrough?: boolean;
 	highlights?: IQuickPickItemHighlights;
-	buttons?: IQuickInputButton[];
+	buttons?: readonly IQuickInputButton[];
 	picked?: boolean;
 	alwaysShow?: boolean;
 }
@@ -48,7 +48,7 @@ export interface IQuickPickSeparator {
 	id?: string;
 	label?: string;
 	ariaLabel?: string;
-	buttons?: IQuickInputButton[];
+	buttons?: readonly IQuickInputButton[];
 }
 
 export interface IKeyMods {
@@ -59,7 +59,7 @@ export interface IKeyMods {
 export const NO_KEY_MODS: IKeyMods = { ctrlCmd: false, alt: false };
 
 export interface IQuickNavigateConfiguration {
-	keybindings: ResolvedKeybinding[];
+	keybindings: readonly ResolvedKeybinding[];
 }
 
 export interface IPickOptions<T extends IQuickPickItem> {
@@ -145,9 +145,9 @@ export interface IInputOptions {
 	value?: string;
 
 	/**
-	 * the selection of value, default to the whole word
+	 * the selection of value, default to the whole prefilled value
 	 */
-	valueSelection?: [number, number];
+	valueSelection?: readonly [number, number];
 
 	/**
 	 * the text to display underneath the input box
@@ -164,6 +164,9 @@ export interface IInputOptions {
 	 */
 	password?: boolean;
 
+	/**
+	 * an optional flag to not close the input on focus lost
+	 */
 	ignoreFocusLost?: boolean;
 
 	/**

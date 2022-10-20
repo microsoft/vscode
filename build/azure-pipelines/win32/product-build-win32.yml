@@ -199,7 +199,8 @@ steps:
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
         $ArtifactName = (gci -Path "$(Build.ArtifactStagingDirectory)/cli" | Select-Object -last 1).FullName
-        Expand-Archive -Path $ArtifactName -DestinationPath "$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin"
+        Expand-Archive -Path $ArtifactName -DestinationPath "$(Build.ArtifactStagingDirectory)/cli"
+        Move-Item -Path "$(Build.ArtifactStagingDirectory)/cli/code.exe" -Destination "$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/code-tunnel.exe"
 
         if ("$(VSCODE_QUALITY)" -ne "stable")
         {

@@ -138,10 +138,10 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			if (this.config.gpuAcceleration === 'off') {
 				this._lastFontMeasurement.charWidth = rect.width;
 			} else {
-				const scaledCharWidth = Math.floor(rect.width * window.devicePixelRatio);
-				const scaledCellWidth = scaledCharWidth + Math.round(letterSpacing);
-				const actualCellWidth = scaledCellWidth / window.devicePixelRatio;
-				this._lastFontMeasurement.charWidth = actualCellWidth - Math.round(letterSpacing) / window.devicePixelRatio;
+				const deviceCharWidth = Math.floor(rect.width * window.devicePixelRatio);
+				const deviceCellWidth = deviceCharWidth + Math.round(letterSpacing);
+				const cssCellWidth = deviceCellWidth / window.devicePixelRatio;
+				this._lastFontMeasurement.charWidth = cssCellWidth - Math.round(letterSpacing) / window.devicePixelRatio;
 			}
 		}
 
@@ -185,14 +185,14 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 		// Get the character dimensions from xterm if it's available
 		if (xtermCore) {
-			if (xtermCore._renderService && xtermCore._renderService.dimensions?.actualCellWidth && xtermCore._renderService.dimensions?.actualCellHeight) {
+			if (xtermCore._renderService && xtermCore._renderService.dimensions?.css.cell.width && xtermCore._renderService.dimensions?.css.cell.height) {
 				return {
 					fontFamily,
 					fontSize,
 					letterSpacing,
 					lineHeight,
-					charHeight: xtermCore._renderService.dimensions.actualCellHeight / lineHeight,
-					charWidth: xtermCore._renderService.dimensions.actualCellWidth - Math.round(letterSpacing) / window.devicePixelRatio
+					charHeight: xtermCore._renderService.dimensions.css.cell.height / lineHeight,
+					charWidth: xtermCore._renderService.dimensions.css.cell.width - Math.round(letterSpacing) / window.devicePixelRatio
 				};
 			}
 		}

@@ -126,6 +126,7 @@ export interface ITunnelService {
 
 	canTunnel(uri: URI): boolean;
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number, elevateIfNeeded?: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
+	getExistingTunnel(remoteHost: string, remotePort: number): Promise<RemoteTunnel | undefined>;
 	setEnvironmentTunnel(remoteHost: string, remotePort: number, localAddress: string, privacy: string, protocol: string): void;
 	closeTunnel(remoteHost: string, remotePort: number): Promise<void>;
 	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable;
@@ -280,6 +281,19 @@ export abstract class AbstractTunnelService implements ITunnelService {
 			protocol,
 			dispose: () => Promise.resolve()
 		}));
+	}
+
+	async getExistingTunnel(remoteHost: string, remotePort: number): Promise<RemoteTunnel | undefined> {
+		if (isAllInterfaces(remoteHost) || isLocalhost(remoteHost)) {
+			remoteHost = LOCALHOST_ADDRESSES[0];
+		}
+
+		const existing = this.getTunnelFromMap(remoteHost, remotePort);
+		if (existing) {
+			++existing.refcount;
+			return existing.value;
+		}
+		return undefined;
 	}
 
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number, elevateIfNeeded: boolean = false, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
