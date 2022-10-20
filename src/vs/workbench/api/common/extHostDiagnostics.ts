@@ -21,7 +21,7 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 	readonly #proxy: MainThreadDiagnosticsShape | undefined;
-	readonly #onDidChangeDiagnostics: Emitter<vscode.Uri[]>;
+	readonly #onDidChangeDiagnostics: Emitter<readonly vscode.Uri[]>;
 	readonly #data: ResourceMap<vscode.Diagnostic[]>;
 
 	private _isDisposed = false;
@@ -33,7 +33,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		private readonly _modelVersionIdProvider: (uri: URI) => number | undefined,
 		extUri: IExtUri,
 		proxy: MainThreadDiagnosticsShape | undefined,
-		onDidChangeDiagnostics: Emitter<vscode.Uri[]>
+		onDidChangeDiagnostics: Emitter<readonly vscode.Uri[]>
 	) {
 		this.#data = new ResourceMap(uri => extUri.getComparisonKey(uri));
 		this.#proxy = proxy;
@@ -226,9 +226,9 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 	private readonly _proxy: MainThreadDiagnosticsShape;
 	private readonly _collections = new Map<string, DiagnosticCollection>();
-	private readonly _onDidChangeDiagnostics = new DebounceEmitter<vscode.Uri[]>({ merge: all => all.flat(), delay: 50 });
+	private readonly _onDidChangeDiagnostics = new DebounceEmitter<readonly vscode.Uri[]>({ merge: all => all.flat(), delay: 50 });
 
-	static _mapper(last: vscode.Uri[]): { uris: readonly vscode.Uri[] } {
+	static _mapper(last: readonly vscode.Uri[]): { uris: readonly vscode.Uri[] } {
 		const map = new ResourceMap<vscode.Uri>();
 		for (const uri of last) {
 			map.set(uri, uri);
