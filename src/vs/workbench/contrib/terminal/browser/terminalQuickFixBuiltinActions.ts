@@ -21,6 +21,7 @@ export const GitCreatePrOutputRegex = /remote:\s*(https:\/\/github\.com\/.+\/.+\
 
 export function gitSimilarCommand(): ITerminalQuickFixOptions {
 	return {
+		source: 'builtin',
 		id: 'Git Similar',
 		commandLineMatcher: GitCommandLineRegex,
 		outputMatcher: {
@@ -52,6 +53,7 @@ export function gitSimilarCommand(): ITerminalQuickFixOptions {
 }
 export function gitTwoDashes(): ITerminalQuickFixOptions {
 	return {
+		source: 'builtin',
 		id: 'Git Two Dashes',
 		commandLineMatcher: GitCommandLineRegex,
 		outputMatcher: {
@@ -76,6 +78,7 @@ export function gitTwoDashes(): ITerminalQuickFixOptions {
 }
 export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITerminalQuickFixOptions {
 	return {
+		source: 'builtin',
 		id: 'Free Port',
 		commandLineMatcher: AnyCommandLineRegex,
 		outputMatcher: {
@@ -102,8 +105,10 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 		}
 	};
 }
+
 export function gitPushSetUpstream(): ITerminalQuickFixOptions {
 	return {
+		source: 'builtin',
 		id: 'Git Push Set Upstream',
 		commandLineMatcher: GitPushCommandLineRegex,
 		outputMatcher: {
@@ -129,6 +134,7 @@ export function gitPushSetUpstream(): ITerminalQuickFixOptions {
 
 export function gitCreatePr(): ITerminalQuickFixOptions {
 	return {
+		source: 'builtin',
 		id: 'Git Create Pr',
 		commandLineMatcher: GitPushCommandLineRegex,
 		outputMatcher: {

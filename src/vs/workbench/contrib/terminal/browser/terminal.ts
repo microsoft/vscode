@@ -959,6 +959,7 @@ export interface ITerminalQuickFixOptions {
 	outputMatcher?: ITerminalOutputMatcher;
 	getQuickFixes: TerminalQuickFixCallback;
 	exitStatus?: boolean;
+	source: string;
 }
 export type TerminalQuickFixMatchResult = { commandLineMatch: RegExpMatchArray; outputMatch?: RegExpMatchArray | null };
 export type TerminalQuickFixAction = IAction | ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
