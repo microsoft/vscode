@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { runWhenIdle } from 'vs/base/common/async';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -11,15 +13,12 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-
 
 export class RendererProfiling {
 
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
-		@ITimerService timerService: ITimerService,
 		@INativeHostService nativeHostService: INativeHostService,
 		@ILogService logService: ILogService,
 		@ICommandService commandService: ICommandService,
@@ -28,10 +27,14 @@ export class RendererProfiling {
 		@IEditorService editorService: IEditorService,
 	) {
 
-		timerService.whenReady().then(() => {
+		this._computePerformanceBaseline().then(value => {
+			if (value < 0) {
+				// too slow
+				return;
+			}
 
 			// SLOW threshold
-			const slowThreshold = (timerService.startupMetrics.timers.ellapsedRequire / 2) | 0;
+			const slowThreshold = value * 10; // 200ms on MY machine
 
 			// Keep a record of the last events
 			const eventHistory = new RingBuffer<{ command: string; timestamp: number }>(5);
@@ -106,6 +109,38 @@ export class RendererProfiling {
 
 	dispose(): void {
 		this._disposables.dispose();
+	}
+
+	private async _computePerformanceBaseline(): Promise<number> {
+		return new Promise(resolve => {
+			runWhenIdle(() => {
+
+				// we use fibonacci numbers to have a performance baseline that indicates
+				// how slow/fast THIS machine actually is.
+				const sw = new StopWatch(true);
+				let tooSlow = false;
+				function fib(n: number): number {
+					if (tooSlow) {
+						return 0;
+					}
+					if (sw.elapsed() >= 1000) {
+						tooSlow = true;
+					}
+					if (n <= 2) {
+						return n;
+					}
+					return fib(n - 1) + fib(n - 2);
+				}
+
+				// On my machine the 26th fibonacci take ~20ms to compute. We derive performance observations
+				// from that and we bail if that took too long (>1s)
+				sw.reset();
+				fib(26);
+				const fib26 = sw.elapsed();
+
+				resolve(tooSlow ? -1 : fib26);
+			});
+		});
 	}
 }
 
