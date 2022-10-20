@@ -376,7 +376,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 				}
 				const group = groups.get(ExtensionIdentifier.toKey(extensionId));
 				if (!group) {
-					this._logService.info(`Ignoring configured affinity for '${extensionId}' because the extension is unknown or cannot execute.`);
+					this._logService.info(`Ignoring configured affinity for '${extensionId}' because the extension is unknown or cannot execute for extension host kind: ${extensionHostKindToString(extensionHostKind)}.`);
 					continue;
 				}
 
