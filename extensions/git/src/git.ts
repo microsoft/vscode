@@ -844,7 +844,7 @@ function parseGitConfig(raw: string, section: string): Iterable<GitConfigSection
 	return sections;
 }
 
-export function parseRemotes(raw: string): Remote[] {
+export function parseGitRemotes(raw: string): Remote[] {
 	const remotes: Remote[] = [];
 
 	// Remote sections
@@ -2239,7 +2239,7 @@ export class Repository {
 	}
 
 	async getRemotesFS(): Promise<Remote[]> {
-		return parseRemotes(await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'config'), 'utf8'));
+		return parseGitRemotes(await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'config'), 'utf8'));
 	}
 
 	async getBranch(name: string): Promise<Branch> {
