@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as picomatch from 'picomatch';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, LogOutputChannel, LogLevel } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, CancellationTokenSource, LogOutputChannel, LogLevel, CancellationError } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
@@ -892,6 +892,7 @@ export class Repository implements Disposable {
 	private isBranchProtectedMatcher: picomatch.Matcher | undefined;
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
+	private updateModelStateCancellationTokenSource: CancellationTokenSource | undefined;
 	private disposables: Disposable[] = [];
 
 	constructor(
@@ -1935,47 +1936,70 @@ export class Repository implements Disposable {
 		return folderPaths.filter(p => !ignored.has(p));
 	}
 
-	@throttle
-	private async updateModelState(): Promise<void> {
-		const config = workspace.getConfiguration('git');
-		let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
-		if (sort !== 'alphabetically' && sort !== 'committerdate') {
-			sort = 'alphabetically';
-		}
+	private async updateModelState() {
+		this.updateModelStateCancellationTokenSource?.cancel();
 
-		const [HEAD, refs, remotes, submodules, status, rebaseCommit, mergeInProgress, commitTemplate] =
-			await Promise.all([
-				this.repository.getHEADBranch(),
-				this.repository.getRefs({ sort }),
-				this.repository.getRemotes(),
-				this.repository.getSubmodules(),
-				this.getStatus(),
-				this.getRebaseCommit(),
-				this.isMergeInProgress(),
-				this.getInputTemplate()]);
-
-		this._HEAD = HEAD;
-		this._refs = refs!;
-		this._remotes = remotes!;
-		this._submodules = submodules!;
-		this.rebaseCommit = rebaseCommit;
-		this.mergeInProgress = mergeInProgress;
-
-		// set resource groups
-		this.mergeGroup.resourceStates = status.merge;
-		this.indexGroup.resourceStates = status.index;
-		this.workingTreeGroup.resourceStates = status.workingTree;
-		this.untrackedGroup.resourceStates = status.untracked;
-
-		// set count badge
-		this.setCountBadge();
-
-		this._onDidChangeStatus.fire();
-
-		this._sourceControl.commitTemplate = commitTemplate;
+		this.updateModelStateCancellationTokenSource = new CancellationTokenSource();
+		await this._updateModelState(this.updateModelStateCancellationTokenSource.token);
 	}
 
-	private async getStatus(): Promise<{ index: Resource[]; workingTree: Resource[]; merge: Resource[]; untracked: Resource[] }> {
+	private async _updateModelState(cancellationToken?: CancellationToken): Promise<void> {
+		if (cancellationToken && cancellationToken.isCancellationRequested) {
+			return;
+		}
+
+		try {
+			const config = workspace.getConfiguration('git');
+			let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
+			if (sort !== 'alphabetically' && sort !== 'committerdate') {
+				sort = 'alphabetically';
+			}
+
+			const [HEAD, refs, remotes, submodules, status, rebaseCommit, mergeInProgress, commitTemplate] =
+				await Promise.all([
+					this.repository.getHEADBranch(),
+					this.repository.getRefs({ sort }),
+					this.repository.getRemotes(),
+					this.repository.getSubmodules(),
+					this.getStatus(cancellationToken),
+					this.getRebaseCommit(),
+					this.isMergeInProgress(),
+					this.getInputTemplate()]);
+
+			this._HEAD = HEAD;
+			this._refs = refs!;
+			this._remotes = remotes!;
+			this._submodules = submodules!;
+			this.rebaseCommit = rebaseCommit;
+			this.mergeInProgress = mergeInProgress;
+
+			// set resource groups
+			this.mergeGroup.resourceStates = status.merge;
+			this.indexGroup.resourceStates = status.index;
+			this.workingTreeGroup.resourceStates = status.workingTree;
+			this.untrackedGroup.resourceStates = status.untracked;
+
+			// set count badge
+			this.setCountBadge();
+
+			this._onDidChangeStatus.fire();
+
+			this._sourceControl.commitTemplate = commitTemplate;
+		}
+		catch (err) {
+			if (err instanceof CancellationError) {
+				return;
+			}
+
+			throw err;
+		}
+	}
+
+	private async getStatus(cancellationToken?: CancellationToken): Promise<{ index: Resource[]; workingTree: Resource[]; merge: Resource[]; untracked: Resource[] }> {
+		if (cancellationToken && cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
 		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const untrackedChanges = scopedConfig.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
 		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
@@ -1983,7 +2007,7 @@ export class Repository implements Disposable {
 		const limit = scopedConfig.get<number>('statusLimit', 10000);
 
 		const start = new Date().getTime();
-		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges });
+		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges, cancellationToken });
 		const totalTime = new Date().getTime() - start;
 
 		this.isRepositoryHuge = didHitLimit ? { limit } : false;
