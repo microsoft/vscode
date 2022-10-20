@@ -765,11 +765,11 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 							}
 						},
 						commandToRun: {
-							description: 'The command to run in the terminal for this match. Refer to a component of a regex match found within the output via ${group:group_name}. When provided, will take precedence over linkToOpen.',
+							description: 'The command to run in the terminal for this match. Refer to a group found in the outputMatcher via ${group:group_name}. When provided, will take precedence over linkToOpen.',
 							type: 'string'
 						},
 						linkToOpen: {
-							description: 'The link to open for this match. Refer to a component of a regex match found within the output via ${group:group_name}. If a commandToRun is provided, this will be ignored.',
+							description: 'The link to open for this match. Refer to a group found in the outputMatcher via ${group:group_name}. If a commandToRun is provided, this will be ignored.',
 							type: 'string'
 						}
 					},
