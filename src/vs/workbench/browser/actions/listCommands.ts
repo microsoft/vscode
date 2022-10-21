@@ -307,7 +307,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.collapseAllTo',
+	id: 'list.collapseAllToFocus',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: WorkbenchListFocusContextKey,
 	handler: accessor => {
