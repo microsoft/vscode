@@ -9,6 +9,7 @@ import { compareFileExtensions, compareFileNames, comparePaths } from 'vs/base/c
 import { memoize } from 'vs/base/common/decorators';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
+import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap, TernarySearchTree } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
@@ -207,7 +208,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private _matches: Map<string, Match>;
 	private _removedMatches: Set<string>;
 	private _selectedMatch: Match | null = null;
-	private _name: string;
+	private _name: Lazy<string>;
 
 	private _updateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
@@ -233,7 +234,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this._matches = new Map<string, Match>();
 		this._removedMatches = new Set<string>();
 		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
-		this._name = labelService.getUriBasenameLabel(this.resource);
+		this._name = new Lazy(() => labelService.getUriBasenameLabel(this.resource));
 		this.createMatches();
 	}
 
@@ -426,7 +427,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	name(): string {
-		return this._name;
+		return this._name.getValue();
 	}
 
 	addContext(results: ITextSearchResult[] | undefined) {
@@ -494,8 +495,7 @@ export class FolderMatch extends Disposable {
 	protected _unDisposedFileMatches: ResourceMap<FileMatch>;
 	protected _unDisposedFolderMatches: ResourceMap<FolderMatchWithResource>;
 	private _replacingAll: boolean = false;
-	private _name: string;
-	private _recursiveFileMatches: ResourceMap<FileMatch>;
+	private _name: Lazy<string>;
 
 	// if this is compressed in a node with other FolderMatches, then this is set to the parent where compression starts
 	public compressionStartParent: FolderMatch | undefined;
@@ -519,8 +519,7 @@ export class FolderMatch extends Disposable {
 		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
 		this._unDisposedFileMatches = new ResourceMap<FileMatch>();
 		this._unDisposedFolderMatches = new ResourceMap<FolderMatchWithResource>();
-		this._name = this.resource ? labelService.getUriBasenameLabel(this.resource) : '';
-		this._recursiveFileMatches = new ResourceMap<FileMatch>();
+		this._name = new Lazy(() => this.resource ? labelService.getUriBasenameLabel(this.resource) : '');
 	}
 
 	get searchModel(): SearchModel {
@@ -552,7 +551,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	name(): string {
-		return this._name;
+		return this._name.getValue();
 	}
 
 	parent(): SearchResult | FolderMatch {
@@ -565,10 +564,9 @@ export class FolderMatch extends Disposable {
 		if (fileMatch) {
 			fileMatch.bindModel(model);
 		} else {
-			const folderMatches = this.folderMatchesIterator();
-			for (const elem of folderMatches) {
-				elem.bindModel(model);
-			}
+			const folderMatch = this.getFolderMatch(model.uri);
+			const match = folderMatch?.hasFileUriDownstream(model.uri);
+			match?.bindModel(model);
 		}
 	}
 
@@ -625,12 +623,29 @@ export class FolderMatch extends Disposable {
 		return (this.fileCount() + this.folderCount()) === 0;
 	}
 
-	hasFileUriDownstream(uri: URI): FileMatch | undefined {
-		return this._recursiveFileMatches.get(uri);
+	hasFileUriDownstream(uri: URI): FileMatch | null {
+		const directChildFileMatch = this._fileMatches.get(uri);
+		if (directChildFileMatch) {
+			return directChildFileMatch;
+		}
+
+		const folderMatch = this.getFolderMatch(uri);
+		const match = folderMatch?.hasFileUriDownstream(uri);
+		if (match) {
+			return match;
+		}
+
+		return null;
 	}
 
 	downstreamFileMatches(): FileMatch[] {
-		return [...this._recursiveFileMatches.values()];
+		let recursiveChildren: FileMatch[] = [];
+		const iterator = this.folderMatchesIterator();
+		for (const elem of iterator) {
+			recursiveChildren = recursiveChildren.concat(elem.downstreamFileMatches());
+		}
+
+		return [...this.fileMatchesIterator(), ...recursiveChildren];
 	}
 
 	private fileCount(): number {
@@ -655,10 +670,6 @@ export class FolderMatch extends Disposable {
 
 	get query(): ITextQuery | null {
 		return this._query;
-	}
-
-	addRecursiveFileMatch(fileMatch: FileMatch) {
-		this._recursiveFileMatches.set(fileMatch.resource, fileMatch);
 	}
 
 	addFileMatch(raw: IFileMatch[], silent: boolean): void {
@@ -855,19 +866,9 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 	private createFileMatch(query: IPatternInfo, previewOptions: ITextSearchPreviewOptions | undefined, maxResults: number | undefined, parent: FolderMatch, rawFileMatch: IFileMatch, closestRoot: FolderMatchWorkspaceRoot | null,): FileMatch {
 		const fileMatch = this.instantiationService.createInstance(FileMatch, query, previewOptions, maxResults, parent, rawFileMatch, closestRoot);
 		parent.doAddFile(fileMatch);
-		this.addRecursiveFileMatches(parent, fileMatch);
 		const disposable = fileMatch.onChange(({ didRemove }) => parent.onFileChange(fileMatch, didRemove));
 		fileMatch.onDispose(() => disposable.dispose());
 		return fileMatch;
-	}
-
-	private addRecursiveFileMatches(parent: FolderMatch, fileMatch: FileMatch) {
-		let currParent: FolderMatch | SearchResult = parent;
-
-		while (currParent instanceof FolderMatch) {
-			currParent.addRecursiveFileMatch(fileMatch);
-			currParent = currParent.parent();
-		}
 	}
 
 	createAndConfigureFileMatch(rawFileMatch: IFileMatch<URI>): FileMatch {
