@@ -253,10 +253,9 @@ pub struct VersionArgs {
 pub enum VersionSubcommand {
 	/// Switches the instance of VS Code in use.
 	Use(UseVersionArgs),
-	/// Uninstalls a instance of VS Code.
-	Uninstall(UninstallVersionArgs),
-	/// Lists installed VS Code instances.
-	List(OutputFormatOptions),
+
+	/// Shows the currently configured VS Code version.
+	Show,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -266,21 +265,9 @@ pub struct UseVersionArgs {
 	#[clap(value_name = "stable | insiders | x.y.z | path")]
 	pub name: String,
 
-	/// The directory the version should be installed into, if it's not already installed.
+	/// The directory where the version can be found.
 	#[clap(long, value_name = "path")]
 	pub install_dir: Option<String>,
-
-	/// Reinstall the version even if it's already installed.
-	#[clap(long)]
-	pub reinstall: bool,
-}
-
-#[derive(Args, Debug, Clone)]
-pub struct UninstallVersionArgs {
-	/// The version of VS Code to uninstall. Can be "stable", "insiders", or a
-	/// version number previous passed to `code version use <version>`.
-	#[clap(value_name = "stable | insiders | x.y.z")]
-	pub name: String,
 }
 
 #[derive(Args, Debug, Default, Clone)]
@@ -559,6 +546,16 @@ pub struct TunnelServeArgs {
 	/// Randomly name machine for port forwarding service
 	#[clap(long)]
 	pub random_name: bool,
+
+
+	/// Sets the machine name for port forwarding service
+	#[clap(long)]
+	pub name: Option<String>,
+
+	/// Optional parent process id. If provided, the server will be stopped when the process of the given pid no longer exists
+	#[clap(long, hide = true)]
+	pub parent_process_id: Option<i32>,
+
 }
 
 #[derive(Args, Debug, Clone)]

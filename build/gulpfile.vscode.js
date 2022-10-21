@@ -276,6 +276,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
 				'**/node-pty/lib/shared/conout.js',
 				'**/*.wasm',
+				'**/node-vsce-sign/bin/*',
 			], 'node_modules.asar'));
 
 		let all = es.merge(

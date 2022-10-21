@@ -314,12 +314,19 @@ impl DevTunnels {
 	}
 
 	/// Starts a new tunnel for the code server on the port. Unlike `start_new_tunnel`,
-	/// this attempts to reuse or generate a friendly tunnel name.
+	/// this attempts to reuse or create a tunnel of a preferred name or of a generated friendly tunnel name.
 	pub async fn start_new_launcher_tunnel(
 		&mut self,
+		preferred_name: Option<String>,
 		use_random_name: bool,
 	) -> Result<ActiveTunnel, AnyError> {
-		let (tunnel, persisted) = match self.launcher_tunnel.load() {
+		let matches_preferred_name = |tunnel: &PersistedTunnel| {
+			match &preferred_name {
+				Some(p) => p.eq(&tunnel.name),
+				None => true
+			}
+		};
+		let (tunnel, persisted) = match self.launcher_tunnel.load().filter(matches_preferred_name) {
 			Some(persisted) => {
 				let tunnel_lookup = spanf!(
 					self.log,
@@ -349,7 +356,7 @@ impl DevTunnels {
 			}
 			None => {
 				debug!(self.log, "No code server tunnel found, creating new one");
-				let name = self.get_name_for_tunnel(use_random_name).await?;
+				let name = self.get_name_for_tunnel(preferred_name, use_random_name).await?;
 				let (persisted, full_tunnel) = self.create_tunnel(&name).await?;
 				self.launcher_tunnel.save(Some(persisted.clone()))?;
 				(full_tunnel, persisted)
@@ -510,8 +517,8 @@ impl DevTunnels {
 		Ok(tunnels)
 	}
 
-	async fn get_name_for_tunnel(&mut self, use_random_name: bool) -> Result<String, AnyError> {
-		let mut placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);
+	async fn get_name_for_tunnel(&mut self, preferred_name: Option<String>, mut use_random_name: bool) -> Result<String, AnyError> {
+
 
 		let existing_tunnels = self.list_all_server_tunnels().await?;
 		let is_name_free = |n: &str| {
@@ -520,6 +527,20 @@ impl DevTunnels {
 				.any(|v| v.tags.iter().any(|t| t == n))
 		};
 
+		if let Some(machine_name) = preferred_name {
+			let name = machine_name;
+			if let Err(e) = is_valid_name(&name) {
+				info!(self.log, "{} is an invalid name", e);
+				return Err(AnyError::from(wrap(e, "invalid name")));
+			}
+			if is_name_free(&name) {
+				return Ok(name);
+			}
+			info!(self.log, "{} is already taken, using a random name instead", &name);
+			use_random_name = true;
+		}
+
+		let mut placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);
 		if use_random_name {
 			while !is_name_free(&placeholder_name) {
 				placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);

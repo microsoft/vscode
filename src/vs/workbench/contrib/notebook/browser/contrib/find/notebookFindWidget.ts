@@ -7,6 +7,8 @@ import * as DOM from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Lazy } from 'vs/base/common/lazy';
+import { Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch } from 'vs/editor/common/model';
@@ -40,8 +42,35 @@ export interface IShowNotebookFindWidgetOptions {
 	searchStringSeededFrom?: { cell: ICellViewModel; range: Range };
 }
 
+export class NotebookFindContrib extends Disposable implements INotebookEditorContribution {
+
+	static readonly id: string = 'workbench.notebook.find';
+
+	private readonly widget: Lazy<NotebookFindWidget>;
+
+	constructor(
+		private readonly notebookEditor: INotebookEditor,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super();
+
+		this.widget = new Lazy(() => this._register(this.instantiationService.createInstance(NotebookFindWidget, this.notebookEditor)));
+	}
+
+	show(initialInput?: string, options?: IShowNotebookFindWidgetOptions): Promise<void> {
+		return this.widget.getValue().show(initialInput, options);
+	}
+
+	hide() {
+		this.widget.rawValue?.hide();
+	}
+
+	replace(searchString: string | undefined) {
+		return this.widget.getValue().replace(searchString);
+	}
+}
+
 export class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
-	static id: string = 'workbench.notebook.find';
 	protected _findWidgetFocused: IContextKey<boolean>;
 	private _showTimeout: number | null = null;
 	private _hideTimeout: number | null = null;
