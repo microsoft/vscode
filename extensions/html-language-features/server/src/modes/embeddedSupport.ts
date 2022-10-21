@@ -168,17 +168,12 @@ function getEmbeddedDocument(document: TextDocument, contents: EmbeddedRegion[],
 	for (const c of contents) {
 		if (c.languageId === languageId && (!ignoreAttributeValues || !c.attributeValue)) {
 			result = substituteWithWhitespace(result, currentPos, c.start, oldContent, lastSuffix, getPrefix(c));
-			result += oldContent.substring(c.start, c.end);
+			result += updateContent(c, oldContent.substring(c.start, c.end));
 			currentPos = c.end;
 			lastSuffix = getSuffix(c);
 		}
 	}
-	if (languageId === 'javascript') {
-		result = substituteWithWhitespace(result, currentPos, oldContent.length, oldContent, lastSuffix, '').replace(`<!--`, `/* `).replace(`-->`, ` */`);
-	}
-	else {
-		result = substituteWithWhitespace(result, currentPos, oldContent.length, oldContent, lastSuffix, '');
-	}
+	result = substituteWithWhitespace(result, currentPos, oldContent.length, oldContent, lastSuffix, '');
 	return TextDocument.create(document.uri, languageId, document.version, result);
 }
 
@@ -198,6 +193,12 @@ function getSuffix(c: EmbeddedRegion) {
 		}
 	}
 	return '';
+}
+function updateContent(c: EmbeddedRegion, content: string): string {
+	if (!c.attributeValue && c.languageId === 'javascript') {
+		return content.replace(`<!--`, `/* `).replace(`-->`, ` */`);
+	}
+	return content;
 }
 
 function substituteWithWhitespace(result: string, start: number, end: number, oldContent: string, before: string, after: string) {
