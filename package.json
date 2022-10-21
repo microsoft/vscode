@@ -98,7 +98,7 @@
   },
   "devDependencies": {
     "7zip": "0.0.6",
-    "@playwright/test": "1.26.0",
+    "@playwright/test": "1.27.1",
     "@swc/cli": "0.1.57",
     "@swc/core": "1.2.245",
     "@types/cookie": "^0.3.3",
