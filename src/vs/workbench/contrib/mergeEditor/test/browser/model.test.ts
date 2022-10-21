@@ -14,6 +14,7 @@ import { createModelServices, createTextModel } from 'vs/editor/test/common/test
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
+import { MergeEditorTelemetry } from 'vs/workbench/contrib/mergeEditor/browser/telemetry';
 
 suite('merge editor model', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -295,7 +296,8 @@ class MergeModelInterface extends Disposable {
 			diffComputer,
 			{
 				resetResult: false
-			}
+			},
+			instantiationService.createInstance(MergeEditorTelemetry),
 		));
 	}
 
