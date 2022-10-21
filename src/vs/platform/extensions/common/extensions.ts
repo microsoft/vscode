@@ -204,7 +204,7 @@ export interface IExtensionContributions {
 	startEntries?: IStartEntry[];
 	readonly notebooks?: INotebookEntry[];
 	readonly notebookRenderer?: INotebookRendererContribution[];
-	readonly fileSystemProviders: IFileSystemProviderContribution[];
+	readonly fileSystemProviders?: IFileSystemProviderContribution[];
 }
 
 export interface IExtensionCapabilities {
