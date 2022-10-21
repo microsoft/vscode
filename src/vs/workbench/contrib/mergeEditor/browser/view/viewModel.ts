@@ -5,9 +5,10 @@
 
 import { findLast } from 'vs/base/common/arrays';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { derived, derivedObservableWithWritableCache, IObservable, IReader, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
+import { derived, derivedObservableWithWritableCache, IObservable, IReader, ITransaction, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { ModifiedBaseRange, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
@@ -28,6 +29,7 @@ export class MergeEditorViewModel extends Disposable {
 		public readonly resultCodeEditorView: ResultCodeEditorView,
 		public readonly baseCodeEditorView: IObservable<BaseCodeEditorView | undefined>,
 		public readonly showNonConflictingChanges: IObservable<boolean>,
+		@IConfigurationService public readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -44,6 +46,11 @@ export class MergeEditorViewModel extends Disposable {
 			});
 		}));
 	}
+
+	public readonly shouldUseAppendInsteadOfAccept = observableFromEvent<boolean>(
+		this.configurationService.onDidChangeConfiguration,
+		() => /** @description appendVsAccept */ this.configurationService.getValue('mergeEditor.shouldUseAppendInsteadOfAccept') ?? false
+	);
 
 	private counter = 0;
 	private readonly lastFocusedEditor = derivedObservableWithWritableCache<

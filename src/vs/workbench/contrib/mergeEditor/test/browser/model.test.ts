@@ -32,7 +32,7 @@ suite('merge editor model', () => {
 					base: ['⟦⟧₀line1', 'line2'],
 					input1: ['⟦0', '⟧₀line1', 'line2'],
 					input2: ['⟦0', '⟧₀line1', 'line2'],
-					result: ['⟦⟧{conflicting}₀'],
+					result: ['⟦⟧{unrecognized}₀'],
 				});
 
 				model.toggleConflict(0, 1);
@@ -64,7 +64,7 @@ suite('merge editor model', () => {
 					base: ['⟦⟧₀'],
 					input1: ['⟦input1⟧₀'],
 					input2: ['⟦input2⟧₀'],
-					result: ['⟦⟧{}₀'],
+					result: ['⟦⟧{base}₀'],
 				});
 
 				model.toggleConflict(0, 1);
@@ -96,7 +96,7 @@ suite('merge editor model', () => {
 					base: ['⟦hello⟧₀'],
 					input1: ['⟦hallo⟧₀'],
 					input2: ['⟦helloworld⟧₀'],
-					result: ['⟦⟧{conflicting}₀'],
+					result: ['⟦⟧{unrecognized}₀'],
 				});
 
 				model.toggleConflict(0, 1);
@@ -145,10 +145,10 @@ suite('merge editor model', () => {
 						'Zürich',
 						'Bern',
 						'⟦Basel',
-						'⟧{}₀Chur',
+						'⟧{base}₀Chur',
 						'⟦Davos',
 						'⟧{1✓}₁Genf',
-						'Thun⟦⟧{}₂',
+						'Thun⟦⟧{base}₂',
 					],
 				});
 
@@ -213,7 +213,7 @@ suite('merge editor model', () => {
 						'=======',
 						"import { autorun, IReader, observableFromEvent } from 'vs/workbench/contrib/audioCues/browser/observable';",
 						'>>>>>>> Stashed changes',
-						"⟧{conflicting}₁import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';",
+						"⟧{unrecognized}₁import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';",
 						'',
 					],
 				});
