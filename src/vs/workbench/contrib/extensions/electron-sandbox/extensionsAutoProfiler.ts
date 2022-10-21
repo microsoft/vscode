@@ -31,6 +31,7 @@ import { URI } from 'vs/base/common/uri';
 import { reportSample } from 'vs/platform/profiling/common/profilingTelemetrySpec';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 
@@ -49,6 +50,7 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INativeWorkbenchEnvironmentService private readonly _environmentServie: INativeWorkbenchEnvironmentService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITimerService timerService: ITimerService
 	) {
@@ -201,13 +203,15 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 		});
 
 		// send heavy samples
-		const samples = bottomUp(model, 5, false);
-		for (const sample of samples) {
-			reportSample(
-				{ sample, perfBaseline: this._perfBaseline, source: searchTree.findSubstr(URI.parse(sample.url))?.identifier.value ?? '<<not-found>>' },
-				this._telemetryService,
-				this._logService
-			);
+		if (this._configService.getValue('application.experimental.rendererProfiling')) {
+			const samples = bottomUp(model, 5, false);
+			for (const sample of samples) {
+				reportSample(
+					{ sample, perfBaseline: this._perfBaseline, source: searchTree.findSubstr(URI.parse(sample.url))?.identifier.value ?? '<<not-found>>' },
+					this._telemetryService,
+					this._logService
+				);
+			}
 		}
 
 		// add to running extensions view
