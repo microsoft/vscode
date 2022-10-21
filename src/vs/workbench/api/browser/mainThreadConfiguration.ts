@@ -12,6 +12,7 @@ import { MainThreadConfigurationShape, MainContext, ExtHostContext, IConfigurati
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ConfigurationTarget, IConfigurationService, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 
 @extHostNamedCustomer(MainContext.MainThreadConfiguration)
 export class MainThreadConfiguration implements MainThreadConfigurationShape {
@@ -72,12 +73,16 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 		}
 	}
 
-	private _updateValue(key: string, value: any, configurationTarget: ConfigurationTarget, overriddenValue: any | undefined, overrides: IConfigurationOverrides, scopeToLanguage: boolean | undefined): Promise<void> {
+	private async _updateValue(key: string, value: any, configurationTarget: ConfigurationTarget, overriddenValue: any | undefined, overrides: IConfigurationOverrides, scopeToLanguage: boolean | undefined): Promise<void> {
 		overrides = scopeToLanguage === true ? overrides
 			: scopeToLanguage === false ? { resource: overrides.resource }
 				: overrides.overrideIdentifier && overriddenValue !== undefined ? overrides
 					: { resource: overrides.resource };
-		return this.configurationService.updateValue(key, value, overrides, configurationTarget, true);
+		try {
+			return await this.configurationService.updateValue(key, value, overrides, configurationTarget, true);
+		} catch (error) {
+			throw ErrorNoTelemetry.fromError(error);
+		}
 	}
 
 	private deriveConfigurationTarget(key: string, overrides: IConfigurationOverrides): ConfigurationTarget {
