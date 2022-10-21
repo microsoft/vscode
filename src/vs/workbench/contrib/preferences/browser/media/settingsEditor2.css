@@ -172,6 +172,10 @@
 	padding-left: 33px;
 }
 
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row {
+	outline: none !important;
+}
+
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-twistie {
 	/* Hide twisties */
 	display: none !important;

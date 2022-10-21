@@ -40,7 +40,12 @@ class CheckoutItem implements QuickPickItem {
 		const pullBeforeCheckout = config.get<boolean>('pullBeforeCheckout', false) === true;
 
 		if (pullBeforeCheckout) {
-			await this.repository.fastForwardBranch(this.ref.name!);
+			try {
+				await this.repository.fastForwardBranch(this.ref.name!);
+			}
+			catch (err) {
+				// noop
+			}
 		}
 
 		await this.repository.checkout(this.ref.name, opts);

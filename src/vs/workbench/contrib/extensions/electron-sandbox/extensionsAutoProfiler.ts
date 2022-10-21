@@ -6,7 +6,7 @@
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IExtensionService, IResponsiveStateChangeEvent, IExtensionHostProfile, ProfileSession, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -30,11 +30,15 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { TelemetrySampleData, TelemetrySampleDataClassification } from 'vs/platform/profiling/common/profilingTelemetrySpec';
 import { generateUuid } from 'vs/base/common/uuid';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
-export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
+export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 
 	private readonly _blame = new Set<string>();
+
 	private _session: CancellationTokenSource | undefined;
+	private _unresponsiveListener: IDisposable | undefined;
+	private _perfBaseline: number = -1;
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -45,10 +49,22 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INativeWorkbenchEnvironmentService private readonly _environmentServie: INativeWorkbenchEnvironmentService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@ITimerService timerService: ITimerService
 	) {
-		super();
-		this._register(_extensionService.onDidChangeResponsiveChange(this._onDidChangeResponsiveChange, this));
+
+		timerService.perfBaseline.then(value => {
+			if (value < 0) {
+				return; // too slow for profiling
+			}
+			this._perfBaseline = value;
+			this._unresponsiveListener = _extensionService.onDidChangeResponsiveChange(this._onDidChangeResponsiveChange, this);
+		});
+	}
+
+	dispose(): void {
+		this._unresponsiveListener?.dispose();
+		this._session?.dispose(true);
 	}
 
 	private async _onDidChangeResponsiveChange(event: IResponsiveStateChangeEvent): Promise<void> {
@@ -194,7 +210,8 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 				percentage: sample.percentage,
 				functionName: sample.location,
 				callstack: sample.caller.map(c => `${c.percentage}|${c.location}`).join('<'),
-				extensionId: searchTree.findSubstr(URI.parse(sample.url))?.identifier.value ?? '<not_extension>'
+				extensionId: searchTree.findSubstr(URI.parse(sample.url))?.identifier.value ?? '<not_extension>',
+				perfBaseline: this._perfBaseline,
 			};
 			this._telemetryService.publicLog2<TelemetrySampleData, TelemetrySampleDataClassification>('exthostunresponsive.sample', data);
 		}

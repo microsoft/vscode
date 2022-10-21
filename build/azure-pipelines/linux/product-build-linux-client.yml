@@ -271,6 +271,14 @@ steps:
         displayName: Download VS Code CLI
         condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          artifact: vscode_cli_linux_armhf_cli
+          patterns: "**"
+          path: $(Build.ArtifactStagingDirectory)/cli
+        displayName: Download VS Code CLI
+        condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'armhf'))
+
       - script: |
           set -e
           tar -xzvf $(Build.ArtifactStagingDirectory)/cli/*.tar.gz -C $(Build.ArtifactStagingDirectory)/cli

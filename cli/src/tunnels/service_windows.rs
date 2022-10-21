@@ -214,9 +214,7 @@ fn service_main(_arguments: Vec<OsString>) -> Result<(), AnyError> {
 		match control_event {
 			ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
 			ServiceControl::Stop => {
-				shutdown_tx
-					.take()
-					.and_then(|tx| tx.blocking_send(ShutdownSignal::ServiceStopped).ok());
+				shutdown_tx.take().and_then(|tx| tx.blocking_send(ShutdownSignal::ServiceStopped).ok());
 				ServiceControlHandlerResult::NoError
 			}
 			_ => ServiceControlHandlerResult::NotImplemented,

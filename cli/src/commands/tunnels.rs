@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 use async_trait::async_trait;
-use std::fmt;
 use std::str::FromStr;
+use std::fmt;
 use sysinfo::{Pid, SystemExt};
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};

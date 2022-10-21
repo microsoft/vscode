@@ -1,9 +1,9 @@
 parameters:
   - name: VSCODE_BUILD_WIN32
     type: boolean
-  - name: VSCODE_BUILD_WIN32_ARM64
-    type: boolean
   - name: VSCODE_BUILD_WIN32_32BIT
+    type: boolean
+  - name: VSCODE_BUILD_WIN32_ARM64
     type: boolean
   - name: VSCODE_QUALITY
     type: string
@@ -18,7 +18,7 @@ steps:
 
   - template: ../mixin-distro-win32.yml
     parameters:
-      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -27,7 +27,6 @@ steps:
     displayName: Prepare CLI build
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
 
   - template: ../cli/install-rust-win32.yml
     parameters:
@@ -39,7 +38,7 @@ steps:
         - ${{ if eq(parameters.VSCODE_BUILD_WIN32_32BIT, true) }}:
           - i686-pc-windows-msvc
 
-  - template: ../vcpkg-install.yml
+  - template: ../vcpkg-install-win32.yml
     parameters:
       targets:
         - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
@@ -49,6 +48,7 @@ steps:
         - ${{ if eq(parameters.VSCODE_BUILD_WIN32_32BIT, true) }}:
           - x86-windows-static-md
       vcpkgDir: $(Build.SourcesDirectory)/build/azure-pipelines/cli/vcpkg
+      vcpkgArgs: --overlay-ports=$(Build.SourcesDirectory)/build/azure-pipelines/cli/vcpkg-overlay-ports
       targetDirectory: $(Build.ArtifactStagingDirectory)/deps
 
   - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:

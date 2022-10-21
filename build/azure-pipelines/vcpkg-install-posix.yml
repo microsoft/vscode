@@ -6,14 +6,17 @@ parameters:
     type: string
   - name: targetDirectory
     type: string
+  - name: vcpkgArgs
+    type: string
+    default: ''
 
 steps:
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      exec { git clone https://github.com/microsoft/vcpkg.git $(Build.ArtifactStagingDirectory)/vcpkg }
-      exec { cd $(Build.ArtifactStagingDirectory)/vcpkg; git checkout 779ce74ef67d3e12d904da1b15f9ed5626d5f677 }
-      exec { $(Build.ArtifactStagingDirectory)/vcpkg/bootstrap-vcpkg.bat }
-      Write-Output "##vso[task.setvariable variable=VSCODE_DID_BOOTSTRAP_VCPKG]true"
+  - script: |
+      set -e
+      git clone https://github.com/microsoft/vcpkg.git $(Build.ArtifactStagingDirectory)/vcpkg
+      cd $(Build.ArtifactStagingDirectory)/vcpkg && git checkout 3b3bd424827a1f7f4813216f6b32b6c61e386b2e
+      sh $(Build.ArtifactStagingDirectory)/vcpkg/bootstrap-vcpkg.sh
+      echo "##vso[task.setvariable variable=VSCODE_DID_BOOTSTRAP_VCPKG]true"
     displayName: Bootstrap vcpkg
     condition: not(eq(variables.VSCODE_DID_BOOTSTRAP_VCPKG, true))
 
@@ -25,14 +28,14 @@ steps:
         cacheHitVar: VCPKG_CACHE_RESTORED
       displayName: Cache ${{ target }}
 
-    - script: $(Build.ArtifactStagingDirectory)/vcpkg/vcpkg.exe install --triplet=${{ target }}
+    - script: $(Build.ArtifactStagingDirectory)/vcpkg/vcpkg install --triplet=${{ target }} ${{ parameters.vcpkgArgs }}
       displayName: vcpkg install ${{ target }}
       workingDirectory: ${{ parameters.vcpkgDir }}
       condition: ne(variables.VCPKG_CACHE_RESTORED, 'true')
 
-    - powershell: |
-        mkdir -p ${{ parameters.targetDirectory }} -Force
-        Move-Item -Path ${{ parameters.vcpkgDir }}/vcpkg_installed/${{ target }} -Destination ${{ parameters.targetDirectory }}
-        Remove-Item ${{ parameters.vcpkgDir }}/vcpkg_installed -Recurse -Force
+    - script: |
+        mkdir -p ${{ parameters.targetDirectory }}
+        mv ${{ parameters.vcpkgDir }}/vcpkg_installed/${{ target }} ${{ parameters.targetDirectory }}
+        rm -rf ${{ parameters.vcpkgDir }}/vcpkg_installed
       displayName: Stage vcpkg dependencies for ${{ target }}
       condition: ne(variables.VCPKG_CACHE_RESTORED, 'true')

@@ -1375,6 +1375,7 @@ declare namespace monaco.editor {
 		startColumn: number;
 		endLineNumber: number;
 		endColumn: number;
+		modelVersionId?: number;
 		relatedInformation?: IRelatedInformation[];
 		tags?: MarkerTag[];
 	}
@@ -1394,6 +1395,7 @@ declare namespace monaco.editor {
 		startColumn: number;
 		endLineNumber: number;
 		endColumn: number;
+		modelVersionId?: number;
 		relatedInformation?: IRelatedInformation[];
 		tags?: MarkerTag[];
 	}
