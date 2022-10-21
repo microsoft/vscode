@@ -214,8 +214,6 @@ class DiffToggleWordWrapController extends Disposable implements IDiffEditorCont
 		const originalTransientState = readTransientState(originalEditor.getModel(), this._codeEditorService);
 		const modifiedTransientState = readTransientState(modifiedEditor.getModel(), this._codeEditorService);
 
-		console.log(originalTransientState, modifiedTransientState);
-
 		if (originalTransientState && !modifiedTransientState && canToggleWordWrap(this._codeEditorService, originalEditor)) {
 			writeTransientState(modifiedEditor.getModel(), originalTransientState, this._codeEditorService);
 			this._diffEditor.updateOptions({});
