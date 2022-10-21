@@ -74,7 +74,6 @@ export class WorkerServerProcess implements TsServerProcess {
 			//     watchers.get(msg.data.path).dispose()
 			// }
 
-			this.output.append('extn got: ' + JSON.stringify(msg.data) + '\n');
 			for (const handler of this._onDataHandlers) {
 				handler(msg.data);
 			}
