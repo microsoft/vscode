@@ -579,12 +579,10 @@ export class FolderMatch extends Disposable {
 		folderMatch.onDispose(() => disposable.dispose());
 	}
 
-	clear(clearingAll = false, shouldRefreshTree = true): void {
+	clear(clearingAll = false): void {
 		const changed: FileMatch[] = this.downstreamFileMatches();
 		this.disposeMatches();
-		if (shouldRefreshTree) {
-			this._onChange.fire({ elements: changed, removed: true, added: false, clearingAll });
-		}
+		this._onChange.fire({ elements: changed, removed: true, added: false, clearingAll });
 	}
 
 	remove(matches: FileMatch | FolderMatchWithResource | (FileMatch | FolderMatchWithResource)[]): void {
@@ -1112,7 +1110,7 @@ export class SearchResult extends Disposable {
 		// When updating the query we could change the roots, so keep a reference to them to clean up when we trigger `disposePastResults`
 		const oldFolderMatches = this.folderMatches();
 		new Promise<void>(resolve => this.disposePastResults = resolve)
-			.then(() => oldFolderMatches.forEach(match => match.clear(false, false)))
+			.then(() => oldFolderMatches.forEach(match => match.clear()))
 			.then(() => oldFolderMatches.forEach(match => match.dispose()))
 			.then(() => this._isDirty = false);
 
