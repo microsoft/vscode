@@ -199,7 +199,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		const inputModel = await input.resolve();
 		const model = inputModel.model;
 
-		const viewModel = new MergeEditorViewModel(model, this.input1View, this.input2View, this.inputResultView, this.baseView, this.showNonConflictingChanges);
+		const viewModel = new MergeEditorViewModel(model, this.input1View, this.input2View, this.inputResultView, this.baseView, this.showNonConflictingChanges, this.configurationService);
 		transaction(tx => {
 			this._viewModel.set(viewModel, tx);
 			this._inputModel.set(inputModel, tx);

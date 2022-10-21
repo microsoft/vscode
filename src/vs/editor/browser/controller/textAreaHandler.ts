@@ -18,7 +18,7 @@ import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/v
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
 import { RenderLineNumbersType, EditorOption, IComputedEditorOptions, EditorOptions } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -114,10 +114,12 @@ export class TextAreaHandler extends ViewPart {
 	private _accessibilitySupport!: AccessibilitySupport;
 	private _accessibilityPageSize!: number;
 	private _accessibilityWriteTimer: TimeoutTimer;
+	private _textAreaWrapping!: boolean;
+	private _textAreaWidth!: number;
 	private _contentLeft: number;
 	private _contentWidth: number;
 	private _contentHeight: number;
-	private _fontInfo: BareFontInfo;
+	private _fontInfo: FontInfo;
 	private _lineHeight: number;
 	private _emptySelectionClipboard: boolean;
 	private _copyWithSyntaxHighlighting: boolean;
@@ -169,7 +171,9 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea = createFastDomNode(document.createElement('textarea'));
 		PartFingerprints.write(this.textArea, PartFingerprint.TextArea);
 		this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-		this.textArea.setAttribute('wrap', 'off');
+		this.textArea.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
+		const { tabSize } = this._context.viewModel.model.getOptions();
+		this.textArea.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
 		this.textArea.setAttribute('autocorrect', 'off');
 		this.textArea.setAttribute('autocapitalize', 'off');
 		this.textArea.setAttribute('autocomplete', 'off');
@@ -379,7 +383,8 @@ export class TextAreaHandler extends ViewPart {
 				const visibleBeforeCharCount = Math.min(startModelPosition.column - 1, desiredVisibleBeforeCharCount);
 				const distanceToModelLineStart = startModelPosition.column - 1 - visibleBeforeCharCount;
 				const hiddenLineTextBefore = lineTextBeforeSelection.substring(0, lineTextBeforeSelection.length - visibleBeforeCharCount);
-				const widthOfHiddenTextBefore = measureText(hiddenLineTextBefore, this._fontInfo);
+				const { tabSize } = this._context.viewModel.model.getOptions();
+				const widthOfHiddenTextBefore = measureText(hiddenLineTextBefore, this._fontInfo, tabSize);
 
 				return { distanceToModelLineStart, widthOfHiddenTextBefore };
 			})();
@@ -416,6 +421,9 @@ export class TextAreaHandler extends ViewPart {
 				distanceToModelLineEnd,
 			);
 
+			// We turn off wrapping if the <textarea> becomes visible for composition
+			this.textArea.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
+
 			this._visibleTextArea.prepareRender(this._visibleRangeProvider);
 			this._render();
 
@@ -438,6 +446,10 @@ export class TextAreaHandler extends ViewPart {
 		this._register(this._textAreaInput.onCompositionEnd(() => {
 
 			this._visibleTextArea = null;
+
+			// We turn on wrapping as necessary if the <textarea> hides after composition
+			this.textArea.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
+
 			this._render();
 
 			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
@@ -545,6 +557,21 @@ export class TextAreaHandler extends ViewPart {
 		} else {
 			this._accessibilityPageSize = accessibilityPageSize;
 		}
+
+		// When wrapping is enabled and a screen reader might be attached,
+		// we will size the textarea to match the width used for wrapping points computation (see `domLineBreaksComputer.ts`).
+		// This is because screen readers will read the text in the textarea and we'd like that the
+		// wrapping points in the textarea match the wrapping points in the editor.
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const wrappingColumn = layoutInfo.wrappingColumn;
+		if (wrappingColumn !== -1 && this._accessibilitySupport !== AccessibilitySupport.Disabled) {
+			const fontInfo = options.get(EditorOption.fontInfo);
+			this._textAreaWrapping = true;
+			this._textAreaWidth = Math.round(wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
+		} else {
+			this._textAreaWrapping = false;
+			this._textAreaWidth = (canUseZeroSizeTextarea ? 0 : 1);
+		}
 	}
 
 	// --- begin event handlers
@@ -561,6 +588,9 @@ export class TextAreaHandler extends ViewPart {
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
+		this.textArea.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
+		const { tabSize } = this._context.viewModel.model.getOptions();
+		this.textArea.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
 		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 
@@ -757,16 +787,16 @@ export class TextAreaHandler extends ViewPart {
 			// We will also make the fontSize and lineHeight the correct dimensions to help with the placement of these pickers
 			this._doRender({
 				lastRenderPosition: this._primaryCursorPosition,
-				top: top,
-				left: left,
-				width: (canUseZeroSizeTextarea ? 0 : 1),
+				top,
+				left: this._textAreaWrapping ? this._contentLeft : left,
+				width: this._textAreaWidth,
 				height: this._lineHeight,
 				useCover: false
 			});
 			// In case the textarea contains a word, we're going to try to align the textarea's cursor
 			// with our cursor by scrolling the textarea as much as possible
 			this.textArea.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
-			const lineCount = this._newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
+			const lineCount = this._textAreaInput.textAreaState.newlineCountBeforeSelection ?? this._newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
 			this.textArea.domNode.scrollTop = lineCount * this._lineHeight;
 			return;
 		}
@@ -774,8 +804,8 @@ export class TextAreaHandler extends ViewPart {
 		this._doRender({
 			lastRenderPosition: this._primaryCursorPosition,
 			top: top,
-			left: left,
-			width: (canUseZeroSizeTextarea ? 0 : 1),
+			left: this._textAreaWrapping ? this._contentLeft : left,
+			width: this._textAreaWidth,
 			height: (canUseZeroSizeTextarea ? 0 : 1),
 			useCover: false
 		});
@@ -801,7 +831,7 @@ export class TextAreaHandler extends ViewPart {
 			lastRenderPosition: null,
 			top: 0,
 			left: 0,
-			width: (canUseZeroSizeTextarea ? 0 : 1),
+			width: this._textAreaWidth,
 			height: (canUseZeroSizeTextarea ? 0 : 1),
 			useCover: true
 		});
@@ -861,7 +891,7 @@ interface IRenderData {
 	strikethrough?: boolean;
 }
 
-function measureText(text: string, fontInfo: BareFontInfo): number {
+function measureText(text: string, fontInfo: FontInfo, tabSize: number): number {
 	if (text.length === 0) {
 		return 0;
 	}
@@ -874,6 +904,7 @@ function measureText(text: string, fontInfo: BareFontInfo): number {
 	const regularDomNode = document.createElement('span');
 	applyFontInfo(regularDomNode, fontInfo);
 	regularDomNode.style.whiteSpace = 'pre'; // just like the textarea
+	regularDomNode.style.tabSize = `${tabSize * fontInfo.spaceWidth}px`; // just like the textarea
 	regularDomNode.append(text);
 	container.appendChild(regularDomNode);
 
