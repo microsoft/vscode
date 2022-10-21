@@ -30,8 +30,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { minimapFindMatch, overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
-// import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
+import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
@@ -207,6 +209,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private _resource: URI;
 	private _fileStat?: IFileStatWithPartialMetadata;
 	private _model: ITextModel | null = null;
+	private _notebookEditorWidget: NotebookEditorWidget | null = null;
 	private _modelListener: IDisposable | null = null;
 	private _matches: Map<string, Match>;
 	private _removedMatches: Set<string>;
@@ -269,6 +272,16 @@ export class FileMatch extends Disposable implements IFileMatch {
 		});
 		this._model.onWillDispose(() => this.onModelWillDispose());
 		this.updateHighlights();
+	}
+
+	bindEditorWidget(widget: NotebookEditorWidget) {
+		this._notebookEditorWidget = widget;
+		console.log(`added widget ${this._notebookEditorWidget.textModel?.uri}`);
+	}
+
+	unbindEditorWidget(widget: NotebookEditorWidget) {
+		this._notebookEditorWidget = null;
+		console.log(`removed widget ${widget.textModel?.uri}`);
 	}
 
 	private onModelWillDispose(): void {
@@ -571,6 +584,33 @@ export class FolderMatch extends Disposable {
 			const match = folderMatch?.getDownstreamFileMatch(model.uri);
 			match?.bindModel(model);
 		}
+	}
+
+	bindEditorWidget(editor: NotebookEditorWidget, resource: URI) {
+		const fileMatch = this._fileMatches.get(resource);
+
+		if (fileMatch) {
+			fileMatch.bindEditorWidget(editor);
+		} else {
+			const folderMatches = this.folderMatchesIterator();
+			for (const elem of folderMatches) {
+				elem.bindEditorWidget(editor, resource);
+			}
+		}
+	}
+
+	unbindEditorWidget(editor: NotebookEditorWidget, resource: URI) {
+		const fileMatch = this._fileMatches.get(resource);
+
+		if (fileMatch) {
+			fileMatch.unbindEditorWidget(editor);
+		} else {
+			const folderMatches = this.folderMatchesIterator();
+			for (const elem of folderMatches) {
+				elem.unbindEditorWidget(editor, resource);
+			}
+		}
+
 	}
 
 	public createIntermediateFolderMatch(resource: URI, id: string, index: number, query: ITextQuery, baseWorkspaceFolder: FolderMatchWorkspaceRoot): FolderMatchWithResource {
@@ -1056,10 +1096,9 @@ export class SearchResult extends Disposable {
 	private _folderMatchesMap: TernarySearchTree<URI, FolderMatchWithResource> = TernarySearchTree.forUris<FolderMatchWorkspaceRoot>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
 	private _showHighlights: boolean = false;
 	private _query: ITextQuery | null = null;
-
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
 	private disposePastResults: () => void = () => { };
-
+	private _notebookEditors: Set<NotebookEditor>;
 	private _isDirty = false;
 
 	constructor(
@@ -1068,18 +1107,23 @@ export class SearchResult extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		// @IEditorService private readonly editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 
 		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
-
+		this._register(this.editorService.onDidVisibleEditorsChange(() => {
+			this.onDidVisibleEditorsChange();
+		}));
 		this._register(this.onChange(e => {
 			if (e.removed) {
 				this._isDirty = !this.isEmpty();
 			}
 		}));
+
+
+		this._notebookEditors = new Set<NotebookEditor>();
 	}
 
 	async batchReplace(elementsToReplace: RenderableMatch[]) {
@@ -1170,9 +1214,59 @@ export class SearchResult extends Disposable {
 
 		return retEvent;
 	}
+
+	private onDidVisibleEditorsChange(): void {
+		const visibleNotebookEditors = this.editorService.visibleEditorPanes
+			.map((editor) => ((editor instanceof NotebookEditor) ? (editor as NotebookEditor) : null))
+			.filter((editor2): editor2 is NotebookEditor => (NotebookEditor !== null));
+
+		if (visibleNotebookEditors.length === 0) {
+			return;
+		}
+
+		const oldEditors = this._notebookEditors.values();
+
+		const oldEditorsToUnbind = [];
+		const oldEditorsToKeepBound = [];
+		for (const editor of oldEditors) {
+			if (visibleNotebookEditors.includes(editor)) {
+				oldEditorsToKeepBound.push(editor);
+			} else {
+				oldEditorsToUnbind.push(editor);
+			}
+		}
+
+		for (const editor of oldEditorsToUnbind) {
+			const widget = editor.getControl();
+			// doesn't currently work because these fields are usually undefined by now on the editor
+			if (editor.input && editor.input.resource && widget) {
+				this.onNotebookEditorRemoved(widget, editor.input.resource);
+				this._notebookEditors.delete(editor);
+			}
+		}
+
+		for (const editor of visibleNotebookEditors) {
+			const widget = editor.getControl();
+			if (editor.input && editor.input.resource && widget) {
+				this.onNotebookEditorAdded(widget, editor.input.resource);
+				this._notebookEditors.add(editor);
+			}
+		}
+	}
+
 	private onModelAdded(model: ITextModel): void {
 		const folderMatch = this._folderMatchesMap.findSubstr(model.uri);
 		folderMatch?.bindModel(model);
+	}
+
+	private onNotebookEditorAdded(editor: NotebookEditorWidget, resource: URI): void {
+		const folderMatch = this._folderMatchesMap.findSubstr(resource);
+		folderMatch?.bindEditorWidget(editor, resource);
+	}
+
+	private onNotebookEditorRemoved(editor: NotebookEditorWidget, resource: URI): void {
+		const folderMatch = this._folderMatchesMap.findSubstr(resource);
+		folderMatch?.unbindEditorWidget(editor, resource);
 	}
 
 	private _createBaseFolderMatch(resource: URI | null, id: string, index: number, query: ITextQuery): FolderMatch {

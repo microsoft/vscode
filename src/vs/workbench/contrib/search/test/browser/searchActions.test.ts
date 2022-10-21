@@ -16,7 +16,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { IFileMatch } from 'vs/workbench/services/search/common/search';
 import { getElementToFocusAfterRemoved, getLastNodeFromSameType } from 'vs/workbench/contrib/search/browser/searchActions';
-import { FileMatch, FileMatchOrMatch, Match } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, FileMatchOrMatch, Match } from 'vs/workbench/contrib/search/browser/searchModel';
 import { MockObjectTree } from 'vs/workbench/contrib/search/test/browser/mockSearchTree';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';

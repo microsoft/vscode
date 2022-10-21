@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { Match, FileMatch, SearchResult, SearchModel, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
+import { Match, FileMatch, SearchResult, SearchModel, FolderMatch } from 'vs/workbench/contrib/search/browser/searchModel';
 import { URI } from 'vs/base/common/uri';
 import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch, QueryType } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -15,7 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelService } from 'vs/editor/common/services/modelService';
 import { IModelService } from 'vs/editor/common/services/model';
-import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
+import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';

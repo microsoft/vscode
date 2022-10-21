@@ -16,7 +16,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { IFileMatch, IFileSearchStats, IFolderQuery, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchService, ITextSearchMatch, OneLineRange, TextSearchMatch } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
+import { SearchModel } from 'vs/workbench/contrib/search/browser/searchModel';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { FileService } from 'vs/platform/files/common/fileService';

@@ -21,7 +21,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { FileMatch, FolderMatch, Match, searchComparer, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, FolderMatch, Match, searchComparer, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { MockLabelService } from 'vs/workbench/services/label/test/common/mockLabelService';
 import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';

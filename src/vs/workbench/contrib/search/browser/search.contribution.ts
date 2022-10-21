@@ -47,7 +47,7 @@ import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { resolveResourcesForSearchIncludes } from 'vs/workbench/services/search/common/queryBuilder';
 import { getWorkspaceSymbols, IWorkspaceSymbol, SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, ISearchWorkbenchService, Match, RenderableMatch, SearchWorkbenchService } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, ISearchWorkbenchService, Match, RenderableMatch, SearchWorkbenchService } from 'vs/workbench/contrib/search/browser/searchModel';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
