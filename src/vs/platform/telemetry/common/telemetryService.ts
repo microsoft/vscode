@@ -108,6 +108,11 @@ export class TelemetryService implements ITelemetryService {
 			return Promise.resolve(undefined);
 		}
 
+		// Check if event name contains a number and throw as the GDPR catalog doesn't play nice with numbers in event names
+		if (/\d/.test(eventName)) {
+			throw new Error(`Event name '${eventName}' contains a number. Event names should not contain numbers.`);
+		}
+
 		return this._commonProperties.then(values => {
 
 			// add experiment properties
