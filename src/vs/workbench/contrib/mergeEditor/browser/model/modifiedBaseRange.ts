@@ -262,6 +262,8 @@ export function getOtherInputNumber(inputNumber: InputNumber): InputNumber {
 }
 
 export abstract class AbstractModifiedBaseRangeState {
+	constructor() { }
+
 	abstract get kind(): ModifiedBaseRangeStateKind;
 
 	public get includesInput1(): boolean { return false; }
