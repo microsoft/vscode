@@ -649,13 +649,13 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			return Promise.resolve(undefined);
 		}
 
+		const schemes = folders.reduce((existing, current) => existing.add(current.uri.scheme), new Set<string>());
+
 		return Promise.all(
 			this._myRegistry.getAllExtensionDescriptions().map((desc) => {
 				if (this.isActivated(desc.identifier)) {
 					return;
 				}
-
-				const schemes = folders.reduce((existing, current) => existing.add(current.uri.scheme), new Set<string>());
 
 				const fileSystemProviders = desc.contributes?.fileSystemProviders;
 				if (!fileSystemProviders) { return; }
