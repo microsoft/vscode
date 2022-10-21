@@ -5,16 +5,18 @@
 
 import { Connection, FullDocumentDiagnosticReport, TextDocuments, UnchangedDocumentDiagnosticReport } from 'vscode-languageserver';
 import * as md from 'vscode-markdown-languageservice';
-import { disposeAll } from 'vscode-markdown-languageservice/out/util/dispose';
 import { Disposable } from 'vscode-notebook-renderer/events';
 import { URI } from 'vscode-uri';
 import { ConfigurationManager, ValidateEnabled } from '../configuration';
+import { disposeAll } from '../util/dispose';
 
 const defaultDiagnosticOptions: md.DiagnosticOptions = {
 	validateFileLinks: md.DiagnosticLevel.ignore,
 	validateReferences: md.DiagnosticLevel.ignore,
 	validateFragmentLinks: md.DiagnosticLevel.ignore,
 	validateMarkdownFileLinkFragments: md.DiagnosticLevel.ignore,
+	validateUnusedLinkDefinitions: md.DiagnosticLevel.ignore,
+	validateDuplicateLinkDefinitions: md.DiagnosticLevel.ignore,
 	ignoreLinks: [],
 };
 
@@ -23,6 +25,7 @@ function convertDiagnosticLevel(enabled: ValidateEnabled): md.DiagnosticLevel | 
 		case 'error': return md.DiagnosticLevel.error;
 		case 'warning': return md.DiagnosticLevel.warning;
 		case 'ignore': return md.DiagnosticLevel.ignore;
+		case 'hint': return md.DiagnosticLevel.hint;
 		default: return md.DiagnosticLevel.ignore;
 	}
 }
@@ -33,12 +36,15 @@ function getDiagnosticsOptions(config: ConfigurationManager): md.DiagnosticOptio
 		return defaultDiagnosticOptions;
 	}
 
+	const validateFragmentLinks = convertDiagnosticLevel(settings.markdown.validate.fragmentLinks.enabled);
 	return {
-		validateFileLinks: convertDiagnosticLevel(settings.markdown.experimental.validate.fileLinks.enabled),
-		validateReferences: convertDiagnosticLevel(settings.markdown.experimental.validate.referenceLinks.enabled),
-		validateFragmentLinks: convertDiagnosticLevel(settings.markdown.experimental.validate.fragmentLinks.enabled),
-		validateMarkdownFileLinkFragments: convertDiagnosticLevel(settings.markdown.experimental.validate.fileLinks.markdownFragmentLinks),
-		ignoreLinks: settings.markdown.experimental.validate.ignoreLinks,
+		validateFileLinks: convertDiagnosticLevel(settings.markdown.validate.fileLinks.enabled),
+		validateReferences: convertDiagnosticLevel(settings.markdown.validate.referenceLinks.enabled),
+		validateFragmentLinks: convertDiagnosticLevel(settings.markdown.validate.fragmentLinks.enabled),
+		validateMarkdownFileLinkFragments: settings.markdown.validate.fileLinks.markdownFragmentLinks === 'inherit' ? validateFragmentLinks : convertDiagnosticLevel(settings.markdown.validate.fileLinks.markdownFragmentLinks),
+		validateUnusedLinkDefinitions: convertDiagnosticLevel(settings.markdown.validate.unusedLinkDefinitions.enabled),
+		validateDuplicateLinkDefinitions: convertDiagnosticLevel(settings.markdown.validate.duplicateLinkDefinitions.enabled),
+		ignoreLinks: settings.markdown.validate.ignoredLinks,
 	};
 }
 
@@ -69,7 +75,7 @@ export function registerValidateSupport(
 	connection.languages.diagnostics.on(async (params, token): Promise<FullDocumentDiagnosticReport | UnchangedDocumentDiagnosticReport> => {
 		logger.log(md.LogLevel.Trace, 'Server: connection.languages.diagnostics.on', params.textDocument.uri);
 
-		if (!config.getSettings()?.markdown.experimental.validate.enabled) {
+		if (!config.getSettings()?.markdown.validate.enabled) {
 			return emptyDiagnosticsResponse;
 		}
 

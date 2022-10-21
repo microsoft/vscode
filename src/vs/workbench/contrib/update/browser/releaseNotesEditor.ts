@@ -17,7 +17,6 @@ import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/support
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as nls from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -63,10 +62,7 @@ export class ReleaseNotesManager {
 		});
 	}
 
-	public async show(
-		accessor: ServicesAccessor,
-		version: string
-	): Promise<boolean> {
+	public async show(version: string): Promise<boolean> {
 		const releaseNoteText = await this.loadReleaseNotes(version);
 		this._lastText = releaseNoteText;
 		const html = await this.renderBody(releaseNoteText);
@@ -78,7 +74,7 @@ export class ReleaseNotesManager {
 			this._currentReleaseNotes.webview.html = html;
 			this._webviewWorkbenchService.revealWebview(this._currentReleaseNotes, activeEditorPane ? activeEditorPane.group : this._editorGroupService.activeGroup, false);
 		} else {
-			this._currentReleaseNotes = this._webviewWorkbenchService.createWebview(
+			this._currentReleaseNotes = this._webviewWorkbenchService.openWebview(
 				{
 					id: generateUuid(),
 					options: {

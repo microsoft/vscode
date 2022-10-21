@@ -10,27 +10,36 @@ import { coalesceInPlace } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const enum HiddenItemStrategy {
+	/** This toolbar doesn't support hiding*/
+	NoHide = -1,
+	/** Hidden items aren't shown anywhere */
 	Ignore = 0,
-	RenderInSecondaryGroup = 1
+	/** Hidden items move into the secondary group */
+	RenderInSecondaryGroup = 1,
 }
 
 export type IWorkbenchToolBarOptions = IToolBarOptions & {
 
 	/**
 	 * Items of the primary group can be hidden. When this happens the item can
-	 * - move in to the secondary popup-menu, or
+	 * - move into the secondary popup-menu, or
 	 * - not be shown at all
 	 */
 	hiddenItemStrategy?: HiddenItemStrategy;
 
+	/**
+	 * Optional menu id which is used for a "Reset Menu" command. This should be the
+	 * menu id that defines the contents of this workbench menu
+	 */
+	resetMenu?: MenuId;
 
 	/**
 	 * Optional menu id which items are used for the context menu of the toolbar.
@@ -91,37 +100,41 @@ export class WorkbenchToolBar extends ToolBar {
 		}
 	}
 
-	override setActions(_primary: readonly IAction[], _secondary: readonly IAction[] = []): void {
+	override setActions(_primary: readonly IAction[], _secondary: readonly IAction[] = [], menuIds?: readonly MenuId[]): void {
 
 		this._sessionDisposables.clear();
 		const primary = _primary.slice();
 		const secondary = _secondary.slice();
 		const toggleActions: IAction[] = [];
 
-		// move all hidden items to secondary group or ignore them
-		let shouldPrependSeparator = secondary.length > 0;
-		for (let i = 0; i < primary.length; i++) {
-			const action = primary[i];
-			if (!(action instanceof MenuItemAction)) {
-				// console.warn(`Action ${action.id}/${action.label} is not a MenuItemAction`);
-				continue;
-			}
-			if (!action.hideActions) {
-				continue;
-			}
+		let someAreHidden = false;
+		// unless disabled, move all hidden items to secondary group or ignore them
+		if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.NoHide) {
+			let shouldPrependSeparator = secondary.length > 0;
+			for (let i = 0; i < primary.length; i++) {
+				const action = primary[i];
+				if (!(action instanceof MenuItemAction) && !(action instanceof SubmenuItemAction)) {
+					// console.warn(`Action ${action.id}/${action.label} is not a MenuItemAction`);
+					continue;
+				}
+				if (!action.hideActions) {
+					continue;
+				}
 
-			// collect all toggle actions
-			toggleActions.push(action.hideActions.toggle);
+				// collect all toggle actions
+				toggleActions.push(action.hideActions.toggle);
 
-			// hidden items move into overflow or ignore
-			if (action.hideActions.isHidden) {
-				primary[i] = undefined!;
-				if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.Ignore) {
-					if (shouldPrependSeparator) {
-						shouldPrependSeparator = false;
-						secondary.unshift(new Separator());
+				// hidden items move into overflow or ignore
+				if (action.hideActions.isHidden) {
+					someAreHidden = true;
+					primary[i] = undefined!;
+					if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.Ignore) {
+						if (shouldPrependSeparator) {
+							shouldPrependSeparator = false;
+							secondary.unshift(new Separator());
+						}
+						secondary.unshift(action);
 					}
-					secondary.unshift(action);
 				}
 			}
 		}
@@ -143,8 +156,14 @@ export class WorkbenchToolBar extends ToolBar {
 
 				// add "hide foo" actions
 				let hideAction: IAction;
-				if (action instanceof MenuItemAction && action.hideActions) {
+				if (action instanceof MenuItemAction || action instanceof SubmenuItemAction) {
+					if (!action.hideActions) {
+						// no context menu for MenuItemAction instances that support no hiding
+						// those are fake actions and need to be cleaned up
+						return;
+					}
 					hideAction = action.hideActions.hide;
+
 				} else {
 					hideAction = toAction({
 						id: 'label',
@@ -155,21 +174,26 @@ export class WorkbenchToolBar extends ToolBar {
 				}
 				actions = [hideAction, new Separator(), ...toggleActions];
 
-				// add context menu actions (iff appicable)
-				if (this._options?.contextMenu) {
-					const menu = this._menuService.createMenu(this._options.contextMenu, this._contextKeyService);
-					const contextMenuActions: IAction[] = [];
-					createAndFillInContextMenuActions(menu, { ...this._options?.menuOptions, renderShortTitle: true, }, contextMenuActions);
-					menu.dispose();
-
-					if (contextMenuActions.length > 0) {
-						actions = [...actions, new Separator(), ...contextMenuActions];
-					}
+				// add "Reset Menu" action
+				if (this._options?.resetMenu && !menuIds) {
+					menuIds = [this._options.resetMenu];
+				}
+				if (someAreHidden && menuIds) {
+					actions.push(new Separator());
+					actions.push(toAction({
+						id: 'resetThisMenu',
+						label: localize('resetThisMenu', "Reset Menu"),
+						run: () => this._menuService.resetHiddenStates(menuIds)
+					}));
 				}
 
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => e,
 					getActions: () => actions,
+					// add context menu actions (iff appicable)
+					menuId: this._options?.contextMenu,
+					menuActionOptions: { renderShortTitle: true, ...this._options?.menuOptions },
+					contextKeyService: this._contextKeyService,
 				});
 			}));
 		}
@@ -209,6 +233,12 @@ export interface IMenuWorkbenchToolBarOptions extends IWorkbenchToolBarOptions {
 	 * Optional options to configure how the toolbar renderes items.
 	 */
 	toolbarOptions?: IToolBarRenderOptions;
+
+	/**
+	 * Only `undefined` to disable the reset command is allowed, otherwise the menus
+	 * id is used.
+	 */
+	resetMenu?: undefined;
 }
 
 /**
@@ -228,10 +258,10 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(container, options, menuService, contextKeyService, contextMenuService, keybindingService, telemetryService);
+		super(container, { resetMenu: menuId, ...options }, menuService, contextKeyService, contextMenuService, keybindingService, telemetryService);
 
 		// update logic
-		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService));
+		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		const updateToolbar = () => {
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];

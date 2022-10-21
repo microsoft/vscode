@@ -5,7 +5,7 @@
 
 import { $, append, createStyleSheet, EventHelper, EventLike } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
-import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
+import { EventType, Gesture } from 'vs/base/browser/touch';
 import { Delayer } from 'vs/base/common/async';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -155,6 +155,7 @@ interface PointerEvent extends EventLike {
 	readonly pageY: number;
 	readonly altKey: boolean;
 	readonly target: EventTarget | null;
+	readonly initialTarget?: EventTarget | undefined;
 }
 
 interface IPointerEventFactory {
@@ -419,17 +420,22 @@ export class Sash extends Disposable {
 
 		this._register(Gesture.addTarget(this.el));
 
-		const onTouchStart = Event.map(this._register(new DomEmitter(this.el, EventType.Start)).event, e => ({ ...e, target: e.initialTarget ?? null }));
+		const onTouchStart = this._register(new DomEmitter(this.el, EventType.Start)).event;
 		this._register(onTouchStart(e => this.onPointerStart(e, new GestureEventFactory(this.el)), this));
 		const onTap = this._register(new DomEmitter(this.el, EventType.Tap)).event;
-		const onDoubleTap = Event.map(
-			Event.filter(
-				Event.debounce<GestureEvent, { event: GestureEvent; count: number }>(onTap, (res, event) => ({ event, count: (res?.count ?? 0) + 1 }), 250),
-				({ count }) => count === 2
-			),
-			({ event }) => ({ ...event, target: event.initialTarget ?? null })
-		);
-		this._register(onDoubleTap(this.onPointerDoublePress, this));
+
+		let doubleTapTimeout: any = undefined;
+		this._register(onTap(event => {
+			if (doubleTapTimeout) {
+				clearTimeout(doubleTapTimeout);
+				doubleTapTimeout = undefined;
+				this.onPointerDoublePress(event);
+				return;
+			}
+
+			clearTimeout(doubleTapTimeout);
+			doubleTapTimeout = setTimeout(() => doubleTapTimeout = undefined, 250);
+		}, this));
 
 		if (typeof options.size === 'number') {
 			this.size = options.size;
@@ -645,12 +651,14 @@ export class Sash extends Disposable {
 	}
 
 	private getOrthogonalSash(e: PointerEvent): Sash | undefined {
-		if (!e.target || !(e.target instanceof HTMLElement)) {
+		const target = e.initialTarget ?? e.target;
+
+		if (!target || !(target instanceof HTMLElement)) {
 			return undefined;
 		}
 
-		if (e.target.classList.contains('orthogonal-drag-handle')) {
-			return e.target.classList.contains('start') ? this.orthogonalStartSash : this.orthogonalEndSash;
+		if (target.classList.contains('orthogonal-drag-handle')) {
+			return target.classList.contains('start') ? this.orthogonalStartSash : this.orthogonalEndSash;
 		}
 
 		return undefined;

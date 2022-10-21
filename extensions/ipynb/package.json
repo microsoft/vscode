@@ -9,10 +9,12 @@
 		"vscode": "^1.57.0"
 	},
 	"enabledApiProposals": [
-		"documentPaste"
+		"documentPaste",
+		"diffContentOptions"
 	],
 	"activationEvents": [
-		"*"
+		"onNotebook:jupyter-notebook",
+		"onCommand:ipynb.newUntitledIpynb"
 	],
 	"extensionKind": [
 		"workspace",

@@ -77,8 +77,7 @@ export class UserDataSyncClient extends Disposable {
 					insidersUrl: this.testServer.url,
 					canSwitch: false,
 					authenticationProviders: { 'test': { scopes: [] } }
-				},
-				enableSyncingProfiles: true
+				}
 			}
 		});
 

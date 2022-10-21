@@ -138,8 +138,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private readonly _onDidChangeExtensionsStatus: Emitter<ExtensionIdentifier[]> = this._register(new Emitter<ExtensionIdentifier[]>());
 	public readonly onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = this._onDidChangeExtensionsStatus.event;
 
-	private readonly _onDidChangeExtensions: Emitter<void> = this._register(new Emitter<void>({ leakWarningThreshold: 400 }));
-	public readonly onDidChangeExtensions: Event<void> = this._onDidChangeExtensions.event;
+	private readonly _onDidChangeExtensions = this._register(new Emitter<{ readonly added: ReadonlyArray<IExtensionDescription>; readonly removed: ReadonlyArray<IExtensionDescription> }>({ leakWarningThreshold: 400 }));
+	public readonly onDidChangeExtensions = this._onDidChangeExtensions.event;
 
 	private readonly _onWillActivateByEvent = this._register(new Emitter<IWillActivateEvent>());
 	public readonly onWillActivateByEvent: Event<IWillActivateEvent> = this._onWillActivateByEvent.event;
@@ -164,6 +164,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private _runningLocation: Map<string, ExtensionRunningLocation | null>;
 	private _lastExtensionHostId: number = 0;
 	private _maxLocalProcessAffinity: number = 0;
+	private _maxLocalWebWorkerAffinity: number = 0;
 
 	private readonly _remoteCrashTracker = new ExtensionHostCrashTracker();
 
@@ -375,7 +376,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 				}
 				const group = groups.get(ExtensionIdentifier.toKey(extensionId));
 				if (!group) {
-					this._logService.info(`Ignoring configured affinity for '${extensionId}' because the extension is unknown or cannot execute.`);
+					this._logService.info(`Ignoring configured affinity for '${extensionId}' because the extension is unknown or cannot execute for extension host kind: ${extensionHostKindToString(extensionHostKind)}.`);
 					continue;
 				}
 
@@ -426,7 +427,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return { affinities: result, maxAffinity: lastAffinity };
 	}
 
-	private _computeRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[], isInitialAllocation: boolean): { runningLocation: Map<string, ExtensionRunningLocation | null>; maxLocalProcessAffinity: number } {
+	private _computeRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[], isInitialAllocation: boolean): { runningLocation: Map<string, ExtensionRunningLocation | null>; maxLocalProcessAffinity: number; maxLocalWebWorkerAffinity: number } {
 		const extensionHostKinds = ExtensionHostKindClassifier.determineExtensionHostKinds(
 			localExtensions,
 			remoteExtensions,
@@ -444,6 +445,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		const result = new Map<string, ExtensionRunningLocation | null>();
 		const localProcessExtensions: IExtensionDescription[] = [];
+		const localWebWorkerExtensions: IExtensionDescription[] = [];
 		for (const [extensionIdKey, extensionHostKind] of extensionHostKinds) {
 			let runningLocation: ExtensionRunningLocation | null = null;
 			if (extensionHostKind === ExtensionHostKind.LocalProcess) {
@@ -452,7 +454,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 					localProcessExtensions.push(extensionDescription);
 				}
 			} else if (extensionHostKind === ExtensionHostKind.LocalWebWorker) {
-				runningLocation = new LocalWebWorkerRunningLocation();
+				const extensionDescription = extensions.get(ExtensionIdentifier.toKey(extensionIdKey));
+				if (extensionDescription) {
+					localWebWorkerExtensions.push(extensionDescription);
+				}
 			} else if (extensionHostKind === ExtensionHostKind.Remote) {
 				runningLocation = new RemoteRunningLocation();
 			}
@@ -464,8 +469,13 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			const affinity = affinities.get(ExtensionIdentifier.toKey(extension.identifier)) || 0;
 			result.set(ExtensionIdentifier.toKey(extension.identifier), new LocalProcessRunningLocation(affinity));
 		}
+		const { affinities: localWebWorkerAffinities, maxAffinity: maxLocalWebWorkerAffinity } = this._computeAffinity(localWebWorkerExtensions, ExtensionHostKind.LocalWebWorker, isInitialAllocation);
+		for (const extension of localWebWorkerExtensions) {
+			const affinity = localWebWorkerAffinities.get(ExtensionIdentifier.toKey(extension.identifier)) || 0;
+			result.set(ExtensionIdentifier.toKey(extension.identifier), new LocalWebWorkerRunningLocation(affinity));
+		}
 
-		return { runningLocation: result, maxLocalProcessAffinity: maxAffinity };
+		return { runningLocation: result, maxLocalProcessAffinity: maxAffinity, maxLocalWebWorkerAffinity: maxLocalWebWorkerAffinity };
 	}
 
 	protected _determineRunningLocation(localExtensions: IExtensionDescription[]): Map<string, ExtensionRunningLocation | null> {
@@ -473,9 +483,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	protected _initializeRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[]): void {
-		const { runningLocation, maxLocalProcessAffinity } = this._computeRunningLocation(localExtensions, remoteExtensions, true);
+		const { runningLocation, maxLocalProcessAffinity, maxLocalWebWorkerAffinity } = this._computeRunningLocation(localExtensions, remoteExtensions, true);
 		this._runningLocation = runningLocation;
 		this._maxLocalProcessAffinity = maxLocalProcessAffinity;
+		this._maxLocalWebWorkerAffinity = maxLocalWebWorkerAffinity;
 		this._startExtensionHostsIfNecessary(true, []);
 	}
 
@@ -485,6 +496,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private _updateRunningLocationForAddedExtensions(toAdd: IExtensionDescription[]): void {
 		// Determine new running location
 		const localProcessExtensions: IExtensionDescription[] = [];
+		const localWebWorkerExtensions: IExtensionDescription[] = [];
 		for (const extension of toAdd) {
 			const extensionKind = this._getExtensionKind(extension);
 			const isRemote = extension.extensionLocation.scheme === Schemas.vscodeRemote;
@@ -493,7 +505,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			if (extensionHostKind === ExtensionHostKind.LocalProcess) {
 				localProcessExtensions.push(extension);
 			} else if (extensionHostKind === ExtensionHostKind.LocalWebWorker) {
-				runningLocation = new LocalWebWorkerRunningLocation();
+				localWebWorkerExtensions.push(extension);
 			} else if (extensionHostKind === ExtensionHostKind.Remote) {
 				runningLocation = new RemoteRunningLocation();
 			}
@@ -504,6 +516,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		for (const extension of localProcessExtensions) {
 			const affinity = affinities.get(ExtensionIdentifier.toKey(extension.identifier)) || 0;
 			this._runningLocation.set(ExtensionIdentifier.toKey(extension.identifier), new LocalProcessRunningLocation(affinity));
+		}
+
+		const { affinities: webWorkerExtensionsAffinities } = this._computeAffinity(localWebWorkerExtensions, ExtensionHostKind.LocalWebWorker, false);
+		for (const extension of localWebWorkerExtensions) {
+			const affinity = webWorkerExtensionsAffinities.get(ExtensionIdentifier.toKey(extension.identifier)) || 0;
+			this._runningLocation.set(ExtensionIdentifier.toKey(extension.identifier), new LocalWebWorkerRunningLocation(affinity));
 		}
 	}
 
@@ -596,7 +614,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		// Update the local registry
 		const result = this._registry.deltaExtensions(toAdd, toRemove.map(e => e.identifier));
-		this._onDidChangeExtensions.fire(undefined);
+		this._onDidChangeExtensions.fire({ added: toAdd, removed: toRemove });
 
 		toRemove = toRemove.concat(result.removedDueToLooping);
 		if (result.removedDueToLooping.length > 0) {
@@ -853,7 +871,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		for (let affinity = 0; affinity <= this._maxLocalProcessAffinity; affinity++) {
 			locations.push(new LocalProcessRunningLocation(affinity));
 		}
-		locations.push(new LocalWebWorkerRunningLocation());
+		for (let affinity = 0; affinity <= this._maxLocalWebWorkerAffinity; affinity++) {
+			locations.push(new LocalWebWorkerRunningLocation(affinity));
+		}
 		locations.push(new RemoteRunningLocation());
 		for (const location of locations) {
 			if (this._getExtensionHostManagerByRunningLocation(location)) {
@@ -1049,10 +1069,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return this._installedExtensionsReady.wait();
 	}
 
-	public getExtensions(): Promise<IExtensionDescription[]> {
-		return this._installedExtensionsReady.wait().then(() => {
-			return this._registry.getAllExtensionDescriptions();
-		});
+	get extensions(): IExtensionDescription[] {
+		return this._registry.getAllExtensionDescriptions();
+	}
+
+	protected getExtensions(): Promise<IExtensionDescription[]> {
+		return this._installedExtensionsReady.wait().then(() => this.extensions);
 	}
 
 	public getExtension(id: string): Promise<IExtensionDescription | undefined> {

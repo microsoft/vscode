@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfilesService, UseDefaultProfileFlags, WorkspaceIdentifier } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions, WorkspaceIdentifier } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -52,8 +52,8 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		}
 	}
 
-	async createAndEnterProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, fromExisting?: boolean): Promise<IUserDataProfile> {
-		const profile = await this.userDataProfilesService.createNamedProfile(name, useDefaultFlags, this.getWorkspaceIdentifier());
+	async createAndEnterProfile(name: string, options?: IUserDataProfileOptions, fromExisting?: boolean): Promise<IUserDataProfile> {
+		const profile = await this.userDataProfilesService.createNamedProfile(name, options, this.getWorkspaceIdentifier());
 		await this.enterProfile(profile, !!fromExisting);
 		return profile;
 	}
@@ -64,14 +64,14 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		return profile;
 	}
 
-	async renameProfile(profile: IUserDataProfile, name: string): Promise<void> {
+	async updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<void> {
 		if (!this.userDataProfilesService.profiles.some(p => p.id === profile.id)) {
 			throw new Error(`Settings profile ${profile.name} does not exist`);
 		}
 		if (profile.isDefault) {
 			throw new Error(localize('cannotRenameDefaultProfile', "Cannot rename the default settings profile"));
 		}
-		await this.userDataProfilesService.updateProfile(profile, name);
+		await this.userDataProfilesService.updateProfile(profile, updateOptions);
 	}
 
 	async removeProfile(profile: IUserDataProfile): Promise<void> {

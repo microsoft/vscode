@@ -204,7 +204,9 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		tabsScrollbar.onScroll(e => {
-			scrollable.scrollLeft = e.scrollLeft;
+			if (e.scrollLeftChanged) {
+				scrollable.scrollLeft = e.scrollLeft;
+			}
 		});
 
 		return tabsScrollbar;

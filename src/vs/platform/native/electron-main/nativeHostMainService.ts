@@ -41,6 +41,8 @@ import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/worksp
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
+import { ProfilingOutput, WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -59,7 +61,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -777,6 +780,19 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
+	// #region Performance
+
+	async profileRenderer(windowId: number | undefined, session: string, duration: number, baseline: number): Promise<boolean> {
+		const win = this.windowById(windowId);
+		if (!win || !win.win) {
+			return false;
+		}
+		const profiler = new WindowProfiler(win.win, session, this.logService, this.telemetryService);
+		const result = await profiler.inspect(duration, baseline);
+		return result === ProfilingOutput.Interesting;
+	}
+
+	// #endregion
 
 	//#region Registry (windows)
 

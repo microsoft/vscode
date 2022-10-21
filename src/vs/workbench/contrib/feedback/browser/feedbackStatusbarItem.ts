@@ -14,7 +14,7 @@ import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/c
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { HIDE_NOTIFICATIONS_CENTER, HIDE_NOTIFICATION_TOAST } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { isIOS } from 'vs/base/common/platform';
 
@@ -80,7 +80,7 @@ export class FeedbackStatusbarConribution extends Disposable implements IWorkben
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: FeedbackStatusbarConribution.TOGGLE_FEEDBACK_COMMAND,
-				category: CATEGORIES.Help,
+				category: Categories.Help,
 				title: localize('status.feedback', "Tweet Feedback")
 			}
 		});

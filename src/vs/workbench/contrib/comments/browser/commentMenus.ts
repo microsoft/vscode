@@ -35,10 +35,6 @@ export class CommentMenus implements IDisposable {
 		return this.getMenu(MenuId.CommentThreadTitleContext, contextKeyService);
 	}
 
-	getCommentThreadCommentContextActions(contextKeyService: IContextKeyService): IMenu {
-		return this.getMenu(MenuId.CommentThreadCommentContext, contextKeyService);
-	}
-
 	private getMenu(menuId: MenuId, contextKeyService: IContextKeyService): IMenu {
 		const menu = this.menuService.createMenu(menuId, contextKeyService);
 

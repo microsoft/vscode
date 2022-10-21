@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtHostOutputService, ExtHostOutputService } from 'vs/workbench/api/common/extHostOutput';
 import { IExtHostWorkspace, ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IExtHostDecorations, ExtHostDecorations } from 'vs/workbench/api/common/extHostDecorations';
@@ -27,12 +27,11 @@ import { ExtHostLoggerService } from 'vs/workbench/api/common/extHostLoggerServi
 import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { ExtHostVariableResolverProviderService, IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHostVariableResolverService';
-import { ExtHostTelemetryLogService, IExtHostTelemetryLogService } from 'vs/workbench/api/common/extHostTelemetryLogService';
 import { ExtHostLocalizationService, IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
 
-registerSingleton(IExtHostLocalizationService, ExtHostLocalizationService, true);
-registerSingleton(ILoggerService, ExtHostLoggerService, true);
-registerSingleton(ILogService, ExtHostLogService, true);
+registerSingleton(IExtHostLocalizationService, ExtHostLocalizationService, InstantiationType.Delayed);
+registerSingleton(ILoggerService, ExtHostLoggerService, InstantiationType.Delayed);
+registerSingleton(ILogService, ExtHostLogService, InstantiationType.Delayed);
 registerSingleton(IExtHostApiDeprecationService, ExtHostApiDeprecationService, false);
 registerSingleton(IExtHostCommands, ExtHostCommands, false);
 registerSingleton(IExtHostConfiguration, ExtHostConfiguration, false);
@@ -41,7 +40,7 @@ registerSingleton(IExtHostDebugService, WorkerExtHostDebugService, false);
 registerSingleton(IExtHostDecorations, ExtHostDecorations, false);
 registerSingleton(IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors, false);
 registerSingleton(IExtHostFileSystemInfo, ExtHostFileSystemInfo, false);
-registerSingleton(IExtHostOutputService, ExtHostOutputService, true);
+registerSingleton(IExtHostOutputService, ExtHostOutputService, InstantiationType.Delayed);
 registerSingleton(IExtHostSearch, ExtHostSearch, false);
 registerSingleton(IExtHostStorage, ExtHostStorage, false);
 registerSingleton(IExtHostTask, WorkerExtHostTask, false);
@@ -51,6 +50,5 @@ registerSingleton(IExtHostWindow, ExtHostWindow, false);
 registerSingleton(IExtHostWorkspace, ExtHostWorkspace, false);
 registerSingleton(IExtHostSecretState, ExtHostSecretState, false);
 registerSingleton(IExtHostTelemetry, ExtHostTelemetry, false);
-registerSingleton(IExtHostTelemetryLogService, ExtHostTelemetryLogService, false);
 registerSingleton(IExtHostEditorTabs, ExtHostEditorTabs, false);
 registerSingleton(IExtHostVariableResolverProvider, ExtHostVariableResolverProviderService, false);

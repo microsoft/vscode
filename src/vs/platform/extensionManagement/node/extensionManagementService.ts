@@ -48,7 +48,7 @@ import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/use
 interface InstallableExtension {
 	zipPath: string;
 	key: ExtensionKey;
-	metadata?: Metadata;
+	metadata: Metadata;
 }
 
 export const INativeServerExtensionManagementService = refineServiceDecorator<IExtensionManagementService, INativeServerExtensionManagementService>(IExtensionManagementService);
@@ -78,7 +78,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		@IFileService private readonly fileService: IFileService,
 		@IProductService productService: IProductService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService
 	) {
 		super(galleryService, telemetryService, logService, productService, userDataProfilesService);
 		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
@@ -177,6 +177,11 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return this.extensionsScanner.cleanUp(removeOutdated);
 	}
 
+	async download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {
+		const { location } = await this.extensionsDownloader.download(extension, operation);
+		return location;
+	}
+
 	private async downloadVsix(vsix: URI): Promise<{ location: URI; cleanup: () => Promise<void> }> {
 		if (vsix.scheme === Schemas.file) {
 			return { location: vsix, async cleanup() { } };
@@ -247,7 +252,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 }
 
-class ExtensionsScanner extends Disposable {
+export class ExtensionsScanner extends Disposable {
 
 	private readonly uninstalledPath: string;
 	private readonly uninstalledFileLimiter: Queue<any>;
@@ -287,7 +292,7 @@ class ExtensionsScanner extends Disposable {
 		return Promise.all(scannedExtensions.map(extension => this.toLocalExtension(extension)));
 	}
 
-	async extractUserExtension(extensionKey: ExtensionKey, zipPath: string, metadata: Metadata | undefined, token: CancellationToken): Promise<ILocalExtension> {
+	async extractUserExtension(extensionKey: ExtensionKey, zipPath: string, metadata: Metadata, token: CancellationToken): Promise<ILocalExtension> {
 		const folderName = extensionKey.toString();
 		const tempPath = path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, `.${generateUuid()}`);
 		const extensionPath = path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, folderName);
@@ -299,7 +304,6 @@ class ExtensionsScanner extends Disposable {
 		}
 
 		await this.extractAtLocation(extensionKey, zipPath, tempPath, token);
-		metadata = { ...metadata, installedTimestamp: Date.now() };
 		await this.extensionsScannerService.updateMetadata(URI.file(tempPath), metadata);
 
 		try {
@@ -464,6 +468,7 @@ class ExtensionsScanner extends Disposable {
 			updated: !!extension.metadata?.updated,
 		};
 	}
+
 	private async removeUninstalledExtensions(): Promise<void> {
 		const uninstalled = await this.getUninstalledExtensions();
 		const extensions = await this.extensionsScannerService.scanUserExtensions({ includeAllVersions: true, includeUninstalled: true, includeInvalid: true }); // All user extensions
@@ -529,6 +534,8 @@ class ExtensionsScanner extends Disposable {
 
 abstract class InstallExtensionTask extends AbstractExtensionTask<{ local: ILocalExtension; metadata: Metadata }> implements IInstallExtensionTask {
 
+	public wasVerified: boolean = false;
+
 	protected _operation = InstallOperation.Install;
 	get operation() { return isUndefined(this.options.operation) ? this._operation : this.options.operation; }
 
@@ -546,7 +553,7 @@ abstract class InstallExtensionTask extends AbstractExtensionTask<{ local: ILoca
 		try {
 			const local = await this.unsetUninstalledAndGetLocal(installableExtension.key);
 			if (local) {
-				return installableExtension.metadata ? this.extensionsScanner.updateMetadata(local, installableExtension.metadata) : local;
+				return this.extensionsScanner.updateMetadata(local, installableExtension.metadata);
 			}
 		} catch (e) {
 			if (isMacintosh) {
@@ -585,7 +592,7 @@ abstract class InstallExtensionTask extends AbstractExtensionTask<{ local: ILoca
 
 }
 
-class InstallGalleryExtensionTask extends InstallExtensionTask {
+export class InstallGalleryExtensionTask extends InstallExtensionTask {
 
 	constructor(
 		private readonly manifest: IExtensionManifest,
@@ -617,6 +624,7 @@ class InstallGalleryExtensionTask extends InstallExtensionTask {
 			isSystem: existingExtension?.type === ExtensionType.System ? true : undefined,
 			updated: !!existingExtension,
 			isPreReleaseVersion: this.gallery.properties.isPreReleaseVersion,
+			installedTimestamp: Date.now(),
 			preRelease: this.gallery.properties.isPreReleaseVersion ||
 				(isBoolean(this.options.installPreReleaseVersion)
 					? this.options.installPreReleaseVersion /* Respect the passed flag */
@@ -628,46 +636,34 @@ class InstallGalleryExtensionTask extends InstallExtensionTask {
 			return { local, metadata };
 		}
 
-		const zipPath = await this.downloadExtension(this.gallery, this._operation);
+		const { location, verified } = await this.extensionsDownloader.download(this.gallery, this._operation);
 		try {
-			const local = await this.installExtension({ zipPath, key: ExtensionKey.create(this.gallery), metadata }, token);
+			this.wasVerified = !!verified;
+			this.validateManifest(location.fsPath);
+			const local = await this.installExtension({ zipPath: location.fsPath, key: ExtensionKey.create(this.gallery), metadata }, token);
 			if (existingExtension && !this.options.profileLocation && (existingExtension.targetPlatform !== local.targetPlatform || semver.neq(existingExtension.manifest.version, local.manifest.version))) {
 				await this.extensionsScanner.setUninstalled(existingExtension);
 			}
 			return { local, metadata };
 		} catch (error) {
-			await this.deleteDownloadedVSIX(zipPath);
+			try {
+				await this.extensionsDownloader.delete(location);
+			} catch (error) {
+				/* Ignore */
+				this.logService.warn(`Error while deleting the downloaded file`, location.toString(), getErrorMessage(error));
+			}
 			throw error;
 		}
 	}
 
-	private async deleteDownloadedVSIX(vsix: string): Promise<void> {
-		try {
-			await this.extensionsDownloader.delete(URI.file(vsix));
-		} catch (error) {
-			/* Ignore */
-			this.logService.warn('Error while deleting the downloaded vsix', vsix.toString(), getErrorMessage(error));
-		}
-	}
-
-	private async downloadExtension(extension: IGalleryExtension, operation: InstallOperation): Promise<string> {
-		let zipPath: string | undefined;
-		try {
-			this.logService.trace('Started downloading extension:', extension.identifier.id);
-			zipPath = (await this.extensionsDownloader.downloadExtension(extension, operation)).fsPath;
-			this.logService.info('Downloaded extension:', extension.identifier.id, zipPath);
-		} catch (error) {
-			throw new ExtensionManagementError(joinErrors(error).message, ExtensionManagementErrorCode.Download);
-		}
-
+	protected async validateManifest(zipPath: string): Promise<void> {
 		try {
 			await getManifest(zipPath);
-			return zipPath;
 		} catch (error) {
-			await this.deleteDownloadedVSIX(zipPath);
 			throw new ExtensionManagementError(joinErrors(error).message, ExtensionManagementErrorCode.Invalid);
 		}
 	}
+
 }
 
 class InstallVSIXTask extends InstallExtensionTask {
@@ -691,6 +687,7 @@ class InstallVSIXTask extends InstallExtensionTask {
 		metadata.isApplicationScoped = isApplicationScopedExtension(this.manifest);
 		metadata.isMachineScoped = this.options.isMachineScoped || existing?.isMachineScoped;
 		metadata.isBuiltin = this.options.isBuiltin || existing?.isBuiltin;
+		metadata.installedTimestamp = Date.now();
 
 		if (existing) {
 			this._operation = InstallOperation.Update;

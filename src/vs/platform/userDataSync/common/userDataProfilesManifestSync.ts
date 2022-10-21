@@ -182,7 +182,7 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 			await this.backupLocal(this.stringifyLocalProfiles(this.getLocalUserDataProfiles(), false));
 			const promises: Promise<any>[] = [];
 			for (const profile of local.added) {
-				promises.push(this.userDataProfilesService.createProfile(profile.id, profile.name));
+				promises.push(this.userDataProfilesService.createProfile(profile.id, profile.name, { shortName: profile.shortName }));
 			}
 			for (const profile of local.removed) {
 				promises.push(this.userDataProfilesService.removeProfile(profile));
@@ -190,7 +190,7 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 			for (const profile of local.updated) {
 				const localProfile = this.userDataProfilesService.profiles.find(p => p.id === profile.id);
 				if (localProfile) {
-					promises.push(this.userDataProfilesService.updateProfile(localProfile, profile.name));
+					promises.push(this.userDataProfilesService.updateProfile(localProfile, { name: profile.name, shortName: profile.shortName }));
 				} else {
 					this.logService.info(`${this.syncResourceLogLabel}: Could not find profile with id '${profile.id}' to update.`);
 				}
@@ -203,7 +203,7 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote profiles...`);
 			for (const profile of remote?.added || []) {
 				const collection = await this.userDataSyncStoreService.createCollection(this.syncHeaders);
-				remoteProfiles.push({ id: profile.id, name: profile.name, collection });
+				remoteProfiles.push({ id: profile.id, name: profile.name, collection, shortName: profile.shortName });
 			}
 			for (const profile of remote?.removed || []) {
 				remoteProfiles.splice(remoteProfiles.findIndex(({ id }) => profile.id === id), 1);
@@ -211,7 +211,7 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 			for (const profile of remote?.updated || []) {
 				const profileToBeUpdated = remoteProfiles.find(({ id }) => profile.id === id);
 				if (profileToBeUpdated) {
-					remoteProfiles.splice(remoteProfiles.indexOf(profileToBeUpdated), 1, { id: profile.id, name: profile.name, collection: profileToBeUpdated.collection });
+					remoteProfiles.splice(remoteProfiles.indexOf(profileToBeUpdated), 1, { id: profile.id, name: profile.name, collection: profileToBeUpdated.collection, shortName: profile.shortName });
 				}
 			}
 			remoteUserData = await this.updateRemoteUserData(this.stringifyRemoteProfiles(remoteProfiles), force ? null : remoteUserData.ref);

@@ -51,13 +51,23 @@ export function waitForState<T, TState extends T>(observable: IObservable<T>, pr
 export function waitForState<T>(observable: IObservable<T>, predicate: (state: T) => boolean): Promise<T>;
 export function waitForState<T>(observable: IObservable<T>, predicate: (state: T) => boolean): Promise<T> {
 	return new Promise(resolve => {
+		let didRun = false;
+		let shouldDispose = false;
 		const d = autorun('waitForState', reader => {
 			const currentState = observable.read(reader);
 			if (predicate(currentState)) {
-				d.dispose();
+				if (!didRun) {
+					shouldDispose = true;
+				} else {
+					d.dispose();
+				}
 				resolve(currentState);
 			}
 		});
+		didRun = true;
+		if (shouldDispose) {
+			d.dispose();
+		}
 	});
 }
 

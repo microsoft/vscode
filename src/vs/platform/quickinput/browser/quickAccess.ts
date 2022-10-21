@@ -8,7 +8,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { once } from 'vs/base/common/functional';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DefaultQuickAccessFilterValue, Extensions, IQuickAccessController, IQuickAccessOptions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
+import { DefaultQuickAccessFilterValue, Extensions, IQuickAccessController, IQuickAccessOptions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessProviderRunOptions, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -122,14 +122,14 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		}
 
 		// Register listeners
-		disposables.add(this.registerPickerListeners(picker, provider, descriptor, value));
+		disposables.add(this.registerPickerListeners(picker, provider, descriptor, value, options?.providerOptions));
 
 		// Ask provider to fill the picker as needed if we have one
 		// and pass over a cancellation token that will indicate when
 		// the picker is hiding without a pick being made.
 		const cts = disposables.add(new CancellationTokenSource());
 		if (provider) {
-			disposables.add(provider.provide(picker, cts.token));
+			disposables.add(provider.provide(picker, cts.token, options?.providerOptions));
 		}
 
 		// Finally, trigger disposal and cancellation when the picker
@@ -173,7 +173,13 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		picker.valueSelection = valueSelection;
 	}
 
-	private registerPickerListeners(picker: IQuickPick<IQuickPickItem>, provider: IQuickAccessProvider | undefined, descriptor: IQuickAccessProviderDescriptor | undefined, value: string): IDisposable {
+	private registerPickerListeners(
+		picker: IQuickPick<IQuickPickItem>,
+		provider: IQuickAccessProvider | undefined,
+		descriptor: IQuickAccessProviderDescriptor | undefined,
+		value: string,
+		providerOptions?: IQuickAccessProviderRunOptions
+	): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Remember as last visible picker and clean up once picker get's disposed
@@ -189,7 +195,12 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		disposables.add(picker.onDidChangeValue(value => {
 			const [providerForValue] = this.getOrInstantiateProvider(value);
 			if (providerForValue !== provider) {
-				this.show(value, { preserveValue: true } /* do not rewrite value from user typing! */);
+				this.show(value, {
+					// do not rewrite value from user typing!
+					preserveValue: true,
+					// persist the value of the providerOptions from the original showing
+					providerOptions: providerOptions
+				});
 			} else {
 				visibleQuickAccess.value = value; // remember the value in our visible one
 			}

@@ -4,10 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Promises } from 'vs/base/common/async';
+import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+
+const defaultUserDataProfileIcon = registerIcon('defaultSettingsProfiles-icon', Codicon.settings, localize('settingsProfilesIcon', 'Icon for Default Settings Profiles.'));
 
 export class UserDataProfileService extends Disposable implements IUserDataProfileService {
 
@@ -62,6 +67,19 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 			}
 		});
 		await Promises.settled(joiners);
+	}
+
+	getShortName(profile: IUserDataProfile): string {
+		if (profile.isDefault) {
+			return `$(${defaultUserDataProfileIcon.id})`;
+		}
+		if (profile.shortName) {
+			return profile.shortName;
+		}
+		if (profile.isTransient) {
+			return `T${profile.name.charAt(profile.name.length - 1)}`;
+		}
+		return profile.name.substring(0, 2).toUpperCase();
 	}
 
 }

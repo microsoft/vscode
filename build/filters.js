@@ -22,6 +22,7 @@ module.exports.all = [
 	'scripts/**/*',
 	'src/**/*',
 	'test/**/*',
+	'!cli/**/*',
 	'!out*/**',
 	'!test/**/out/**',
 	'!**/node_modules/**',
@@ -88,6 +89,7 @@ module.exports.indentationFilter = [
 	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!build/monaco/**',
 	'!build/win32/**',
+	'!build/azure-pipelines/cli/vcpkg-overlay-ports/**',
 
 	// except multiple specific files
 	'!**/package.json',
@@ -161,6 +163,7 @@ module.exports.copyrightFilter = [
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
 	'!src/vs/editor/test/node/classification/typescript-test.ts',
+	'!build/azure-pipelines/cli/vcpkg-overlay-ports/**',
 ];
 
 module.exports.tsFormattingFilter = [

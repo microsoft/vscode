@@ -7,7 +7,6 @@ import * as randomBytes from 'randombytes';
 import * as querystring from 'querystring';
 import { Buffer } from 'buffer';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { v4 as uuid } from 'uuid';
 import fetch, { Response } from 'node-fetch';
 import Logger from './logger';
@@ -16,8 +15,6 @@ import { sha256 } from './env/node/sha256';
 import { BetterTokenStorage, IDidChangeInOtherWindowEvent } from './betterSecretStorage';
 import { LoopbackAuthServer } from './authServer';
 import path = require('path');
-
-const localize = nls.loadMessageBundle();
 
 const redirectUrl = 'https://vscode.dev/redirect';
 const loginEndpointUrl = 'https://login.microsoftonline.com/';
@@ -139,7 +136,7 @@ export class AzureActiveDirectoryService {
 						sessionId: session.id
 					});
 				} else {
-					vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
+					vscode.window.showErrorMessage(vscode.l10n.t('You have been signed out because reading stored authentication information failed.'));
 					Logger.error(e);
 					await this.removeSessionByIToken({
 						accessToken: undefined,
@@ -446,7 +443,7 @@ export class AzureActiveDirectoryService {
 				onDidChangeSessions.fire({ added: [], removed: [], changed: [this.convertToSessionSync(refreshedToken)] });
 			} catch (e) {
 				if (e.message !== REFRESH_NETWORK_FAILURE) {
-					vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
+					vscode.window.showErrorMessage(vscode.l10n.t('You have been signed out because reading stored authentication information failed.'));
 					await this.removeSessionById(sessionId);
 				}
 			}
@@ -683,9 +680,9 @@ export class AzureActiveDirectoryService {
 
 	private async handleCodeInputBox(inputBox: vscode.InputBox, verifier: string, scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
 		inputBox.ignoreFocusOut = true;
-		inputBox.title = localize('pasteCodeTitle', 'Microsoft Authentication');
-		inputBox.prompt = localize('pasteCodePrompt', 'Provide the authorization code to complete the sign in flow.');
-		inputBox.placeholder = localize('pasteCodePlaceholder', 'Paste authorization code here...');
+		inputBox.title = vscode.l10n.t('Microsoft Authentication');
+		inputBox.prompt = vscode.l10n.t('Provide the authorization code to complete the sign in flow.');
+		inputBox.placeholder = vscode.l10n.t('Paste authorization code here...');
 		return new Promise((resolve: (value: vscode.AuthenticationSession) => void, reject) => {
 			inputBox.show();
 			inputBox.onDidAccept(async () => {
@@ -829,7 +826,7 @@ export class AzureActiveDirectoryService {
 				} catch (e) {
 					// Network failures will automatically retry on next poll.
 					if (e.message !== REFRESH_NETWORK_FAILURE) {
-						vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
+						vscode.window.showErrorMessage(vscode.l10n.t('You have been signed out because reading stored authentication information failed.'));
 						await this.removeSessionById(session.id);
 					}
 					return;

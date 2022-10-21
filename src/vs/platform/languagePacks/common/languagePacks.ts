@@ -6,6 +6,7 @@
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { language } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 import { IQuickPickItem } from 'vs/base/parts/quickinput/common/quickInput';
 import { localize } from 'vs/nls';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -22,15 +23,18 @@ export interface ILanguagePackService {
 	readonly _serviceBrand: undefined;
 	getAvailableLanguages(): Promise<Array<ILanguagePackItem>>;
 	getInstalledLanguages(): Promise<Array<ILanguagePackItem>>;
+	getBuiltInExtensionTranslationsUri(id: string): Promise<URI | undefined>;
 	getLocale(extension: IGalleryExtension): string | undefined;
 }
 
 export abstract class LanguagePackBaseService extends Disposable implements ILanguagePackService {
 	declare readonly _serviceBrand: undefined;
 
-	constructor(@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService) {
+	constructor(@IExtensionGalleryService protected readonly extensionGalleryService: IExtensionGalleryService) {
 		super();
 	}
+
+	abstract getBuiltInExtensionTranslationsUri(id: string): Promise<URI | undefined>;
 
 	abstract getInstalledLanguages(): Promise<Array<ILanguagePackItem>>;
 
