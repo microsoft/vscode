@@ -33,7 +33,7 @@ async function main(url) {
 	const root = process.cwd();
 
 	for await (const file of getYarnLockFiles(root)) {
-		console.log(`Enabling Terrapin: ${path.relative(root, file)}`);
+		console.log(`Enabling custom NPM registry: ${path.relative(root, file)}`);
 		await setup(url, file);
 	}
 }
