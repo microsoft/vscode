@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as packageJson from '../../../package.json';
 
-const root = path.dirname(path.dirname(path.dirname(__dirname))) + '/../vscode-distro';
+const root = path.dirname(path.dirname(path.dirname(__dirname)));
 const readJSON = (path: string) => JSON.parse(fs.readFileSync(path, 'utf8'));
 
 let productJsonPath: string;
