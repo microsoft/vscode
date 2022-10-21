@@ -15,6 +15,7 @@ import { localize } from 'vs/nls';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { extname } from 'vs/base/common/resources';
+import { Emitter } from 'vs/base/common/event';
 
 type DynamicWorkspaceRecommendationsClassification = {
 	owner: 'sandy081';
@@ -30,6 +31,9 @@ export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
 
 	private _recommendations: ExtensionRecommendation[] = [];
 	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return this._recommendations; }
+
+	private _onDidChangeRecommendations = this._register(new Emitter<void>());
+	readonly onDidChangeRecommendations = this._onDidChangeRecommendations.event;
 
 	constructor(
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
@@ -47,6 +51,17 @@ export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
 	protected async doActivate(): Promise<void> {
 		await this.fetch();
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this._recommendations = []));
+		this._register(this.extensionService.onDidChangeExtensions(e => this.onExtensionsChanged()));
+		this._register(this.editorGroupsService.onDidAddGroup(e => this.onExtensionsChanged()));
+	}
+
+	async onExtensionsChanged(): Promise<void> {
+		const oldRecommendations = this._recommendations;
+		this._recommendations = [];
+		await this.fetch();
+		if (this._recommendations.some(current => oldRecommendations.every(old => current.extensionId !== old.extensionId))) {
+			this._onDidChangeRecommendations.fire();
+		}
 	}
 
 	/**
@@ -66,12 +81,16 @@ export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
 		const tags = await this.workspaceTagsService.getTags();
 		const workspaceDependencies = Object.keys(tags).reduce<string[]>((result, key) => tags[key] === true ? [...result, key] : result, []);
 		const extensionsStatus = this.extensionService.getExtensionsStatus();
-		const opneFileTypes = this.editorGroupsService.groups.reduce<string[]>((result, group) => group.activeEditor?.resource ? [...result, extname(group.activeEditor.resource)] : result, []);
+		// FIXME: Only gets one file usually while 2 editors are open.
+		const opneFileTypes = this.editorGroupsService.groups.reduce<string[]>((result, group) => result.concat(group.editors.map(editor => editor.resource ? extname(editor.resource) : '')), []);
+
 		const activeExtensions = Object.keys(extensionsStatus).reduce<string[]>((result, key) => extensionsStatus[key].activationTimes ? [...result, key] : result, []);
 		const recommendations = await this.extensionTipsService.getDynamicWrokspaceTips(this.contextService.getWorkspace(), workspaceDependencies, opneFileTypes, activeExtensions);
 		this._recommendations = recommendations.map(id => this.toExtensionRecommendation(id, folder));
 		this.storageService.store(dynamicWorkspaceRecommendationsStorageKey, JSON.stringify(<IStoredDynamicWorkspaceRecommendations>{ recommendations, timestamp: Date.now() }), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		this.telemetryService.publicLog2<{ count: number; cache: number }, DynamicWorkspaceRecommendationsClassification>('dynamicWorkspaceRecommendations2', { count: this._recommendations.length, cache: 0 });
+		console.log(JSON.stringify(this._recommendations, null, 2));
+
 	}
 
 	private toExtensionRecommendation(extensionId: string, folder: IWorkspaceFolder): ExtensionRecommendation {
@@ -79,7 +98,7 @@ export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
 			extensionId: extensionId.toLowerCase(),
 			reason: {
 				reasonId: ExtensionRecommendationReason.DynamicWorkspace,
-				reasonText: localize('dynamicWorkspaceRecommendation', "This extension may interest you because it's popular among users of the similar workspace", folder.name)
+				reasonText: localize('dynamicWorkspaceRecommendation', "Recommended for your current workspace.", folder.name)
 			}
 		};
 	}

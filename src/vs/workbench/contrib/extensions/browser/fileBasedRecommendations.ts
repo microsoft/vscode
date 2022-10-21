@@ -150,15 +150,16 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			allRecommendations.push(extensionId);
 		}
 
-		const cachedRecommendations = this.getCachedRecommendations();
-		const now = Date.now();
-		// Retire existing recommendations if they are older than a week or are not part of this.productService.extensionTips anymore
-		Object.entries(cachedRecommendations).forEach(([key, value]) => {
-			const diff = (now - value) / milliSecondsInADay;
-			if (diff <= 7 && allRecommendations.indexOf(key) > -1) {
-				this.fileBasedRecommendations.set(key.toLowerCase(), { recommendedTime: value });
-			}
-		});
+		// FIXME: Cached old (lacking context) take too much precendence over other recommendations
+		// const cachedRecommendations = this.getCachedRecommendations();
+		// const now = Date.now();
+		// // Retire existing recommendations if they are older than a week or are not part of this.productService.extensionTips anymore
+		// Object.entries(cachedRecommendations).forEach(([key, value]) => {
+		// 	const diff = (now - value) / milliSecondsInADay;
+		// 	if (diff <= 7 && allRecommendations.indexOf(key) > -1) {
+		// 		this.fileBasedRecommendations.set(key.toLowerCase(), { recommendedTime: value });
+		// 	}
+		// });
 
 		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
 		this.modelService.getModels().forEach(model => this.onModelAdded(model));
@@ -237,7 +238,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			this.fileBasedRecommendations.set(recommendation, filedBasedRecommendation);
 		}
 
-		this.storeCachedRecommendations();
+		// this.storeCachedRecommendations();
 
 		if (this.extensionRecommendationNotificationService.hasToIgnoreRecommendationNotifications()) {
 			return;

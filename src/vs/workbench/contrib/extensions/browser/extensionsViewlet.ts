@@ -216,9 +216,9 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			name: localize('popularExtensions', "Popular"),
 			ctorDescriptor: new SyncDescriptor(DefaultPopularExtensionsView, [{ hideBadge: true }]),
 			when: ContextKeyExpr.and(DefaultViewsContext, ContextKeyExpr.not('hasInstalledExtensions'), CONTEXT_HAS_GALLERY),
-			weight: 60,
+			weight: 40,
 			order: 2,
-			canToggleVisibility: false
+			canToggleVisibility: true
 		});
 
 		/*
@@ -231,7 +231,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			name: localize('recommendedExtensions', "Recommended"),
 			ctorDescriptor: new SyncDescriptor(DefaultRecommendedExtensionsView, [{ flexibleHeight: true }]),
 			when: ContextKeyExpr.and(DefaultViewsContext, SortByUpdateDateContext.negate(), ContextKeyExpr.not('config.extensions.showRecommendationsOnlyOnDemand'), CONTEXT_HAS_GALLERY),
-			weight: 40,
+			weight: 60,
 			order: 3,
 			canToggleVisibility: true
 		});

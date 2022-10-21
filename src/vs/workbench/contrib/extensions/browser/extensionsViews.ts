@@ -988,7 +988,7 @@ export class ExtensionsListView extends ViewPane {
 
 		const installableRecommendations = await this.getInstallableRecommendations(allRecommendations, { ...options, source: 'recommendations-all', sortBy: undefined }, token);
 		const result: IExtension[] = coalesce(allRecommendations.map(id => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
-		return new PagedModel(result.slice(0, 8));
+		return new PagedModel(result.slice(0, 12));
 	}
 
 	private async searchRecommendations(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
