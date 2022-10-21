@@ -28,7 +28,7 @@ import { bottomUp, buildModel } from 'vs/platform/profiling/common/profilingMode
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { TelemetrySampleData, TelemetrySampleDataClassification } from 'vs/platform/profiling/common/profilingTelemetrySpec';
+import { reportSample } from 'vs/platform/profiling/common/profilingTelemetrySpec';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
@@ -203,17 +203,12 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 		// send heavy samples
 		const samples = bottomUp(model, 5, false);
 		for (const sample of samples) {
-			const data: TelemetrySampleData = {
-				sessionId,
-				selfTime: sample.selfTime,
-				totalTime: sample.totalTime,
-				percentage: sample.percentage,
-				functionName: sample.location,
-				callstack: sample.caller.map(c => `${c.percentage}|${c.location}`).join('<'),
-				extensionId: searchTree.findSubstr(URI.parse(sample.url))?.identifier.value ?? '<not_extension>',
-				perfBaseline: this._perfBaseline,
-			};
-			this._telemetryService.publicLog2<TelemetrySampleData, TelemetrySampleDataClassification>('exthostunresponsive.sample', data);
+			reportSample(
+				'exhostunresponsive',
+				{ sample, perfBaseline: this._perfBaseline, extensionId: searchTree.findSubstr(URI.parse(sample.url))?.identifier.value ?? '<<not-found>>' },
+				this._telemetryService,
+				this._logService
+			);
 		}
 
 		// add to running extensions view
