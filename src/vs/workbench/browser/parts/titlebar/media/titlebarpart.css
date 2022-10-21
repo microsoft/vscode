@@ -250,10 +250,14 @@
 
 .monaco-workbench.mac .part.titlebar>.window-controls-container {
 	width: 70px;
-	height: env(titlebar-area-width, 28px);
+	height: env(titlebar-area-height, 28px);
 }
 
-.monaco-workbench.web .part.titlebar>.window-controls-container,
+.monaco-workbench.web .part.titlebar>.window-controls-container {
+	width: calc(100% - env(titlebar-area-width, 100%));
+	height: env(titlebar-area-height, 35px);
+}
+
 .monaco-workbench.fullscreen .part.titlebar>.window-controls-container {
 	display: none;
 	background-color: transparent;
