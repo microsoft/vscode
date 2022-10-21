@@ -183,7 +183,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		const extensionIds = distinct(recommendations.map(e => e.extensionId))
 			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
 
-		shuffle(extensionIds, this.sessionSeed);
+		// shuffle(extensionIds, this.sessionSeed);
 
 		return extensionIds;
 	}
