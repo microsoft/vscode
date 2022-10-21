@@ -376,6 +376,7 @@ export class CustomMenubarControl extends MenubarControl {
 	private container: HTMLElement | undefined;
 	private alwaysOnMnemonics: boolean = false;
 	private focusInsideMenubar: boolean = false;
+	private pendingFirstTimeUpdate: boolean = false;
 	private visible: boolean = true;
 	private actionRunner: IActionRunner;
 	private readonly webNavigationMenu = this._register(this.menuService.createMenu(MenuId.MenubarHomeMenu, this.contextKeyService));
@@ -514,7 +515,13 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	protected doUpdateMenubar(firstTime: boolean): void {
-		this.setupCustomMenubar(firstTime);
+		if (!this.focusInsideMenubar) {
+			this.setupCustomMenubar(firstTime);
+		}
+
+		if (firstTime) {
+			this.pendingFirstTimeUpdate = true;
+		}
 	}
 
 	private registerActions(): void {
@@ -664,7 +671,13 @@ export class CustomMenubarControl extends MenubarControl {
 
 				// When the menubar loses focus, update it to clear any pending updates
 				if (!focused) {
-					this.updateMenubar();
+					if (this.pendingFirstTimeUpdate) {
+						this.setupCustomMenubar(true);
+						this.pendingFirstTimeUpdate = false;
+					} else {
+						this.updateMenubar();
+					}
+
 					this.focusInsideMenubar = false;
 				}
 			}));
