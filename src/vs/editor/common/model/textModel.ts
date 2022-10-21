@@ -1826,76 +1826,81 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const newDecorationsLen = newDecorations.length;
 		let newDecorationIndex = 0;
 
-		const result = new Array<string>(newDecorationsLen);
-		while (oldDecorationIndex < oldDecorationsLen || newDecorationIndex < newDecorationsLen) {
+		this._onDidChangeDecorations.beginDeferredEmit();
+		try {
+			const result = new Array<string>(newDecorationsLen);
+			while (oldDecorationIndex < oldDecorationsLen || newDecorationIndex < newDecorationsLen) {
 
-			let node: IntervalNode | null = null;
+				let node: IntervalNode | null = null;
 
-			if (oldDecorationIndex < oldDecorationsLen) {
-				// (1) get ourselves an old node
-				do {
-					node = this._decorations[oldDecorationsIds[oldDecorationIndex++]];
-				} while (!node && oldDecorationIndex < oldDecorationsLen);
+				if (oldDecorationIndex < oldDecorationsLen) {
+					// (1) get ourselves an old node
+					do {
+						node = this._decorations[oldDecorationsIds[oldDecorationIndex++]];
+					} while (!node && oldDecorationIndex < oldDecorationsLen);
 
-				// (2) remove the node from the tree (if it exists)
-				if (node) {
+					// (2) remove the node from the tree (if it exists)
+					if (node) {
+						if (node.options.after) {
+							const nodeRange = this._decorationsTree.getNodeRange(this, node);
+							this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.endLineNumber);
+						}
+						if (node.options.before) {
+							const nodeRange = this._decorationsTree.getNodeRange(this, node);
+							this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.startLineNumber);
+						}
+
+						this._decorationsTree.delete(node);
+
+						this._onDidChangeDecorations.checkAffectedAndFire(node.options);
+					}
+				}
+
+				if (newDecorationIndex < newDecorationsLen) {
+					// (3) create a new node if necessary
+					if (!node) {
+						const internalDecorationId = (++this._lastDecorationId);
+						const decorationId = `${this._instanceId};${internalDecorationId}`;
+						node = new IntervalNode(decorationId, 0, 0);
+						this._decorations[decorationId] = node;
+					}
+
+					// (4) initialize node
+					const newDecoration = newDecorations[newDecorationIndex];
+					const range = this._validateRangeRelaxedNoAllocations(newDecoration.range);
+					const options = _normalizeOptions(newDecoration.options);
+					const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
+					const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
+
+					node.ownerId = ownerId;
+					node.reset(versionId, startOffset, endOffset, range);
+					node.setOptions(options);
+
 					if (node.options.after) {
-						const nodeRange = this._decorationsTree.getNodeRange(this, node);
-						this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.endLineNumber);
+						this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.endLineNumber);
 					}
 					if (node.options.before) {
-						const nodeRange = this._decorationsTree.getNodeRange(this, node);
-						this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.startLineNumber);
+						this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.startLineNumber);
 					}
 
-					this._decorationsTree.delete(node);
+					this._onDidChangeDecorations.checkAffectedAndFire(options);
 
-					this._onDidChangeDecorations.checkAffectedAndFire(node.options);
+					this._decorationsTree.insert(node);
+
+					result[newDecorationIndex] = node.id;
+
+					newDecorationIndex++;
+				} else {
+					if (node) {
+						delete this._decorations[node.id];
+					}
 				}
 			}
 
-			if (newDecorationIndex < newDecorationsLen) {
-				// (3) create a new node if necessary
-				if (!node) {
-					const internalDecorationId = (++this._lastDecorationId);
-					const decorationId = `${this._instanceId};${internalDecorationId}`;
-					node = new IntervalNode(decorationId, 0, 0);
-					this._decorations[decorationId] = node;
-				}
-
-				// (4) initialize node
-				const newDecoration = newDecorations[newDecorationIndex];
-				const range = this._validateRangeRelaxedNoAllocations(newDecoration.range);
-				const options = _normalizeOptions(newDecoration.options);
-				const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
-				const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
-
-				node.ownerId = ownerId;
-				node.reset(versionId, startOffset, endOffset, range);
-				node.setOptions(options);
-
-				if (node.options.after) {
-					this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.endLineNumber);
-				}
-				if (node.options.before) {
-					this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.startLineNumber);
-				}
-
-				this._onDidChangeDecorations.checkAffectedAndFire(options);
-
-				this._decorationsTree.insert(node);
-
-				result[newDecorationIndex] = node.id;
-
-				newDecorationIndex++;
-			} else {
-				if (node) {
-					delete this._decorations[node.id];
-				}
-			}
+			return result;
+		} finally {
+			this._onDidChangeDecorations.endDeferredEmit();
 		}
-
-		return result;
 	}
 
 	//#endregion
@@ -2231,6 +2236,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 
 	readonly description: string;
 	readonly blockClassName: string | null;
+	readonly blockIsAfterEnd: boolean | null;
 	readonly stickiness: model.TrackedRangeStickiness;
 	readonly zIndex: number;
 	readonly className: string | null;
@@ -2258,6 +2264,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	private constructor(options: model.IModelDecorationOptions) {
 		this.description = options.description;
 		this.blockClassName = options.blockClassName ? cleanClassName(options.blockClassName) : null;
+		this.blockIsAfterEnd = options.blockIsAfterEnd ?? null;
 		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : null;
@@ -2307,7 +2314,7 @@ export class DidChangeDecorationsEmitter extends Disposable {
 	public readonly event: Event<IModelDecorationsChangedEvent> = this._actual.event;
 
 	private _deferredCnt: number;
-	private _shouldFire: boolean;
+	private _shouldFireDeferred: boolean;
 	private _affectsMinimap: boolean;
 	private _affectsOverviewRuler: boolean;
 	private _affectedInjectedTextLines: Set<number> | null = null;
@@ -2315,7 +2322,7 @@ export class DidChangeDecorationsEmitter extends Disposable {
 	constructor(private readonly handleBeforeFire: (affectedInjectedTextLines: Set<number> | null) => void) {
 		super();
 		this._deferredCnt = 0;
-		this._shouldFire = false;
+		this._shouldFireDeferred = false;
 		this._affectsMinimap = false;
 		this._affectsOverviewRuler = false;
 	}
@@ -2331,17 +2338,8 @@ export class DidChangeDecorationsEmitter extends Disposable {
 	public endDeferredEmit(): void {
 		this._deferredCnt--;
 		if (this._deferredCnt === 0) {
-			if (this._shouldFire) {
-				this.handleBeforeFire(this._affectedInjectedTextLines);
-
-				const event: IModelDecorationsChangedEvent = {
-					affectsMinimap: this._affectsMinimap,
-					affectsOverviewRuler: this._affectsOverviewRuler
-				};
-				this._shouldFire = false;
-				this._affectsMinimap = false;
-				this._affectsOverviewRuler = false;
-				this._actual.fire(event);
+			if (this._shouldFireDeferred) {
+				this.doFire();
 			}
 
 			this._affectedInjectedTextLines?.clear();
@@ -2363,13 +2361,34 @@ export class DidChangeDecorationsEmitter extends Disposable {
 		if (!this._affectsOverviewRuler) {
 			this._affectsOverviewRuler = options.overviewRuler && options.overviewRuler.color ? true : false;
 		}
-		this._shouldFire = true;
+		this.tryFire();
 	}
 
 	public fire(): void {
 		this._affectsMinimap = true;
 		this._affectsOverviewRuler = true;
-		this._shouldFire = true;
+		this.tryFire();
+	}
+
+	private tryFire() {
+		if (this._deferredCnt === 0) {
+			this.doFire();
+		} else {
+			this._shouldFireDeferred = true;
+		}
+	}
+
+	private doFire() {
+		this.handleBeforeFire(this._affectedInjectedTextLines);
+
+		const event: IModelDecorationsChangedEvent = {
+			affectsMinimap: this._affectsMinimap,
+			affectsOverviewRuler: this._affectsOverviewRuler
+		};
+		this._shouldFireDeferred = false;
+		this._affectsMinimap = false;
+		this._affectsOverviewRuler = false;
+		this._actual.fire(event);
 	}
 }
 

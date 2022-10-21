@@ -96,7 +96,7 @@ class ProfileExtensionsCleaner extends Disposable {
 
 	private async uninstallExtensionsNotInProfiles(): Promise<void> {
 		const installed = await this.extensionManagementService.getAllUserInstalled();
-		const toUninstall = installed.filter(installedExtension => !this.profileExtensionsLocations.has(this.getKey(installedExtension.identifier, installedExtension.manifest.version)));
+		const toUninstall = installed.filter(installedExtension => installedExtension.installedTimestamp /* Installed by VS Code */ && !this.profileExtensionsLocations.has(this.getKey(installedExtension.identifier, installedExtension.manifest.version)));
 		if (toUninstall.length) {
 			await Promise.all(toUninstall.map(extension => this.extensionManagementService.uninstall(extension, uninstalOptions)));
 		}
@@ -169,7 +169,7 @@ class ProfileExtensionsCleaner extends Disposable {
 
 	private async uninstallExtensions(extensionsToRemove: { identifier: IExtensionIdentifier; version: string }[]): Promise<void> {
 		const installed = await this.extensionManagementService.getAllUserInstalled();
-		const toUninstall = installed.filter(installedExtension => extensionsToRemove.some(e => this.getKey(installedExtension.identifier, installedExtension.manifest.version) === this.getKey(e.identifier, e.version)));
+		const toUninstall = installed.filter(installedExtension => installedExtension.installedTimestamp /* Installed by VS Code */ && extensionsToRemove.some(e => this.getKey(installedExtension.identifier, installedExtension.manifest.version) === this.getKey(e.identifier, e.version)));
 		if (toUninstall.length) {
 			await Promise.all(toUninstall.map(extension => this.extensionManagementService.uninstall(extension, uninstalOptions)));
 		}

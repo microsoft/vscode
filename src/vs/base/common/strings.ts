@@ -600,6 +600,16 @@ export function getCharContainingOffset(str: string, offset: number): [number, n
 	return [startOffset, endOffset];
 }
 
+export function charCount(str: string): number {
+	const iterator = new GraphemeIterator(str);
+	let length = 0;
+	while (!iterator.eol()) {
+		length++;
+		iterator.nextGraphemeLength();
+	}
+	return length;
+}
+
 let CONTAINS_RTL: RegExp | undefined = undefined;
 
 function makeContainsRtl() {

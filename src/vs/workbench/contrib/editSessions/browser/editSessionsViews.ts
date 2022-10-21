@@ -10,7 +10,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { Registry } from 'vs/platform/registry/common/platform';
 import { TreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { Extensions, ITreeItem, ITreeViewDataProvider, ITreeViewDescriptor, IViewsRegistry, TreeItemCollapsibleState, TreeViewItemHandleArg, ViewContainer } from 'vs/workbench/common/views';
-import { EDIT_SESSIONS_DATA_VIEW_ID, EDIT_SESSIONS_SCHEME, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_SIGNED_IN, EDIT_SESSIONS_SIGNED_IN_KEY, EDIT_SESSIONS_TITLE, IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { EDIT_SESSIONS_DATA_VIEW_ID, EDIT_SESSIONS_SCHEME, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_TITLE, IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { URI } from 'vs/base/common/uri';
 import { fromNow } from 'vs/base/common/date';
 import { Codicon } from 'vs/base/common/codicons';
@@ -54,7 +54,7 @@ export class EditSessionsDataViews extends Disposable {
 			canMoveView: false,
 			treeView,
 			collapsed: false,
-			when: ContextKeyExpr.and(EDIT_SESSIONS_SIGNED_IN, EDIT_SESSIONS_SHOW_VIEW),
+			when: ContextKeyExpr.and(EDIT_SESSIONS_SHOW_VIEW),
 			order: 100,
 			hideByDefault: true,
 		}], container);
@@ -69,7 +69,7 @@ export class EditSessionsDataViews extends Disposable {
 					localize('storeEditSessionTitle', 'Store Edit Session')
 				)
 			),
-			when: ContextKeyExpr.and(ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, true), ContextKeyExpr.equals(EDIT_SESSIONS_COUNT_KEY, 0)),
+			when: ContextKeyExpr.equals(EDIT_SESSIONS_COUNT_KEY, 0),
 			order: 1
 		});
 
@@ -90,7 +90,7 @@ export class EditSessionsDataViews extends Disposable {
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const editSessionId = URI.parse(handle.$treeItemHandle).path.substring(1);
 				const commandService = accessor.get(ICommandService);
-				await commandService.executeCommand('workbench.experimental.editSessions.actions.resumeLatest', editSessionId);
+				await commandService.executeCommand('workbench.editSessions.actions.resumeLatest', editSessionId);
 				await treeView.refresh();
 			}
 		});
@@ -106,7 +106,7 @@ export class EditSessionsDataViews extends Disposable {
 
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const commandService = accessor.get(ICommandService);
-				await commandService.executeCommand('workbench.experimental.editSessions.actions.storeCurrent');
+				await commandService.executeCommand('workbench.editSessions.actions.storeCurrent');
 				await treeView.refresh();
 			}
 		});
@@ -201,17 +201,27 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 	private async getAllEditSessions(): Promise<ITreeItem[]> {
 		const allEditSessions = await this.editSessionsStorageService.list();
 		this.editSessionsCount.set(allEditSessions.length);
-		return allEditSessions.map((session) => {
+		const editSessions = [];
+
+		for (const session of allEditSessions) {
 			const resource = URI.from({ scheme: EDIT_SESSIONS_SCHEME, authority: 'remote-session-content', path: `/${session.ref}` });
-			return {
+			const sessionData = await this.editSessionsStorageService.read(session.ref);
+			const label = sessionData?.editSession.folders.map((folder) => folder.name).join(', ') ?? session.ref;
+			const machineId = sessionData?.editSession.machine;
+			const machineName = machineId ? await this.editSessionsStorageService.getMachineById(machineId) : undefined;
+			const description = machineName === undefined ? fromNow(session.created, true) : `${fromNow(session.created, true)}\u00a0\u00a0\u2022\u00a0\u00a0${machineName}`;
+
+			editSessions.push({
 				handle: resource.toString(),
 				collapsibleState: TreeItemCollapsibleState.Collapsed,
-				label: { label: fromNow(session.created, true) },
-				description: session.ref,
+				label: { label },
+				description: description,
 				themeIcon: Codicon.repo,
 				contextValue: `edit-session`
-			};
-		});
+			});
+		}
+
+		return editSessions;
 	}
 
 	private async getEditSession(ref: string): Promise<ITreeItem[]> {
@@ -219,6 +229,11 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 
 		if (!data) {
 			return [];
+		}
+
+		if (data.editSession.folders.length === 1) {
+			const folder = data.editSession.folders[0];
+			return this.getEditSessionFolderContents(ref, folder.name);
 		}
 
 		return data.editSession.folders.map((folder) => {

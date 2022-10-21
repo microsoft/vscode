@@ -280,9 +280,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -436,9 +436,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -568,9 +568,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -736,9 +736,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -940,9 +940,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -1060,9 +1060,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -1204,9 +1204,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -1540,9 +1540,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -1588,9 +1588,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -1672,9 +1672,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -2776,9 +2776,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -2980,9 +2980,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -3100,9 +3100,9 @@
 		"t": "source.css.scss meta.definition.variable.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -3172,9 +3172,9 @@
 		"t": "source.css.scss meta.definition.variable.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -3340,9 +3340,9 @@
 		"t": "source.css.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -3424,9 +3424,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -3460,9 +3460,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -3496,9 +3496,9 @@
 		"t": "source.css.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -3580,9 +3580,9 @@
 		"t": "source.css.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -3712,9 +3712,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -3760,9 +3760,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -3808,9 +3808,9 @@
 		"t": "source.css.scss meta.definition.variable.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -3856,9 +3856,9 @@
 		"t": "source.css.scss meta.definition.variable.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -3952,9 +3952,9 @@
 		"t": "source.css.scss entity.other.attribute-name.class.css variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -4024,9 +4024,9 @@
 		"t": "source.css.scss meta.property-list.scss variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -4180,9 +4180,9 @@
 		"t": "source.css.scss meta.definition.variable.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -4504,9 +4504,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -4720,9 +4720,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -4864,9 +4864,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -4996,9 +4996,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -5356,9 +5356,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -5560,9 +5560,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -5620,9 +5620,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -5692,9 +5692,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -5776,9 +5776,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -5908,9 +5908,9 @@
 		"t": "source.css.scss meta.definition.variable.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -5980,9 +5980,9 @@
 		"t": "source.css.scss meta.definition.variable.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -6112,9 +6112,9 @@
 		"t": "source.css.scss meta.at-rule.function.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -6208,9 +6208,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.return.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -6256,9 +6256,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.return.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -6316,9 +6316,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.return.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -6424,9 +6424,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.return.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -6520,9 +6520,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -6760,9 +6760,9 @@
 		"t": "source.css.scss meta.definition.variable.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -7024,9 +7024,9 @@
 		"t": "source.css.scss meta.at-rule.import.scss string.quoted.double.scss variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -7336,9 +7336,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -7516,9 +7516,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.media.scss meta.property-list.media-query.scss meta.property-name.media-query.scss support.type.property-name.media.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -7612,9 +7612,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -7816,9 +7816,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -7936,9 +7936,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -8164,9 +8164,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -8284,9 +8284,9 @@
 		"t": "source.css.scss entity.other.attribute-name.placeholder.css punctuation.definition.entity.css",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -8296,9 +8296,9 @@
 		"t": "source.css.scss entity.other.attribute-name.placeholder.css",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -8344,9 +8344,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -8416,9 +8416,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -8488,9 +8488,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -8668,9 +8668,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.extend.scss entity.other.attribute-name.placeholder.css punctuation.definition.entity.css",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -8680,9 +8680,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.extend.scss entity.other.attribute-name.placeholder.css",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -8884,9 +8884,9 @@
 		"t": "source.css.scss meta.at-rule.mixin.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -8908,9 +8908,9 @@
 		"t": "source.css.scss meta.at-rule.mixin.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -9028,9 +9028,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -9160,9 +9160,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.at-rule.warn.scss string.quoted.double.scss variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -9232,9 +9232,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -9328,9 +9328,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -9448,9 +9448,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -9580,9 +9580,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.at-rule.warn.scss string.quoted.double.scss variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -9652,9 +9652,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -9748,9 +9748,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -9808,9 +9808,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -9880,9 +9880,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -9916,9 +9916,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -9952,9 +9952,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -9988,9 +9988,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -10324,9 +10324,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -10588,9 +10588,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -10780,9 +10780,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -10948,9 +10948,9 @@
 		"t": "source.css.scss meta.definition.variable.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -11080,9 +11080,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -11152,9 +11152,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -11296,9 +11296,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -11464,9 +11464,9 @@
 		"t": "source.css.scss meta.at-rule.for.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -11644,9 +11644,9 @@
 		"t": "source.css.scss meta.property-list.scss entity.other.attribute-name.class.css variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -11704,9 +11704,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -11800,9 +11800,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -11932,9 +11932,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -12052,9 +12052,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.property-list.scss entity.other.attribute-name.class.css variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -12124,9 +12124,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -12220,9 +12220,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss string.quoted.single.scss variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -12364,9 +12364,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -12448,9 +12448,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -12580,9 +12580,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss entity.other.attribute-name.class.css variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -12640,9 +12640,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -12736,9 +12736,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -12796,9 +12796,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -12832,9 +12832,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -13012,9 +13012,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.function.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -13048,9 +13048,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.function.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -13144,9 +13144,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.for.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -13240,9 +13240,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.for.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -13360,9 +13360,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.if.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -13492,9 +13492,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.if.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -13528,9 +13528,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.if.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -13636,9 +13636,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -13900,9 +13900,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.return.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -14104,9 +14104,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -14176,9 +14176,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -14260,9 +14260,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -14356,9 +14356,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -14572,9 +14572,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -14752,9 +14752,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.mixin.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -14776,9 +14776,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.mixin.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -14884,9 +14884,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -14932,9 +14932,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -14968,9 +14968,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -15004,9 +15004,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -15040,9 +15040,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -15436,9 +15436,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.mixin.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -15508,9 +15508,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.vendored.property-name.css",
 		"r": {
 			"dark_plus": "support.type.vendored.property-name: #9CDCFE",
-			"light_plus": "support.type.vendored.property-name: #FF0000",
+			"light_plus": "support.type.vendored.property-name: #E50000",
 			"dark_vs": "support.type.vendored.property-name: #9CDCFE",
-			"light_vs": "support.type.vendored.property-name: #FF0000",
+			"light_vs": "support.type.vendored.property-name: #E50000",
 			"hc_black": "support.type.vendored.property-name: #D4D4D4",
 			"hc_light": "support.type.vendored.property-name: #264F78"
 		}
@@ -15544,9 +15544,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -15580,9 +15580,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.vendored.property-name.css",
 		"r": {
 			"dark_plus": "support.type.vendored.property-name: #9CDCFE",
-			"light_plus": "support.type.vendored.property-name: #FF0000",
+			"light_plus": "support.type.vendored.property-name: #E50000",
 			"dark_vs": "support.type.vendored.property-name: #9CDCFE",
-			"light_vs": "support.type.vendored.property-name: #FF0000",
+			"light_vs": "support.type.vendored.property-name: #E50000",
 			"hc_black": "support.type.vendored.property-name: #D4D4D4",
 			"hc_light": "support.type.vendored.property-name: #264F78"
 		}
@@ -15616,9 +15616,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -15652,9 +15652,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -15688,9 +15688,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -16252,9 +16252,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.mixin.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -16276,9 +16276,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.mixin.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -16300,9 +16300,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.mixin.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -16360,9 +16360,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -16396,9 +16396,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -16432,9 +16432,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -16468,9 +16468,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -16504,9 +16504,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -16540,9 +16540,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -16576,9 +16576,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -16828,9 +16828,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -17284,9 +17284,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -17464,9 +17464,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.if.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -17668,9 +17668,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.attribute-selector.scss entity.other.attribute-name.attribute.scss",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -18016,9 +18016,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -18100,9 +18100,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -18364,9 +18364,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -19036,9 +19036,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -19084,9 +19084,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -19144,9 +19144,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -19324,9 +19324,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.mixin.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -19468,9 +19468,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss entity.other.attribute-name.class.css variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -19564,9 +19564,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -20152,9 +20152,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -20224,9 +20224,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -20440,9 +20440,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss entity.other.attribute-name.class.css variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -20524,9 +20524,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -20644,9 +20644,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -20740,9 +20740,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -20788,9 +20788,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -20896,9 +20896,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss variable.interpolation.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -21136,9 +21136,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -21280,9 +21280,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -21484,9 +21484,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -21628,9 +21628,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -21736,9 +21736,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.vendored.property-name.css",
 		"r": {
 			"dark_plus": "support.type.vendored.property-name: #9CDCFE",
-			"light_plus": "support.type.vendored.property-name: #FF0000",
+			"light_plus": "support.type.vendored.property-name: #E50000",
 			"dark_vs": "support.type.vendored.property-name: #9CDCFE",
-			"light_vs": "support.type.vendored.property-name: #FF0000",
+			"light_vs": "support.type.vendored.property-name: #E50000",
 			"hc_black": "support.type.vendored.property-name: #D4D4D4",
 			"hc_light": "support.type.vendored.property-name: #264F78"
 		}
@@ -21832,9 +21832,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -21952,9 +21952,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -22180,9 +22180,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -22324,9 +22324,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -22468,9 +22468,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.attribute-selector.scss entity.other.attribute-name.attribute.scss",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
+			"light_plus": "entity.other.attribute-name: #E50000",
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
+			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78"
 		}
@@ -22720,9 +22720,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}
@@ -22804,9 +22804,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
+			"light_plus": "variable.scss: #E50000",
 			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
+			"light_vs": "variable.scss: #E50000",
 			"hc_black": "variable.scss: #D4D4D4",
 			"hc_light": "variable.scss: #264F78"
 		}

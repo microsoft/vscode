@@ -329,6 +329,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private collectCompositeActions(composite?: Composite): () => void {
 
 		// From Composite
+		const menuIds = composite?.getMenuIds();
 		const primaryActions: IAction[] = composite?.getActions().slice(0) || [];
 		const secondaryActions: IAction[] = composite?.getSecondaryActions().slice(0) || [];
 
@@ -337,7 +338,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		toolBar.context = this.actionsContextProvider();
 
 		// Return fn to set into toolbar
-		return () => toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
+		return () => toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions), menuIds);
 	}
 
 	protected getActiveComposite(): IComposite | undefined {

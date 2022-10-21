@@ -51,6 +51,10 @@ import { BrowserFileUpload, FileDownload } from 'vs/workbench/contrib/files/brow
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { Action2 } from 'vs/platform/actions/common/actions';
+import { ActiveEditorContext, EmptyWorkspaceSupportContext } from 'vs/workbench/common/contextkeys';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File...");
@@ -67,6 +71,7 @@ export const UPLOAD_COMMAND_ID = 'explorer.upload';
 export const UPLOAD_LABEL = nls.localize('upload', "Upload...");
 const CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
 const MAX_UNDO_FILE_SIZE = 5000000; // 5mb
+export const fileCategory = { value: nls.localize('filesCategory', "File"), original: 'File' };
 
 function onError(notificationService: INotificationService, error: any): void {
 	if (error.message === 'string') {
@@ -451,30 +456,34 @@ async function askForOverwrite(fileService: IFileService, dialogService: IDialog
 }
 
 // Global Compare with
-export class GlobalCompareResourcesAction extends Action {
+export class GlobalCompareResourcesAction extends Action2 {
 
 	static readonly ID = 'workbench.files.action.compareFileWith';
 	static readonly LABEL = nls.localize('globalCompareFile', "Compare Active File With...");
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IEditorService private readonly editorService: IEditorService,
-		@ITextModelService private readonly textModelService: ITextModelService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: GlobalCompareResourcesAction.ID,
+			title: { value: GlobalCompareResourcesAction.LABEL, original: 'Compare Active File With...' },
+			f1: true,
+			category: fileCategory,
+			precondition: ActiveEditorContext
+		});
 	}
 
-	override async run(): Promise<void> {
-		const activeInput = this.editorService.activeEditor;
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const textModelService = accessor.get(ITextModelService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		const activeInput = editorService.activeEditor;
 		const activeResource = EditorResourceAccessor.getOriginalUri(activeInput);
-		if (activeResource && this.textModelService.canHandleResource(activeResource)) {
-			const picks = await this.quickInputService.quickAccess.pick('', { itemActivation: ItemActivation.SECOND });
+		if (activeResource && textModelService.canHandleResource(activeResource)) {
+			const picks = await quickInputService.quickAccess.pick('', { itemActivation: ItemActivation.SECOND });
 			if (picks?.length === 1) {
 				const resource = (picks[0] as unknown as { resource: unknown }).resource;
-				if (URI.isUri(resource) && this.textModelService.canHandleResource(resource)) {
-					this.editorService.openEditor({
+				if (URI.isUri(resource) && textModelService.canHandleResource(resource)) {
+					editorService.openEditor({
 						original: { resource: activeResource },
 						modified: { resource: resource },
 						options: { pinned: true }
@@ -485,20 +494,22 @@ export class GlobalCompareResourcesAction extends Action {
 	}
 }
 
-export class ToggleAutoSaveAction extends Action {
+export class ToggleAutoSaveAction extends Action2 {
 	static readonly ID = 'workbench.action.toggleAutoSave';
 	static readonly LABEL = nls.localize('toggleAutoSave', "Toggle Auto Save");
 
-	constructor(
-		id: string,
-		label: string,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: ToggleAutoSaveAction.ID,
+			title: { value: ToggleAutoSaveAction.LABEL, original: 'Toggle Auto Save' },
+			f1: true,
+			category: fileCategory
+		});
 	}
 
-	override run(): Promise<void> {
-		return this.filesConfigurationService.toggleAutoSave();
+	override run(accessor: ServicesAccessor): Promise<void> {
+		const filesConfigurationService = accessor.get(IFilesConfigurationService);
+		return filesConfigurationService.toggleAutoSave();
 	}
 }
 
@@ -573,69 +584,79 @@ export class CloseGroupAction extends Action {
 	}
 }
 
-export class FocusFilesExplorer extends Action {
+export class FocusFilesExplorer extends Action2 {
 
 	static readonly ID = 'workbench.files.action.focusFilesExplorer';
 	static readonly LABEL = nls.localize('focusFilesExplorer', "Focus on Files Explorer");
 
-	constructor(
-		id: string,
-		label: string,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: FocusFilesExplorer.ID,
+			title: { value: FocusFilesExplorer.LABEL, original: 'Focus on Files Explorer' },
+			f1: true,
+			category: fileCategory
+		});
 	}
 
-	override async run(): Promise<void> {
-		await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
 	}
 }
 
-export class ShowActiveFileInExplorer extends Action {
+export class ShowActiveFileInExplorer extends Action2 {
 
 	static readonly ID = 'workbench.files.action.showActiveFileInExplorer';
 	static readonly LABEL = nls.localize('showInExplorer', "Reveal Active File in Explorer View");
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService,
-		@ICommandService private readonly commandService: ICommandService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: ShowActiveFileInExplorer.ID,
+			title: { value: ShowActiveFileInExplorer.LABEL, original: 'Reveal Active File in Explorer View' },
+			f1: true,
+			category: fileCategory
+		});
 	}
 
-	override async run(): Promise<void> {
-		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		const editorService = accessor.get(IEditorService);
+		const resource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (resource) {
-			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
+			commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
 		}
 	}
 }
 
-export class ShowOpenedFileInNewWindow extends Action {
+export class ShowOpenedFileInNewWindow extends Action2 {
 
 	static readonly ID = 'workbench.action.files.showOpenedFileInNewWindow';
 	static readonly LABEL = nls.localize('openFileInNewWindow', "Open Active File in New Window");
 
 	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService,
-		@IHostService private readonly hostService: IHostService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IFileService private readonly fileService: IFileService
 	) {
-		super(id, label);
+		super({
+			id: ShowOpenedFileInNewWindow.ID,
+			title: { value: ShowOpenedFileInNewWindow.LABEL, original: 'Open Active File in New Window' },
+			f1: true,
+			category: fileCategory,
+			keybinding: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyO), weight: KeybindingWeight.WorkbenchContrib },
+			precondition: EmptyWorkspaceSupportContext
+		});
 	}
 
-	override async run(): Promise<void> {
-		const fileResource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const hostService = accessor.get(IHostService);
+		const dialogService = accessor.get(IDialogService);
+		const fileService = accessor.get(IFileService);
+
+		const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (fileResource) {
-			if (this.fileService.hasProvider(fileResource)) {
-				this.hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
+			if (fileService.hasProvider(fileResource)) {
+				hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
 			} else {
-				this.dialogService.show(Severity.Error, nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
+				dialogService.show(Severity.Error, nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
 			}
 		}
 	}
@@ -718,7 +739,7 @@ function getWellFormedFileName(filename: string): string {
 	return filename;
 }
 
-export class CompareWithClipboardAction extends Action {
+export class CompareWithClipboardAction extends Action2 {
 
 	static readonly ID = 'workbench.files.action.compareWithClipboard';
 	static readonly LABEL = nls.localize('compareWithClipboard', "Compare Active File with Clipboard");
@@ -726,32 +747,34 @@ export class CompareWithClipboardAction extends Action {
 	private registrationDisposal: IDisposable | undefined;
 	private static SCHEME_COUNTER = 0;
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITextModelService private readonly textModelService: ITextModelService,
-		@IFileService private readonly fileService: IFileService
-	) {
-		super(id, label);
-
-		this.enabled = true;
+	constructor() {
+		super({
+			id: CompareWithClipboardAction.ID,
+			title: { value: CompareWithClipboardAction.LABEL, original: 'Compare Active File with Clipboard' },
+			f1: true,
+			category: fileCategory,
+			keybinding: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyC), weight: KeybindingWeight.WorkbenchContrib }
+		});
 	}
 
-	override async run(): Promise<void> {
-		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const textModelService = accessor.get(ITextModelService);
+		const fileService = accessor.get(IFileService);
+
+		const resource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const scheme = `clipboardCompare${CompareWithClipboardAction.SCHEME_COUNTER++}`;
-		if (resource && (this.fileService.hasProvider(resource) || resource.scheme === Schemas.untitled)) {
+		if (resource && (fileService.hasProvider(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
-				const provider = this.instantiationService.createInstance(ClipboardContentProvider);
-				this.registrationDisposal = this.textModelService.registerTextModelContentProvider(scheme, provider);
+				const provider = instantiationService.createInstance(ClipboardContentProvider);
+				this.registrationDisposal = textModelService.registerTextModelContentProvider(scheme, provider);
 			}
 
 			const name = resources.basename(resource);
 			const editorLabel = nls.localize('clipboardComparisonLabel', "Clipboard ↔ {0}", name);
 
-			await this.editorService.openEditor({
+			await editorService.openEditor({
 				original: { resource: resource.with({ scheme }) },
 				modified: { resource: resource },
 				label: editorLabel,
@@ -763,9 +786,7 @@ export class CompareWithClipboardAction extends Action {
 		}
 	}
 
-	override dispose(): void {
-		super.dispose();
-
+	dispose(): void {
 		dispose(this.registrationDisposal);
 		this.registrationDisposal = undefined;
 	}

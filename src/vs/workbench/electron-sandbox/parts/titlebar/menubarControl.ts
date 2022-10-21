@@ -25,6 +25,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
+import { isICommandActionToggleInfo } from 'vs/platform/action/common/action';
 
 export class NativeMenubarControl extends MenubarControl {
 
@@ -120,8 +121,8 @@ export class NativeMenubarControl extends MenubarControl {
 					const submenu = { items: [] };
 
 					if (!this.menus[menuItem.item.submenu.id]) {
-						const menu = this.menus[menuItem.item.submenu.id] = this._register(this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService));
-						this._register(menu.onDidChange(() => this.updateMenubar()));
+						const menu = this.menus[menuItem.item.submenu.id] = this.mainMenuDisposables.add(this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService));
+						this.mainMenuDisposables.add(menu.onDidChange(() => this.updateMenubar()));
 					}
 
 					const menuToDispose = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
@@ -148,6 +149,10 @@ export class NativeMenubarControl extends MenubarControl {
 						id: menuItem.id,
 						label: title
 					};
+
+					if (isICommandActionToggleInfo(menuItem.item.toggled)) {
+						menubarMenuItem.label = menuItem.item.toggled.mnemonicTitle ?? menuItem.item.toggled.title ?? title;
+					}
 
 					if (menuItem.checked) {
 						menubarMenuItem.checked = true;

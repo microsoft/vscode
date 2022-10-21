@@ -816,7 +816,7 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('externalTerminal', externalTerminalChannel);
 
 		// Log Level (main & shared process)
-		const logLevelChannel = new LogLevelChannel(accessor.get(ILogService));
+		const logLevelChannel = new LogLevelChannel(accessor.get(ILogService), accessor.get(ILoggerService));
 		mainProcessElectronServer.registerChannel('logLevel', logLevelChannel);
 		sharedProcessClient.then(client => client.registerChannel('logLevel', logLevelChannel));
 
@@ -917,6 +917,14 @@ export class CodeApplication extends Disposable {
 
 				// or if no window is open (macOS only)
 				shouldOpenInNewWindow ||= isMacintosh && windowsMainService.getWindowCount() === 0;
+
+				// Pass along whether the application is being opened via a Continue On flow
+				const continueOn = params.get('continueOn');
+				if (continueOn !== null) {
+					environmentService.continueOn = continueOn ?? undefined;
+					params.delete('continueOn');
+					uri = uri.with({ query: params.toString() });
+				}
 
 				// Check for URIs to open in window
 				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);

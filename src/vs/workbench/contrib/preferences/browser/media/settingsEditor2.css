@@ -172,6 +172,10 @@
 	padding-left: 33px;
 }
 
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row {
+	outline: none !important;
+}
+
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-twistie {
 	/* Hide twisties */
 	display: none !important;
@@ -561,7 +565,7 @@
 	width: initial;
 	font: inherit;
 	height: 26px;
-	padding: 2px 8px;
+	padding: 2px 6px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-new-extensions {

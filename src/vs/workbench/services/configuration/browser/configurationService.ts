@@ -562,7 +562,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 		if (!this.localUserConfiguration.hasTasksLoaded) {
 			// Reload local user configuration again to load user tasks
-			this._register(runWhenIdle(() => this.reloadLocalUserConfiguration(), 5000));
+			this._register(runWhenIdle(() => this.reloadLocalUserConfiguration()));
 		}
 	}
 
@@ -1301,6 +1301,6 @@ class UpdateExperimentalSettingsDefaults extends Disposable implements IWorkbenc
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(RegisterConfigurationSchemasContribution, 'RegisterConfigurationSchemasContribution', LifecyclePhase.Restored);
-workbenchContributionsRegistry.registerWorkbenchContribution(ResetConfigurationDefaultsOverridesCache, 'ResetConfigurationDefaultsOverridesCache', LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(UpdateExperimentalSettingsDefaults, 'UpdateExperimentalSettingsDefaults', LifecyclePhase.Restored);
+workbenchContributionsRegistry.registerWorkbenchContribution(RegisterConfigurationSchemasContribution, LifecyclePhase.Restored);
+workbenchContributionsRegistry.registerWorkbenchContribution(ResetConfigurationDefaultsOverridesCache, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(UpdateExperimentalSettingsDefaults, LifecyclePhase.Restored);

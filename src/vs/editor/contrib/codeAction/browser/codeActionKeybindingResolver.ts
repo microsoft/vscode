@@ -7,7 +7,7 @@ import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Lazy } from 'vs/base/common/lazy';
 import { CodeAction } from 'vs/editor/common/languages';
 import { codeActionCommandId, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export interface ResolveCodeActionKeybinding {

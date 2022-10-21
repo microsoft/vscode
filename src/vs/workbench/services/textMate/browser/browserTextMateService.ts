@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractTextMateService } from 'vs/workbench/services/textMate/browser/abstractTextMateService';
 import { FileAccess } from 'vs/base/common/network';
 
@@ -18,4 +18,4 @@ export class TextMateService extends AbstractTextMateService {
 	}
 }
 
-registerSingleton(ITextMateService, TextMateService, false);
+registerSingleton(ITextMateService, TextMateService, InstantiationType.Eager);

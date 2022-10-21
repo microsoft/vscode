@@ -193,7 +193,7 @@ export class ActionRunner extends Disposable implements IActionRunner {
 	}
 }
 
-export class Separator extends Action {
+export class Separator implements IAction {
 
 	/**
 	 * Joins all non-empty lists of actions with separators.
@@ -215,12 +215,14 @@ export class Separator extends Action {
 
 	static readonly ID = 'vs.actions.separator';
 
-	constructor(label?: string) {
-		super(Separator.ID, label, label ? 'separator text' : 'separator');
+	readonly id: string = Separator.ID;
 
-		this.checked = false;
-		this.enabled = false;
-	}
+	readonly label: string = '';
+	readonly tooltip: string = '';
+	readonly class: string = 'separator';
+	readonly enabled: boolean = false;
+	readonly checked: boolean = false;
+	async run() { }
 }
 
 export class SubmenuAction implements IAction {

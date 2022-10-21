@@ -550,6 +550,16 @@ export const schema: IJSONSchema = {
 		icon: {
 			type: 'string',
 			description: nls.localize('vscode.extension.icon', 'The path to a 128x128 pixel icon.')
+		},
+		l10n: {
+			type: 'string',
+			description: nls.localize({
+				key: 'vscode.extension.l10n',
+				comment: [
+					'{Locked="bundle.l10n._locale_.json"}',
+					'{Locked="vscode.l10n API"}'
+				]
+			}, 'The relative path to a folder containing localization (bundle.l10n.*.json) files. Must be specified if you are using the vscode.l10n API.')
 		}
 	}
 };

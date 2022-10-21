@@ -1,0 +1,170 @@
+diff --git a/Configurations/10-main.conf b/Configurations/10-main.conf
+index 3c4299d264..99fcb1f713 100644
+--- a/Configurations/10-main.conf
++++ b/Configurations/10-main.conf
+@@ -1287,7 +1287,7 @@ my %targets = (
+     },
+     "VC-WIN64I" => {
+         inherit_from     => [ "VC-WIN64-common", asm("ia64_asm"),
+-                              sub { $disabled{shared} ? () : "ia64_uplink" } ],
++                              sub { $disabled{uplink} ? () : "ia64_uplink" } ],
+         AS               => "ias",
+         ASFLAGS          => "-d debug",
+         asoutflag        => "-o ",
+@@ -1299,7 +1299,7 @@ my %targets = (
+     },
+     "VC-WIN64A" => {
+         inherit_from     => [ "VC-WIN64-common", asm("x86_64_asm"),
+-                              sub { $disabled{shared} ? () : "x86_64_uplink" } ],
++                              sub { $disabled{uplink} ? () : "x86_64_uplink" } ],
+         AS               => sub { vc_win64a_info()->{AS} },
+         ASFLAGS          => sub { vc_win64a_info()->{ASFLAGS} },
+         asoutflag        => sub { vc_win64a_info()->{asoutflag} },
+@@ -1312,7 +1312,7 @@ my %targets = (
+     },
+     "VC-WIN32" => {
+         inherit_from     => [ "VC-noCE-common", asm("x86_asm"),
+-                              sub { $disabled{shared} ? () : "uplink_common" } ],
++                              sub { $disabled{uplink} ? () : "uplink_common" } ],
+         AS               => sub { vc_win32_info()->{AS} },
+         ASFLAGS          => sub { vc_win32_info()->{ASFLAGS} },
+         asoutflag        => sub { vc_win32_info()->{asoutflag} },
+@@ -1374,7 +1374,7 @@ my %targets = (
+ #### MinGW
+     "mingw" => {
+         inherit_from     => [ "BASE_unix", asm("x86_asm"),
+-                              sub { $disabled{shared} ? () : "x86_uplink" } ],
++                              sub { $disabled{uplink} ? () : "x86_uplink" } ],
+         CC               => "gcc",
+         CFLAGS           => picker(default => "-Wall",
+                                    debug   => "-g -O0",
+diff --git a/Configurations/50-win-onecore.conf b/Configurations/50-win-onecore.conf
+index d478f42b0f..e0fb70daca 100644
+--- a/Configurations/50-win-onecore.conf
++++ b/Configurations/50-win-onecore.conf
+@@ -1,3 +1,4 @@
++## -*- mode: perl; -*-
+ # Windows OneCore targets.
+ #
+ # OneCore is new API stability "contract" that transcends Desktop, IoT and
+@@ -10,6 +11,25 @@
+ # TODO: extend error handling to use ETW based eventing
+ # (Or rework whole error messaging)
+ 
++my $UWP_info = {};
++sub UWP_info {
++    unless (%$UWP_info) {
++        my $SDKver = `pwsh.exe -Command  \"& {\$(Get-Item \\\"hklm:\\SOFTWARE\\WOW6432Node\\Microsoft\\Microsoft SDKs\\Windows\\\").GetValue(\\\"CurrentVersion\\\")}\"`;
++        $SDKver =~ s|\R$||;
++        my @SDKver_split = split(/\./, $SDKver);
++        # SDK version older than 10.0.17763 don't support our ASM builds
++        if ($SDKver_split[0] < 10
++            || ($SDKver_split[0] == 10
++                && $SDKver_split[1] == 0
++                && $SDKver_split[2] < 17763)) {
++            $UWP_info->{disable} = [ 'asm' ];
++        } else {
++            $UWP_info->{disable} = [ ];
++        }
++    }
++    return $UWP_info;
++}
++
+ my %targets = (
+     "VC-WIN32-ONECORE" => {
+         inherit_from    => [ "VC-WIN32" ],
+@@ -61,4 +81,57 @@ my %targets = (
+         ex_libs         => "onecore.lib",
+         multilib        => "-arm64",
+     },
++
++    # Universal Windows Platform (UWP) App Support
++
++    # TODO
++    #
++    # The 'disable' attribute should have 'uplink'.
++    # however, these are checked in some 'inherit_from', which is processed
++    # very early, before the 'disable' attributes are seen.
++    # This is a problem that needs to be resolved in Configure first.
++    #
++    # But if you want to build library with Windows 10 Version 1809 SDK or
++    # earlier, the 'disable' attribute should also have 'asm'.
++
++    "VC-WIN32-UWP" => {
++        inherit_from    => [ "VC-WIN32-ONECORE" ],
++        lflags          => add("/APPCONTAINER"),
++        defines         => add("WINAPI_FAMILY=WINAPI_FAMILY_APP",
++                               "_WIN32_WINNT=0x0A00"),
++        dso_scheme      => "",
++        disable         => sub { [ 'ui-console', 'stdio', 'async', 'uplink',
++                                   @{ UWP_info()->{disable} } ] },
++        ex_libs         => "WindowsApp.lib",
++    },
++     "VC-WIN64A-UWP" => {
++        inherit_from    => [ "VC-WIN64A-ONECORE" ],
++        lflags          => add("/APPCONTAINER"),
++        defines         => add("WINAPI_FAMILY=WINAPI_FAMILY_APP",
++                               "_WIN32_WINNT=0x0A00"),
++        dso_scheme      => "",
++        disable         => sub { [ 'ui-console', 'stdio', 'async', 'uplink',
++                                   @{ UWP_info()->{disable} } ] },
++        ex_libs         => "WindowsApp.lib",
++    },
++    "VC-WIN32-ARM-UWP" => {
++        inherit_from    => [ "VC-WIN32-ARM" ],
++        lflags          => add("/APPCONTAINER"),
++        defines         => add("WINAPI_FAMILY=WINAPI_FAMILY_APP",
++                               "_WIN32_WINNT=0x0A00"),
++        dso_scheme      => "",
++        disable         => sub { [ 'ui-console', 'stdio', 'async', 'uplink',
++                                   @{ UWP_info()->{disable} } ] },
++        ex_libs         => "WindowsApp.lib",
++    },
++     "VC-WIN64-ARM-UWP" => {
++        inherit_from    => [ "VC-WIN64-ARM" ],
++        lflags          => add("/APPCONTAINER"),
++        defines         => add("WINAPI_FAMILY=WINAPI_FAMILY_APP",
++                               "_WIN32_WINNT=0x0A00"),
++        dso_scheme      => "",
++        disable         => sub { [ 'ui-console', 'stdio', 'async', 'uplink',
++                                   @{ UWP_info()->{disable} } ] },
++        ex_libs         => "WindowsApp.lib",
++    },
+ );
+diff --git a/Configure b/Configure
+index 5a699836f3..de45f1e299 100755
+--- a/Configure
++++ b/Configure
+@@ -407,6 +408,7 @@ my @disablables = (
+     "ubsan",
+     "ui-console",
+     "unit-test",
++    "uplink",
+     "whirlpool",
+     "weak-ssl-ciphers",
+     "zlib",
+@@ -491,8 +493,8 @@ my @disable_cascades = (
+ 
+     # Without position independent code, there can be no shared libraries or DSOs
+     "pic"               => [ "shared" ],
+-    "shared"            => [ "dynamic-engine" ],
++    "shared"            => [ "dynamic-engine", "uplink" ],
+     "dso"               => [ "dynamic-engine" ],
+     "engine"            => [ "afalgeng", "devcryptoeng" ],
+ 
+     # no-autoalginit is only useful when building non-shared
+diff --git a/INSTALL b/INSTALL
+index 2119cbae9e..ee54e8c215 100644
+--- a/INSTALL
++++ b/INSTALL
+@@ -560,6 +560,10 @@
+                    likely to complement configuration command line with
+                    suitable compiler-specific option.
+ 
++  no-uplink
++                   Don't build support for UPLINK interface.
++
++
+   no-<prot>
+                    Don't build support for negotiating the specified SSL/TLS
+                    protocol (one of ssl, ssl3, tls, tls1, tls1_1, tls1_2,

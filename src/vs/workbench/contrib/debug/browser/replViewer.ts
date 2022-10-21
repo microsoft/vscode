@@ -312,18 +312,21 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 		return super.getHeight(element);
 	}
 
+	/**
+	 * With wordWrap enabled, this is an estimate. With wordWrap disabled, this is the real height that the list will use.
+	 */
 	protected estimateHeight(element: IReplElement, ignoreValueLength = false): number {
 		const lineHeight = this.replOptions.replConfiguration.lineHeight;
-		const countNumberOfLines = (str: string) => Math.max(1, (str && str.match(/\r\n|\n/g) || []).length);
+		const countNumberOfLines = (str: string) => str.match(/\n/g)?.length ?? 0;
 		const hasValue = (e: any): e is { value: string } => typeof e.value === 'string';
 
-		// Calculate a rough overestimation for the height
-		// For every 70 characters increase the number of lines needed beyond the first
 		if (hasValue(element) && !isNestedVariable(element)) {
 			const value = element.value;
-			const valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 70));
+			const valueRows = countNumberOfLines(value)
+				+ (ignoreValueLength ? 0 : Math.floor(value.length / 70)) // Make an estimate for wrapping
+				+ (element instanceof SimpleReplElement ? 0 : 1); // A SimpleReplElement ends in \n if it's a complete line
 
-			return valueRows * lineHeight;
+			return Math.max(valueRows, 1) * lineHeight;
 		}
 
 		return lineHeight;

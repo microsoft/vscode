@@ -41,12 +41,12 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		setVisibleChannel();
 	}
 
-	public async $register(label: string, log: boolean, file: UriComponents, languageId: string, extensionId: string): Promise<string> {
+	public async $register(label: string, file: UriComponents, log: boolean, languageId: string | undefined, extensionId: string): Promise<string> {
 		const idCounter = (MainThreadOutputService._extensionIdPool.get(extensionId) || 0) + 1;
 		MainThreadOutputService._extensionIdPool.set(extensionId, idCounter);
 		const id = `extension-output-${extensionId}-#${idCounter}-${label}`;
 
-		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: URI.revive(file), log, languageId });
+		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: URI.revive(file), log, languageId, extensionId });
 		this._register(toDisposable(() => this.$dispose(id)));
 		return id;
 	}

@@ -402,6 +402,32 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.getEnablementState(dep), EnablementState.EnabledGlobally);
 	});
 
+	test('test enable an extension in workspace with a dependency extension that has auth providers', async () => {
+		installed.push(...[aLocalExtension2('pub.a', { extensionDependencies: ['pub.b'] }), aLocalExtension('pub.b', { authentication: [{ id: 'a', label: 'a' }] })]);
+		const target = installed[0];
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+		await testObject.setEnablement([target], EnablementState.DisabledWorkspace);
+		await testObject.setEnablement([target], EnablementState.EnabledWorkspace);
+		assert.ok(testObject.isEnabled(target));
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledWorkspace);
+	});
+
+	test('test enable an extension with a dependency extension that cannot be enabled', async () => {
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(anExtensionManagementServer('vscode-local', instantiationService), anExtensionManagementServer('vscode-remote', instantiationService), null));
+		const localWorkspaceDepExtension = aLocalExtension2('pub.b', { extensionKind: ['workspace'] }, { location: URI.file(`pub.b`) });
+		const remoteWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['workspace'], extensionDependencies: ['pub.b'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const remoteWorkspaceDepExtension = aLocalExtension2('pub.b', { extensionKind: ['workspace'] }, { location: URI.file(`pub.b`).with({ scheme: Schemas.vscodeRemote }) });
+		installed.push(localWorkspaceDepExtension, remoteWorkspaceExtension, remoteWorkspaceDepExtension);
+
+		testObject = new TestExtensionEnablementService(instantiationService);
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+
+		await testObject.setEnablement([remoteWorkspaceExtension], EnablementState.DisabledGlobally);
+		await testObject.setEnablement([remoteWorkspaceExtension], EnablementState.EnabledGlobally);
+		assert.ok(testObject.isEnabled(remoteWorkspaceExtension));
+		assert.strictEqual(testObject.getEnablementState(remoteWorkspaceExtension), EnablementState.EnabledGlobally);
+	});
+
 	test('test enable an extension also enables packed extensions', async () => {
 		installed.push(...[aLocalExtension2('pub.a', { extensionPack: ['pub.b'] }), aLocalExtension('pub.b')]);
 		const target = installed[0];

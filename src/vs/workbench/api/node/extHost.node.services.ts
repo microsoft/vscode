@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
 import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 import { ExtHostDebugService } from 'vs/workbench/api/node/extHostDebugService';
@@ -30,7 +30,7 @@ import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHos
 // #########################################################################
 
 registerSingleton(IExtHostExtensionService, ExtHostExtensionService, false);
-registerSingleton(ILoggerService, ExtHostLoggerService, true);
+registerSingleton(ILoggerService, ExtHostLoggerService, InstantiationType.Delayed);
 registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, false);
 
 registerSingleton(IExtHostDebugService, ExtHostDebugService, false);
