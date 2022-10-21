@@ -18,7 +18,7 @@ import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/v
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
 import { RenderLineNumbersType, EditorOption, IComputedEditorOptions, EditorOptions } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -171,7 +171,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea = createFastDomNode(document.createElement('textarea'));
 		PartFingerprints.write(this.textArea, PartFingerprint.TextArea);
 		this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-		this.textArea.setAttribute('wrap', this._textAreaWrapping ? 'on' : 'off');
+		this.textArea.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		this.textArea.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
 		this.textArea.setAttribute('autocorrect', 'off');
@@ -383,7 +383,8 @@ export class TextAreaHandler extends ViewPart {
 				const visibleBeforeCharCount = Math.min(startModelPosition.column - 1, desiredVisibleBeforeCharCount);
 				const distanceToModelLineStart = startModelPosition.column - 1 - visibleBeforeCharCount;
 				const hiddenLineTextBefore = lineTextBeforeSelection.substring(0, lineTextBeforeSelection.length - visibleBeforeCharCount);
-				const widthOfHiddenTextBefore = measureText(hiddenLineTextBefore, this._fontInfo);
+				const { tabSize } = this._context.viewModel.model.getOptions();
+				const widthOfHiddenTextBefore = measureText(hiddenLineTextBefore, this._fontInfo, tabSize);
 
 				return { distanceToModelLineStart, widthOfHiddenTextBefore };
 			})();
@@ -420,6 +421,9 @@ export class TextAreaHandler extends ViewPart {
 				distanceToModelLineEnd,
 			);
 
+			// We turn off wrapping if the <textarea> becomes visible for composition
+			this.textArea.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
+
 			this._visibleTextArea.prepareRender(this._visibleRangeProvider);
 			this._render();
 
@@ -442,6 +446,10 @@ export class TextAreaHandler extends ViewPart {
 		this._register(this._textAreaInput.onCompositionEnd(() => {
 
 			this._visibleTextArea = null;
+
+			// We turn on wrapping as necessary if the <textarea> hides after composition
+			this.textArea.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
+
 			this._render();
 
 			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
@@ -580,7 +588,7 @@ export class TextAreaHandler extends ViewPart {
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
-		this.textArea.setAttribute('wrap', this._textAreaWrapping ? 'on' : 'off');
+		this.textArea.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		this.textArea.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
@@ -883,7 +891,7 @@ interface IRenderData {
 	strikethrough?: boolean;
 }
 
-function measureText(text: string, fontInfo: BareFontInfo): number {
+function measureText(text: string, fontInfo: FontInfo, tabSize: number): number {
 	if (text.length === 0) {
 		return 0;
 	}
@@ -896,6 +904,7 @@ function measureText(text: string, fontInfo: BareFontInfo): number {
 	const regularDomNode = document.createElement('span');
 	applyFontInfo(regularDomNode, fontInfo);
 	regularDomNode.style.whiteSpace = 'pre'; // just like the textarea
+	regularDomNode.style.tabSize = `${tabSize * fontInfo.spaceWidth}px`; // just like the textarea
 	regularDomNode.append(text);
 	container.appendChild(regularDomNode);
 
