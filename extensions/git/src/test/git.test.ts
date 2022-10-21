@@ -320,6 +320,32 @@ This is a commit message.\x00`;
 				{ name: 'remote2', fetchUrl: 'https://github.com/microsoft/vscode2.git', pushUrl: 'https://github.com/microsoft/vscode2.git', isReadOnly: false }
 			]);
 		});
+
+		test('remotes (white space)', () => {
+			const sample = ` [remote "origin"]
+	url  =  https://github.com/microsoft/vscode.git
+	pushurl=https://github.com/microsoft/vscode1.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[ remote"remote2"]
+	url = https://github.com/microsoft/vscode2.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+`;
+
+			assert.deepStrictEqual(parseGitRemotes(sample), [
+				{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: 'https://github.com/microsoft/vscode1.git', isReadOnly: false },
+				{ name: 'remote2', fetchUrl: 'https://github.com/microsoft/vscode2.git', pushUrl: 'https://github.com/microsoft/vscode2.git', isReadOnly: false }
+			]);
+		});
+
+		test('remotes (invalid section)', () => {
+			const sample = `[remote "origin"
+	url = https://github.com/microsoft/vscode.git
+	pushurl = https://github.com/microsoft/vscode1.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+`;
+
+			assert.deepStrictEqual(parseGitRemotes(sample), []);
+		});
 	});
 
 	suite('parseLsTree', function () {

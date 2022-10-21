@@ -797,7 +797,7 @@ function parseGitConfig(raw: string, section: string): Iterable<GitConfigSection
 	const sections: GitConfigSection[] = [];
 
 	const sectionHeaderRegex = /^\[.+\]$/gm;
-	const sectionRegex = new RegExp(`^\\[${section}\\s*"*([^"]*)"*\\]$`, 'm');
+	const sectionRegex = new RegExp(`^\\s*\\[\\s*${section}\\s*("[^"]+")*\\]$`, 'm');
 
 	const parseSectionProperties = (sectionRaw: string): { [key: string]: string } => {
 		const properties: { [key: string]: string } = {};
@@ -827,7 +827,7 @@ function parseGitConfig(raw: string, section: string): Iterable<GitConfigSection
 		}
 
 		sections.push({
-			label: sectionMatch.length === 2 && sectionMatch[1] !== '' ? sectionMatch[1] : undefined,
+			label: sectionMatch.length === 2 ? sectionMatch[1].replaceAll('"', '') : undefined,
 			properties: parseSectionProperties(sectionRaw.substring(sectionMatch[0].length))
 		});
 	};
@@ -2200,6 +2200,10 @@ export class Repository {
 		try {
 			// Attempt to parse the config file
 			const remotes = await this.getRemotesFS();
+			if (remotes.length === 0) {
+				throw new Error('No remotes found in the git config file.');
+			}
+
 			return remotes;
 		}
 		catch (err) {
