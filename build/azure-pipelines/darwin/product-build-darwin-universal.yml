@@ -69,7 +69,7 @@ steps:
 
   - script: |
       set -e
-      npm config set registry "p" --location=project
+      npm config set registry "$NPM_REGISTRY" --location=project
       npm config set always-auth=true --location=project
       yarn config set registry "$NPM_REGISTRY"
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], ''))
