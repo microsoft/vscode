@@ -1792,7 +1792,7 @@ export class QuickInputController extends Disposable {
 	}
 
 	private updateLayout() {
-		if (this.ui) {
+		if (this.ui && this.isDisplayed()) {
 			this.ui.container.style.top = `${this.titleBarOffset}px`;
 
 			const style = this.ui.container.style;
