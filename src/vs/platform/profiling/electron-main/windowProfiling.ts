@@ -99,8 +99,8 @@ export class WindowProfiler {
 				totalTime: sample.totalTime,
 				percentage: sample.percentage,
 				functionName: sample.location,
-				callstack: sample.caller.map(c => `${c.percentage}|${c.location}`).join('<'),
-				extensionId: ''
+				callstack: sample.caller.map(c => c.location).join('<'),
+				extensionId: '<<renderer>>'
 			};
 			this._telemetryService.publicLog2<TelemetrySampleData, TelemetrySampleDataClassification>('prof.freeze.sample', data);
 

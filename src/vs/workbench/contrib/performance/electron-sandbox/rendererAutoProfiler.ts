@@ -5,6 +5,7 @@
 
 import { timeout } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
@@ -20,6 +21,7 @@ export class RendererProfiling {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
 		@ITimerService timerService: ITimerService,
+		@IConfigurationService configService: IConfigurationService
 	) {
 
 		const devOpts = parseExtensionDevOptions(environmentService);
@@ -47,6 +49,11 @@ export class RendererProfiling {
 					.reduce((p, c) => Math.max(p, c), 0);
 
 				if (maxDuration < slowThreshold) {
+					return;
+				}
+
+				if (!configService.getValue('application.experimental.rendererProfiling')) {
+					logService.debug(`[perf] SLOW task detected (${maxDuration}ms) but renderer profiling is disabled via 'application.experimental.rendererProfiling'`);
 					return;
 				}
 

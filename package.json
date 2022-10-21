@@ -98,7 +98,7 @@
   },
   "devDependencies": {
     "7zip": "0.0.6",
-    "@playwright/test": "1.26.0",
+    "@playwright/test": "1.27.1",
     "@swc/cli": "0.1.57",
     "@swc/core": "1.2.245",
     "@types/cookie": "^0.3.3",
@@ -140,7 +140,7 @@
     "css-loader": "^3.6.0",
     "cssnano": "^4.1.11",
     "debounce": "^1.0.0",
-    "deemon": "^1.4.0",
+    "deemon": "^1.7.2",
     "electron": "19.0.17",
     "eslint": "8.7.0",
     "eslint-plugin-header": "3.1.1",

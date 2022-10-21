@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREFIX, IRemoteTunnelService } from 'vs/platform/remoteTunnel/common/remoteTunnel';
+import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREFIX, ConnectionInfo, IRemoteTunnelService } from 'vs/platform/remoteTunnel/common/remoteTunnel';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { localize } from 'vs/nls';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -25,28 +25,30 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IOutputService, registerLogChannel } from 'vs/workbench/services/output/common/output';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IProgress, IProgressService, IProgressStep, Progress, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { Action } from 'vs/base/common/actions';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export const REMOTE_TUNNEL_CATEGORY: ILocalizedString = {
 	original: 'Remote Tunnels',
 	value: localize('remoteTunnel.category', 'Remote Tunnels')
 };
 
-export const REMOTE_TUNNEL_SIGNED_IN_KEY = 'remoteTunnelSignedIn';
-export const REMOTE_TUNNEL_SIGNED_IN = new RawContextKey<boolean>(REMOTE_TUNNEL_SIGNED_IN_KEY, false);
+type CONTEXT_KEY_STATES = 'connected' | 'connecting' | 'disconnected';
 
-export const REMOTE_TUNNEL_CONNECTED_KEY = 'remoteTunnelConnected';
-export const REMOTE_TUNNEL_CONNECTED = new RawContextKey<boolean>(REMOTE_TUNNEL_CONNECTED_KEY, false);
+export const REMOTE_TUNNEL_CONNECTION_STATE_KEY = 'remoteTunnelConnection';
+export const REMOTE_TUNNEL_CONNECTION_STATE = new RawContextKey<CONTEXT_KEY_STATES>(REMOTE_TUNNEL_CONNECTION_STATE_KEY, 'disconnected');
 
-const CACHED_SESSION_STORAGE_KEY = 'remoteTunnelAccountPreference';
 
-type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
+const SESSION_ID_STORAGE_KEY = 'remoteTunnelAccountPreference';
+
+type ExistingSessionItem = { session: AuthenticationSession; providerId: string; label: string; description: string };
 type IAuthenticationProvider = { id: string; scopes: string[] };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
 
@@ -58,6 +60,7 @@ enum RemoteTunnelCommandIds {
 	showLog = 'workbench.remoteTunnel.actions.showLog',
 	configure = 'workbench.remoteTunnel.actions.configure',
 	openBrowser = 'workbench.remoteTunnel.actions.openBrowser',
+	learnMore = 'workbench.remoteTunnel.actions.learnMore',
 }
 
 namespace RemoteTunnelCommandLabels {
@@ -66,19 +69,19 @@ namespace RemoteTunnelCommandLabels {
 	export const showLog = localize('remoteTunnel.actions.showLog', 'Show Log');
 	export const configure = localize('remoteTunnel.actions.configure', 'Configure Machine Name...');
 	export const openBrowser = localize('remoteTunnel.actions.openBrowser', 'Open in Browser');
+	export const learnMore = localize('remoteTunnel.actions.learnMore', 'Get Started with VS Code Tunnels');
 }
+
 
 export class RemoteTunnelWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
-	private readonly signedInContext: IContextKey<boolean>;
-	private readonly connectedContext: IContextKey<boolean>;
+	private readonly connectionStateContext: IContextKey<CONTEXT_KEY_STATES>;
 
 	private readonly serverConfiguration: { authenticationProviders: IStringDictionary<{ scopes: string[] }> };
 
 	private initialized = false;
-	#authenticationInfo: { sessionId: string; token: string; providerId: string } | undefined;
-	private link: string | undefined;
-
+	#authenticationSessionId: string | undefined;
+	private connectionInfo: ConnectionInfo | undefined;
 
 	private readonly logger: ILogger;
 
@@ -106,8 +109,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		const promise = registerLogChannel('remoteTunnel', localize('remoteTunnel.outputTitle', "Remote Tunnel"), logPathURI, fileService, logService);
 		this._register(toDisposable(() => promise.cancel()));
 
-		this.signedInContext = REMOTE_TUNNEL_SIGNED_IN.bindTo(this.contextKeyService);
-		this.connectedContext = REMOTE_TUNNEL_CONNECTED.bindTo(this.contextKeyService);
+		this.connectionStateContext = REMOTE_TUNNEL_CONNECTION_STATE.bindTo(this.contextKeyService);
 
 		const serverConfiguration = productService.tunnelApplicationConfig;
 		if (!serverConfiguration || !productService.tunnelApplicationName) {
@@ -125,16 +127,18 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			if (status.type === 'disconnected') {
 				this.logger.info('Clearing authentication preference because of tunnel disconnected.');
 				this.clearAuthenticationPreference();
-				this.link = undefined;
+				this.connectionInfo = undefined;
+			} else if (status.type === 'connecting') {
+				this.connectionStateContext.set('connecting');
 			} else if (status.type === 'connected') {
-				this.link = status.link;
-				this.connectedContext.set(true);
+				this.connectionInfo = status.info;
+				this.connectionStateContext.set('connected');
 			}
 		}));
 		this.remoteTunnelService.getTunnelStatus().then(status => {
 			if (status.type === 'connected') {
-				this.link = status.link;
-				this.connectedContext.set(true);
+				this.connectionInfo = status.info;
+				this.connectionStateContext.set('connected');
 			}
 		});
 
@@ -146,34 +150,30 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 		this.registerCommands();
 
-		this.signedInContext.set(this.existingSessionId !== undefined);
-
 		if (this.existingSessionId) {
-			this.initialize(true, Progress.None);
+			this.initialize(true);
 		}
 
 	}
 
 	private get existingSessionId() {
-		return this.storageService.get(CACHED_SESSION_STORAGE_KEY, StorageScope.APPLICATION);
+		return this.storageService.get(SESSION_ID_STORAGE_KEY, StorageScope.APPLICATION);
 	}
 
 	private set existingSessionId(sessionId: string | undefined) {
 		this.logger.trace(`Saving authentication preference for ID ${sessionId}.`);
 		if (sessionId === undefined) {
-			this.storageService.remove(CACHED_SESSION_STORAGE_KEY, StorageScope.APPLICATION);
+			this.storageService.remove(SESSION_ID_STORAGE_KEY, StorageScope.APPLICATION);
 		} else {
-			this.storageService.store(CACHED_SESSION_STORAGE_KEY, sessionId, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this.storageService.store(SESSION_ID_STORAGE_KEY, sessionId, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 	}
 
-	public async initialize(silent: boolean = false, progress: IProgress<IProgressStep>) {
+	public async initialize(silent: boolean = false) {
 		if (this.initialized) {
 			return true;
 		}
-		this.initialized = await this.doInitialize(silent, progress);
-
-		this.signedInContext.set(this.initialized);
+		this.initialized = await this.doInitialize(silent);
 		return this.initialized;
 	}
 
@@ -183,34 +183,62 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	 * meaning that authentication is configured and it
 	 * can be used to communicate with the remote storage service
 	 */
-	private async doInitialize(silent: boolean, progress: IProgress<IProgressStep>): Promise<boolean> {
+	private async doInitialize(silent: boolean): Promise<boolean> {
 		// Wait for authentication extensions to be registered
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
 		// If we already have an existing auth session in memory, use that
-		if (this.#authenticationInfo !== undefined) {
+		if (this.#authenticationSessionId !== undefined) {
 			return true;
 		}
 
-		progress.report({ message: localize('progress.authenticating', "Authenticating."), total: 4, increment: 1 });
 		const authenticationSession = await this.getAuthenticationSession(silent);
 		if (authenticationSession !== undefined) {
-			this.#authenticationInfo = authenticationSession;
-			progress.report({ message: localize('progress.start', "Starting server."), total: 4, increment: 1 });
-			await this.remoteTunnelService.updateAccount({ token: authenticationSession.token, authenticationProviderId: authenticationSession.providerId });
+			this.#authenticationSessionId = authenticationSession.session.id;
+			const token = authenticationSession.session.idToken ?? authenticationSession.session.accessToken;
+			await this.remoteTunnelService.updateAccount({ token, authenticationProviderId: authenticationSession.providerId });
 		}
 
 		return authenticationSession !== undefined;
 	}
 
-	private async getAuthenticationSession(silent: boolean) {
+	private async trackServerStart(progress: IProgress<IProgressStep>): Promise<ConnectionInfo | undefined> {
+		const p = new Promise<ConnectionInfo | undefined>((s, e) => {
+			const listener = this.remoteTunnelService.onDidChangeTunnelStatus(status => {
+				switch (status.type) {
+					case 'connecting':
+						if (status.progress) {
+							progress.report({ message: status.progress });
+						}
+						break;
+					case 'connected':
+						listener.dispose();
+						s(status.info);
+						break;
+					case 'disconnected':
+						listener.dispose();
+						s(undefined);
+						break;
+				}
+			});
+		});
+
+		const status = await this.remoteTunnelService.getTunnelStatus();
+		if (status.type === 'connecting') {
+			return p;
+		}
+		return status.type === 'connected' ? status.info : undefined;
+	}
+
+
+	private async getAuthenticationSession(silent: boolean): Promise<ExistingSessionItem | undefined> {
 		// If the user signed in previously and the session is still available, reuse that without prompting the user again
 		if (this.existingSessionId) {
 			this.logger.info(`Searching for existing authentication session with ID ${this.existingSessionId}`);
 			const existingSession = await this.getExistingSession();
 			if (existingSession) {
 				this.logger.info(`Found existing authentication session with ID ${existingSession.session.id}`);
-				return { sessionId: existingSession.session.id, token: existingSession.session.idToken ?? existingSession.session.accessToken, providerId: existingSession.session.providerId };
+				return existingSession;
 			} else {
 				//this._didSignOut.fire();
 			}
@@ -225,15 +253,14 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		// Ask the user to pick a preferred account
 		const authenticationSession = await this.getAccountPreference();
 		if (authenticationSession !== undefined) {
-			this.existingSessionId = authenticationSession.id;
-			return { sessionId: authenticationSession.id, token: authenticationSession.idToken ?? authenticationSession.accessToken, providerId: authenticationSession.providerId };
+			this.existingSessionId = authenticationSession.session.id;
+			return authenticationSession;
 		}
-
 		return undefined;
 	}
 
-	private async getAccountPreference(): Promise<AuthenticationSession & { providerId: string } | undefined> {
-		const quickpick = this.quickInputService.createQuickPick<ExistingSession | AuthenticationProviderOption | IQuickPickItem>();
+	private async getAccountPreference(): Promise<ExistingSessionItem | undefined> {
+		const quickpick = this.quickInputService.createQuickPick<ExistingSessionItem | AuthenticationProviderOption | IQuickPickItem>();
 		quickpick.title = localize('accountPreference.title', 'Enable remote access by signing up to remote tunnels.');
 		quickpick.ok = false;
 		quickpick.placeholder = localize('accountPreference.placeholder', "Select an account to sign in");
@@ -248,8 +275,14 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 			quickpick.onDidAccept(async (e) => {
 				const selection = quickpick.selectedItems[0];
-				const session = 'provider' in selection ? { ...await this.authenticationService.createSession(selection.provider.id, selection.provider.scopes), providerId: selection.provider.id } : ('session' in selection ? selection.session : undefined);
-				resolve(session);
+				if ('provider' in selection) {
+					const session = await this.authenticationService.createSession(selection.provider.id, selection.provider.scopes);
+					resolve(this.createExistingSessionItem(session, selection.provider.id));
+				} else if ('session' in selection) {
+					resolve(selection);
+				} else {
+					resolve(undefined);
+				}
 				quickpick.hide();
 			});
 
@@ -257,8 +290,17 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		});
 	}
 
-	private async createQuickpickItems(): Promise<(ExistingSession | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[]> {
-		const options: (ExistingSession | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[] = [];
+	private createExistingSessionItem(session: AuthenticationSession, providerId: string): ExistingSessionItem {
+		return {
+			label: session.account.label,
+			description: this.authenticationService.getLabel(providerId),
+			session,
+			providerId
+		};
+	}
+
+	private async createQuickpickItems(): Promise<(ExistingSessionItem | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[]> {
+		const options: (ExistingSessionItem | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[] = [];
 
 		options.push({ type: 'separator', label: localize('signed in', "Signed In") });
 
@@ -268,7 +310,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		options.push({ type: 'separator', label: localize('others', "Others") });
 
 		for (const authenticationProvider of (await this.getAuthenticationProviders())) {
-			const signedInForProvider = sessions.some(account => account.session.providerId === authenticationProvider.id);
+			const signedInForProvider = sessions.some(account => account.providerId === authenticationProvider.id);
 			if (!signedInForProvider || this.authenticationService.supportsMultipleAccounts(authenticationProvider.id)) {
 				const providerName = this.authenticationService.getLabel(authenticationProvider.id);
 				options.push({ label: localize('sign in using account', "Sign in with {0}", providerName), provider: authenticationProvider });
@@ -279,56 +321,50 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	}
 
 
-	private async getExistingSession(): Promise<ExistingSession | undefined> {
+	private async getExistingSession(): Promise<ExistingSessionItem | undefined> {
 		const accounts = await this.getAllSessions();
 		return accounts.find((account) => account.session.id === this.existingSessionId);
 	}
 
 	private async onDidChangeStorage(e: IStorageValueChangeEvent): Promise<void> {
-		if (e.key === CACHED_SESSION_STORAGE_KEY && e.scope === StorageScope.APPLICATION) {
+		if (e.key === SESSION_ID_STORAGE_KEY && e.scope === StorageScope.APPLICATION) {
 			const newSessionId = this.existingSessionId;
-			const previousSessionId = this.#authenticationInfo?.sessionId;
+			const previousSessionId = this.#authenticationSessionId;
 
 			if (previousSessionId !== newSessionId) {
 				this.logger.trace(`Resetting authentication state because authentication session ID preference changed from ${previousSessionId} to ${newSessionId}.`);
-				this.#authenticationInfo = undefined;
+				this.#authenticationSessionId = undefined;
 				this.initialized = false;
 			}
 		}
 	}
 
 	private clearAuthenticationPreference(): void {
-		this.#authenticationInfo = undefined;
+		this.#authenticationSessionId = undefined;
 		this.initialized = false;
 		this.existingSessionId = undefined;
-		this.signedInContext.set(false);
-		this.connectedContext.set(false);
+		this.connectionStateContext.set('disconnected');
 	}
 
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
-		if (this.#authenticationInfo?.sessionId && e.removed.find(session => session.id === this.#authenticationInfo?.sessionId)) {
+		if (this.#authenticationSessionId && e.removed.find(session => session.id === this.#authenticationSessionId)) {
 			this.clearAuthenticationPreference();
 		}
 	}
 
 	/**
-	 *
 	 * Returns all authentication sessions available from {@link getAuthenticationProviders}.
 	 */
-	private async getAllSessions() {
+	private async getAllSessions(): Promise<ExistingSessionItem[]> {
 		const authenticationProviders = await this.getAuthenticationProviders();
-		const accounts = new Map<string, ExistingSession>();
-		let currentSession: ExistingSession | undefined;
+		const accounts = new Map<string, ExistingSessionItem>();
+		let currentSession: ExistingSessionItem | undefined;
 
 		for (const provider of authenticationProviders) {
 			const sessions = await this.authenticationService.getSessions(provider.id, provider.scopes);
 
 			for (const session of sessions) {
-				const item = {
-					label: session.account.label,
-					description: this.authenticationService.getLabel(provider.id),
-					session: { ...session, providerId: provider.id }
-				};
+				const item = this.createExistingSessionItem(session, provider.id);
 				accounts.set(item.session.account.id, item);
 				if (this.existingSessionId === session.id) {
 					currentSession = item;
@@ -348,7 +384,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	 * to the remote storage service, based on product.json configuration
 	 * and registered authentication providers.
 	 */
-	private async getAuthenticationProviders() {
+	private async getAuthenticationProviders(): Promise<IAuthenticationProvider[]> {
 		// Get the list of authentication providers configured in product.json
 		const authenticationProviders = this.serverConfiguration.authenticationProviders;
 		const configuredAuthenticationProviders = Object.keys(authenticationProviders).reduce<IAuthenticationProvider[]>((result, id) => {
@@ -371,14 +407,14 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					id: RemoteTunnelCommandIds.turnOn,
 					title: RemoteTunnelCommandLabels.turnOn,
 					category: REMOTE_TUNNEL_CATEGORY,
-					precondition: ContextKeyExpr.equals(REMOTE_TUNNEL_SIGNED_IN_KEY, false),
+					precondition: ContextKeyExpr.equals(REMOTE_TUNNEL_CONNECTION_STATE_KEY, 'disconnected'),
 					menu: [{
 						id: MenuId.CommandPalette,
 					},
 					{
 						id: MenuId.AccountsContext,
 						group: '2_remoteTunnel',
-						when: ContextKeyExpr.equals(REMOTE_TUNNEL_SIGNED_IN_KEY, false),
+						when: ContextKeyExpr.equals(REMOTE_TUNNEL_CONNECTION_STATE_KEY, 'disconnected'),
 					}]
 				});
 			}
@@ -386,17 +422,35 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			async run(accessor: ServicesAccessor) {
 				const progressService = accessor.get(IProgressService);
 				const notificationService = accessor.get(INotificationService);
-				await progressService.withProgress(
+				const clipboardService = accessor.get(IClipboardService);
+				const commandService = accessor.get(ICommandService);
+
+				await that.initialize(false);
+				const connectionInfo = await progressService.withProgress(
 					{
 						location: ProgressLocation.Notification,
 						title: localize('progress.title', "[Turning on remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
 					},
-					progress => that.initialize(false, progress)
+					async progress => {
+						return that.trackServerStart(progress);
+					}
 				);
-				await notificationService.notify({
-					severity: Severity.Info,
-					message: localize('progress.turnOn.final', "Remote tunnel access is on. [Configure](command:{2}). [Open in browser](command:{1}).", RemoteTunnelCommandIds.manage, RemoteTunnelCommandIds.openBrowser)
-				});
+				if (connectionInfo) {
+					await notificationService.notify({
+						severity: Severity.Info,
+						message: localize('progress.turnOn.final',
+							"Remote tunnel access is enabled for {0}. To access from a different machine, open [{1}]({2}) or use the Remote - Tunnels extension. To [configure](command:{3}), use the Account menu.",
+							connectionInfo.hostName, connectionInfo.domain, connectionInfo.link, RemoteTunnelCommandIds.manage),
+						actions: {
+							primary: [
+								new Action('copyToClipboard', localize('action.copyToClipboard', "Copy Browser Link to Clipboard"), undefined, true, () => clipboardService.writeText(connectionInfo.link)),
+								new Action('showExtension', localize('action.showExtension', "Show Extension"), undefined, true, () => {
+									return commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', ['ms-vscode.remote-server']);
+								})
+							]
+						}
+					});
+				}
 			}
 
 		}));
@@ -410,7 +464,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					menu: [{
 						id: MenuId.AccountsContext,
 						group: '2_remoteTunnel',
-						when: ContextKeyExpr.equals(REMOTE_TUNNEL_CONNECTED_KEY, true),
+						when: ContextKeyExpr.equals(REMOTE_TUNNEL_CONNECTION_STATE_KEY, 'connected'),
 					}]
 				});
 			}
@@ -429,7 +483,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					menu: [{
 						id: MenuId.AccountsContext,
 						group: '2_remoteTunnel',
-						when: ContextKeyExpr.and(ContextKeyExpr.equals(REMOTE_TUNNEL_SIGNED_IN_KEY, true), ContextKeyExpr.equals(REMOTE_TUNNEL_CONNECTED_KEY, false)),
+						when: ContextKeyExpr.equals(REMOTE_TUNNEL_CONNECTION_STATE_KEY, 'connecting'),
 					}]
 				});
 			}
@@ -446,9 +500,10 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					id: RemoteTunnelCommandIds.turnOff,
 					title: RemoteTunnelCommandLabels.turnOff,
 					category: REMOTE_TUNNEL_CATEGORY,
-					precondition: ContextKeyExpr.equals(REMOTE_TUNNEL_SIGNED_IN_KEY, true),
+					precondition: ContextKeyExpr.notEquals(REMOTE_TUNNEL_CONNECTION_STATE_KEY, 'disconnected'),
 					menu: [{
 						id: MenuId.CommandPalette,
+						when: ContextKeyExpr.notEquals(REMOTE_TUNNEL_CONNECTION_STATE_KEY, ''),
 					}]
 				});
 			}
@@ -472,9 +527,9 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					id: RemoteTunnelCommandIds.showLog,
 					title: RemoteTunnelCommandLabels.showLog,
 					category: REMOTE_TUNNEL_CATEGORY,
-					precondition: ContextKeyExpr.equals(REMOTE_TUNNEL_SIGNED_IN_KEY, true),
 					menu: [{
 						id: MenuId.CommandPalette,
+						when: ContextKeyExpr.notEquals(REMOTE_TUNNEL_CONNECTION_STATE_KEY, ''),
 					}]
 				});
 			}
@@ -493,6 +548,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					category: REMOTE_TUNNEL_CATEGORY,
 					menu: [{
 						id: MenuId.CommandPalette,
+						when: ContextKeyExpr.notEquals(REMOTE_TUNNEL_CONNECTION_STATE_KEY, ''),
 					}]
 				});
 			}
@@ -509,19 +565,36 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					id: RemoteTunnelCommandIds.openBrowser,
 					title: RemoteTunnelCommandLabels.openBrowser,
 					category: REMOTE_TUNNEL_CATEGORY,
-					precondition: ContextKeyExpr.equals(REMOTE_TUNNEL_SIGNED_IN_KEY, true),
+					precondition: ContextKeyExpr.equals(REMOTE_TUNNEL_CONNECTION_STATE_KEY, 'connected'),
 					menu: [{
 						id: MenuId.CommandPalette,
+						when: ContextKeyExpr.equals(REMOTE_TUNNEL_CONNECTION_STATE_KEY, 'connected'),
 					}]
 				});
 			}
 
 			async run(accessor: ServicesAccessor) {
 				const openerService = accessor.get(IOpenerService);
-				if (that.link) {
-					openerService.open(that.link);
+				if (that.connectionInfo) {
+					openerService.open(that.connectionInfo.link);
 				}
 
+			}
+		}));
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: RemoteTunnelCommandIds.learnMore,
+					title: RemoteTunnelCommandLabels.learnMore,
+					category: REMOTE_TUNNEL_CATEGORY,
+					menu: []
+				});
+			}
+
+			async run(accessor: ServicesAccessor) {
+				const openerService = accessor.get(IOpenerService);
+				await openerService.open('https://aka.ms/vscode-server-doc');
 			}
 		}));
 	}
@@ -532,15 +605,21 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		return new Promise<void>((c, e) => {
 			const disposables = new DisposableStore();
 			const quickPick = this.quickInputService.createQuickPick();
+			quickPick.placeholder = localize('manage.placeholder', 'Select a command to invoke');
 			disposables.add(quickPick);
 			const items: Array<QuickPickItem> = [];
-			if (this.link) {
-				items.push({ id: RemoteTunnelCommandIds.openBrowser, label: RemoteTunnelCommandLabels.openBrowser, description: this.getLinkAuthority() });
-				items.push({ id: RemoteTunnelCommandIds.configure, label: RemoteTunnelCommandLabels.configure });
+			items.push({ id: RemoteTunnelCommandIds.learnMore, label: RemoteTunnelCommandLabels.learnMore });
+			if (this.connectionInfo && account) {
+				quickPick.title = localize('manage.title.on', 'Remote Machine Access enabled for {0}({1}) as {2}', account.label, account.description, this.connectionInfo.hostName);
+				items.push({ id: RemoteTunnelCommandIds.openBrowser, label: RemoteTunnelCommandLabels.openBrowser, description: this.connectionInfo.domain });
+			} else {
+				quickPick.title = localize('manage.title.off', 'Remote Machine Access not enabled');
 			}
 			items.push({ id: RemoteTunnelCommandIds.showLog, label: RemoteTunnelCommandLabels.showLog });
 			items.push({ type: 'separator' });
-			items.push({ id: RemoteTunnelCommandIds.turnOff, label: RemoteTunnelCommandLabels.turnOff, description: account ? `${account.session.account.label} (${this.authenticationService.getLabel(account.session.providerId)})` : undefined });
+			items.push({ id: RemoteTunnelCommandIds.configure, label: localize('manage.machineName', 'Change Host Name'), description: this.connectionInfo?.hostName });
+			items.push({ id: RemoteTunnelCommandIds.turnOff, label: RemoteTunnelCommandLabels.turnOff, description: account ? `${account.label} (${account.description})` : undefined });
+
 
 			quickPick.items = items;
 			disposables.add(quickPick.onDidAccept(() => {
@@ -556,33 +635,23 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			quickPick.show();
 		});
 	}
-
-
-	private getLinkAuthority() {
-		if (this.link) {
-			try {
-				return URI.parse(this.link).authority;
-			} catch (_) {
-			}
-		}
-		return undefined;
-	}
-
 }
+
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(RemoteTunnelWorkbenchContribution, LifecyclePhase.Restored);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	'type': 'object',
-	'properties': {
+	type: 'object',
+	properties: {
 		[CONFIGURATION_KEY_HOST_NAME]: {
-			'description': localize('remoteTunnelAccess.machineName', "The name under which the machine is remote tunnel is registered. If not set, the host name is used."),
-			'type': 'string',
-			'pattern': '^[\\w-]*$',
-			'patternErrorMessage': localize('remoteTunnelAccess.machineNameRegex', "The name can only consist of letters, numbers, underscore and minus."),
-			'maxLength': 20,
-			'default': ''
+			description: localize('remoteTunnelAccess.machineName', "The name under which the remote tunnel access is registered. If not set, the host name is used."),
+			type: 'string',
+			scope: ConfigurationScope.APPLICATION,
+			pattern: '^[\\w-]*$',
+			patternErrorMessage: localize('remoteTunnelAccess.machineNameRegex', "The name can only consist of letters, numbers, underscore and minus."),
+			maxLength: 20,
+			default: ''
 		}
 	}
 });

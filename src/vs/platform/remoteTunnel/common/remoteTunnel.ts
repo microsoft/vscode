@@ -31,26 +31,32 @@ export type TunnelStatus = TunnelStates.Connected | TunnelStates.Disconnected | 
 
 export namespace TunnelStates {
 	export interface Uninitialized {
-		type: 'uninitialized';
+		readonly type: 'uninitialized';
 	}
 	export interface Connecting {
-		type: 'connecting';
-		progress?: string;
+		readonly type: 'connecting';
+		readonly progress?: string;
 	}
-
 	export interface Connected {
-		type: 'connected';
-		link: string;
+		readonly type: 'connected';
+		readonly info: ConnectionInfo;
 	}
 	export interface Disconnected {
-		type: 'disconnected';
+		readonly type: 'disconnected';
 	}
 
 	export const disconnected: Disconnected = { type: 'disconnected' };
 	export const uninitialized: Uninitialized = { type: 'uninitialized' };
-	export const connected = (link: string): Connected => ({ type: 'connected', link });
+	export const connected = (info: ConnectionInfo): Connected => ({ type: 'connected', info });
 	export const connecting = (progress?: string): Connecting => ({ type: 'connecting', progress });
 
+}
+
+export interface ConnectionInfo {
+	link: string;
+	domain: string;
+	hostName: string;
+	extensionId: string;
 }
 
 export const CONFIGURATION_KEY_PREFIX = 'remote.tunnels.access';

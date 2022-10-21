@@ -397,11 +397,15 @@ class OperationsImpl implements Operations {
 
 	private operations = new Map<Operation, number>();
 
+	constructor(private readonly logger: LogOutputChannel) { }
+
 	start(operation: Operation): void {
+		this.logger.trace(`Operation start: ${operation}`);
 		this.operations.set(operation, (this.operations.get(operation) || 0) + 1);
 	}
 
 	end(operation: Operation): void {
+		this.logger.trace(`Operation end: ${operation}`);
 		const count = (this.operations.get(operation) || 0) - 1;
 
 		if (count <= 0) {
@@ -859,7 +863,7 @@ export class Repository implements Disposable {
 		return this._mergeInProgress;
 	}
 
-	private _operations = new OperationsImpl();
+	private _operations = new OperationsImpl(this.logger);
 	get operations(): Operations { return this._operations; }
 
 	private _state = RepositoryState.Idle;
@@ -901,7 +905,7 @@ export class Repository implements Disposable {
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
 		globalState: Memento,
-		logger: LogOutputChannel,
+		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
 	) {
 		const repositoryWatcher = workspace.createFileSystemWatcher(new RelativePattern(Uri.file(repository.root), '**'));
