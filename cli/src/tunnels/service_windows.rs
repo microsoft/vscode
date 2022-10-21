@@ -202,7 +202,7 @@ lazy_static! {
 }
 
 /// "main" function that the service calls in its own thread.
-async fn service_main(_arguments: Vec<OsString>) -> Result<(), AnyError> {
+fn service_main(_arguments: Vec<OsString>) -> Result<(), AnyError> {
 	let mut service = SERVICE_IMPL.lock().unwrap().take().unwrap();
 
 	// Create a channel to be able to poll a stop event from the service worker loop.
