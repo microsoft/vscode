@@ -10,14 +10,20 @@ parameters:
     default: stable
 
 steps:
-  - task: UniversalPackages@0
+  - task: Npm@1
+    displayName: Download openssl prebuilt
     inputs:
-      command: download
-      downloadDirectory: $(Build.ArtifactStagingDirectory)/openssl
-      feedsToUse: internal
-      vstsFeed: 'Monaco/openssl-prebuilt'
-      vstsFeedPackage: openssl
-      vstsPackageVersion: 0.0.1
+      command: custom
+      customCommand: pack @vscode-internal/openssl-prebuilt@0.0.1
+      customRegistry: useFeed
+      customFeed: 'Monaco/openssl-prebuilt'
+      workingDir: $(Build.ArtifactStagingDirectory)
+
+  - script: |
+      set -e
+      mkdir $(Build.ArtifactStagingDirectory)/openssl
+      tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.1.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
+    displayName: Extract openssl prebuilt
 
   - task: NodeTool@0
     inputs:
