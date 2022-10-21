@@ -89,7 +89,7 @@ Name: "{app}"; AfterInstall: DisableAppDirInheritance
 [Files]
 Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\appx,\appx\*,\resources\app\product.json"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "tools\*"; DestDir: "{app}\tools"; Flags: ignoreversion
-Source: "appx\*"; DestDir: "{app}\appx"; BeforeInstall: RemoveAppxPackage; AfterInstall: AddAppxPackage; Tasks: addcontextmenufiles; Flags: ignoreversion
+Source: "appx\*"; DestDir: "{app}\appx"; BeforeInstall: RemoveAppxPackage; AfterInstall: AddAppxPackage; Flags: ignoreversion
 Source: "{#ProductJsonPath}"; DestDir: "{code:GetDestDir}\resources\app"; Flags: ignoreversion
 
 [Icons]
@@ -1266,7 +1266,7 @@ Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Applications\{#ExeBas
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Applications\{#ExeBasename}.exe\shell\open"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\{#ExeBasename}.exe"""
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Applications\{#ExeBasename}.exe\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%1"""
 
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Microsoft\{#RegValueName}\ContextMenu"; ValueType: expandsz; ValueName: "Title"; ValueData: "{cm:OpenWithCodeContextMenu,{#ShellNameShort}}"; Tasks: addcontextmenufiles; Flags: uninsdeletekey; Check: IsWindows11OrLater and QualityIsInsiders
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}ContextMenu"; ValueType: expandsz; ValueName: "Title"; ValueData: "{cm:OpenWithCodeContextMenu,{#ShellNameShort}}"; Tasks: addcontextmenufiles; Flags: uninsdeletekey; Check: IsWindows11OrLater and QualityIsInsiders
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\*\shell\{#RegValueName}"; ValueType: expandsz; ValueName: ""; ValueData: "{cm:OpenWithCodeContextMenu,{#ShellNameShort}}"; Tasks: addcontextmenufiles; Flags: uninsdeletekey; Check: not (IsWindows11OrLater and QualityIsInsiders)
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\*\shell\{#RegValueName}"; ValueType: expandsz; ValueName: "Icon"; ValueData: "{app}\{#ExeBasename}.exe"; Tasks: addcontextmenufiles; Check: not (IsWindows11OrLater and QualityIsInsiders)
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\*\shell\{#RegValueName}\command"; ValueType: expandsz; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%1"""; Tasks: addcontextmenufiles; Check: not (IsWindows11OrLater and QualityIsInsiders)
@@ -1424,7 +1424,13 @@ var
   AddAppxPackageResultCode: Integer;
 begin
   if IsWindows11OrLater() and QualityIsInsiders() then begin
-    ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Add-AppxPackage -Path ''' + ExpandConstant('{app}\appx\{#AppxPackage}') + ''' -ExternalLocation ''' + ExpandConstant('{app}\appx') + ''''), '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
+    if WizardIsTaskSelected('addcontextmenufiles') then begin
+      ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Add-AppxPackage -Path ''' + ExpandConstant('{app}\appx\{#AppxPackage}') + ''' -ExternalLocation ''' + ExpandConstant('{app}\appx') + ''''), '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
+      RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\*\shell\{#RegValueName}');
+      RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\shell\{#RegValueName}');
+      RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\background\shell\{#RegValueName}');
+      RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\Drive\shell\{#RegValueName}');
+    end;
   end;
 end;
 
@@ -1434,6 +1440,9 @@ var
 begin
   if IsWindows11OrLater() and QualityIsInsiders() then begin
     ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Remove-AppxPackage -Package ''{#AppxPackageFullname}'''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
+    if not WizardIsTaskSelected('addcontextmenufiles') then begin
+      RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\{#RegValueName}ContextMenu');
+    end;
   end;
 end;
 
