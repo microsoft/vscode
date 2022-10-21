@@ -12,6 +12,7 @@ import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { MergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { MergeEditorTelemetry } from 'vs/workbench/contrib/mergeEditor/browser/telemetry';
@@ -297,7 +298,7 @@ class MergeModelInterface extends Disposable {
 			{
 				resetResult: false
 			},
-			instantiationService.createInstance(MergeEditorTelemetry),
+			new MergeEditorTelemetry(NullTelemetryService),
 		));
 	}
 
