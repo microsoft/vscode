@@ -108,9 +108,9 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { npm config set registry "$NPM_REGISTRY" --location=project }
+      exec { npm config set registry "$env:NPM_REGISTRY" --location=project }
       exec { npm config set always-auth=true --location=project }
-      exec { yarn config set registry "$NPM_REGISTRY" }
+      exec { yarn config set registry "$env:NPM_REGISTRY" }
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], ''))
     displayName: Setup NPM & Yarn
 
@@ -123,7 +123,7 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { node build/setup-npm-registry.js $NPM_REGISTRY }
+      exec { node build/setup-npm-registry.js $env:NPM_REGISTRY }
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], ''))
     displayName: Setup NPM Registry
 
