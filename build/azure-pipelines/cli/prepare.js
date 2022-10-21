@@ -8,7 +8,7 @@ const getVersion_1 = require("../../lib/getVersion");
 const fs = require("fs");
 const path = require("path");
 const packageJson = require("../../../package.json");
-const root = path.dirname(path.dirname(path.dirname(__dirname))) + '/../vscode-distro';
+const root = path.dirname(path.dirname(path.dirname(__dirname)));
 const readJSON = (path) => JSON.parse(fs.readFileSync(path, 'utf8'));
 let productJsonPath;
 const isOSS = process.env.VSCODE_QUALITY === 'oss' || !process.env.VSCODE_QUALITY;
