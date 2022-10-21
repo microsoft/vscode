@@ -204,8 +204,7 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 		const samples = bottomUp(model, 5, false);
 		for (const sample of samples) {
 			reportSample(
-				'exhostunresponsive',
-				{ sample, perfBaseline: this._perfBaseline, extensionId: searchTree.findSubstr(URI.parse(sample.url))?.identifier.value ?? '<<not-found>>' },
+				{ sample, perfBaseline: this._perfBaseline, source: searchTree.findSubstr(URI.parse(sample.url))?.identifier.value ?? '<<not-found>>' },
 				this._telemetryService,
 				this._logService
 			);

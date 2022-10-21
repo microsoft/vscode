@@ -93,8 +93,7 @@ export class WindowProfiler {
 		// send telemetry events
 		for (const sample of samples) {
 			reportSample(
-				'rendererunresponsive',
-				{ sample, perfBaseline, extensionId: '<<renderer>>' },
+				{ sample, perfBaseline, source: '<<renderer>>' },
 				this._telemetryService,
 				this._logService
 			);

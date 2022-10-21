@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { StringSHA1 } from 'vs/base/common/hash';
 import { ILogService } from 'vs/platform/log/common/log';
 import { BottomUpSample } from 'vs/platform/profiling/common/profilingModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -14,9 +13,9 @@ type TelemetrySampleData = {
 	percentage: number;
 	perfBaseline: number;
 	functionName: string;
-	callstack: string;
-	callstackHash: string;
-	extensionId: string;
+	callers: string;
+	callersAnnotated: string;
+	source: string;
 };
 
 type TelemetrySampleDataClassification = {
@@ -27,59 +26,37 @@ type TelemetrySampleDataClassification = {
 	percentage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Relative time (percentage) of the sample' };
 	perfBaseline: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Performance baseline for the machine' };
 	functionName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the sample' };
-	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The stacktrace leading into the sample' };
-	callstackHash: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Hash of the stacktrace' };
-	extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The extension for the sample (iff applicable)' };
+	callers: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The heaviest call trace into this sample' };
+	callersAnnotated: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The heaviest call trace into this sample annotated with respective costs' };
+	source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The source - either renderer or an extension' };
 };
-
-type ProfilingSampleError = {
-	message: string;
-	stack: string;
-};
-
-type ProfilingSampleErrorClassification = {
-	owner: 'jrieken';
-	comment: 'Detail performance trace from a heavy sample to its callers';
-	message: { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'comment': 'The message containing the selftime and hash of the real stacktrace' };
-	stack: { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'comment': 'A synthetic stack which is the heaviest call to a bottom-up sample annotated with relative times' };
-};
-
 
 export interface SampleData {
 	perfBaseline: number;
 	sample: BottomUpSample;
-	extensionId: string;
+	source: string;
 }
 
-export function reportSample(name: string, data: SampleData, telemetryService: ITelemetryService, logService: ILogService): void {
+export function reportSample(data: SampleData, telemetryService: ITelemetryService, logService: ILogService): void {
 
-	const { sample, perfBaseline, extensionId } = data;
-
-	// identify the sample trace by its locations
-	const sha1 = new StringSHA1();
-	sample.caller.forEach(c => sha1.update(c.location));
-	const callstackHash = sha1.digest();
+	const { sample, perfBaseline, source } = data;
 
 	// log a fake error with a clearer stack
-	const fakeError = new Error(`${callstackHash}|${sample.selfTime}ms`);
+	const fakeError = new Error(`[PerfSampleError]|${sample.selfTime}ms`);
 	fakeError.name = 'PerfSampleError';
-	fakeError.stack = `${fakeError.message} by ${data.extensionId} in ${sample.location}\n` + sample.caller.map(c => `\t at ${c.location} (${c.percentage}%)`).join('\n');
-	logService.error(fakeError, `[perf] HEAVY function sample`);
+	fakeError.stack = `${fakeError.message} by ${data.source} in ${sample.location}\n` + sample.caller.map(c => `\t at ${c.location} (${c.percentage}%)`).join('\n');
+	logService.error(fakeError);
 
-	// send telemetry event AND error
-	telemetryService.publicLog2<TelemetrySampleData, TelemetrySampleDataClassification>(`${name}.sample`, {
+	// send telemetry event
+	telemetryService.publicLog2<TelemetrySampleData, TelemetrySampleDataClassification>(`unresponsive.sample`, {
 		perfBaseline,
 		selfTime: sample.selfTime,
 		totalTime: sample.totalTime,
 		percentage: sample.percentage,
 		functionName: sample.location,
-		callstack: sample.caller.map(c => c.location).join('<'),
-		callstackHash,
-		extensionId
+		callers: sample.caller.map(c => c.location).join('<'),
+		callersAnnotated: sample.caller.map(c => `${c.percentage}|${c.location}`).join('<'),
+		source
 	});
 
-	telemetryService.publicLogError2<ProfilingSampleError, ProfilingSampleErrorClassification>(`${name}.sampleError`, {
-		message: fakeError.message,
-		stack: fakeError.stack
-	});
 }
