@@ -21,7 +21,6 @@ import { localize } from 'vs/nls';
 
 import { hostname } from 'os';
 
-
 type RemoteTunnelEnablementClassification = {
 	owner: 'aeschli';
 	comment: 'Reporting when Remote Tunnel access is turned on or off';
@@ -190,7 +189,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				} else {
 					const tunnelCommand = join(dirname(process.execPath), 'bin', `${this.productService.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
 					this._logger.info(`${logLabel} Spawning: ${tunnelCommand} ${commandArgs.join(' ')}`);
-					tunnelProcess = spawn(tunnelCommand, commandArgs);
+					tunnelProcess = spawn(tunnelCommand, ['tunnel', ...commandArgs]);
 				}
 
 				tunnelProcess.stdout!.on('data', data => {
