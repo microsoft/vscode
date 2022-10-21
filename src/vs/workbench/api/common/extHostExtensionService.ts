@@ -627,16 +627,50 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			this._logService.error(err);
 		});
 
-		this._register(this._extHostWorkspace.onDidChangeWorkspace((e) => this._handleWorkspaceContainsEagerExtensions(e.added)));
+		this._register(this._extHostWorkspace.onDidChangeWorkspace((e) => {
+			this._handleFileSystemEagerExtensions(e.added);
+			this._handleWorkspaceContainsEagerExtensions(e.added);
+		}));
 		const folders = this._extHostWorkspace.workspace ? this._extHostWorkspace.workspace.folders : [];
+		const fileSystemProviderActivation = this._handleFileSystemEagerExtensions(folders);
 		const workspaceContainsActivation = this._handleWorkspaceContainsEagerExtensions(folders);
-		const eagerExtensionsActivation = Promise.all([starActivation, workspaceContainsActivation]).then(() => { });
+		const eagerExtensionsActivation = fileSystemProviderActivation.then(() => Promise.all([starActivation, workspaceContainsActivation]).then(() => { }));
 
 		Promise.race([eagerExtensionsActivation, timeout(10000)]).then(() => {
 			this._activateAllStartupFinished();
 		});
 
 		return eagerExtensionsActivation;
+	}
+
+	// Eagerly activate extensions which statically declare that they contribute a filesystem for one of the workspace folders
+	private _handleFileSystemEagerExtensions(folders: ReadonlyArray<vscode.WorkspaceFolder>): Promise<void> {
+		if (folders.length === 0) {
+			return Promise.resolve(undefined);
+		}
+
+		return Promise.all(
+			this._myRegistry.getAllExtensionDescriptions().map((desc) => {
+				if (this.isActivated(desc.identifier)) {
+					return;
+				}
+
+				const schemes = folders.reduce((existing, current) => existing.add(current.uri.scheme), new Set<string>());
+
+				const fileSystemProviders = desc.contributes?.fileSystemProviders;
+				if (!fileSystemProviders) { return; }
+
+				for (const fileSystemProvider of fileSystemProviders) {
+					if (schemes.has(fileSystemProvider.scheme)) {
+						return (
+							this._activateById(desc.identifier, { startup: true, extensionId: desc.identifier, activationEvent: `onFileSystem:${fileSystemProvider.scheme}` })
+						);
+					}
+				}
+
+				return;
+			})
+		).then(() => { });
 	}
 
 	private _handleWorkspaceContainsEagerExtensions(folders: ReadonlyArray<vscode.WorkspaceFolder>): Promise<void> {

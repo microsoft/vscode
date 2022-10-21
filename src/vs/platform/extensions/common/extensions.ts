@@ -176,6 +176,10 @@ export interface ILocalizationContribution {
 	minimalTranslations?: { [key: string]: string };
 }
 
+export interface IFileSystemProviderContribution {
+	scheme: string;
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration | IConfiguration[];
@@ -200,6 +204,7 @@ export interface IExtensionContributions {
 	startEntries?: IStartEntry[];
 	readonly notebooks?: INotebookEntry[];
 	readonly notebookRenderer?: INotebookRendererContribution[];
+	readonly fileSystemProviders: IFileSystemProviderContribution[];
 }
 
 export interface IExtensionCapabilities {
