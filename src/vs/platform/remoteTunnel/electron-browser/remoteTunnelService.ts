@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CONFIGURATION_KEY_HOST_NAME, IRemoteTunnelAccount, IRemoteTunnelService, TunnelStates, TunnelStatus } from 'vs/platform/remoteTunnel/common/remoteTunnel';
+import { CONFIGURATION_KEY_HOST_NAME, ConnectionInfo, IRemoteTunnelAccount, IRemoteTunnelService, TunnelStates, TunnelStatus } from 'vs/platform/remoteTunnel/common/remoteTunnel';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -17,6 +17,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { ISharedProcessLifecycleService } from 'vs/platform/lifecycle/electron-browser/sharedProcessLifecycleService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { localize } from 'vs/nls';
 
 import { hostname } from 'os';
 
@@ -115,7 +116,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			this.setTunnelStatus(TunnelStates.disconnected);
 			return;
 		}
-		this.setTunnelStatus(TunnelStates.connecting());
+		this.setTunnelStatus(TunnelStates.connecting(localize('remoteTunnelService.authorizing', 'Authorizing')));
 		const loginProcess = this.runCodeTunneCommand('login', ['user', 'login', '--provider', this._account.authenticationProviderId, '--access-token', this._account.token]);
 		this._tunnelProcess = loginProcess;
 		try {
@@ -131,28 +132,19 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			return;
 		}
 		const args = ['--parent-process-id', String(process.pid)];
-
-		let hostName = this.getHostName();
+		const hostName = this.getHostName();
 		if (hostName) {
-			const setNameProcess = this.runCodeTunneCommand('set name', ['rename', hostName]);
-			this._tunnelProcess = setNameProcess;
-			try {
-				await setNameProcess;
-				if (this._tunnelProcess !== setNameProcess) {
-					return;
-				}
-			} catch (e) {
-				this._logger.error(e);
-				hostName = undefined;
-			}
-		}
-		if (!hostName) {
+			args.push('--name', hostName);
+		} else {
 			args.push('--random-name');
 		}
 		const serveCommand = this.runCodeTunneCommand('tunnel', args, (message: string) => {
 			const m = message.match(/^\s*Open this link in your browser (https:[^\s]*)+/);
 			if (m && m[1]) {
-				this.setTunnelStatus(TunnelStates.connected(m[1]));
+				const linkUri = URI.parse(m[1]);
+				const pathMatch = linkUri.path.match(/\/+([^\/])+\/([^\/]+)\//);
+				const info: ConnectionInfo = pathMatch ? { link: m[1], domain: linkUri.authority, extensionId: pathMatch[1], hostName: pathMatch[2] } : { link: m[1], domain: linkUri.authority, extensionId: '', hostName: '' };
+				this.setTunnelStatus(TunnelStates.connected(info));
 			}
 		});
 		this._tunnelProcess = serveCommand;
