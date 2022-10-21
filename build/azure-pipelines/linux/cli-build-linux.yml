@@ -35,6 +35,7 @@ steps:
       sudo apt remove --auto-remove cmake -y
       curl -L https://github.com/Kitware/CMake/releases/download/v3.24.2/cmake-3.24.2-linux-aarch64.sh -o $(Build.ArtifactStagingDirectory)/cmake.sh
       cd $(Build.ArtifactStagingDirectory) && echo "f5aaa0ad735554cdf10401311cf47858f822537e5f80b05bc8aa282d6e9dbb5d4d235c77d1299904a1156dec6d4000defc74ae891a43c1b2101367554b241ba1  cmake.sh" | sha512sum -c
+      sudo rm -rf /opt/cmake /usr/local/bin/cmake
       sudo mkdir /opt/cmake && sudo sh $(Build.ArtifactStagingDirectory)/cmake.sh --skip-license --prefix=/opt/cmake
       sudo ln -s /opt/cmake/bin/cmake /usr/local/bin/cmake
     displayName: Update cmake
