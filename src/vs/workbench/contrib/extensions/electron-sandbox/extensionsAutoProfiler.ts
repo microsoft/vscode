@@ -28,9 +28,10 @@ import { bottomUp, buildModel } from 'vs/platform/profiling/common/profilingMode
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { TelemetrySampleData, TelemetrySampleDataClassification } from 'vs/platform/profiling/common/profilingTelemetrySpec';
+import { reportSample } from 'vs/platform/profiling/common/profilingTelemetrySpec';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 
@@ -49,6 +50,7 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INativeWorkbenchEnvironmentService private readonly _environmentServie: INativeWorkbenchEnvironmentService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITimerService timerService: ITimerService
 	) {
@@ -201,19 +203,15 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 		});
 
 		// send heavy samples
-		const samples = bottomUp(model, 5, false);
-		for (const sample of samples) {
-			const data: TelemetrySampleData = {
-				sessionId,
-				selfTime: sample.selfTime,
-				totalTime: sample.totalTime,
-				percentage: sample.percentage,
-				functionName: sample.location,
-				callstack: sample.caller.map(c => `${c.percentage}|${c.location}`).join('<'),
-				extensionId: searchTree.findSubstr(URI.parse(sample.url))?.identifier.value ?? '<not_extension>',
-				perfBaseline: this._perfBaseline,
-			};
-			this._telemetryService.publicLog2<TelemetrySampleData, TelemetrySampleDataClassification>('exthostunresponsive.sample', data);
+		if (this._configService.getValue('application.experimental.rendererProfiling')) {
+			const samples = bottomUp(model, 5, false);
+			for (const sample of samples) {
+				reportSample(
+					{ sample, perfBaseline: this._perfBaseline, source: searchTree.findSubstr(URI.parse(sample.url))?.identifier.value ?? '<<not-found>>' },
+					this._telemetryService,
+					this._logService
+				);
+			}
 		}
 
 		// add to running extensions view

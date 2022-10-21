@@ -221,7 +221,8 @@ function collectBrackets(
 	push: (item: BracketInfo) => boolean,
 	level: number,
 	nestingLevelOfEqualBracketType: number,
-	levelPerBracketType: Map<string, number>
+	levelPerBracketType: Map<string, number>,
+	parentPairIsIncomplete: boolean = false
 ): boolean {
 	if (level > 200) {
 		return true;
@@ -289,7 +290,9 @@ function collectBrackets(
 							continue whileLoop;
 						}
 
-						const shouldContinue = collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, push, level + 1, levelPerBracket + 1, levelPerBracketType);
+						const shouldContinue = collectBrackets(
+							child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, push, level + 1, levelPerBracket + 1, levelPerBracketType, !node.closingBracket
+						);
 						if (!shouldContinue) {
 							return false;
 						}
@@ -307,7 +310,7 @@ function collectBrackets(
 			}
 			case AstNodeKind.Bracket: {
 				const range = lengthsToRange(nodeOffsetStart, nodeOffsetEnd);
-				return push(new BracketInfo(range, level - 1, nestingLevelOfEqualBracketType - 1, false));
+				return push(new BracketInfo(range, level - 1, nestingLevelOfEqualBracketType - 1, parentPairIsIncomplete));
 			}
 			case AstNodeKind.Text:
 				return true;
