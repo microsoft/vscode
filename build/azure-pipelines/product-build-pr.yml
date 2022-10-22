@@ -12,7 +12,7 @@ variables:
   - name: skipComponentGovernanceDetection
     value: true
   - name: NPM_REGISTRY
-    value: ''
+    value: 'none'
   - name: VSCODE_CIBUILD
     value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
   - name: VSCODE_PUBLISH
