@@ -19,7 +19,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import * as nls from 'vs/nls';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { DEBUG_MEMORY_SCHEME, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointsChangeEvent, IBreakpointUpdateData, IDataBreakpoint, IDebugModel, IDebugSession, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
+import { DEBUG_MEMORY_SCHEME, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointReference, IBreakpointsChangeEvent, IBreakpointUpdateData, IDataBreakpoint, IDebugModel, IDebugSession, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
 import { getUriFromSource, Source, UNKNOWN_SOURCE_LABEL } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
@@ -769,6 +769,7 @@ function toBreakpointSessionData(data: DebugProtocol.Breakpoint, capabilities: D
 export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 
 	private sessionData = new Map<string, IBreakpointSessionData>();
+	private sessionHitData = new Map<string, boolean>();
 	protected data: IBreakpointSessionData | undefined;
 
 	constructor(
@@ -787,6 +788,7 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 	setSessionData(sessionId: string, data: IBreakpointSessionData | undefined): void {
 		if (!data) {
 			this.sessionData.delete(sessionId);
+			this.sessionHitData.delete(sessionId);
 		} else {
 			data.sessionId = sessionId;
 			this.sessionData.set(sessionId, data);
@@ -863,6 +865,18 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 
 		return result;
 	}
+
+	isHit(sessionId: string): boolean {
+		const data = this.sessionHitData.get(sessionId);
+		if (data) {
+			return data;
+		}
+		return false;
+	}
+
+	hit(sessionId: string): void {
+		this.sessionHitData.set(sessionId, true);
+	}
 }
 
 export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
@@ -879,7 +893,8 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		private readonly textFileService: ITextFileService,
 		private readonly uriIdentityService: IUriIdentityService,
 		private readonly logService: ILogService,
-		id = generateUuid()
+		id = generateUuid(),
+		public waitFor: IBreakpointReference | undefined = undefined
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
 	}
@@ -966,6 +981,14 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		result.column = this._column;
 		result.adapterData = this.adapterData;
 
+		if (this.waitFor) {
+			const wf = Object.create(null);
+			wf.uri = this.waitFor?.uri.toString();
+			wf.lineNumber = this.waitFor?.lineNumber;
+			wf.column = this.waitFor?.column;
+			result.waitFor = wf;
+		}
+
 		return result;
 	}
 
@@ -989,6 +1012,19 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		if (!isUndefinedOrNull(data.logMessage)) {
 			this.logMessage = data.logMessage;
 		}
+		if (!isUndefinedOrNull(data.waitFor)) {
+			this.waitFor = new BreakpointReference(data.waitFor.uri, data.waitFor.lineNumber, data.waitFor.column);
+		} else {
+			this.waitFor = undefined;
+		}
+	}
+}
+
+export class BreakpointReference implements IBreakpointReference {
+	constructor(public uri: uri, public lineNumber: number, public column?: number) { }
+
+	matches(bp: IBreakpoint): boolean {
+		return bp.uri.toString() === this.uri?.toString() && bp.lineNumber === this.lineNumber && bp.column === this.column;
 	}
 }
 

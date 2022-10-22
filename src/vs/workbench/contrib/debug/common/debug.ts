@@ -539,6 +539,7 @@ export interface IBreakpointUpdateData {
 	readonly logMessage?: string;
 	readonly lineNumber?: number;
 	readonly column?: number;
+	readonly waitFor?: IBreakpoint;
 }
 
 export interface IBaseBreakpoint extends IEnablement {
@@ -550,6 +551,15 @@ export interface IBaseBreakpoint extends IEnablement {
 	readonly message?: string;
 	readonly sessionsThatVerified: string[];
 	getIdFromAdapter(sessionId: string): number | undefined;
+	isHit(sessionId: string): boolean;
+	hit(sessionId: string): void;
+}
+
+export interface IBreakpointReference {
+	readonly lineNumber: number;
+	readonly column?: number;
+	readonly uri: uri;
+	matches(bp: IBreakpoint): boolean;
 }
 
 export interface IBreakpoint extends IBaseBreakpoint {
@@ -563,6 +573,7 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly endColumn?: number;
 	readonly adapterData: any;
 	readonly sessionAgnosticData: { lineNumber: number; column: number | undefined };
+	readonly waitFor?: IBreakpointReference;
 }
 
 export interface IFunctionBreakpoint extends IBaseBreakpoint {
@@ -1203,7 +1214,8 @@ export interface IDebugService {
 export const enum BreakpointWidgetContext {
 	CONDITION = 0,
 	HIT_COUNT = 1,
-	LOG_MESSAGE = 2
+	LOG_MESSAGE = 2,
+	WAIT_FOR_BREAKPOINT = 3
 }
 
 export interface IDebugEditorContribution extends editorCommon.IEditorContribution {

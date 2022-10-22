@@ -5,8 +5,8 @@
 
 import { URI } from 'vs/base/common/uri';
 import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ExceptionBreakpoint, Expression, Breakpoint, FunctionBreakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IEvaluate, IExpression, IDebugModel } from 'vs/workbench/contrib/debug/common/debug';
+import { ExceptionBreakpoint, Expression, Breakpoint, FunctionBreakpoint, DataBreakpoint, BreakpointReference } from 'vs/workbench/contrib/debug/common/debugModel';
+import { IEvaluate, IExpression, IDebugModel, IBreakpointReference } from 'vs/workbench/contrib/debug/common/debug';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -66,11 +66,19 @@ export class DebugStorage extends Disposable {
 		let result: Breakpoint[] | undefined;
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
-				return new Breakpoint(URI.parse(breakpoint.uri.external || breakpoint.source.uri.external), breakpoint.lineNumber, breakpoint.column, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition, breakpoint.logMessage, breakpoint.adapterData, this.textFileService, this.uriIdentityService, this.logService, breakpoint.id);
+				return new Breakpoint(URI.parse(breakpoint.uri.external || breakpoint.source.uri.external), breakpoint.lineNumber, breakpoint.column, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition, breakpoint.logMessage, breakpoint.adapterData, this.textFileService, this.uriIdentityService, this.logService, breakpoint.id,
+					this.parseBreakpointRef(breakpoint));
 			});
 		} catch (e) { }
 
 		return result || [];
+	}
+
+	private parseBreakpointRef(breakpoint: any): IBreakpointReference | undefined {
+		if (breakpoint.waitFor) {
+			return new BreakpointReference(breakpoint.waitFor.uri, breakpoint.waitFor.lineNumber, breakpoint.waitFor.column);
+		}
+		return undefined;
 	}
 
 	private loadFunctionBreakpoints(): FunctionBreakpoint[] {

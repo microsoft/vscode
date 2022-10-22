@@ -78,6 +78,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	private selectContainer!: HTMLElement;
 	private inputContainer!: HTMLElement;
+	private selectBreakpointContainer!: HTMLElement;
 	private input!: IActiveCodeEditor;
 	private toDispose: lifecycle.IDisposable[];
 	private conditionInput = '';
@@ -86,6 +87,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private breakpoint: IBreakpoint | undefined;
 	private context: Context;
 	private heightInPx: number | undefined;
+	private waitForBreakpointInput: IBreakpoint | undefined;
 
 	constructor(editor: ICodeEditor, private lineNumber: number, private column: number | undefined, context: Context | undefined,
 		@IContextViewService private readonly contextViewService: IContextViewService,
@@ -114,6 +116,8 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 				this.context = Context.LOG_MESSAGE;
 			} else if (this.breakpoint && !this.breakpoint.condition && this.breakpoint.hitCondition) {
 				this.context = Context.HIT_COUNT;
+			} else if (this.breakpoint && this.breakpoint.waitFor) {
+				this.context = Context.WAIT_FOR_BREAKPOINT;
 			} else {
 				this.context = Context.CONDITION;
 			}
@@ -156,16 +160,18 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	}
 
 	private rememberInput(): void {
-		const value = this.input.getModel().getValue();
-		switch (this.context) {
-			case Context.LOG_MESSAGE:
-				this.logMessageInput = value;
-				break;
-			case Context.HIT_COUNT:
-				this.hitCountInput = value;
-				break;
-			default:
-				this.conditionInput = value;
+		if (this.context !== Context.WAIT_FOR_BREAKPOINT) {
+			const value = this.input.getModel().getValue();
+			switch (this.context) {
+				case Context.LOG_MESSAGE:
+					this.logMessageInput = value;
+					break;
+				case Context.HIT_COUNT:
+					this.hitCountInput = value;
+					break;
+				default:
+					this.conditionInput = value;
+			}
 		}
 	}
 
@@ -189,17 +195,13 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('breakpoint-widget');
-		const selectBox = new SelectBox(<ISelectOptionItem[]>[{ text: nls.localize('expression', "Expression") }, { text: nls.localize('hitCount', "Hit Count") }, { text: nls.localize('logMessage', "Log Message") }], this.context, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
+		const selectBox = new SelectBox(<ISelectOptionItem[]>[{ text: nls.localize('expression', "Expression") }, { text: nls.localize('hitCount', "Hit Count") }, { text: nls.localize('logMessage', "Log Message") }, { text: nls.localize('waitBreakpoint', "Wait for breakpoint") }], this.context, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
 		this.selectContainer = $('.breakpoint-select-container');
 		selectBox.render(dom.append(container, this.selectContainer));
 		selectBox.onDidSelect(e => {
 			this.rememberInput();
 			this.context = e.index;
-			this.setInputMode();
-
-			const value = this.getInputValue(this.breakpoint);
-			this.input.getModel().setValue(value);
-			this.input.focus();
+			this.updateContextInput();
 		});
 
 		this.inputContainer = $('.inputContainer');
@@ -210,8 +212,47 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			this.fitHeightToContent();
 		}));
 		this.input.setPosition({ lineNumber: 1, column: this.input.getModel().getLineMaxColumn(1) });
+
+		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp !== this.breakpoint);
+		const index = breakpoints.findIndex((bp) => { return this.breakpoint?.waitFor?.matches(bp); });
+		let select = 0;
+		if (index > -1) {
+			select = index + 1;
+		}
+		const items: ISelectOptionItem[] = [{ text: nls.localize('noBreakpointDependency', 'None') }];
+		breakpoints.map(bp => <ISelectOptionItem>{ text: `${bp.uri.path} : ${bp.lineNumber}` })
+			.forEach(i => items.push(i));
+
+		const selectBreakpointBox = new SelectBox(items, select, this.contextViewService, undefined, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint') });
+		selectBreakpointBox.onDidSelect(e => {
+			if (e.index === 0) {
+				this.waitForBreakpointInput = undefined;
+			} else {
+				this.waitForBreakpointInput = breakpoints[e.index - 1];
+			}
+			this.close(true);
+		});
+		this.toDispose.push(attachSelectBoxStyler(selectBreakpointBox, this.themeService));
+		this.selectBreakpointContainer = $('.select-breakpoint-container');
+		selectBreakpointBox.render(dom.append(container, this.selectBreakpointContainer));
+
+		this.updateContextInput();
 		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
 		setTimeout(() => this.input.focus(), 150);
+	}
+
+	private updateContextInput() {
+		if (this.context === Context.WAIT_FOR_BREAKPOINT) {
+			this.inputContainer.hidden = true;
+			this.selectBreakpointContainer.hidden = false;
+		} else {
+			this.inputContainer.hidden = false;
+			this.selectBreakpointContainer.hidden = true;
+			this.setInputMode();
+			const value = this.getInputValue(this.breakpoint);
+			this.input.getModel().setValue(value);
+			this.input.focus();
+		}
 	}
 
 	protected override _doLayout(heightInPixel: number, widthInPixel: number): void {
@@ -321,6 +362,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			let condition = this.breakpoint && this.breakpoint.condition;
 			let hitCondition = this.breakpoint && this.breakpoint.hitCondition;
 			let logMessage = this.breakpoint && this.breakpoint.logMessage;
+			let waitFor = this.breakpoint && this.breakpoint.waitFor &&
+				this.debugService.getModel().getBreakpoints().filter(b => { return this.breakpoint?.waitFor?.matches(b); })[0];
+
 			this.rememberInput();
 
 			if (this.conditionInput || this.context === Context.CONDITION) {
@@ -332,13 +376,17 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			if (this.logMessageInput || this.context === Context.LOG_MESSAGE) {
 				logMessage = this.logMessageInput;
 			}
+			if (this.context === Context.WAIT_FOR_BREAKPOINT) {
+				waitFor = this.waitForBreakpointInput;
+			}
 
 			if (this.breakpoint) {
 				const data = new Map<string, IBreakpointUpdateData>();
 				data.set(this.breakpoint.getId(), {
 					condition,
 					hitCondition,
-					logMessage
+					logMessage,
+					waitFor
 				});
 				this.debugService.updateBreakpoints(this.breakpoint.originalUri, data, false).then(undefined, onUnexpectedError);
 			} else {
