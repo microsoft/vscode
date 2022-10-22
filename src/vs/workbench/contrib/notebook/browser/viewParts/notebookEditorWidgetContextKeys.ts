@@ -169,7 +169,7 @@ export class NotebookEditorContextKeys {
 		}
 
 		const { selected, all } = this._notebookKernelService.getMatchingKernel(this._editor.textModel);
-		const sourceActions = this._notebookKernelService.getSourceActions();
+		const sourceActions = this._notebookKernelService.getSourceActions(this._editor.textModel, this._editor.scopedContextKeyService);
 		this._notebookKernelCount.set(all.length);
 		this._notebookKernelSourceCount.set(sourceActions.length);
 		this._interruptibleKernel.set(selected?.implementsInterrupt ?? false);

@@ -8,7 +8,6 @@ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
-import { Iterable } from 'vs/base/common/iterator';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { autorun, autorunWithStore, derived, IObservable, ISettableObservable, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
@@ -209,8 +208,8 @@ export class InputCodeEditorView extends CodeEditorView {
 		return result;
 	});
 
-	protected override getEditorContributions(): Iterable<IEditorContributionDescription> | undefined {
-		return Iterable.filter(EditorExtensionsRegistry.getEditorContributions(), c => c.id !== CodeLensContribution.ID);
+	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
+		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeLensContribution.ID);
 	}
 }
 
@@ -294,7 +293,7 @@ export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
 			action.checked = checked;
 			return action;
 		}
-		const both = state.input1 && state.input2;
+		const both = state.includesInput1 && state.includesInput2;
 
 		return [
 			this.baseRange.input1Diffs.length > 0
@@ -302,7 +301,7 @@ export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
 					'mergeEditor.acceptInput1',
 					localize('mergeEditor.accept', 'Accept {0}', this.model.input1.title),
 					state.toggle(1),
-					state.input1
+					state.includesInput1
 				)
 				: undefined,
 			this.baseRange.input2Diffs.length > 0
@@ -310,7 +309,7 @@ export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
 					'mergeEditor.acceptInput2',
 					localize('mergeEditor.accept', 'Accept {0}', this.model.input2.title),
 					state.toggle(2),
-					state.input2
+					state.includesInput2
 				)
 				: undefined,
 			this.baseRange.isConflicting
@@ -321,7 +320,7 @@ export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
 							'mergeEditor.acceptBoth',
 							'Accept Both'
 						),
-						state.withInput1(!both).withInput2(!both),
+						state.withInputValue(1, !both).withInputValue(2, !both),
 						both
 					),
 					{ enabled: this.baseRange.canBeCombined }
@@ -336,7 +335,7 @@ export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
 						state.swap(),
 						false
 					),
-					{ enabled: !state.isEmpty && (!both || this.baseRange.isOrderRelevant) }
+					{ enabled: !state.kind && (!both || this.baseRange.isOrderRelevant) }
 				)
 				: undefined,
 
@@ -415,7 +414,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 				const value = item.toggleState.read(reader);
 				const iconMap: Record<InputState, { icon: Codicon | undefined; checked: boolean; title: string }> = {
 					[InputState.excluded]: { icon: undefined, checked: false, title: localize('accept.excluded', "Accept") },
-					[InputState.conflicting]: { icon: Codicon.circleFilled, checked: false, title: localize('accept.conflicting', "Accept (result is dirty)") },
+					[InputState.unrecognized]: { icon: Codicon.circleFilled, checked: false, title: localize('accept.conflicting', "Accept (result is dirty)") },
 					[InputState.first]: { icon: Codicon.check, checked: true, title: localize('accept.first', "Undo accept") },
 					[InputState.second]: { icon: Codicon.checkAll, checked: true, title: localize('accept.second', "Undo accept (currently second)") },
 				};

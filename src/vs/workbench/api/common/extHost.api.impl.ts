@@ -93,6 +93,7 @@ import { combinedDisposable } from 'vs/base/common/lifecycle';
 import { checkProposedApiEnabled, ExtensionIdentifierSet, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
+import { EditSessionIdentityMatch } from 'vs/platform/workspace/common/editSessions';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -165,7 +166,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostEditors = rpcProtocol.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostTreeViews = rpcProtocol.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(rpcProtocol.getProxy(MainContext.MainThreadTreeViews), extHostCommands, extHostLogService));
 	const extHostEditorInsets = rpcProtocol.set(ExtHostContext.ExtHostEditorInsets, new ExtHostEditorInsets(rpcProtocol.getProxy(MainContext.MainThreadEditorInsets), extHostEditors, initData.remote));
-	const extHostDiagnostics = rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(rpcProtocol, extHostLogService, extHostFileSystemInfo));
+	const extHostDiagnostics = rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(rpcProtocol, extHostLogService, extHostFileSystemInfo, extHostDocumentsAndEditors));
 	const extHostLanguages = rpcProtocol.set(ExtHostContext.ExtHostLanguages, new ExtHostLanguages(rpcProtocol, extHostDocuments, extHostCommands.converter, uriTransformer));
 	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, uriTransformer, extHostDocuments, extHostCommands, extHostDiagnostics, extHostLogService, extHostApiDeprecation, extHostTelemetry));
 	const extHostFileSystem = rpcProtocol.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(rpcProtocol, extHostLanguageFeatures));
@@ -331,7 +332,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return isNewAppInstall(initData.telemetryInfo.firstSessionDate);
 			},
 			createTelemetryLogger(appender: vscode.TelemetryAppender): vscode.TelemetryLogger {
-				checkProposedApiEnabled(extension, 'telemetry');
+				checkProposedApiEnabled(extension, 'telemetryLogger');
 				return extHostTelemetry.instantiateLogger(extension, appender);
 			},
 			openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string }) {
@@ -1393,6 +1394,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TabInputInteractiveWindow: extHostTypes.InteractiveWindowInput,
 			TerminalExitReason: extHostTypes.TerminalExitReason,
 			LogLevel: LogLevel,
+			EditSessionIdentityMatch: EditSessionIdentityMatch
 		};
 	};
 }

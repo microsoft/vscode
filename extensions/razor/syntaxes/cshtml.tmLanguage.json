@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/OmniSharp/omnisharp-vscode/blob/master/src/razor/syntaxes/aspnetcorerazor.tmLanguage.json",
+		"This file has been converted from https://github.com/dotnet/razor-tooling/blob/master/src/Razor/src/Microsoft.AspNetCore.Razor.VSCode.Extension/syntaxes/aspnetcorerazor.tmLanguage.json",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/OmniSharp/omnisharp-vscode/commit/85d6eeea14e9aef51934697de78c77fbddbf1aa8",
+	"version": "https://github.com/dotnet/razor-tooling/commit/558b502fbef5ecdf386ccd6d47b0b40b5f8800a7",
 	"name": "ASP.NET Razor",
 	"scopeName": "text.html.cshtml",
 	"patterns": [

@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
-import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 
 export class CodeActionKind {
 	private static readonly sep = '.';
@@ -91,7 +94,7 @@ export function mayIncludeActionsOfKind(filter: CodeActionFilter, providedKind: 
 	return true;
 }
 
-export function filtersAction(filter: CodeActionFilter, action: CodeAction): boolean {
+export function filtersAction(filter: CodeActionFilter, action: languages.CodeAction): boolean {
 	const actionKind = action.kind ? new CodeActionKind(action.kind) : undefined;
 
 	// Filter out actions by kind
@@ -135,7 +138,7 @@ function excludesAction(providedKind: CodeActionKind, exclude: CodeActionKind, i
 }
 
 export interface CodeActionTrigger {
-	readonly type: CodeActionTriggerType;
+	readonly type: languages.CodeActionTriggerType;
 	readonly triggerAction: CodeActionTriggerSource;
 	readonly filter?: CodeActionFilter;
 	readonly autoApply?: CodeActionAutoApply;
@@ -184,3 +187,35 @@ export class CodeActionCommandArgs {
 		public readonly preferred: boolean,
 	) { }
 }
+
+export class CodeActionItem {
+
+	constructor(
+		public readonly action: languages.CodeAction,
+		public readonly provider: languages.CodeActionProvider | undefined,
+	) { }
+
+	async resolve(token: CancellationToken): Promise<this> {
+		if (this.provider?.resolveCodeAction && !this.action.edit) {
+			let action: languages.CodeAction | undefined | null;
+			try {
+				action = await this.provider.resolveCodeAction(this.action, token);
+			} catch (err) {
+				onUnexpectedExternalError(err);
+			}
+			if (action) {
+				this.action.edit = action.edit;
+			}
+		}
+		return this;
+	}
+}
+
+export interface CodeActionSet extends IDisposable {
+	readonly validActions: readonly CodeActionItem[];
+	readonly allActions: readonly CodeActionItem[];
+	readonly hasAutoFix: boolean;
+
+	readonly documentation: readonly languages.Command[];
+}
+

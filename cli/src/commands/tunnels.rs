@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::process::Stdio;
-
 use async_trait::async_trait;
-use tokio::sync::oneshot;
+use std::fmt;
+use sysinfo::{Pid, SystemExt};
+use tokio::sync::mpsc;
+use tokio::time::{sleep, Duration};
 
 use super::{
 	args::{
-		AuthProvider, Cli, ExistingTunnelArgs, TunnelRenameArgs, TunnelServeArgs,
+		AuthProvider, CliCore, ExistingTunnelArgs, TunnelRenameArgs, TunnelServeArgs,
 		TunnelServiceSubCommands, TunnelUserSubCommands,
 	},
 	CommandContext,
@@ -57,11 +58,11 @@ impl From<ExistingTunnelArgs> for Option<dev_tunnels::ExistingTunnel> {
 }
 
 struct TunnelServiceContainer {
-	args: Cli,
+	args: CliCore,
 }
 
 impl TunnelServiceContainer {
-	fn new(args: Cli) -> Self {
+	fn new(args: CliCore) -> Self {
 		Self { args }
 	}
 }
@@ -72,7 +73,7 @@ impl ServiceContainer for TunnelServiceContainer {
 		&mut self,
 		log: log::Logger,
 		launcher_paths: LauncherPaths,
-		shutdown_rx: oneshot::Receiver<()>,
+		shutdown_rx: mpsc::Receiver<ShutdownSignal>,
 	) -> Result<(), AnyError> {
 		let csa = (&self.args).into();
 		serve_with_csa(
@@ -87,6 +88,20 @@ impl ServiceContainer for TunnelServiceContainer {
 		)
 		.await?;
 		Ok(())
+	}
+}
+/// Describes the signal to manully stop the server
+pub enum ShutdownSignal {
+	CtrlC,
+	ParentProcessKilled,
+}
+
+impl fmt::Display for ShutdownSignal {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		match self {
+			ShutdownSignal::CtrlC => write!(f, "Ctrl-C received"),
+			ShutdownSignal::ParentProcessKilled => write!(f, "Parent process no longer exists"),
+		}
 	}
 }
 
@@ -213,8 +228,12 @@ async fn serve_with_csa(
 	log: Logger,
 	gateway_args: TunnelServeArgs,
 	csa: CodeServerArgs,
-	shutdown_rx: Option<oneshot::Receiver<()>>,
+	shutdown_rx: Option<mpsc::Receiver<ShutdownSignal>>,
 ) -> Result<i32, AnyError> {
+	// Intentionally read before starting the server. If the server updated and
+	// respawn is requested, the old binary will get renamed, and then
+	// current_exe will point to the wrong path.
+	let current_exe = std::env::current_exe().unwrap();
 	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
 
 	let auth = Auth::new(&paths, log.clone());
@@ -222,16 +241,31 @@ async fn serve_with_csa(
 	let tunnel = if let Some(d) = gateway_args.tunnel.clone().into() {
 		dt.start_existing_tunnel(d).await
 	} else {
-		dt.start_new_launcher_tunnel(gateway_args.random_name).await
+		dt.start_new_launcher_tunnel(gateway_args.name, gateway_args.random_name).await
 	}?;
 
 	let shutdown_tx = if let Some(tx) = shutdown_rx {
 		tx
 	} else {
-		let (tx, rx) = oneshot::channel();
+		let (tx, rx) = mpsc::channel::<ShutdownSignal>(2);
+		if let Some(process_id) = gateway_args.parent_process_id {
+			let tx = tx.clone();
+			info!(log, "checking for parent process {}", process_id);
+			tokio::spawn(async move {
+				let mut s = sysinfo::System::new();
+				#[cfg(windows)]
+				let pid = Pid::from(process_id as usize);
+				#[cfg(unix)]
+				let pid = Pid::from(process_id);
+				while s.refresh_process(pid) {
+					sleep(Duration::from_millis(2000)).await;
+				}
+				tx.send(ShutdownSignal::ParentProcessKilled).await.ok();
+			});
+		}
 		tokio::spawn(async move {
 			tokio::signal::ctrl_c().await.ok();
-			tx.send(()).ok();
+			tx.send(ShutdownSignal::CtrlC).await.ok();
 		});
 		rx
 	};
@@ -244,11 +278,8 @@ async fn serve_with_csa(
 		// reuse current args, but specify no-forward since tunnels will
 		// already be running in this process, and we cannot do a login
 		let args = std::env::args().skip(1).collect::<Vec<String>>();
-		let exit = std::process::Command::new(std::env::current_exe().unwrap())
+		let exit = std::process::Command::new(current_exe)
 			.args(args)
-			.stdout(Stdio::inherit())
-			.stderr(Stdio::inherit())
-			.stdin(Stdio::inherit())
 			.spawn()
 			.map_err(|e| wrap(e, "error respawning after update"))?
 			.wait()

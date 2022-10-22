@@ -30,6 +30,8 @@
     "onCommand:markdown.api.render",
     "onCommand:markdown.api.reloadPlugins",
     "onCommand:markdown.findAllFileReferences",
+    "onCommand:markdown.editor.insertLinkFromWorkspace",
+    "onCommand:markdown.editor.insertImageFromWorkspace",
     "onWebviewPanel:markdown.preview",
     "onCustomEditor:vscode.markdown.preview.editor"
   ],
@@ -175,6 +177,18 @@
         "command": "markdown.findAllFileReferences",
         "title": "%markdown.findAllFileReferences%",
         "category": "Markdown"
+      },
+      {
+        "command": "markdown.editor.insertLinkFromWorkspace",
+        "title": "%markdown.editor.insertLinkFromWorkspace%",
+        "category": "Markdown",
+        "enablement": "editorLangId == markdown"
+      },
+      {
+        "command": "markdown.editor.insertImageFromWorkspace",
+        "title": "%markdown.editor.insertImageFromWorkspace%",
+        "category": "Markdown",
+        "enablement": "editorLangId == markdown"
       }
     ],
     "menus": {
@@ -552,6 +566,12 @@
           "tags": [
             "experimental"
           ]
+        },
+        "markdown.occurrencesHighlight.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.markdown.occurrencesHighlight.enabled%",
+          "scope": "resource"
         }
       }
     },

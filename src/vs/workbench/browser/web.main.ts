@@ -81,6 +81,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { BrowserUserDataProfilesService } from 'vs/platform/userDataProfile/browser/userDataProfile';
+import { timeout } from 'vs/base/common/async';
 
 export class BrowserMain extends Disposable {
 
@@ -309,7 +310,7 @@ export class BrowserMain extends Disposable {
 			})
 		]);
 
-		userDataProfilesService.setEnablement(productService.quality !== 'stable' || configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
+		userDataProfilesService.setEnablement(!environmentService.remoteAuthority && (productService.quality !== 'stable' || configurationService.getValue(PROFILES_ENABLEMENT_CONFIG)));
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(PROFILES_ENABLEMENT_CONFIG)) {
 				userDataProfilesService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
@@ -363,6 +364,20 @@ export class BrowserMain extends Disposable {
 		const userDataInitializationService = new UserDataInitializationService(environmentService, credentialsService, userDataSyncStoreManagementService, fileService, userDataProfilesService, storageService, productService, requestService, logService, uriIdentityService);
 		serviceCollection.set(IUserDataInitializationService, userDataInitializationService);
 
+		try {
+			await Promise.race([
+				// Do not block more than 5s
+				timeout(5000),
+				this.initializeUserData(userDataInitializationService, configurationService)]
+			);
+		} catch (error) {
+			logService.error(error);
+		}
+
+		return { serviceCollection, configurationService, logService };
+	}
+
+	private async initializeUserData(userDataInitializationService: UserDataInitializationService, configurationService: WorkspaceService) {
 		if (await userDataInitializationService.requiresInitialization()) {
 			mark('code/willInitRequiredUserData');
 
@@ -375,8 +390,6 @@ export class BrowserMain extends Disposable {
 
 			mark('code/didInitRequiredUserData');
 		}
-
-		return { serviceCollection, configurationService, logService };
 	}
 
 	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IWorkbenchFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, loggerService: ILoggerService, logsPath: URI): Promise<void> {

@@ -49,7 +49,7 @@ import { isNative } from 'vs/base/common/platform';
 import { WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { equals } from 'vs/base/common/objects';
-import { IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
+import { EditSessionIdentityMatch, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
@@ -377,7 +377,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	async resumeEditSession(ref?: string, silent?: boolean): Promise<void> {
+	async resumeEditSession(ref?: string, silent?: boolean, force?: boolean): Promise<void> {
 		// Edit sessions are not currently supported in empty workspaces
 		// https://github.com/microsoft/vscode/issues/159220
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
@@ -409,7 +409,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}
 
 		try {
-			const { changes, conflictingChanges } = await this.generateChanges(editSession, ref);
+			const { changes, conflictingChanges } = await this.generateChanges(editSession, ref, force);
 			if (changes.length === 0) {
 				return;
 			}
@@ -453,7 +453,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}
 	}
 
-	private async generateChanges(editSession: EditSession, ref: string) {
+	private async generateChanges(editSession: EditSession, ref: string, force = false) {
 		const changes: ({ uri: URI; type: ChangeType; contents: string | undefined })[] = [];
 		const conflictingChanges = [];
 		const workspaceFolders = this.contextService.getWorkspace().folders;
@@ -467,9 +467,32 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				for (const f of workspaceFolders) {
 					const identity = await this.editSessionIdentityService.getEditSessionIdentifier(f, cancellationTokenSource);
 					this.logService.info(`Matching identity ${identity} against edit session folder identity ${folder.canonicalIdentity}...`);
+
 					if (equals(identity, folder.canonicalIdentity)) {
 						folderRoot = f;
 						break;
+					}
+
+					if (identity !== undefined) {
+						const match = await this.editSessionIdentityService.provideEditSessionIdentityMatch(f, identity, folder.canonicalIdentity, cancellationTokenSource);
+						if (match === EditSessionIdentityMatch.Complete) {
+							folderRoot = f;
+							break;
+						} else if (match === EditSessionIdentityMatch.Partial &&
+							this.configurationService.getValue('workbench.experimental.editSessions.partialMatches.enabled') === true
+						) {
+							if (!force) {
+								// Surface partially matching edit session
+								this.notificationService.prompt(
+									Severity.Info,
+									localize('editSessionPartialMatch', 'You have a pending edit session for this workspace. Would you like to resume it?'),
+									[{ label: localize('resume', 'Resume'), run: () => this.resumeEditSession(ref, false, true) }]
+								);
+							} else {
+								folderRoot = f;
+								break;
+							}
+						}
 					}
 				}
 			} else {
@@ -875,5 +898,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'default': 'onReload',
 			'markdownDeprecationMessage': localize('autoResumeDeprecated', "This setting is deprecated in favor of {0}.", '`#workbench.editSessions.autoResume#`')
 		},
+		'workbench.experimental.editSessions.partialMatches.enabled': {
+			'type': 'boolean',
+			'tags': ['experimental', 'usesOnlineServices'],
+			'default': false,
+			'markdownDescription': localize('editSessionsPartialMatchesEnabled', "Controls whether to surface edit sessions which partially match the current session.")
+		}
 	}
 });

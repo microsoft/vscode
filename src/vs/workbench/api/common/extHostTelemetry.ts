@@ -34,7 +34,6 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 		@IExtHostInitDataService private readonly initData: IExtHostInitDataService,
 		@ILoggerService loggerService: ILoggerService,
 	) {
-		console.log(this.initData.environment.extensionTelemetryLogResource);
 		this._outputLogger = loggerService.createLogger(URI.revive(this.initData.environment.extensionTelemetryLogResource));
 		this._outputLogger.info('Below are logs for extension telemetry events sent to the telemetry output channel API once the log level is set to trace.');
 		this._outputLogger.info('===========================================================');
@@ -183,16 +182,16 @@ export class ExtHostTelemetryLogger {
 		if (!this._apiObject) {
 			const that = this;
 			const obj: vscode.TelemetryLogger = {
-				logUsage: that.logUsage,
+				logUsage: that.logUsage.bind(that),
 				get isUsageEnabled() {
 					return that._telemetryEnablements.isUsageEnabled;
 				},
 				get isErrorsEnabled() {
 					return that._telemetryEnablements.isErrorsEnabled;
 				},
-				logError: that.logError,
-				dispose: that.dispose,
-				onDidChangeEnableStates: that._onDidChangeEnableStates.event
+				logError: that.logError.bind(that),
+				dispose: that.dispose.bind(that),
+				onDidChangeEnableStates: that._onDidChangeEnableStates.event.bind(that)
 			};
 			this._apiObject = Object.freeze(obj);
 		}

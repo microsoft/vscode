@@ -286,6 +286,7 @@ export function getPiiPathsFromEnvironment(paths: IPathEnvironment): string[] {
  * @returns The cleaned stack
  */
 function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
+
 	let updatedStack = stack;
 
 	const cleanUpIndexes: [number, number][] = [];
@@ -309,8 +310,12 @@ function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
 		if (!result) {
 			break;
 		}
-		// Anoynimize user file paths that do not need to be retained or cleaned up.
-		if (!nodeModulesRegex.test(result[0]) && cleanUpIndexes.every(([x, y]) => result.index < x || result.index >= y)) {
+
+		// Check to see if the any cleanupIndexes partially overlap with this match
+		const overlappingRange = cleanUpIndexes.some(([start, end]) => result.index < end && start < fileRegex.lastIndex);
+
+		// anoynimize user file paths that do not need to be retained or cleaned up.
+		if (!nodeModulesRegex.test(result[0]) && !overlappingRange) {
 			updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>';
 			lastIndex = fileRegex.lastIndex;
 		}

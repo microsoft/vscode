@@ -418,6 +418,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				return isUndefined(result) ? null : result;
 			}
 
+			if (this.userDataProfilesService.isEnabled()) {
+				return null;
+			}
+
 			if (this.environmentService.isBuilt && (!this.productService.enableSyncingProfiles || isEqual(this.userDataSyncStoreManagementService.userDataSyncStore?.url, this.userDataSyncStoreManagementService.userDataSyncStore?.stableUrl))) {
 				return null;
 			}
@@ -543,7 +547,7 @@ class ProfileSynchronizer extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IProductService private readonly productService: IProductService,
-		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 	) {
@@ -555,7 +559,7 @@ class ProfileSynchronizer extends Disposable {
 					this._profile = userDataProfilesService.defaultProfile;
 					for (const [synchronizer] of this._enabled) {
 						if (synchronizer instanceof ExtensionsSynchroniser) {
-							synchronizer.profileLocation = this._profile.extensionsResource;
+							synchronizer.profile = this._profile;
 						}
 					}
 				}
@@ -588,6 +592,9 @@ class ProfileSynchronizer extends Disposable {
 		}
 		if (syncResource === SyncResource.Profiles) {
 			if (!this._profile.isDefault) {
+				return;
+			}
+			if (!this.userDataProfilesService.isEnabled()) {
 				return;
 			}
 			if (this.environmentService.isBuilt && (!this.productService.enableSyncingProfiles || isEqual(this.userDataSyncStoreManagementService.userDataSyncStore?.url, this.userDataSyncStoreManagementService.userDataSyncStore?.stableUrl))) {
