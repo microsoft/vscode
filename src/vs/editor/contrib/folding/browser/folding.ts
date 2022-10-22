@@ -274,17 +274,15 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.rangeProvider = new IndentRangeProvider(editorModel, this.languageConfigurationService, this._maxFoldingRegions); // fallback
 		if (this._useFoldingProviders && this.foldingModel) {
 			const foldingProviders = this.languageFeaturesService.foldingRangeProvider.ordered(this.foldingModel.textModel);
-
-			// select unique provider if the foldingStrategy is equal to an extension's id
-			for (const provider of foldingProviders) {
-				if (provider.extensionId && ExtensionIdentifier.equals(provider.extensionId, this._foldingStrategy)) {
-					this.rangeProvider = new SyntaxRangeProvider(editorModel, [provider], () => this.triggerFoldingModelChanged(), this._maxFoldingRegions);
-
-					return this.rangeProvider;
+			if (this._foldingStrategy !== 'auto') {
+				// select unique provider if the foldingStrategy is equal to an extension's id
+				for (const provider of foldingProviders) {
+					if (this._foldingStrategy === provider.id) {
+						this.rangeProvider = new SyntaxRangeProvider(editorModel, [provider], () => this.triggerFoldingModelChanged(), this._maxFoldingRegions);
+						return this.rangeProvider;
+					}
 				}
-			}
-
-			if (foldingProviders.length > 0) {
+			} else if (foldingProviders.length > 0) {
 				this.rangeProvider = new SyntaxRangeProvider(editorModel, foldingProviders, () => this.triggerFoldingModelChanged(), this._maxFoldingRegions);
 			}
 		}

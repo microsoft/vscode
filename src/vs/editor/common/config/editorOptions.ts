@@ -547,7 +547,7 @@ export interface IEditorOptions {
 	 * Selects the folding strategy. 'auto' uses the strategies contributed for the current document, 'indentation' uses the indentation based folding strategy.
 	 * Defaults to 'auto'.
 	 */
-	foldingStrategy?: string;
+	foldingStrategy?: 'auto' | 'indentation' | string;
 	/**
 	 * Enable highlight for folded regions.
 	 * Defaults to true.

@@ -707,8 +707,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string, eventHandle: number | undefined): void {
 		const provider = <languages.FoldingRangeProvider>{
-			extensionId,
-			displayName,
+			id: extensionId.value,
 			provideFoldingRanges: (model, context, token) => {
 				return this._proxy.$provideFoldingRanges(handle, model.uri, context, token);
 			}
