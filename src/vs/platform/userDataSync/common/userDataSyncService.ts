@@ -559,7 +559,7 @@ class ProfileSynchronizer extends Disposable {
 					this._profile = userDataProfilesService.defaultProfile;
 					for (const [synchronizer] of this._enabled) {
 						if (synchronizer instanceof ExtensionsSynchroniser) {
-							synchronizer.profileLocation = this._profile.extensionsResource;
+							synchronizer.profile = this._profile;
 						}
 					}
 				}

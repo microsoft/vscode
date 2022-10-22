@@ -194,7 +194,6 @@ stages:
             pool: vscode-1es-linux-20.04-arm64
             variables:
               VSCODE_ARCH: arm64
-              VCPKG_FORCE_SYSTEM_BINARIES: '1' # required for building on ARM
             steps:
               - task: NodeTool@0
                 displayName: Install Node.js

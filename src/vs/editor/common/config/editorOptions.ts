@@ -4461,6 +4461,8 @@ class WrappingIndentOption extends BaseEditorOption<EditorOption.wrappingIndent,
 		super(EditorOption.wrappingIndent, 'wrappingIndent', WrappingIndent.Same,
 			{
 				'editor.wrappingIndent': {
+					type: 'string',
+					enum: ['none', 'same', 'indent', 'deepIndent'],
 					enumDescriptions: [
 						nls.localize('wrappingIndent.none', "No indentation. Wrapped lines begin at column 1."),
 						nls.localize('wrappingIndent.same', "Wrapped lines get the same indentation as the parent."),
@@ -4468,6 +4470,7 @@ class WrappingIndentOption extends BaseEditorOption<EditorOption.wrappingIndent,
 						nls.localize('wrappingIndent.deepIndent', "Wrapped lines get +2 indentation toward the parent."),
 					],
 					description: nls.localize('wrappingIndent', "Controls the indentation of wrapped lines."),
+					default: 'same'
 				}
 			}
 		);
