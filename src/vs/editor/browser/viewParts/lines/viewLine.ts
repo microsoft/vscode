@@ -253,17 +253,17 @@ export class ViewLine implements IVisibleLine {
 			return false;
 		}
 
-		sb.appendASCIIString('<div style="top:');
-		sb.appendASCIIString(String(deltaTop));
-		sb.appendASCIIString('px;height:');
-		sb.appendASCIIString(String(this._options.lineHeight));
-		sb.appendASCIIString('px;" class="');
-		sb.appendASCIIString(ViewLine.CLASS_NAME);
-		sb.appendASCIIString('">');
+		sb.appendString('<div style="top:');
+		sb.appendString(String(deltaTop));
+		sb.appendString('px;height:');
+		sb.appendString(String(this._options.lineHeight));
+		sb.appendString('px;" class="');
+		sb.appendString(ViewLine.CLASS_NAME);
+		sb.appendString('">');
 
 		const output = renderViewLine(renderLineInput, sb);
 
-		sb.appendASCIIString('</div>');
+		sb.appendString('</div>');
 
 		let renderedViewLine: IRenderedViewLine | null = null;
 		if (monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
