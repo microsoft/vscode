@@ -192,17 +192,6 @@ steps:
         displayName: Download Explorer Sparse Package
         condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          $env:VSCODE_EXPLORER_APPX_DIR=$(Join-Path $pwd.Path ".build/win32/appx")
-          exec { node build/win32/explorer-appx-fetcher }
-        env:
-          VSCODE_ARCH: "$(VSCODE_ARCH)"
-        displayName: Download Explorer Sparse Package
-        condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
-
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
