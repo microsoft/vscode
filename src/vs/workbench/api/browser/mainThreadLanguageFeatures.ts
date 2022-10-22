@@ -695,7 +695,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	// --- folding
 
-	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string, eventHandle: number | undefined): void {
+	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, eventHandle: number | undefined): void {
 		const provider = <languages.FoldingRangeProvider>{
 			id: extensionId.value,
 			provideFoldingRanges: (model, context, token) => {
