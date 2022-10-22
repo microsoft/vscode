@@ -28,7 +28,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { IExtensionHost, ExtensionHostLogFileName, LocalProcessRunningLocation, ExtensionHostExtensions } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostLogFileName, LocalProcessRunningLocation, ExtensionHostExtensions, localExtHostLog } from 'vs/workbench/services/extensions/common/extensions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { joinPath } from 'vs/base/common/resources';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -417,7 +417,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 					disposable.dispose();
 
 					// Register log channel for exthost log
-					Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: 'extHostLog', label: nls.localize('extension host Log', "Extension Host"), file: this._extensionHostLogFile, log: true });
+					Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: localExtHostLog, label: nls.localize('extension host Log', "Extension Host"), file: this._extensionHostLogFile, log: true });
 
 					// release this promise
 					resolve();
@@ -444,11 +444,13 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 				appName: this._productService.nameLong,
 				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
+				extensionTelemetryLogResource: this._environmentService.extHostTelemetryLogFile,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
+				extensionLogLevel: this._environmentService.extensionLogLevel
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 				configuration: withNullAsUndefined(workspace.configuration),

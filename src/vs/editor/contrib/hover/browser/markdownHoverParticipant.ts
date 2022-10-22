@@ -30,6 +30,7 @@ export class MarkdownHover implements IHoverPart {
 		public readonly owner: IEditorHoverParticipant<MarkdownHover>,
 		public readonly range: Range,
 		public readonly contents: IMarkdownString[],
+		public readonly isBeforeContent: boolean,
 		public readonly ordinal: number
 	) { }
 
@@ -55,7 +56,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	) { }
 
 	public createLoadingMessage(anchor: HoverAnchor): MarkdownHover | null {
-		return new MarkdownHover(this, anchor.range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))], 2000);
+		return new MarkdownHover(this, anchor.range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))], false, 2000);
 	}
 
 	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkdownHover[] {
@@ -78,8 +79,10 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		if (typeof maxTokenizationLineLength === 'number' && lineLength >= maxTokenizationLineLength) {
 			result.push(new MarkdownHover(this, anchor.range, [{
 				value: nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. This can be configured via `editor.maxTokenizationLineLength`.")
-			}], index++));
+			}], false, index++));
 		}
+
+		let isBeforeContent = false;
 
 		for (const d of lineDecorations) {
 			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
@@ -90,8 +93,12 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 				continue;
 			}
 
+			if (d.options.beforeContentClassName) {
+				isBeforeContent = true;
+			}
+
 			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
-			result.push(new MarkdownHover(this, range, asArray(hoverMessage), index++));
+			result.push(new MarkdownHover(this, range, asArray(hoverMessage), isBeforeContent, index++));
 		}
 
 		return result;
@@ -113,7 +120,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			.filter(item => !isEmptyMarkdownString(item.hover.contents))
 			.map(item => {
 				const rng = item.hover.range ? Range.lift(item.hover.range) : anchor.range;
-				return new MarkdownHover(this, rng, item.hover.contents, item.ordinal);
+				return new MarkdownHover(this, rng, item.hover.contents, false, item.ordinal);
 			});
 	}
 

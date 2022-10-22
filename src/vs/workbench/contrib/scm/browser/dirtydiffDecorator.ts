@@ -181,16 +181,17 @@ class DirtyDiffWidget extends PeekViewWidget {
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
-		@IContextKeyService _contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true }, instantiationService);
 
 		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._applyTheme(themeService.getColorTheme());
 
-		const contextKeyService = _contextKeyService.createOverlay([
-			['originalResourceScheme', this.model.original!.uri.scheme]
-		]);
+		if (this.model.original) {
+			contextKeyService = contextKeyService.createOverlay([['originalResourceScheme', this.model.original.uri.scheme]]);
+		}
+
 		this.menu = menuService.createMenu(MenuId.SCMChangeContext, contextKeyService);
 		this._disposables.add(this.menu);
 
@@ -1083,7 +1084,7 @@ export function createProviderComparer(uri: URI): (a: ISCMProvider, b: ISCMProvi
 
 export async function getOriginalResource(scmService: ISCMService, uri: URI): Promise<URI | null> {
 	const providers = Iterable.map(scmService.repositories, r => r.provider);
-	const rootedProviders = Iterable.collect(Iterable.filter(providers, p => !!p.rootUri));
+	const rootedProviders = Array.from(Iterable.filter(providers, p => !!p.rootUri));
 
 	rootedProviders.sort(createProviderComparer(uri));
 
@@ -1094,7 +1095,7 @@ export async function getOriginalResource(scmService: ISCMService, uri: URI): Pr
 	}
 
 	const nonRootedProviders = Iterable.filter(providers, p => !p.rootUri);
-	return first(Iterable.collect(Iterable.map(nonRootedProviders, p => () => p.getOriginalResource(uri))));
+	return first(Array.from(nonRootedProviders, p => () => p.getOriginalResource(uri)));
 }
 
 export class DirtyDiffModel extends Disposable {
@@ -1135,7 +1136,9 @@ export class DirtyDiffModel extends Disposable {
 			)(this.triggerDiff, this)
 		);
 		this._register(scmService.onDidAddRepository(this.onDidAddRepository, this));
-		Iterable.forEach(scmService.repositories, r => this.onDidAddRepository(r));
+		for (const r of scmService.repositories) {
+			this.onDidAddRepository(r);
+		}
 
 		this._register(this._model.onDidChangeEncoding(() => {
 			this.diffDelayer.cancel();

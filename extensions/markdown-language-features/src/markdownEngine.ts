@@ -10,11 +10,8 @@ import { ILogger } from './logging';
 import { MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
 import { ITextDocument } from './types/textDocument';
-import { Disposable } from './util/dispose';
 import { WebviewResourceProvider } from './util/resources';
 import { isOfScheme, Schemes } from './util/schemes';
-import { MdDocumentInfoCache } from './util/workspaceCache';
-import { IMdWorkspace } from './workspace';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
@@ -432,29 +429,5 @@ function normalizeHighlightLang(lang: string | undefined) {
 
 		default:
 			return lang;
-	}
-}
-
-export class MdParsingProvider extends Disposable implements IMdParser {
-
-	private readonly _cache: MdDocumentInfoCache<Token[]>;
-
-	public readonly slugifier: Slugifier;
-
-	constructor(
-		engine: MarkdownItEngine,
-		workspace: IMdWorkspace,
-	) {
-		super();
-
-		this.slugifier = engine.slugifier;
-
-		this._cache = this._register(new MdDocumentInfoCache<Token[]>(workspace, doc => {
-			return engine.tokenize(doc);
-		}));
-	}
-
-	public tokenize(document: ITextDocument): Promise<Token[]> {
-		return this._cache.getForDocument(document);
 	}
 }

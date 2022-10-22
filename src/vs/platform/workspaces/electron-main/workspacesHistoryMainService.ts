@@ -23,6 +23,7 @@ import { IApplicationStorageMainService } from 'vs/platform/storage/electron-mai
 import { IRecent, IRecentFile, IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFile, isRecentFolder, isRecentWorkspace, restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+import { ResourceMap } from 'vs/base/common/map';
 
 export const IWorkspacesHistoryMainService = createDecorator<IWorkspacesHistoryMainService>('workspacesHistoryMainService');
 
@@ -73,28 +74,28 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	//#region Workspaces History
 
 	async addRecentlyOpened(recentToAdd: IRecent[]): Promise<void> {
-		const workspaces: Array<IRecentFolder | IRecentWorkspace> = [];
-		const files: IRecentFile[] = [];
+		let workspaces: Array<IRecentFolder | IRecentWorkspace> = [];
+		let files: IRecentFile[] = [];
 
 		for (const recent of recentToAdd) {
 
 			// Workspace
 			if (isRecentWorkspace(recent)) {
-				if (!this.workspacesManagementMainService.isUntitledWorkspace(recent.workspace) && this.indexOfWorkspace(workspaces, recent.workspace) === -1) {
+				if (!this.workspacesManagementMainService.isUntitledWorkspace(recent.workspace) && !this.containsWorkspace(workspaces, recent.workspace)) {
 					workspaces.push(recent);
 				}
 			}
 
 			// Folder
 			else if (isRecentFolder(recent)) {
-				if (this.indexOfFolder(workspaces, recent.folderUri) === -1) {
+				if (!this.containsFolder(workspaces, recent.folderUri)) {
 					workspaces.push(recent);
 				}
 			}
 
 			// File
 			else {
-				const alreadyExistsInHistory = this.indexOfFile(files, recent.fileUri) >= 0;
+				const alreadyExistsInHistory = this.containsFile(files, recent.fileUri);
 				const shouldBeFiltered = recent.fileUri.scheme === Schemas.file && WorkspacesHistoryMainService.COMMON_FILES_FILTER.indexOf(basename(recent.fileUri)) >= 0;
 
 				if (!alreadyExistsInHistory && !shouldBeFiltered) {
@@ -108,7 +109,9 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			}
 		}
 
-		await this.addEntriesFromStorage(workspaces, files);
+		const mergedEntries = await this.mergeEntriesFromStorage({ workspaces, files });
+		workspaces = mergedEntries.workspaces;
+		files = mergedEntries.files;
 
 		if (workspaces.length > WorkspacesHistoryMainService.MAX_TOTAL_RECENT_ENTRIES) {
 			workspaces.length = WorkspacesHistoryMainService.MAX_TOTAL_RECENT_ENTRIES;
@@ -163,35 +166,53 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	}
 
 	async getRecentlyOpened(): Promise<IRecentlyOpened> {
-		const workspaces: Array<IRecentFolder | IRecentWorkspace> = [];
-		const files: IRecentFile[] = [];
-
-		await this.addEntriesFromStorage(workspaces, files);
-
-		return { workspaces, files };
+		return this.mergeEntriesFromStorage();
 	}
 
-	private async addEntriesFromStorage(workspaces: Array<IRecentFolder | IRecentWorkspace>, files: IRecentFile[]): Promise<void> {
+	private async mergeEntriesFromStorage(existingEntries?: IRecentlyOpened): Promise<IRecentlyOpened> {
 
-		// Get from storage
-		const recents = await this.getRecentlyOpenedFromStorage();
-		for (const recent of recents.workspaces) {
-			const index = isRecentFolder(recent) ? this.indexOfFolder(workspaces, recent.folderUri) : this.indexOfWorkspace(workspaces, recent.workspace);
-			if (index >= 0) {
-				workspaces[index].label = workspaces[index].label || recent.label;
-			} else {
-				workspaces.push(recent);
+		// Build maps for more efficient lookup of existing entries that
+		// are passed in by storing based on workspace/file identifier
+
+		const mapWorkspaceIdToWorkspace = new ResourceMap<IRecentFolder | IRecentWorkspace>(uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
+		if (existingEntries?.workspaces) {
+			for (const workspace of existingEntries.workspaces) {
+				mapWorkspaceIdToWorkspace.set(this.location(workspace), workspace);
 			}
 		}
 
-		for (const recent of recents.files) {
-			const index = this.indexOfFile(files, recent.fileUri);
-			if (index >= 0) {
-				files[index].label = files[index].label || recent.label;
-			} else {
-				files.push(recent);
+		const mapFileIdToFile = new ResourceMap<IRecentFile>(uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
+		if (existingEntries?.files) {
+			for (const file of existingEntries.files) {
+				mapFileIdToFile.set(this.location(file), file);
 			}
 		}
+
+		// Merge in entries from storage, preserving existing known entries
+
+		const recentFromStorage = await this.getRecentlyOpenedFromStorage();
+		for (const recentWorkspaceFromStorage of recentFromStorage.workspaces) {
+			const existingRecentWorkspace = mapWorkspaceIdToWorkspace.get(this.location(recentWorkspaceFromStorage));
+			if (existingRecentWorkspace) {
+				existingRecentWorkspace.label = existingRecentWorkspace.label ?? recentWorkspaceFromStorage.label;
+			} else {
+				mapWorkspaceIdToWorkspace.set(this.location(recentWorkspaceFromStorage), recentWorkspaceFromStorage);
+			}
+		}
+
+		for (const recentFileFromStorage of recentFromStorage.files) {
+			const existingRecentFile = mapFileIdToFile.get(this.location(recentFileFromStorage));
+			if (existingRecentFile) {
+				existingRecentFile.label = existingRecentFile.label ?? recentFileFromStorage.label;
+			} else {
+				mapFileIdToFile.set(this.location(recentFileFromStorage), recentFileFromStorage);
+			}
+		}
+
+		return {
+			workspaces: [...mapWorkspaceIdToWorkspace.values()],
+			files: [...mapFileIdToFile.values()]
+		};
 	}
 
 	private async getRecentlyOpenedFromStorage(): Promise<IRecentlyOpened> {
@@ -235,16 +256,16 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		return recent.workspace.configPath;
 	}
 
-	private indexOfWorkspace(recents: IRecent[], candidate: IWorkspaceIdentifier): number {
-		return recents.findIndex(recent => isRecentWorkspace(recent) && recent.workspace.id === candidate.id);
+	private containsWorkspace(recents: IRecent[], candidate: IWorkspaceIdentifier): boolean {
+		return !!recents.find(recent => isRecentWorkspace(recent) && recent.workspace.id === candidate.id);
 	}
 
-	private indexOfFolder(recents: IRecent[], candidate: URI): number {
-		return recents.findIndex(recent => isRecentFolder(recent) && extUriBiasedIgnorePathCase.isEqual(recent.folderUri, candidate));
+	private containsFolder(recents: IRecent[], candidate: URI): boolean {
+		return !!recents.find(recent => isRecentFolder(recent) && extUriBiasedIgnorePathCase.isEqual(recent.folderUri, candidate));
 	}
 
-	private indexOfFile(recents: IRecentFile[], candidate: URI): number {
-		return recents.findIndex(recent => extUriBiasedIgnorePathCase.isEqual(recent.fileUri, candidate));
+	private containsFile(recents: IRecentFile[], candidate: URI): boolean {
+		return !!recents.find(recent => extUriBiasedIgnorePathCase.isEqual(recent.fileUri, candidate));
 	}
 
 	//#endregion

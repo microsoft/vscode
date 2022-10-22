@@ -36,7 +36,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { PixelRatio } from 'vs/base/browser/browser';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IOutline } from 'vs/workbench/services/outline/browser/outline';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -504,15 +504,20 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 			id: 'breadcrumbs.toggle',
 			title: {
 				value: localize('cmd.toggle', "Toggle Breadcrumbs"),
-				mnemonicTitle: localize('miBreadcrumbs', "&&Breadcrumbs"),
+				mnemonicTitle: localize('miBreadcrumbs', "Toggle &&Breadcrumbs"),
 				original: 'Toggle Breadcrumbs',
 			},
-			category: CATEGORIES.View,
-			toggled: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
+			category: Categories.View,
+			toggled: {
+				condition: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
+				title: localize('cmd.toggle2', "Breadcrumbs"),
+				mnemonicTitle: localize('miBreadcrumbs2', "&&Breadcrumbs")
+			},
 			menu: [
 				{ id: MenuId.CommandPalette },
-				{ id: MenuId.MenubarViewMenu, group: '5_editor', order: 3 },
-				{ id: MenuId.NotebookToolbar, group: 'notebookLayout', order: 2 }
+				{ id: MenuId.MenubarEditorFeaturesMenu, order: 3 },
+				{ id: MenuId.NotebookToolbar, group: 'notebookLayout', order: 2 },
+				{ id: MenuId.StickyScrollContext }
 			]
 		});
 	}

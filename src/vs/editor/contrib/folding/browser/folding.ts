@@ -35,17 +35,16 @@ import { foldingCollapsedIcon, FoldingDecorationProvider, foldingExpandedIcon, f
 import { FoldingRegion, FoldingRegions, FoldRange, FoldSource, ILineRange } from './foldingRanges';
 import { SyntaxRangeProvider } from './syntaxRangeProvider';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import Severity from 'vs/base/common/severity';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { Emitter, Event } from 'vs/base/common/event';
 
 const CONTEXT_FOLDING_ENABLED = new RawContextKey<boolean>('foldingEnabled', false);
 
 export interface RangeProvider {
 	readonly id: string;
-	compute(cancelationToken: CancellationToken, notifyTooMany: (max: number) => void): Promise<FoldingRegions | null>;
+	compute(cancelationToken: CancellationToken): Promise<FoldingRegions | null>;
 	dispose(): void;
 }
 
@@ -54,6 +53,16 @@ interface FoldingStateMemento {
 	lineCount?: number;
 	provider?: string;
 	foldedImports?: boolean;
+}
+
+export interface FoldingLimitReporter {
+	readonly limit: number;
+	report(limitInfo: FoldingLimitInfo): void;
+}
+
+export interface FoldingLimitInfo {
+	computed: number;
+	limited: number | false;
 }
 
 export class FoldingController extends Disposable implements IEditorContribution {
@@ -72,9 +81,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	private _restoringViewState: boolean;
 	private _foldingImportsByDefault: boolean;
 	private _currentModelHasFoldedImports: boolean;
-	private _maxFoldingRegions: number;
-	private _notifyTooManyRegions: (m: number) => void;
-	private _tooManyRegionsNotified = false;
+	private _foldingLimitReporter: FoldingLimitReporter;
 
 	private readonly foldingDecorationProvider: FoldingDecorationProvider;
 
@@ -94,6 +101,14 @@ export class FoldingController extends Disposable implements IEditorContribution
 	private readonly localToDispose = this._register(new DisposableStore());
 	private mouseDownInfo: { lineNumber: number; iconClicked: boolean } | null;
 
+	private _onDidChangeFoldingLimit = new Emitter<FoldingLimitInfo>();
+	public readonly onDidChangeFoldingLimit: Event<FoldingLimitInfo> = this._onDidChangeFoldingLimit.event;
+
+	private _foldingLimitInfo: FoldingLimitInfo | undefined;
+	public get foldingLimitInfo() {
+		return this._foldingLimitInfo;
+	}
+
 	constructor(
 		editor: ICodeEditor,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -112,7 +127,17 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this._restoringViewState = false;
 		this._currentModelHasFoldedImports = false;
 		this._foldingImportsByDefault = options.get(EditorOption.foldingImportsByDefault);
-		this._maxFoldingRegions = options.get(EditorOption.foldingMaximumRegions);
+		this._foldingLimitReporter = {
+			get limit() {
+				return editor.getOptions().get(EditorOption.foldingMaximumRegions);
+			},
+			report: (info: FoldingLimitInfo) => {
+				if (!this._foldingLimitInfo || (info.limited !== this._foldingLimitInfo.limited)) {
+					this._foldingLimitInfo = info;
+					this._onDidChangeFoldingLimit.fire(info);
+				}
+			}
+		};
 		this.updateDebounceInfo = languageFeatureDebounceService.for(languageFeaturesService.foldingRangeProvider, 'Folding', { min: 200 });
 
 		this.foldingModel = null;
@@ -130,18 +155,6 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.foldingEnabled = CONTEXT_FOLDING_ENABLED.bindTo(this.contextKeyService);
 		this.foldingEnabled.set(this._isEnabled);
 
-		this._notifyTooManyRegions = (maxFoldingRegions: number) => {
-			// Message will display once per time vscode runs. Once per file would be tricky.
-			if (!this._tooManyRegionsNotified) {
-				notificationService.notify({
-					severity: Severity.Warning,
-					sticky: true,
-					message: nls.localize('maximum fold ranges', "The number of foldable regions is limited to a maximum of {0}. Increase configuration option ['Folding Maximum Regions'](command:workbench.action.openSettings?[\"editor.foldingMaximumRegions\"]) to enable more.", maxFoldingRegions)
-				});
-				this._tooManyRegionsNotified = true;
-			}
-		};
-
 		this._register(this.editor.onDidChangeModel(() => this.onModelChanged()));
 
 		this._register(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
@@ -151,8 +164,6 @@ export class FoldingController extends Disposable implements IEditorContribution
 				this.onModelChanged();
 			}
 			if (e.hasChanged(EditorOption.foldingMaximumRegions)) {
-				this._maxFoldingRegions = this.editor.getOptions().get(EditorOption.foldingMaximumRegions);
-				this._tooManyRegionsNotified = false;
 				this.onModelChanged();
 			}
 			if (e.hasChanged(EditorOption.showFoldingControls) || e.hasChanged(EditorOption.foldingHighlight)) {
@@ -200,7 +211,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		if (!model || !this._isEnabled || model.isTooLargeForTokenization() || !this.hiddenRangeModel) {
 			return;
 		}
-		if (!state || state.lineCount !== model.getLineCount()) {
+		if (!state) {
 			return;
 		}
 
@@ -271,7 +282,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		if (this.rangeProvider) {
 			return this.rangeProvider;
 		}
-		this.rangeProvider = new IndentRangeProvider(editorModel, this.languageConfigurationService, this._maxFoldingRegions); // fallback
+		this.rangeProvider = new IndentRangeProvider(editorModel, this.languageConfigurationService, this._foldingLimitReporter); // fallback
 		if (this._useFoldingProviders && this.foldingModel) {
 			const foldingProviders = this.languageFeaturesService.foldingRangeProvider.ordered(this.foldingModel.textModel);
 			if (this._foldingStrategy !== 'auto') {
@@ -289,7 +300,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		return this.rangeProvider;
 	}
 
-	public getFoldingModel() {
+	public getFoldingModel(): Promise<FoldingModel | null> | null {
 		return this.foldingModelPromise;
 	}
 
@@ -297,6 +308,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.hiddenRangeModel?.notifyChangeModelContent(e);
 		this.triggerFoldingModelChanged();
 	}
+
 
 	public triggerFoldingModelChanged() {
 		if (this.updateScheduler) {
@@ -311,7 +323,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				}
 				const sw = new StopWatch(true);
 				const provider = this.getRangeProvider(foldingModel.textModel);
-				const foldingRegionPromise = this.foldingRegionPromise = createCancelablePromise(token => provider.compute(token, this._notifyTooManyRegions));
+				const foldingRegionPromise = this.foldingRegionPromise = createCancelablePromise(token => provider.compute(token));
 				return foldingRegionPromise.then(foldingRanges => {
 					if (foldingRanges && foldingRegionPromise === this.foldingRegionPromise) { // new request or cancelled in the meantime?
 						let scrollState: StableEditorScrollState | undefined;
@@ -1077,7 +1089,7 @@ class FoldRangeFromSelectionAction extends FoldingAction<void> {
 		super({
 			id: 'editor.createFoldingRangeFromSelection',
 			label: nls.localize('createManualFoldRange.label', "Create Manual Folding Range from Selection"),
-			alias: 'Create Folding Range from Selection',
+			alias: 'Create Manual Folding Range from Selection',
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

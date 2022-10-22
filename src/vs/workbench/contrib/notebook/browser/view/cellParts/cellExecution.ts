@@ -46,7 +46,7 @@ export class CellExecutionPart extends CellPart {
 	}
 
 	private updateExecutionOrder(internalMetadata: NotebookCellInternalMetadata, forceClear = false): void {
-		if (this._notebookEditor.activeKernel?.implementsExecutionOrder) {
+		if (this._notebookEditor.activeKernel?.implementsExecutionOrder || (!this._notebookEditor.activeKernel && typeof internalMetadata.executionOrder === 'number')) {
 			// If the executionOrder was just cleared, and the cell is executing, wait just a bit before clearing the view to avoid flashing
 			if (typeof internalMetadata.executionOrder !== 'number' && !forceClear && !!this._notebookExecutionStateService.getCellExecution(this.currentCell!.uri)) {
 				const renderingCell = this.currentCell;

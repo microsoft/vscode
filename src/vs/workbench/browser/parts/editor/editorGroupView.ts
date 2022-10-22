@@ -36,9 +36,9 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAction } from 'vs/base/common/actions';
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { hash } from 'vs/base/common/hash';
@@ -52,6 +52,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isLinux, isNative, isWindows } from 'vs/base/common/platform';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -145,7 +146,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(themeService);
 
@@ -362,13 +364,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private createContainerContextMenu(): void {
-		const menu = this._register(this.menuService.createMenu(MenuId.EmptyEditorGroupContext, this.contextKeyService));
-
-		this._register(addDisposableListener(this.element, EventType.CONTEXT_MENU, e => this.onShowContainerContextMenu(menu, e)));
-		this._register(addDisposableListener(this.element, TouchEventType.Contextmenu, () => this.onShowContainerContextMenu(menu)));
+		this._register(addDisposableListener(this.element, EventType.CONTEXT_MENU, e => this.onShowContainerContextMenu(e)));
+		this._register(addDisposableListener(this.element, TouchEventType.Contextmenu, () => this.onShowContainerContextMenu()));
 	}
 
-	private onShowContainerContextMenu(menu: IMenu, e?: MouseEvent): void {
+	private onShowContainerContextMenu(e?: MouseEvent): void {
 		if (!this.isEmpty) {
 			return; // only for empty editor groups
 		}
@@ -380,14 +380,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			anchor = { x: event.posx, y: event.posy };
 		}
 
-		// Fill in contributed actions
-		const actions: IAction[] = [];
-		createAndFillInContextMenuActions(menu, undefined, actions);
-
 		// Show it
 		this.contextMenuService.showContextMenu({
+			menuId: MenuId.EmptyEditorGroupContext,
+			contextKeyService: this.contextKeyService,
 			getAnchor: () => anchor,
-			getActions: () => actions,
 			onHide: () => {
 				this.focus();
 			}
@@ -1600,10 +1597,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 					return editor.isDirty(); // veto if still dirty
 				} catch (error) {
+					this.logService.error(error);
+
 					// if that fails, since we are about to close the editor, we accept that
 					// the editor cannot be reverted and instead do a soft revert that just
 					// enables us to close the editor. With this, a user can always close a
 					// dirty editor even when reverting fails.
+
 					await editor.revert(this.id, { soft: true });
 
 					return editor.isDirty(); // veto if still dirty

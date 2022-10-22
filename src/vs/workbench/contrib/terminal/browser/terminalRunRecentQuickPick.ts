@@ -264,8 +264,8 @@ export async function showRunRecentQuickPick(
 		} else { // command
 			text = result.rawLabel;
 		}
-		instance.sendText(text, !quickPick.keyMods.alt, true);
 		quickPick.hide();
+		instance.runCommand(text, !quickPick.keyMods.alt);
 		if (quickPick.keyMods.alt) {
 			instance.focus();
 		}

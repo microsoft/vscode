@@ -66,6 +66,7 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
 import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
+import { CheckboxStateHandler, TreeItemCheckbox } from 'vs/workbench/browser/parts/views/checkbox';
 
 export class TreeViewPane extends ViewPane {
 
@@ -236,6 +237,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private readonly _onDidChangeDescription: Emitter<string | undefined> = this._register(new Emitter<string | undefined>());
 	readonly onDidChangeDescription: Event<string | undefined> = this._onDidChangeDescription.event;
 
+	private readonly _onDidChangeCheckboxState: Emitter<ITreeItem[]> = this._register(new Emitter<ITreeItem[]>());
+	readonly onDidChangeCheckboxState: Event<ITreeItem[]> = this._onDidChangeCheckboxState.event;
+
 	private readonly _onDidCompleteRefresh: Emitter<void> = this._register(new Emitter<void>());
 
 	constructor(
@@ -282,8 +286,6 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			this.treeViewDnd.controller = this._dragAndDropController;
 		}
 
-		this._register(this.themeService.onDidFileIconThemeChange(() => this.tree?.rerender()));
-		this._register(this.themeService.onDidColorThemeChange(() => this.tree?.rerender()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('explorer.decorations')) {
 				this.doRefresh([this.root]); /** soft refresh **/
@@ -587,6 +589,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private create() {
 		this.domNode = DOM.$('.tree-explorer-viewlet-tree-view');
 		this.messageElement = DOM.append(this.domNode, DOM.$('.message'));
+		this.updateMessage();
 		this.treeContainer = DOM.append(this.domNode, DOM.$('.customview-tree'));
 		this.treeContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 		const focusTracker = this._register(DOM.trackFocus(this.domNode));
@@ -600,7 +603,12 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.id }, () => task));
 		const aligner = new Aligner(this.themeService);
-		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner);
+		const checkboxStateHandler = this._register(new CheckboxStateHandler());
+		this._register(checkboxStateHandler.onDidChangeCheckboxState(items => {
+			items.forEach(item => this.tree?.rerender(item));
+			this._onDidChangeCheckboxState.fire(items);
+		}));
+		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler);
 		const widgetAriaLabel = this._title;
 
 		this.tree = this._register(this.instantiationService.createInstance(Tree, this.id, this.treeContainer!, new TreeViewDelegate(), [renderer],
@@ -643,7 +651,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				}
 			},
 			expandOnlyOnTwistieClick: (e: ITreeItem) => {
-				return !!e.command || this.configurationService.getValue<'singleClick' | 'doubleClick'>('workbench.tree.expandMode') === 'doubleClick';
+				return !!e.command || !!e.checkbox || this.configurationService.getValue<'singleClick' | 'doubleClick'>('workbench.tree.expandMode') === 'doubleClick';
 			},
 			collapseByDefault: (e: ITreeItem): boolean => {
 				return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
@@ -685,6 +693,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 		this._register(this.tree.onDidOpen(async (e) => {
 			if (!e.browserEvent) {
+				return;
+			}
+			if (e.browserEvent.target && (e.browserEvent.target as HTMLElement).classList.contains(TreeItemCheckbox.checkboxClass)) {
 				return;
 			}
 			const selection = this.tree!.getSelection();
@@ -848,11 +859,17 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	async expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void> {
 		const tree = this.tree;
-		if (tree) {
+		if (!tree) {
+			return;
+		}
+		try {
 			itemOrItems = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
 			await Promise.all(itemOrItems.map(element => {
 				return tree.expand(element, false);
 			}));
+		} catch (e) {
+			// The extension could have changed the tree during the reveal.
+			// Because of that, we ignore errors.
 		}
 	}
 
@@ -1007,11 +1024,13 @@ registerThemingParticipant((theme, collector) => {
 });
 
 interface ITreeExplorerTemplateData {
-	elementDisposable: IDisposable;
-	container: HTMLElement;
-	resourceLabel: IResourceLabel;
-	icon: HTMLElement;
-	actionBar: ActionBar;
+	readonly elementDisposable: DisposableStore;
+	readonly container: HTMLElement;
+	readonly resourceLabel: IResourceLabel;
+	readonly icon: HTMLElement;
+	readonly checkboxContainer: HTMLElement;
+	checkbox?: TreeItemCheckbox;
+	readonly actionBar: ActionBar;
 }
 
 class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyScore, ITreeExplorerTemplateData> {
@@ -1020,6 +1039,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 	private _actionRunner: MultipleSelectionActionRunner | undefined;
 	private _hoverDelegate: IHoverDelegate;
+	private _hasCheckbox: boolean = false;
+	private _renderedElements = new Map<ITreeNode<ITreeItem, FuzzyScore>, ITreeExplorerTemplateData>();
 
 	constructor(
 		private treeViewId: string,
@@ -1027,6 +1048,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		private labels: ResourceLabels,
 		private actionViewItemProvider: IActionViewItemProvider,
 		private aligner: Aligner,
+		private checkboxStateHandler: CheckboxStateHandler,
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -1039,6 +1061,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			showHover: (options: IHoverDelegateOptions) => this.hoverService.showHover(options),
 			delay: <number>this.configurationService.getValue('workbench.hover.delay')
 		};
+		this._register(this.themeService.onDidFileIconThemeChange(() => this.rerender()));
+		this._register(this.themeService.onDidColorThemeChange(() => this.rerender()));
 	}
 
 	get templateId(): string {
@@ -1052,6 +1076,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	renderTemplate(container: HTMLElement): ITreeExplorerTemplateData {
 		container.classList.add('custom-view-tree-node-item');
 
+		const checkboxContainer = DOM.append(container, DOM.$(''));
 		const resourceLabel = this.labels.create(container, { supportHighlights: true, hoverDelegate: this._hoverDelegate });
 		const icon = DOM.prepend(resourceLabel.element, DOM.$('.custom-view-tree-node-item-icon'));
 		const actionsContainer = DOM.append(resourceLabel.element, DOM.$('.actions'));
@@ -1059,7 +1084,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			actionViewItemProvider: this.actionViewItemProvider
 		});
 
-		return { resourceLabel, icon, actionBar, container, elementDisposable: Disposable.None };
+		return { resourceLabel, icon, checkboxContainer, actionBar, container, elementDisposable: new DisposableStore() };
 	}
 
 	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | ITooltipMarkdownString | undefined {
@@ -1089,7 +1114,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	renderElement(element: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
-		templateData.elementDisposable.dispose();
 		const node = element.element;
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
 		const treeItemLabel: ITreeItemLabel | undefined = node.label ? node.label : (resource ? { label: basename(resource) } : undefined);
@@ -1125,6 +1149,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			commandEnabled = isTreeCommandEnabled(node.command, this.contextKeyService);
 		}
 
+		this.renderCheckbox(node, templateData);
+
 		if (resource) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean; badges: boolean }>('explorer.decorations');
 			const labelResource = resource ? resource : URI.parse('missing:_icon_resource');
@@ -1136,7 +1162,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
 				strikethrough: treeItemLabel?.strikethrough,
-				disabledCommand: !commandEnabled
+				disabledCommand: !commandEnabled,
+				labelEscapeNewLines: true
 			});
 		} else {
 			templateData.resourceLabel.setResource({ name: label, description }, {
@@ -1145,7 +1172,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
 				strikethrough: treeItemLabel?.strikethrough,
-				disabledCommand: !commandEnabled
+				disabledCommand: !commandEnabled,
+				labelEscapeNewLines: true
 			});
 		}
 
@@ -1173,11 +1201,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		templateData.actionBar.context = <TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle };
 
-		const disposableStore = new DisposableStore();
-		templateData.elementDisposable = disposableStore;
 		const menuActions = this.menus.getResourceActions(node);
 		if (menuActions.menu) {
-			disposableStore.add(menuActions.menu);
+			templateData.elementDisposable.add(menuActions.menu);
 		}
 		templateData.actionBar.push(menuActions.actions, { icon: true, label: false });
 
@@ -1186,11 +1212,45 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		}
 		this.setAlignment(templateData.container, node);
 		this.treeViewsService.addRenderedTreeItemElement(node, templateData.container);
-		disposableStore.add(toDisposable(() => this.treeViewsService.removeRenderedTreeItemElement(node)));
+
+		// remember rendered element
+		this._renderedElements.set(element, templateData);
+	}
+
+	private rerender() {
+		// As we add items to the map during this call we can't directly use the map in the for loop
+		// but have to create a copy of the keys first
+		const keys = new Set(this._renderedElements.keys());
+		for (const key of keys) {
+			const value = this._renderedElements.get(key);
+			if (value) {
+				this.disposeElement(key, 0, value);
+				this.renderElement(key, 0, value);
+			}
+		}
+	}
+
+	private renderCheckbox(node: ITreeItem, templateData: ITreeExplorerTemplateData) {
+		if (node.checkbox) {
+			// The first time we find a checkbox we want to rerender the visible tree to adapt the alignment
+			if (!this._hasCheckbox) {
+				this._hasCheckbox = true;
+				this.rerender();
+			}
+			if (!templateData.checkbox) {
+				const checkbox = new TreeItemCheckbox(templateData.checkboxContainer, this.checkboxStateHandler, this.themeService);
+				templateData.checkbox = checkbox;
+			}
+			templateData.checkbox.render(node);
+		}
+		else if (templateData.checkbox) {
+			templateData.checkbox.dispose();
+			templateData.checkbox = undefined;
+		}
 	}
 
 	private setAlignment(container: HTMLElement, treeItem: ITreeItem) {
-		container.parentElement!.classList.toggle('align-icon-with-twisty', this.aligner.alignIconWithTwisty(treeItem));
+		container.parentElement!.classList.toggle('align-icon-with-twisty', !this._hasCheckbox && this.aligner.alignIconWithTwisty(treeItem));
 	}
 
 	private shouldHideResourceLabelIcon(iconUrl: URI | undefined, icon: ThemeIcon | undefined): boolean {
@@ -1234,7 +1294,13 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	disposeElement(resource: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
-		templateData.elementDisposable.dispose();
+		templateData.elementDisposable.clear();
+
+		this._renderedElements.delete(resource);
+		this.treeViewsService.removeRenderedTreeItemElement(resource.element);
+
+		templateData.checkbox?.dispose();
+		templateData.checkbox = undefined;
 	}
 
 	disposeTemplate(templateData: ITreeExplorerTemplateData): void {

@@ -92,7 +92,9 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
     }
     let result;
     if (config.transpileOnly) {
-        const transpiler = new transpiler_1.Transpiler(logFn, printDiagnostic, projectPath, cmdLine);
+        const transpiler = !config.transpileWithSwc
+            ? new transpiler_1.TscTranspiler(logFn, printDiagnostic, projectPath, cmdLine)
+            : new transpiler_1.SwcTranspiler(logFn, printDiagnostic, projectPath, cmdLine);
         result = (() => createTranspileStream(transpiler));
     }
     else {

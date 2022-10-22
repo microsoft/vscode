@@ -34,6 +34,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { isCancellationError, NotImplementedError } from 'vs/base/common/errors';
 import { raceCancellationError } from 'vs/base/common/async';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 
 // --- adapter
 
@@ -446,7 +447,7 @@ class CodeActionAdapter {
 					title: candidate.title,
 					command: candidate.command && this._commands.toInternal(candidate.command, disposables),
 					diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
-					edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit, undefined, isProposedApiEnabled(this._extension, 'snippetWorkspaceEdit')),
+					edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit, undefined),
 					kind: candidate.kind && candidate.kind.value,
 					isPreferred: candidate.isPreferred,
 					disabled: candidate.disabled?.reason
@@ -467,7 +468,7 @@ class CodeActionAdapter {
 		}
 		const resolvedItem = (await this._provider.resolveCodeAction(item, token)) ?? item;
 		return resolvedItem?.edit
-			? typeConvert.WorkspaceEdit.from(resolvedItem.edit, undefined, isProposedApiEnabled(this._extension, 'snippetWorkspaceEdit'))
+			? typeConvert.WorkspaceEdit.from(resolvedItem.edit, undefined)
 			: undefined;
 	}
 
@@ -511,8 +512,8 @@ class DocumentPasteEditProvider {
 		const doc = this._documents.getDocument(resource);
 		const vscodeRanges = ranges.map(range => typeConvert.Range.to(range));
 
-		const dataTransfer = typeConvert.DataTransfer.toDataTransfer(dataTransferDto, async (index) => {
-			return (await this._proxy.$resolvePasteFileData(this._handle, requestId, index)).buffer;
+		const dataTransfer = typeConvert.DataTransfer.toDataTransfer(dataTransferDto, async (id) => {
+			return (await this._proxy.$resolvePasteFileData(this._handle, requestId, id)).buffer;
 		});
 
 		const edit = await this._provider.provideDocumentPasteEdits(doc, vscodeRanges, dataTransfer, token);
@@ -522,7 +523,7 @@ class DocumentPasteEditProvider {
 
 		return {
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
-			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined, true) : undefined,
+			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined) : undefined,
 		};
 	}
 }
@@ -1794,8 +1795,8 @@ class DocumentOnDropEditAdapter {
 	async provideDocumentOnDropEdits(requestId: number, uri: URI, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.IDocumentOnDropEditDto | undefined> {
 		const doc = this._documents.getDocument(uri);
 		const pos = typeConvert.Position.to(position);
-		const dataTransfer = typeConvert.DataTransfer.toDataTransfer(dataTransferDto, async (index) => {
-			return (await this._proxy.$resolveDocumentOnDropFileData(this._handle, requestId, index)).buffer;
+		const dataTransfer = typeConvert.DataTransfer.toDataTransfer(dataTransferDto, async (id) => {
+			return (await this._proxy.$resolveDocumentOnDropFileData(this._handle, requestId, id)).buffer;
 		});
 
 		const edit = await this._provider.provideDocumentDropEdits(doc, pos, dataTransfer, token);
@@ -1804,7 +1805,7 @@ class DocumentOnDropEditAdapter {
 		}
 		return {
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
-			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined, true) : undefined,
+			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined) : undefined,
 		};
 	}
 }
@@ -1831,31 +1832,20 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	private static _handlePool: number = 0;
 
-	private readonly _uriTransformer: IURITransformer;
 	private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape;
-	private readonly _documents: ExtHostDocuments;
-	private readonly _commands: ExtHostCommands;
-	private readonly _diagnostics: ExtHostDiagnostics;
 	private readonly _adapter = new Map<number, AdapterData>();
-	private readonly _logService: ILogService;
-	private readonly _apiDeprecation: IExtHostApiDeprecationService;
 
 	constructor(
 		mainContext: extHostProtocol.IMainContext,
-		uriTransformer: IURITransformer,
-		documents: ExtHostDocuments,
-		commands: ExtHostCommands,
-		diagnostics: ExtHostDiagnostics,
-		logService: ILogService,
-		apiDeprecationService: IExtHostApiDeprecationService,
+		private readonly _uriTransformer: IURITransformer,
+		private readonly _documents: ExtHostDocuments,
+		private readonly _commands: ExtHostCommands,
+		private readonly _diagnostics: ExtHostDiagnostics,
+		private readonly _logService: ILogService,
+		private readonly _apiDeprecation: IExtHostApiDeprecationService,
+		private readonly _extensionTelemetry: IExtHostTelemetry
 	) {
-		this._uriTransformer = uriTransformer;
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadLanguageFeatures);
-		this._documents = documents;
-		this._commands = commands;
-		this._diagnostics = diagnostics;
-		this._logService = logService;
-		this._apiDeprecation = apiDeprecationService;
 	}
 
 	private _transformDocumentSelector(selector: vscode.DocumentSelector): Array<extHostProtocol.IDocumentFilterDto> {
@@ -1898,6 +1888,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 			if (!isCancellationError(err)) {
 				this._logService.error(`[${data.extension.identifier.value}] provider FAILED`);
 				this._logService.error(err);
+
+				this._extensionTelemetry.onExtensionError(data.extension.identifier, err);
 			}
 		}).finally(() => {
 			if (!doNotLog) {

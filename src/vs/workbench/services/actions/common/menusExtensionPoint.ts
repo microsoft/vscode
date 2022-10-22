@@ -13,7 +13,6 @@ import { MenuId, MenuRegistry, IMenuItem, ISubmenuItem } from 'vs/platform/actio
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { Iterable } from 'vs/base/common/iterator';
 import { index } from 'vs/base/common/arrays';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
@@ -267,6 +266,11 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false,
 	},
 	{
+		key: 'webview/context',
+		id: MenuId.WebviewContext,
+		description: localize('webview.context', "The webview context menu")
+	},
+	{
 		key: 'file/share',
 		id: MenuId.MenubarShare,
 		description: localize('menus.share', "Share submenu shown in the top level File menu."),
@@ -284,12 +288,6 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.EditorContent,
 		description: localize('merge.toolbar', "The prominent button in an editor, overlays its content"),
 		proposed: 'contribEditorContentMenu'
-	},
-	{
-		key: 'webview/context',
-		id: MenuId.WebviewContext,
-		description: localize('webview.context', "The webview context menu"),
-		proposed: 'contribWebviewContext'
 	},
 	{
 		key: 'mergeEditor/result/title',
@@ -749,7 +747,7 @@ submenusExtensionPoint.setHandler(extensions => {
 	}
 });
 
-const _apiMenusByKey = new Map(Iterable.map(Iterable.from(apiMenus), menu => ([menu.key, menu])));
+const _apiMenusByKey = new Map(apiMenus.map(menu => ([menu.key, menu])));
 const _menuRegistrations = new DisposableStore();
 const _submenuMenuItems = new Map<string /* menu id */, Set<string /* submenu id */>>();
 

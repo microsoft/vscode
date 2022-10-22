@@ -31,8 +31,12 @@ export interface IXtermCore {
 
 	_renderService: {
 		dimensions: {
-			actualCellWidth: number;
-			actualCellHeight: number;
+			css: {
+				cell: {
+					width: number;
+					height: number;
+				}
+			}
 		},
 		_renderer: {
 			_renderLayers?: any[];

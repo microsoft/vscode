@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFirefox } from 'vs/base/browser/browser';
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { $, addDisposableListener, animate, getContentHeight, getContentWidth, getTopLeftOffset, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
@@ -22,6 +21,7 @@ import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, I
 import { RangeMap, shift } from 'vs/base/browser/ui/list/rangeMap';
 import { IRow, RowCache } from 'vs/base/browser/ui/list/rowCache';
 import { IObservableValue } from 'vs/base/common/observableValue';
+import { BugIndicatingError } from 'vs/base/common/errors';
 
 interface IItem<T> {
 	readonly id: string;
@@ -341,6 +341,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const transformOptimization = options.transformOptimization ?? DefaultOptions.transformOptimization;
 		if (transformOptimization) {
 			this.rowsContainer.style.transform = 'translate3d(0px, 0px, 0px)';
+			this.rowsContainer.style.overflow = 'hidden';
+			this.rowsContainer.style.contain = 'strict';
 		}
 
 		this.disposables.add(Gesture.addTarget(this.rowsContainer));
@@ -405,8 +407,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 	}
 
-	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
-		this.scrollableElement.triggerScrollFromMouseWheelEvent(browserEvent);
+	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		this.scrollableElement.delegateScrollFromMouseWheelEvent(browserEvent);
+	}
+
+	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent) {
+		this.scrollableElement.delegateVerticalScrollbarPointerDown(browserEvent);
 	}
 
 	updateElementHeight(index: number, size: number | undefined, anchorIndex: number | null): void {
@@ -837,7 +843,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			return;
 		}
 
-		item.row.domNode.style.width = isFirefox ? '-moz-fit-content' : 'fit-content';
+		item.row.domNode.style.width = 'fit-content';
 		item.width = getContentWidth(item.row.domNode);
 		const style = window.getComputedStyle(item.row.domNode);
 
@@ -1030,6 +1036,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			setTimeout(() => document.body.removeChild(dragImage), 0);
 		}
 
+		this.domNode.classList.add('dragging');
 		this.currentDragData = new ElementsDragAndDropData(elements);
 		StaticDND.CurrentDragAndDropData = new ExternalElementsDragAndDropData(elements);
 
@@ -1145,6 +1152,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const dragData = this.currentDragData;
 		this.teardownDragAndDropScrollTopAnimation();
 		this.clearDragOverFeedback();
+		this.domNode.classList.remove('dragging');
 		this.currentDragData = undefined;
 		StaticDND.CurrentDragAndDropData = undefined;
 
@@ -1161,6 +1169,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.canDrop = false;
 		this.teardownDragAndDropScrollTopAnimation();
 		this.clearDragOverFeedback();
+		this.domNode.classList.remove('dragging');
 		this.currentDragData = undefined;
 		StaticDND.CurrentDragAndDropData = undefined;
 
@@ -1356,26 +1365,26 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const size = item.size;
 
-		if (!this.setRowHeight && item.row) {
-			const newSize = item.row.domNode.offsetHeight;
-			item.size = newSize;
+		if (item.row) {
+			item.row.domNode.style.height = '';
+			item.size = item.row.domNode.offsetHeight;
 			item.lastDynamicHeightWidth = this.renderWidth;
-			return newSize - size;
+			return item.size - size;
 		}
 
 		const row = this.cache.alloc(item.templateId);
-
 		row.domNode.style.height = '';
 		this.rowsContainer.appendChild(row.domNode);
 
 		const renderer = this.renderers.get(item.templateId);
-		if (renderer) {
-			renderer.renderElement(item.element, index, row.templateData, undefined);
 
-			renderer.disposeElement?.(item.element, index, row.templateData, undefined);
+		if (!renderer) {
+			throw new BugIndicatingError('Missing renderer for templateId: ' + item.templateId);
 		}
 
+		renderer.renderElement(item.element, index, row.templateData, undefined);
 		item.size = row.domNode.offsetHeight;
+		renderer.disposeElement?.(item.element, index, row.templateData, undefined);
 
 		this.virtualDelegate.setDynamicHeight?.(item.element, item.size);
 

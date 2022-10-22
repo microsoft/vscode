@@ -121,6 +121,8 @@ export interface ICommonNativeHostService {
 
 	getOSColorScheme(): Promise<IColorScheme>;
 
+	hasWSLFeatureInstalled(): Promise<boolean>;
+
 	// Process
 	killProcess(pid: number, code: string): Promise<void>;
 
@@ -160,6 +162,9 @@ export interface ICommonNativeHostService {
 	toggleDevTools(): Promise<void>;
 	toggleSharedProcessWindow(): Promise<void>;
 	sendInputEvent(event: MouseInputEvent): Promise<void>;
+
+	// Perf Introspection
+	profileRenderer(session: string, duration: number, perfBaseline: number): Promise<boolean>;
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;

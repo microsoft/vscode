@@ -124,18 +124,6 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 			]
 		};
 		return dto;
-	},
-	saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-		return;
-	},
-	saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-		return;
-	},
-	backupNotebook: async (_document: vscode.NotebookDocument, _context: vscode.NotebookDocumentBackupContext, _cancellation: vscode.CancellationToken) => {
-		return {
-			id: '1',
-			delete: () => { }
-		};
 	}
 };
 

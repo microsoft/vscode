@@ -8,14 +8,14 @@ import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ITerminalEditorService, ITerminalService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -27,9 +27,10 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 
 export class TerminalEditor extends EditorPane {
 
@@ -53,8 +54,7 @@ export class TerminalEditor extends EditorPane {
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICommandService private readonly _commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -63,8 +63,8 @@ export class TerminalEditor extends EditorPane {
 		@IWorkbenchLayoutService private readonly _workbenchLayoutService: IWorkbenchLayoutService
 	) {
 		super(terminalEditorId, telemetryService, themeService, storageService);
-		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, _contextKeyService));
-		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalEditorInstanceContext, _contextKeyService));
+		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, contextKeyService));
+		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalEditorInstanceContext, contextKeyService));
 	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
@@ -81,7 +81,7 @@ export class TerminalEditor extends EditorPane {
 			// panel and the editors, this is needed so that the active instance gets set
 			// when focus changes between them.
 			this._register(this._editorInput.terminalInstance.onDidFocus(() => this._setActiveInstance()));
-			this._register(this._editorInput.terminalInstance.findWidget.focusTracker.onDidFocus(() => this._setActiveInstance()));
+			this._register(this._editorInput.terminalInstance.onDidFocusFindWidget(() => this._setActiveInstance()));
 			this._editorInput.setCopyLaunchConfig(this._editorInput.terminalInstance.shellLaunchConfig);
 		}
 	}
@@ -200,11 +200,13 @@ export class TerminalEditor extends EditorPane {
 
 	override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		switch (action.id) {
-			case TerminalCommandId.CreateWithProfileButton: {
-				const location = { viewColumn: ACTIVE_GROUP };
-				const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._instantiationService, this._terminalService, this._contextKeyService, this._commandService, this._dropdownMenu);
-				const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {});
-				return button;
+			case TerminalCommandId.CreateTerminalEditor: {
+				if (action instanceof MenuItemAction) {
+					const location = { viewColumn: ACTIVE_GROUP };
+					const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
+					const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {});
+					return button;
+				}
 			}
 		}
 		return super.getActionViewItem(action);
@@ -220,3 +222,10 @@ export class TerminalEditor extends EditorPane {
 		return defaultProfileName!;
 	}
 }
+
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+	const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(EDITOR_PANE_BACKGROUND);
+	if (backgroundColor) {
+		collector.addRule(`.monaco-workbench .editor-instance .terminal-wrapper { background-color: ${backgroundColor.toString()}; }`);
+	}
+});

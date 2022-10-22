@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { Emitter, DebounceEmitter, Event } from 'vs/base/common/event';
 import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from '../common/decorations';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
@@ -16,7 +16,7 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { isCancellationError } from 'vs/base/common/errors';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { hash } from 'vs/base/common/hash';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { asArray, distinct } from 'vs/base/common/arrays';
@@ -408,4 +408,4 @@ export class DecorationsService implements IDecorationsService {
 	}
 }
 
-registerSingleton(IDecorationsService, DecorationsService, true);
+registerSingleton(IDecorationsService, DecorationsService, InstantiationType.Delayed);

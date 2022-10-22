@@ -29,6 +29,11 @@ export interface IBaseSerializableStorageRequest {
 	 * denote application or profile scope depending on profile.
 	 */
 	readonly workspace: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined;
+
+	/**
+	 * Additional payload for the request to perform.
+	 */
+	readonly payload?: unknown;
 }
 
 export interface ISerializableUpdateRequest extends IBaseSerializableStorageRequest {
@@ -150,5 +155,16 @@ export class WorkspaceStorageDatabaseClient extends BaseStorageDatabaseClient im
 		// can take care of that.
 
 		this.dispose();
+	}
+}
+
+export class StorageClient {
+
+	constructor(private readonly channel: IChannel) { }
+
+	isUsed(path: string): Promise<boolean> {
+		const serializableRequest: ISerializableUpdateRequest = { payload: path, profile: undefined, workspace: undefined };
+
+		return this.channel.call('isUsed', serializableRequest);
 	}
 }

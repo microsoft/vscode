@@ -1416,6 +1416,7 @@ export interface WorkspaceFileEditOptions {
 	folder?: boolean;
 	skipTrashBin?: boolean;
 	maxSize?: number;
+	contentsBase64?: string;
 }
 
 export interface IWorkspaceFileEdit {
@@ -1547,8 +1548,10 @@ export interface CommentThread<T = IRange> {
 	label: string | undefined;
 	contextValue: string | undefined;
 	comments: Comment[] | undefined;
-	onDidChangeComments: Event<Comment[] | undefined>;
+	onDidChangeComments: Event<readonly Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
+	initialCollapsibleState?: CommentThreadCollapsibleState;
+	onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	state?: CommentThreadState;
 	canReply: boolean;
 	input?: CommentInput;

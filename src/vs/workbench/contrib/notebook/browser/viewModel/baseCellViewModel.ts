@@ -373,7 +373,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._resolvedDecorations.delete(decorationId);
 	}
 
-	deltaModelDecorations(oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[]): string[] {
+	deltaModelDecorations(oldDecorations: readonly string[], newDecorations: readonly model.IModelDeltaDecoration[]): string[] {
 		oldDecorations.forEach(id => {
 			this.removeModelDecoration(id);
 		});
@@ -427,7 +427,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		return ret;
 	}
 
-	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookCellStatusBarItem[]): string[] {
+	deltaCellStatusBarItems(oldItems: readonly string[], newItems: readonly INotebookCellStatusBarItem[]): string[] {
 		oldItems.forEach(id => {
 			const item = this._cellStatusBarItems.get(id);
 			if (item) {

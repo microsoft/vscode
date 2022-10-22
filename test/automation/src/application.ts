@@ -69,7 +69,7 @@ export class Application {
 	}
 
 	async restart(options?: { workspaceOrFolder?: string; extraArgs?: string[] }): Promise<void> {
-		await measureAndLog((async () => {
+		await measureAndLog(() => (async () => {
 			await this.stop();
 			await this._start(options?.workspaceOrFolder, options?.extraArgs);
 		})(), 'Application#restart()', this.logger);
@@ -82,7 +82,7 @@ export class Application {
 		const code = await this.startApplication(extraArgs);
 
 		// ...and make sure the window is ready to interact
-		await measureAndLog(this.checkWindowReady(code), 'Application#checkWindowReady()', this.logger);
+		await measureAndLog(() => this.checkWindowReady(code), 'Application#checkWindowReady()', this.logger);
 	}
 
 	async stop(): Promise<void> {
@@ -117,12 +117,12 @@ export class Application {
 	private async checkWindowReady(code: Code): Promise<void> {
 
 		// We need a rendered workbench
-		await measureAndLog(code.didFinishLoad(), 'Application#checkWindowReady: wait for navigation to be committed', this.logger);
-		await measureAndLog(code.waitForElement('.monaco-workbench'), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
+		await measureAndLog(() => code.didFinishLoad(), 'Application#checkWindowReady: wait for navigation to be committed', this.logger);
+		await measureAndLog(() => code.waitForElement('.monaco-workbench'), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
 
 		// Remote but not web: wait for a remote connection state change
 		if (this.remote) {
-			await measureAndLog(code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', undefined, statusHostLabel => {
+			await measureAndLog(() => code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', undefined, statusHostLabel => {
 				this.logger.log(`checkWindowReady: remote indicator text is ${statusHostLabel}`);
 
 				// The absence of "Opening Remote" is not a strict

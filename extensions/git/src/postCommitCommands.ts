@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vscode-nls';
-import { commands, Disposable, Event, EventEmitter, Memento, Uri, workspace } from 'vscode';
-import { CommitCommand, PostCommitCommandsProvider } from './api/git';
+import { Command, commands, Disposable, Event, EventEmitter, Memento, Uri, workspace } from 'vscode';
+import { PostCommitCommandsProvider } from './api/git';
 import { Operation, Repository } from './repository';
 import { ApiRepository } from './api/api1';
 import { dispose } from './util';
@@ -20,7 +20,7 @@ export interface IPostCommitCommandsProviderRegistry {
 const localize = nls.loadMessageBundle();
 
 export class GitPostCommitCommandsProvider implements PostCommitCommandsProvider {
-	getCommands(apiRepository: ApiRepository): CommitCommand[] {
+	getCommands(apiRepository: ApiRepository): Command[] {
 		const config = workspace.getConfiguration('git', Uri.file(apiRepository.repository.root));
 
 		// Branch protection
@@ -55,14 +55,12 @@ export class GitPostCommitCommandsProvider implements PostCommitCommandsProvider
 		return [
 			{
 				command: 'git.push',
-				title: localize('scm button commit and push title', "{0} Commit", icon ?? '$(arrow-up)'),
-				description: localize('scm button commit and push description', "{0} Commit & Push", icon ?? '$(arrow-up)'),
+				title: localize('scm button commit and push title', "{0} Commit & Push", icon ?? '$(arrow-up)'),
 				tooltip: pushCommandTooltip
 			},
 			{
 				command: 'git.sync',
-				title: localize('scm button commit and sync title', "{0} Commit", icon ?? '$(sync)'),
-				description: localize('scm button commit and sync description', "{0} Commit & Sync", icon ?? '$(sync)'),
+				title: localize('scm button commit and sync title', "{0} Commit & Sync", icon ?? '$(sync)'),
 				tooltip: syncCommandTooltip
 			},
 		];
@@ -99,7 +97,7 @@ export class CommitCommandsCenter {
 		this.disposables.push(postCommitCommandsProviderRegistry.onDidChangePostCommitCommandsProviders(() => this._onDidChange.fire()));
 	}
 
-	getPrimaryCommand(): CommitCommand {
+	getPrimaryCommand(): Command {
 		const allCommands = this.getSecondaryCommands().map(c => c).flat();
 		const commandFromStorage = allCommands.find(c => c.arguments?.length === 2 && c.arguments[1] === this.getPostCommitCommandStringFromStorage());
 		const commandFromSetting = allCommands.find(c => c.arguments?.length === 2 && c.arguments[1] === this.getPostCommitCommandStringFromSetting());
@@ -107,13 +105,13 @@ export class CommitCommandsCenter {
 		return commandFromStorage ?? commandFromSetting ?? this.getCommitCommand();
 	}
 
-	getSecondaryCommands(): CommitCommand[][] {
-		const commandGroups: CommitCommand[][] = [];
+	getSecondaryCommands(): Command[][] {
+		const commandGroups: Command[][] = [];
 
 		for (const provider of this.postCommitCommandsProviderRegistry.getPostCommitCommandsProviders()) {
 			const commands = provider.getCommands(new ApiRepository(this.repository));
 			commandGroups.push((commands ?? []).map(c => {
-				return { command: 'git.commit', title: c.title, description: c.description, tooltip: c.tooltip, arguments: [this.repository.sourceControl, c.command] };
+				return { command: 'git.commit', title: c.title, tooltip: c.tooltip, arguments: [this.repository.sourceControl, c.command] };
 			}));
 		}
 
@@ -139,7 +137,7 @@ export class CommitCommandsCenter {
 		await this.savePostCommitCommand(command);
 	}
 
-	private getCommitCommand(): CommitCommand {
+	private getCommitCommand(): Command {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 
 		// Branch protection

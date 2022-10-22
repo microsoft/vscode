@@ -55,10 +55,10 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		harness.flush();
 		harness.pushDiff({
 			op: TestDiffOpType.Add,
-			item: { controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: new TestTestItem('ctrl2', 'c', 'c').toTestItem() },
+			item: { controllerId: 'ctrl2', expand: TestItemExpandState.Expanded, item: new TestTestItem(new TestId(['ctrlId2']), 'c').toTestItem() },
 		}, {
 			op: TestDiffOpType.Add,
-			item: { controllerId: 'ctrl2', parent: new TestId(['ctrl2', 'c']).toString(), expand: TestItemExpandState.NotExpandable, item: new TestTestItem('ctrl2', 'c-a', 'ca').toTestItem() },
+			item: { controllerId: 'ctrl2', expand: TestItemExpandState.NotExpandable, item: new TestTestItem(new TestId(['ctrlId2', 'id-c']), 'ca').toTestItem() },
 		});
 
 		assert.deepStrictEqual(harness.flush(), [
@@ -76,7 +76,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 			{ e: 'b' }
 		]);
 
-		harness.c.root.children.get('id-a')!.children.add(new TestTestItem('ctrlId', 'ac', 'ac'));
+		harness.c.root.children.get('id-a')!.children.add(new TestTestItem(new TestId(['ctrlId', 'id-a', 'id-ac']), 'ac'));
 
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }, { e: 'ac' }] },
@@ -117,7 +117,6 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 				tags: [],
 				uri: undefined,
 			},
-			parent: 'id-root',
 			tasks: [],
 			ownComputedState: state,
 			computedState: state,

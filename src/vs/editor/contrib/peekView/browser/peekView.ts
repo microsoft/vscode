@@ -23,7 +23,7 @@ import { IOptions, IStyles, ZoneWidget } from 'vs/editor/contrib/zoneWidget/brow
 import * as nls from 'vs/nls';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { activeContrastBorder, contrastBorder, editorForeground, editorInfoForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 
@@ -53,7 +53,7 @@ registerSingleton(IPeekViewService, class implements IPeekViewService {
 		};
 		this._widgets.set(editor, { widget, listener: widget.onDidClose(remove) });
 	}
-}, true);
+}, InstantiationType.Delayed);
 
 export namespace PeekContext {
 	export const inPeekEditor = new RawContextKey<boolean>('inReferenceSearchEditor', true, nls.localize('inReferenceSearchEditor', "Whether the current code editor is embedded inside peek"));

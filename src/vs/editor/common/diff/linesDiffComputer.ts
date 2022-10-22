@@ -66,4 +66,11 @@ export class LineRange {
 	toString(): string {
 		return `[${this.startLineNumber},${this.endLineNumberExclusive})`;
 	}
+
+	public join(other: LineRange): LineRange {
+		return new LineRange(
+			Math.min(this.startLineNumber, other.startLineNumber),
+			Math.max(this.endLineNumberExclusive, other.endLineNumberExclusive)
+		);
+	}
 }

@@ -6,7 +6,7 @@
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext, reviveWorkspaceEditDto } from '../common/extHost.protocol';
+import { ExtHostContext } from '../common/extHost.protocol';
 import { localize } from 'vs/nls';
 import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPair, IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -20,6 +20,8 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 
 @extHostCustomer
 export class MainThreadFileSystemEventService {
@@ -37,7 +39,8 @@ export class MainThreadFileSystemEventService {
 		@IDialogService dialogService: IDialogService,
 		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
-		@IEnvironmentService envService: IEnvironmentService
+		@IEnvironmentService envService: IEnvironmentService,
+		@IUriIdentityService uriIdentService: IUriIdentityService
 	) {
 
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
@@ -147,7 +150,7 @@ export class MainThreadFileSystemEventService {
 				logService.info('[onWill-handler] applying additional workspace edit from extensions', data.extensionNames);
 
 				await bulkEditService.apply(
-					reviveWorkspaceEditDto(data.edit),
+					reviveWorkspaceEditDto(data.edit, uriIdentService),
 					{ undoRedoGroupId: undoInfo?.undoRedoGroupId, showPreview }
 				);
 			}

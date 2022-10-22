@@ -11,7 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { toDisposable, DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ViewPaneContainer, ViewPaneContainerAction, ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -924,4 +924,4 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 }
 
-registerSingleton(IViewDescriptorService, ViewDescriptorService, true);
+registerSingleton(IViewDescriptorService, ViewDescriptorService, InstantiationType.Delayed);

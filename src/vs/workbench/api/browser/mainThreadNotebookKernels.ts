@@ -6,7 +6,7 @@
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -90,6 +90,10 @@ abstract class MainThreadKernel implements INotebookKernel {
 			this.implementsExecutionOrder = data.supportsExecutionOrder;
 			event.hasExecutionOrder = true;
 		}
+		if (data.supportsInterrupt !== undefined) {
+			this.implementsInterrupt = data.supportsInterrupt;
+			event.hasInterruptHandler = true;
+		}
 		this._onDidChange.fire(event);
 	}
 
@@ -100,7 +104,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 @extHostNamedCustomer(MainContext.MainThreadNotebookKernels)
 export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape {
 
-	private readonly _editors = new Map<INotebookEditor, IDisposable>();
+	private readonly _editors = new DisposableMap<INotebookEditor>();
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _kernels = new Map<number, [kernel: MainThreadKernel, registraion: IDisposable]>();
@@ -139,6 +143,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		for (const [, registration] of this._kernels.values()) {
 			registration.dispose();
 		}
+		this._editors.dispose();
 	}
 
 	// --- kernel ipc
@@ -164,8 +169,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	}
 
 	private _onEditorRemove(editor: INotebookEditor) {
-		this._editors.get(editor)?.dispose();
-		this._editors.delete(editor);
+		this._editors.deleteAndDispose(editor);
 	}
 
 	async $postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean> {

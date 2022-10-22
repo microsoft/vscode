@@ -30,6 +30,5 @@ class ResourcePerformanceMarks {
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	ResourcePerformanceMarks,
-	'ResourcePerformanceMarks',
 	LifecyclePhase.Eventually
 );

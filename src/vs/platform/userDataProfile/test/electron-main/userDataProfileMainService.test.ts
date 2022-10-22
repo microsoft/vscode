@@ -61,13 +61,13 @@ suite('UserDataProfileMainService', () => {
 	});
 
 	test('default profile when there are profiles', async () => {
-		await testObject.createProfile('test');
+		await testObject.createNamedProfile('test');
 		assert.strictEqual(testObject.defaultProfile.isDefault, true);
 		assert.strictEqual(testObject.defaultProfile.extensionsResource?.toString(), joinPath(environmentService.userRoamingDataHome, 'extensions.json').toString());
 	});
 
 	test('default profile when profiles are removed', async () => {
-		const profile = await testObject.createProfile('test');
+		const profile = await testObject.createNamedProfile('test');
 		await testObject.removeProfile(profile);
 		assert.strictEqual(testObject.defaultProfile.isDefault, true);
 		assert.strictEqual(testObject.defaultProfile.extensionsResource, undefined);
