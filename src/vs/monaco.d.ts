@@ -4596,7 +4596,7 @@ declare namespace monaco.editor {
 		find: IEditorOption<EditorOption.find, Readonly<Required<IEditorFindOptions>>>;
 		fixedOverflowWidgets: IEditorOption<EditorOption.fixedOverflowWidgets, boolean>;
 		folding: IEditorOption<EditorOption.folding, boolean>;
-		foldingStrategy: IEditorOption<EditorOption.foldingStrategy, string>;
+		foldingStrategy: IEditorOption<EditorOption.foldingStrategy, 'auto' | 'indentation'>;
 		foldingHighlight: IEditorOption<EditorOption.foldingHighlight, boolean>;
 		foldingImportsByDefault: IEditorOption<EditorOption.foldingImportsByDefault, boolean>;
 		foldingMaximumRegions: IEditorOption<EditorOption.foldingMaximumRegions, number>;

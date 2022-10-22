@@ -4966,10 +4966,16 @@ export const EditorOptions = {
 		EditorOption.folding, 'folding', true,
 		{ description: nls.localize('folding', "Controls whether the editor has code folding enabled.") }
 	)),
-	foldingStrategy: register(new EditorStringOption(
-		EditorOption.foldingStrategy, 'foldingStrategy', 'auto',
+	foldingStrategy: register(new EditorStringEnumOption(
+		EditorOption.foldingStrategy, 'foldingStrategy',
+		'auto' as 'auto' | 'indentation',
+		['auto', 'indentation'] as const,
 		{
-			description: nls.localize('foldingStrategy', "Controls the strategy for computing folding ranges. `auto`, `indentation` or the id of an extension")
+			enumDescriptions: [
+				nls.localize('foldingStrategy.auto', "Use a language-specific folding strategy if available, else the indentation-based one."),
+				nls.localize('foldingStrategy.indentation', "Use the indentation-based folding strategy."),
+			],
+			description: nls.localize('foldingStrategy', "Controls the strategy for computing folding ranges.")
 		}
 	)),
 	foldingHighlight: register(new EditorBooleanOption(
