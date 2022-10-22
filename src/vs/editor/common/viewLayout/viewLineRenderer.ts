@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
@@ -422,6 +423,7 @@ class ResolvedRenderLineInput {
 		public readonly lineContent: string,
 		public readonly len: number,
 		public readonly isOverflowing: boolean,
+		public readonly overflowingCharCount: number,
 		public readonly parts: LinePart[],
 		public readonly containsForeignElements: ForeignElementType,
 		public readonly fauxIndentLength: number,
@@ -441,13 +443,16 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	const lineContent = input.lineContent;
 
 	let isOverflowing: boolean;
+	let overflowingCharCount: number;
 	let len: number;
 
 	if (input.stopRenderingLineAfter !== -1 && input.stopRenderingLineAfter < lineContent.length) {
 		isOverflowing = true;
+		overflowingCharCount = lineContent.length - input.stopRenderingLineAfter;
 		len = input.stopRenderingLineAfter;
 	} else {
 		isOverflowing = false;
+		overflowingCharCount = 0;
 		len = lineContent.length;
 	}
 
@@ -490,6 +495,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		lineContent,
 		len,
 		isOverflowing,
+		overflowingCharCount,
 		tokens,
 		containsForeignElements,
 		input.fauxIndentLength,
@@ -911,6 +917,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 	const lineContent = input.lineContent;
 	const len = input.len;
 	const isOverflowing = input.isOverflowing;
+	const overflowingCharCount = input.overflowingCharCount;
 	const parts = input.parts;
 	const fauxIndentLength = input.fauxIndentLength;
 	const tabSize = input.tabSize;
@@ -1120,7 +1127,9 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 	}
 
 	if (isOverflowing) {
-		sb.appendString('<span>&hellip;</span>');
+		sb.appendString('<span class="mtkoverflow">');
+		sb.appendString(nls.localize('showMore', "Show more ({0})", renderOverflowingCharCount(overflowingCharCount)));
+		sb.appendString('</span>');
 	}
 
 	sb.appendString('</span>');
@@ -1130,4 +1139,14 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 
 function to4CharHex(n: number): string {
 	return n.toString(16).toUpperCase().padStart(4, '0');
+}
+
+function renderOverflowingCharCount(n: number): string {
+	if (n < 1024) {
+		return nls.localize('overflow.chars', "{0} chars", n);
+	}
+	if (n < 1024 * 1024) {
+		return `${(n / 1024).toFixed(1)} KB`;
+	}
+	return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }

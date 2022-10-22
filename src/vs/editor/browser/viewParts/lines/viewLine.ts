@@ -354,11 +354,10 @@ export class ViewLine implements IVisibleLine {
 		endColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, endColumn));
 
 		const stopRenderingLineAfter = this._renderedViewLine.input.stopRenderingLineAfter;
-		let outsideRenderedLine = false;
 
 		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter + 1 && endColumn > stopRenderingLineAfter + 1) {
 			// This range is obviously not visible
-			outsideRenderedLine = true;
+			return new VisibleRanges(true, [new FloatHorizontalRange(this.getWidth(), 0)]);
 		}
 
 		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter + 1) {
@@ -371,7 +370,7 @@ export class ViewLine implements IVisibleLine {
 
 		const horizontalRanges = this._renderedViewLine.getVisibleRangesForRange(lineNumber, startColumn, endColumn, context);
 		if (horizontalRanges && horizontalRanges.length > 0) {
-			return new VisibleRanges(outsideRenderedLine, horizontalRanges);
+			return new VisibleRanges(false, horizontalRanges);
 		}
 
 		return null;
