@@ -759,17 +759,19 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			}
 		}
 
-		for (const range of rangesToInsert) {
-			for (let i = range.start; i < range.end; i++) {
-				this.insertItemInDOM(i, beforeElement);
+		this.cache.transact(() => {
+			for (const range of rangesToRemove) {
+				for (let i = range.start; i < range.end; i++) {
+					this.removeItemFromDOM(i);
+				}
 			}
-		}
 
-		for (const range of rangesToRemove) {
-			for (let i = range.start; i < range.end; i++) {
-				this.removeItemFromDOM(i);
+			for (const range of rangesToInsert) {
+				for (let i = range.start; i < range.end; i++) {
+					this.insertItemInDOM(i, beforeElement);
+				}
 			}
-		}
+		});
 
 		if (renderLeft !== undefined) {
 			this.rowsContainer.style.left = `-${renderLeft}px`;
@@ -790,8 +792,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private insertItemInDOM(index: number, beforeElement: HTMLElement | null, row?: IRow): void {
 		const item = this.items[index];
 
+		let isStale = false;
 		if (!item.row) {
-			item.row = row ?? this.cache.alloc(item.templateId);
+			if (row) {
+				item.row = row;
+			} else {
+				const result = this.cache.alloc(item.templateId);
+				item.row = result.row;
+				isStale = result.isReusingConnectedDomNode;
+			}
 		}
 
 		const role = this.accessibilityProvider.getRole(item.element) || 'listitem';
@@ -807,7 +816,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			item.checkedDisposable = checked.onDidChange(update);
 		}
 
-		if (!item.row.domNode.parentElement) {
+		if (isStale || !item.row.domNode.parentElement) {
 			if (beforeElement) {
 				this.rowsContainer.insertBefore(item.row.domNode, beforeElement);
 			} else {
@@ -1373,7 +1382,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			return item.size - size;
 		}
 
-		const row = this.cache.alloc(item.templateId);
+		const { row } = this.cache.alloc(item.templateId);
 		row.domNode.style.height = '';
 		this.rowsContainer.appendChild(row.domNode);
 
