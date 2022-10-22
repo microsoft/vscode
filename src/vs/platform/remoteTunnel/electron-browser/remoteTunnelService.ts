@@ -188,7 +188,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 					this._logger.info(`${logLabel} Spawning: cargo run -- tunnel ${commandArgs.join(' ')}`);
 					tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli') });
 				} else {
-					const tunnelCommand = join(dirname(process.execPath), 'bin', `${this.productService.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
+					const tunnelCommand = join(this.environmentService.appRoot, 'bin', `${this.productService.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
 					this._logger.info(`${logLabel} Spawning: ${tunnelCommand} ${commandArgs.join(' ')}`);
 					tunnelProcess = spawn(tunnelCommand, commandArgs);
 				}
