@@ -10,17 +10,15 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/path';
+import { dirname, join } from 'vs/base/common/path';
 import { ChildProcess, spawn } from 'child_process';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { ISharedProcessLifecycleService } from 'vs/platform/lifecycle/electron-browser/sharedProcessLifecycleService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
-
 import { hostname } from 'os';
-
 
 type RemoteTunnelEnablementClassification = {
 	owner: 'aeschli';
@@ -56,6 +54,8 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 	private _tunnelStatus: TunnelStatus = TunnelStates.disconnected;
 	private _startTunnelProcessDelayer: Delayer<void>;
+
+	private _tunnelCommand: string | undefined;
 
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -103,7 +103,22 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				this._logger.error(e);
 			}
 		}
+	}
 
+	private getTunnelCommandLocation() {
+		if (!this._tunnelCommand) {
+			let installLocation;
+			if (isMacintosh) {
+				// appRoot = /Applications/Visual Studio Code - Insiders.app/Contents/Resources/app
+				installLocation = dirname(dirname(dirname(this.environmentService.appRoot)));
+			} else {
+				// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\resources\app
+				// appRoot = /usr/share/code-insiders/resources/app
+				installLocation = dirname(dirname(this.environmentService.appRoot));
+			}
+			this._tunnelCommand = join(installLocation, 'bin', `${this.productService.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
+		}
+		return this._tunnelCommand;
 	}
 
 	private async updateTunnelProcess(): Promise<void> {
@@ -183,11 +198,16 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 						tunnelProcess.kill();
 					}
 				});
+				this._logger.info(`${logLabel} appRoot ${this.environmentService.appRoot}`);
+				this._logger.info(`${logLabel} process.execPath ${process.execPath}`);
+
 				if (process.env['VSCODE_DEV']) {
+					onOutput('Compiling tunnel CLI from sources and run', false);
 					this._logger.info(`${logLabel} Spawning: cargo run -- tunnel ${commandArgs.join(' ')}`);
 					tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli') });
 				} else {
-					const tunnelCommand = join(this.environmentService.appRoot, 'bin', `${this.productService.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
+					onOutput('Running tunnel CLI', false);
+					const tunnelCommand = this.getTunnelCommandLocation();
 					this._logger.info(`${logLabel} Spawning: ${tunnelCommand} tunnel ${commandArgs.join(' ')}`);
 					tunnelProcess = spawn(tunnelCommand, ['tunnel', ...commandArgs]);
 				}
