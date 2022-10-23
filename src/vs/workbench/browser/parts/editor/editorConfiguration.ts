@@ -19,11 +19,21 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 
 	private static readonly AUTO_LOCK_DEFAULT_ENABLED = new Set<string>(['terminalEditor']);
 
+	private static readonly AUTO_LOCK_REMOVE_EDITORS = new Set<string>([
+		'vscode-interactive-input',
+		'interactive'
+	]);
+
 	private static readonly AUTO_LOCK_EXTRA_EDITORS: RegisteredEditorInfo[] = [
 
 		// Any webview editor is not a registered editor but we
 		// still want to support auto-locking for them, so we
 		// manually add them here...
+		{
+			id: 'workbench.input.interactive',
+			label: localize('interactiveWindow', 'Interactive Window'),
+			priority: RegisteredEditorPriority.builtin
+		},
 		{
 			id: 'mainThreadWebview-markdown.preview',
 			label: localize('markdownPreview', "Markdown Preview"),
@@ -62,7 +72,7 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 	}
 
 	private updateDynamicEditorConfigurations(): void {
-		const lockableEditors = [...this.editorResolverService.getEditors(), ...DynamicEditorConfigurations.AUTO_LOCK_EXTRA_EDITORS];
+		const lockableEditors = [...this.editorResolverService.getEditors(), ...DynamicEditorConfigurations.AUTO_LOCK_EXTRA_EDITORS].filter(e => !DynamicEditorConfigurations.AUTO_LOCK_REMOVE_EDITORS.has(e.id));
 		const binaryEditorCandidates = this.editorResolverService.getEditors().filter(e => e.priority !== RegisteredEditorPriority.exclusive).map(e => e.id);
 
 		// Build config from registered editors
