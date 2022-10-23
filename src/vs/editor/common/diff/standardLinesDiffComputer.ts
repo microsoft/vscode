@@ -109,6 +109,10 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		const sourceSlice = new Slice(originalLines, diff.seq1Range);
 		const targetSlice = new Slice(modifiedLines, diff.seq2Range);
 
+		const originalDiffs = sourceSlice.length + targetSlice.length < 500
+			? this.dynamicProgrammingDiffing.compute(sourceSlice, targetSlice)
+			: this.myersDiffingAlgorithm.compute(sourceSlice, targetSlice);
+
 		const originalDiffs = this.myersDiffingAlgorithm.compute(sourceSlice, targetSlice);
 		const diffs = joinSequenceDiffs(sourceSlice, targetSlice, originalDiffs);
 		const result = diffs.map(
