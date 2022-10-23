@@ -216,7 +216,7 @@ suite('Notebook Find', () => {
 					if (e.matchesCount) { resolve(true); }
 				}));
 				(viewModel.viewCells[1].textBuffer as ITextBuffer).applyEdits([
-					new ValidAnnotatedEditOperation(null, new Range(1, 1, 1, 14), '', false, false, false)
+					new ValidAnnotatedEditOperation(null, new Range(1, 1, 1, 14), '', false, false, false, false)
 				], false, true);
 				// cell content updates, recompute
 				model.research();

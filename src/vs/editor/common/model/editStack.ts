@@ -424,9 +424,9 @@ export class EditStack {
 		editStackElement.append(this._model, [], getModelEOL(this._model), this._model.getAlternativeVersionId(), null);
 	}
 
-	public pushEditOperation(beforeCursorState: Selection[] | null, editOperations: ISingleEditOperation[], cursorStateComputer: ICursorStateComputer | null): Selection[] | null {
+	public pushEditOperation(beforeCursorState: Selection[] | null, editOperations: ISingleEditOperation[], cursorStateComputer: ICursorStateComputer | null, unconfirmed: boolean): Selection[] | null {
 		const editStackElement = this._getOrCreateEditStackElement(beforeCursorState);
-		const inverseEditOperations = this._model.applyEdits(editOperations, true);
+		const inverseEditOperations = this._model.applyEdits(editOperations, true, unconfirmed);
 		const afterCursorState = EditStack._computeCursorState(cursorStateComputer, inverseEditOperations);
 		const textChanges = inverseEditOperations.map((op, index) => ({ index: index, textChange: op.textChange }));
 		textChanges.sort((a, b) => {

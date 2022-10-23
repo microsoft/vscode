@@ -55,7 +55,7 @@ export function generateRandomEdits(chunks: string[], editCnt: number): ValidAnn
 			text = getRandomString(5, 10);
 		}
 
-		ops.push(new ValidAnnotatedEditOperation(null, new Range(line, startColumn, line, endColumn), text, false, false, false));
+		ops.push(new ValidAnnotatedEditOperation(null, new Range(line, startColumn, line, endColumn), text, false, false, false, false));
 		lines[line - 1] = lines[line - 1].substring(0, startColumn - 1) + text + lines[line - 1].substring(endColumn - 1);
 	}
 
@@ -88,7 +88,7 @@ export function generateSequentialInserts(chunks: string[], editCnt: number): Va
 			lines[line - 1] += text;
 		}
 
-		ops.push(new ValidAnnotatedEditOperation(null, new Range(line, column, line, column), text, false, false, false));
+		ops.push(new ValidAnnotatedEditOperation(null, new Range(line, column, line, column), text, false, false, false, false));
 	}
 
 	return ops;
@@ -120,7 +120,7 @@ export function generateRandomReplaces(chunks: string[], editCnt: number, search
 		const startColumn = getRandomInt(1, maxColumn);
 		const endColumn = Math.min(maxColumn, startColumn + searchStringLen);
 
-		ops.push(new ValidAnnotatedEditOperation(null, new Range(line, startColumn, line, endColumn), replaceString, false, false, false));
+		ops.push(new ValidAnnotatedEditOperation(null, new Range(line, startColumn, line, endColumn), replaceString, false, false, false, false));
 		previousChunksLength = endLine;
 	}
 

@@ -1022,7 +1022,7 @@ export interface ITextModel {
 	 * @param cursorStateComputer A callback that can compute the resulting cursors state after the edit operations have been executed.
 	 * @return The cursor state returned by the `cursorStateComputer`.
 	 */
-	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] | null;
+	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer, unconfirmed?: boolean): Selection[] | null;
 
 	/**
 	 * Change the end of line sequence. This is the preferred way of
@@ -1037,8 +1037,8 @@ export interface ITextModel {
 	 * @return If desired, the inverse edit operations, that, when applied, will bring the model back to the previous state.
 	 */
 	applyEdits(operations: IIdentifiedSingleEditOperation[]): void;
-	applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
-	applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: true): IValidEditOperation[];
+	applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: false, unconfirmed?: boolean): void;
+	applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: true, unconfirmed?: boolean): IValidEditOperation[];
 
 	/**
 	 * Change the end of line sequence without recording in the undo stack.
@@ -1253,6 +1253,7 @@ export class ValidAnnotatedEditOperation implements IIdentifiedSingleEditOperati
 		public readonly identifier: ISingleEditOperationIdentifier | null,
 		public readonly range: Range,
 		public readonly text: string | null,
+		public readonly unconfirmed: boolean,
 		public readonly forceMoveMarkers: boolean,
 		public readonly isAutoWhitespaceEdit: boolean,
 		public readonly _isTracked: boolean,

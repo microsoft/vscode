@@ -1445,6 +1445,10 @@ declare namespace monaco.editor {
 		 */
 		text: string | null;
 		/**
+		 * This flag indicates that IME input is unconfirmed.
+		 */
+		unconfirmed?: boolean;
+		/**
 		 * This indicates that this operation has "insert" semantics.
 		 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
 		 */
@@ -2117,7 +2121,7 @@ declare namespace monaco.editor {
 		 * @param cursorStateComputer A callback that can compute the resulting cursors state after the edit operations have been executed.
 		 * @return The cursor state returned by the `cursorStateComputer`.
 		 */
-		pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] | null;
+		pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer, unconfirmed?: boolean): Selection[] | null;
 		/**
 		 * Change the end of line sequence. This is the preferred way of
 		 * changing the eol sequence. This will land on the undo stack.
@@ -2130,8 +2134,8 @@ declare namespace monaco.editor {
 		 * @return If desired, the inverse edit operations, that, when applied, will bring the model back to the previous state.
 		 */
 		applyEdits(operations: IIdentifiedSingleEditOperation[]): void;
-		applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
-		applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: true): IValidEditOperation[];
+		applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: false, unconfirmed?: boolean): void;
+		applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: true, unconfirmed?: boolean): IValidEditOperation[];
 		/**
 		 * Change the end of line sequence without recording in the undo stack.
 		 * This can have dire consequences on the undo stack! See @pushEOL for the preferred way.
@@ -2742,6 +2746,10 @@ declare namespace monaco.editor {
 		 * The model has been reset to a new value.
 		 */
 		readonly isFlush: boolean;
+		/**
+		 * Flag that indicates that this event was generated while IME input is unconfirmed.
+		 */
+		readonly unconfirmed: boolean;
 	}
 
 	/**

@@ -77,6 +77,10 @@ export interface IModelContentChangedEvent {
 	 * The model has been reset to a new value.
 	 */
 	readonly isFlush: boolean;
+	/**
+	 * Flag that indicates that this event was generated while IME input is unconfirmed.
+	 */
+	readonly unconfirmed: boolean;
 }
 
 /**
@@ -374,13 +378,15 @@ export class InternalModelContentChangeEvent {
 		const isUndoing = (a.isUndoing || b.isUndoing);
 		const isRedoing = (a.isRedoing || b.isRedoing);
 		const isFlush = (a.isFlush || b.isFlush);
+		const unconfirmed = (a.unconfirmed && b.unconfirmed);
 		return {
 			changes: changes,
 			eol: eol,
 			versionId: versionId,
 			isUndoing: isUndoing,
 			isRedoing: isRedoing,
-			isFlush: isFlush
+			isFlush: isFlush,
+			unconfirmed: unconfirmed
 		};
 	}
 }

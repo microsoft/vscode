@@ -562,13 +562,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// This code has been extracted to a different method because it caused a memory leak
 		// where `value` was captured in the content change listener closure scope.
 
-		this._register(model.onDidChangeContent(e => this.onModelContentChanged(model, e.isUndoing || e.isRedoing)));
+		this._register(model.onDidChangeContent(e => this.onModelContentChanged(model, e.isUndoing || e.isRedoing, e.unconfirmed)));
 		this._register(model.onDidChangeLanguage(() => this.onMaybeShouldChangeEncoding())); // detect possible encoding change via language specific settings
 
 		super.installModelListeners(model);
 	}
 
-	private onModelContentChanged(model: ITextModel, isUndoingOrRedoing: boolean): void {
+	private onModelContentChanged(model: ITextModel, isUndoingOrRedoing: boolean, unconfirmed: boolean): void {
 		this.trace(`onModelContentChanged() - enter`);
 
 		// In any case increment the version id because it tracks the textual content state of the model at all times
@@ -603,7 +603,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 
 			// Otherwise the content has changed and we signal this as becoming dirty
-			else {
+			else if (unconfirmed === false) {
 				this.trace('onModelContentChanged() - model content changed and marked as dirty');
 
 				// Mark as dirty

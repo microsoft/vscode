@@ -20,6 +20,10 @@ export interface ISingleEditOperation {
 	 */
 	text: string | null;
 	/**
+	 * This flag indicates that IME input is unconfirmed.
+	 */
+	unconfirmed?: boolean;
+	/**
 	 * This indicates that this operation has "insert" semantics.
 	 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
 	 */

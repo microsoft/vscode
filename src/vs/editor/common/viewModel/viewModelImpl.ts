@@ -1031,11 +1031,11 @@ export class ViewModel extends Disposable implements IViewModel {
 	public endComposition(source?: string | null | undefined): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.endComposition(eventsCollector, source));
 	}
-	public type(text: string, source?: string | null | undefined): void {
-		this._executeCursorEdit(eventsCollector => this._cursor.type(eventsCollector, text, source));
+	public type(text: string, unconfirmed: boolean, source?: string | null | undefined): void {
+		this._executeCursorEdit(eventsCollector => this._cursor.type(eventsCollector, text, unconfirmed, source));
 	}
-	public compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number, source?: string | null | undefined): void {
-		this._executeCursorEdit(eventsCollector => this._cursor.compositionType(eventsCollector, text, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source));
+	public compositionType(text: string, unconfirmed: boolean, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number, source?: string | null | undefined): void {
+		this._executeCursorEdit(eventsCollector => this._cursor.compositionType(eventsCollector, text, unconfirmed, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source));
 	}
 	public paste(text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.paste(eventsCollector, text, pasteOnNewLine, multicursorText, source));

@@ -333,12 +333,12 @@ export class TextAreaHandler extends ViewPart {
 				if (_debugComposition) {
 					console.log(` => compositionType: <<${e.text}>>, ${e.replacePrevCharCnt}, ${e.replaceNextCharCnt}, ${e.positionDelta}`);
 				}
-				this._viewController.compositionType(e.text, e.replacePrevCharCnt, e.replaceNextCharCnt, e.positionDelta);
+				this._viewController.compositionType(e.text, e.unconfirmed ?? false, e.replacePrevCharCnt, e.replaceNextCharCnt, e.positionDelta);
 			} else {
 				if (_debugComposition) {
 					console.log(` => type: <<${e.text}>>`);
 				}
-				this._viewController.type(e.text);
+				this._viewController.type(e.text, e.unconfirmed ?? false);
 			}
 		}));
 

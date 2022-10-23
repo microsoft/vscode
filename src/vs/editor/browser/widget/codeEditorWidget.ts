@@ -1076,17 +1076,17 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				return;
 			case editorCommon.Handler.Type: {
 				const args = <Partial<editorCommon.TypePayload>>payload;
-				this._type(source, args.text || '');
+				this._type(source, args.text || '', args.unconfirmed ?? false);
 				return;
 			}
 			case editorCommon.Handler.ReplacePreviousChar: {
 				const args = <Partial<editorCommon.ReplacePreviousCharPayload>>payload;
-				this._compositionType(source, args.text || '', args.replaceCharCnt || 0, 0, 0);
+				this._compositionType(source, args.text || '', args.unconfirmed ?? false, args.replaceCharCnt || 0, 0, 0);
 				return;
 			}
 			case editorCommon.Handler.CompositionType: {
 				const args = <Partial<editorCommon.CompositionTypePayload>>payload;
-				this._compositionType(source, args.text || '', args.replacePrevCharCnt || 0, args.replaceNextCharCnt || 0, args.positionDelta || 0);
+				this._compositionType(source, args.text || '', args.unconfirmed ?? false, args.replacePrevCharCnt || 0, args.replaceNextCharCnt || 0, args.positionDelta || 0);
 				return;
 			}
 			case editorCommon.Handler.Paste: {
@@ -1136,24 +1136,24 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._onDidCompositionEnd.fire();
 	}
 
-	private _type(source: string | null | undefined, text: string): void {
+	private _type(source: string | null | undefined, text: string, unconfirmed: boolean): void {
 		if (!this._modelData || text.length === 0) {
 			return;
 		}
 		if (source === 'keyboard') {
 			this._onWillType.fire(text);
 		}
-		this._modelData.viewModel.type(text, source);
+		this._modelData.viewModel.type(text, unconfirmed, source);
 		if (source === 'keyboard') {
 			this._onDidType.fire(text);
 		}
 	}
 
-	private _compositionType(source: string | null | undefined, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void {
+	private _compositionType(source: string | null | undefined, text: string, unconfirmed: boolean, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void {
 		if (!this._modelData) {
 			return;
 		}
-		this._modelData.viewModel.compositionType(text, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source);
+		this._modelData.viewModel.compositionType(text, unconfirmed, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source);
 	}
 
 	private _paste(source: string | null | undefined, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void {
@@ -1722,11 +1722,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
 					this._paste('keyboard', text, pasteOnNewLine, multicursorText, mode);
 				},
-				type: (text: string) => {
-					this._type('keyboard', text);
+				type: (text: string, unconfirmed: boolean) => {
+					this._type('keyboard', text, unconfirmed);
 				},
-				compositionType: (text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number) => {
-					this._compositionType('keyboard', text, replacePrevCharCnt, replaceNextCharCnt, positionDelta);
+				compositionType: (text: string, unconfirmed: boolean, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number) => {
+					this._compositionType('keyboard', text, unconfirmed, replacePrevCharCnt, replaceNextCharCnt, positionDelta);
 				},
 				startComposition: () => {
 					this._startComposition();
@@ -1744,18 +1744,18 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					const payload: editorCommon.PastePayload = { text, pasteOnNewLine, multicursorText, mode };
 					this._commandService.executeCommand(editorCommon.Handler.Paste, payload);
 				},
-				type: (text: string) => {
-					const payload: editorCommon.TypePayload = { text };
+				type: (text: string, unconfirmed: boolean) => {
+					const payload: editorCommon.TypePayload = { text, unconfirmed };
 					this._commandService.executeCommand(editorCommon.Handler.Type, payload);
 				},
-				compositionType: (text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number) => {
+				compositionType: (text: string, unconfirmed: boolean, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number) => {
 					// Try if possible to go through the existing `replacePreviousChar` command
 					if (replaceNextCharCnt || positionDelta) {
 						// must be handled through the new command
-						const payload: editorCommon.CompositionTypePayload = { text, replacePrevCharCnt, replaceNextCharCnt, positionDelta };
+						const payload: editorCommon.CompositionTypePayload = { text, unconfirmed, replacePrevCharCnt, replaceNextCharCnt, positionDelta };
 						this._commandService.executeCommand(editorCommon.Handler.CompositionType, payload);
 					} else {
-						const payload: editorCommon.ReplacePreviousCharPayload = { text, replaceCharCnt: replacePrevCharCnt };
+						const payload: editorCommon.ReplacePreviousCharPayload = { text, unconfirmed, replaceCharCnt: replacePrevCharCnt };
 						this._commandService.executeCommand(editorCommon.Handler.ReplacePreviousChar, payload);
 					}
 				},

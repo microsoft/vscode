@@ -261,15 +261,16 @@ export class TypeOperations {
 		return commands;
 	}
 
-	public static compositionType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): EditOperationResult {
-		const commands = selections.map(selection => this._compositionType(model, selection, text, replacePrevCharCnt, replaceNextCharCnt, positionDelta));
+	public static compositionType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], text: string, unconfirmed: boolean, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): EditOperationResult {
+		const commands = selections.map(selection => this._compositionType(model, selection, text, unconfirmed, replacePrevCharCnt, replaceNextCharCnt, positionDelta));
 		return new EditOperationResult(EditOperationType.TypingOther, commands, {
 			shouldPushStackElementBefore: shouldPushStackElementBetween(prevEditOperationType, EditOperationType.TypingOther),
-			shouldPushStackElementAfter: false
+			shouldPushStackElementAfter: false,
+			unconfirmed: unconfirmed
 		});
 	}
 
-	private static _compositionType(model: ITextModel, selection: Selection, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): ICommand | null {
+	private static _compositionType(model: ITextModel, selection: Selection, text: string, unconfirmed: boolean, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): ICommand | null {
 		if (!selection.isEmpty()) {
 			// looks like https://github.com/microsoft/vscode/issues/2773
 			// where a cursor operation occurred before a canceled composition
@@ -281,7 +282,7 @@ export class TypeOperations {
 		const endColumn = Math.min(model.getLineMaxColumn(pos.lineNumber), pos.column + replaceNextCharCnt);
 		const range = new Range(pos.lineNumber, startColumn, pos.lineNumber, endColumn);
 		const oldText = model.getValueInRange(range);
-		if (oldText === text && positionDelta === 0) {
+		if (oldText === text && positionDelta === 0 && (unconfirmed === true || text === '')) {
 			// => ignore composition that doesn't do anything
 			return null;
 		}
@@ -916,7 +917,7 @@ export class TypeOperations {
 		return null;
 	}
 
-	public static typeWithInterceptors(isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult {
+	public static typeWithInterceptors(isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string, unconfirmed: boolean): EditOperationResult {
 
 		if (!isDoingComposition && ch === '\n') {
 			const commands: ICommand[] = [];
@@ -980,7 +981,8 @@ export class TypeOperations {
 		const opType = getTypingOperation(ch, prevEditOperationType);
 		return new EditOperationResult(opType, commands, {
 			shouldPushStackElementBefore: shouldPushStackElementBetween(prevEditOperationType, opType),
-			shouldPushStackElementAfter: false
+			shouldPushStackElementAfter: false,
+			unconfirmed: unconfirmed
 		});
 	}
 

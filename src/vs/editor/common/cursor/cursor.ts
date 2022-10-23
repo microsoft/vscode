@@ -351,7 +351,7 @@ export class CursorsController extends Disposable {
 			this._model.pushStackElement();
 		}
 
-		const result = CommandExecutor.executeCommands(this._model, this._cursors.getSelections(), opResult.commands);
+		const result = CommandExecutor.executeCommands(this._model, this._cursors.getSelections(), opResult.commands, opResult.unconfirmed);
 		if (result) {
 			// The commands were applied correctly
 			this._interpretCommandResult(result);
@@ -544,7 +544,7 @@ export class CursorsController extends Disposable {
 		}, eventsCollector, source);
 	}
 
-	public type(eventsCollector: ViewModelEventsCollector, text: string, source?: string | null | undefined): void {
+	public type(eventsCollector: ViewModelEventsCollector, text: string, unconfirmed: boolean, source?: string | null | undefined): void {
 		this._executeEdit(() => {
 			if (source === 'keyboard') {
 				// If this event is coming straight from the keyboard, look for electric characters and enter
@@ -556,7 +556,7 @@ export class CursorsController extends Disposable {
 					const chr = text.substr(offset, charLength);
 
 					// Here we must interpret each typed character individually
-					this._executeEditOperation(TypeOperations.typeWithInterceptors(!!this._compositionState, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), this.getAutoClosedCharacters(), chr));
+					this._executeEditOperation(TypeOperations.typeWithInterceptors(!!this._compositionState, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), this.getAutoClosedCharacters(), chr, unconfirmed));
 
 					offset += charLength;
 				}
@@ -567,7 +567,7 @@ export class CursorsController extends Disposable {
 		}, eventsCollector, source);
 	}
 
-	public compositionType(eventsCollector: ViewModelEventsCollector, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number, source?: string | null | undefined): void {
+	public compositionType(eventsCollector: ViewModelEventsCollector, text: string, unconfirmed: boolean, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number, source?: string | null | undefined): void {
 		if (text.length === 0 && replacePrevCharCnt === 0 && replaceNextCharCnt === 0) {
 			// this edit is a no-op
 			if (positionDelta !== 0) {
@@ -581,7 +581,7 @@ export class CursorsController extends Disposable {
 			return;
 		}
 		this._executeEdit(() => {
-			this._executeEditOperation(TypeOperations.compositionType(this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), text, replacePrevCharCnt, replaceNextCharCnt, positionDelta));
+			this._executeEditOperation(TypeOperations.compositionType(this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), text, unconfirmed, replacePrevCharCnt, replaceNextCharCnt, positionDelta));
 		}, eventsCollector, source);
 	}
 
@@ -736,7 +736,7 @@ interface ICommandsData {
 
 class CommandExecutor {
 
-	public static executeCommands(model: ITextModel, selectionsBefore: Selection[], commands: (editorCommon.ICommand | null)[]): Selection[] | null {
+	public static executeCommands(model: ITextModel, selectionsBefore: Selection[], commands: (editorCommon.ICommand | null)[], unconfirmed: boolean): Selection[] | null {
 
 		const ctx: IExecContext = {
 			model: model,
@@ -745,7 +745,7 @@ class CommandExecutor {
 			trackedRangesDirection: []
 		};
 
-		const result = this._innerExecuteCommands(ctx, commands);
+		const result = this._innerExecuteCommands(ctx, commands, unconfirmed);
 
 		for (let i = 0, len = ctx.trackedRanges.length; i < len; i++) {
 			ctx.model._setTrackedRange(ctx.trackedRanges[i], null, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
@@ -754,7 +754,7 @@ class CommandExecutor {
 		return result;
 	}
 
-	private static _innerExecuteCommands(ctx: IExecContext, commands: (editorCommon.ICommand | null)[]): Selection[] | null {
+	private static _innerExecuteCommands(ctx: IExecContext, commands: (editorCommon.ICommand | null)[], unconfirmed: boolean): Selection[] | null {
 
 		if (this._arrayIsEmpty(commands)) {
 			return null;
@@ -825,7 +825,7 @@ class CommandExecutor {
 				}
 			}
 			return cursorSelections;
-		});
+		}, unconfirmed);
 		if (!selectionsAfter) {
 			selectionsAfter = ctx.selectionsBefore;
 		}

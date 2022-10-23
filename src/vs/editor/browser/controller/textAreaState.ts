@@ -32,6 +32,7 @@ export interface ITypeData {
 	replacePrevCharCnt: number;
 	replaceNextCharCnt: number;
 	positionDelta: number;
+	unconfirmed?: boolean;
 }
 
 export class TextAreaState {

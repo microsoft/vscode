@@ -131,13 +131,14 @@ class CompositionContext {
 		this._lastTypeTextLength = 0;
 	}
 
-	public handleCompositionUpdate(text: string | null | undefined): ITypeData {
+	public handleCompositionUpdate(text: string | null | undefined, unconfirmed: boolean): ITypeData {
 		text = text || '';
 		const typeInput: ITypeData = {
 			text: text,
 			replacePrevCharCnt: this._lastTypeTextLength,
 			replaceNextCharCnt: 0,
-			positionDelta: 0
+			positionDelta: 0,
+			unconfirmed: unconfirmed
 		};
 		this._lastTypeTextLength = text.length;
 		return typeInput;
@@ -272,7 +273,7 @@ export class TextAreaInput extends Disposable {
 					console.log(`[compositionstart] Handling long press case on macOS + arrow key`, e);
 				}
 				// Pretend the previous character was composed (in order to get it removed by subsequent compositionupdate events)
-				currentComposition.handleCompositionUpdate('x');
+				currentComposition.handleCompositionUpdate('x', false);
 				this._onCompositionStart.fire({ data: e.data });
 				return;
 			}
@@ -308,7 +309,7 @@ export class TextAreaInput extends Disposable {
 				this._onCompositionUpdate.fire(e);
 				return;
 			}
-			const typeInput = currentComposition.handleCompositionUpdate(e.data);
+			const typeInput = currentComposition.handleCompositionUpdate(e.data, true);
 			this._textAreaState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
 			this._onType.fire(typeInput);
 			this._onCompositionUpdate.fire(e);
@@ -339,7 +340,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
-			const typeInput = currentComposition.handleCompositionUpdate(e.data);
+			const typeInput = currentComposition.handleCompositionUpdate(e.data, false);
 			this._textAreaState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
 			this._onType.fire(typeInput);
 			this._onCompositionEnd.fire();

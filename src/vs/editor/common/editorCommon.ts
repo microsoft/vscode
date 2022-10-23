@@ -735,6 +735,7 @@ export const enum Handler {
  */
 export interface TypePayload {
 	text: string;
+	unconfirmed: boolean;
 }
 
 /**
@@ -742,6 +743,7 @@ export interface TypePayload {
  */
 export interface ReplacePreviousCharPayload {
 	text: string;
+	unconfirmed: boolean;
 	replaceCharCnt: number;
 }
 
@@ -750,6 +752,7 @@ export interface ReplacePreviousCharPayload {
  */
 export interface CompositionTypePayload {
 	text: string;
+	unconfirmed: boolean;
 	replacePrevCharCnt: number;
 	replaceNextCharCnt: number;
 	positionDelta: number;

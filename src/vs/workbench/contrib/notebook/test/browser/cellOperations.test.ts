@@ -181,7 +181,7 @@ suite('CellOperations', () => {
 				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'var b = 1;');
 
 				(cell1.textBuffer as ITextBuffer).applyEdits([
-					new ValidAnnotatedEditOperation(null, new Range(1, 1, 1, 4), '', false, false, false)
+					new ValidAnnotatedEditOperation(null, new Range(1, 1, 1, 4), '', false, false, false, false)
 				], false, true);
 				assert.notStrictEqual(cell1.getText(), cell2.getText());
 			});

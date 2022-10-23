@@ -38,8 +38,8 @@ export interface IMouseDispatchData {
 
 export interface ICommandDelegate {
 	paste(text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void;
-	type(text: string): void;
-	compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void;
+	type(text: string, unconfirmed: boolean): void;
+	compositionType(text: string, unconfirmed: boolean, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void;
 	startComposition(): void;
 	endComposition(): void;
 	cut(): void;
@@ -68,12 +68,12 @@ export class ViewController {
 		this.commandDelegate.paste(text, pasteOnNewLine, multicursorText, mode);
 	}
 
-	public type(text: string): void {
-		this.commandDelegate.type(text);
+	public type(text: string, unconfirmed: boolean): void {
+		this.commandDelegate.type(text, unconfirmed);
 	}
 
-	public compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void {
-		this.commandDelegate.compositionType(text, replacePrevCharCnt, replaceNextCharCnt, positionDelta);
+	public compositionType(text: string, unconfirmed: boolean, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void {
+		this.commandDelegate.compositionType(text, unconfirmed, replacePrevCharCnt, replaceNextCharCnt, positionDelta);
 	}
 
 	public compositionStart(): void {

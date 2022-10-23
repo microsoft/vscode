@@ -225,7 +225,7 @@ suite('WordOperations', () => {
 	test('issue #51275 - cursorWordStartLeft does not push undo/redo stack element', () => {
 		function type(viewModel: ViewModel, text: string) {
 			for (let i = 0; i < text.length; i++) {
-				viewModel.type(text.charAt(i), 'keyboard');
+				viewModel.type(text.charAt(i), false, 'keyboard');
 			}
 		}
 

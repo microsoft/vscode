@@ -386,6 +386,7 @@ export class EditOperationResult {
 	readonly commands: Array<ICommand | null>;
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
+	readonly unconfirmed: boolean;
 
 	constructor(
 		type: EditOperationType,
@@ -393,12 +394,14 @@ export class EditOperationResult {
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;
+			unconfirmed?: boolean;
 		}
 	) {
 		this.type = type;
 		this.commands = commands;
 		this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
 		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;
+		this.unconfirmed = opts.unconfirmed ?? false;
 	}
 }
 
