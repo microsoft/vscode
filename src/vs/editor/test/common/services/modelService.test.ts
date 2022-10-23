@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { CharCode } from 'vs/base/common/charCode';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -540,6 +540,40 @@ suite('ModelSemanticColoring', () => {
 			// wait for the semantic tokens to be fetched again
 			await Event.toPromise(textModel.onDidChangeTokens);
 			assert.strictEqual(lastResult!.resultId, '2');
+		});
+	});
+
+	test('issue #161573: onDidChangeSemanticTokens doesn\'t consistently trigger provideDocumentSemanticTokens', async () => {
+		await runWithFakedTimers({}, async () => {
+
+			disposables.add(languageService.registerLanguage({ id: 'testMode' }));
+
+			const emitter = new Emitter<void>();
+			let requestCount = 0;
+			disposables.add(languageFeaturesService.documentSemanticTokensProvider.register('testMode', new class implements DocumentSemanticTokensProvider {
+				onDidChange = emitter.event;
+				getLegend(): SemanticTokensLegend {
+					return { tokenTypes: ['class'], tokenModifiers: [] };
+				}
+				async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
+					requestCount++;
+					if (requestCount === 1) {
+						await timeout(1000);
+						// send a change event
+						emitter.fire();
+						await timeout(1000);
+						return null;
+					}
+					return null;
+				}
+				releaseDocumentSemanticTokens(resultId: string | undefined): void {
+				}
+			}));
+
+			disposables.add(modelService.createModel('', languageService.createById('testMode')));
+
+			await timeout(5000);
+			assert.deepStrictEqual(requestCount, 2);
 		});
 	});
 
