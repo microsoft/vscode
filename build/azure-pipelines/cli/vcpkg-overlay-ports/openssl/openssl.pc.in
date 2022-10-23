@@ -1,6 +1,0 @@
-prefix=${pcfiledir}/../..
-exec_prefix=${prefix}
-libdir=${exec_prefix}/lib
-includedir=${prefix}/include
-Version: @OPENSSL_VERSION@
-@pc_data@

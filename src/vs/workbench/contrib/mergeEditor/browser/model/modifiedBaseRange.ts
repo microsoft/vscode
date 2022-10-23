@@ -239,9 +239,15 @@ function editsToLineRangeEdit(range: LineRange, sortedEdits: RangeEdit[], textMo
 
 	const lines = splitLines(text);
 	if (startsLineBefore) {
+		if (lines[0] !== '') {
+			return undefined;
+		}
 		lines.shift();
 	}
 	if (endsLineAfter) {
+		if (lines[lines.length - 1] !== '') {
+			return undefined;
+		}
 		lines.pop();
 	}
 	return new LineRangeEdit(range, lines);
@@ -262,6 +268,8 @@ export function getOtherInputNumber(inputNumber: InputNumber): InputNumber {
 }
 
 export abstract class AbstractModifiedBaseRangeState {
+	constructor() { }
+
 	abstract get kind(): ModifiedBaseRangeStateKind;
 
 	public get includesInput1(): boolean { return false; }

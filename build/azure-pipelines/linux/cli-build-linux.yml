@@ -21,6 +21,21 @@ parameters:
     default: stable
 
 steps:
+  - task: Npm@1
+    displayName: Download openssl prebuilt
+    inputs:
+      command: custom
+      customCommand: pack @vscode-internal/openssl-prebuilt@0.0.1
+      customRegistry: useFeed
+      customFeed: 'Monaco/openssl-prebuilt'
+      workingDir: $(Build.ArtifactStagingDirectory)
+
+  - script: |
+      set -e
+      mkdir $(Build.ArtifactStagingDirectory)/openssl
+      tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.1.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
+    displayName: Extract openssl prebuilt
+
   # inspired by: https://github.com/emk/rust-musl-builder/blob/main/Dockerfile
   - bash: |
       set -e
@@ -29,36 +44,11 @@ steps:
       sudo ln -s "/usr/bin/g++" "/usr/bin/musl-g++" || echo "link exists"
     displayName: Install build dependencies
 
-  # the cmake version on the 20.04 repo is too old for vcpkg
-  - bash: |
-      set -e
-      sudo apt remove --auto-remove cmake -y
-      curl -L https://github.com/Kitware/CMake/releases/download/v3.24.2/cmake-3.24.2-linux-aarch64.sh -o $(Build.ArtifactStagingDirectory)/cmake.sh
-      cd $(Build.ArtifactStagingDirectory) && echo "f5aaa0ad735554cdf10401311cf47858f822537e5f80b05bc8aa282d6e9dbb5d4d235c77d1299904a1156dec6d4000defc74ae891a43c1b2101367554b241ba1  cmake.sh" | sha512sum -c
-      sudo rm -rf /opt/cmake /usr/local/bin/cmake
-      sudo mkdir /opt/cmake && sudo sh $(Build.ArtifactStagingDirectory)/cmake.sh --skip-license --prefix=/opt/cmake
-      sudo ln -s /opt/cmake/bin/cmake /usr/local/bin/cmake
-    displayName: Update cmake
-    condition: and(succeeded(), eq(variables.VCPKG_FORCE_SYSTEM_BINARIES, '1'))
-
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
     - bash: |
         set -e
         sudo apt-get install -yq gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf binutils-arm-linux-gnueabihf
       displayName: Install cross compilation toolchains
-
-  - template: ../vcpkg-install-posix.yml
-    parameters:
-      targets:
-        - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true)) }}:
-          - x64-linux
-        - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64, true)) }}:
-          - arm64-linux
-        - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
-          - arm-linux
-      vcpkgDir: $(Build.SourcesDirectory)/build/azure-pipelines/cli/vcpkg
-      vcpkgArgs: --overlay-ports=$(Build.SourcesDirectory)/build/azure-pipelines/cli/vcpkg-overlay-ports
-      targetDirectory: $(Build.ArtifactStagingDirectory)/deps
 
   - task: NodeTool@0
     inputs:
@@ -97,8 +87,8 @@ steps:
         VSCODE_CLI_ENV:
           CXX_aarch64-unknown-linux-musl: musl-g++
           CC_aarch64-unknown-linux-musl: musl-gcc
-          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/deps/arm64-linux/lib
-          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/deps/arm64-linux/include
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/include
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
@@ -108,8 +98,8 @@ steps:
         VSCODE_CLI_ENV:
           CXX_aarch64-unknown-linux-musl: musl-g++
           CC_aarch64-unknown-linux-musl: musl-gcc
-          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/deps/x64-linux/lib
-          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/deps/x64-linux/include
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux/include
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
@@ -117,8 +107,8 @@ steps:
         VSCODE_CLI_TARGET: aarch64-unknown-linux-gnu
         VSCODE_CLI_ARTIFACT: vscode_cli_linux_arm64_cli
         VSCODE_CLI_ENV:
-          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/deps/arm64-linux/lib
-          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/deps/arm64-linux/include
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/include
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
@@ -126,8 +116,8 @@ steps:
         VSCODE_CLI_TARGET: x86_64-unknown-linux-gnu
         VSCODE_CLI_ARTIFACT: vscode_cli_linux_x64_cli
         VSCODE_CLI_ENV:
-          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/deps/x64-linux/lib
-          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/deps/x64-linux/include
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux/include
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
@@ -136,5 +126,5 @@ steps:
         VSCODE_CLI_ARTIFACT: vscode_cli_linux_armhf_cli
         VSCODE_CLI_ENV:
           CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
-          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/deps/arm-linux/lib
-          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/deps/arm-linux/include
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm-linux/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm-linux/include

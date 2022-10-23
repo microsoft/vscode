@@ -13,7 +13,7 @@ import { join } from 'vs/base/common/path';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Utils } from 'vs/platform/profiling/common/profiling';
 import { bottomUp, buildModel, } from 'vs/platform/profiling/common/profilingModel';
-import { TelemetrySampleData, TelemetrySampleDataClassification } from 'vs/platform/profiling/common/profilingTelemetrySpec';
+import { reportSample } from 'vs/platform/profiling/common/profilingTelemetrySpec';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 export const enum ProfilingOutput {
@@ -92,23 +92,11 @@ export class WindowProfiler {
 
 		// send telemetry events
 		for (const sample of samples) {
-			const data: TelemetrySampleData = {
-				sessionId: this._sessionId,
-				perfBaseline,
-				selfTime: sample.selfTime,
-				totalTime: sample.totalTime,
-				percentage: sample.percentage,
-				functionName: sample.location,
-				callstack: sample.caller.map(c => c.location).join('<'),
-				extensionId: '<<renderer>>'
-			};
-			this._telemetryService.publicLog2<TelemetrySampleData, TelemetrySampleDataClassification>('prof.freeze.sample', data);
-
-			// log a fake error with a clearer stack
-			const fakeError = new Error();
-			fakeError.name = 'PerfHeavyFunction';
-			fakeError.stack = `Spend ${sample.selfTime}ms in ${sample.location}\n` + sample.caller.map(c => `\t at ${c.location} (${c.percentage}%)`).join('\n');
-			this._logService.error(fakeError, `[perf] HEAVY function sample`);
+			reportSample(
+				{ sample, perfBaseline, source: '<<renderer>>' },
+				this._telemetryService,
+				this._logService
+			);
 		}
 
 		// save to disk

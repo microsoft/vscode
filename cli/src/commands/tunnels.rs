@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 use async_trait::async_trait;
+use std::str::FromStr;
 use std::fmt;
 use sysinfo::{Pid, SystemExt};
 use tokio::sync::mpsc;
@@ -94,6 +95,7 @@ impl ServiceContainer for TunnelServiceContainer {
 pub enum ShutdownSignal {
 	CtrlC,
 	ParentProcessKilled,
+	ServiceStopped,
 }
 
 impl fmt::Display for ShutdownSignal {
@@ -101,6 +103,7 @@ impl fmt::Display for ShutdownSignal {
 		match self {
 			ShutdownSignal::CtrlC => write!(f, "Ctrl-C received"),
 			ShutdownSignal::ParentProcessKilled => write!(f, "Parent process no longer exists"),
+			ShutdownSignal::ServiceStopped => write!(f, "Service stopped"),
 		}
 	}
 }
@@ -241,7 +244,8 @@ async fn serve_with_csa(
 	let tunnel = if let Some(d) = gateway_args.tunnel.clone().into() {
 		dt.start_existing_tunnel(d).await
 	} else {
-		dt.start_new_launcher_tunnel(gateway_args.name, gateway_args.random_name).await
+		dt.start_new_launcher_tunnel(gateway_args.name, gateway_args.random_name)
+			.await
 	}?;
 
 	let shutdown_tx = if let Some(tx) = shutdown_rx {
@@ -249,19 +253,22 @@ async fn serve_with_csa(
 	} else {
 		let (tx, rx) = mpsc::channel::<ShutdownSignal>(2);
 		if let Some(process_id) = gateway_args.parent_process_id {
-			let tx = tx.clone();
-			info!(log, "checking for parent process {}", process_id);
-			tokio::spawn(async move {
-				let mut s = sysinfo::System::new();
-				#[cfg(windows)]
-				let pid = Pid::from(process_id as usize);
-				#[cfg(unix)]
-				let pid = Pid::from(process_id);
-				while s.refresh_process(pid) {
-					sleep(Duration::from_millis(2000)).await;
+			match Pid::from_str(&process_id) {
+				Ok(pid) => {
+					let tx = tx.clone();
+					info!(log, "checking for parent process {}", process_id);
+					tokio::spawn(async move {
+						let mut s = sysinfo::System::new();
+						while s.refresh_process(pid) {
+							sleep(Duration::from_millis(2000)).await;
+						}
+						tx.send(ShutdownSignal::ParentProcessKilled).await.ok();
+					});
 				}
-				tx.send(ShutdownSignal::ParentProcessKilled).await.ok();
-			});
+				Err(_) => {
+					info!(log, "invalid parent process id: {}", process_id);
+				}
+			}
 		}
 		tokio::spawn(async move {
 			tokio::signal::ctrl_c().await.ok();
