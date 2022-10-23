@@ -169,6 +169,17 @@ steps:
         exec { yarn gulp "transpile-client-swc" "transpile-extensions" }
       displayName: Transpile
 
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        $env:VSCODE_EXPLORER_APPX_DIR=$(Join-Path $pwd.Path ".build/win32/appx")
+        exec { node build/win32/explorer-appx-fetcher }
+      env:
+        VSCODE_ARCH: "$(VSCODE_ARCH)"
+      displayName: Download Explorer Sparse Package
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
@@ -195,18 +206,22 @@ steps:
       displayName: Download VS Code CLI
       condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: unsigned_vscode_cli_win32_ia32_cli
+        patterns: '**'
+        path: $(Build.ArtifactStagingDirectory)/cli
+      displayName: Download VS Code CLI
+      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'ia32'))
+
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
         $ArtifactName = (gci -Path "$(Build.ArtifactStagingDirectory)/cli" | Select-Object -last 1).FullName
         Expand-Archive -Path $ArtifactName -DestinationPath "$(Build.ArtifactStagingDirectory)/cli"
-        Move-Item -Path "$(Build.ArtifactStagingDirectory)/cli/code.exe" -Destination "$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/code-tunnel.exe"
-
-        if ("$(VSCODE_QUALITY)" -ne "stable")
-        {
-          Move-Item -Path "$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/code-tunnel.exe" -Destination "$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/code-tunnel-$(VSCODE_QUALITY).exe"
-        }
-
+        $AppProductJson = Get-Content -Raw -Path "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)\resources\app\product.json" | ConvertFrom-Json
+        $CliAppName = $AppProductJson.tunnelApplicationName
+        Move-Item -Path "$(Build.ArtifactStagingDirectory)/cli/code.exe" -Destination "$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/$CliAppName.exe"
       displayName: Move VS Code CLI
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
@@ -271,6 +286,7 @@ steps:
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
         exec { node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.dll,*.exe,*.node' }
+        exec { node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows-appx $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.appx' }
       displayName: Codesign
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:

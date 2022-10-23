@@ -568,20 +568,6 @@ var requirejs = (function() {
 
 		this._register(new WebviewWindowDragMonitor(() => this.webview));
 
-		this._register(this.webview.onDidClickLink(link => {
-			if (this._disposed) {
-				return;
-			}
-
-			if (!link) {
-				return;
-			}
-
-			if (matchesSomeScheme(link, Schemas.vscodeNotebookCell, Schemas.http, Schemas.https, Schemas.mailto)) {
-				this.openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: false });
-			}
-		}));
-
 		this._register(this.webview.onMessage(async (message) => {
 			const data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined } = message.message;
 			if (this._disposed) {

@@ -20,7 +20,7 @@ pub fn is_integrated_cli() -> io::Result<bool> {
 		None => return Ok(false),
 	};
 
-	let expected_file = if cfg!(target_os = "darwin") {
+	let expected_file = if cfg!(target_os = "macos") {
 		"node_modules.asar"
 	} else {
 		"resources.pak"

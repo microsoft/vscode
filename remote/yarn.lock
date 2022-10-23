@@ -788,40 +788,40 @@ wrappy@1:
   resolved "https://registry.yarnpkg.com/wrappy/-/wrappy-1.0.2.tgz#b5243d8f3ec1aa35f1364605bc0d1036e30ab69f"
   integrity sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
 
-xterm-addon-canvas@0.3.0-beta.13:
-  version "0.3.0-beta.13"
-  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.3.0-beta.13.tgz#6fd23f4c8d4d013a540cb8ff1e4965ff6bf248b5"
-  integrity sha512-gNl2wG5zv5AttbTs1OgMRFcARs/dt0k2snFpMmrnaTKlgpi3S0k+Sh3C4nbdMuqbCZd+n7gtpAYP+F6ZXC1pdA==
+xterm-addon-canvas@0.3.0-beta.23:
+  version "0.3.0-beta.23"
+  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.3.0-beta.23.tgz#aa67f43114e0bd052311f3f88f842e85006e697f"
+  integrity sha512-xFeuwK1ZuIl+5Go4ZesAWe+pToqjF0LSQfECia3tTZ0emkpzR3c+wU3vWoKPj71A7ZkgCVDmCGyLAWDpTSLgEQ==
 
-xterm-addon-search@0.11.0-beta.4:
-  version "0.11.0-beta.4"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.11.0-beta.4.tgz#35c01a98b092adbbd1828b0d2eea28485a9a1538"
-  integrity sha512-rtDBg9CWDw6c0tMeBmaKan2UWwSY88UkfkLv+g50EopDyx6J337nxgjKGioUjF0pZ1VwFOaP1+rFRk8XwLiUHA==
+xterm-addon-search@0.11.0-beta.7:
+  version "0.11.0-beta.7"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.11.0-beta.7.tgz#d90bcbe9e8f9238c18ba6145bd7ec2f8e3240052"
+  integrity sha512-i/c774V0/Eon3BIFRsRR3OjKTnMGkccBo12yDkOa40tnAD4aa8FjspE3bxW/Hh1mUEhCSgBSLnMDlK/GwnUC+g==
 
-xterm-addon-serialize@0.9.0-beta.2:
-  version "0.9.0-beta.2"
-  resolved "https://registry.yarnpkg.com/xterm-addon-serialize/-/xterm-addon-serialize-0.9.0-beta.2.tgz#2f37ba57cabcdbf6dfe56bce8209de04dcfaa8ef"
-  integrity sha512-oCRHXdlrlzcNmxRxHJlYq6FiJlgQDXft62DcE+WY7Y7R5rjPB8ahrSQHBwjc3ZIK0GRL8fRReuwxL1+Jy4Dt4Q==
+xterm-addon-serialize@0.9.0-beta.3:
+  version "0.9.0-beta.3"
+  resolved "https://registry.yarnpkg.com/xterm-addon-serialize/-/xterm-addon-serialize-0.9.0-beta.3.tgz#bb4ed416db5748bcbe55a4b6d4c2151368fdae74"
+  integrity sha512-LaFuowtdxNdeuLm+KmtsoR4mgPOLu/I9k0hlWXbzAd1okJhthwMH4Y6cuL0/pFk1AclP5s+L42glv8PV0GnVsg==
 
 xterm-addon-unicode11@0.5.0-beta.1:
   version "0.5.0-beta.1"
   resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.5.0-beta.1.tgz#8a9e9356018e082318abbe2be1f9599fcc6b46a2"
   integrity sha512-uAErX4gwhW6N524stLG6oZR3yBGgPnFmZ2Tv4vyYy7tcgDuHRoc22xYSCDgO1ohz1FLlOm8JGXRjXliwO9ic3A==
 
-xterm-addon-webgl@0.14.0-beta.20:
-  version "0.14.0-beta.20"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.14.0-beta.20.tgz#1bd723a58ab6414c4773d181bbae51751827768c"
-  integrity sha512-inUnGzw+ewMszMQY8PqO97/t6hh/qg712uyuHLLoinDOjzXN5x2IiPMrt4LL70P6YmmTU65m/Gmfp+rd2u4yWg==
+xterm-addon-webgl@0.14.0-beta.32:
+  version "0.14.0-beta.32"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.14.0-beta.32.tgz#35d08d4a0b36434ea5746738987b0170f918a9e3"
+  integrity sha512-FnD/LX0Obxu+Q3hdkVvStlGFCtp+jzKtV6lzF42Uvh5evbGA2SBO3BxWW26VhurtEN5Pf7Iyx8sJxcPVd/tPXw==
 
-xterm-headless@5.1.0-beta.29:
-  version "5.1.0-beta.29"
-  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-5.1.0-beta.29.tgz#b3c2bbd934fe5d9111b2206ddaf039d604aefe95"
-  integrity sha512-hzIzZwYtubZplfnmtx1IQdipp2eTt09zjTT6/JZFSTcTLBUCtePlgtCZPJENUyy5v+aSJgbMTDFrfjARRBCZMw==
+xterm-headless@5.1.0-beta.49:
+  version "5.1.0-beta.49"
+  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-5.1.0-beta.49.tgz#c71793f7ba5ba3c403af5e5e9a7c5d89318b663d"
+  integrity sha512-dDHteT5DMr/li8qbaZ6FvIuZEI6SZUjNeiOrVwr//Qo4s/k4K3dRD0YxoJJ3ml/nPoxnhYyDkf9viLgm1rgEhA==
 
-xterm@5.1.0-beta.29:
-  version "5.1.0-beta.29"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.1.0-beta.29.tgz#76368661b0503800c3f4374ab380e806290038e6"
-  integrity sha512-qirPDkX99thKjd7bkZMBQfP6EMOWTigYQz9lFU5tIkqsoYCu7zakaakkQuC2xbVRue9nftHZItzYKeO1/ldvTA==
+xterm@5.1.0-beta.49:
+  version "5.1.0-beta.49"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.1.0-beta.49.tgz#4c98e5580d690a57d5d055025abb5d0e8ab2f42c"
+  integrity sha512-jUiJ4lBhHW7XzLPyXVzCwjljDEl5TJj9+fj677fwDb/La8qPov2R+ocjb1H/7j0sODxAV0Op2ftDCtz2JzbCvQ==
 
 yallist@^4.0.0:
   version "4.0.0"
