@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/scm';
-import { IDisposable, Disposable, DisposableStore, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { append, $ } from 'vs/base/browser/dom';
 import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -30,7 +30,7 @@ interface RepositoryTemplate {
 	readonly countContainer: HTMLElement;
 	readonly count: CountBadge;
 	readonly toolBar: ToolBar;
-	disposable: IDisposable;
+	readonly elementDisposables: DisposableStore;
 	readonly templateDisposable: IDisposable;
 }
 
@@ -65,16 +65,12 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		const badgeStyler = attachBadgeStyler(count, this.themeService);
 		const visibilityDisposable = toolBar.onDidChangeDropdownVisibility(e => provider.classList.toggle('active', e));
 
-		const disposable = Disposable.None;
 		const templateDisposable = combinedDisposable(visibilityDisposable, toolBar, badgeStyler);
 
-		return { label, name, description, countContainer, count, toolBar, disposable, templateDisposable };
+		return { label, name, description, countContainer, count, toolBar, elementDisposables: new DisposableStore(), templateDisposable };
 	}
 
 	renderElement(arg: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
-		templateData.disposable.dispose();
-
-		const disposables = new DisposableStore();
 		const repository = isSCMRepository(arg) ? arg : arg.element;
 
 		if (repository.provider.rootUri) {
@@ -113,8 +109,8 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 
 		// TODO@joao TODO@lszomoru
 		let disposed = false;
-		disposables.add(toDisposable(() => disposed = true));
-		disposables.add(repository.provider.onDidChange(() => {
+		templateData.elementDisposables.add(toDisposable(() => disposed = true));
+		templateData.elementDisposables.add(repository.provider.onDidChange(() => {
 			if (disposed) {
 				return;
 			}
@@ -125,14 +121,12 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		onDidChangeProvider();
 
 		const menus = this.scmViewService.menus.getRepositoryMenus(repository.provider);
-		disposables.add(connectPrimaryMenu(menus.titleMenu.menu, (primary, secondary) => {
+		templateData.elementDisposables.add(connectPrimaryMenu(menus.titleMenu.menu, (primary, secondary) => {
 			menuPrimaryActions = primary;
 			menuSecondaryActions = secondary;
 			updateToolbar();
 		}));
 		templateData.toolBar.context = repository.provider;
-
-		templateData.disposable = disposables;
 	}
 
 	renderCompressedElements(): void {
@@ -140,11 +134,11 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	}
 
 	disposeElement(group: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, template: RepositoryTemplate): void {
-		template.disposable.dispose();
+		template.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: RepositoryTemplate): void {
-		templateData.disposable.dispose();
+		templateData.elementDisposables.dispose();
 		templateData.templateDisposable.dispose();
 	}
 }
