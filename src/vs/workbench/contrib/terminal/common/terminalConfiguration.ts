@@ -174,7 +174,7 @@ const terminalConfiguration: IConfigurationNode = {
 			maximum: 100
 		},
 		[TerminalSettingId.LetterSpacing]: {
-			description: localize('terminal.integrated.letterSpacing', "Controls the letter spacing of the terminal. This is an integer value which represents the amount of additional pixels to add between characters."),
+			description: localize('terminal.integrated.letterSpacing', "Controls the letter spacing of the terminal. This is an integer value which represents the number of additional pixels to add between characters."),
 			type: 'number',
 			default: DEFAULT_LETTER_SPACING
 		},
