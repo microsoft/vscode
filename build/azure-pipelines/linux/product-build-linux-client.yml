@@ -280,7 +280,7 @@ steps:
         condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'armhf'))
 
       - script: |
-          set -ex
+          set -e
           tar -xzvf $(Build.ArtifactStagingDirectory)/cli/*.tar.gz -C $(Build.ArtifactStagingDirectory)/cli
           CLI_APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").tunnelApplicationName")
           mv $(Build.ArtifactStagingDirectory)/cli/code $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$CLI_APP_NAME

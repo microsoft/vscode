@@ -200,7 +200,7 @@ steps:
         condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
       - script: |
-          set -ex
+          set -e
           ARCHIVE_NAME=$(ls "$(Build.ArtifactStagingDirectory)/cli" | head -n 1)
           unzip "$(Build.ArtifactStagingDirectory)/cli/$ARCHIVE_NAME" -d "$(Build.ArtifactStagingDirectory)/cli"
           CLI_APP_NAME=$(node -p "require(\"$(APP_PATH)/Contents/Resources/app/product.json\").tunnelApplicationName")
