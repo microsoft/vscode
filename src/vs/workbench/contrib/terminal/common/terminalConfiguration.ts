@@ -157,7 +157,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.FontFamily]: {
-			markdownDescription: localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to {0}'s value.", '`#editor.fontFamily#`'),
+			markdownDescription: localize('terminal.integrated.fontFamily', "Controls the font family of the terminal. Defaults to {0}'s value.", '`#editor.fontFamily#`'),
 			type: 'string'
 		},
 		// TODO: Support font ligatures
