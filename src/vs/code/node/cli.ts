@@ -61,7 +61,7 @@ export async function main(argv: string[]): Promise<any> {
 			} else {
 				const tunnelCommand = join(dirname(process.execPath), 'bin', `${product.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
 				const tunnelArgs = argv.slice(3);
-				tunnelProcess = spawn(tunnelCommand, tunnelArgs);
+				tunnelProcess = spawn(tunnelCommand, ['tunnel', ...tunnelArgs]);
 			}
 			tunnelProcess.stdout.on('data', data => {
 				console.log(data.toString());

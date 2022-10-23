@@ -121,7 +121,7 @@ pub async fn service(
 				.await?;
 
 			// likewise for license consent
-			legal::require_consent(&ctx.paths)?;
+			legal::require_consent(&ctx.paths, false)?;
 
 			let current_exe =
 				std::env::current_exe().map_err(|e| wrap(e, "could not get current exe"))?;
@@ -220,7 +220,7 @@ pub async fn serve(ctx: CommandContext, gateway_args: TunnelServeArgs) -> Result
 		log, paths, args, ..
 	} = ctx;
 
-	legal::require_consent(&paths)?;
+	legal::require_consent(&paths, gateway_args.accept_server_license_terms)?;
 
 	let csa = (&args).into();
 	serve_with_csa(paths, log, gateway_args, csa, None).await
