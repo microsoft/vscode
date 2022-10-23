@@ -554,6 +554,10 @@ pub struct TunnelServeArgs {
 	/// Optional parent process id. If provided, the server will be stopped when the process of the given pid no longer exists
 	#[clap(long, hide = true)]
 	pub parent_process_id: Option<String>,
+
+	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
+	#[clap(long)]
+	pub accept_server_license_terms: bool,
 }
 
 #[derive(Args, Debug, Clone)]

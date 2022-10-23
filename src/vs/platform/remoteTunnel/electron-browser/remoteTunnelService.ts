@@ -148,7 +148,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			this.setTunnelStatus(TunnelStates.disconnected);
 			return;
 		}
-		const args = ['--parent-process-id', String(process.pid)];
+		const args = ['--parent-process-id', String(process.pid), '--accept-server-license-terms'];
 		const hostName = this.getHostName();
 		if (hostName) {
 			args.push('--name', hostName);
