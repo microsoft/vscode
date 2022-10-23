@@ -10,7 +10,7 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
-import { dirname, join } from 'vs/base/common/path';
+import { join } from 'vs/base/common/path';
 import { ChildProcess, spawn } from 'child_process';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { isWindows } from 'vs/base/common/platform';
@@ -66,8 +66,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
-		const logFileUri = URI.file(join(dirname(environmentService.logsPath), 'remoteTunnel.log'));
-		this._logger = this._register(loggerService.createLogger(logFileUri, { name: 'remoteTunnel' }));
+		this._logger = this._register(loggerService.createLogger(environmentService.remoteTunnelLogResource, { name: 'remoteTunnel' }));
 		this._startTunnelProcessDelayer = new Delayer(100);
 
 		this._register(sharedProcessLifecycleService.onWillShutdown(e => {
