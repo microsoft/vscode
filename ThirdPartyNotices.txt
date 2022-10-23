@@ -698,7 +698,7 @@ Mozilla Public License, version 2.0
 
 2.4. Subsequent Licenses
 
-     No Contributor makes additional grants as a result of Your choice to
+     No Contributor makes additional grants as a result of your choice to
      distribute the Covered Software under a subsequent version of this License
      (see Section 10.2) or under the terms of a Secondary License (if permitted
      under the terms of Section 3.3).
@@ -725,7 +725,7 @@ Mozilla Public License, version 2.0
 3.1. Distribution of Source Form
 
      All distribution of Covered Software in Source Code Form, including any
-     Modifications that You create or to which You contribute, must be under the
+     modifications that you create or to which you contribute, must be under the
      terms of this License. You must inform recipients that the Source Code Form
      of the Covered Software is governed by the terms of this License, and how
      they can obtain a copy of this License. You may not attempt to alter or
@@ -736,7 +736,7 @@ Mozilla Public License, version 2.0
      If You distribute Covered Software in Executable Form then:
 
      a. such Covered Software must also be made available in Source Code Form,
-        as described in Section 3.1, and You must inform recipients of the
+        as described in Section 3.1, and You must inform recipients' of the
         Executable Form how they can obtain a copy of such Source Code Form by
         reasonable means in a timely manner, at a charge no more than the cost
         of distribution to the recipient; and
@@ -980,7 +980,7 @@ Copyright (c) textmate-make.tmbundle project authors
 
 If not otherwise specified (see below), files in this repository fall under the following license:
 
-Permission to copy, use, modify, sell and distribute this
+Permissions to copy, use, modify, sell and distribute this
 software is granted. This software is provided "as is" without
 express or implied warranty, and with no claim as to its
 suitability for any purpose.
@@ -1212,6 +1212,35 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+---------------------------------------------------------
+
+---------------------------------------------------------
+
+jeff-hykin/better-c-syntax 1.13.2 - MIT
+https://github.com/jeff-hykin/better-c-syntax
+
+MIT License
+
+Copyright (c) 2019 Jeff Hykin
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
 ---------------------------------------------------------
 
 ---------------------------------------------------------
