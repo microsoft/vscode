@@ -32,6 +32,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Action } from 'vs/base/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 
 export const REMOTE_TUNNEL_CATEGORY: ILocalizedString = {
 	original: 'Remote Tunnels',
@@ -529,7 +530,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 			async run(accessor: ServicesAccessor) {
 				const outputService = accessor.get(IOutputService);
-				outputService.showChannel('remoteTunnel');
+				outputService.showChannel(Constants.remoteServerLog);
 			}
 		}));
 
