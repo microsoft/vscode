@@ -18,7 +18,7 @@ import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/com
 import { ISharedProcessLifecycleService } from 'vs/platform/lifecycle/electron-browser/sharedProcessLifecycleService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
-import { hostname } from 'os';
+import { hostname, homedir } from 'os';
 
 type RemoteTunnelEnablementClassification = {
 	owner: 'aeschli';
@@ -107,16 +107,19 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 	private getTunnelCommandLocation() {
 		if (!this._tunnelCommand) {
-			let installLocation;
+			let binParentLocation;
 			if (isMacintosh) {
 				// appRoot = /Applications/Visual Studio Code - Insiders.app/Contents/Resources/app
-				installLocation = dirname(dirname(dirname(this.environmentService.appRoot)));
+				// bin = /Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin
+				binParentLocation = this.environmentService.appRoot;
 			} else {
 				// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\resources\app
+				// bin = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\bin
 				// appRoot = /usr/share/code-insiders/resources/app
-				installLocation = dirname(dirname(this.environmentService.appRoot));
+				// bin = /usr/share/code-insiders/bin
+				binParentLocation = dirname(dirname(this.environmentService.appRoot));
 			}
-			this._tunnelCommand = join(installLocation, 'bin', `${this.productService.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
+			this._tunnelCommand = join(binParentLocation, 'bin', `${this.productService.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
 		}
 		return this._tunnelCommand;
 	}
@@ -209,7 +212,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 					onOutput('Running tunnel CLI', false);
 					const tunnelCommand = this.getTunnelCommandLocation();
 					this._logger.info(`${logLabel} Spawning: ${tunnelCommand} tunnel ${commandArgs.join(' ')}`);
-					tunnelProcess = spawn(tunnelCommand, ['tunnel', ...commandArgs]);
+					tunnelProcess = spawn(tunnelCommand, ['tunnel', ...commandArgs], { cwd: homedir() });
 				}
 
 				tunnelProcess.stdout!.on('data', data => {
