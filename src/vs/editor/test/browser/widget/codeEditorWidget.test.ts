@@ -81,7 +81,7 @@ suite('CodeEditorWidget', () => {
 				invoked = true;
 			}));
 
-			viewModel.type('hello', 'test');
+			viewModel.type('hello', false, 'test');
 
 			assert.deepStrictEqual(invoked, true);
 
@@ -117,7 +117,7 @@ suite('CodeEditorWidget', () => {
 				observedSelection = editor.getSelection();
 			}));
 
-			viewModel.type('hello', 'test');
+			viewModel.type('hello', false, 'test');
 
 			assert.deepStrictEqual(observedSelection, new Selection(1, 6, 1, 6));
 
@@ -137,7 +137,7 @@ suite('CodeEditorWidget', () => {
 				calls.push(`cursorchange(${e.selection.positionLineNumber}, ${e.selection.positionColumn})`);
 			}));
 
-			viewModel.type('a', 'test');
+			viewModel.type('a', false, 'test');
 			viewModel.model.undo();
 			viewModel.model.redo();
 
@@ -172,7 +172,7 @@ suite('CodeEditorWidget', () => {
 				calls.push(`listener2 - cursorchange(${e.selection.positionLineNumber}, ${e.selection.positionColumn})`);
 			}));
 
-			viewModel.type('a', 'test');
+			viewModel.type('a', false, 'test');
 
 			assert.deepStrictEqual(calls, ([
 				'listener1 - contentchange(a, 0, 0)',
@@ -206,7 +206,7 @@ suite('CodeEditorWidget', () => {
 				calls.push(`listener2 - cursorchange(${e.selection.positionLineNumber}, ${e.selection.positionColumn})`);
 			}));
 
-			viewModel.type('a', 'test');
+			viewModel.type('a', false, 'test');
 
 			assert.deepStrictEqual(calls, ([
 				'listener1 - contentchange(a, 0, 0)',
