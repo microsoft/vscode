@@ -73,7 +73,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'singleTerminal',
 		},
 		[TerminalSettingId.TabsShowActiveTerminal]: {
-			description: localize('terminal.integrated.tabs.showActiveTerminal', 'Shows the active terminal information in the view, this is particularly useful when the title within the tabs aren\'t visible.'),
+			description: localize('terminal.integrated.tabs.showActiveTerminal', 'Shows the active terminal information in the view. This is particularly useful when the title within the tabs aren\'t visible.'),
 			type: 'string',
 			enum: ['always', 'singleTerminal', 'singleTerminalOrNarrow', 'never'],
 			enumDescriptions: [
@@ -174,12 +174,12 @@ const terminalConfiguration: IConfigurationNode = {
 			maximum: 100
 		},
 		[TerminalSettingId.LetterSpacing]: {
-			description: localize('terminal.integrated.letterSpacing', "Controls the letter spacing of the terminal, this is an integer value which represents the amount of additional pixels to add between characters."),
+			description: localize('terminal.integrated.letterSpacing', "Controls the letter spacing of the terminal. This is an integer value which represents the amount of additional pixels to add between characters."),
 			type: 'number',
 			default: DEFAULT_LETTER_SPACING
 		},
 		[TerminalSettingId.LineHeight]: {
-			description: localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this number is multiplied by the terminal font size to get the actual line-height in pixels."),
+			description: localize('terminal.integrated.lineHeight', "Controls the line height of the terminal. This number is multiplied by the terminal font size to get the actual line-height in pixels."),
 			type: 'number',
 			default: DEFAULT_LINE_HEIGHT
 		},
@@ -344,7 +344,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'editor'
 		},
 		[TerminalSettingId.EnableBell]: {
-			description: localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled, this shows up as a visual bell next to the terminal's name."),
+			description: localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled. This shows up as a visual bell next to the terminal's name."),
 			type: 'boolean',
 			default: false
 		},
