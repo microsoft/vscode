@@ -57,8 +57,8 @@ import { sha1Hex } from 'vs/base/browser/hash';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 
-registerSingleton(IEditSessionsLogService, EditSessionsLogService, false);
-registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, false);
+registerSingleton(IEditSessionsLogService, EditSessionsLogService, InstantiationType.Delayed);
+registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, InstantiationType.Delayed);
 
 const continueWorkingOnCommand: IAction2Options = {
 	id: '_workbench.editSessions.actions.continueEditSession',
