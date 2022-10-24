@@ -22,7 +22,7 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 
 		instantiationService.stub(IConfigurationService, configurationService);
 
-		xterm = new Terminal({ cols: 80, rows: 30 });
+		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
 		detector = instantiationService.createInstance(TerminalWordLinkDetector, xterm);
 	});
 

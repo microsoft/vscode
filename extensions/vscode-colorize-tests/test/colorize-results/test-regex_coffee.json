@@ -508,9 +508,9 @@
 		"t": "source.coffee string.regexp.multiline.coffee source.coffee.embedded.source",
 		"r": {
 			"dark_plus": "source.coffee.embedded: #9CDCFE",
-			"light_plus": "source.coffee.embedded: #FF0000",
+			"light_plus": "source.coffee.embedded: #E50000",
 			"dark_vs": "source.coffee.embedded: #9CDCFE",
-			"light_vs": "source.coffee.embedded: #FF0000",
+			"light_vs": "source.coffee.embedded: #E50000",
 			"hc_black": "source.coffee.embedded: #D4D4D4",
 			"hc_light": "source.coffee.embedded: #264F78"
 		}

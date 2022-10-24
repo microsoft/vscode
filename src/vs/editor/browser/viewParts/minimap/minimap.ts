@@ -1021,7 +1021,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		} else {
 			visibleRange = new Range(startLineNumber, 1, endLineNumber, this._context.viewModel.getLineMaxColumn(endLineNumber));
 		}
-		const decorations = this._context.viewModel.getDecorationsInViewport(visibleRange);
+		const decorations = this._context.viewModel.getDecorationsInViewport(visibleRange, true);
 
 		if (this._samplingState) {
 			const result: ViewModelDecoration[] = [];

@@ -192,9 +192,7 @@ export class Dropdown extends BaseDropdown {
 	override hide(): void {
 		super.hide();
 
-		if (this.contextViewProvider) {
-			this.contextViewProvider.hideContextView();
-		}
+		this.contextViewProvider?.hideContextView();
 	}
 
 	protected renderContents(container: HTMLElement): IDisposable | null {

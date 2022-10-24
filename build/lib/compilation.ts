@@ -17,8 +17,10 @@ import * as os from 'os';
 import ts = require('typescript');
 import * as File from 'vinyl';
 import * as task from './task';
-
 const watch = require('./watch');
+
+
+// --- gulp-tsb: compile and transpile --------------------------------
 
 const reporter = createReporter();
 
@@ -37,7 +39,7 @@ function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
 	return options;
 }
 
-function createCompile(src: string, build: boolean, emitError: boolean, transpileOnly: boolean) {
+function createCompile(src: string, build: boolean, emitError: boolean, transpileOnly: boolean | { swc: boolean }) {
 	const tsb = require('./tsb') as typeof import('./tsb');
 	const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
 
@@ -48,7 +50,11 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 		overrideOptions.inlineSourceMap = true;
 	}
 
-	const compilation = tsb.create(projectPath, overrideOptions, { verbose: false, transpileOnly }, err => reporter(err));
+	const compilation = tsb.create(projectPath, overrideOptions, {
+		verbose: false,
+		transpileOnly: Boolean(transpileOnly),
+		transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
+	}, err => reporter(err));
 
 	function pipeline(token?: util.ICancellationToken) {
 		const bom = require('gulp-bom') as typeof import('gulp-bom');
@@ -84,11 +90,11 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 	return pipeline;
 }
 
-export function transpileTask(src: string, out: string): () => NodeJS.ReadWriteStream {
+export function transpileTask(src: string, out: string, swc: boolean): () => NodeJS.ReadWriteStream {
 
 	return function () {
 
-		const transpile = createCompile(src, false, true, true);
+		const transpile = createCompile(src, false, true, { swc });
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 
 		return srcPipe
@@ -260,7 +266,7 @@ function generateApiProposalNames() {
 				'// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
 				'',
 				'export const allApiProposals = Object.freeze({',
-				`${names.map(name => `\t${name}: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${name}.d.ts'`).join(`,${os.EOL}`)}`,
+				`${names.map(name => `\t${name}: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${name}.d.ts'`).join(`,${eol}`)}`,
 				'});',
 				'export type ApiProposalName = keyof typeof allApiProposals;',
 				'',

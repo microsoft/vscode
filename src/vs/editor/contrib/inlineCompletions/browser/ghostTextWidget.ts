@@ -13,7 +13,7 @@ import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/ed
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IModelDeltaDecoration, InjectedTextCursorStops, PositionAffinity } from 'vs/editor/common/model';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -356,16 +356,16 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 	const fontInfo = opts.get(EditorOption.fontInfo);
 	const lineHeight = opts.get(EditorOption.lineHeight);
 
-	const sb = createStringBuilder(10000);
-	sb.appendASCIIString('<div class="suggest-preview-text">');
+	const sb = new StringBuilder(10000);
+	sb.appendString('<div class="suggest-preview-text">');
 
 	for (let i = 0, len = lines.length; i < len; i++) {
 		const lineData = lines[i];
 		const line = lineData.content;
-		sb.appendASCIIString('<div class="view-line');
-		sb.appendASCIIString('" style="top:');
-		sb.appendASCIIString(String(i * lineHeight));
-		sb.appendASCIIString('px;width:1000000px;">');
+		sb.appendString('<div class="view-line');
+		sb.appendString('" style="top:');
+		sb.appendString(String(i * lineHeight));
+		sb.appendString('px;width:1000000px;">');
 
 		const isBasicASCII = strings.isBasicASCII(line);
 		const containsRTL = strings.containsRTL(line);
@@ -393,9 +393,9 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 			null
 		), sb);
 
-		sb.appendASCIIString('</div>');
+		sb.appendString('</div>');
 	}
-	sb.appendASCIIString('</div>');
+	sb.appendString('</div>');
 
 	applyFontInfo(domNode, fontInfo);
 	const html = sb.build();

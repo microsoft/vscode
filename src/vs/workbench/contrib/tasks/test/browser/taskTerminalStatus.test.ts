@@ -7,6 +7,7 @@ import { ok } from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 import { ACTIVE_TASK_STATUS, FAILED_TASK_STATUS, SUCCEEDED_TASK_STATUS, TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
 import { AbstractProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import { CommonTask, ITaskEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
@@ -21,6 +22,12 @@ class TestTaskService implements Partial<ITaskService> {
 	}
 	public triggerStateChange(event: ITaskEvent): void {
 		this._onDidStateChange.fire(event);
+	}
+}
+
+class TestAudioCueService implements Partial<IAudioCueService> {
+	async playAudioCue(cue: AudioCue): Promise<void> {
+		return;
 	}
 }
 
@@ -53,10 +60,12 @@ suite('Task Terminal Status', () => {
 	let testTerminal: ITerminalInstance;
 	let testTask: Task;
 	let problemCollector: AbstractProblemCollector;
+	let audioCueService: TestAudioCueService;
 	setup(() => {
 		instantiationService = new TestInstantiationService();
 		taskService = new TestTaskService();
-		taskTerminalStatus = instantiationService.createInstance(TaskTerminalStatus, taskService);
+		audioCueService = new TestAudioCueService();
+		taskTerminalStatus = new TaskTerminalStatus(taskService as any, audioCueService as any);
 		testTerminal = instantiationService.createInstance(TestTerminal);
 		testTask = instantiationService.createInstance(TestTask);
 		problemCollector = instantiationService.createInstance(TestProblemCollector);

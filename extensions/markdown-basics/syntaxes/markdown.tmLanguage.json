@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/69d3321b4923ca2d5e8e900018887cc38b5fe04a",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/97f2f8d38f10d3febd77d85b745945dc60fe334e",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -2766,7 +2766,24 @@
 					"name": "punctuation.definition.link.title.begin.markdown"
 				},
 				"2": {
-					"name": "string.other.link.title.markdown"
+					"name": "string.other.link.title.markdown",
+					"patterns": [
+						{
+							"include": "#raw"
+						},
+						{
+							"include": "#bold"
+						},
+						{
+							"include": "#italic"
+						},
+						{
+							"include": "#strikethrough"
+						},
+						{
+							"include": "#image-inline"
+						}
+					]
 				},
 				"4": {
 					"name": "punctuation.definition.link.title.end.markdown"
@@ -2826,7 +2843,24 @@
 					"name": "punctuation.definition.link.title.begin.markdown"
 				},
 				"2": {
-					"name": "string.other.link.title.markdown"
+					"name": "string.other.link.title.markdown",
+					"patterns": [
+						{
+							"include": "#raw"
+						},
+						{
+							"include": "#bold"
+						},
+						{
+							"include": "#italic"
+						},
+						{
+							"include": "#strikethrough"
+						},
+						{
+							"include": "#image-inline"
+						}
+					]
 				},
 				"4": {
 					"name": "punctuation.definition.link.title.end.markdown"
@@ -2957,7 +2991,7 @@
 					"name": "punctuation.definition.strikethrough.markdown"
 				}
 			},
-			"match": "(~{2,})((?:[^~]|(?!(?<!~)\\1(?!~))~)*+)(\\1)",
+			"match": "(?<!\\\\)(~{2,})((?:[^~]|(?!(?<![~\\\\])\\1(?!~))~)*+)(\\1)",
 			"name": "markup.strikethrough.markdown"
 		}
 	}

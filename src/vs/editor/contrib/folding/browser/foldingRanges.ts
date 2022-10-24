@@ -8,13 +8,18 @@ export interface ILineRange {
 	endLineNumber: number;
 }
 
+export const enum FoldSource {
+	provider = 0,
+	userDefined = 1,
+	recovered = 2
+}
+
 export interface FoldRange {
 	startLineNumber: number;
 	endLineNumber: number;
 	type: string | undefined;
 	isCollapsed: boolean;
-	isUserDefined: boolean;
-	isRecovered: boolean;
+	source: FoldSource;
 }
 
 export const MAX_FOLDING_REGIONS = 0xFFFF;
@@ -123,20 +128,42 @@ export class FoldingRegions {
 		this._collapseStates.set(index, newState);
 	}
 
-	public isUserDefined(index: number): boolean {
+	private isUserDefined(index: number): boolean {
 		return this._userDefinedStates.get(index);
 	}
 
-	public setUserDefined(index: number, newState: boolean) {
+	private setUserDefined(index: number, newState: boolean) {
 		return this._userDefinedStates.set(index, newState);
 	}
 
-	public isRecovered(index: number): boolean {
+	private isRecovered(index: number): boolean {
 		return this._recoveredStates.get(index);
 	}
 
-	public setRecovered(index: number, newState: boolean) {
+	private setRecovered(index: number, newState: boolean) {
 		return this._recoveredStates.set(index, newState);
+	}
+
+	public getSource(index: number): FoldSource {
+		if (this.isUserDefined(index)) {
+			return FoldSource.userDefined;
+		} else if (this.isRecovered(index)) {
+			return FoldSource.recovered;
+		}
+		return FoldSource.provider;
+	}
+
+	public setSource(index: number, source: FoldSource): void {
+		if (source === FoldSource.userDefined) {
+			this.setUserDefined(index, true);
+			this.setRecovered(index, false);
+		} else if (source === FoldSource.recovered) {
+			this.setUserDefined(index, false);
+			this.setRecovered(index, true);
+		} else {
+			this.setUserDefined(index, false);
+			this.setRecovered(index, false);
+		}
 	}
 
 	public setCollapsedAllOfType(type: string, newState: boolean) {
@@ -203,10 +230,16 @@ export class FoldingRegions {
 		return -1;
 	}
 
+	private readonly sourceAbbr = {
+		[FoldSource.provider]: ' ',
+		[FoldSource.userDefined]: 'u',
+		[FoldSource.recovered]: 'r',
+	};
+
 	public toString() {
 		const res: string[] = [];
 		for (let i = 0; i < this.length; i++) {
-			res[i] = `[${this.isUserDefined(i) ? '*' : ' '}${this.isRecovered(i) ? 'r' : ' '}${this.isCollapsed(i) ? '+' : '-'}] ${this.getStartLineNumber(i)}/${this.getEndLineNumber(i)}`;
+			res[i] = `[${this.sourceAbbr[this.getSource(i)]}${this.isCollapsed(i) ? '+' : '-'}] ${this.getStartLineNumber(i)}/${this.getEndLineNumber(i)}`;
 		}
 		return res.join(', ');
 	}
@@ -217,8 +250,7 @@ export class FoldingRegions {
 			endLineNumber: this._endIndexes[index] & MAX_LINE_NUMBER,
 			type: this._types ? this._types[index] : undefined,
 			isCollapsed: this.isCollapsed(index),
-			isUserDefined: this.isUserDefined(index),
-			isRecovered: this.isRecovered(index)
+			source: this.getSource(index)
 		};
 	}
 
@@ -245,12 +277,7 @@ export class FoldingRegions {
 			if (ranges[i].isCollapsed) {
 				regions.setCollapsed(i, true);
 			}
-			if (ranges[i].isUserDefined) {
-				regions.setUserDefined(i, true);
-			}
-			if (ranges[i].isRecovered) {
-				regions.setRecovered(i, true);
-			}
+			regions.setSource(i, ranges[i].source);
 		}
 		return regions;
 	}
@@ -296,23 +323,21 @@ export class FoldingRegions {
 			let useRange: FoldRange | undefined = undefined;
 			if (nextB && (!nextA || nextA.startLineNumber >= nextB.startLineNumber)) {
 				if (nextA && nextA.startLineNumber === nextB.startLineNumber) {
-					if (nextB.isUserDefined) {
+					if (nextB.source === FoldSource.userDefined) {
 						// a user defined range (possibly unfolded)
 						useRange = nextB;
 					} else {
 						// a previously folded range or a (possibly unfolded) recovered range
 						useRange = nextA;
 						useRange.isCollapsed = nextB.isCollapsed && nextA.endLineNumber === nextB.endLineNumber;
-						useRange.isUserDefined = false;
-						useRange.isRecovered = false;
+						useRange.source = FoldSource.provider;
 					}
 					nextA = getA(++indexA); // not necessary, just for speed
 				} else {
 					useRange = nextB;
-					if (nextB.isCollapsed && !nextB.isUserDefined && !nextB.isRecovered) {
+					if (nextB.isCollapsed && nextB.source === FoldSource.provider) {
 						// a previously collapsed range
-						useRange.isRecovered = true;
-						useRange.isUserDefined = false;
+						useRange.source = FoldSource.recovered;
 					}
 				}
 				nextB = getB(++indexB);
@@ -326,7 +351,7 @@ export class FoldingRegions {
 						useRange = nextA;
 						break; // no conflict, use this nextA
 					}
-					if (prescanB.isUserDefined && prescanB.endLineNumber > nextA!.endLineNumber) {
+					if (prescanB.source === FoldSource.userDefined && prescanB.endLineNumber > nextA!.endLineNumber) {
 						// we found a user folded range, it wins
 						break; // without setting nextResult, so this nextA gets skipped
 					}

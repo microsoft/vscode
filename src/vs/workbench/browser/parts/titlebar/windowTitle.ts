@@ -25,6 +25,11 @@ import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 
+const enum WindowSettingNames {
+	titleSeparator = 'window.titleSeparator',
+	title = 'window.title',
+}
+
 export class WindowTitle extends Disposable {
 
 	private static readonly NLS_USER_IS_ADMIN = isWindows ? localize('userIsAdmin', "[Administrator]") : localize('userIsSudo', "[Superuser]");
@@ -71,7 +76,7 @@ export class WindowTitle extends Disposable {
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
-		if (event.affectsConfiguration('window.title') || event.affectsConfiguration('window.titleSeparator')) {
+		if (event.affectsConfiguration(WindowSettingNames.title) || event.affectsConfiguration(WindowSettingNames.titleSeparator)) {
 			this.titleUpdater.schedule();
 		}
 	}
@@ -93,7 +98,7 @@ export class WindowTitle extends Disposable {
 	}
 
 	private doUpdateTitle(): void {
-		const title = this.getWindowTitle();
+		const title = this.getFullWindowTitle();
 		if (title !== this.title) {
 			// Always set the native window title to identify us properly to the OS
 			let nativeTitle = title;
@@ -106,8 +111,8 @@ export class WindowTitle extends Disposable {
 		}
 	}
 
-	private getWindowTitle(): string {
-		let title = this.doGetWindowTitle() || this.productService.nameLong;
+	private getFullWindowTitle(): string {
+		let title = this.getWindowTitle() || this.productService.nameLong;
 		const { prefix, suffix } = this.getTitleDecorations();
 		if (prefix) {
 			title = `${prefix} ${title}`;
@@ -171,7 +176,7 @@ export class WindowTitle extends Disposable {
 	 * {dirty}: indicator
 	 * {separator}: conditional separator
 	 */
-	private doGetWindowTitle(): string {
+	getWindowTitle(): string {
 		const editor = this.editorService.activeEditor;
 		const workspace = this.contextService.getWorkspace();
 
@@ -226,8 +231,8 @@ export class WindowTitle extends Disposable {
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
 		const dirty = editor?.isDirty() && !editor.isSaving() ? WindowTitle.TITLE_DIRTY : '';
 		const appName = this.productService.nameLong;
-		const separator = this.configurationService.getValue<string>('window.titleSeparator');
-		const titleTemplate = this.configurationService.getValue<string>('window.title');
+		const separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
+		const titleTemplate = this.configurationService.getValue<string>(WindowSettingNames.title);
 
 		return template(titleTemplate, {
 			activeEditorShort,
@@ -245,5 +250,11 @@ export class WindowTitle extends Disposable {
 			remoteName,
 			separator: { label: separator }
 		});
+	}
+
+	isCustomTitleFormat(): boolean {
+		const title = this.configurationService.inspect<string>(WindowSettingNames.title);
+		const titleSeparator = this.configurationService.inspect<string>(WindowSettingNames.titleSeparator);
+		return title.value !== title.defaultValue || titleSeparator.value !== titleSeparator.defaultValue;
 	}
 }

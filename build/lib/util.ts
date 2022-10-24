@@ -14,7 +14,6 @@ import * as _rimraf from 'rimraf';
 import * as VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
 import * as sm from 'source-map';
-import * as git from './git';
 
 const root = path.dirname(path.dirname(__dirname));
 
@@ -207,8 +206,8 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 			const contents = (<Buffer>f.contents).toString('utf8');
 
 			const reg = /\/\/# sourceMappingURL=(.*)$/g;
-			let lastMatch: RegExpMatchArray | null = null;
-			let match: RegExpMatchArray | null = null;
+			let lastMatch: RegExpExecArray | null = null;
+			let match: RegExpExecArray | null = null;
 
 			while (match = reg.exec(contents)) {
 				lastMatch = match;
@@ -315,16 +314,6 @@ export function ensureDir(dirPath: string): void {
 	}
 	ensureDir(path.dirname(dirPath));
 	fs.mkdirSync(dirPath);
-}
-
-export function getVersion(root: string): string | undefined {
-	let version = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
-
-	if (!version || !/^[0-9a-f]{40}$/i.test(version.trim())) {
-		version = git.getVersion(root);
-	}
-
-	return version;
 }
 
 export function rebase(count: number): NodeJS.ReadWriteStream {
@@ -460,4 +449,3 @@ export function buildWebNodePaths(outDir: string) {
 	result.taskName = 'build-web-node-paths';
 	return result;
 }
-

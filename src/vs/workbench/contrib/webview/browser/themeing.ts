@@ -9,13 +9,14 @@ import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/ed
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWorkbenchThemeService, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { WebviewStyles } from 'vs/workbench/contrib/webview/browser/webview';
 
 interface WebviewThemeData {
 	readonly activeTheme: string;
 	readonly themeLabel: string;
+	readonly themeId: string;
 	readonly styles: Readonly<WebviewStyles>;
 }
 
@@ -27,7 +28,7 @@ export class WebviewThemeDataProvider extends Disposable {
 	public readonly onThemeDataChanged = this._onThemeDataChanged.event;
 
 	constructor(
-		@IThemeService private readonly _themeService: IThemeService,
+		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
@@ -44,7 +45,7 @@ export class WebviewThemeDataProvider extends Disposable {
 		}));
 	}
 
-	public getTheme(): IColorTheme {
+	public getTheme(): IWorkbenchColorTheme {
 		return this._themeService.getColorTheme();
 	}
 
@@ -75,7 +76,7 @@ export class WebviewThemeDataProvider extends Disposable {
 			};
 
 			const activeTheme = ApiThemeClassName.fromTheme(theme);
-			this._cachedWebViewThemeData = { styles, activeTheme, themeLabel: theme.label, };
+			this._cachedWebViewThemeData = { styles, activeTheme, themeLabel: theme.label, themeId: theme.settingsId };
 		}
 
 		return this._cachedWebViewThemeData;
@@ -95,7 +96,7 @@ enum ApiThemeClassName {
 }
 
 namespace ApiThemeClassName {
-	export function fromTheme(theme: IColorTheme): ApiThemeClassName {
+	export function fromTheme(theme: IWorkbenchColorTheme): ApiThemeClassName {
 		switch (theme.type) {
 			case ColorScheme.LIGHT: return ApiThemeClassName.light;
 			case ColorScheme.DARK: return ApiThemeClassName.dark;

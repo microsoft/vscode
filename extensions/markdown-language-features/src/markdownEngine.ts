@@ -10,12 +10,8 @@ import { ILogger } from './logging';
 import { MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
 import { ITextDocument } from './types/textDocument';
-import { Disposable } from './util/dispose';
-import { stringHash } from './util/hash';
 import { WebviewResourceProvider } from './util/resources';
 import { isOfScheme, Schemes } from './util/schemes';
-import { MdDocumentInfoCache } from './util/workspaceCache';
-import { IMdWorkspace } from './workspace';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
@@ -86,11 +82,11 @@ class TokenCache {
 
 export interface RenderOutput {
 	html: string;
-	containingImages: { src: string }[];
+	containingImages: Set<string>;
 }
 
 interface RenderEnv {
-	containingImages: { src: string }[];
+	containingImages: Set<string>;
 	currentDocument: vscode.Uri | undefined;
 	resourceProvider: WebviewResourceProvider | undefined;
 }
@@ -209,7 +205,7 @@ export class MarkdownItEngine implements IMdParser {
 			: this.tokenizeDocument(input, config, engine);
 
 		const env: RenderEnv = {
-			containingImages: [],
+			containingImages: new Set<string>(),
 			currentDocument: typeof input === 'string' ? undefined : input.uri,
 			resourceProvider,
 		};
@@ -248,13 +244,9 @@ export class MarkdownItEngine implements IMdParser {
 		const original = md.renderer.rules.image;
 		md.renderer.rules.image = (tokens: Token[], idx: number, options, env: RenderEnv, self) => {
 			const token = tokens[idx];
-			token.attrJoin('class', 'loading');
-
 			const src = token.attrGet('src');
 			if (src) {
-				env.containingImages?.push({ src });
-				const imgHash = stringHash(src);
-				token.attrSet('id', `image-hash-${imgHash}`);
+				env.containingImages?.add(src);
 
 				if (!token.attrGet('data-src')) {
 					token.attrSet('src', this.toResourceUri(src, env.currentDocument, env.resourceProvider));
@@ -437,29 +429,5 @@ function normalizeHighlightLang(lang: string | undefined) {
 
 		default:
 			return lang;
-	}
-}
-
-export class MdParsingProvider extends Disposable implements IMdParser {
-
-	private readonly _cache: MdDocumentInfoCache<Token[]>;
-
-	public readonly slugifier: Slugifier;
-
-	constructor(
-		engine: MarkdownItEngine,
-		workspace: IMdWorkspace,
-	) {
-		super();
-
-		this.slugifier = engine.slugifier;
-
-		this._cache = this._register(new MdDocumentInfoCache<Token[]>(workspace, doc => {
-			return engine.tokenize(doc);
-		}));
-	}
-
-	public tokenize(document: ITextDocument): Promise<Token[]> {
-		return this._cache.getForDocument(document);
 	}
 }

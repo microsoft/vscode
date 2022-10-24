@@ -173,7 +173,7 @@ export class CursorMoveCommands {
 		));
 	}
 
-	public static line(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition): PartialCursorState {
+	public static line(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition | undefined): PartialCursorState {
 		const position = viewModel.model.validatePosition(_position);
 		const viewPosition = (
 			_viewPosition
@@ -251,7 +251,7 @@ export class CursorMoveCommands {
 		));
 	}
 
-	public static moveTo(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition): PartialCursorState {
+	public static moveTo(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition | undefined): PartialCursorState {
 		const position = viewModel.model.validatePosition(_position);
 		const viewPosition = (
 			_viewPosition
@@ -680,7 +680,7 @@ export namespace CursorMove {
 		value?: number;
 	}
 
-	export function parse(args: RawArguments): ParsedArguments | null {
+	export function parse(args: Partial<RawArguments>): ParsedArguments | null {
 		if (!args.to) {
 			// illegal arguments
 			return null;

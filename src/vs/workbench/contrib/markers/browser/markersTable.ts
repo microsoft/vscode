@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
-import * as network from 'vs/base/common/network';
 import { Event } from 'vs/base/common/event';
 import { ITableContextMenuEvent, ITableEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -29,6 +28,7 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IProblemsWidget } from 'vs/workbench/contrib/markers/browser/markersView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Range } from 'vs/editor/common/core/range';
+import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
 
 const $ = DOM.$;
 
@@ -411,7 +411,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 		const items: MarkerTableItem[] = [];
 		for (const resourceMarker of this.resourceMarkers) {
 			for (const marker of resourceMarker.markers) {
-				if (marker.resource.scheme === network.Schemas.walkThrough || marker.resource.scheme === network.Schemas.walkThroughSnippet || marker.resource.scheme === network.Schemas.vscodeSourceControl) {
+				if (unsupportedSchemas.has(marker.resource.scheme)) {
 					continue;
 				}
 
