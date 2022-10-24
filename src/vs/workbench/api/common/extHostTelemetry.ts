@@ -10,7 +10,7 @@ import { ExtHostTelemetryShape } from 'vs/workbench/api/common/extHost.protocol'
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { cleanData, cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -34,7 +34,6 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 		@IExtHostInitDataService private readonly initData: IExtHostInitDataService,
 		@ILoggerService loggerService: ILoggerService,
 	) {
-		console.log(this.initData.environment.extensionTelemetryLogResource);
 		this._outputLogger = loggerService.createLogger(URI.revive(this.initData.environment.extensionTelemetryLogResource));
 		this._outputLogger.info('Below are logs for extension telemetry events sent to the telemetry output channel API once the log level is set to trace.');
 		this._outputLogger.info('===========================================================');
@@ -107,6 +106,15 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 		}
 		this._onDidChangeTelemetryConfiguration.fire(this.getTelemetryDetails());
 	}
+
+	onExtensionError(extension: ExtensionIdentifier, error: Error): boolean {
+		const logger = this._telemetryLoggers.get(extension.value);
+		if (!logger) {
+			return false;
+		}
+		logger.logError(error);
+		return true;
+	}
 }
 
 export class ExtHostTelemetryLogger {
@@ -174,16 +182,16 @@ export class ExtHostTelemetryLogger {
 		if (!this._apiObject) {
 			const that = this;
 			const obj: vscode.TelemetryLogger = {
-				logUsage: that.logUsage,
+				logUsage: that.logUsage.bind(that),
 				get isUsageEnabled() {
 					return that._telemetryEnablements.isUsageEnabled;
 				},
 				get isErrorsEnabled() {
 					return that._telemetryEnablements.isErrorsEnabled;
 				},
-				logError: that.logError,
-				dispose: that.dispose,
-				onDidChangeEnableStates: that._onDidChangeEnableStates.event
+				logError: that.logError.bind(that),
+				dispose: that.dispose.bind(that),
+				onDidChangeEnableStates: that._onDidChangeEnableStates.event.bind(that)
 			};
 			this._apiObject = Object.freeze(obj);
 		}

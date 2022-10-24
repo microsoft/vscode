@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { reset } from 'vs/base/browser/dom';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { CompareResult } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { Iterable } from 'vs/base/common/iterator';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { autorun, autorunWithStore, derived, IObservable } from 'vs/base/common/observable';
 import { IEditorContributionDescription, EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -67,18 +67,21 @@ export class ResultCodeEditorView extends CodeEditorView {
 		}));
 
 
-		this._register(autorun('update remainingConflicts label', reader => {
-			// this is a bit of a hack, but it's the easiest way to get the label to update
-			// when the view model updates, as the the base class resets the label in the setModel call.
-			this.viewModel.read(reader);
+		const remainingConflictsActionBar = this._register(new ActionBar(this.htmlElements.detail));
 
-			const model = this.model.read(reader);
+		this._register(autorun('update remainingConflicts label', reader => {
+			const vm = this.viewModel.read(reader);
+			if (!vm) {
+				return;
+			}
+
+			const model = vm.model;
 			if (!model) {
 				return;
 			}
 			const count = model.unhandledConflictsCount.read(reader);
 
-			this.htmlElements.detail.innerText = count === 1
+			const text = count === 1
 				? localize(
 					'mergeEditor.remainingConflicts',
 					'{0} Conflict Remaining',
@@ -90,6 +93,20 @@ export class ResultCodeEditorView extends CodeEditorView {
 					count
 				);
 
+			remainingConflictsActionBar.clear();
+			remainingConflictsActionBar.push({
+				class: undefined,
+				enabled: count > 0,
+				id: 'nextConflict',
+				label: text,
+				run() {
+					vm.model.telemetry.reportConflictCounterClicked();
+					vm.goToNextModifiedBaseRange(m => !model.isHandled(m).get());
+				},
+				tooltip: count > 0
+					? localize('goToNextConflict', 'Go to next conflict')
+					: localize('allConflictHandled', 'All conflicts handled, the merge can be completed now.'),
+			});
 		}));
 
 
@@ -206,7 +223,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 		return result;
 	});
 
-	protected override getEditorContributions(): Iterable<IEditorContributionDescription> | undefined {
-		return Iterable.filter(EditorExtensionsRegistry.getEditorContributions(), c => c.id !== CodeLensContribution.ID);
+	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
+		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeLensContribution.ID);
 	}
 }

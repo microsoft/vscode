@@ -90,7 +90,7 @@
 }
 
 .merge-editor-block:not(.handled).focused {
-	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+	border: 2px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 }
 
 .merge-editor-block.handled:not(.focused) {
@@ -107,6 +107,14 @@
 
 .merge-editor-block.handled.focused.conflicting {
 	background-color: var(--vscode-mergeEditor-conflict-handledFocused-background);
+}
+
+.merge-editor-simplified.input.i1, .merge-editor-block.use-simplified-decorations.input.i1 {
+	background-color: var(--vscode-mergeEditor-conflict-input1-background);
+}
+
+.merge-editor-simplified.input.i2, .merge-editor-block.use-simplified-decorations.input.i2 {
+	background-color: var(--vscode-mergeEditor-conflict-input2-background);
 }
 
 /* END: .merge-editor-block */
@@ -226,10 +234,6 @@
 	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 }
 
-.merge-conflict-input-selection {
-	background-color: red;
-}
-
 .merge-editor-conflict-actions {
 	margin: 0px 3px;
 	overflow: hidden;
@@ -271,4 +275,22 @@
 
 .fixed-zone-widget {
 	width: 100%;
+}
+
+.merge-editor-diff-empty-word.base {
+	margin-left: 3px;
+	border-left: solid var(--vscode-mergeEditor-changeBase-word-background) 3px;
+}
+
+.merge-editor-diff-empty-word.input {
+	margin-left: 3px;
+	border-left: solid var(--vscode-mergeEditor-change-word-background) 3px;
+}
+
+.merge-editor-diff-word.base {
+	background-color: var(--vscode-mergeEditor-changeBase-word-background);
+}
+
+.merge-editor-diff.base {
+	background-color: var(--vscode-mergeEditor-changeBase-background);
 }

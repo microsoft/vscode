@@ -23,7 +23,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { FindInFrameOptions, IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { WebviewElement, WebviewInitInfo, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewElement } from 'vs/workbench/contrib/webview/browser/webviewElement';
 import { WindowIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-sandbox/windowIgnoreMenuShortcutsManager';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -67,14 +68,6 @@ export class ElectronWebviewElement extends WebviewElement {
 		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, nativeHostService);
 
 		this._webviewMainService = ProxyChannel.toService<IWebviewManagerService>(mainProcessService.getChannel('webview'));
-
-		this._register(this.on(WebviewMessageChannels.didFocus, () => {
-			this._webviewKeyboardHandler.didFocus();
-		}));
-
-		this._register(this.on(WebviewMessageChannels.didBlur, () => {
-			this._webviewKeyboardHandler.didBlur();
-		}));
 
 		if (initInfo.options.enableFindWidget) {
 			this._register(this.onDidHtmlChange((newContent) => {
@@ -166,5 +159,14 @@ export class ElectronWebviewElement extends WebviewElement {
 			keepSelection
 		});
 		this._onDidStopFind.fire();
+	}
+
+	protected override handleFocusChange(isFocused: boolean): void {
+		super.handleFocusChange(isFocused);
+		if (isFocused) {
+			this._webviewKeyboardHandler.didFocus();
+		} else {
+			this._webviewKeyboardHandler.didBlur();
+		}
 	}
 }

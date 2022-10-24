@@ -21,7 +21,7 @@ import {
 
 
 import { hash } from './utils/hash';
-import { createDocumentColorsLimitItem, createDocumentSymbolsLimitItem, createFoldingRangeLimitItem, createLanguageStatusItem, createLimitStatusItem } from './languageStatus';
+import { createDocumentColorsLimitItem, createDocumentSymbolsLimitItem, createLanguageStatusItem, createLimitStatusItem } from './languageStatus';
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
@@ -60,6 +60,8 @@ type Settings = {
 		keepLines?: { enable?: boolean };
 		validate?: { enable?: boolean };
 		resultLimit?: number;
+		jsonFoldingLimit?: number;
+		jsoncFoldingLimit?: number;
 	};
 	http?: {
 		proxy?: string;
@@ -79,6 +81,9 @@ export namespace SettingIds {
 	export const enableValidation = 'json.validate.enable';
 	export const enableSchemaDownload = 'json.schemaDownload.enable';
 	export const maxItemsComputed = 'json.maxItemsComputed';
+
+	export const editorSection = 'editor';
+	export const foldingMaximumRegions = 'foldingMaximumRegions';
 }
 
 export interface TelemetryReporter {
@@ -104,6 +109,8 @@ export interface SchemaRequestService {
 export const languageServerDescription = localize('jsonserver.name', 'JSON Language Server');
 
 let resultLimit = 5000;
+let jsonFoldingLimit = 5000;
+let jsoncFoldingLimit = 5000;
 
 export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<BaseLanguageClient> {
 
@@ -123,10 +130,9 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 
 	let isClientReady = false;
 
-	const foldingRangeLimitStatusBarItem = createLimitStatusItem((limit: number) => createFoldingRangeLimitItem(documentSelector, SettingIds.maxItemsComputed, limit));
 	const documentSymbolsLimitStatusbarItem = createLimitStatusItem((limit: number) => createDocumentSymbolsLimitItem(documentSelector, SettingIds.maxItemsComputed, limit));
 	const documentColorsLimitStatusbarItem = createLimitStatusItem((limit: number) => createDocumentColorsLimitItem(documentSelector, SettingIds.maxItemsComputed, limit));
-	toDispose.push(foldingRangeLimitStatusBarItem, documentSymbolsLimitStatusbarItem, documentColorsLimitStatusbarItem);
+	toDispose.push(documentSymbolsLimitStatusbarItem, documentColorsLimitStatusbarItem);
 
 	toDispose.push(commands.registerCommand('json.clearCache', async () => {
 		if (isClientReady && runtime.schemaRequests.clearCache) {
@@ -214,20 +220,11 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 				return updateHover(r);
 			},
 			provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken, next: ProvideFoldingRangeSignature) {
-				function checkLimit(r: FoldingRange[] | null | undefined): FoldingRange[] | null | undefined {
-					if (Array.isArray(r) && r.length > resultLimit) {
-						r.length = resultLimit; // truncate
-						foldingRangeLimitStatusBarItem.update(document, resultLimit);
-					} else {
-						foldingRangeLimitStatusBarItem.update(document, false);
-					}
-					return r;
-				}
 				const r = next(document, context, token);
 				if (isThenable<FoldingRange[] | null | undefined>(r)) {
-					return r.then(checkLimit);
+					return r;
 				}
-				return checkLimit(r);
+				return r;
 			},
 			provideDocumentColors(document: TextDocument, token: CancellationToken, next: ProvideDocumentColorsSignature) {
 				function checkLimit(r: ColorInformation[] | null | undefined): ColorInformation[] | null | undefined {
@@ -472,7 +469,11 @@ function getSettings(): Settings {
 	const configuration = workspace.getConfiguration();
 	const httpSettings = workspace.getConfiguration('http');
 
-	resultLimit = Math.trunc(Math.max(0, Number(workspace.getConfiguration().get(SettingIds.maxItemsComputed)))) || 5000;
+	const normalizeLimit = (settingValue: any) => Math.trunc(Math.max(0, Number(settingValue))) || 5000;
+
+	resultLimit = normalizeLimit(workspace.getConfiguration().get(SettingIds.maxItemsComputed));
+	jsonFoldingLimit = normalizeLimit(workspace.getConfiguration(SettingIds.editorSection, { languageId: 'json' }).get(SettingIds.foldingMaximumRegions));
+	jsoncFoldingLimit = normalizeLimit(workspace.getConfiguration(SettingIds.editorSection, { languageId: 'jsonc' }).get(SettingIds.foldingMaximumRegions));
 
 	const settings: Settings = {
 		http: {
@@ -484,7 +485,9 @@ function getSettings(): Settings {
 			format: { enable: configuration.get(SettingIds.enableFormatter) },
 			keepLines: { enable: configuration.get(SettingIds.enableKeepLines) },
 			schemas: [],
-			resultLimit: resultLimit + 1 // ask for one more so we can detect if the limit has been exceeded
+			resultLimit: resultLimit + 1, // ask for one more so we can detect if the limit has been exceeded
+			jsonFoldingLimit: jsonFoldingLimit + 1,
+			jsoncFoldingLimit: jsoncFoldingLimit + 1
 		}
 	};
 	const schemaSettingsById: { [schemaId: string]: JSONSchemaSettings } = Object.create(null);

@@ -10,9 +10,10 @@ import { memoize } from 'vs/base/common/decorators';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap, TernarySearchTree } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { lcut } from 'vs/base/common/strings';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -660,6 +661,10 @@ export class FolderMatch extends Disposable {
 
 	recursiveFileCount(): number {
 		return this.downstreamFileMatches().length;
+	}
+
+	recursiveMatchCount(): number {
+		return this.downstreamFileMatches().reduce<number>((prev, match) => prev + match.count(), 0);
 	}
 
 	get query(): ITextQuery | null {

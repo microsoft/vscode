@@ -121,22 +121,10 @@ export class DebugService implements IDebugService {
 		this.disposables.add(this.configurationManager);
 		this.debugStorage = this.instantiationService.createInstance(DebugStorage);
 
-		contextKeyService.bufferChangeEvents(() => {
-			this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
-			this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
-			this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
-			this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
-			this.debugUx.set(this.debugStorage.loadDebugUxState());
-			this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
-			// Need to set disassemblyViewFocus here to make it in the same context as the debug event handlers
-			this.disassemblyViewFocus = CONTEXT_DISASSEMBLY_VIEW_FOCUS.bindTo(contextKeyService);
-		});
 		this.chosenEnvironments = this.debugStorage.loadChosenEnvironments();
 
 		this.model = this.instantiationService.createInstance(DebugModel, this.debugStorage);
 		this.telemetry = this.instantiationService.createInstance(DebugTelemetry, this.model);
-		const setBreakpointsExistContext = () => this.breakpointsExist.set(!!(this.model.getBreakpoints().length || this.model.getDataBreakpoints().length || this.model.getFunctionBreakpoints().length));
-		setBreakpointsExistContext();
 
 		this.viewModel = new ViewModel(contextKeyService);
 		this.taskRunner = this.instantiationService.createInstance(DebugTaskRunner);
@@ -182,7 +170,6 @@ export class DebugService implements IDebugService {
 				}
 			}
 		}));
-		this.disposables.add(this.model.onDidChangeBreakpoints(() => setBreakpointsExistContext()));
 
 		this.disposables.add(editorService.onDidActiveEditorChange(() => {
 			this.contextKeyService.bufferChangeEvents(() => {
@@ -202,6 +189,27 @@ export class DebugService implements IDebugService {
 				}
 			}
 		}));
+
+		this.initContextKeys(contextKeyService);
+	}
+
+	private initContextKeys(contextKeyService: IContextKeyService): void {
+		queueMicrotask(() => {
+			contextKeyService.bufferChangeEvents(() => {
+				this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
+				this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
+				this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
+				this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
+				this.debugUx.set(this.debugStorage.loadDebugUxState());
+				this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
+				// Need to set disassemblyViewFocus here to make it in the same context as the debug event handlers
+				this.disassemblyViewFocus = CONTEXT_DISASSEMBLY_VIEW_FOCUS.bindTo(contextKeyService);
+			});
+
+			const setBreakpointsExistContext = () => this.breakpointsExist.set(!!(this.model.getBreakpoints().length || this.model.getDataBreakpoints().length || this.model.getFunctionBreakpoints().length));
+			setBreakpointsExistContext();
+			this.disposables.add(this.model.onDidChangeBreakpoints(() => setBreakpointsExistContext()));
+		});
 	}
 
 	getModel(): IDebugModel {
@@ -571,7 +579,7 @@ export class DebugService implements IDebugService {
 
 		const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
 		// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
-		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug !== 'neverOpen' && this.viewModel.firstSessionStart)) && !session.isSimpleUI) {
+		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug !== 'neverOpen' && this.viewModel.firstSessionStart)) && !session.suppressDebugView) {
 			await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
 		}
 
@@ -1050,12 +1058,27 @@ export class DebugService implements IDebugService {
 	}
 
 	async sendAllBreakpoints(session?: IDebugSession): Promise<any> {
-		await Promise.all(distinct(this.model.getBreakpoints(), bp => bp.uri.toString()).map(bp => this.sendBreakpoints(bp.uri, false, session)));
-		await this.sendFunctionBreakpoints(session);
-		await this.sendDataBreakpoints(session);
-		await this.sendInstructionBreakpoints(session);
-		// send exception breakpoints at the end since some debug adapters rely on the order
-		await this.sendExceptionBreakpoints(session);
+		const setBreakpointsPromises = distinct(this.model.getBreakpoints(), bp => bp.uri.toString())
+			.map(bp => this.sendBreakpoints(bp.uri, false, session));
+
+		// If sending breakpoints to one session which we know supports the configurationDone request, can make all requests in parallel
+		if (session?.capabilities.supportsConfigurationDoneRequest) {
+			await Promise.all([
+				...setBreakpointsPromises,
+				this.sendFunctionBreakpoints(session),
+				this.sendDataBreakpoints(session),
+				this.sendInstructionBreakpoints(session),
+				this.sendExceptionBreakpoints(session),
+			]);
+		} else {
+			await Promise.all(setBreakpointsPromises);
+			await this.sendFunctionBreakpoints(session);
+			await this.sendDataBreakpoints(session);
+			await this.sendInstructionBreakpoints(session);
+			// send exception breakpoints at the end since some debug adapters may rely on the order - this was the case before
+			// the configurationDone request was introduced.
+			await this.sendExceptionBreakpoints(session);
+		}
 	}
 
 	private async sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): Promise<void> {

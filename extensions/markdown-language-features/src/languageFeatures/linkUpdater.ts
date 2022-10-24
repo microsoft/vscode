@@ -18,9 +18,9 @@ import { convertRange } from './fileReferences';
 const localize = nls.loadMessageBundle();
 
 const settingNames = Object.freeze({
-	enabled: 'experimental.updateLinksOnFileMove.enabled',
-	externalFileGlobs: 'experimental.updateLinksOnFileMove.externalFileGlobs',
-	enableForDirectories: 'experimental.updateLinksOnFileMove.enableForDirectories',
+	enabled: 'updateLinksOnFileMove.enabled',
+	externalFileGlobs: 'updateLinksOnFileMove.externalFileGlobs',
+	enableForDirectories: 'updateLinksOnFileMove.enableForDirectories',
 });
 
 const enum UpdateLinksOnFileMoveSetting {
@@ -45,14 +45,11 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 		super();
 
 		this._register(vscode.workspace.onDidRenameFiles(async (e) => {
-			for (const { newUri, oldUri } of e.files) {
-				const config = vscode.workspace.getConfiguration('markdown', newUri);
-				if (!await this.shouldParticipateInLinkUpdate(config, newUri)) {
-					continue;
+			await Promise.all(e.files.map(async (rename) => {
+				if (await this.shouldParticipateInLinkUpdate(rename.newUri)) {
+					this._pendingRenames.add(rename);
 				}
-
-				this._pendingRenames.add({ newUri, oldUri });
-			}
+			}));
 
 			if (this._pendingRenames.size) {
 				this._delayer.trigger(() => {
@@ -95,7 +92,8 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 				return false;
 		}
 	}
-	private async shouldParticipateInLinkUpdate(config: vscode.WorkspaceConfiguration, newUri: vscode.Uri): Promise<boolean> {
+	private async shouldParticipateInLinkUpdate(newUri: vscode.Uri): Promise<boolean> {
+		const config = vscode.workspace.getConfiguration('markdown', newUri);
 		const setting = config.get<UpdateLinksOnFileMoveSetting>(settingNames.enabled);
 		if (setting === UpdateLinksOnFileMoveSetting.Never) {
 			return false;
@@ -230,6 +228,6 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 	}
 }
 
-export function registerUpdateLinksOnRename(client: MdLanguageClient) {
+export function registerUpdateLinksOnRename(client: MdLanguageClient): vscode.Disposable {
 	return new UpdateLinksOnFileRenameHandler(client);
 }

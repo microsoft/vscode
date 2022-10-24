@@ -61,8 +61,7 @@
     "sha.js": "2.4.11",
     "stream": "0.0.2",
     "uuid": "^8.2.0",
-    "@vscode/extension-telemetry": "0.6.2",
-    "vscode-nls": "^5.2.0"
+    "@vscode/extension-telemetry": "0.6.2"
   },
   "repository": {
     "type": "git",

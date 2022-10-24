@@ -168,6 +168,9 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements IDebugSession {
+	readonly suppressDebugToolbar = false;
+	readonly suppressDebugStatusbar = false;
+	readonly suppressDebugView = false;
 	readonly autoExpandLazyVariables = false;
 
 	getMemory(memoryReference: string): IMemoryRegion {

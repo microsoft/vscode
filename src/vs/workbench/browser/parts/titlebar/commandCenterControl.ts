@@ -21,7 +21,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
-import { MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_FOREGROUND, PANEL_BORDER, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
+import { MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_FOREGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 
 export class CommandCenterControl {
 
@@ -50,7 +50,7 @@ export class CommandCenterControl {
 			telemetrySource: 'commandCenter',
 			actionViewItemProvider: (action) => {
 
-				if (action instanceof MenuItemAction && action.id === 'workbench.action.quickOpen') {
+				if (action instanceof MenuItemAction && action.id === 'workbench.action.quickOpenWithModes') {
 
 					class CommandCenterViewItem extends BaseActionViewItem {
 
@@ -176,6 +176,12 @@ colors.registerColor(
 	localize('commandCenter-activeForeground', "Active foreground color of the command center"),
 	false
 );
+colors.registerColor(
+	'commandCenter.inactiveForeground',
+	{ dark: TITLE_BAR_INACTIVE_FOREGROUND, hcDark: TITLE_BAR_INACTIVE_FOREGROUND, light: TITLE_BAR_INACTIVE_FOREGROUND, hcLight: TITLE_BAR_INACTIVE_FOREGROUND },
+	localize('commandCenter-inactiveForeground', "Foreground color of the command center when the window is inactive"),
+	false
+);
 // background (inactive and active)
 colors.registerColor(
 	'commandCenter.background',
@@ -191,7 +197,13 @@ colors.registerColor(
 );
 // border: defaults to active background
 colors.registerColor(
-	'commandCenter.border', { dark: PANEL_BORDER, hcDark: PANEL_BORDER, light: PANEL_BORDER, hcLight: PANEL_BORDER },
+	'commandCenter.border', { dark: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .25), hcDark: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .25), light: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .25), hcLight: colors.transparent(TITLE_BAR_ACTIVE_FOREGROUND, .25) },
 	localize('commandCenter-border', "Border color of the command center"),
+	false
+);
+// border: defaults to active background
+colors.registerColor(
+	'commandCenter.inactiveBorder', { dark: colors.transparent(TITLE_BAR_INACTIVE_FOREGROUND, .25), hcDark: colors.transparent(TITLE_BAR_INACTIVE_FOREGROUND, .25), light: colors.transparent(TITLE_BAR_INACTIVE_FOREGROUND, .25), hcLight: colors.transparent(TITLE_BAR_INACTIVE_FOREGROUND, .25) },
+	localize('commandCenter-inactiveBorder', "Border color of the command center when the window is inactive"),
 	false
 );
