@@ -464,7 +464,6 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		this.absoluteOrthogonalOffset = ctx.absoluteOrthogonalOffset;
 		this.absoluteOrthogonalSize = ctx.absoluteOrthogonalSize;
 
-		// TODO: Some thing here seem cause these offsets to be wrong
 		this.splitview.layout(ctx.orthogonalSize, {
 			orthogonalSize: size,
 			absoluteOffset: this.absoluteOrthogonalOffset,

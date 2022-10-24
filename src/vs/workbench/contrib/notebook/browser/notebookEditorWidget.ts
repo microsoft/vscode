@@ -1733,7 +1733,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.style.position = 'absolute';
 		this._overlayContainer.style.overflow = 'hidden';
 
-		this.layoutContainerOverShadowElement(dimension);
+		this.layoutContainerOverShadowElement(dimension, position);
 
 		if (this._webviewTransparentCover) {
 			this._webviewTransparentCover.style.height = `${dimension.height}px`;
@@ -1767,7 +1767,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 	}
 
-	private layoutContainerOverShadowElement(dimension?: DOM.Dimension): void {
+	private layoutContainerOverShadowElement(dimension?: DOM.Dimension, position?: DOM.IDomPosition): void {
+		if (dimension && position) {
+			this._overlayContainer.style.top = `${position.top}px`;
+			this._overlayContainer.style.left = `${position.left}px`;
+			this._overlayContainer.style.width = `${dimension.width}px`;
+			this._overlayContainer.style.height = `${dimension.height}px`;
+			return;
+		}
+
 		if (!this._shadowElementViewInfo) {
 			return;
 		}
