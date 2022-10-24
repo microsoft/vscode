@@ -1375,6 +1375,7 @@ declare namespace monaco.editor {
 		startColumn: number;
 		endLineNumber: number;
 		endColumn: number;
+		modelVersionId?: number;
 		relatedInformation?: IRelatedInformation[];
 		tags?: MarkerTag[];
 	}
@@ -1394,6 +1395,7 @@ declare namespace monaco.editor {
 		startColumn: number;
 		endLineNumber: number;
 		endColumn: number;
+		modelVersionId?: number;
 		relatedInformation?: IRelatedInformation[];
 		tags?: MarkerTag[];
 	}
@@ -4681,13 +4683,13 @@ declare namespace monaco.editor {
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
 		wordWrapOverride1: IEditorOption<EditorOption.wordWrapOverride1, 'on' | 'off' | 'inherit'>;
 		wordWrapOverride2: IEditorOption<EditorOption.wordWrapOverride2, 'on' | 'off' | 'inherit'>;
-		wrappingIndent: IEditorOption<EditorOption.wrappingIndent, WrappingIndent>;
-		wrappingStrategy: IEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced'>;
 		editorClassName: IEditorOption<EditorOption.editorClassName, string>;
 		pixelRatio: IEditorOption<EditorOption.pixelRatio, number>;
 		tabFocusMode: IEditorOption<EditorOption.tabFocusMode, boolean>;
 		layoutInfo: IEditorOption<EditorOption.layoutInfo, EditorLayoutInfo>;
 		wrappingInfo: IEditorOption<EditorOption.wrappingInfo, EditorWrappingInfo>;
+		wrappingIndent: IEditorOption<EditorOption.wrappingIndent, WrappingIndent>;
+		wrappingStrategy: IEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced'>;
 	};
 
 	type EditorOptionsType = typeof EditorOptions;

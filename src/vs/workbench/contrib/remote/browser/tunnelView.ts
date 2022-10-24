@@ -1331,7 +1331,8 @@ export namespace OpenPortInPreviewAction {
 	export async function run(model: TunnelModel, openerService: IOpenerService, externalOpenerService: IExternalUriOpenerService, key: string) {
 		const tunnel = model.forwarded.get(key) || model.detected.get(key);
 		if (tunnel) {
-			const sourceUri = URI.parse(`http://${tunnel.remoteHost}:${tunnel.remotePort}`);
+			const remoteHost = tunnel.remoteHost.includes(':') ? `[${tunnel.remoteHost}]` : tunnel.remoteHost;
+			const sourceUri = URI.parse(`http://${remoteHost}:${tunnel.remotePort}`);
 			const opener = await externalOpenerService.getOpener(tunnel.localUri, { sourceUri }, new CancellationTokenSource().token);
 			if (opener) {
 				return opener.openExternalUri(tunnel.localUri, { sourceUri }, new CancellationTokenSource().token);

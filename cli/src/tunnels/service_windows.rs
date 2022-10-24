@@ -6,7 +6,7 @@
 use dialoguer::{theme::ColorfulTheme, Input, Password};
 use lazy_static::lazy_static;
 use std::{ffi::OsString, sync::Mutex, thread, time::Duration};
-use tokio::sync::oneshot;
+use tokio::sync::mpsc;
 use windows_service::{
 	define_windows_service,
 	service::{
@@ -18,7 +18,10 @@ use windows_service::{
 	service_manager::{ServiceManager, ServiceManagerAccess},
 };
 
-use crate::util::errors::{wrap, AnyError, WindowsNeedsElevation};
+use crate::{
+	commands::tunnels::ShutdownSignal,
+	util::errors::{wrap, AnyError, WindowsNeedsElevation},
+};
 use crate::{
 	log::{self, FileLogSink},
 	state::LauncherPaths,
@@ -203,7 +206,7 @@ fn service_main(_arguments: Vec<OsString>) -> Result<(), AnyError> {
 	let mut service = SERVICE_IMPL.lock().unwrap().take().unwrap();
 
 	// Create a channel to be able to poll a stop event from the service worker loop.
-	let (shutdown_tx, shutdown_rx) = oneshot::channel();
+	let (shutdown_tx, shutdown_rx) = mpsc::channel::<ShutdownSignal>(5);
 	let mut shutdown_tx = Some(shutdown_tx);
 
 	// Define system service event handler that will be receiving service events.
@@ -211,10 +214,9 @@ fn service_main(_arguments: Vec<OsString>) -> Result<(), AnyError> {
 		match control_event {
 			ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
 			ServiceControl::Stop => {
-				shutdown_tx.take().and_then(|tx| tx.send(()).ok());
+				shutdown_tx.take().and_then(|tx| tx.blocking_send(ShutdownSignal::ServiceStopped).ok());
 				ServiceControlHandlerResult::NoError
 			}
-
 			_ => ServiceControlHandlerResult::NotImplemented,
 		}
 	};

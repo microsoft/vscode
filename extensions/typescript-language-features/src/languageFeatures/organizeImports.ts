@@ -19,12 +19,43 @@ import FileConfigurationManager from './fileConfigurationManager';
 
 const localize = nls.loadMessageBundle();
 
+interface OrganizeImportsCommandMetadata {
+	readonly ids: readonly string[];
+	readonly title: string;
+	readonly minVersion: API;
+	readonly kind: vscode.CodeActionKind;
+	readonly mode: OrganizeImportsMode;
+}
 
-abstract class BaseOrganizeImportsCommand implements Command {
-	protected abstract readonly mode: OrganizeImportsMode;
+const organizeImportsCommand: OrganizeImportsCommandMetadata = {
+	ids: ['typescript.organizeImports'],
+	minVersion: API.v280,
+	title: localize('organizeImportsAction.title', "Organize Imports"),
+	kind: vscode.CodeActionKind.SourceOrganizeImports,
+	mode: OrganizeImportsMode.All,
+};
+
+const sortImportsCommand: OrganizeImportsCommandMetadata = {
+	ids: ['typescript.sortImports', 'javascript.sortImports'],
+	minVersion: API.v430,
+	title: localize('sortImportsAction.title', "Sort Imports"),
+	kind: vscode.CodeActionKind.Source.append('sortImports'),
+	mode: OrganizeImportsMode.SortAndCombine,
+};
+
+const removeUnusedImportsCommand: OrganizeImportsCommandMetadata = {
+	ids: ['typescript.removeUnusedImports', 'javascript.removeUnusedImports'],
+	minVersion: API.v490,
+	title: localize('removeUnusedImportsAction.title', "Remove Unused Imports"),
+	kind: vscode.CodeActionKind.Source.append('removeUnusedImports'),
+	mode: OrganizeImportsMode.RemoveUnused,
+};
+
+class OrganizeImportsCommand implements Command {
 
 	constructor(
-		public id: string,
+		public readonly id: string,
+		private readonly commandMetadata: OrganizeImportsCommandMetadata,
 		private readonly client: ITypeScriptServiceClient,
 		private readonly telemetryReporter: TelemetryReporter,
 	) { }
@@ -65,8 +96,8 @@ abstract class BaseOrganizeImportsCommand implements Command {
 				}
 			},
 			// Deprecated in 4.9; `mode` takes priority
-			skipDestructiveCodeActions: this.mode === OrganizeImportsMode.SortAndCombine,
-			mode: typeConverters.OrganizeImportsMode.toProtocolOrganizeImportsMode(this.mode),
+			skipDestructiveCodeActions: this.commandMetadata.mode === OrganizeImportsMode.SortAndCombine,
+			mode: typeConverters.OrganizeImportsMode.toProtocolOrganizeImportsMode(this.commandMetadata.mode),
 		};
 		const response = await this.client.interruptGetErr(() => this.client.execute('organizeImports', args, nulToken));
 		if (response.type !== 'response' || !response.body) {
@@ -80,80 +111,17 @@ abstract class BaseOrganizeImportsCommand implements Command {
 	}
 }
 
-class OrganizeImportsCommand extends BaseOrganizeImportsCommand {
-	public static readonly id = 'organizeImports';
-	public static minVersion = API.v280;
-	public static title = localize('organizeImportsAction.title', "Organize Imports");
-	public readonly mode = OrganizeImportsMode.All;
-}
-
-class SortImportsCommand extends BaseOrganizeImportsCommand {
-	public static readonly id = 'sortImports';
-	public static minVersion = API.v430;
-	public static title = localize('sortImportsAction.title', "Sort Imports");
-	public readonly mode = OrganizeImportsMode.SortAndCombine;
-	public static context = 'tsSupportsSortImports';
-}
-
-class RemoveUnusedImportsCommand extends BaseOrganizeImportsCommand {
-	public static readonly id = 'removeUnusedImports';
-	public static minVersion = API.v490;
-	public static title = localize('removeUnusedImportsAction.title', "Remove Unused Imports");
-	public readonly mode = OrganizeImportsMode.RemoveUnused;
-	public static context = 'tsSupportsRemoveUnusedImports';
-}
-
-interface OrganizeImportsCommandClass {
-	readonly id: string;
-	readonly title: string;
-	readonly context?: string;
-	readonly minVersion: API;
-	new(id: string, client: ITypeScriptServiceClient, telemetryReporter: TelemetryReporter): BaseOrganizeImportsCommand;
-}
-
 class ImportsCodeActionProvider implements vscode.CodeActionProvider {
 
-	static register(
-		client: ITypeScriptServiceClient,
-		kind: vscode.CodeActionKind,
-		Command: OrganizeImportsCommandClass,
-		commandManager: CommandManager,
-		fileConfigurationManager: FileConfigurationManager,
-		telemetryReporter: TelemetryReporter,
-		selector: DocumentSelector
-	): vscode.Disposable {
-		return conditionalRegistration([
-			requireMinVersion(client, Command.minVersion),
-			requireSomeCapability(client, ClientCapability.Semantic),
-		], () => {
-			const provider = new ImportsCodeActionProvider(client, kind, Command, commandManager, fileConfigurationManager, telemetryReporter);
-			return vscode.languages.registerCodeActionsProvider(selector.semantic, provider, {
-				providedCodeActionKinds: [kind]
-			});
-		});
-	}
-
-	public constructor(
+	constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly kind: vscode.CodeActionKind,
-		private readonly Command: OrganizeImportsCommandClass,
+		private readonly commandMetadata: OrganizeImportsCommandMetadata,
 		commandManager: CommandManager,
 		private readonly fileConfigManager: FileConfigurationManager,
 		telemetryReporter: TelemetryReporter,
 	) {
-		commandManager.register(new Command(`typescript.${Command.id}`, client, telemetryReporter));
-		if (Command !== OrganizeImportsCommand) {
-			// The non-built-in variants have get duplicated with javascript-specific ids
-			// can show "JavasScript" as the category
-			commandManager.register(new Command(`javascript.${Command.id}`, client, telemetryReporter));
-		}
-
-		if (Command.context) {
-			updateContext();
-			client.onTsServerStarted(() => updateContext());
-			function updateContext() {
-				vscode.commands.executeCommand('setContext', Command.context, client.apiVersion.gte(Command.minVersion));
-			}
+		for (const id of commandMetadata.ids) {
+			commandManager.register(new OrganizeImportsCommand(id, commandMetadata, client, telemetryReporter));
 		}
 	}
 
@@ -168,14 +136,14 @@ class ImportsCodeActionProvider implements vscode.CodeActionProvider {
 			return [];
 		}
 
-		if (!context.only || !context.only.contains(this.kind)) {
+		if (!context.only || !context.only.contains(this.commandMetadata.kind)) {
 			return [];
 		}
 
 		this.fileConfigManager.ensureConfigurationForDocument(document, token);
 
-		const action = new vscode.CodeAction(this.Command.title, this.kind);
-		action.command = { title: '', command: this.Command.id, arguments: [file] };
+		const action = new vscode.CodeAction(this.commandMetadata.title, this.commandMetadata.kind);
+		action.command = { title: '', command: this.commandMetadata.ids[0], arguments: [file] };
 		return [action];
 	}
 }
@@ -186,34 +154,20 @@ export function register(
 	commandManager: CommandManager,
 	fileConfigurationManager: FileConfigurationManager,
 	telemetryReporter: TelemetryReporter,
-) {
-	return vscode.Disposable.from(
-		ImportsCodeActionProvider.register(
-			client,
-			vscode.CodeActionKind.SourceOrganizeImports,
-			OrganizeImportsCommand,
-			commandManager,
-			fileConfigurationManager,
-			telemetryReporter,
-			selector
-		),
-		ImportsCodeActionProvider.register(
-			client,
-			vscode.CodeActionKind.Source.append(SortImportsCommand.id),
-			SortImportsCommand,
-			commandManager,
-			fileConfigurationManager,
-			telemetryReporter,
-			selector
-		),
-		ImportsCodeActionProvider.register(
-			client,
-			vscode.CodeActionKind.Source.append(RemoveUnusedImportsCommand.id),
-			RemoveUnusedImportsCommand,
-			commandManager,
-			fileConfigurationManager,
-			telemetryReporter,
-			selector
-		),
-	);
+): vscode.Disposable {
+	const disposables: vscode.Disposable[] = [];
+
+	for (const command of [organizeImportsCommand, sortImportsCommand, removeUnusedImportsCommand]) {
+		disposables.push(conditionalRegistration([
+			requireMinVersion(client, command.minVersion),
+			requireSomeCapability(client, ClientCapability.Semantic),
+		], () => {
+			const provider = new ImportsCodeActionProvider(client, command, commandManager, fileConfigurationManager, telemetryReporter);
+			return vscode.languages.registerCodeActionsProvider(selector.semantic, provider, {
+				providedCodeActionKinds: [command.kind]
+			});
+		}));
+	}
+
+	return vscode.Disposable.from(...disposables);
 }

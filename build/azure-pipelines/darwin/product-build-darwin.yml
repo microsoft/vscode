@@ -203,11 +203,9 @@ steps:
           set -e
           ARCHIVE_NAME=$(ls "$(Build.ArtifactStagingDirectory)/cli" | head -n 1)
           unzip "$(Build.ArtifactStagingDirectory)/cli/$ARCHIVE_NAME" -d "$(Build.ArtifactStagingDirectory)/cli"
-          mv "$(Build.ArtifactStagingDirectory)/cli/code" "$(APP_PATH)/Contents/Resources/app/bin/code-tunnel"
-          chmod +x "$(APP_PATH)/Contents/Resources/app/bin/code-tunnel"
-          if [ "$(VSCODE_QUALITY)" != "stable" ]; then
-            mv "$(APP_PATH)/Contents/Resources/app/bin/code-tunnel" "$(APP_PATH)/Contents/Resources/app/bin/code-tunnel-$(VSCODE_QUALITY)"
-          fi
+          CLI_APP_NAME=$(node -p "require(\"$(APP_PATH)/Contents/Resources/app/product.json\").tunnelApplicationName")
+          mv "$(Build.ArtifactStagingDirectory)/cli/code" "$(APP_PATH)/Contents/Resources/app/bin/$CLI_APP_NAME"
+          chmod +x "$(APP_PATH)/Contents/Resources/app/bin/$CLI_APP_NAME"
         displayName: Make CLI executable
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:

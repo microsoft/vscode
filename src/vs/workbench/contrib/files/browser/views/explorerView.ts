@@ -392,7 +392,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this._register(explorerLabels);
 
 		const updateWidth = (stat: ExplorerItem) => this.tree.updateWidth(stat);
-		this.renderer = this.instantiationService.createInstance(FilesRenderer, explorerLabels, updateWidth);
+		this.renderer = this.instantiationService.createInstance(FilesRenderer, container, explorerLabels, updateWidth);
 		this._register(this.renderer);
 
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));

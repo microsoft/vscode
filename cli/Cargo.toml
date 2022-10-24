@@ -49,6 +49,7 @@ log = "0.4"
 
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.5"
+winreg = "0.10"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 tar = { version = "0.4" }
