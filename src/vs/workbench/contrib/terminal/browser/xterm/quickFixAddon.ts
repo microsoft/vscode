@@ -100,11 +100,11 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		}
 		this._terminalDecorationHoverService = instantiationService.createInstance(TerminalDecorationHoverManager);
 		for (const quickFix of this._terminalContributionService.quickFixes) {
-			this.registerCommandFinishedListener(convertExtensionQuickFixOptions(quickFix));
+			this.registerCommandFinishedListener(convertToQuickFixOptions(quickFix));
 		}
-		this.registerCommandFinishedListener(convertExtensionQuickFixOptions(gitSimilar()));
-		this.registerCommandFinishedListener(convertExtensionQuickFixOptions(gitCreatePr()));
-		this.registerCommandFinishedListener(convertExtensionQuickFixOptions(gitPushSetUpstream()));
+		this.registerCommandFinishedListener(convertToQuickFixOptions(gitSimilar()));
+		this.registerCommandFinishedListener(convertToQuickFixOptions(gitCreatePr()));
+		this.registerCommandFinishedListener(convertToQuickFixOptions(gitPushSetUpstream()));
 	}
 
 	activate(terminal: Terminal): void {
@@ -343,7 +343,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	}
 });
 
-export function convertExtensionQuickFixOptions(quickFix: IExtensionTerminalQuickFix): ITerminalQuickFixOptions {
+export function convertToQuickFixOptions(quickFix: IExtensionTerminalQuickFix): ITerminalQuickFixOptions {
 	const type = quickFix.commandToRun ? 'command' : quickFix.linkToOpen ? 'opener' : undefined;
 	const options = {
 		id: quickFix.id,

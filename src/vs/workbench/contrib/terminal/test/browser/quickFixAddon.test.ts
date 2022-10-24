@@ -19,7 +19,7 @@ import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabili
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { gitSimilar, freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
-import { TerminalQuickFixAddon, getQuickFixesForCommand, convertExtensionQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
+import { TerminalQuickFixAddon, getQuickFixesForCommand, convertToQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { URI } from 'vs/base/common/uri';
 import { Terminal } from 'xterm';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
@@ -68,7 +68,7 @@ suite('QuickFixAddon', () => {
 				command: 'git status'
 			}];
 			setup(() => {
-				const command = convertExtensionQuickFixOptions(gitSimilar());
+				const command = convertToQuickFixOptions(gitSimilar());
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
 				quickFixAddon.registerCommandFinishedListener(command);
 			});
@@ -222,7 +222,7 @@ suite('QuickFixAddon', () => {
 			setup(() => {
 				const command = gitPushSetUpstream();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
-				quickFixAddon.registerCommandFinishedListener(convertExtensionQuickFixOptions(gitPushSetUpstream()));
+				quickFixAddon.registerCommandFinishedListener(convertToQuickFixOptions(gitPushSetUpstream()));
 			});
 			suite('returns undefined when', () => {
 				test('output does not match', () => {
@@ -261,7 +261,7 @@ suite('QuickFixAddon', () => {
 				uri: URI.parse('https://github.com/meganrogge/xterm.js/pull/new/test22')
 			}];
 			setup(() => {
-				const command = convertExtensionQuickFixOptions(gitCreatePr());
+				const command = convertToQuickFixOptions(gitCreatePr());
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
 				quickFixAddon.registerCommandFinishedListener(command);
 			});
@@ -299,8 +299,8 @@ suite('QuickFixAddon', () => {
 			command: 'git push --set-upstream origin test22'
 		}];
 		setup(() => {
-			const pushCommand = convertExtensionQuickFixOptions(gitPushSetUpstream());
-			const prCommand = convertExtensionQuickFixOptions(gitCreatePr());
+			const pushCommand = convertToQuickFixOptions(gitPushSetUpstream());
+			const prCommand = convertToQuickFixOptions(gitCreatePr());
 			quickFixAddon.registerCommandFinishedListener(prCommand);
 			expectedMap.set(pushCommand.commandLineMatcher.toString(), [pushCommand, prCommand]);
 		});
