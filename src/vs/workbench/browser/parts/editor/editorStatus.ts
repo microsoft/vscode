@@ -671,7 +671,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			}));
 
 			// Hook Listener for Selection changes
-			this.activeEditorListeners.add(Event.defer(activeCodeEditor.onDidChangeCursorPosition, this._store)(() => {
+			this.activeEditorListeners.add(Event.defer(activeCodeEditor.onDidChangeCursorPosition)(() => {
 				this.onSelectionChange(activeCodeEditor);
 				this.currentProblemStatus.update(activeCodeEditor);
 			}));
@@ -682,7 +682,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			}));
 
 			// Hook Listener for content changes
-			this.activeEditorListeners.add(Event.accumulate(activeCodeEditor.onDidChangeModelContent, 0, this._store)(e => {
+			this.activeEditorListeners.add(Event.accumulate(activeCodeEditor.onDidChangeModelContent)(e => {
 				this.onEOLChange(activeCodeEditor);
 				this.currentProblemStatus.update(activeCodeEditor);
 
