@@ -19,6 +19,7 @@ export const semanticSupportedSchemes = [
 	untitled,
 	walkThroughSnippet,
 	vscodeNotebookCell,
+	'vscode-test-web',
 ];
 
 /**

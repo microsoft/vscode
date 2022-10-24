@@ -237,7 +237,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		if (isWeb()) {
 			return new ClientCapabilities(
 				ClientCapability.Syntax,
-				ClientCapability.EnhancedSyntax);
+				ClientCapability.EnhancedSyntax,
+				ClientCapability.Semantic);
 		}
 
 		if (this.apiVersion.gte(API.v400)) {
@@ -752,7 +753,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	public getWorkspaceRootForResource(resource: vscode.Uri): string | undefined {
 		const roots = vscode.workspace.workspaceFolders ? Array.from(vscode.workspace.workspaceFolders) : undefined;
 		if (!roots?.length) {
-			if (resource.scheme === fileSchemes.officeScript) {
+			if (resource.scheme === fileSchemes.officeScript) { // TODO: Maybe here!
 				return '/';
 			}
 			return undefined;
@@ -764,6 +765,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			case fileSchemes.vscodeNotebookCell:
 			case fileSchemes.memFs:
 			case fileSchemes.vscodeVfs:
+			// TODO: Or here?
 			case fileSchemes.officeScript:
 				for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
 					if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
