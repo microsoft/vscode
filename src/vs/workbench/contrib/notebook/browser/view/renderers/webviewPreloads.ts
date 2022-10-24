@@ -731,33 +731,99 @@ async function webviewPreloads(ctx: PreloadContext) {
 		outputNode.appendChild(errList);
 	}
 
+	const outputItemRequests = new class {
+		private _requestPool = 0;
+		private readonly _requests = new Map</*requestId*/number, { resolve: (x: webviewMessages.OutputItemEntry | undefined) => void }>();
+
+		getOutputItem(outputId: string, mime: string) {
+			const requestId = this._requestPool++;
+
+			let resolve: ((x: webviewMessages.OutputItemEntry | undefined) => void) | undefined;
+			const p = new Promise<webviewMessages.OutputItemEntry | undefined>(r => resolve = r);
+			this._requests.set(requestId, { resolve: resolve! });
+
+			postNotebookMessage<webviewMessages.IGetOutputItemMessage>('getOutputItem', { requestId, outputId, mime });
+			return p;
+		}
+
+		resolveOutputItem(requestId: number, output: webviewMessages.OutputItemEntry | undefined) {
+			const request = this._requests.get(requestId);
+			if (!request) {
+				return;
+			}
+
+			this._requests.delete(requestId);
+			request.resolve(output);
+		}
+	};
+
+	interface ExtendedOutputItem {
+		readonly _allOutputItems: ReadonlyArray<{ readonly mime: string; getItem(): Promise<rendererApi.OutputItem | undefined> }>;
+	}
+
 	function createOutputItem(
 		id: string,
 		mime: string,
 		metadata: unknown,
-		valueBytes: Uint8Array
-	): rendererApi.OutputItem {
-		return Object.freeze<rendererApi.OutputItem>({
-			id,
-			mime,
-			metadata,
+		valueBytes: Uint8Array,
+		allOutputItemData: ReadonlyArray<{ readonly mime: string }>
+	): rendererApi.OutputItem & ExtendedOutputItem {
 
-			data(): Uint8Array {
-				return valueBytes;
-			},
+		function create(
+			id: string,
+			mime: string,
+			metadata: unknown,
+			valueBytes: Uint8Array,
+		): rendererApi.OutputItem & ExtendedOutputItem {
+			return Object.freeze<rendererApi.OutputItem & ExtendedOutputItem>({
+				id,
+				mime,
+				metadata,
 
-			text(): string {
-				return textDecoder.decode(valueBytes);
-			},
+				data(): Uint8Array {
+					return valueBytes;
+				},
 
-			json() {
-				return JSON.parse(this.text());
-			},
+				text(): string {
+					return textDecoder.decode(valueBytes);
+				},
 
-			blob(): Blob {
-				return new Blob([valueBytes], { type: this.mime });
-			}
-		});
+				json() {
+					return JSON.parse(this.text());
+				},
+
+				blob(): Blob {
+					return new Blob([valueBytes], { type: this.mime });
+				},
+
+				_allOutputItems: allOutputItemList,
+			});
+		}
+
+		const allOutputItemCache = new Map</*mime*/string, Promise<(rendererApi.OutputItem & ExtendedOutputItem) | undefined>>();
+		const allOutputItemList = Object.freeze(allOutputItemData.map(outputItem => {
+			const mime = outputItem.mime;
+			return Object.freeze({
+				mime,
+				getItem() {
+					const existingTask = allOutputItemCache.get(mime);
+					if (existingTask) {
+						return existingTask;
+					}
+
+					const task = outputItemRequests.getOutputItem(id, mime).then(item => {
+						return item ? create(id, item.mime, metadata, item.valueBytes) : undefined;
+					});
+					allOutputItemCache.set(mime, task);
+
+					return task;
+				}
+			});
+		}));
+
+		const item = create(id, mime, metadata, valueBytes);
+		allOutputItemCache.set(mime, Promise.resolve(item));
+		return item;
 	}
 
 	const onDidReceiveKernelMessage = createEmitter<unknown>();
@@ -1231,6 +1297,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 			case 'findStop': {
 				_highlighter?.dispose();
 				break;
+			}
+			case 'returnOutputItem': {
+				outputItemRequests.resolveOutputItem(event.data.requestId, event.data.output);
 			}
 		}
 	});
@@ -2199,7 +2268,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				const errors = preloadErrors.filter((e): e is Error => e instanceof Error);
 				showRenderError(`Error loading preloads`, this.element, errors);
 			} else {
-				const item = createOutputItem(this.outputId, content.mimeType, content.metadata, content.valueBytes);
+				const item = createOutputItem(this.outputId, content.output.mime, content.metadata, content.output.valueBytes, content.allOutputs);
 
 				const controller = new AbortController();
 				this.renderTaskAbort = controller;
