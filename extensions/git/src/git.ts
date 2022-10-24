@@ -361,6 +361,7 @@ export interface ICloneOptions {
 	readonly parentPath: string;
 	readonly progress: Progress<{ increment: number }>;
 	readonly recursive?: boolean;
+	readonly ref?: string;
 }
 
 export class Git {
@@ -454,6 +455,9 @@ export class Git {
 			const command = ['clone', url.includes(' ') ? encodeURI(url) : url, folderPath, '--progress'];
 			if (options.recursive) {
 				command.push('--recursive');
+			}
+			if (options.ref) {
+				command.push('--branch', `'${options.ref}'`);
 			}
 			await this.exec(options.parentPath, command, {
 				cancellationToken,

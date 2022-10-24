@@ -645,7 +645,7 @@ function getRandomString(minLength: number, maxLength: number): string {
 	const length = getRandomInt(minLength, maxLength);
 	const t = new StringBuilder(length);
 	for (let i = 0; i < length; i++) {
-		t.appendASCII(getRandomInt(CharCode.a, CharCode.z));
+		t.appendASCIICharCode(getRandomInt(CharCode.a, CharCode.z));
 	}
 	return t.build();
 }
