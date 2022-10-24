@@ -25,10 +25,10 @@ parameters:
       - exploration
       - insider
       - stable
-  - name: ENABLE_TERRAPIN
-    displayName: "Enable Terrapin"
-    type: boolean
-    default: true
+  - name: NPM_REGISTRY
+    displayName: "Custom NPM Registry"
+    type: string
+    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
   - name: VSCODE_BUILD_WIN32
     displayName: "🎯 Windows x64"
     type: boolean
@@ -105,8 +105,8 @@ parameters:
 variables:
   - name: VSCODE_DISTRO_REF
     value: ${{ parameters.VSCODE_DISTRO_REF }}
-  - name: ENABLE_TERRAPIN
-    value: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
+  - name: NPM_REGISTRY
+    value: ${{ parameters.NPM_REGISTRY }}
   - name: VSCODE_QUALITY
     value: ${{ parameters.VSCODE_QUALITY }}
   - name: VSCODE_BUILD_STAGE_WINDOWS
@@ -213,7 +213,7 @@ stages:
         - ${{ if eq(variables.VSCODE_BUILD_STAGE_MACOS, true) }}:
           - job: MacOS
             pool:
-              vmImage: macOS-latest
+              vmImage: macOS-11
             steps:
               - template: ./darwin/cli-build-darwin.yml
                 parameters:
@@ -526,7 +526,7 @@ stages:
           - ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
             - CompileCLI
         pool:
-          vmImage: macOS-latest
+          vmImage: macOS-11
         variables:
           BUILDSECMON_OPT_IN: true
         jobs:

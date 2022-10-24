@@ -53,6 +53,39 @@ export namespace Event {
 		}
 	}
 
+	/**
+	 * Given an event, returns another event which debounces calls and defers the listeners to a later task via a shared
+	 * `setTimeout`. The event is converted into a signal (`Event<void>`) to avoid additional object creation as a
+	 * result of merging events and to try prevent race conditions that could arise when using related deferred and
+	 * non-deferred events.
+	 *
+	 * This is useful for deferring non-critical work (eg. general UI updates) to ensure it does not block critical work
+	 * (eg. latency of keypress to text rendered).
+	 *
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
+	 */
+	export function defer(event: Event<unknown>, disposable?: DisposableStore): Event<void> {
+		return debounce<unknown, void>(event, () => void 0, 0, undefined, undefined, disposable);
+	}
+
+	/**
+	 * Debounces an event, firing after some delay (default=0) with an array of all event original objects.
+	 *
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
+	 */
+	export function accumulate<T>(event: Event<T>, delay: number = 0, disposable?: DisposableStore): Event<T[]> {
+		return Event.debounce<T, T[]>(event, (last, e) => {
+			if (!last) {
+				return [e];
+			}
+			last.push(e);
+			return last;
+		}, delay, undefined, undefined, disposable);
+	}
 
 	/**
 	 * Given an event, returns another event which only fires once.

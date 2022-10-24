@@ -7,9 +7,9 @@ import { IdleValue } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { illegalState } from 'vs/base/common/errors';
 import { toDisposable } from 'vs/base/common/lifecycle';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { SyncDescriptor, SyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
 import { Graph } from 'vs/platform/instantiation/common/graph';
-import { IInstantiationService, ServiceIdentifier, ServicesAccessor, _util } from 'vs/platform/instantiation/common/instantiation';
+import { GetLeadingNonServiceArgs, IInstantiationService, ServiceIdentifier, ServicesAccessor, _util } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { LinkedList } from 'vs/base/common/linkedList';
 
@@ -72,6 +72,9 @@ export class InstantiationService implements IInstantiationService {
 		}
 	}
 
+	createInstance(ctorOrDescriptor: any | SyncDescriptor<any>, ...rest: any[]): any; // Comment out this line to fix type issues
+	createInstance<T>(descriptor: SyncDescriptor0<T>): T;
+	createInstance<Ctor extends new (...args: any[]) => any, R extends InstanceType<Ctor>>(ctor: Ctor, ...args: GetLeadingNonServiceArgs<ConstructorParameters<Ctor>>): R;
 	createInstance(ctorOrDescriptor: any | SyncDescriptor<any>, ...rest: any[]): any {
 		let _trace: Trace;
 		let result: any;
