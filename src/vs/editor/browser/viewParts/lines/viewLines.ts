@@ -573,7 +573,6 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	}
 
 	public renderText(viewportData: ViewportData): void {
-
 		// (1) render lines - ensures lines are in the DOM
 		this._visibleLines.renderLines(viewportData);
 		this._lastRenderedData.setCurrentVisibleRange(viewportData.visibleRange);
