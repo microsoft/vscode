@@ -1751,8 +1751,9 @@ declare module 'vscode' {
 
 		/**
 		 * Optional flag indicating if this item is picked initially. This is only honored when using
-		 * the {@link window.showQuickPick()} API. To do the same thing with the {@link window.createQuickPick()} API,
-		 * simply set the {@link QuickPick.selectedItems} to the items you want picked initially.
+		 * the {@link window.showQuickPick showQuickPick()} API. To do the same thing with
+		 * the {@link window.createQuickPick createQuickPick()} API, simply set the {@link QuickPick.selectedItems}
+		 * to the items you want picked initially.
 		 * (*Note:* This is only honored when the picker allows multiple selections.)
 		 *
 		 * @see {@link QuickPickOptions.canPickMany}
@@ -1771,8 +1772,8 @@ declare module 'vscode' {
 		/**
 		 * Optional buttons that will be rendered on this particular item. These buttons will trigger
 		 * an {@link QuickPickItemButtonEvent} when clicked. Buttons are only rendered when using a quickpick
-		 * created by the {@link window.createQuickPick()} API. Buttons are not rendered when using
-		 * the {@link window.showQuickPick()} API.
+		 * created by the {@link window.createQuickPick createQuickPick()} API. Buttons are not rendered when using
+		 * the {@link window.showQuickPick showQuickPick()} API.
 		 *
 		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
