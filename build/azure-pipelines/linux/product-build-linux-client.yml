@@ -92,7 +92,7 @@ steps:
 
   - script: |
       mkdir -p .build
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $NPM_REGISTRY > .build/yarnlockhash
       node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
     displayName: Prepare yarn cache flags
 
@@ -126,16 +126,26 @@ steps:
 
   - script: |
       set -e
-      npm install https://aka.ms/enablesecurefeed --global && npm exec terrapinadotask -- standAlone
-    timeoutInMinutes: 5
-    retryCountOnTaskFailure: 3
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
-    displayName: Switch to Terrapin packages
+      npm config set registry "$NPM_REGISTRY" --location=project
+      npm config set always-auth=true --location=project
+      yarn config set registry "$NPM_REGISTRY"
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM & Yarn
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: .npmrc
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
+  - script: node build/setup-npm-registry.js $NPM_REGISTRY
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
 
   - script: |
       set -e
       node build/npm/setupBuildYarnrc
-      for i in {1..3}; do # try 3 times, for Terrapin
+      for i in {1..3}; do # try 3 times
         yarn --cwd build --frozen-lockfile --check-files && break
         if [ $i -eq 3 ]; then
           echo "Yarn failed too many times" >&2
@@ -181,7 +191,7 @@ steps:
         export VSCODE_REMOTE_CXX=$(which g++)
       fi
 
-      for i in {1..3}; do # try 3 times, for Terrapin
+      for i in {1..3}; do # try 3 times
         yarn --frozen-lockfile --check-files && break
         if [ $i -eq 3 ]; then
           echo "Yarn failed too many times" >&2
@@ -271,12 +281,19 @@ steps:
         displayName: Download VS Code CLI
         condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          artifact: vscode_cli_linux_armhf_cli
+          patterns: "**"
+          path: $(Build.ArtifactStagingDirectory)/cli
+        displayName: Download VS Code CLI
+        condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'armhf'))
+
       - script: |
           set -e
-          tar -xzvf $(Build.ArtifactStagingDirectory)/cli/*.tar.gz -C $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin
-          if [ "$(VSCODE_QUALITY)" != "stable" ]; then
-            mv "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/code-tunnel" "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/code-tunnel-$(VSCODE_QUALITY)"
-          fi
+          tar -xzvf $(Build.ArtifactStagingDirectory)/cli/*.tar.gz -C $(Build.ArtifactStagingDirectory)/cli
+          CLI_APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").tunnelApplicationName")
+          mv $(Build.ArtifactStagingDirectory)/cli/code $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$CLI_APP_NAME
         displayName: Make CLI executable
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:

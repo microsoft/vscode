@@ -11,8 +11,8 @@ variables:
     value: true
   - name: skipComponentGovernanceDetection
     value: true
-  - name: ENABLE_TERRAPIN
-    value: false
+  - name: NPM_REGISTRY
+    value: 'none'
   - name: VSCODE_CIBUILD
     value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
   - name: VSCODE_PUBLISH

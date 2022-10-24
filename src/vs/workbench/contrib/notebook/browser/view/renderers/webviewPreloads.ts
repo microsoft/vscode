@@ -247,17 +247,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return new Function(...args.map(([k]) => k), functionSrc)(...args.map(([, v]) => v));
 	};
 
-	const runKernelPreload = async (url: string, originalUri: string, forceLoadAsModule: boolean): Promise<void> => {
+	async function runKernelPreload(url: string, originalUri: string, forceLoadAsModule: boolean): Promise<void> {
+		if (forceLoadAsModule) {
+			return activateModuleKernelPreload(url);
+		}
+
 		const text = await loadScriptSource(url, originalUri);
 		const isModule = /\bexport\b.*\bactivate\b/.test(text);
 		try {
-			if (isModule || forceLoadAsModule) {
-				const module: KernelPreloadModule = await __import(url);
-				if (!module.activate) {
-					console.error(`Notebook preload (${url}) looks like a module but does not export an activate function`);
-					return;
-				}
-				return module.activate(createKernelContext());
+			if (isModule) {
+				return activateModuleKernelPreload(url);
 			} else {
 				return invokeSourceWithGlobals(text, { ...kernelPreloadGlobals, scriptUrl: url });
 			}
@@ -265,7 +264,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 			console.error(e);
 			throw e;
 		}
-	};
+	}
+
+	async function activateModuleKernelPreload(url: string) {
+		const module: KernelPreloadModule = await __import(url);
+		if (!module.activate) {
+			console.error(`Notebook preload '${url}' was expected to be a module but it does not export an 'activate' function`);
+			return;
+		}
+		return module.activate(createKernelContext());
+	}
 
 	const dimensionUpdater = new class {
 		private readonly pending = new Map<string, webviewMessages.DimensionUpdate>();

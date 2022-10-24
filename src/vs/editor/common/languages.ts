@@ -1337,6 +1337,11 @@ export interface FoldingContext {
 export interface FoldingRangeProvider {
 
 	/**
+	 * @internal
+	 */
+	readonly id?: string;
+
+	/**
 	 * An optional event to signal that the folding ranges from this provider have changed.
 	 */
 	onDidChange?: Event<this>;
@@ -1543,7 +1548,7 @@ export interface CommentThread<T = IRange> {
 	label: string | undefined;
 	contextValue: string | undefined;
 	comments: Comment[] | undefined;
-	onDidChangeComments: Event<Comment[] | undefined>;
+	onDidChangeComments: Event<readonly Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
 	initialCollapsibleState?: CommentThreadCollapsibleState;
 	onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;

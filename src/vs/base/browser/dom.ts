@@ -963,8 +963,6 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 		throw new Error('Bad use of emmet');
 	}
 
-	attrs = { ...(attrs || {}) };
-
 	const tagName = match[1] || 'div';
 	let result: T;
 
@@ -981,24 +979,24 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 		result.className = match[4].replace(/\./g, ' ').trim();
 	}
 
-	Object.keys(attrs).forEach(name => {
-		const value = attrs![name];
-
-		if (typeof value === 'undefined') {
-			return;
-		}
-
-		if (/^on\w+$/.test(name)) {
-			(<any>result)[name] = value;
-		} else if (name === 'selected') {
-			if (value) {
-				result.setAttribute(name, 'true');
+	if (attrs) {
+		Object.entries(attrs).forEach(([name, value]) => {
+			if (typeof value === 'undefined') {
+				return;
 			}
 
-		} else {
-			result.setAttribute(name, value);
-		}
-	});
+			if (/^on\w+$/.test(name)) {
+				(<any>result)[name] = value;
+			} else if (name === 'selected') {
+				if (value) {
+					result.setAttribute(name, 'true');
+				}
+
+			} else {
+				result.setAttribute(name, value);
+			}
+		});
+	}
 
 	result.append(...children);
 
@@ -1434,20 +1432,21 @@ export const basicMarkupHtmlTags = Object.freeze([
 	'wbr',
 ]);
 
+const defaultDomPurifyConfig = Object.freeze<dompurify.Config & { RETURN_TRUSTED_TYPE: true }>({
+	ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
+	ALLOWED_ATTR: ['href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code', 'width', 'height', 'align', 'x-dispatch', 'required', 'checked', 'placeholder', 'type'],
+	RETURN_DOM: false,
+	RETURN_DOM_FRAGMENT: false,
+	RETURN_TRUSTED_TYPE: true
+});
+
 /**
  * Sanitizes the given `value` and reset the given `node` with it.
  */
 export function safeInnerHtml(node: HTMLElement, value: string): void {
-	const options: dompurify.Config = {
-		ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
-		ALLOWED_ATTR: ['href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code', 'width', 'height', 'align', 'x-dispatch', 'required', 'checked', 'placeholder', 'type'],
-		RETURN_DOM: false,
-		RETURN_DOM_FRAGMENT: false,
-	};
-
 	const hook = hookDomPurifyHrefAndSrcSanitizer(defaultSafeProtocols);
 	try {
-		const html = dompurify.sanitize(value, { ...options, RETURN_TRUSTED_TYPE: true });
+		const html = dompurify.sanitize(value, defaultDomPurifyConfig);
 		node.innerHTML = html as unknown as string;
 	} finally {
 		hook.dispose();

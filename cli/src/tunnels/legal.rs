@@ -15,10 +15,17 @@ struct PersistedConsent {
 	pub consented: Option<bool>,
 }
 
-pub fn require_consent(paths: &LauncherPaths) -> Result<(), AnyError> {
+pub fn require_consent(
+	paths: &LauncherPaths,
+	accept_server_license_terms: bool,
+) -> Result<(), AnyError> {
 	match LICENSE_TEXT {
-		Some(t) => println!("{}", t),
+		Some(t) => println!("{}", t.replace("\\n", "\r\n")),
 		None => return Ok(()),
+	}
+
+	if accept_server_license_terms {
+		return Ok(());
 	}
 
 	let prompt = match LICENSE_PROMPT {

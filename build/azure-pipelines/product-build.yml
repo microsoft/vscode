@@ -25,10 +25,10 @@ parameters:
       - exploration
       - insider
       - stable
-  - name: ENABLE_TERRAPIN
-    displayName: "Enable Terrapin"
-    type: boolean
-    default: true
+  - name: NPM_REGISTRY
+    displayName: "Custom NPM Registry"
+    type: string
+    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
   - name: VSCODE_BUILD_WIN32
     displayName: "🎯 Windows x64"
     type: boolean
@@ -80,7 +80,7 @@ parameters:
   - name: VSCODE_BUILD_TUNNEL_CLI
     displayName: "Build Tunnel CLI"
     type: boolean
-    default: false
+    default: true
   - name: VSCODE_PUBLISH
     displayName: "Publish to builds.code.visualstudio.com"
     type: boolean
@@ -105,8 +105,8 @@ parameters:
 variables:
   - name: VSCODE_DISTRO_REF
     value: ${{ parameters.VSCODE_DISTRO_REF }}
-  - name: ENABLE_TERRAPIN
-    value: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
+  - name: NPM_REGISTRY
+    value: ${{ parameters.NPM_REGISTRY }}
   - name: VSCODE_QUALITY
     value: ${{ parameters.VSCODE_QUALITY }}
   - name: VSCODE_BUILD_STAGE_WINDOWS
@@ -180,18 +180,16 @@ stages:
       dependsOn: []
       jobs:
         - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true)) }}:
-          - job: LinuxX86
+          - job: Linux
             pool: vscode-1es-linux
-            variables:
-              VSCODE_ARCH: x64
             steps:
               - template: ./linux/cli-build-linux.yml
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_BUILD_LINUX_ALPINE: ${{ parameters.VSCODE_BUILD_LINUX_ALPINE }}
                   VSCODE_BUILD_LINUX: ${{ parameters.VSCODE_BUILD_LINUX }}
+                  VSCODE_BUILD_LINUX_ALPINE: ${{ parameters.VSCODE_BUILD_LINUX_ALPINE }}
 
-        - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64, true)) }}:
+        - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
           - job: LinuxArm64
             pool: vscode-1es-linux-20.04-arm64
             variables:
@@ -204,14 +202,13 @@ stages:
               - script: |
                   set -e
                   npm install -g yarn
-                  sudo apt update -y
-                  sudo apt install -y build-essential pkg-config
-                displayName: Install build dependencies
+                displayName: Install yarn
               - template: ./linux/cli-build-linux.yml
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_LINUX_ALPINE_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64 }}
                   VSCODE_BUILD_LINUX_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ARM64 }}
+                  VSCODE_BUILD_LINUX_ARMHF: ${{ parameters.VSCODE_BUILD_LINUX_ARMHF }}
 
         - ${{ if eq(variables.VSCODE_BUILD_STAGE_MACOS, true) }}:
           - job: MacOS
@@ -233,6 +230,7 @@ stages:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
                   VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
+                  VSCODE_BUILD_WIN32_32BIT: ${{ parameters.VSCODE_BUILD_WIN32_32BIT }}
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true)) }}:
       - stage: Windows
@@ -311,7 +309,7 @@ stages:
                     parameters:
                       VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_TUNNEL_CLI: false # todo until 32 bit CLI is available
+                      VSCODE_BUILD_TUNNEL_CLI: ${{ parameters.VSCODE_BUILD_TUNNEL_CLI }}
                       VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
@@ -339,6 +337,7 @@ stages:
                     parameters:
                       VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
                       VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
+                      VSCODE_BUILD_WIN32_32BIT: ${{ parameters.VSCODE_BUILD_WIN32_32BIT }}
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
       - stage: LinuxServerDependencies
@@ -462,7 +461,7 @@ stages:
                     parameters:
                       VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_TUNNEL_CLI: false # todo: not built yet
+                      VSCODE_BUILD_TUNNEL_CLI: ${{ parameters.VSCODE_BUILD_TUNNEL_CLI }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false
                       VSCODE_RUN_SMOKE_TESTS: false

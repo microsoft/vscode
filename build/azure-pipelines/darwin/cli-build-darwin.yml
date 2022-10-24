@@ -10,6 +10,21 @@ parameters:
     default: stable
 
 steps:
+  - task: Npm@1
+    displayName: Download openssl prebuilt
+    inputs:
+      command: custom
+      customCommand: pack @vscode-internal/openssl-prebuilt@0.0.1
+      customRegistry: useFeed
+      customFeed: 'Monaco/openssl-prebuilt'
+      workingDir: $(Build.ArtifactStagingDirectory)
+
+  - script: |
+      set -e
+      mkdir $(Build.ArtifactStagingDirectory)/openssl
+      tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.1.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
+    displayName: Extract openssl prebuilt
+
   - task: NodeTool@0
     inputs:
       versionSpec: "16.x"
@@ -38,9 +53,15 @@ steps:
       parameters:
         VSCODE_CLI_TARGET: x86_64-apple-darwin
         VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_darwin_x64_cli
+        VSCODE_CLI_ENV:
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-osx/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-osx/include
 
   - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
       parameters:
         VSCODE_CLI_TARGET: aarch64-apple-darwin
         VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_darwin_arm64_cli
+        VSCODE_CLI_ENV:
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-osx/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-osx/include

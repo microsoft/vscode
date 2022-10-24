@@ -22,7 +22,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
-import { Change, IRemoteUserData, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, IRemoteUserData, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, CONFIG_SYNC_KEYBINDINGS_PER_PLATFORM } from 'vs/platform/userDataSync/common/userDataSync';
 
 interface ISyncContent {
 	mac?: string;
@@ -282,32 +282,13 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		return false;
 	}
 
-	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
-		const comparableResource = (await this.fileService.exists(this.file)) ? this.file : this.localResource;
-		return [{ resource: this.extUri.joinPath(uri, 'keybindings.json'), comparableResource }];
-	}
-
-	override async resolveContent(uri: URI): Promise<string | null> {
+	async resolveContent(uri: URI): Promise<string | null> {
 		if (this.extUri.isEqual(this.remoteResource, uri)
 			|| this.extUri.isEqual(this.baseResource, uri)
 			|| this.extUri.isEqual(this.localResource, uri)
 			|| this.extUri.isEqual(this.acceptedResource, uri)
 		) {
 			return this.resolvePreviewContent(uri);
-		}
-		let content = await super.resolveContent(uri);
-		if (content) {
-			return content;
-		}
-		content = await super.resolveContent(this.extUri.dirname(uri));
-		if (content) {
-			const syncData = this.parseSyncData(content);
-			if (syncData) {
-				switch (this.extUri.basename(uri)) {
-					case 'keybindings.json':
-						return getKeybindingsContentFromSyncContent(syncData.content, this.syncKeybindingsPerPlatform(), this.logService);
-				}
-			}
 		}
 		return null;
 	}
@@ -352,7 +333,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 	}
 
 	private syncKeybindingsPerPlatform(): boolean {
-		return !!this.configurationService.getValue('settingsSync.keybindingsPerPlatform');
+		return !!this.configurationService.getValue(CONFIG_SYNC_KEYBINDINGS_PER_PLATFORM);
 	}
 
 }
