@@ -9,6 +9,7 @@ import { flatten } from 'vs/base/common/arrays';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionTerminalProfile, IExtensionTerminalQuickFix, ITerminalContributions, ITerminalProfileContribution } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 // terminal extension point
 export const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);
@@ -38,7 +39,7 @@ export class TerminalContributionService implements ITerminalContributionService
 					return { ...e, extensionIdentifier: c.description.identifier.value };
 				}) || [];
 			}));
-			this._quickFixes = flatten(contributions.map(c => c.value.quickFixes ? c.value.quickFixes.map(fix => { return { ...fix, extensionIdentifier: c.description.identifier.value }; }) : []));
+			this._quickFixes = flatten(contributions.filter(c => isProposedApiEnabled(c.description, 'contribTerminalQuickFixes')).map(c => c.value.quickFixes ? c.value.quickFixes.map(fix => { return { ...fix, extensionIdentifier: c.description.identifier.value }; }) : []));
 		});
 	}
 }

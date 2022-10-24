@@ -28,7 +28,7 @@ import { IDecoration, Terminal } from 'xterm';
 import type { ITerminalAddon } from 'xterm-headless';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
-// import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
+import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { IExtensionTerminalQuickFix } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { gitCreatePr, gitPushSetUpstream, gitSimilar } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
@@ -79,7 +79,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	constructor(private readonly _capabilities: ITerminalCapabilityStore,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		// @ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
+		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -99,9 +99,9 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			});
 		}
 		this._terminalDecorationHoverService = instantiationService.createInstance(TerminalDecorationHoverManager);
-		// for (const quickFix of this._terminalContributionService.quickFixes) {
-		// 	this.registerCommandFinishedListener(convertExtensionQuickFixOptions(quickFix));
-		// }
+		for (const quickFix of this._terminalContributionService.quickFixes) {
+			this.registerCommandFinishedListener(convertExtensionQuickFixOptions(quickFix));
+		}
 		this.registerCommandFinishedListener(convertExtensionQuickFixOptions(gitSimilar()));
 		this.registerCommandFinishedListener(convertExtensionQuickFixOptions(gitCreatePr()));
 		this.registerCommandFinishedListener(convertExtensionQuickFixOptions(gitPushSetUpstream()));
