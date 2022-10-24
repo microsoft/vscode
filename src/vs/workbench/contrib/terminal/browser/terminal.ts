@@ -949,8 +949,9 @@ export interface ITerminalInstance {
 
 	/**
 	 * Attempts to detect and kill the process listening on specified port.
+	 * If successful, places commandToRun on the command line
 	 */
-	freePortKillProcess(port: string): Promise<void>;
+	freePortKillProcess(port: string, commandToRun: string): Promise<void>;
 }
 
 export interface ITerminalQuickFixOptions {

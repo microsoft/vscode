@@ -100,7 +100,9 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 				id: 'terminal.freePort',
 				label,
 				enabled: true,
-				run: async () => terminalInstance?.freePortKillProcess?.(port)
+				run: async () => {
+					await terminalInstance?.freePortKillProcess?.(port, command.command);
+				}
 			};
 		}
 	};

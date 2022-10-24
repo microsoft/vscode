@@ -1541,8 +1541,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm?.markTracker.scrollToClosestMarker(startMarkId, endMarkId, highlight);
 	}
 
-	public async freePortKillProcess(port: string): Promise<void> {
+	public async freePortKillProcess(port: string, command: string): Promise<void> {
 		await this._processManager?.freePortKillProcess(port);
+		this.runCommand(command, false);
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
