@@ -580,7 +580,7 @@ export class SearchView extends ViewPane {
 	private createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults'], childFolderIncompressible: boolean): Iterable<ICompressedTreeElement<RenderableMatch>> {
 		const sortOrder = this.searchConfig.sortOrder;
 
-		const matchArray = this.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.downstreamFileMatches();
+		const matchArray = this.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.allDownstreamFileMatches();
 		const matches = matchArray.sort((a, b) => searchMatchComparer(a, b, sortOrder));
 
 		return Iterable.map(matches, match => {

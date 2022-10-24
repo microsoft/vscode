@@ -565,7 +565,7 @@ export class FolderMatch extends Disposable {
 			fileMatch.bindModel(model);
 		} else {
 			const folderMatch = this.getFolderMatch(model.uri);
-			const match = folderMatch?.hasFileUriDownstream(model.uri);
+			const match = folderMatch?.getDownstreamFileMatch(model.uri);
 			match?.bindModel(model);
 		}
 	}
@@ -583,7 +583,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	clear(clearingAll = false): void {
-		const changed: FileMatch[] = this.downstreamFileMatches();
+		const changed: FileMatch[] = this.allDownstreamFileMatches();
 		this.disposeMatches();
 		this._onChange.fire({ elements: changed, removed: true, added: false, clearingAll });
 	}
@@ -623,14 +623,14 @@ export class FolderMatch extends Disposable {
 		return (this.fileCount() + this.folderCount()) === 0;
 	}
 
-	hasFileUriDownstream(uri: URI): FileMatch | null {
+	getDownstreamFileMatch(uri: URI): FileMatch | null {
 		const directChildFileMatch = this._fileMatches.get(uri);
 		if (directChildFileMatch) {
 			return directChildFileMatch;
 		}
 
 		const folderMatch = this.getFolderMatch(uri);
-		const match = folderMatch?.hasFileUriDownstream(uri);
+		const match = folderMatch?.getDownstreamFileMatch(uri);
 		if (match) {
 			return match;
 		}
@@ -638,11 +638,11 @@ export class FolderMatch extends Disposable {
 		return null;
 	}
 
-	downstreamFileMatches(): FileMatch[] {
+	allDownstreamFileMatches(): FileMatch[] {
 		let recursiveChildren: FileMatch[] = [];
 		const iterator = this.folderMatchesIterator();
 		for (const elem of iterator) {
-			recursiveChildren = recursiveChildren.concat(elem.downstreamFileMatches());
+			recursiveChildren = recursiveChildren.concat(elem.allDownstreamFileMatches());
 		}
 
 		return [...this.fileMatchesIterator(), ...recursiveChildren];
@@ -661,11 +661,11 @@ export class FolderMatch extends Disposable {
 	}
 
 	recursiveFileCount(): number {
-		return this.downstreamFileMatches().length;
+		return this.allDownstreamFileMatches().length;
 	}
 
 	recursiveMatchCount(): number {
-		return this.downstreamFileMatches().reduce<number>((prev, match) => prev + match.count(), 0);
+		return this.allDownstreamFileMatches().reduce<number>((prev, match) => prev + match.count(), 0);
 	}
 
 	get query(): ITextQuery | null {
@@ -678,7 +678,7 @@ export class FolderMatch extends Disposable {
 		const updated: FileMatch[] = [];
 
 		raw.forEach(rawFileMatch => {
-			const existingFileMatch = this.hasFileUriDownstream(rawFileMatch.resource);
+			const existingFileMatch = this.getDownstreamFileMatch(rawFileMatch.resource);
 			if (existingFileMatch) {
 				rawFileMatch
 					.results!
@@ -1260,7 +1260,7 @@ export class SearchResult extends Disposable {
 	matches(): FileMatch[] {
 		const matches: FileMatch[][] = [];
 		this.folderMatches().forEach(folderMatch => {
-			matches.push(folderMatch.downstreamFileMatches());
+			matches.push(folderMatch.allDownstreamFileMatches());
 		});
 
 		return (<FileMatch[]>[]).concat(...matches);
@@ -1712,5 +1712,5 @@ function getFileMatches(matches: (FileMatch | FolderMatchWithResource)[]): FileM
 		}
 	});
 
-	return fileMatches.concat(folderMatches.map(e => e.downstreamFileMatches()).flat());
+	return fileMatches.concat(folderMatches.map(e => e.allDownstreamFileMatches()).flat());
 }

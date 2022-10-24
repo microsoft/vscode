@@ -363,7 +363,7 @@ export class SearchAccessibilityProvider implements IListAccessibilityProvider<R
 
 	getAriaLabel(element: RenderableMatch): string | null {
 		if (element instanceof FolderMatch) {
-			const count = element.downstreamFileMatches().reduce((total, current) => total + current.count(), 0);
+			const count = element.allDownstreamFileMatches().reduce((total, current) => total + current.count(), 0);
 			return element.resource ?
 				nls.localize('folderMatchAriaLabel', "{0} matches in folder root {1}, Search result", count, element.name()) :
 				nls.localize('otherFilesAriaLabel', "{0} matches outside of the workspace, Search result", count);
