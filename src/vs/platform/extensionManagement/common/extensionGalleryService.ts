@@ -587,7 +587,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		const config = productService.extensionsGallery;
-		this.extensionsGalleryUrl = config?.serviceUrl;
+		this.extensionsGalleryUrl = config?.servicePPEUrl && configurationService.getValue('_extensionsGallery.enablePPE') ? config.servicePPEUrl : config?.serviceUrl;
 		this.extensionsGallerySearchUrl = config?.searchUrl;
 		this.extensionsControlUrl = config?.controlUrl;
 		this.commonHeadersPromise = resolveMarketplaceHeaders(

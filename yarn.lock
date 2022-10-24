@@ -636,13 +636,13 @@
     node-addon-api "^3.2.1"
     node-gyp-build "^4.3.0"
 
-"@playwright/test@1.26.0":
-  version "1.26.0"
-  resolved "https://registry.yarnpkg.com/@playwright/test/-/test-1.26.0.tgz#d0c4a7ffaa7df5b4a63e0d8dea133fdb1d6c5aef"
-  integrity sha512-D24pu1k/gQw3Lhbpc38G5bXlBjGDrH5A52MsrH12wz6ohGDeQ+aZg/JFSEsT/B3G8zlJe/EU4EkJK74hpqsjEg==
+"@playwright/test@1.27.1":
+  version "1.27.1"
+  resolved "https://registry.yarnpkg.com/@playwright/test/-/test-1.27.1.tgz#9364d1e02021261211c8ff586d903faa79ce95c4"
+  integrity sha512-mrL2q0an/7tVqniQQF6RBL2saskjljXzqNcCOVMUjRIgE6Y38nCNaP+Dc2FBW06bcpD3tqIws/HT9qiMHbNU0A==
   dependencies:
     "@types/node" "*"
-    playwright-core "1.26.0"
+    playwright-core "1.27.1"
 
 "@sindresorhus/is@^0.14.0":
   version "0.14.0"
@@ -3583,10 +3583,10 @@ decompress@^4.2.1:
     pify "^2.3.0"
     strip-dirs "^2.0.0"
 
-deemon@^1.4.0:
-  version "1.7.1"
-  resolved "https://registry.yarnpkg.com/deemon/-/deemon-1.7.1.tgz#46cf8313fd320fac6ee944bbb1bea3e8c2a978ee"
-  integrity sha512-UcBiu6+4sZgkDrs7GT78FDkqmt9ZVN412XXT4Bm9sn5Hcrwv/M9HmCay3108Yvxl4Ti5n1UjkkuSVA1y3+FIvg==
+deemon@^1.7.2:
+  version "1.7.2"
+  resolved "https://registry.yarnpkg.com/deemon/-/deemon-1.7.2.tgz#8b04aff88bf5752ba6dfea4242758b98ec6fd57c"
+  integrity sha512-KxR0zGNLbeNZyXLLrAiRtj5f3gpXn85UEgrCWD49IlPzSPQg9iFR/uQnEKQzvt9kP5latEHQkM+SNcnJOBfP3Q==
   dependencies:
     bl "^4.0.2"
     tree-kill "^1.2.2"
@@ -8470,11 +8470,6 @@ pkg-dir@^4.1.0, pkg-dir@^4.2.0:
   dependencies:
     find-up "^4.0.0"
 
-playwright-core@1.26.0:
-  version "1.26.0"
-  resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-1.26.0.tgz#850228f0638d410a5cdd69800d552f60e4d295cd"
-  integrity sha512-p8huU8eU4gD3VkJd3DA1nA7R3XA6rFvFL+1RYS96cSljCF2yJE9CWEHTPF4LqX8KN9MoWCrAfVKP5381X3CZqg==
-
 playwright-core@1.27.1:
   version "1.27.1"
   resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-1.27.1.tgz#840ef662e55a3ed759d8b5d3d00a5f885a7184f4"
@@ -11693,15 +11688,15 @@ xterm-addon-webgl@0.14.0-beta.32:
   resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.14.0-beta.32.tgz#35d08d4a0b36434ea5746738987b0170f918a9e3"
   integrity sha512-FnD/LX0Obxu+Q3hdkVvStlGFCtp+jzKtV6lzF42Uvh5evbGA2SBO3BxWW26VhurtEN5Pf7Iyx8sJxcPVd/tPXw==
 
-xterm-headless@5.1.0-beta.48:
-  version "5.1.0-beta.48"
-  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-5.1.0-beta.48.tgz#465c2888a3c46e9a1c249526121f4b0d7232c512"
-  integrity sha512-Qalx5MXntBdkSiW7CpN22ZBdBO8abLi1ODtRImmj4ak5NRMbgQEWJQM+XfykiZ5tDXnzeNwYhA9cd5UbAUWdXQ==
+xterm-headless@5.1.0-beta.49:
+  version "5.1.0-beta.49"
+  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-5.1.0-beta.49.tgz#c71793f7ba5ba3c403af5e5e9a7c5d89318b663d"
+  integrity sha512-dDHteT5DMr/li8qbaZ6FvIuZEI6SZUjNeiOrVwr//Qo4s/k4K3dRD0YxoJJ3ml/nPoxnhYyDkf9viLgm1rgEhA==
 
-xterm@5.1.0-beta.48:
-  version "5.1.0-beta.48"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.1.0-beta.48.tgz#4cf28bf0626c8446abb9bb714939574c1f274fed"
-  integrity sha512-vzy1ImIuYNdvy03nRbtGQwJmg/WFdopR017b2ff1QFC38cxrH7PUBTC86QGjvIvr/qdMj74aLsy711NlOPOEIw==
+xterm@5.1.0-beta.49:
+  version "5.1.0-beta.49"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.1.0-beta.49.tgz#4c98e5580d690a57d5d055025abb5d0e8ab2f42c"
+  integrity sha512-jUiJ4lBhHW7XzLPyXVzCwjljDEl5TJj9+fj677fwDb/La8qPov2R+ocjb1H/7j0sODxAV0Op2ftDCtz2JzbCvQ==
 
 y18n@^3.2.1:
   version "3.2.2"

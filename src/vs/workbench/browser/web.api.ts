@@ -398,11 +398,6 @@ export interface ITunnelOptions {
 
 	label?: string;
 
-	/**
-	 * @deprecated Use privacy instead
-	 */
-	public?: boolean;
-
 	privacy?: string;
 
 	protocol?: string;
@@ -424,11 +419,6 @@ export interface ITunnel {
 	 * The complete local address(ex. localhost:1234)
 	 */
 	localAddress: string;
-
-	/**
-	 * @deprecated Use privacy instead
-	 */
-	public?: boolean;
 
 	privacy?: string;
 

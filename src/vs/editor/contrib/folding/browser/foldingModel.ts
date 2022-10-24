@@ -207,7 +207,7 @@ export class FoldingModel {
 		const rangesToRestore: FoldRange[] = [];
 		const maxLineNumber = this._textModel.getLineCount();
 		for (const range of state) {
-			if (range.startLineNumber >= range.endLineNumber || range.startLineNumber < 1 || range.endLineNumber > maxLineNumber) {
+			if (range.startLineNumber >= range.endLineNumber || range.startLineNumber < 1 || range.endLineNumber >= maxLineNumber) {
 				continue;
 			}
 			const checksum = this._getLinesChecksum(range.startLineNumber + 1, range.endLineNumber);

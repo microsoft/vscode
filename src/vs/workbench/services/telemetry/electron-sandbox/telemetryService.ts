@@ -75,7 +75,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	}
 
 	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLog(eventName, data as ITelemetryData);
+		return this.publicLogError(eventName, data as ITelemetryData);
 	}
 
 

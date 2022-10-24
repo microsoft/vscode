@@ -46,6 +46,8 @@ export interface IUserDataSyncConfiguration {
 	ignoredSettings?: string[];
 }
 
+export const CONFIG_SYNC_KEYBINDINGS_PER_PLATFORM = 'settingsSync.keybindingsPerPlatform';
+
 export function registerConfiguration(): IDisposable {
 	const ignoredSettingsSchemaId = 'vscode://schemas/ignoredSettings';
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -55,7 +57,7 @@ export function registerConfiguration(): IDisposable {
 		title: localize('settings sync', "Settings Sync"),
 		type: 'object',
 		properties: {
-			'settingsSync.keybindingsPerPlatform': {
+			[CONFIG_SYNC_KEYBINDINGS_PER_PLATFORM]: {
 				type: 'boolean',
 				description: localize('settingsSync.keybindingsPerPlatform', "Synchronize keybindings for each platform."),
 				default: true,
@@ -212,7 +214,7 @@ export interface IUserDataSyncBackupStoreService {
 	readonly _serviceBrand: undefined;
 	backup(profile: IUserDataProfile, resource: SyncResource, content: string): Promise<void>;
 	getAllRefs(profile: IUserDataProfile, resource: SyncResource): Promise<IResourceRefHandle[]>;
-	resolveContent(profile: IUserDataProfile, resource: SyncResource, ref?: string): Promise<string | null>;
+	resolveContent(profile: IUserDataProfile, resource: SyncResource, ref: string): Promise<string | null>;
 }
 
 //#endregion
@@ -426,7 +428,6 @@ export interface IUserDataSynchroniser {
 	readonly onDidChangeLocal: Event<void>;
 
 	sync(manifest: IUserDataResourceManifest | null, headers: IHeaders): Promise<void>;
-	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
 
 	preview(manifest: IUserDataResourceManifest | null, userDataSyncConfiguration: IUserDataSyncConfiguration, headers: IHeaders): Promise<IUserDataSyncResourcePreview | null>;
@@ -440,10 +441,7 @@ export interface IUserDataSynchroniser {
 	resetLocal(): Promise<void>;
 
 	resolveContent(resource: URI): Promise<string | null>;
-	getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
-	getLocalSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
-	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
-	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
+	replace(content: string): Promise<boolean>;
 }
 
 //#endregion
@@ -506,6 +504,7 @@ export interface IUserDataSyncService {
 
 	createSyncTask(manifest: IUserDataManifest | null, disableCache?: boolean): Promise<IUserDataSyncTask>;
 	createManualSyncTask(): Promise<IUserDataManualSyncTask>;
+	resolveContent(resource: URI): Promise<string | null>;
 	accept(syncResource: IUserDataSyncResource, resource: URI, content: string | null | undefined, apply: boolean | { force: boolean }): Promise<void>;
 
 	reset(): Promise<void>;
@@ -514,12 +513,24 @@ export interface IUserDataSyncService {
 	hasLocalData(): Promise<boolean>;
 	hasPreviouslySynced(): Promise<boolean>;
 
+	getRemoteProfiles(): Promise<ISyncUserDataProfile[]>;
+	getRemoteSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile): Promise<ISyncResourceHandle[]>;
+	getLocalSyncResourceHandles(syncResource: SyncResource, profile?: IUserDataProfile): Promise<ISyncResourceHandle[]>;
+	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
+	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
+	replace(syncResourceHandle: ISyncResourceHandle): Promise<void>;
+}
+
+export const IUserDataSyncResourceProviderService = createDecorator<IUserDataSyncResourceProviderService>('IUserDataSyncResourceProviderService');
+export interface IUserDataSyncResourceProviderService {
+	_serviceBrand: any;
+	getRemoteSyncedProfiles(): Promise<ISyncUserDataProfile[]>;
+	getLocalSyncResourceHandles(syncResource: SyncResource, profile: IUserDataProfile): Promise<ISyncResourceHandle[]>;
+	getRemoteSyncResourceHandles(syncResource: SyncResource, profile: ISyncUserDataProfile | undefined): Promise<ISyncResourceHandle[]>;
+	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
+	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
 	resolveContent(resource: URI): Promise<string | null>;
-	replace(resource: IUserDataSyncResource, uri: URI): Promise<void>;
-	getLocalSyncResourceHandles(resource: IUserDataSyncResource): Promise<ISyncResourceHandle[]>;
-	getRemoteSyncResourceHandles(resource: IUserDataSyncResource): Promise<ISyncResourceHandle[]>;
-	getAssociatedResources(resource: IUserDataSyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
-	getMachineId(resource: IUserDataSyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
+	resolveUserDataSyncResource(syncResourceHandle: ISyncResourceHandle): IUserDataSyncResource | undefined;
 }
 
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');

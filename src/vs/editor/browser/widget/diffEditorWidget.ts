@@ -2609,14 +2609,14 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		marginDomNode: HTMLElement
 	): number {
 
-		sb.appendASCIIString('<div class="view-line');
+		sb.appendString('<div class="view-line');
 		if (!hasCharChanges) {
 			// No char changes
-			sb.appendASCIIString(' char-delete');
+			sb.appendString(' char-delete');
 		}
-		sb.appendASCIIString('" style="top:');
-		sb.appendASCIIString(String(renderedLineCount * lineHeight));
-		sb.appendASCIIString('px;width:1000000px;">');
+		sb.appendString('" style="top:');
+		sb.appendString(String(renderedLineCount * lineHeight));
+		sb.appendString('px;width:1000000px;">');
 
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, mightContainNonBasicASCII);
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, mightContainRTL);
@@ -2642,7 +2642,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			null // Send no selections, original line cannot be selected
 		), sb);
 
-		sb.appendASCIIString('</div>');
+		sb.appendString('</div>');
 
 		if (this._renderIndicators) {
 			const marginElement = document.createElement('div');

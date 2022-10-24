@@ -46,6 +46,7 @@
 	"configuration.markdown.updateLinksOnFileMove.enabled.always": "Always update links automatically.",
 	"configuration.markdown.updateLinksOnFileMove.enabled.never": "Never try to update link and don't prompt.",
 	"configuration.markdown.updateLinksOnFileMove.fileGlobs": "A glob that specifies which files besides markdown should trigger a link update.",
-	"configuration.markdown.updateLinksOnFileMove.enableForDirectories": "enable/disable updating links when a directory is moved or renamed in the workspace.",
+	"configuration.markdown.updateLinksOnFileMove.enableForDirectories": "Enable/disable updating links when a directory is moved or renamed in the workspace.",
+	"configuration.markdown.occurrencesHighlight.enabled": "Enable/disable highlighting link occurrences in the current document.",
 	"workspaceTrust": "Required for loading styles configured in the workspace."
 }

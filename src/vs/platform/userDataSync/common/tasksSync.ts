@@ -15,7 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractFileSynchroniser, AbstractInitializer, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { Change, IRemoteUserData, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, IRemoteUserData, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
 interface ITasksSyncContent {
 	tasks: string;
@@ -224,11 +224,6 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 		return this.fileService.exists(this.file);
 	}
 
-	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
-		const comparableResource = (await this.fileService.exists(this.file)) ? this.file : this.localResource;
-		return [{ resource: this.extUri.joinPath(uri, 'tasks.json'), comparableResource }];
-	}
-
 	override async resolveContent(uri: URI): Promise<string | null> {
 		if (this.extUri.isEqual(this.remoteResource, uri)
 			|| this.extUri.isEqual(this.baseResource, uri)
@@ -236,20 +231,6 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 			|| this.extUri.isEqual(this.acceptedResource, uri)
 		) {
 			return this.resolvePreviewContent(uri);
-		}
-		let content = await super.resolveContent(uri);
-		if (content) {
-			return content;
-		}
-		content = await super.resolveContent(this.extUri.dirname(uri));
-		if (content) {
-			const syncData = this.parseSyncData(content);
-			if (syncData) {
-				switch (this.extUri.basename(uri)) {
-					case 'tasks.json':
-						return getTasksContentFromSyncContent(syncData.content, this.logService);
-				}
-			}
 		}
 		return null;
 	}

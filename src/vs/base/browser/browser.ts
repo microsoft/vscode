@@ -210,3 +210,7 @@ if (window.matchMedia) {
 export function isStandalone(): boolean {
 	return standalone;
 }
+
+export function isWCOVisible(): boolean {
+	return (navigator as any)?.windowControlsOverlay?.visible;
+}

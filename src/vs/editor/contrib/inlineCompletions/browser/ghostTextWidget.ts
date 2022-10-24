@@ -357,15 +357,15 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 	const lineHeight = opts.get(EditorOption.lineHeight);
 
 	const sb = new StringBuilder(10000);
-	sb.appendASCIIString('<div class="suggest-preview-text">');
+	sb.appendString('<div class="suggest-preview-text">');
 
 	for (let i = 0, len = lines.length; i < len; i++) {
 		const lineData = lines[i];
 		const line = lineData.content;
-		sb.appendASCIIString('<div class="view-line');
-		sb.appendASCIIString('" style="top:');
-		sb.appendASCIIString(String(i * lineHeight));
-		sb.appendASCIIString('px;width:1000000px;">');
+		sb.appendString('<div class="view-line');
+		sb.appendString('" style="top:');
+		sb.appendString(String(i * lineHeight));
+		sb.appendString('px;width:1000000px;">');
 
 		const isBasicASCII = strings.isBasicASCII(line);
 		const containsRTL = strings.containsRTL(line);
@@ -393,9 +393,9 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 			null
 		), sb);
 
-		sb.appendASCIIString('</div>');
+		sb.appendString('</div>');
 	}
-	sb.appendASCIIString('</div>');
+	sb.appendString('</div>');
 
 	applyFontInfo(domNode, fontInfo);
 	const html = sb.build();

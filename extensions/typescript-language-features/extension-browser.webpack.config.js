@@ -70,8 +70,14 @@ module.exports = withBrowserDefaults({
 						const dynamicImportCompatPath = path.join(__dirname, '..', 'node_modules', 'typescript', 'lib', 'dynamicImportCompat.js');
 						const prefix = fs.existsSync(dynamicImportCompatPath) ? fs.readFileSync(dynamicImportCompatPath) : undefined;
 						const output = await Terser.minify(content.toString());
+						if (!output.code) {
+							throw new Error('Terser returned undefined code');
+						}
 
-						return prefix + '\n' + output.code;
+						if (prefix) {
+							return prefix.toString() + '\n' + output.code;
+						}
+						return output.code;
 					},
 					transformPath: (targetPath) => {
 						return targetPath.replace('tsserver.js', 'tsserver.web.js');

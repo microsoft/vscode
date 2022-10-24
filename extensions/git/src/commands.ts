@@ -40,7 +40,12 @@ class CheckoutItem implements QuickPickItem {
 		const pullBeforeCheckout = config.get<boolean>('pullBeforeCheckout', false) === true;
 
 		if (pullBeforeCheckout) {
-			await this.repository.fastForwardBranch(this.ref.name!);
+			try {
+				await this.repository.fastForwardBranch(this.ref.name!);
+			}
+			catch (err) {
+				// noop
+			}
 		}
 
 		await this.repository.checkout(this.ref.name, opts);
@@ -566,21 +571,8 @@ export class CommandCenter {
 
 			const repositoryPath = await window.withProgress(
 				opts,
-				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive }, token)
+				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive, ref: options.ref }, token)
 			);
-
-			const refToCheckoutAfterClone = options.ref;
-			if (refToCheckoutAfterClone !== undefined) {
-				await window.withProgress(
-					{
-						location: ProgressLocation.Notification,
-						title: localize('checking out ref', "Checking out ref '{0}'...", options.ref)
-					}, async () => {
-						await this.model.openRepository(repositoryPath);
-						const repository = this.model.getRepository(repositoryPath);
-						await repository?.checkout(refToCheckoutAfterClone);
-					});
-			}
 
 			const config = workspace.getConfiguration('git');
 			const openAfterClone = config.get<'always' | 'alwaysNewWindow' | 'whenNoFolderOpen' | 'prompt'>('openAfterClone');
@@ -3382,7 +3374,8 @@ export class CommandCenter {
 			}
 
 			return repository.workingTreeGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0]
-				|| repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0];
+				|| repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0]
+				|| repository.mergeGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0];
 		}
 		return undefined;
 	}
