@@ -22,7 +22,7 @@ import { gitSimilar, freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutp
 import { TerminalQuickFixAddon, getQuickFixesForCommand, convertExtensionQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { URI } from 'vs/base/common/uri';
 import { Terminal } from 'xterm';
-// import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
+import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 
 suite('QuickFixAddon', () => {
 	let quickFixAddon: TerminalQuickFixAddon;
@@ -36,7 +36,7 @@ suite('QuickFixAddon', () => {
 			cols: 80,
 			rows: 30
 		});
-		// instantiationService.stub(ITerminalContributionService, { quickFixes: [] } as Partial<ITerminalContributionService>);
+		instantiationService.stub(ITerminalContributionService, { quickFixes: [] } as Partial<ITerminalContributionService>);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		const capabilities = new TerminalCapabilityStore();
 		instantiationService.stub(ILogService, new NullLogService());
