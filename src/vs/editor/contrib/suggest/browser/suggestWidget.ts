@@ -104,8 +104,8 @@ export class SuggestWidget implements IDisposable {
 	private _state: State = State.Hidden;
 	private _isAuto: boolean = false;
 	private _loadingTimeout?: IDisposable;
-	private _pendingLayout = new MutableDisposable();
-	private _pendingShowDetails = new MutableDisposable();
+	private readonly _pendingLayout = new MutableDisposable();
+	private readonly _pendingShowDetails = new MutableDisposable();
 	private _currentSuggestionDetails?: CancelablePromise<void>;
 	private _focusedItem?: CompletionItem;
 	private _ignoreFocusEvents: boolean = false;
