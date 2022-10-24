@@ -16,6 +16,7 @@ import { ISpliceable } from 'vs/base/common/sequence';
 export interface IIndexTreeNode<T, TFilterData = void> extends ITreeNode<T, TFilterData> {
 	readonly parent: IIndexTreeNode<T, TFilterData> | undefined;
 	readonly children: IIndexTreeNode<T, TFilterData>[];
+	childrenResolved: boolean;
 	visibleChildrenCount: number;
 	visibleChildIndex: number;
 	collapsible: boolean;
@@ -128,6 +129,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			parent: undefined,
 			element: rootElement,
 			children: [],
+			childrenResolved: false,
 			depth: 0,
 			visibleChildrenCount: 0,
 			visibleChildIndex: -1,
@@ -424,6 +426,10 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			}
 		}
 
+		if (!node.childrenResolved && update as CollapsedStateUpdate && !(update as CollapsedStateUpdate).collapsed) {
+			node.childrenResolved = true;
+		}
+
 		return result;
 	}
 
@@ -506,6 +512,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			parent,
 			element: treeElement.element,
 			children: [],
+			childrenResolved: false,
 			depth: parent.depth + 1,
 			visibleChildrenCount: 0,
 			visibleChildIndex: -1,
@@ -539,6 +546,8 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 				child.visibleChildIndex = visibleChildrenCount++;
 			}
 		}
+
+		node.childrenResolved = node.children.length > 0;
 
 		node.collapsible = node.collapsible || node.children.length > 0;
 		node.visibleChildrenCount = visibleChildrenCount;
@@ -635,7 +644,8 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		}
 
 		if (node !== this.root) {
-			node.visible = visibility! === TreeVisibility.Recurse ? hasVisibleDescendants : (visibility! === TreeVisibility.Visible);
+			const hasUnresolvedDescendants = node.collapsible && node.collapsed && !node.childrenResolved;
+			node.visible = visibility! === TreeVisibility.Recurse ? hasVisibleDescendants || hasUnresolvedDescendants : (visibility! === TreeVisibility.Visible);
 			node.visibility = visibility!;
 		}
 
