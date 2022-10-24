@@ -302,6 +302,8 @@ export class SuggestWidget implements IDisposable {
 		this._status.dispose();
 		this._disposables.dispose();
 		this._loadingTimeout?.dispose();
+		this._pendingLayout.dispose();
+		this._pendingShowDetails.dispose();
 		this._showTimeout.dispose();
 		this._contentWidget.dispose();
 		this.element.dispose();
