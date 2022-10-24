@@ -286,8 +286,15 @@ steps:
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
         exec { node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.dll,*.exe,*.node' }
-        exec { node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows-appx $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.appx' }
       displayName: Codesign
+
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows-appx $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.appx' }
+      displayName: Codesign context menu appx package
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
     - powershell: |
