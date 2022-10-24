@@ -15,9 +15,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { connectRemoteAgentTunnel, IAddressProvider, IConnectionOptions, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
-import { AbstractTunnelService, isAllInterfaces, ISharedTunnelsService as ISharedTunnelsService, isLocalhost, ITunnelService, RemoteTunnel, TunnelPrivacyId } from 'vs/platform/tunnel/common/tunnel';
+import { AbstractTunnelService, isAllInterfaces, ISharedTunnelsService as ISharedTunnelsService, isLocalhost, isPortPrivileged, ITunnelService, RemoteTunnel, TunnelPrivacyId } from 'vs/platform/tunnel/common/tunnel';
 import { ISignService } from 'vs/platform/sign/common/sign';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { OS } from 'vs/base/common/platform';
 
 async function createRemoteTunnel(options: IConnectionOptions, defaultTunnelHost: string, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {
 	let readyTunnel: NodeRemoteTunnel | undefined;
@@ -83,8 +83,10 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 	}
 
 	public async waitForReady(): Promise<this> {
+		const startPort = this.suggestedLocalPort ?? this.tunnelRemotePort;
+		const hostname = isAllInterfaces(this.defaultTunnelHost) ? '0.0.0.0' : '127.0.0.1';
 		// try to get the same port number as the remote port number...
-		let localPort = await findFreePortFaster(this.suggestedLocalPort ?? this.tunnelRemotePort, 2, 1000);
+		let localPort = await findFreePortFaster(startPort, 2, 1000, hostname);
 
 		// if that fails, the method above returns 0, which works out fine below...
 		let address: string | net.AddressInfo | null = null;
@@ -157,18 +159,13 @@ export class BaseTunnelService extends AbstractTunnelService {
 		@ILogService logService: ILogService,
 		@ISignService private readonly signService: ISignService,
 		@IProductService private readonly productService: IProductService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(logService);
-	}
-
-	private get defaultTunnelHost(): string {
-		const settingValue = this.configurationService.getValue('remote.localPortHost');
-		return (!settingValue || settingValue === 'localhost') ? '127.0.0.1' : '0.0.0.0';
+		super(logService, configurationService);
 	}
 
 	public isPortPrivileged(port: number): boolean {
-		return this.doIsPortPrivileged(port, isWindows, isMacintosh, os.release());
+		return isPortPrivileged(port, this.defaultTunnelHost, OS, os.release());
 	}
 
 	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {

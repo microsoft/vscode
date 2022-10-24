@@ -90,7 +90,7 @@
 }
 
 .merge-editor-block:not(.handled).focused {
-	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+	border: 2px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 }
 
 .merge-editor-block.handled:not(.focused) {

@@ -32,7 +32,7 @@ export const diffWordBase = registerColor(
 
 export const conflictBorderUnhandledUnfocused = registerColor(
 	'mergeEditor.conflict.unhandledUnfocused.border',
-	{ dark: '#ffa6007a', light: '#ffa6007a', hcDark: '#ffa6007a', hcLight: '#ffa6007a', },
+	{ dark: '#ffa6007a', light: '#ffa600FF', hcDark: '#ffa6007a', hcLight: '#ffa6007a', },
 	localize('mergeEditor.conflict.unhandledUnfocused.border', 'The border color of unhandled unfocused conflicts.')
 );
 

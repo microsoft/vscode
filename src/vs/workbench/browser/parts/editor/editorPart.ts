@@ -192,6 +192,8 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		});
 	}
 
+	private _top = 0;
+	private _left = 0;
 	private _contentDimension!: Dimension;
 	get contentDimension(): Dimension { return this._contentDimension; }
 
@@ -437,7 +439,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.doCreateGridControlWithState(gridDescriptor, activeGroup.id, currentGroupViews);
 
 		// Layout
-		this.doLayout(this._contentDimension, 0, 0);
+		this.doLayout(this._contentDimension);
 
 		// Update container
 		this.updateContainer();
@@ -1113,6 +1115,8 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
+		this._top = top;
+		this._left = left;
 
 		// Layout contents
 		const contentAreaSize = super.layoutContents(width, height).contentSize;
@@ -1121,7 +1125,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.doLayout(Dimension.lift(contentAreaSize), top, left);
 	}
 
-	private doLayout(dimension: Dimension, top: number, left: number): void {
+	private doLayout(dimension: Dimension, top = this._top, left = this._left): void {
 		this._contentDimension = dimension;
 
 		// Layout Grid

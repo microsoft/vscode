@@ -11,7 +11,6 @@ use cli::{
 	commands::{args, tunnels, update, version, CommandContext},
 	desktop, log as own_log,
 	state::LauncherPaths,
-	update_service::UpdateService,
 	util::{
 		errors::{wrap, AnyError},
 		is_integrated_cli,
@@ -86,12 +85,7 @@ async fn main() -> Result<(), std::convert::Infallible> {
 				args::VersionSubcommand::Use(use_version_args) => {
 					version::switch_to(context, use_version_args).await
 				}
-				args::VersionSubcommand::Uninstall(uninstall_version_args) => {
-					version::uninstall(context, uninstall_version_args).await
-				}
-				args::VersionSubcommand::List(list_version_args) => {
-					version::list(context, list_version_args).await
-				}
+				args::VersionSubcommand::Show => version::show(context).await,
 			},
 
 			Some(args::Commands::Tunnel(tunnel_args)) => match tunnel_args.subcommand {
@@ -126,9 +120,12 @@ where
 }
 
 async fn start_code(context: CommandContext, args: Vec<String>) -> Result<i32, AnyError> {
+	// todo: once the integrated CLI takes the place of the Node.js CLI, this should
+	// redirect to the current installation without using the CodeVersionManager.
+
 	let platform = PreReqChecker::new().verify().await?;
-	let version_manager = desktop::CodeVersionManager::new(&context.paths, platform);
-	let update_service = UpdateService::new(context.log.clone(), context.http.clone());
+	let version_manager =
+		desktop::CodeVersionManager::new(context.log.clone(), &context.paths, platform);
 	let version = match &context.args.editor_options.code_options.use_version {
 		Some(v) => desktop::RequestedVersion::try_from(v.as_str())?,
 		None => version_manager.get_preferred_version(),
@@ -137,16 +134,16 @@ async fn start_code(context: CommandContext, args: Vec<String>) -> Result<i32, A
 	let binary = match version_manager.try_get_entrypoint(&version).await {
 		Some(ep) => ep,
 		None => {
-			desktop::prompt_to_install(&version)?;
-			version_manager.install(&update_service, &version).await?
+			desktop::prompt_to_install(&version);
+			return Ok(1);
 		}
 	};
 
-	let code = Command::new(binary)
+	let code = Command::new(&binary)
 		.args(args)
 		.status()
 		.map(|s| s.code().unwrap_or(1))
-		.map_err(|e| wrap(e, "error running VS Code"))?;
+		.map_err(|e| wrap(e, format!("error running VS Code from {}", binary.display())))?;
 
 	Ok(code)
 }

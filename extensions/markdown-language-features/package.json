@@ -566,6 +566,12 @@
           "tags": [
             "experimental"
           ]
+        },
+        "markdown.occurrencesHighlight.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.markdown.occurrencesHighlight.enabled%",
+          "scope": "resource"
         }
       }
     },

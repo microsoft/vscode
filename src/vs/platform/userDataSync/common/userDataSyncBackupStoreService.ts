@@ -47,19 +47,16 @@ export class UserDataSyncBackupStoreService extends Disposable implements IUserD
 		return [];
 	}
 
-	async resolveContent(profile: IUserDataProfile, resource: SyncResource, ref?: string): Promise<string | null> {
-		if (!ref) {
-			const refs = await this.getAllRefs(profile, resource);
-			if (refs.length) {
-				ref = refs[refs.length - 1].ref;
-			}
-		}
-		if (ref) {
-			const file = joinPath(this.environmentService.userDataSyncHome, resource, ref);
+	async resolveContent(profile: IUserDataProfile, resourceKey: SyncResource, ref: string): Promise<string | null> {
+		const folder = this.getResourceBackupHome(profile, resourceKey);
+		const file = joinPath(folder, ref);
+		try {
 			const content = await this.fileService.readFile(file);
 			return content.value.toString();
+		} catch (error) {
+			this.logService.error(error);
+			return null;
 		}
-		return null;
 	}
 
 	async backup(profile: IUserDataProfile, resourceKey: SyncResource, content: string): Promise<void> {

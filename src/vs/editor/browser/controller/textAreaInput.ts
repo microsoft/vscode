@@ -53,7 +53,7 @@ export interface ClipboardStoredMetadata {
 
 export interface ITextAreaInputHost {
 	getDataToCopy(): ClipboardDataToCopy;
-	getScreenReaderContent(currentState: TextAreaState): TextAreaState;
+	getScreenReaderContent(): TextAreaState;
 	deduceModelPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 }
 
@@ -194,6 +194,11 @@ export class TextAreaInput extends Disposable {
 	private readonly _asyncFocusGainWriteScreenReaderContent: RunOnceScheduler;
 
 	private _textAreaState: TextAreaState;
+
+	public get textAreaState(): TextAreaState {
+		return this._textAreaState;
+	}
+
 	private _selectionChangeListener: IDisposable | null;
 
 	private _hasFocus: boolean;
@@ -297,7 +302,7 @@ export class TextAreaInput extends Disposable {
 				// For example, if the cursor is in the middle of a word like Mic|osoft
 				// and Microsoft is chosen from the keyboard's suggestions, the e.data will contain "Microsoft".
 				// This is not really usable because it doesn't tell us where the edit began and where it ended.
-				const newState = TextAreaState.readFromTextArea(this._textArea);
+				const newState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
 				const typeInput = TextAreaState.deduceAndroidCompositionInput(this._textAreaState, newState);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
@@ -305,7 +310,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 			const typeInput = currentComposition.handleCompositionUpdate(e.data);
-			this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
+			this._textAreaState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
 			this._onType.fire(typeInput);
 			this._onCompositionUpdate.fire(e);
 		}));
@@ -327,7 +332,7 @@ export class TextAreaInput extends Disposable {
 				// For example, if the cursor is in the middle of a word like Mic|osoft
 				// and Microsoft is chosen from the keyboard's suggestions, the e.data will contain "Microsoft".
 				// This is not really usable because it doesn't tell us where the edit began and where it ended.
-				const newState = TextAreaState.readFromTextArea(this._textArea);
+				const newState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
 				const typeInput = TextAreaState.deduceAndroidCompositionInput(this._textAreaState, newState);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
@@ -336,7 +341,7 @@ export class TextAreaInput extends Disposable {
 			}
 
 			const typeInput = currentComposition.handleCompositionUpdate(e.data);
-			this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
+			this._textAreaState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
 			this._onType.fire(typeInput);
 			this._onCompositionEnd.fire();
 		}));
@@ -354,7 +359,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
-			const newState = TextAreaState.readFromTextArea(this._textArea);
+			const newState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
 			const typeInput = TextAreaState.deduceInput(this._textAreaState, newState, /*couldBeEmojiInput*/this._OS === OperatingSystem.Macintosh);
 
 			if (typeInput.replacePrevCharCnt === 0 && typeInput.text.length === 1 && strings.isHighSurrogate(typeInput.text.charCodeAt(0))) {
@@ -460,7 +465,7 @@ export class TextAreaInput extends Disposable {
 
 	_initializeFromTest(): void {
 		this._hasFocus = true;
-		this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
+		this._textAreaState = TextAreaState.readFromTextArea(this._textArea, null);
 	}
 
 	private _installSelectionChangeListener(): IDisposable {
@@ -516,7 +521,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
-			if (!this._textAreaState.selectionStartPosition || !this._textAreaState.selectionEndPosition) {
+			if (!this._textAreaState.selection) {
 				// Cannot correlate a position in the textarea with a position in the editor...
 				return;
 			}
@@ -615,7 +620,7 @@ export class TextAreaInput extends Disposable {
 			return;
 		}
 
-		this._setAndWriteTextAreaState(reason, this._host.getScreenReaderContent(this._textAreaState));
+		this._setAndWriteTextAreaState(reason, this._host.getScreenReaderContent());
 	}
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {

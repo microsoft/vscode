@@ -24,7 +24,7 @@ import { Extensions as ViewContainerExtensions, IView, IViewDescriptorService, V
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { MenuId, Action2, IAction2Options, IMenuService, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuId, Action2, IAction2Options, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -149,27 +149,6 @@ class ViewWelcomeController {
 	}
 }
 
-class ViewMenuActions extends CompositeMenuActions {
-	constructor(
-		element: HTMLElement,
-		viewId: string,
-		menuId: MenuId,
-		contextMenuId: MenuId,
-		donotForwardArgs: boolean,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-	) {
-		const scopedContextKeyService = contextKeyService.createScoped(element);
-		scopedContextKeyService.createKey('view', viewId);
-		const viewLocationKey = scopedContextKeyService.createKey('viewLocation', ViewContainerLocationToString(viewDescriptorService.getViewLocationById(viewId)!));
-		super(menuId, contextMenuId, { shouldForwardArgs: !donotForwardArgs }, scopedContextKeyService, menuService);
-		this._register(scopedContextKeyService);
-		this._register(Event.filter(viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === viewId))(() => viewLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewLocationById(viewId)!))));
-	}
-
-}
-
 export abstract class ViewPane extends Pane implements IView {
 
 	private static readonly AlwaysShowActionsConfig = 'workbench.view.alwaysShowHeaderActions';
@@ -202,7 +181,7 @@ export abstract class ViewPane extends Pane implements IView {
 		return this._titleDescription;
 	}
 
-	readonly menuActions: ViewMenuActions;
+	readonly menuActions: CompositeMenuActions;
 
 	private progressBar!: ProgressBar;
 	private progressIndicator!: IProgressIndicator;
@@ -219,6 +198,8 @@ export abstract class ViewPane extends Pane implements IView {
 	private viewWelcomeContainer!: HTMLElement;
 	private viewWelcomeDisposable: IDisposable = Disposable.None;
 	private viewWelcomeController: ViewWelcomeController;
+
+	protected readonly scopedContextKeyService: IContextKeyService;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -239,7 +220,12 @@ export abstract class ViewPane extends Pane implements IView {
 		this._titleDescription = options.titleDescription;
 		this.showActionsAlways = !!options.showActionsAlways;
 
-		this.menuActions = this._register(this.instantiationService.createInstance(ViewMenuActions, this.element, this.id, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext, !!options.donotForwardArgs));
+		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
+		this.scopedContextKeyService.createKey('view', this.id);
+		const viewLocationKey = this.scopedContextKeyService.createKey('viewLocation', ViewContainerLocationToString(viewDescriptorService.getViewLocationById(this.id)!));
+		this._register(Event.filter(viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === this.id))(() => viewLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewLocationById(this.id)!))));
+
+		this.menuActions = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(CompositeMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs }));
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
 
 		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
@@ -680,9 +666,7 @@ export abstract class FilterViewPane extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
-		scopedContextKeyService.createKey('view', options.id);
-		this.filterWidget = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])).createInstance(FilterWidget, options.filterOptions));
+		this.filterWidget = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(FilterWidget, options.filterOptions));
 	}
 
 	override getFilterWidget(): FilterWidget {

@@ -19,6 +19,20 @@
 	background: rgb(150, 0, 0) !important;
 }
 
+.mtkoverflow {
+	background-color: var(--vscode-button-background, --vscode-editor-background);
+	color: var(--vscode-button-foreground, --vscode-editor-foreground);
+	border-width: 1px;
+	border-style: solid;
+	border-color: var(--vscode-contrastBorder);
+	border-radius: 5px;
+	padding: 4px;
+	cursor: pointer;
+}
+.mtkoverflow:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
 .monaco-editor.no-user-select .lines-content,
 .monaco-editor.no-user-select .view-line,
 .monaco-editor.no-user-select .view-lines {
