@@ -213,7 +213,7 @@ stages:
         - ${{ if eq(variables.VSCODE_BUILD_STAGE_MACOS, true) }}:
           - job: MacOS
             pool:
-              vmImage: macOS-latest
+              vmImage: macOS-11
             steps:
               - template: ./darwin/cli-build-darwin.yml
                 parameters:
@@ -526,7 +526,7 @@ stages:
           - ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
             - CompileCLI
         pool:
-          vmImage: macOS-latest
+          vmImage: macOS-11
         variables:
           BUILDSECMON_OPT_IN: true
         jobs:
