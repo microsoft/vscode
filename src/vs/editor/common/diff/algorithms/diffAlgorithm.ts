@@ -15,6 +15,14 @@ export class SequenceDiff {
 		public readonly seq1Range: OffsetRange,
 		public readonly seq2Range: OffsetRange
 	) { }
+
+	public reverse(): SequenceDiff {
+		return new SequenceDiff(this.seq2Range, this.seq1Range);
+	}
+
+	public toString(): string {
+		return `${this.seq1Range} <-> ${this.seq2Range}`;
+	}
 }
 
 /**
@@ -34,11 +42,22 @@ export class OffsetRange {
 	public get length(): number {
 		return this.endExclusive - this.start;
 	}
+
+	public toString() {
+		return `[${this.start}, ${this.endExclusive})`;
+	}
 }
 
 export interface ISequence {
 	getElement(offset: number): number;
 	get length(): number;
+
+	/**
+	 * The higher the score, the better that offset can be used to split the sequence.
+	 * Is used to optimize insertions.
+	 * Must not be negative.
+	*/
+	getBoundaryScore?(length: number): number;
 }
 
 export class SequenceFromIntArray implements ISequence {

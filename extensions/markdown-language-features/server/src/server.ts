@@ -79,6 +79,7 @@ export async function startServer(connection: Connection, serverConfig: {
 		});
 
 		registerCompletionsSupport(connection, documents, mdLs, configurationManager);
+		registerDocumentHightlightSupport(connection, documents, mdLs, configurationManager);
 		registerValidateSupport(connection, workspace, documents, mdLs, configurationManager, serverConfig.logger);
 
 		return {
@@ -93,7 +94,7 @@ export async function startServer(connection: Connection, serverConfig: {
 				completionProvider: { triggerCharacters: ['.', '/', '#'] },
 				definitionProvider: true,
 				documentLinkProvider: { resolveProvider: true },
-				documentHighlightProvider: false, // TODO: Disabling for now
+				documentHighlightProvider: true,
 				documentSymbolProvider: true,
 				foldingRangeProvider: true,
 				referencesProvider: true,
@@ -233,14 +234,6 @@ export async function startServer(connection: Connection, serverConfig: {
 		return codeAction;
 	});
 
-	connection.onDocumentHighlight(async (params, token) => {
-		const document = documents.get(params.textDocument.uri);
-		if (!document) {
-			return undefined;
-		}
-		return mdLs!.getDocumentHighlights(document, params.position, token);
-	});
-
 	connection.onRequest(protocol.getReferencesToFileInWorkspace, (async (params: { uri: string }, token: CancellationToken) => {
 		return mdLs!.getFileReferences(URI.parse(params.uri), token);
 	}));
@@ -307,4 +300,25 @@ function registerCompletionsSupport(
 
 	update();
 	return config.onDidChangeConfiguration(() => update());
+}
+
+function registerDocumentHightlightSupport(
+	connection: Connection,
+	documents: TextDocuments<md.ITextDocument>,
+	mdLs: md.IMdLanguageService,
+	configurationManager: ConfigurationManager
+) {
+	connection.onDocumentHighlight(async (params, token) => {
+		const settings = configurationManager.getSettings();
+		if (!settings?.markdown.occurrencesHighlight.enabled) {
+			return undefined;
+		}
+
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return undefined;
+		}
+
+		return mdLs!.getDocumentHighlights(document, params.position, token);
+	});
 }

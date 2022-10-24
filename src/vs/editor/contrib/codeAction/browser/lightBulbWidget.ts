@@ -14,8 +14,7 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
-import { CodeActionSet } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import type { CodeActionTrigger } from 'vs/editor/contrib/codeAction/browser/types';
+import type { CodeActionSet, CodeActionTrigger } from 'vs/editor/contrib/codeAction/common/types';
 import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { editorBackground, editorLightBulbAutoFixForeground, editorLightBulbForeground } from 'vs/platform/theme/common/colorRegistry';

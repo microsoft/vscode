@@ -253,7 +253,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			this._shouldShowFindWidgetOnRestore = false;
 		}
 
-		this.container.style.visibility = 'visible';
+		this._container?.setVisibility('visible');
 	}
 
 	public get html(): string { return this._html; }

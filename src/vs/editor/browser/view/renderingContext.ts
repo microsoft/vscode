@@ -87,6 +87,38 @@ export class RenderingContext extends RestrictedRenderingContext {
 }
 
 export class LineVisibleRanges {
+	/**
+	 * Returns the element with the smallest `lineNumber`.
+	 */
+	public static firstLine(ranges: LineVisibleRanges[] | null): LineVisibleRanges | null {
+		if (!ranges) {
+			return null;
+		}
+		let result: LineVisibleRanges | null = null;
+		for (const range of ranges) {
+			if (!result || range.lineNumber < result.lineNumber) {
+				result = range;
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Returns the element with the largest `lineNumber`.
+	 */
+	public static lastLine(ranges: LineVisibleRanges[] | null): LineVisibleRanges | null {
+		if (!ranges) {
+			return null;
+		}
+		let result: LineVisibleRanges | null = null;
+		for (const range of ranges) {
+			if (!result || range.lineNumber > result.lineNumber) {
+				result = range;
+			}
+		}
+		return result;
+	}
+
 	constructor(
 		public readonly outsideRenderedLine: boolean,
 		public readonly lineNumber: number,

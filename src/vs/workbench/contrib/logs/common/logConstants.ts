@@ -10,6 +10,7 @@ export const telemetryLogChannelId = 'telemetryLog';
 export const extensionTelemetryLogChannelId = 'extensionTelemetryLog';
 export const userDataSyncLogChannelId = 'userDataSyncLog';
 export const editSessionsLogChannelId = 'editSessionsSyncLog';
+export const remoteTunnelLogChannelId = 'remoteTunnelLog';
 export const remoteServerLog = 'remoteServerLog';
 export const remotePtyHostLog = 'remotePtyHostLog';
 

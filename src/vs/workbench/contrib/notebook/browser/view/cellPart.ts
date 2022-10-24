@@ -56,3 +56,50 @@ export abstract class CellPart extends Disposable {
 	 */
 	updateForExecutionState(element: ICellViewModel, e: ICellExecutionStateChangedEvent): void { }
 }
+
+export class CellPartsCollection {
+
+	constructor(
+		private readonly parts: readonly CellPart[],
+	) { }
+
+	concat(other: readonly CellPart[]): CellPartsCollection {
+		return new CellPartsCollection(this.parts.concat(other));
+	}
+
+	renderCell(element: ICellViewModel): void {
+		for (const part of this.parts) {
+			part.renderCell(element);
+		}
+	}
+
+	unrenderCell(element: ICellViewModel): void {
+		for (const part of this.parts) {
+			part.unrenderCell(element);
+		}
+	}
+
+	updateInternalLayoutNow(viewCell: ICellViewModel) {
+		for (const part of this.parts) {
+			part.updateInternalLayoutNow(viewCell);
+		}
+	}
+
+	prepareLayout() {
+		for (const part of this.parts) {
+			part.prepareLayout();
+		}
+	}
+
+	updateState(viewCell: ICellViewModel, e: CellViewModelStateChangeEvent) {
+		for (const part of this.parts) {
+			part.updateState(viewCell, e);
+		}
+	}
+
+	updateForExecutionState(viewCell: ICellViewModel, e: ICellExecutionStateChangedEvent) {
+		for (const part of this.parts) {
+			part.updateForExecutionState(viewCell, e);
+		}
+	}
+}

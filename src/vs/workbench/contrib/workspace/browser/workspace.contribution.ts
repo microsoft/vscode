@@ -45,6 +45,8 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
+import { isWeb } from 'vs/base/common/platform';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
@@ -220,7 +222,8 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		@IBannerService private readonly bannerService: IBannerService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IHostService private readonly hostService: IHostService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 	) {
 		super();
 
@@ -490,7 +493,14 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 
 	private get bannerSetting(): 'always' | 'untilDismissed' | 'never' {
-		return this.configurationService.getValue(WORKSPACE_TRUST_BANNER);
+		const result = this.configurationService.getValue<'always' | 'untilDismissed' | 'never'>(WORKSPACE_TRUST_BANNER);
+
+		// In serverless environments, we don't need to aggressively show the banner
+		if (result !== 'always' && isWeb && !this.remoteAgentService.getConnection()?.remoteAuthority) {
+			return 'never';
+		}
+
+		return result;
 	}
 
 	//#endregion

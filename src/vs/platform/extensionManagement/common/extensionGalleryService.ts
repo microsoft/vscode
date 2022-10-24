@@ -193,7 +193,8 @@ const AssetType = {
 	Manifest: 'Microsoft.VisualStudio.Code.Manifest',
 	VSIX: 'Microsoft.VisualStudio.Services.VSIXPackage',
 	License: 'Microsoft.VisualStudio.Services.Content.License',
-	Repository: 'Microsoft.VisualStudio.Services.Links.Source'
+	Repository: 'Microsoft.VisualStudio.Services.Links.Source',
+	Signature: 'Microsoft.VisualStudio.Services.VsixSignature'
 };
 
 const PropertyType = {
@@ -505,6 +506,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		repository: getRepositoryAsset(version),
 		download: getDownloadAsset(version),
 		icon: getVersionAsset(version, AssetType.Icon),
+		signature: getVersionAsset(version, AssetType.Signature),
 		coreTranslations: getCoreTranslationAssets(version)
 	};
 
@@ -542,6 +544,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		hasPreReleaseVersion: isPreReleaseVersion(latestVersion),
 		hasReleaseVersion: true,
 		preview: getIsPreview(galleryExtension.flags),
+		isSigned: !!assets.signature
 	};
 }
 
@@ -1025,6 +1028,17 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const context = await this.getAsset(downloadAsset);
 		await this.fileService.writeFile(location, context.stream);
 		log(new Date().getTime() - startTime);
+	}
+
+	async downloadSignatureArchive(extension: IGalleryExtension, location: URI): Promise<void> {
+		if (!extension.assets.signature) {
+			throw new Error('No signature asset found');
+		}
+
+		this.logService.trace('ExtensionGalleryService#downloadSignatureArchive', extension.identifier.id);
+
+		const context = await this.getAsset(extension.assets.signature);
+		await this.fileService.writeFile(location, context.stream);
 	}
 
 	async getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string> {

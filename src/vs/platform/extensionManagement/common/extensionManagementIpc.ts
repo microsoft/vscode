@@ -10,7 +10,7 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { DefaultURITransformer, IURITransformer, transformAndReviveIncomingURIs } from 'vs/base/common/uriIpc';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionIdentifier, IExtensionTipsService, IGalleryExtension, IGalleryMetadata, ILocalExtension, IExtensionsControlManifest, isTargetPlatformCompatible, InstallOptions, InstallVSIXOptions, UninstallOptions, Metadata, IExtensionManagementService, DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionIdentifier, IExtensionTipsService, IGalleryExtension, IGalleryMetadata, ILocalExtension, IExtensionsControlManifest, isTargetPlatformCompatible, InstallOptions, InstallVSIXOptions, UninstallOptions, Metadata, IExtensionManagementService, DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI {
@@ -75,6 +75,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 			case 'updateMetadata': return this.service.updateMetadata(transformIncomingExtension(args[0], uriTransformer), args[1]).then(e => transformOutgoingExtension(e, uriTransformer));
 			case 'updateExtensionScope': return this.service.updateExtensionScope(transformIncomingExtension(args[0], uriTransformer), args[1]).then(e => transformOutgoingExtension(e, uriTransformer));
 			case 'getExtensionsControlManifest': return this.service.getExtensionsControlManifest();
+			case 'download': return this.service.download(args[0], args[1]);
 		}
 
 		throw new Error('Invalid call');
@@ -175,6 +176,11 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest> {
 		return Promise.resolve(this.channel.call<IExtensionsControlManifest>('getExtensionsControlManifest'));
+	}
+
+	async download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {
+		const result = await this.channel.call<UriComponents>('download', [extension, operation]);
+		return URI.revive(result);
 	}
 
 	registerParticipant() { throw new Error('Not Supported'); }

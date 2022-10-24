@@ -901,7 +901,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'workbench.experimental.editSessions.partialMatches.enabled': {
 			'type': 'boolean',
 			'tags': ['experimental', 'usesOnlineServices'],
-			'default': true,
+			'default': false,
 			'markdownDescription': localize('editSessionsPartialMatchesEnabled', "Controls whether to surface edit sessions which partially match the current session.")
 		}
 	}

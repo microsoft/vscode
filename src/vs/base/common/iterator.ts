@@ -18,6 +18,14 @@ export namespace Iterable {
 		yield element;
 	}
 
+	export function wrap<T>(iterableOrElement: Iterable<T> | T): Iterable<T> {
+		if (is(iterableOrElement)) {
+			return iterableOrElement;
+		} else {
+			return single(iterableOrElement);
+		}
+	}
+
 	export function from<T>(iterable: Iterable<T> | undefined | null): Iterable<T> {
 		return iterable || _empty;
 	}
