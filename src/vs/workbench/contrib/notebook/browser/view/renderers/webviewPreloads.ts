@@ -761,6 +761,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		readonly _allOutputItems: ReadonlyArray<{ readonly mime: string; getItem(): Promise<rendererApi.OutputItem | undefined> }>;
 	}
 
+	let hasWarnedAboutAllOutputItemsProposal = false;
+
 	function createOutputItem(
 		id: string,
 		mime: string,
@@ -796,7 +798,13 @@ async function webviewPreloads(ctx: PreloadContext) {
 					return new Blob([valueBytes], { type: this.mime });
 				},
 
-				_allOutputItems: allOutputItemList,
+				get _allOutputItems() {
+					if (!hasWarnedAboutAllOutputItemsProposal) {
+						hasWarnedAboutAllOutputItemsProposal = true;
+						console.warn(`'_allOutputItems' is proposed API. DO NOT ship an extension that depends on it!`);
+					}
+					return allOutputItemList;
+				},
 			});
 		}
 
