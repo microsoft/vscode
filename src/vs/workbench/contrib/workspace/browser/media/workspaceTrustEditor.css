@@ -184,7 +184,6 @@
 .workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons .monaco-button,
 .workspace-trust-editor .workspace-trust-settings .trusted-uris-button-bar .monaco-button {
 	width: fit-content;
-	width: -moz-fit-content;
 	padding: 5px 10px;
 	overflow: hidden;
 	text-overflow: ellipsis;

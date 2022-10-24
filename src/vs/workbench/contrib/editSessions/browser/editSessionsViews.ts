@@ -208,7 +208,8 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 			const sessionData = await this.editSessionsStorageService.read(session.ref);
 			const label = sessionData?.editSession.folders.map((folder) => folder.name).join(', ') ?? session.ref;
 			const machineId = sessionData?.editSession.machine;
-			const description = machineId === undefined ? fromNow(session.created, true) : `${fromNow(session.created, true)}\u00a0\u00a0\u2022\u00a0\u00a0${await this.editSessionsStorageService.getMachineById(machineId)}`;
+			const machineName = machineId ? await this.editSessionsStorageService.getMachineById(machineId) : undefined;
+			const description = machineName === undefined ? fromNow(session.created, true) : `${fromNow(session.created, true)}\u00a0\u00a0\u2022\u00a0\u00a0${machineName}`;
 
 			editSessions.push({
 				handle: resource.toString(),

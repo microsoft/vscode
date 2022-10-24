@@ -3081,5 +3081,20 @@
 
 // ESM-uncomment-begin
 // })();
-// export var marked = (__marked_exports || exports);
+// export var Lexer = (__marked_exports.Lexer || exports.Lexer);
+// export var Parser = (__marked_exports.Parser || exports.Parser);
+// export var Renderer = (__marked_exports.Renderer || exports.Renderer);
+// export var Slugger = (__marked_exports.Slugger || exports.Slugger);
+// export var TextRenderer = (__marked_exports.TextRenderer || exports.TextRenderer);
+// export var Tokenizer = (__marked_exports.Tokenizer || exports.Tokenizer);
+// export var getDefaults = (__marked_exports.getDefaults || exports.getDefaults);
+// export var lexer = (__marked_exports.lexer || exports.lexer);
+// export var marked = (__marked_exports.marked || exports.marked);
+// export var options = (__marked_exports.options || exports.options);
+// export var parse = (__marked_exports.parse || exports.parse);
+// export var parseInline = (__marked_exports.parseInline || exports.parseInline);
+// export var parser = (__marked_exports.parser || exports.parser);
+// export var setOptions = (__marked_exports.setOptions || exports.setOptions);
+// export var use = (__marked_exports.use || exports.use);
+// export var walkTokens = (__marked_exports.walkTokens || exports.walkTokens);
 // ESM-uncomment-end

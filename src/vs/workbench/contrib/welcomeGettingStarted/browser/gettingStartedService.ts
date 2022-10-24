@@ -24,7 +24,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILink, LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
 import { walkthroughsExtensionPoint } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedExtensionPoint';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { dirname } from 'vs/base/common/path';
 import { coalesce, flatten } from 'vs/base/common/arrays';
 import { IViewsService } from 'vs/workbench/common/views';
@@ -389,6 +389,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				isFeatured = await this.instantiationService.invokeFunction(a => checkGlobFileExists(a, folders, walkthrough.featuredFor!, token.token));
 			}
 
+			const iconStr = walkthrough.icon ?? extension.icon;
 			const walkthoughDescriptor: IWalkthrough = {
 				description: walkthrough.description,
 				title: walkthrough.title,
@@ -399,8 +400,8 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				steps,
 				icon: {
 					type: 'image',
-					path: extension.icon
-						? FileAccess.asBrowserUri(joinPath(extension.extensionLocation, extension.icon)).toString(true)
+					path: iconStr
+						? FileAccess.asBrowserUri(joinPath(extension.extensionLocation, iconStr)).toString(true)
 						: DefaultIconPath
 				},
 				when: ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true(),
@@ -716,4 +717,4 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerSingleton(IWalkthroughsService, WalkthroughsService, true);
+registerSingleton(IWalkthroughsService, WalkthroughsService, InstantiationType.Delayed);

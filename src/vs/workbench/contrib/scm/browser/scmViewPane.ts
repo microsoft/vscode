@@ -165,7 +165,7 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 
 interface InputTemplate {
 	readonly inputWidget: SCMInputWidget;
-	disposable: IDisposable;
+	readonly elementDisposables: DisposableStore;
 	readonly templateDisposable: IDisposable;
 }
 
@@ -194,24 +194,21 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		// Disable hover for list item
 		container.parentElement!.parentElement!.classList.add('force-no-hover');
 
-		const disposables = new DisposableStore();
+		const templateDisposable = new DisposableStore();
 		const inputElement = append(container, $('.scm-input'));
 		const inputWidget = this.instantiationService.createInstance(SCMInputWidget, inputElement, this.overflowWidgetsDomNode);
-		disposables.add(inputWidget);
+		templateDisposable.add(inputWidget);
 
-		return { inputWidget, disposable: Disposable.None, templateDisposable: disposables };
+		return { inputWidget, elementDisposables: templateDisposable.add(new DisposableStore()), templateDisposable };
 	}
 
 	renderElement(node: ITreeNode<ISCMInput, FuzzyScore>, index: number, templateData: InputTemplate): void {
-		templateData.disposable.dispose();
-
-		const disposables = new DisposableStore();
 		const input = node.element;
 		templateData.inputWidget.input = input;
 
 		// Remember widget
 		this.inputWidgets.set(input, templateData.inputWidget);
-		disposables.add({ dispose: () => this.inputWidgets.delete(input) });
+		templateData.elementDisposables.add({ dispose: () => this.inputWidgets.delete(input) });
 
 		// Widget cursor selections
 		const selections = this.editorSelections.get(input);
@@ -220,7 +217,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 			templateData.inputWidget.selections = selections;
 		}
 
-		disposables.add(toDisposable(() => {
+		templateData.elementDisposables.add(toDisposable(() => {
 			const selections = templateData.inputWidget.selections;
 
 			if (selections) {
@@ -241,20 +238,18 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		};
 
 		const startListeningContentHeightChange = () => {
-			disposables.add(templateData.inputWidget.onDidChangeContentHeight(onDidChangeContentHeight));
+			templateData.elementDisposables.add(templateData.inputWidget.onDidChangeContentHeight(onDidChangeContentHeight));
 			onDidChangeContentHeight();
 		};
 
 		// Setup height change listener on next tick
 		const timeout = disposableTimeout(startListeningContentHeightChange, 0);
-		disposables.add(timeout);
+		templateData.elementDisposables.add(timeout);
 
 		// Layout the editor whenever the outer layout happens
 		const layoutEditor = () => templateData.inputWidget.layout();
-		disposables.add(this.outerLayout.onDidChange(layoutEditor));
+		templateData.elementDisposables.add(this.outerLayout.onDidChange(layoutEditor));
 		layoutEditor();
-
-		templateData.disposable = disposables;
 	}
 
 	renderCompressedElements(): void {
@@ -262,11 +257,10 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 	}
 
 	disposeElement(group: ITreeNode<ISCMInput, FuzzyScore>, index: number, template: InputTemplate): void {
-		template.disposable.dispose();
+		template.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: InputTemplate): void {
-		templateData.disposable.dispose();
 		templateData.templateDisposable.dispose();
 	}
 
@@ -299,7 +293,7 @@ interface ResourceGroupTemplate {
 	readonly name: HTMLElement;
 	readonly count: CountBadge;
 	readonly actionBar: ActionBar;
-	elementDisposables: IDisposable;
+	readonly elementDisposables: DisposableStore;
 	readonly disposables: IDisposable;
 }
 
@@ -325,26 +319,20 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 		const countContainer = append(element, $('.count'));
 		const count = new CountBadge(countContainer);
 		const styler = attachBadgeStyler(count, this.themeService);
-		const elementDisposables = Disposable.None;
 		const disposables = combinedDisposable(actionBar, styler);
 
-		return { name, count, actionBar, elementDisposables, disposables };
+		return { name, count, actionBar, elementDisposables: new DisposableStore(), disposables };
 	}
 
 	renderElement(node: ITreeNode<ISCMResourceGroup, FuzzyScore>, index: number, template: ResourceGroupTemplate): void {
-		template.elementDisposables.dispose();
-
 		const group = node.element;
 		template.name.textContent = group.label;
 		template.actionBar.clear();
 		template.actionBar.context = group;
 		template.count.setCount(group.elements.length);
 
-		const disposables = new DisposableStore();
 		const menus = this.scmViewService.menus.getRepositoryMenus(group.provider);
-		disposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceGroupMenu(group), template.actionBar));
-
-		template.elementDisposables = disposables;
+		template.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceGroupMenu(group), template.actionBar));
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResourceGroup>, FuzzyScore>, index: number, templateData: ResourceGroupTemplate, height: number | undefined): void {
@@ -352,7 +340,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 	}
 
 	disposeElement(group: ITreeNode<ISCMResourceGroup, FuzzyScore>, index: number, template: ResourceGroupTemplate): void {
-		template.elementDisposables.dispose();
+		template.elementDisposables.clear();
 	}
 
 	disposeTemplate(template: ResourceGroupTemplate): void {
@@ -367,8 +355,8 @@ interface ResourceTemplate {
 	fileLabel: IResourceLabel;
 	decorationIcon: HTMLElement;
 	actionBar: ActionBar;
-	elementDisposables: IDisposable;
-	disposables: IDisposable;
+	readonly elementDisposables: DisposableStore;
+	readonly disposables: IDisposable;
 }
 
 interface RenderedResourceData {
@@ -430,13 +418,10 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const decorationIcon = append(element, $('.decoration-icon'));
 		const disposables = combinedDisposable(actionBar, fileLabel);
 
-		return { element, name, fileLabel, decorationIcon, actionBar, elementDisposables: Disposable.None, disposables };
+		return { element, name, fileLabel, decorationIcon, actionBar, elementDisposables: new DisposableStore(), disposables };
 	}
 
 	renderElement(node: ITreeNode<ISCMResource, FuzzyScore | LabelFuzzyScore> | ITreeNode<ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate): void {
-		template.elementDisposables.dispose();
-
-		const elementDisposables = new DisposableStore();
 		const resourceOrFolder = node.element;
 		const iconResource = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.element : resourceOrFolder;
 		const uri = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.uri : resourceOrFolder.sourceUri;
@@ -454,19 +439,19 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		if (ResourceTree.isResourceNode(resourceOrFolder)) {
 			if (resourceOrFolder.element) {
 				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.element.resourceGroup.provider);
-				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder.element), template.actionBar));
+				template.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder.element), template.actionBar));
 				template.element.classList.toggle('faded', resourceOrFolder.element.decorations.faded);
 				strikethrough = resourceOrFolder.element.decorations.strikeThrough;
 			} else {
 				matches = createMatches(node.filterData as FuzzyScore | undefined);
 				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.context.provider);
-				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(resourceOrFolder.context), template.actionBar));
+				template.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(resourceOrFolder.context), template.actionBar));
 				template.element.classList.remove('faded');
 			}
 		} else {
 			[matches, descriptionMatches] = this._processFilterData(uri, node.filterData);
 			const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.resourceGroup.provider);
-			elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder), template.actionBar));
+			template.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder), template.actionBar));
 			template.element.classList.toggle('faded', resourceOrFolder.decorations.faded);
 			strikethrough = resourceOrFolder.decorations.strikeThrough;
 		}
@@ -487,20 +472,16 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		this.renderIcon(template, renderedData);
 
 		this.renderedResources.set(template, renderedData);
-		elementDisposables.add(toDisposable(() => this.renderedResources.delete(template)));
+		template.elementDisposables.add(toDisposable(() => this.renderedResources.delete(template)));
 
 		template.element.setAttribute('data-tooltip', tooltip);
-		template.elementDisposables = elementDisposables;
 	}
 
 	disposeElement(resource: ITreeNode<ISCMResource, FuzzyScore | LabelFuzzyScore> | ITreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate): void {
-		template.elementDisposables.dispose();
+		template.elementDisposables.clear();
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource> | ICompressedTreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate, height: number | undefined): void {
-		template.elementDisposables.dispose();
-
-		const elementDisposables = new DisposableStore();
 		const compressed = node.element as ICompressedTreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>>;
 		const folder = compressed.elements[compressed.elements.length - 1];
 
@@ -519,7 +500,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		template.actionBar.context = folder;
 
 		const menus = this.scmViewService.menus.getRepositoryMenus(folder.context.provider);
-		elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(folder.context), template.actionBar));
+		template.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(folder.context), template.actionBar));
 
 		template.name.classList.remove('strike-through');
 		template.element.classList.remove('faded');
@@ -527,11 +508,10 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		template.decorationIcon.style.backgroundImage = '';
 
 		template.element.setAttribute('data-tooltip', '');
-		template.elementDisposables = elementDisposables;
 	}
 
 	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource> | ICompressedTreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate, height: number | undefined): void {
-		template.elementDisposables.dispose();
+		template.elementDisposables.clear();
 	}
 
 	disposeTemplate(template: ResourceTemplate): void {
@@ -2132,7 +2112,8 @@ class SCMInputWidget {
 						this.contextViewService.hideContextView();
 					}));
 
-					const { element: mdElement } = this.instantiationService.createInstance(MarkdownRenderer, {}).render(message, {
+					const renderer = disposables.add(this.instantiationService.createInstance(MarkdownRenderer, {}));
+					const renderedMarkdown = renderer.render(message, {
 						actionHandler: {
 							callback: (content) => {
 								this.openerService.open(content, { allowCommands: typeof message !== 'string' && message.isTrusted });
@@ -2141,7 +2122,8 @@ class SCMInputWidget {
 							disposables: disposables
 						},
 					});
-					element.appendChild(mdElement);
+					disposables.add(renderedMarkdown);
+					element.appendChild(renderedMarkdown.element);
 				}
 				const actionsContainer = append(validationContainer, $('.scm-editor-validation-actions'));
 				const actionbar = new ActionBar(actionsContainer);

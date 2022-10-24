@@ -122,12 +122,14 @@ export class InputCodeEditorView extends CodeEditorView {
 			return [];
 		}
 		const model = viewModel.model;
+		const textModel = (this.inputNumber === 1 ? model.input1 : model.input2).textModel;
 
 		const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
 
 		const result = new Array<IModelDeltaDecoration>();
 
 		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
+		const showDeletionMarkers = this.showDeletionMarkers.read(reader);
 
 		for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
 			const range = modifiedBaseRange.getInputRange(this.inputNumber);
@@ -146,7 +148,7 @@ export class InputCodeEditorView extends CodeEditorView {
 			if (modifiedBaseRange.isConflicting) {
 				blockClassNames.push('conflicting');
 			}
-			const inputClassName = this.inputNumber === 1 ? 'input1' : 'input2';
+			const inputClassName = this.inputNumber === 1 ? 'input 1' : 'input 2';
 			blockClassNames.push(inputClassName);
 
 			if (!modifiedBaseRange.isConflicting && !showNonConflictingChanges && isHandled) {
@@ -158,6 +160,7 @@ export class InputCodeEditorView extends CodeEditorView {
 				options: {
 					showIfCollapsed: true,
 					blockClassName: blockClassNames.join(' '),
+					blockIsAfterEnd: range.startLineNumber > textModel.getLineCount(),
 					description: 'Merge Editor',
 					minimap: {
 						position: MinimapPosition.Gutter,
@@ -187,13 +190,16 @@ export class InputCodeEditorView extends CodeEditorView {
 
 					if (diff.rangeMappings) {
 						for (const d of diff.rangeMappings) {
-							result.push({
-								range: d.outputRange,
-								options: {
-									className: `merge-editor-diff-word ${inputClassName}`,
-									description: 'Merge Editor'
-								}
-							});
+							if (showDeletionMarkers || !d.outputRange.isEmpty()) {
+								result.push({
+									range: d.outputRange,
+									options: {
+										className: d.outputRange.isEmpty() ? `merge-editor-diff-empty-word ${inputClassName}` : `merge-editor-diff-word ${inputClassName}`,
+										description: 'Merge Editor',
+										showIfCollapsed: true,
+									}
+								});
+							}
 						}
 					}
 				}
@@ -287,7 +293,7 @@ export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
 			action.checked = checked;
 			return action;
 		}
-		const both = state.input1 && state.input2;
+		const both = state.includesInput1 && state.includesInput2;
 
 		return [
 			this.baseRange.input1Diffs.length > 0
@@ -295,7 +301,7 @@ export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
 					'mergeEditor.acceptInput1',
 					localize('mergeEditor.accept', 'Accept {0}', this.model.input1.title),
 					state.toggle(1),
-					state.input1
+					state.includesInput1
 				)
 				: undefined,
 			this.baseRange.input2Diffs.length > 0
@@ -303,7 +309,7 @@ export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
 					'mergeEditor.acceptInput2',
 					localize('mergeEditor.accept', 'Accept {0}', this.model.input2.title),
 					state.toggle(2),
-					state.input2
+					state.includesInput2
 				)
 				: undefined,
 			this.baseRange.isConflicting
@@ -314,7 +320,7 @@ export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
 							'mergeEditor.acceptBoth',
 							'Accept Both'
 						),
-						state.withInput1(!both).withInput2(!both),
+						state.withInputValue(1, !both).withInputValue(2, !both),
 						both
 					),
 					{ enabled: this.baseRange.canBeCombined }
@@ -329,7 +335,7 @@ export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
 						state.swap(),
 						false
 					),
-					{ enabled: !state.isEmpty && (!both || this.baseRange.isOrderRelevant) }
+					{ enabled: !state.kind && (!both || this.baseRange.isOrderRelevant) }
 				)
 				: undefined,
 
@@ -408,7 +414,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 				const value = item.toggleState.read(reader);
 				const iconMap: Record<InputState, { icon: Codicon | undefined; checked: boolean; title: string }> = {
 					[InputState.excluded]: { icon: undefined, checked: false, title: localize('accept.excluded', "Accept") },
-					[InputState.conflicting]: { icon: Codicon.circleFilled, checked: false, title: localize('accept.conflicting', "Accept (result is dirty)") },
+					[InputState.unrecognized]: { icon: Codicon.circleFilled, checked: false, title: localize('accept.conflicting', "Accept (result is dirty)") },
 					[InputState.first]: { icon: Codicon.check, checked: true, title: localize('accept.first', "Undo accept") },
 					[InputState.second]: { icon: Codicon.checkAll, checked: true, title: localize('accept.second', "Undo accept (currently second)") },
 				};

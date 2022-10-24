@@ -15,7 +15,7 @@ import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData, I
 import * as arrays from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./selectBoxCustom';
@@ -31,7 +31,6 @@ interface ISelectListTemplateData {
 	text: HTMLElement;
 	detail: HTMLElement;
 	decoratorRight: HTMLElement;
-	disposables: IDisposable[];
 }
 
 class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectListTemplateData> {
@@ -40,7 +39,6 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 
 	renderTemplate(container: HTMLElement): ISelectListTemplateData {
 		const data: ISelectListTemplateData = Object.create(null);
-		data.disposables = [];
 		data.root = container;
 		data.text = dom.append(container, $('.option-text'));
 		data.detail = dom.append(container, $('.option-detail'));
@@ -71,8 +69,8 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 		}
 	}
 
-	disposeTemplate(templateData: ISelectListTemplateData): void {
-		templateData.disposables = dispose(templateData.disposables);
+	disposeTemplate(_templateData: ISelectListTemplateData): void {
+		// noop
 	}
 }
 

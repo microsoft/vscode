@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IdleValue } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
 import { illegalState } from 'vs/base/common/errors';
+import { toDisposable } from 'vs/base/common/lifecycle';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Graph } from 'vs/platform/instantiation/common/graph';
 import { IInstantiationService, ServiceIdentifier, ServicesAccessor, _util } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 // TRACING
 const _enableAllTracing = false
@@ -111,7 +114,7 @@ export class InstantiationService implements IInstantiationService {
 		}
 
 		// now create the instance
-		return <T>new ctor(...[...args, ...serviceArgs]);
+		return Reflect.construct<any, T>(ctor, args.concat(serviceArgs));
 	}
 
 	private _setServiceInstance<T>(id: ServiceIdentifier<T>, instance: T): void {
@@ -246,15 +249,52 @@ export class InstantiationService implements IInstantiationService {
 			// Return a proxy object that's backed by an idle value. That
 			// strategy is to instantiate services in our idle time or when actually
 			// needed but not when injected into a consumer
+
+			// return "empty events" when the service isn't instantiated yet
+			const earlyListeners = new Map<string, LinkedList<Parameters<Event<any>>>>();
+
 			const idle = new IdleValue<any>(() => {
 				const result = child._createInstance<T>(ctor, args, _trace);
+
+				// early listeners that we kept are now being subscribed to
+				// the real service
+				for (const [key, values] of earlyListeners) {
+					const candidate = <Event<any>>(<any>result)[key];
+					if (typeof candidate === 'function') {
+						for (const listener of values) {
+							candidate.apply(result, listener);
+						}
+					}
+				}
+				earlyListeners.clear();
+
 				return result;
 			});
 			return <T>new Proxy(Object.create(null), {
 				get(target: any, key: PropertyKey): any {
+
+					if (!idle.isInitialized) {
+						// looks like an event
+						if (typeof key === 'string' && (key.startsWith('onDid') || key.startsWith('onWill'))) {
+							let list = earlyListeners.get(key);
+							if (!list) {
+								list = new LinkedList();
+								earlyListeners.set(key, list);
+							}
+							const event: Event<any> = (callback, thisArg, disposables) => {
+								const rm = list!.push([callback, thisArg, disposables]);
+								return toDisposable(rm);
+							};
+							return event;
+						}
+					}
+
+					// value already exists
 					if (key in target) {
 						return target[key];
 					}
+
+					// create value
 					const obj = idle.value;
 					let prop = obj[key];
 					if (typeof prop !== 'function') {

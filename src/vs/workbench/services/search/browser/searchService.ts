@@ -17,7 +17,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IWorkerClient, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
 import { memoize } from 'vs/base/common/decorators';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
@@ -196,4 +196,4 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	}
 }
 
-registerSingleton(ISearchService, RemoteSearchService, true);
+registerSingleton(ISearchService, RemoteSearchService, InstantiationType.Delayed);

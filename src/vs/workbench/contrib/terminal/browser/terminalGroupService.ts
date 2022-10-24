@@ -179,7 +179,9 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 				if (pane && !pane.isVisible()) {
 					await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
 				}
-				await instance.focusWhenReady(true);
+				// Do not await the focus as setVisible must be called immediately to ensure
+				// something else didn't steal focus
+				instance.focusWhenReady(true);
 				// HACK: as a workaround for https://github.com/microsoft/vscode/issues/134692,
 				// this will trigger a forced refresh of the viewport to sync the viewport and scroll bar.
 				// This can likely be removed after https://github.com/xtermjs/xterm.js/issues/291 is

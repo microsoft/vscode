@@ -50,7 +50,7 @@ import { CommentThreadRangeDecorator } from 'vs/workbench/contrib/comments/brows
 import { commentThreadRangeActiveBackground, commentThreadRangeActiveBorder, commentThreadRangeBackground, commentThreadRangeBorder } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
-import { withUndefinedAsNull } from 'vs/base/common/types';
+import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 
 export const ID = 'editor.contrib.review';
 
@@ -180,11 +180,11 @@ class CommentingRangeDecorator {
 		}
 	}
 
-	public update(editor: ICodeEditor | undefined, commentInfos: ICommentInfo[]) {
+	public update(editor: ICodeEditor | undefined, commentInfos: ICommentInfo[], cursorLine?: number, range?: Range) {
 		if (editor) {
 			this._editor = editor;
 			this._infos = commentInfos;
-			this._doUpdate(editor, commentInfos);
+			this._doUpdate(editor, commentInfos, cursorLine, range);
 		}
 	}
 
@@ -493,7 +493,7 @@ export class CommentController implements IEditorContribution {
 			}).then(commentInfos => {
 				if (this.commentService.isCommentingEnabled) {
 					const meaningfulCommentInfos = coalesce(commentInfos);
-					this._commentingRangeDecorator.update(this.editor, meaningfulCommentInfos);
+					this._commentingRangeDecorator.update(this.editor, meaningfulCommentInfos, this.editor?.getPosition()?.lineNumber, withNullAsUndefined(this.editor?.getSelection()));
 				}
 			}, (err) => {
 				onUnexpectedError(err);

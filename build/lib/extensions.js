@@ -26,9 +26,9 @@ const jsoncParser = require("jsonc-parser");
 const dependencies_1 = require("./dependencies");
 const _ = require("underscore");
 const builtInExtensions_1 = require("./builtInExtensions");
-const util = require('./util');
+const getVersion_1 = require("./getVersion");
 const root = path.dirname(path.dirname(__dirname));
-const commit = util.getVersion(root);
+const commit = (0, getVersion_1.getVersion)(root);
 const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
 function minifyExtensionResources(input) {
     const jsonFilter = filter(['**/*.json', '**/*.code-snippets'], { restore: true });
