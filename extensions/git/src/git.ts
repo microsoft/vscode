@@ -777,96 +777,59 @@ export interface Submodule {
 }
 
 export function parseGitmodules(raw: string): Submodule[] {
-	const result: Submodule[] = [];
-
-	for (const submoduleSection of parseGitConfig(raw, 'submodule')) {
-		if (submoduleSection.label && submoduleSection.properties['path'] && submoduleSection.properties['url']) {
-			result.push({
-				name: submoduleSection.label,
-				path: submoduleSection.properties['path'],
-				url: submoduleSection.properties['url']
-			});
-		}
-	}
-
-	return result;
-}
-
-interface GitConfigSection {
-	label?: string;
-	properties: { [key: string]: string };
-}
-
-function parseGitConfig(raw: string, section: string): Iterable<GitConfigSection> {
-	const sections: GitConfigSection[] = [];
-
-	const sectionHeaderRegex = /^\[.+\]$/gm;
-	const sectionRegex = new RegExp(`^\\s*\\[\\s*${section}\\s*("[^"]+")*\\]$`, 'm');
-
-	const parseSectionProperties = (sectionRaw: string): { [key: string]: string } => {
-		const properties: { [key: string]: string } = {};
-
-		for (const propertyLine of sectionRaw.split(/\r?\n/)) {
-			const propertyMatch = /^\s*(\w+)\s*=\s*(.*)$/.exec(propertyLine);
-
-			if (!propertyMatch) {
-				continue;
-			}
-
-			const [, key, value] = propertyMatch;
-
-			if (properties[key]) {
-				continue;
-			}
-			properties[key] = value;
-		}
-
-		return properties;
-	};
-
-	const parseSection = (sectionRaw: string) => {
-		const sectionMatch = sectionRegex.exec(sectionRaw);
-		if (!sectionMatch) {
-			return;
-		}
-
-		sections.push({
-			label: sectionMatch.length === 2 ? sectionMatch[1].replaceAll('"', '') : undefined,
-			properties: parseSectionProperties(sectionRaw.substring(sectionMatch[0].length))
-		});
-	};
-
+	const regex = /\r?\n/g;
 	let position = 0;
 	let match: RegExpExecArray | null = null;
 
-	while (match = sectionHeaderRegex.exec(raw)) {
-		parseSection(raw.substring(position, match.index));
-		position = match.index;
-	}
-	parseSection(raw.substring(position));
+	const result: Submodule[] = [];
+	let submodule: Partial<Submodule> = {};
 
-	return sections;
-}
+	function parseLine(line: string): void {
+		const sectionMatch = /^\s*\[submodule "([^"]+)"\]\s*$/.exec(line);
 
-export function parseGitRemotes(raw: string): Remote[] {
-	const remotes: Remote[] = [];
+		if (sectionMatch) {
+			if (submodule.name && submodule.path && submodule.url) {
+				result.push(submodule as Submodule);
+			}
 
-	// Remote sections
-	for (const remoteSection of parseGitConfig(raw, 'remote')) {
-		if (!remoteSection.label) {
-			continue;
+			const name = sectionMatch[1];
+
+			if (name) {
+				submodule = { name };
+				return;
+			}
 		}
 
-		remotes.push({
-			name: remoteSection.label,
-			fetchUrl: remoteSection.properties['url'],
-			pushUrl: remoteSection.properties['pushurl'] ?? remoteSection.properties['url'],
-			// https://github.com/microsoft/vscode/issues/45271
-			isReadOnly: remoteSection.properties['pushurl'] === 'no_push'
-		});
+		if (!submodule) {
+			return;
+		}
+
+		const propertyMatch = /^\s*(\w+)\s*=\s*(.*)$/.exec(line);
+
+		if (!propertyMatch) {
+			return;
+		}
+
+		const [, key, value] = propertyMatch;
+
+		switch (key) {
+			case 'path': submodule.path = value; break;
+			case 'url': submodule.url = value; break;
+		}
 	}
 
-	return remotes;
+	while (match = regex.exec(raw)) {
+		parseLine(raw.substring(position, match.index));
+		position = match.index + match[0].length;
+	}
+
+	parseLine(raw.substring(position));
+
+	if (submodule.name && submodule.path && submodule.url) {
+		result.push(submodule as Submodule);
+	}
+
+	return result;
 }
 
 const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
@@ -2201,20 +2164,6 @@ export class Repository {
 	}
 
 	async getRemotes(): Promise<Remote[]> {
-		try {
-			// Attempt to parse the config file
-			const remotes = await this.getRemotesFS();
-			if (remotes.length === 0) {
-				throw new Error('No remotes found in the git config file.');
-			}
-
-			return remotes;
-		}
-		catch (err) {
-			this.logger.warn(err.message);
-		}
-
-		// Fallback to using git to determine remotes
 		const result = await this.exec(['remote', '--verbose']);
 		const lines = result.stdout.trim().split('\n').filter(l => !!l);
 		const remotes: MutableRemote[] = [];
@@ -2244,10 +2193,6 @@ export class Repository {
 		}
 
 		return remotes;
-	}
-
-	async getRemotesFS(): Promise<Remote[]> {
-		return parseGitRemotes(await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'config'), 'utf8'));
 	}
 
 	async getBranch(name: string): Promise<Branch> {
