@@ -18,7 +18,6 @@ import { ISharedProcessLifecycleService } from 'vs/platform/lifecycle/electron-b
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { hostname, homedir } from 'os';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
 type RemoteTunnelEnablementClassification = {
 	owner: 'aeschli';
@@ -137,7 +136,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 		this.setTunnelStatus(TunnelStates.connecting(localize('remoteTunnelService.authorizing', 'Authorizing')));
 		const onOutput = (a: string, isErr: boolean) => {
-			a = a.replace(new RegExp(escapeRegExpCharacters(token), 'g'), '*'.repeat(4));
+			a = a.replaceAll(token, '*'.repeat(4));
 			if (isErr) {
 				this._logger.error(a);
 			} else {
