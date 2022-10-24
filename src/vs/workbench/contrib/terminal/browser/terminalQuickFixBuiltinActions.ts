@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { TerminalQuickFixMatchResult, ITerminalQuickFixOptions, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalQuickFixMatchResult, ITerminalQuickFixOptions, ITerminalInstance, TerminalQuickFixAction } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IExtensionTerminalQuickFix } from 'vs/platform/terminal/common/terminal';
 export const GitCommandLineRegex = /git/;
@@ -18,8 +18,9 @@ export const GitPushOutputRegex = /git push --set-upstream origin (?<branchName>
 // it's safe to assume it's a github pull request if the URL includes `/pull/`
 export const GitCreatePrOutputRegex = /remote:\s*(?<link>https:\/\/github\.com\/.+\/.+\/pull\/new\/.+)/;
 
-export function gitSimilar(): IExtensionTerminalQuickFix {
+export function gitSimilar(): ITerminalQuickFixOptions {
 	return {
+		source: 'builtin',
 		id: 'Git Similar',
 		commandLineMatcher: GitCommandLineRegex,
 		outputMatcher: {
@@ -29,10 +30,27 @@ export function gitSimilar(): IExtensionTerminalQuickFix {
 			length: 10
 		},
 		exitStatus: false,
-		extensionIdentifier: 'git',
-		commandToRun: 'git ${group:fixedCommand}'
+		getQuickFixes: (matchResult: TerminalQuickFixMatchResult, command: ITerminalCommand) => {
+			if (!matchResult?.outputMatch) {
+				return;
+			}
+			const actions: TerminalQuickFixAction[] = [];
+			const results = matchResult.outputMatch[0].split('\n').map(r => r.trim());
+			for (let i = 1; i < results.length; i++) {
+				const fixedCommand = results[i];
+				if (fixedCommand) {
+					actions.push({
+						type: 'command',
+						command: command.command.replace(/git\s+[^\s]+/, `git ${fixedCommand}`),
+						addNewLine: true
+					});
+				}
+			}
+			return actions;
+		}
 	};
 }
+
 export function gitTwoDashes(): ITerminalQuickFixOptions {
 	return {
 		source: 'builtin',

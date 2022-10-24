@@ -68,7 +68,7 @@ suite('QuickFixAddon', () => {
 				command: 'git status'
 			}];
 			setup(() => {
-				const command = convertToQuickFixOptions(gitSimilar());
+				const command = gitSimilar();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
 				quickFixAddon.registerCommandFinishedListener(command);
 			});
@@ -220,9 +220,9 @@ suite('QuickFixAddon', () => {
 				command: 'git push --set-upstream origin test22'
 			}];
 			setup(() => {
-				const command = gitPushSetUpstream();
+				const command = convertToQuickFixOptions(gitPushSetUpstream());
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
-				quickFixAddon.registerCommandFinishedListener(convertToQuickFixOptions(gitPushSetUpstream()));
+				quickFixAddon.registerCommandFinishedListener(command);
 			});
 			suite('returns undefined when', () => {
 				test('output does not match', () => {

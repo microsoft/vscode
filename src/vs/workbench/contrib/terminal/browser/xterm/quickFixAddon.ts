@@ -102,7 +102,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		for (const quickFix of this._terminalContributionService.quickFixes) {
 			this.registerCommandFinishedListener(convertToQuickFixOptions(quickFix));
 		}
-		this.registerCommandFinishedListener(convertToQuickFixOptions(gitSimilar()));
+		this.registerCommandFinishedListener(gitSimilar());
 		this.registerCommandFinishedListener(convertToQuickFixOptions(gitCreatePr()));
 		this.registerCommandFinishedListener(convertToQuickFixOptions(gitPushSetUpstream()));
 	}
