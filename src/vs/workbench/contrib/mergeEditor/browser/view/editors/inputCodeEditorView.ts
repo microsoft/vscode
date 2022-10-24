@@ -130,6 +130,8 @@ export class InputCodeEditorView extends CodeEditorView {
 
 		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
 		const showDeletionMarkers = this.showDeletionMarkers.read(reader);
+		const diffWithThis = viewModel.baseCodeEditorView.read(reader) !== undefined && viewModel.baseShowDiffAgainst.read(reader) === this.inputNumber;
+		const useSimplifiedDecorations = !diffWithThis && this.useSimplifiedDecorations.read(reader);
 
 		for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
 			const range = modifiedBaseRange.getInputRange(this.inputNumber);
@@ -148,11 +150,15 @@ export class InputCodeEditorView extends CodeEditorView {
 			if (modifiedBaseRange.isConflicting) {
 				blockClassNames.push('conflicting');
 			}
-			const inputClassName = this.inputNumber === 1 ? 'input 1' : 'input 2';
+			const inputClassName = this.inputNumber === 1 ? 'input i1' : 'input i2';
 			blockClassNames.push(inputClassName);
 
 			if (!modifiedBaseRange.isConflicting && !showNonConflictingChanges && isHandled) {
 				continue;
+			}
+
+			if (useSimplifiedDecorations && !isHandled) {
+				blockClassNames.push('use-simplified-decorations');
 			}
 
 			result.push({
@@ -173,7 +179,7 @@ export class InputCodeEditorView extends CodeEditorView {
 				}
 			});
 
-			if (modifiedBaseRange.isConflicting || !model.isHandled(modifiedBaseRange).read(reader)) {
+			if (!useSimplifiedDecorations && (modifiedBaseRange.isConflicting || !model.isHandled(modifiedBaseRange).read(reader))) {
 				const inputDiffs = modifiedBaseRange.getInputDiffs(this.inputNumber);
 				for (const diff of inputDiffs) {
 					const range = diff.outputRange.toInclusiveRange();
