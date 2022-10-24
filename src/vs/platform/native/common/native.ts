@@ -164,9 +164,7 @@ export interface ICommonNativeHostService {
 	sendInputEvent(event: MouseInputEvent): Promise<void>;
 
 	// Perf Introspection
-	startHeartbeat(session: string): Promise<boolean>;
-	sendHeartbeat(session: string): Promise<boolean>;
-	stopHeartbeat(session: string): Promise<boolean>;
+	profileRenderer(session: string, duration: number, perfBaseline: number): Promise<boolean>;
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;

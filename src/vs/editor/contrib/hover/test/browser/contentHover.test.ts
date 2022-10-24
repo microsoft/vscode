@@ -23,7 +23,7 @@ suite('Content Hover', () => {
 				actual,
 				{
 					showAtPosition: new Position(5, 5),
-					showAtRange: new Range(5, 5, 5, 5),
+					showAtSecondaryPosition: new Position(5, 5),
 					highlightRange: new Range(4, 1, 5, 6)
 				}
 			);
@@ -42,8 +42,8 @@ suite('Content Hover', () => {
 			assert.deepStrictEqual(
 				actual,
 				{
-					showAtPosition: new Position(1, 6),
-					showAtRange: new Range(1, 6, 1, 11),
+					showAtPosition: new Position(1, 8),
+					showAtSecondaryPosition: new Position(1, 6),
 					highlightRange: new Range(1, 1, 1, 15)
 				}
 			);

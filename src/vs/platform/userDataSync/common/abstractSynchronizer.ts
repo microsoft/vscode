@@ -14,7 +14,7 @@ import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtUri } from 'vs/base/common/resources';
 import { uppercaseFirstLetter } from 'vs/base/common/strings';
-import { isString, isUndefined } from 'vs/base/common/types';
+import { isUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IHeaders } from 'vs/base/parts/request/common/request';
 import { localize } from 'vs/nls';
@@ -26,8 +26,8 @@ import { getServiceMachineId } from 'vs/platform/externalServices/common/service
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Change, getLastSyncResourceUri, IRemoteUserData, IResourcePreview as IBaseResourcePreview, ISyncData, ISyncResourceHandle, IUserDataSyncResourcePreview as IBaseSyncResourcePreview, IUserData, IUserDataInitializer, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, MergeState, PREVIEW_DIR_NAME, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME, IUserDataResourceManifest, getPathSegments, IUserDataSyncResourceConflicts, IUserDataSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { Change, getLastSyncResourceUri, IRemoteUserData, IResourcePreview as IBaseResourcePreview, ISyncData, IUserDataSyncResourcePreview as IBaseSyncResourcePreview, IUserData, IUserDataInitializer, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, MergeState, PREVIEW_DIR_NAME, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME, IUserDataResourceManifest, getPathSegments, IUserDataSyncResourceConflicts, IUserDataSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 type IncompatibleSyncSourceClassification = {
 	owner: 'sandy081';
@@ -52,6 +52,10 @@ export function isSyncData(thing: any): thing is ISyncData {
 	}
 
 	return false;
+}
+
+export function getSyncResourceLogLabel(syncResource: SyncResource, profile: IUserDataProfile): string {
+	return `${uppercaseFirstLetter(syncResource)}${profile.isDefault ? '' : ` (${profile.name})`}`;
 }
 
 export interface IResourcePreview {
@@ -140,7 +144,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super();
-		this.syncResourceLogLabel = `${uppercaseFirstLetter(this.resource)}${syncResource.profile.isDefault ? '' : ` (${syncResource.profile.name})`}`;
+		this.syncResourceLogLabel = getSyncResourceLogLabel(syncResource.syncResource, syncResource.profile);
 		this.extUri = uriIdentityService.extUri;
 		this.syncFolder = this.extUri.joinPath(environmentService.userDataSyncHome, ...getPathSegments(syncResource.profile.isDefault ? undefined : syncResource.profile.id, syncResource.syncResource));
 		this.syncPreviewFolder = this.extUri.joinPath(this.syncFolder, PREVIEW_DIR_NAME);
@@ -238,12 +242,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		}
 	}
 
-	async replace(uri: URI): Promise<boolean> {
-		const content = await this.resolveContent(uri);
-		if (!content) {
-			return false;
-		}
-
+	async replace(content: string): Promise<boolean> {
 		const syncData = this.parseSyncData(content);
 		if (!syncData) {
 			return false;
@@ -486,48 +485,6 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		return !!lastSyncData && lastSyncData.syncData !== null /* `null` sync data implies resource is not synced */;
 	}
 
-	async getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]> {
-		const handles = await this.userDataSyncStoreService.getAllResourceRefs(this.resource, this.collection);
-		return handles.map(({ created, ref }) => ({ created, uri: this.toRemoteBackupResource(ref) }));
-	}
-
-	async getLocalSyncResourceHandles(): Promise<ISyncResourceHandle[]> {
-		const handles = await this.userDataSyncBackupStoreService.getAllRefs(this.syncResource.profile, this.resource);
-		return handles.map(({ created, ref }) => ({ created, uri: this.toLocalBackupResource(ref) }));
-	}
-
-	private toRemoteBackupResource(ref: string): URI {
-		return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote-backup', path: `/${this.syncResource.profile.isDefault ? '' : `${this.syncResource.profile.id}/`}${this.resource}/${ref}` });
-	}
-
-	private toLocalBackupResource(ref: string): URI {
-		return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local-backup', path: `/${this.syncResource.profile.id}/${this.resource}/${ref}` });
-	}
-
-	async getMachineId({ uri }: ISyncResourceHandle): Promise<string | undefined> {
-		const ref = this.extUri.basename(uri);
-		if (this.extUri.isEqual(uri, this.toRemoteBackupResource(ref))) {
-			const { content } = await this.getUserData(ref);
-			if (content) {
-				const syncData = this.parseSyncData(content);
-				return syncData?.machineId;
-			}
-		}
-		return undefined;
-	}
-
-	async resolveContent(uri: URI): Promise<string | null> {
-		const ref = this.extUri.basename(uri);
-		if (this.extUri.isEqual(uri, this.toRemoteBackupResource(ref))) {
-			const { content } = await this.getUserData(ref);
-			return content;
-		}
-		if (this.extUri.isEqual(uri, this.toLocalBackupResource(ref))) {
-			return this.userDataSyncBackupStoreService.resolveContent(this.syncResource.profile, this.resource, ref);
-		}
-		return null;
-	}
-
 	protected async resolvePreviewContent(uri: URI): Promise<string | null> {
 		const syncPreview = this.syncPreviewPromise ? await this.syncPreviewPromise : null;
 		if (syncPreview) {
@@ -666,14 +623,9 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		throw new UserDataSyncError(localize('incompatible sync data', "Cannot parse sync data as it is not compatible with the current version."), UserDataSyncErrorCode.IncompatibleRemoteContent, this.resource);
 	}
 
-	private async getUserData(refOrLastSyncData: string | IRemoteUserData | null): Promise<IUserData> {
-		if (isString(refOrLastSyncData)) {
-			const content = await this.userDataSyncStoreService.resolveResourceContent(this.resource, refOrLastSyncData, this.collection);
-			return { ref: refOrLastSyncData, content };
-		} else {
-			const lastSyncUserData: IUserData | null = refOrLastSyncData ? { ref: refOrLastSyncData.ref, content: refOrLastSyncData.syncData ? JSON.stringify(refOrLastSyncData.syncData) : null } : null;
-			return this.userDataSyncStoreService.readResource(this.resource, lastSyncUserData, this.collection, this.syncHeaders);
-		}
+	private async getUserData(lastSyncData: IRemoteUserData | null): Promise<IUserData> {
+		const lastSyncUserData: IUserData | null = lastSyncData ? { ref: lastSyncData.ref, content: lastSyncData.syncData ? JSON.stringify(lastSyncData.syncData) : null } : null;
+		return this.userDataSyncStoreService.readResource(this.resource, lastSyncUserData, this.collection, this.syncHeaders);
 	}
 
 	protected async updateRemoteUserData(content: string, ref: string | null): Promise<IRemoteUserData> {
@@ -725,7 +677,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 	protected abstract hasRemoteChanged(lastSyncUserData: IRemoteUserData): Promise<boolean>;
 
 	abstract hasLocalData(): Promise<boolean>;
-	abstract getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
+	abstract resolveContent(uri: URI): Promise<string | null>;
 }
 
 export interface IFileResourcePreview extends IResourcePreview {

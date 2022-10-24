@@ -69,6 +69,9 @@ export interface IEnvironmentService {
 	editSessionId?: string;
 	editSessionsLogResource: URI;
 
+	// remote tunnel
+	remoteTunnelLogResource: URI;
+
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;
 	isExtensionDevelopment: boolean;
