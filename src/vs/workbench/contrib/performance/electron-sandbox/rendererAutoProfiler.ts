@@ -4,11 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { joinPath } from 'vs/base/common/resources';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { IV8Profile } from 'vs/platform/profiling/common/profiling';
+import { IProfileAnalysisWorkerService, ProfilingOutput } from 'vs/platform/profiling/electron-sandbox/profileAnalysisWorkerService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
@@ -17,21 +22,23 @@ export class RendererProfiling {
 	private _observer?: PerformanceObserver;
 
 	constructor(
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
+		@IFileService private readonly _fileService: IFileService,
+		@ILogService private readonly _logService: ILogService,
 		@INativeHostService nativeHostService: INativeHostService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@ILogService logService: ILogService,
 		@ITimerService timerService: ITimerService,
-		@IConfigurationService configService: IConfigurationService
+		@IConfigurationService configService: IConfigurationService,
+		@IProfileAnalysisWorkerService profileAnalysisService: IProfileAnalysisWorkerService
 	) {
 
-		const devOpts = parseExtensionDevOptions(environmentService);
+		const devOpts = parseExtensionDevOptions(_environmentService);
 		if (devOpts.isExtensionDevTestFromCli) {
 			// disabled when running extension tests
 			return;
 		}
 
 		timerService.perfBaseline.then(perfBaseline => {
-			logService.info(`[perf] Render performance baseline is ${perfBaseline}ms`);
+			_logService.info(`[perf] Render performance baseline is ${perfBaseline}ms`);
 
 			if (perfBaseline < 0) {
 				// too slow
@@ -53,25 +60,34 @@ export class RendererProfiling {
 				}
 
 				if (!configService.getValue('application.experimental.rendererProfiling')) {
-					logService.debug(`[perf] SLOW task detected (${maxDuration}ms) but renderer profiling is disabled via 'application.experimental.rendererProfiling'`);
+					_logService.debug(`[perf] SLOW task detected (${maxDuration}ms) but renderer profiling is disabled via 'application.experimental.rendererProfiling'`);
 					return;
 				}
 
 				const sessionId = generateUuid();
-				// start heartbeat monitoring
-				logService.warn(`[perf] Renderer reported VERY LONG TASK (${maxDuration}ms), starting profiling session '${sessionId}'`);
+
+				_logService.warn(`[perf] Renderer reported VERY LONG TASK (${maxDuration}ms), starting profiling session '${sessionId}'`);
 
 				// pause observation, we'll take a detailed look
 				obs.disconnect();
 
-				// profile for 5secs and wait after that, try for max 1min or until we
-				// found something interesting
+				// profile renderer for 5secs, analyse, and take action depending on the result
 				for (let i = 0; i < 3; i++) {
-					const good = await nativeHostService.profileRenderer(sessionId, 5000, perfBaseline);
-					if (good) {
+
+					try {
+						const profile = await nativeHostService.profileRenderer(sessionId, 5000);
+						const output = await profileAnalysisService.analyseBottomUp(profile, _url => '<<renderer>>', perfBaseline);
+						if (output === ProfilingOutput.Interesting) {
+							this._store(profile, sessionId);
+							break;
+						}
+
+						timeout(15000); // wait 15s
+
+					} catch (err) {
+						_logService.error(err);
 						break;
 					}
-					timeout(15000); // wait 15s
 				}
 
 				// reconnect the observer
@@ -86,5 +102,12 @@ export class RendererProfiling {
 
 	dispose(): void {
 		this._observer?.disconnect();
+	}
+
+
+	private async _store(profile: IV8Profile, sessionId: string): Promise<void> {
+		const path = joinPath(this._environmentService.tmpDir, `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
+		await this._fileService.writeFile(path, VSBuffer.fromString(JSON.stringify(profile)));
+		this._logService.info(`[perf] stored profile to DISK '${path}'`, sessionId);
 	}
 }
