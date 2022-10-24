@@ -298,8 +298,8 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				this._customers.push(instance);
 				this._rpcProtocol.set(id, instance);
 			} catch (err) {
-				this._logService.critical(`Cannot instantiate named customer: '${id.sid}'`);
-				this._logService.critical(err);
+				this._logService.error(`Cannot instantiate named customer: '${id.sid}'`);
+				this._logService.error(err);
 				errors.onUnexpectedError(err);
 			}
 		}
@@ -311,7 +311,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				const instance = this._instantiationService.createInstance(ctor, extHostContext);
 				this._customers.push(instance);
 			} catch (err) {
-				this._logService.critical(err);
+				this._logService.error(err);
 				errors.onUnexpectedError(err);
 			}
 		}
