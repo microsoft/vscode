@@ -1322,6 +1322,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		private async _load(): Promise<rendererApi.RendererApi | undefined> {
 			// Preloads need to be loaded before loading renderers.
 			await kernelPreloads.waitForAllCurrent();
+
 			const module: RendererModule = await __import(this.data.entrypoint.path);
 			if (!module) {
 				return;
