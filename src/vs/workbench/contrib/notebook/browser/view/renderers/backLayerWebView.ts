@@ -841,10 +841,21 @@ var requirejs = (function() {
 					this._handleHighlightCodeBlock(data.codeBlocks);
 					break;
 				}
-
-				case 'outputResized':
+				case 'outputResized': {
 					this.notebookEditor.didResizeOutput(data.cellId);
 					break;
+				}
+				case 'getOutputItem': {
+					const resolvedResult = this.resolveOutputId(data.outputId);
+					const output = resolvedResult?.output.model.outputs.find(output => output.mime === data.mime);
+
+					this._sendMessageToWebview({
+						type: 'returnOutputItem',
+						requestId: data.requestId,
+						output: output ? { mime: output.mime, valueBytes: output.data.buffer } : undefined,
+					});
+					break;
+				}
 			}
 		}));
 	}
@@ -1248,9 +1259,12 @@ var requirejs = (function() {
 				content: {
 					type: RenderOutputType.Extension,
 					outputId: output.outputId,
-					mimeType: first.mime,
-					valueBytes: first.data.buffer,
 					metadata: output.metadata,
+					output: {
+						mime: first.mime,
+						valueBytes: first.data.buffer,
+					},
+					allOutputs: output.outputs.map(output => ({ mime: output.mime })),
 				},
 			};
 		} else {
@@ -1285,13 +1299,16 @@ var requirejs = (function() {
 		let updatedContent: ICreationContent | undefined = undefined;
 		if (content.type === RenderOutputType.Extension) {
 			const output = content.source.model;
-			const firstBuffer = output.outputs.find(op => op.mime === content.mimeType)!.data;
+			const firstBuffer = output.outputs.find(op => op.mime === content.mimeType)!;
 			updatedContent = {
 				type: RenderOutputType.Extension,
 				outputId: outputCache.outputId,
-				mimeType: content.mimeType,
-				valueBytes: firstBuffer.buffer,
 				metadata: output.metadata,
+				output: {
+					mime: content.mimeType,
+					valueBytes: firstBuffer.data.buffer,
+				},
+				allOutputs: output.outputs.map(output => ({ mime: output.mime }))
 			};
 		}
 

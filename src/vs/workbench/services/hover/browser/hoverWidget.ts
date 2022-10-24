@@ -16,7 +16,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer, openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 
 const $ = dom.$;
@@ -88,7 +88,9 @@ export class HoverWidget extends Widget {
 	) {
 		super();
 
-		this._linkHandler = options.linkHandler || (url => this._openerService.open(url, { allowCommands: (isMarkdownString(options.content) && options.content.isTrusted) }));
+		this._linkHandler = options.linkHandler || (url => {
+			return openLinkFromMarkdown(this._openerService, url, isMarkdownString(options.content) ? options.content.isTrusted : undefined);
+		});
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
