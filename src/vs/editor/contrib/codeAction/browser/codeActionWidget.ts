@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { BaseActionWidget } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -344,7 +345,7 @@ class CodeActionList extends Disposable {
 // TODO: Take a look at user storage for this so it is preserved across windows and on reload.
 let showDisabled = false;
 
-export class CodeActionWidget extends Disposable {
+export class CodeActionWidget extends BaseActionWidget {
 
 	private static _instance?: CodeActionWidget;
 
@@ -407,21 +408,8 @@ export class CodeActionWidget extends Disposable {
 		}, container, false);
 	}
 
-	public focusPrevious() {
-		this.codeActionList.value?.focusPrevious();
-	}
-
-	public focusNext() {
-		this.codeActionList.value?.focusNext();
-	}
-
 	public acceptSelected(options?: { readonly preview?: boolean }) {
 		this.codeActionList.value?.acceptSelected(options);
-	}
-
-	public hide() {
-		this.codeActionList.clear();
-		this._contextViewService.hideContextView();
 	}
 
 	private renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: CodeActionShowOptions, showingCodeActions: readonly CodeActionItem[], delegate: CodeActionWidgetDelegate): IDisposable {

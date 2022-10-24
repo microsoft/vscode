@@ -22,17 +22,14 @@ export class BaseActionWidget extends Disposable {
 		return this._widget;
 	}
 
-	public focusPrevious(filter: (arg: any) => boolean) {
+	public focusPrevious() {
 		this._actionList?.focusPrevious();
 	}
 
-	public focusNext(filter?: (arg: any) => boolean) {
+	public focusNext() {
 		this._actionList?.focusNext();
 	}
 
-	public acceptSelected(filter?: (arg: any) => boolean, preview?: boolean) {
-		// this._actionList?.acceptSelected(undefined, preview);
-	}
 
 	public hide() {
 		this._actions.clear();
@@ -42,7 +39,7 @@ export class BaseActionWidget extends Disposable {
 		this._actions.clear();
 	}
 
-	public layout(minWidth: number, filter: (arg: any) => boolean) {
+	public layout(minWidth: number) {
 		this._actionList?.layout(minWidth);
 	}
 }
