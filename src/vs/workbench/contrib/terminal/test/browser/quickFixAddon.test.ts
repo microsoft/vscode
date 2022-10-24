@@ -18,11 +18,11 @@ import { ITerminalCommand, ITerminalOutputMatcher, TerminalCapability } from 'vs
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, gitSimilarCommand, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
-import { TerminalQuickFixAddon, getQuickFixesForCommand } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
+import { gitSimilar, freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
+import { TerminalQuickFixAddon, getQuickFixesForCommand, convertExtensionQuickFixOptions } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { URI } from 'vs/base/common/uri';
 import { Terminal } from 'xterm';
-import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
+// import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 
 suite('QuickFixAddon', () => {
 	let quickFixAddon: TerminalQuickFixAddon;
@@ -36,7 +36,7 @@ suite('QuickFixAddon', () => {
 			cols: 80,
 			rows: 30
 		});
-		instantiationService.stub(ITerminalContributionService, { quickFixes: [] } as Partial<ITerminalContributionService>);
+		// instantiationService.stub(ITerminalContributionService, { quickFixes: [] } as Partial<ITerminalContributionService>);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		const capabilities = new TerminalCapabilityStore();
 		instantiationService.stub(ILogService, new NullLogService());
@@ -68,7 +68,7 @@ suite('QuickFixAddon', () => {
 				command: 'git status'
 			}];
 			setup(() => {
-				const command = gitSimilarCommand();
+				const command = convertExtensionQuickFixOptions(gitSimilar());
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
 				quickFixAddon.registerCommandFinishedListener(command);
 			});
@@ -222,7 +222,7 @@ suite('QuickFixAddon', () => {
 			setup(() => {
 				const command = gitPushSetUpstream();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
-				quickFixAddon.registerCommandFinishedListener(command);
+				quickFixAddon.registerCommandFinishedListener(convertExtensionQuickFixOptions(gitPushSetUpstream()));
 			});
 			suite('returns undefined when', () => {
 				test('output does not match', () => {
@@ -261,7 +261,7 @@ suite('QuickFixAddon', () => {
 				uri: URI.parse('https://github.com/meganrogge/xterm.js/pull/new/test22')
 			}];
 			setup(() => {
-				const command = gitCreatePr();
+				const command = convertExtensionQuickFixOptions(gitCreatePr());
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
 				quickFixAddon.registerCommandFinishedListener(command);
 			});
@@ -299,9 +299,8 @@ suite('QuickFixAddon', () => {
 			command: 'git push --set-upstream origin test22'
 		}];
 		setup(() => {
-			const pushCommand = gitPushSetUpstream();
-			const prCommand = gitCreatePr();
-			quickFixAddon.registerCommandFinishedListener(pushCommand);
+			const pushCommand = convertExtensionQuickFixOptions(gitPushSetUpstream());
+			const prCommand = convertExtensionQuickFixOptions(gitCreatePr());
 			quickFixAddon.registerCommandFinishedListener(prCommand);
 			expectedMap.set(pushCommand.commandLineMatcher.toString(), [pushCommand, prCommand]);
 		});
