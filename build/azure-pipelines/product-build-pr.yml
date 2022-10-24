@@ -109,7 +109,7 @@ jobs:
   # - job: macOSUnitTest
   #   displayName: macOS (Unit Tests)
   #   pool:
-  #     vmImage: macOS-latest
+  #     vmImage: macOS-11
   #   timeoutInMinutes: 60
   #   variables:
   #     BUILDSECMON_OPT_IN: true
@@ -125,7 +125,7 @@ jobs:
   # - job: macOSIntegrationTest
   #   displayName: macOS (Integration Tests)
   #   pool:
-  #     vmImage: macOS-latest
+  #     vmImage: macOS-11
   #   timeoutInMinutes: 60
   #   variables:
   #     BUILDSECMON_OPT_IN: true
@@ -141,7 +141,7 @@ jobs:
   # - job: macOSSmokeTest
   #   displayName: macOS (Smoke Tests)
   #   pool:
-  #     vmImage: macOS-latest
+  #     vmImage: macOS-11
   #   timeoutInMinutes: 60
   #   variables:
   #     BUILDSECMON_OPT_IN: true
