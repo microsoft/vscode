@@ -1326,7 +1326,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 
 			this._api = await module.activate(this.createRendererContext());
-
+			// Preloads need to be loaded before loading renderers.
+			await kernelPreloads.waitForAllCurrent();
 			// Load all renderers that extend this renderer
 			await Promise.all(
 				ctx.rendererData
@@ -1380,7 +1381,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		 * Returns a promise that waits for all currently-registered preloads to
 		 * activate before resolving.
 		 */
-		private waitForAllCurrent() {
+		public waitForAllCurrent() {
 			return Promise.all([...this.preloads.values()].map(p => p.catch(err => err)));
 		}
 	};
