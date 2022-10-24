@@ -24,14 +24,13 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { timeout } from 'vs/base/common/async';
-import { bottomUp, buildModel } from 'vs/platform/profiling/common/profilingModel';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { reportSample } from 'vs/platform/profiling/common/profilingTelemetrySpec';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IProfileAnalysisWorkerService } from 'vs/platform/profiling/electron-sandbox/profileAnalysisWorkerService';
 
 export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 
@@ -50,6 +49,7 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INativeWorkbenchEnvironmentService private readonly _environmentServie: INativeWorkbenchEnvironmentService,
+		@IProfileAnalysisWorkerService private readonly _profileAnalysisService: IProfileAnalysisWorkerService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITimerService timerService: ITimerService
@@ -129,44 +129,41 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 
 		// get all extensions
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		const extensions = this._extensionService.extensions;
-		const searchTree = TernarySearchTree.forUris<IExtensionDescription>();
-		for (const extension of extensions) {
-			if (extension.extensionLocation.scheme === Schemas.file) {
-				searchTree.set(URI.file(extension.extensionLocation.fsPath), extension);
+
+		// send heavy samples iff enabled
+		if (this._configService.getValue('application.experimental.rendererProfiling')) {
+
+			const searchTree = TernarySearchTree.forUris<IExtensionDescription>();
+			searchTree.fill(this._extensionService.extensions.map(e => [e.extensionLocation, e]));
+
+			await this._profileAnalysisService.analyseBottomUp(
+				profile.data,
+				url => searchTree.findSubstr(URI.parse(url))?.identifier.value ?? '<<not-found>>',
+				this._perfBaseline
+			);
+		}
+
+		// analyse profile by extension-category
+		const categories: [location: URI, id: string][] = this._extensionService.extensions
+			.filter(e => e.extensionLocation.scheme === Schemas.file)
+			.map(e => [e.extensionLocation, ExtensionIdentifier.toKey(e.identifier)]);
+
+		const data = await this._profileAnalysisService.analyseByLocation(profile.data, categories);
+
+		//
+		let overall: number = 0;
+		let top: string = '';
+		let topAggregated: number = -1;
+		for (const [category, aggregated] of data) {
+			overall += aggregated;
+			if (aggregated > topAggregated) {
+				topAggregated = aggregated;
+				top = category;
 			}
 		}
+		const topPercentage = topAggregated / (overall / 100);
 
 		// associate extensions to profile node
-		const model = buildModel(profile.data);
-		const extensionTimes = new Map<string, number>();
-		for (const node of model.nodes) {
-			const loc = model.locations[node.locationId];
-			let extension: IExtensionDescription | undefined;
-			try {
-				extension = searchTree.findSubstr(URI.parse(loc.callFrame.url));
-			} catch {
-				// ignore
-			}
-			if (extension) {
-				const key = ExtensionIdentifier.toKey(extension.identifier);
-				const value = extensionTimes.get(key) ?? 0;
-				extensionTimes.set(key, value + node.selfTime);
-			}
-		}
-
-		// find max
-		let top: string = '';
-		let topAggregation = -1;
-		for (const [id, aggregated] of extensionTimes) {
-			if (aggregated > topAggregation) {
-				topAggregation = aggregated;
-				top = id;
-			}
-		}
-		const topPercentage = topAggregation / (model.duration / 100);
-
-
 		const extension = await this._extensionService.getExtension(top);
 		if (!extension) {
 			// not an extension => idle, gc, self?
@@ -179,7 +176,7 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 		// print message to log
 		const path = joinPath(this._environmentServie.tmpDir, `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
 		await this._fileService.writeFile(path, VSBuffer.fromString(JSON.stringify(profile.data)));
-		this._logService.warn(`UNRESPONSIVE extension host: '${top}' took ${topPercentage}% of ${topAggregation / 1e3}ms, saved PROFILE here: '${path}'`);
+		this._logService.warn(`UNRESPONSIVE extension host: '${top}' took ${topPercentage}% of ${topAggregated / 1e3}ms, saved PROFILE here: '${path}'`);
 
 		type UnresponsiveData = {
 			duration: number;
@@ -197,28 +194,17 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 		};
 		this._telemetryService.publicLog2<UnresponsiveData, UnresponsiveDataClassification>('exthostunresponsive', {
 			sessionId,
-			duration: model.duration,
-			data: Array.from(extensionTimes.keys()),
+			duration: overall,
+			data: data.map(tuple => tuple[0]).flat(),
 			id: ExtensionIdentifier.toKey(extension.identifier),
 		});
 
-		// send heavy samples
-		if (this._configService.getValue('application.experimental.rendererProfiling')) {
-			const samples = bottomUp(model, 5, false);
-			for (const sample of samples) {
-				reportSample(
-					{ sample, perfBaseline: this._perfBaseline, source: searchTree.findSubstr(URI.parse(sample.url))?.identifier.value ?? '<<not-found>>' },
-					this._telemetryService,
-					this._logService
-				);
-			}
-		}
 
 		// add to running extensions view
 		this._extensionProfileService.setUnresponsiveProfile(extension.identifier, profile);
 
 		// prompt: when really slow/greedy
-		if (!(topPercentage >= 95 && topAggregation >= 5e6)) {
+		if (!(topPercentage >= 95 && topAggregated >= 5e6)) {
 			return;
 		}
 
