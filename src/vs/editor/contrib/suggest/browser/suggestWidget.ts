@@ -683,6 +683,7 @@ export class SuggestWidget implements IDisposable {
 	toggleDetails(): void {
 		if (this._isDetailsVisible()) {
 			// hide details widget
+			this._pendingShowDetails.clear();
 			this._ctxSuggestWidgetDetailsVisible.set(false);
 			this._setDetailsVisible(false);
 			this._details.hide();
@@ -727,7 +728,10 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	hideWidget(): void {
+		this._pendingLayout.clear();
+		this._pendingShowDetails.clear();
 		this._loadingTimeout?.dispose();
+
 		this._setState(State.Hidden);
 		this._onDidHide.fire(this);
 		this.element.clearSashHoverState();
