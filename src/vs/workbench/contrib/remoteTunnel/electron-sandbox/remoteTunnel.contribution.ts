@@ -33,7 +33,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Action } from 'vs/base/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
-import { posix } from 'vs/base/common/path';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
