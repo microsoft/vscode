@@ -199,7 +199,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 		}));
 
-		this.updatePreview();
+		this.refresh();
 	}
 
 	override dispose() {

@@ -371,7 +371,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				}
 
 				let extraLabel: string | null = null;
-				if (element.status.runningLocation && element.status.runningLocation.equals(new LocalWebWorkerRunningLocation())) {
+				if (element.status.runningLocation && element.status.runningLocation.equals(new LocalWebWorkerRunningLocation(0))) {
 					extraLabel = `$(globe) web worker`;
 				} else if (element.description.extensionLocation.scheme === Schemas.vscodeRemote) {
 					const hostLabel = this._labelService.getHostLabel(Schemas.vscodeRemote, this._environmentService.remoteAuthority);
@@ -381,7 +381,9 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 						extraLabel = `$(remote) ${element.description.extensionLocation.authority}`;
 					}
 				} else if (element.status.runningLocation && element.status.runningLocation.affinity > 0) {
-					extraLabel = `$(server-process) local process ${element.status.runningLocation.affinity + 1}`;
+					extraLabel = element.status.runningLocation instanceof LocalWebWorkerRunningLocation
+						? `$(globe) web worker ${element.status.runningLocation.affinity + 1}`
+						: `$(server-process) local process ${element.status.runningLocation.affinity + 1}`;
 				}
 
 				if (extraLabel) {

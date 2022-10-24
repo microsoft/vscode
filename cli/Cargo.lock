@@ -240,6 +240,7 @@ dependencies = [
  "url",
  "uuid",
  "windows-service",
+ "winreg",
  "zip",
 ]
 

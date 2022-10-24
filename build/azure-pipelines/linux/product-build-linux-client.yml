@@ -271,13 +271,19 @@ steps:
         displayName: Download VS Code CLI
         condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          artifact: vscode_cli_linux_armhf_cli
+          patterns: "**"
+          path: $(Build.ArtifactStagingDirectory)/cli
+        displayName: Download VS Code CLI
+        condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'armhf'))
+
       - script: |
           set -e
           tar -xzvf $(Build.ArtifactStagingDirectory)/cli/*.tar.gz -C $(Build.ArtifactStagingDirectory)/cli
-          mv $(Build.ArtifactStagingDirectory)/cli/code $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/code-tunnel
-          if [ "$(VSCODE_QUALITY)" != "stable" ]; then
-            mv "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/code-tunnel" "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/code-tunnel-$(VSCODE_QUALITY)"
-          fi
+          CLI_APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").tunnelApplicationName")
+          mv $(Build.ArtifactStagingDirectory)/cli/code $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$CLI_APP_NAME
         displayName: Make CLI executable
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
