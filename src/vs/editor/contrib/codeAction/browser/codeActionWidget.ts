@@ -10,10 +10,9 @@ import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { ActionList, BaseActionWidget } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import 'vs/css!./codeActionWidget';
 import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
@@ -175,17 +174,31 @@ class HeaderRenderer implements IListRenderer<CodeActionListItemHeader, HeaderTe
 	}
 }
 
-class CodeActionList extends ActionList {
+const previewSelectedEventType = 'previewSelectedCodeAction';
+class CodeActionList extends Disposable {
+
+	private readonly codeActionLineHeight = 24;
+	private readonly headerLineHeight = 26;
+
+	public readonly domNode: HTMLElement;
+
+	private readonly list: List<ICodeActionMenuItem>;
+
+	private readonly allMenuItems: ICodeActionMenuItem[];
 
 	constructor(
-		container: HTMLElement,
 		codeActions: readonly CodeActionItem[],
 		showHeaders: boolean,
-		onDidSelect: (action: CodeActionItem, options: { readonly preview: boolean }) => void,
+		private readonly onDidSelect: (action: CodeActionItem, options: { readonly preview: boolean }) => void,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(codeActions, new List('codeActionWidget', container, {
-			getHeight: element => element.kind === CodeActionListItemKind.Header ? 24 : 26,
+		super();
+
+		this.domNode = document.createElement('div');
+		this.domNode.classList.add('codeActionList');
+
+		this.list = this._register(new List('codeActionWidget', this.domNode, {
+			getHeight: element => element.kind === CodeActionListItemKind.Header ? this.headerLineHeight : this.codeActionLineHeight,
 			getTemplateId: element => element.kind,
 		}, [
 			new CodeActionItemRenderer(new CodeActionKeybindingResolver(keybindingService), keybindingService),
@@ -207,10 +220,96 @@ class CodeActionList extends ActionList {
 				getRole: () => 'option',
 				getWidgetRole: () => 'code-action-widget'
 			}
-		}), onDidSelect);
+		}));
+
+		this._register(this.list.onMouseClick(e => this.onListClick(e)));
+		this._register(this.list.onMouseOver(e => this.onListHover(e)));
+		this._register(this.list.onDidChangeFocus(() => this.list.domFocus()));
+		this._register(this.list.onDidChangeSelection(e => this.onListSelection(e)));
+
+		this.allMenuItems = this.toMenuItems(codeActions, showHeaders);
+		this.list.splice(0, this.list.length, this.allMenuItems);
+
+		this.focusNext();
 	}
 
-	public toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ICodeActionMenuItem[] {
+	public layout(minWidth: number): number {
+		// Updating list height, depending on how many separators and headers there are.
+		const numHeaders = this.allMenuItems.filter(item => item.kind === CodeActionListItemKind.Header).length;
+		const height = this.allMenuItems.length * this.codeActionLineHeight;
+		const heightWithHeaders = height + numHeaders * this.headerLineHeight - numHeaders * this.codeActionLineHeight;
+		this.list.layout(heightWithHeaders);
+
+		// For finding width dynamically (not using resize observer)
+		const itemWidths: number[] = this.allMenuItems.map((_, index): number => {
+			const element = document.getElementById(this.list.getElementID(index));
+			if (element) {
+				element.style.width = 'auto';
+				const width = element.getBoundingClientRect().width;
+				element.style.width = '';
+				return width;
+			}
+			return 0;
+		});
+
+		// resize observer - can be used in the future since list widget supports dynamic height but not width
+		const width = Math.max(...itemWidths, minWidth);
+		this.list.layout(heightWithHeaders, width);
+
+		this.domNode.style.height = `${heightWithHeaders}px`;
+
+		this.list.domFocus();
+		return width;
+	}
+
+	public focusPrevious() {
+		this.list.focusPrevious(1, true, undefined, element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled);
+	}
+
+	public focusNext() {
+		this.list.focusNext(1, true, undefined, element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled);
+	}
+
+	public acceptSelected(options?: { readonly preview?: boolean }) {
+		const focused = this.list.getFocus();
+		if (focused.length === 0) {
+			return;
+		}
+
+		const focusIndex = focused[0];
+		const element = this.list.element(focusIndex);
+		if (element.kind !== CodeActionListItemKind.CodeAction || element.action.action.disabled) {
+			return;
+		}
+
+		const event = new UIEvent(options?.preview ? previewSelectedEventType : 'acceptSelectedCodeAction');
+		this.list.setSelection([focusIndex], event);
+	}
+
+	private onListSelection(e: IListEvent<ICodeActionMenuItem>): void {
+		if (!e.elements.length) {
+			return;
+		}
+
+		const element = e.elements[0];
+		if (element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled) {
+			this.onDidSelect(element.action, { preview: e.browserEvent?.type === previewSelectedEventType });
+		} else {
+			this.list.setSelection([]);
+		}
+	}
+
+	private onListHover(e: IListMouseEvent<ICodeActionMenuItem>): void {
+		this.list.setFocus(typeof e.index === 'number' ? [e.index] : []);
+	}
+
+	private onListClick(e: IListMouseEvent<ICodeActionMenuItem>): void {
+		if (e.element && e.element.kind === CodeActionListItemKind.CodeAction && e.element.action.action.disabled) {
+			this.list.setFocus([]);
+		}
+	}
+
+	private toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ICodeActionMenuItem[] {
 		if (!showHeaders) {
 			return inputCodeActions.map((action): ICodeActionMenuItem => ({ kind: CodeActionListItemKind.CodeAction, action, group: uncategorizedCodeActionGroup }));
 		}
@@ -242,11 +341,10 @@ class CodeActionList extends ActionList {
 	}
 }
 
-
 // TODO: Take a look at user storage for this so it is preserved across windows and on reload.
 let showDisabled = false;
 
-export class CodeActionWidget extends BaseActionWidget {
+export class CodeActionWidget extends Disposable {
 
 	private static _instance?: CodeActionWidget;
 
@@ -258,6 +356,8 @@ export class CodeActionWidget extends BaseActionWidget {
 		}
 		return this._instance;
 	}
+
+	private readonly codeActionList = this._register(new MutableDisposable<CodeActionList>());
 
 	private currentShowingContext?: {
 		readonly options: CodeActionShowOptions;
@@ -307,48 +407,40 @@ export class CodeActionWidget extends BaseActionWidget {
 		}, container, false);
 	}
 
-	public override hide() {
+	public focusPrevious() {
+		this.codeActionList.value?.focusPrevious();
+	}
+
+	public focusNext() {
+		this.codeActionList.value?.focusNext();
+	}
+
+	public acceptSelected(options?: { readonly preview?: boolean }) {
+		this.codeActionList.value?.acceptSelected(options);
+	}
+
+	public hide() {
+		this.codeActionList.clear();
 		this._contextViewService.hideContextView();
-		super.hide();
-	}
-
-	public override focusPrevious() {
-		super.focusPrevious(element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled);
-	}
-
-	public override focusNext() {
-		super.focusNext(element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled);
-	}
-
-	public override acceptSelected(options?: any) {
-		super.acceptSelected((element) => element.kind !== CodeActionListItemKind.CodeAction || element.action.action.disabled, options);
-	}
-
-	public override onListSelection(e: IListEvent<any>): void {
-		super.onListSelection(e, element => element.kind === CodeActionListItemKind.CodeAction && !element.action.action.disabled, e => e.browserEvent?.type === 'previewSelectedEventType');
-	}
-
-	public override onListClick(e: IListMouseEvent<any>): void {
-		super.onListClick(e, e => e.element && e.element.kind === CodeActionListItemKind.CodeAction && e.element.action.action.disabled);
-	}
-
-	public override onListHover(e: IListMouseEvent<any>): void {
-		super.onListHover(e);
 	}
 
 	private renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: CodeActionShowOptions, showingCodeActions: readonly CodeActionItem[], delegate: CodeActionWidgetDelegate): IDisposable {
 		const renderDisposables = new DisposableStore();
-		const widget = super.render();
+
+		const widget = document.createElement('div');
+		widget.classList.add('codeActionWidget');
 		element.appendChild(widget);
-		super.setQuickFixes(new CodeActionList(
-			widget,
+
+		this.codeActionList.value = new CodeActionList(
 			showingCodeActions,
 			options.showHeaders ?? true,
 			(action, options) => {
 				this.hide();
 				delegate.onSelectCodeAction(action, trigger, options);
 			},
-			this._keybindingService));
+			this._keybindingService);
+
+		widget.appendChild(this.codeActionList.value.domNode);
 
 		// Invisible div to block mouse interaction in the rest of the UI
 		const menuBlock = document.createElement('div');
@@ -390,8 +482,7 @@ export class CodeActionWidget extends BaseActionWidget {
 			}
 		}
 
-
-		const width = super.layout(actionBarWidth, item => item.kind === CodeActionListItemKind.Header);
+		const width = this.codeActionList.value.layout(actionBarWidth);
 		widget.style.width = `${width}px`;
 
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));

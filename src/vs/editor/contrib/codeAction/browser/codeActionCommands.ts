@@ -519,7 +519,7 @@ registerAction2(class extends Action2 {
 	}
 
 	run(): void {
-		CodeActionWidget.INSTANCE?.acceptSelected({ preview: 'previewSelectedCodeAction' });
+		CodeActionWidget.INSTANCE?.acceptSelected();
 	}
 });
 
