@@ -199,7 +199,15 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		const inputModel = await input.resolve();
 		const model = inputModel.model;
 
-		const viewModel = new MergeEditorViewModel(model, this.input1View, this.input2View, this.inputResultView, this.baseView, this.showNonConflictingChanges, this.configurationService);
+		const viewModel = this.instantiationService.createInstance(
+			MergeEditorViewModel,
+			model,
+			this.input1View,
+			this.input2View,
+			this.inputResultView,
+			this.baseView,
+			this.showNonConflictingChanges,
+		);
 
 
 		model.telemetry.reportMergeEditorOpened({
