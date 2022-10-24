@@ -58,6 +58,8 @@ import { NOTEBOOK_KERNEL } from 'vs/workbench/contrib/notebook/common/notebookCo
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isEqual } from 'vs/base/common/resources';
+import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
+import { INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -76,8 +78,6 @@ export interface InteractiveEditorOptions extends ITextEditorOptions {
 }
 
 export class InteractiveEditor extends EditorPane {
-	static readonly ID: string = 'workbench.editor.interactive';
-
 	#rootElement!: HTMLElement;
 	#styleElement!: HTMLStyleElement;
 	#notebookEditorContainer!: HTMLElement;
@@ -131,7 +131,7 @@ export class InteractiveEditor extends EditorPane {
 		@IExtensionService extensionService: IExtensionService,
 	) {
 		super(
-			InteractiveEditor.ID,
+			INTERACTIVE_WINDOW_EDITOR_ID,
 			telemetryService,
 			themeService,
 			storageService
@@ -328,7 +328,8 @@ export class InteractiveEditor extends EditorPane {
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
 				ExecutionStateCellStatusBarContrib.id,
-				TimerCellStatusBarContrib.id
+				TimerCellStatusBarContrib.id,
+				NotebookFindContrib.id
 			]),
 			menuIds: {
 				notebookToolbar: MenuId.InteractiveToolbar,
@@ -549,7 +550,9 @@ export class InteractiveEditor extends EditorPane {
 
 		if (notebook && textModel) {
 			const info = this.#notebookKernelService.getMatchingKernel(notebook);
-			const selectedOrSuggested = info.selected ?? info.suggestions[0];
+			const selectedOrSuggested = info.selected
+				?? (info.suggestions.length === 1 ? info.suggestions[0] : undefined)
+				?? (info.all.length === 1 ? info.all[0] : undefined);
 
 			if (selectedOrSuggested) {
 				const language = selectedOrSuggested.supportedLanguages[0];

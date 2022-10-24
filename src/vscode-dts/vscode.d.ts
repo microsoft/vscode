@@ -2018,7 +2018,7 @@ declare module 'vscode' {
 		/**
 		 * Selection of the pre-filled {@linkcode InputBoxOptions.value value}. Defined as tuple of two number where the
 		 * first is the inclusive start index and the second the exclusive end index. When `undefined` the whole
-		 * word will be selected, when empty (start equals end) only the cursor will be set,
+		 * pre-filled value will be selected, when empty (start equals end) only the cursor will be set,
 		 * otherwise the defined range will be selected.
 		 */
 		valueSelection?: [number, number];
@@ -3580,6 +3580,16 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Additional data about a workspace edit.
+	 */
+	export interface WorkspaceEditMetadata {
+		/**
+		 * Signal to the editor that this edit is a refactoring.
+		 */
+		isRefactoring?: boolean;
+	}
+
+	/**
 	 * A workspace edit is a collection of textual and files changes for
 	 * multiple resources and documents.
 	 *
@@ -3635,7 +3645,7 @@ declare module 'vscode' {
 		 * @param uri A resource identifier.
 		 * @param edits An array of edits.
 		 */
-		set(uri: Uri, edits: NotebookEdit[]): void;
+		set(uri: Uri, edits: readonly NotebookEdit[]): void;
 
 		/**
 		 * Set (and replace) notebook edits with metadata for a resource.
@@ -3643,7 +3653,7 @@ declare module 'vscode' {
 		 * @param uri A resource identifier.
 		 * @param edits An array of edits.
 		 */
-		set(uri: Uri, edits: [NotebookEdit, WorkspaceEditEntryMetadata][]): void;
+		set(uri: Uri, edits: ReadonlyArray<[NotebookEdit, WorkspaceEditEntryMetadata]>): void;
 
 		/**
 		 * Set (and replace) text edits or snippet edits for a resource.
@@ -3651,7 +3661,7 @@ declare module 'vscode' {
 		 * @param uri A resource identifier.
 		 * @param edits An array of edits.
 		 */
-		set(uri: Uri, edits: (TextEdit | SnippetTextEdit)[]): void;
+		set(uri: Uri, edits: ReadonlyArray<TextEdit | SnippetTextEdit>): void;
 
 		/**
 		 * Set (and replace) text edits or snippet edits with metadata for a resource.
@@ -3659,7 +3669,7 @@ declare module 'vscode' {
 		 * @param uri A resource identifier.
 		 * @param edits An array of edits.
 		 */
-		set(uri: Uri, edits: [TextEdit | SnippetTextEdit, WorkspaceEditEntryMetadata][]): void;
+		set(uri: Uri, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, WorkspaceEditEntryMetadata]>): void;
 
 		/**
 		 * Get the text edits for a resource.
@@ -3680,7 +3690,7 @@ declare module 'vscode' {
 		 * the file is being created with.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		createFile(uri: Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean; contents?: Uint8Array }, metadata?: WorkspaceEditEntryMetadata): void;
+		createFile(uri: Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Delete a file or folder.
@@ -3688,7 +3698,7 @@ declare module 'vscode' {
 		 * @param uri The uri of the file that is to be deleted.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		deleteFile(uri: Uri, options?: { recursive?: boolean; ignoreIfNotExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
+		deleteFile(uri: Uri, options?: { readonly recursive?: boolean; readonly ignoreIfNotExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Rename a file or folder.
@@ -3699,7 +3709,7 @@ declare module 'vscode' {
 		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
+		renameFile(oldUri: Uri, newUri: Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Get all text edits grouped by resource.
@@ -8393,9 +8403,11 @@ declare module 'vscode' {
 		/**
 		 * Controls whether command uris are enabled in webview content or not.
 		 *
-		 * Defaults to false.
+		 * Defaults to `false` (command uris are disabled).
+		 *
+		 * If you pass in an array, only the commands in the array are allowed.
 		 */
-		readonly enableCommandUris?: boolean;
+		readonly enableCommandUris?: boolean | readonly string[];
 
 		/**
 		 * Root paths from which the webview can load local (filesystem) resources using uris from `asWebviewUri`
@@ -10726,7 +10738,7 @@ declare module 'vscode' {
 		 * Whether the terminal process environment should be exactly as provided in
 		 * `TerminalOptions.env`. When this is false (default), the environment will be based on the
 		 * window's environment and also apply configured platform settings like
-		 * `terminal.integrated.windows.env` on top. When this is true, the complete environment
+		 * `terminal.integrated.env.windows` on top. When this is true, the complete environment
 		 * must be provided as nothing will be inherited from the process or any configuration.
 		 */
 		strictEnv?: boolean;
@@ -11304,7 +11316,7 @@ declare module 'vscode' {
 		value: string;
 
 		/**
-		 * Optional placeholder in the filter text.
+		 * Optional placeholder shown in the filter textbox when no filter has been entered.
 		 */
 		placeholder: string | undefined;
 
@@ -11396,7 +11408,18 @@ declare module 'vscode' {
 		value: string;
 
 		/**
-		 * Optional placeholder in the filter text.
+		 * Selection range in the input value. Defined as tuple of two number where the
+		 * first is the inclusive start index and the second the exclusive end index. When `undefined` the whole
+		 * pre-filled value will be selected, when empty (start equals end) only the cursor will be set,
+		 * otherwise the defined range will be selected.
+		 *
+		 * This property does not get updated when the user types or makes a selection,
+		 * but it can be updated by the extension.
+		 */
+		valueSelection: readonly [number, number] | undefined;
+
+		/**
+		 * Optional placeholder shown when no value has been input.
 		 */
 		placeholder: string | undefined;
 
@@ -12165,9 +12188,10 @@ declare module 'vscode' {
 		 * not be attempted, when a single edit fails.
 		 *
 		 * @param edit A workspace edit.
+		 * @param metadata Optional {@link WorkspaceEditMetadata metadata} for the edit.
 		 * @return A thenable that resolves when the edit could be applied.
 		 */
-		export function applyEdit(edit: WorkspaceEdit): Thenable<boolean>;
+		export function applyEdit(edit: WorkspaceEdit, metadata?: WorkspaceEditMetadata): Thenable<boolean>;
 
 		/**
 		 * All text documents currently known to the editor.
@@ -14817,6 +14841,26 @@ declare module 'vscode' {
 		 * If compact is true, debug sessions with a single child are hidden in the CALL STACK view to make the tree more compact.
 		 */
 		compact?: boolean;
+
+		/**
+		 * When true, a save will not be triggered for open editors when starting a debug session, regardless of the value of the `debug.saveBeforeStart` setting.
+		 */
+		suppressSaveBeforeStart?: boolean;
+
+		/**
+		 * When true, the debug toolbar will not be shown for this session.
+		 */
+		suppressDebugToolbar?: boolean;
+
+		/**
+		 * When true, the window statusbar color will not be changed for this session.
+		 */
+		suppressDebugStatusbar?: boolean;
+
+		/**
+		 * When true, the debug viewlet will not be automatically revealed for this session.
+		 */
+		suppressDebugView?: boolean;
 	}
 
 	/**
@@ -15588,6 +15632,78 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Namespace for localization-related functionality in the extension API. To use this properly,
+	 * you must have `l10n` defined in your `package.json` and have bundle.l10n.<language>.json files.
+	 * For more information on how to generate bundle.l10n.<language>.json files, check out the
+	 * [vscode-l10n repo](https://github.com/microsoft/vscode-l10n).
+	 */
+	export namespace l10n {
+		/**
+		 * Marks a string for localization. If a localized bundle is available for the language specified by
+		 * {@link env.language} and the bundle has a localized value for this message, then that localized
+		 * value will be returned (with injected {@link args} values for any templated values).
+		 * @param message - The message to localize. Supports index templating where strings like `{0}` and `{1}` are
+		 * replaced by the item at that index in the {@link args} array.
+		 * @param args - The arguments to be used in the localized string. The index of the argument is used to
+		 * match the template placeholder in the localized string.
+		 * @returns localized string with injected arguments.
+		 * @example `l10n.localize('hello', 'Hello {0}!', 'World');`
+		 */
+		export function t(message: string, ...args: Array<string | number | boolean>): string;
+
+		/**
+		 * Marks a string for localization. If a localized bundle is available for the language specified by
+		 * {@link env.language} and the bundle has a localized value for this message, then that localized
+		 * value will be returned (with injected {@link args} values for any templated values).
+		 * @param message The message to localize. Supports named templating where strings like `{foo}` and `{bar}` are
+		 * replaced by the value in the Record for that key (foo, bar, etc).
+		 * @param args The arguments to be used in the localized string. The name of the key in the record is used to
+		 * match the template placeholder in the localized string.
+		 * @returns localized string with injected arguments.
+		 * @example `l10n.t('Hello {name}', { name: 'Erich' });`
+		 */
+		export function t(message: string, args: Record<string, any>): string;
+		/**
+		 * Marks a string for localization. If a localized bundle is available for the language specified by
+		 * {@link env.language} and the bundle has a localized value for this message, then that localized
+		 * value will be returned (with injected args values for any templated values).
+		 * @param options The options to use when localizing the message.
+		 * @returns localized string with injected arguments.
+		 */
+		export function t(options: {
+			/**
+			 * The message to localize. If {@link args} is an array, this message supports index templating where strings like
+			 * `{0}` and `{1}` are replaced by the item at that index in the {@link args} array. If `args` is a `Record<string, any>`,
+			 * this supports named templating where strings like `{foo}` and `{bar}` are replaced by the value in
+			 * the Record for that key (foo, bar, etc).
+			 */
+			message: string;
+			/**
+			 * The arguments to be used in the localized string. As an array, the index of the argument is used to
+			 * match the template placeholder in the localized string. As a Record, the key is used to match the template
+			 * placeholder in the localized string.
+			 */
+			args?: Array<string | number | boolean> | Record<string, any>;
+			/**
+			 * A comment to help translators understand the context of the message.
+			 */
+			comment: string | string[];
+		}): string;
+		/**
+		 * The bundle of localized strings that have been loaded for the extension.
+		 * It's undefined if no bundle has been loaded. The bundle is typically not loaded if
+		 * there was no bundle found or when we are running with the default language.
+		 */
+		export const bundle: { [key: string]: string } | undefined;
+		/**
+		 * The URI of the localization bundle that has been loaded for the extension.
+		 * It's undefined if no bundle has been loaded. The bundle is typically not loaded if
+		 * there was no bundle found or when we are running with the default language.
+		 */
+		export const uri: Uri | undefined;
+	}
+
+	/**
 	 * Namespace for testing functionality. Tests are published by registering
 	 * {@link TestController} instances, then adding {@link TestItem TestItems}.
 	 * Controllers may also describe how to run tests by creating one or more
@@ -15818,9 +15934,9 @@ declare module 'vscode' {
 
 	/**
 	 * A TestRunRequest is a precursor to a {@link TestRun}, which in turn is
-	 * created by passing a request to {@link tests.runTests}. The TestRunRequest
-	 * contains information about which tests should be run, which should not be
-	 * run, and how they are run (via the {@link TestRunRequest.profile profile}).
+	 * created by passing a request to {@link TestController.createTestRun}. The
+	 * TestRunRequest contains information about which tests should be run, which
+	 * should not be run, and how they are run (via the {@link TestRunRequest.profile profile}).
 	 *
 	 * In general, TestRunRequests are created by the editor and pass to
 	 * {@link TestRunProfile.runHandler}, however you can also create test
@@ -15863,7 +15979,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options given to {@link TestController.runTests}
+	 * A TestRun represents an in-progress or completed test run and
+	 * provides methods to report the state of individual tests in the run.
 	 */
 	export interface TestRun {
 		/**

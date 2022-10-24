@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as picomatch from 'picomatch';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, CancellationTokenSource, LogOutputChannel, LogLevel, CancellationError } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
@@ -17,7 +17,6 @@ import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
-import { LogLevel, OutputChannelLogger } from './log';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
@@ -325,6 +324,7 @@ export const enum Operation {
 	Reset = 'Reset',
 	Remote = 'Remote',
 	Fetch = 'Fetch',
+	FetchNoProgress = 'FetchNoProgress',
 	Pull = 'Pull',
 	Push = 'Push',
 	CherryPick = 'CherryPick',
@@ -377,7 +377,7 @@ function isReadOnly(operation: Operation): boolean {
 
 function shouldShowProgress(operation: Operation): boolean {
 	switch (operation) {
-		case Operation.Fetch:
+		case Operation.FetchNoProgress:
 		case Operation.CheckIgnore:
 		case Operation.GetObjectDetails:
 		case Operation.Show:
@@ -397,11 +397,15 @@ class OperationsImpl implements Operations {
 
 	private operations = new Map<Operation, number>();
 
+	constructor(private readonly logger: LogOutputChannel) { }
+
 	start(operation: Operation): void {
+		this.logger.trace(`Operation start: ${operation}`);
 		this.operations.set(operation, (this.operations.get(operation) || 0) + 1);
 	}
 
 	end(operation: Operation): void {
+		this.logger.trace(`Operation end: ${operation}`);
 		const count = (this.operations.get(operation) || 0) - 1;
 
 		if (count <= 0) {
@@ -460,10 +464,8 @@ class ProgressManager {
 		this.updateEnablement();
 
 		this.repository.onDidChangeOperations(() => {
-			const commitInProgress = this.repository.operations.isRunning(Operation.Commit);
-
-			this.repository.sourceControl.inputBox.enabled = !commitInProgress;
-			commands.executeCommand('setContext', 'commitInProgress', commitInProgress);
+			// Disable input box when the commit operation is running
+			this.repository.sourceControl.inputBox.enabled = !this.repository.operations.isRunning(Operation.Commit);
 		});
 	}
 
@@ -519,22 +521,23 @@ class FileEventLogger {
 	constructor(
 		private onWorkspaceWorkingTreeFileChange: Event<Uri>,
 		private onDotGitFileChange: Event<Uri>,
-		private outputChannelLogger: OutputChannelLogger
+		private logger: LogOutputChannel
 	) {
-		this.logLevelDisposable = outputChannelLogger.onDidChangeLogLevel(this.onDidChangeLogLevel, this);
-		this.onDidChangeLogLevel(outputChannelLogger.currentLogLevel);
+		this.logLevelDisposable = logger.onDidChangeLogLevel(this.onDidChangeLogLevel, this);
+		this.onDidChangeLogLevel(logger.logLevel);
 	}
 
-	private onDidChangeLogLevel(level: LogLevel): void {
+	private onDidChangeLogLevel(logLevel: LogLevel): void {
 		this.eventDisposable.dispose();
+		this.logger.appendLine(localize('logLevel', "Log level: {0}", LogLevel[logLevel]));
 
-		if (level > LogLevel.Debug) {
+		if (logLevel > LogLevel.Debug) {
 			return;
 		}
 
 		this.eventDisposable = combinedDisposable([
-			this.onWorkspaceWorkingTreeFileChange(uri => this.outputChannelLogger.logDebug(`[wt] Change: ${uri.fsPath}`)),
-			this.onDotGitFileChange(uri => this.outputChannelLogger.logDebug(`[.git] Change: ${uri.fsPath}`))
+			this.onWorkspaceWorkingTreeFileChange(uri => this.logger.debug(`[wt] Change: ${uri.fsPath}`)),
+			this.onDotGitFileChange(uri => this.logger.debug(`[.git] Change: ${uri.fsPath}`))
 		]);
 	}
 
@@ -554,7 +557,7 @@ class DotGitWatcher implements IFileWatcher {
 
 	constructor(
 		private repository: Repository,
-		private outputChannelLogger: OutputChannelLogger
+		private logger: LogOutputChannel
 	) {
 		const rootWatcher = watch(repository.dotGit.path);
 		this.disposables.push(rootWatcher);
@@ -585,7 +588,7 @@ class DotGitWatcher implements IFileWatcher {
 			this.transientDisposables.push(upstreamWatcher);
 			upstreamWatcher.event(this.emitter.fire, this.emitter, this.transientDisposables);
 		} catch (err) {
-			this.outputChannelLogger.logWarning(`Failed to watch ref '${upstreamPath}', is most likely packed.`);
+			this.logger.warn(`Failed to watch ref '${upstreamPath}', is most likely packed.`);
 		}
 	}
 
@@ -860,7 +863,7 @@ export class Repository implements Disposable {
 		return this._mergeInProgress;
 	}
 
-	private _operations = new OperationsImpl();
+	private _operations = new OperationsImpl(this.logger);
 	get operations(): Operations { return this._operations; }
 
 	private _state = RepositoryState.Idle;
@@ -893,6 +896,7 @@ export class Repository implements Disposable {
 	private isBranchProtectedMatcher: picomatch.Matcher | undefined;
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
+	private updateModelStateCancellationTokenSource: CancellationTokenSource | undefined;
 	private disposables: Disposable[] = [];
 
 	constructor(
@@ -901,7 +905,7 @@ export class Repository implements Disposable {
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
 		globalState: Memento,
-		outputChannelLogger: OutputChannelLogger,
+		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
 	) {
 		const repositoryWatcher = workspace.createFileSystemWatcher(new RelativePattern(Uri.file(repository.root), '**'));
@@ -913,11 +917,11 @@ export class Repository implements Disposable {
 		let onRepositoryDotGitFileChange: Event<Uri>;
 
 		try {
-			const dotGitFileWatcher = new DotGitWatcher(this, outputChannelLogger);
+			const dotGitFileWatcher = new DotGitWatcher(this, logger);
 			onRepositoryDotGitFileChange = dotGitFileWatcher.event;
 			this.disposables.push(dotGitFileWatcher);
 		} catch (err) {
-			outputChannelLogger.logError(`Failed to watch path:'${this.dotGit.path}' or commonPath:'${this.dotGit.commonPath}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
+			logger.error(`Failed to watch path:'${this.dotGit.path}' or commonPath:'${this.dotGit.commonPath}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
 
 			onRepositoryDotGitFileChange = filterEvent(onRepositoryFileChange, uri => /\.git($|\/)/.test(uri.path));
 		}
@@ -931,7 +935,7 @@ export class Repository implements Disposable {
 		// Relevate repository changes should trigger virtual document change events
 		onRepositoryDotGitFileChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
 
-		this.disposables.push(new FileEventLogger(onRepositoryWorkingTreeFileChange, onRepositoryDotGitFileChange, outputChannelLogger));
+		this.disposables.push(new FileEventLogger(onRepositoryWorkingTreeFileChange, onRepositoryDotGitFileChange, logger));
 
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
@@ -1471,8 +1475,8 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async fetchAll(cancellationToken?: CancellationToken): Promise<void> {
-		await this._fetch({ all: true, cancellationToken });
+	async fetchAll(options: { silent?: boolean } = {}, cancellationToken?: CancellationToken): Promise<void> {
+		await this._fetch({ all: true, silent: options.silent, cancellationToken });
 	}
 
 	async fetch(options: FetchOptions): Promise<void> {
@@ -1486,7 +1490,8 @@ export class Repository implements Disposable {
 			options.prune = prune;
 		}
 
-		await this.run(Operation.Fetch, async () => this.repository.fetch(options));
+		const operation = options.silent === true ? Operation.FetchNoProgress : Operation.Fetch;
+		await this.run(operation, async () => this.repository.fetch(options));
 	}
 
 	@throttle
@@ -1590,7 +1595,7 @@ export class Repository implements Disposable {
 				const fn = async (cancellationToken?: CancellationToken) => {
 					// When fetchOnPull is enabled, fetch all branches when pulling
 					if (fetchOnPull) {
-						await this.fetchAll(cancellationToken);
+						await this.fetchAll({}, cancellationToken);
 					}
 
 					if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
@@ -1935,8 +1940,70 @@ export class Repository implements Disposable {
 		return folderPaths.filter(p => !ignored.has(p));
 	}
 
-	@throttle
-	private async updateModelState(): Promise<void> {
+	private async updateModelState() {
+		this.updateModelStateCancellationTokenSource?.cancel();
+
+		this.updateModelStateCancellationTokenSource = new CancellationTokenSource();
+		await this._updateModelState(this.updateModelStateCancellationTokenSource.token);
+	}
+
+	private async _updateModelState(cancellationToken?: CancellationToken): Promise<void> {
+		if (cancellationToken && cancellationToken.isCancellationRequested) {
+			return;
+		}
+
+		try {
+			const config = workspace.getConfiguration('git');
+			let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
+			if (sort !== 'alphabetically' && sort !== 'committerdate') {
+				sort = 'alphabetically';
+			}
+
+			const [HEAD, refs, remotes, submodules, status, rebaseCommit, mergeInProgress, commitTemplate] =
+				await Promise.all([
+					this.repository.getHEADBranch(),
+					this.repository.getRefs({ sort }),
+					this.repository.getRemotes(),
+					this.repository.getSubmodules(),
+					this.getStatus(cancellationToken),
+					this.getRebaseCommit(),
+					this.isMergeInProgress(),
+					this.getInputTemplate()]);
+
+			this._HEAD = HEAD;
+			this._refs = refs!;
+			this._remotes = remotes!;
+			this._submodules = submodules!;
+			this.rebaseCommit = rebaseCommit;
+			this.mergeInProgress = mergeInProgress;
+
+			// set resource groups
+			this.mergeGroup.resourceStates = status.merge;
+			this.indexGroup.resourceStates = status.index;
+			this.workingTreeGroup.resourceStates = status.workingTree;
+			this.untrackedGroup.resourceStates = status.untracked;
+
+			// set count badge
+			this.setCountBadge();
+
+			this._onDidChangeStatus.fire();
+
+			this._sourceControl.commitTemplate = commitTemplate;
+		}
+		catch (err) {
+			if (err instanceof CancellationError) {
+				return;
+			}
+
+			throw err;
+		}
+	}
+
+	private async getStatus(cancellationToken?: CancellationToken): Promise<{ index: Resource[]; workingTree: Resource[]; merge: Resource[]; untracked: Resource[] }> {
+		if (cancellationToken && cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
 		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const untrackedChanges = scopedConfig.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
 		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
@@ -1944,8 +2011,10 @@ export class Repository implements Disposable {
 		const limit = scopedConfig.get<number>('statusLimit', 10000);
 
 		const start = new Date().getTime();
-		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges });
+		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges, cancellationToken });
 		const totalTime = new Date().getTime() - start;
+
+		this.isRepositoryHuge = didHitLimit ? { limit } : false;
 
 		if (didHitLimit) {
 			/* __GDPR__
@@ -1960,12 +2029,28 @@ export class Repository implements Disposable {
 			this.telemetryReporter.sendTelemetryEvent('statusLimit', { ignoreSubmodules: String(ignoreSubmodules) }, { limit, statusLength, totalTime });
 		}
 
+		if (totalTime > 5000) {
+			/* __GDPR__
+				"statusSlow" : {
+					"owner": "digitarald",
+					"comment": "Reports when git status is slower than 5s",
+					"expiration": "1.73",
+					"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Setting indicating whether submodules are ignored" },
+					"didHitLimit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Total number of status entries" },
+					"didWarnAboutLimit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "True when the user was warned about slow git status" },
+					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of status entries" },
+					"totalTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of ms the operation took" }
+				}
+			*/
+			this.telemetryReporter.sendTelemetryEvent('statusSlow', { ignoreSubmodules: String(ignoreSubmodules), didHitLimit: String(didHitLimit), didWarnAboutLimit: String(this.didWarnAboutLimit) }, { statusLength, totalTime });
+		}
+
+		// Triggers or clears any validation warning
+		this._sourceControl.inputBox.validateInput = this._sourceControl.inputBox.validateInput;
+
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
 		const useIcons = !config.get<boolean>('decorations.enabled', true);
-		this.isRepositoryHuge = didHitLimit ? { limit } : false;
-		// Triggers or clears any validation warning
-		this._sourceControl.inputBox.validateInput = this._sourceControl.inputBox.validateInput;
 
 		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
 			const knownHugeFolderPaths = await this.findKnownHugeFolderPathsToIgnore();
@@ -2001,55 +2086,10 @@ export class Repository implements Disposable {
 			}
 		}
 
-		if (totalTime > 5000) {
-			/* __GDPR__
-				"statusSlow" : {
-					"owner": "digitarald",
-					"comment": "Reports when git status is slower than 5s",
-					"expiration": "1.73",
-					"ignoreSubmodules": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Setting indicating whether submodules are ignored" },
-					"didHitLimit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Total number of status entries" },
-					"didWarnAboutLimit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "True when the user was warned about slow git status" },
-					"statusLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of status entries" },
-					"totalTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of ms the operation took" }
-				}
-			*/
-			this.telemetryReporter.sendTelemetryEvent('statusSlow', { ignoreSubmodules: String(ignoreSubmodules), didHitLimit: String(didHitLimit), didWarnAboutLimit: String(this.didWarnAboutLimit) }, { statusLength, totalTime });
-		}
-
-		let HEAD: Branch | undefined;
-
-		try {
-			HEAD = await this.repository.getHEAD();
-
-			if (HEAD.name) {
-				try {
-					HEAD = await this.repository.getBranch(HEAD.name);
-				} catch (err) {
-					// noop
-				}
-			}
-		} catch (err) {
-			// noop
-		}
-
-		let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
-		if (sort !== 'alphabetically' && sort !== 'committerdate') {
-			sort = 'alphabetically';
-		}
-		const [refs, remotes, submodules, rebaseCommit, mergeInProgress] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit(), this.isMergeInProgress()]);
-
-		this._HEAD = HEAD;
-		this._refs = refs!;
-		this._remotes = remotes!;
-		this._submodules = submodules!;
-		this.rebaseCommit = rebaseCommit;
-		this.mergeInProgress = mergeInProgress;
-
-		const index: Resource[] = [];
-		const workingTree: Resource[] = [];
-		const merge: Resource[] = [];
-		const untracked: Resource[] = [];
+		const index: Resource[] = [],
+			workingTree: Resource[] = [],
+			merge: Resource[] = [],
+			untracked: Resource[] = [];
 
 		status.forEach(raw => {
 			const uri = Uri.file(path.join(this.repository.root, raw.path));
@@ -2094,21 +2134,7 @@ export class Repository implements Disposable {
 			return undefined;
 		});
 
-		// set resource groups
-		this.mergeGroup.resourceStates = merge;
-		this.indexGroup.resourceStates = index;
-		this.workingTreeGroup.resourceStates = workingTree;
-		this.untrackedGroup.resourceStates = untracked;
-
-		// set count badge
-		this.setCountBadge();
-
-		// set mergeChanges context
-		commands.executeCommand('setContext', 'git.mergeChanges', merge.map(item => item.resourceUri));
-
-		this._onDidChangeStatus.fire();
-
-		this._sourceControl.commitTemplate = await this.getInputTemplate();
+		return { index, workingTree, merge, untracked };
 	}
 
 	private setCountBadge(): void {

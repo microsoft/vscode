@@ -340,9 +340,9 @@
 		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -352,9 +352,9 @@
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -436,9 +436,9 @@
 		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -448,9 +448,9 @@
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -484,9 +484,9 @@
 		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -496,9 +496,9 @@
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -592,9 +592,9 @@
 		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -604,9 +604,9 @@
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -664,9 +664,9 @@
 		"t": "source.css.less meta.property-list.css support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -700,9 +700,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -712,9 +712,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -736,9 +736,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -748,9 +748,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -808,9 +808,9 @@
 		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -820,9 +820,9 @@
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -856,9 +856,9 @@
 		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -868,9 +868,9 @@
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -1012,9 +1012,9 @@
 		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -1024,9 +1024,9 @@
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -1108,9 +1108,9 @@
 		"t": "source.css.less meta.property-list.css variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -1120,9 +1120,9 @@
 		"t": "source.css.less meta.property-list.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -1408,9 +1408,9 @@
 		"t": "source.css.less meta.property-list.css support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -1468,9 +1468,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -1480,9 +1480,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -1576,9 +1576,9 @@
 		"t": "source.css.less meta.property-list.css support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -1636,9 +1636,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -1648,9 +1648,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -2116,9 +2116,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-list.css support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -2200,9 +2200,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-list.css support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -2344,9 +2344,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-list.css support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -2476,9 +2476,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -2620,9 +2620,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css meta.property-list.css support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -2764,9 +2764,9 @@
 		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -2776,9 +2776,9 @@
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -2848,9 +2848,9 @@
 		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -2860,9 +2860,9 @@
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -2920,9 +2920,9 @@
 		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -2932,9 +2932,9 @@
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -3052,9 +3052,9 @@
 		"t": "source.css.less meta.property-list.css support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -3100,9 +3100,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -3112,9 +3112,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -3208,9 +3208,9 @@
 		"t": "source.css.less meta.property-list.css support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -3244,9 +3244,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -3256,9 +3256,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -3292,9 +3292,9 @@
 		"t": "source.css.less meta.property-list.css support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -3340,9 +3340,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -3352,9 +3352,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -3508,9 +3508,9 @@
 		"t": "source.css.less meta.property-list.css support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -3556,9 +3556,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -3568,9 +3568,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -3664,9 +3664,9 @@
 		"t": "source.css.less meta.property-list.css support.type.property-name.css",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
+			"light_plus": "support.type.property-name: #E50000",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
+			"light_vs": "support.type.property-name: #E50000",
 			"hc_black": "support.type.property-name: #D4D4D4",
 			"hc_light": "support.type.property-name: #264F78"
 		}
@@ -3724,9 +3724,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}
@@ -3736,9 +3736,9 @@
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
+			"light_plus": "variable.other.less: #E50000",
 			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
+			"light_vs": "variable.other.less: #E50000",
 			"hc_black": "variable.other.less: #D4D4D4",
 			"hc_light": "variable.other.less: #264F78"
 		}

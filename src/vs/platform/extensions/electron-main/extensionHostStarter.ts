@@ -424,6 +424,7 @@ class UtilityExtensionHostProcess extends Disposable {
 		const args: string[] = ['--type=extensionHost', '--skipWorkspaceStorageLock'];
 		const execArgv: string[] = opts.execArgv || [];
 		const env: { [key: string]: any } = { ...opts.env };
+		const allowLoadingUnsignedLibraries: boolean = true;
 
 		// Make sure all values are strings, otherwise the process will not start
 		for (const key of Object.keys(env)) {
@@ -432,7 +433,7 @@ class UtilityExtensionHostProcess extends Disposable {
 
 		this._logService.info(`UtilityProcess<${this.id}>: Creating new...`);
 
-		this._process = new UtilityProcess(modulePath, args, { serviceName, env, execArgv });
+		this._process = new UtilityProcess(modulePath, args, { serviceName, env, execArgv, allowLoadingUnsignedLibraries });
 
 		const stdoutDecoder = new StringDecoder('utf-8');
 		this._process.stdout?.on('data', (chunk) => {

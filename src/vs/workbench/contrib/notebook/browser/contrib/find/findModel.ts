@@ -168,6 +168,7 @@ export class FindModel extends Disposable {
 		} else {
 			const match = findMatch.matches[matchIndex] as FindMatch;
 			findMatch.cell.updateEditState(CellEditState.Editing, 'find');
+			findMatch.cell.isInputCollapsed = false;
 			this._notebookEditor.focusElement(findMatch.cell);
 			this._notebookEditor.setCellEditorSelection(findMatch.cell, match.range);
 			this._notebookEditor.revealRangeInCenterIfOutsideViewportAsync(findMatch.cell, match.range);

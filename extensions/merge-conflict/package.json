@@ -166,7 +166,7 @@
     }
   },
   "dependencies": {
-    "vscode-nls": "^5.1.0"
+    "vscode-nls": "^5.2.0"
   },
   "devDependencies": {
     "@types/node": "16.x"

@@ -40,6 +40,7 @@ import { IsMacNativeContext, IsWebContext } from 'vs/platform/contextkey/common/
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
+import { isICommandActionToggleInfo } from 'vs/platform/action/common/action';
 
 export type IOpenRecentAction = IAction & { uri: URI; remoteAuthority?: string };
 
@@ -212,7 +213,7 @@ export abstract class MenubarControl extends Disposable {
 		const [, mainMenuActions] = this.mainMenu.getActions()[0];
 		for (const mainMenuAction of mainMenuActions) {
 			if (mainMenuAction instanceof SubmenuItemAction && typeof mainMenuAction.item.title !== 'string') {
-				this.menus[mainMenuAction.item.title.original] = this.mainMenuDisposables.add(this.menuService.createMenu(mainMenuAction.item.submenu, this.contextKeyService));
+				this.menus[mainMenuAction.item.title.original] = this.mainMenuDisposables.add(this.menuService.createMenu(mainMenuAction.item.submenu, this.contextKeyService, { emitEventsForSubmenuChanges: true }));
 				this.topLevelTitles[mainMenuAction.item.title.original] = mainMenuAction.item.title.mnemonicTitle ?? mainMenuAction.item.title.value;
 			}
 		}
@@ -375,6 +376,7 @@ export class CustomMenubarControl extends MenubarControl {
 	private container: HTMLElement | undefined;
 	private alwaysOnMnemonics: boolean = false;
 	private focusInsideMenubar: boolean = false;
+	private pendingFirstTimeUpdate: boolean = false;
 	private visible: boolean = true;
 	private actionRunner: IActionRunner;
 	private readonly webNavigationMenu = this._register(this.menuService.createMenu(MenuId.MenubarHomeMenu, this.contextKeyService));
@@ -513,7 +515,13 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	protected doUpdateMenubar(firstTime: boolean): void {
-		this.setupCustomMenubar(firstTime);
+		if (!this.focusInsideMenubar) {
+			this.setupCustomMenubar(firstTime);
+		}
+
+		if (firstTime) {
+			this.pendingFirstTimeUpdate = true;
+		}
 	}
 
 	private registerActions(): void {
@@ -663,7 +671,13 @@ export class CustomMenubarControl extends MenubarControl {
 
 				// When the menubar loses focus, update it to clear any pending updates
 				if (!focused) {
-					this.updateMenubar();
+					if (this.pendingFirstTimeUpdate) {
+						this.setupCustomMenubar(true);
+						this.pendingFirstTimeUpdate = false;
+					} else {
+						this.updateMenubar();
+					}
+
 					this.focusInsideMenubar = false;
 				}
 			}));
@@ -701,15 +715,15 @@ export class CustomMenubarControl extends MenubarControl {
 					this.insertActionsBefore(action, target);
 
 					// use mnemonicTitle whenever possible
-					const title = typeof action.item.title === 'string'
+					let title = typeof action.item.title === 'string'
 						? action.item.title
 						: action.item.title.mnemonicTitle ?? action.item.title.value;
 
 					if (action instanceof SubmenuItemAction) {
 						let submenu = this.menus[action.item.submenu.id];
 						if (!submenu) {
-							submenu = this._register(this.menus[action.item.submenu.id] = this.menuService.createMenu(action.item.submenu, this.contextKeyService));
-							this._register(submenu.onDidChange(() => {
+							submenu = this.mainMenuDisposables.add(this.menus[action.item.submenu.id] = this.menuService.createMenu(action.item.submenu, this.contextKeyService));
+							this.mainMenuDisposables.add(submenu.onDidChange(() => {
 								if (!this.focusInsideMenubar) {
 									const actions: IAction[] = [];
 									updateActions(menu, actions, topLevelTitle);
@@ -727,6 +741,10 @@ export class CustomMenubarControl extends MenubarControl {
 							target.push(new SubmenuAction(action.id, mnemonicMenuLabel(title), submenuActions));
 						}
 					} else {
+						if (isICommandActionToggleInfo(action.item.toggled)) {
+							title = action.item.toggled.mnemonicTitle ?? action.item.toggled.title ?? title;
+						}
+
 						const newAction = new Action(action.id, mnemonicMenuLabel(title), action.class, action.enabled, () => this.commandService.executeCommand(action.id));
 						newAction.tooltip = action.tooltip;
 						newAction.checked = action.checked;

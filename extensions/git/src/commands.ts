@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
@@ -16,7 +16,6 @@ import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris } from './uri';
 import { grep, isDescendant, pathEquals, relativePath } from './util';
-import { LogLevel, OutputChannelLogger } from './log';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { pickRemoteSource } from './remoteSource';
@@ -38,10 +37,15 @@ class CheckoutItem implements QuickPickItem {
 		}
 
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const fetchBeforeCheckout = config.get<boolean>('fetchBeforeCheckout', false) === true;
+		const pullBeforeCheckout = config.get<boolean>('pullBeforeCheckout', false) === true;
 
-		if (fetchBeforeCheckout) {
-			await this.repository.fastForwardBranch(this.ref.name!);
+		if (pullBeforeCheckout) {
+			try {
+				await this.repository.fastForwardBranch(this.ref.name!);
+			}
+			catch (err) {
+				// noop
+			}
 		}
 
 		await this.repository.checkout(this.ref.name, opts);
@@ -350,7 +354,7 @@ export class CommandCenter {
 	constructor(
 		private git: Git,
 		private model: Model,
-		private outputChannelLogger: OutputChannelLogger,
+		private logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
 	) {
 		this.disposables = Commands.map(({ commandId, key, method, options }) => {
@@ -366,47 +370,9 @@ export class CommandCenter {
 		this.disposables.push(workspace.registerTextDocumentContentProvider('git-output', this.commandErrors));
 	}
 
-	@command('git.setLogLevel')
-	async setLogLevel(): Promise<void> {
-		const createItem = (logLevel: LogLevel) => {
-			let description: string | undefined;
-			const defaultDescription = localize('default', "Default");
-			const currentDescription = localize('current', "Current");
-
-			if (logLevel === this.outputChannelLogger.defaultLogLevel && logLevel === this.outputChannelLogger.currentLogLevel) {
-				description = `${defaultDescription} & ${currentDescription} `;
-			} else if (logLevel === this.outputChannelLogger.defaultLogLevel) {
-				description = defaultDescription;
-			} else if (logLevel === this.outputChannelLogger.currentLogLevel) {
-				description = currentDescription;
-			}
-
-			return {
-				label: LogLevel[logLevel],
-				logLevel,
-				description
-			};
-		};
-
-		const items = [
-			createItem(LogLevel.Trace),
-			createItem(LogLevel.Debug),
-			createItem(LogLevel.Info),
-			createItem(LogLevel.Warning),
-			createItem(LogLevel.Error),
-			createItem(LogLevel.Critical),
-			createItem(LogLevel.Off)
-		];
-
-		const choice = await window.showQuickPick(items, {
-			placeHolder: localize('select log level', "Select log level")
-		});
-
-		if (!choice) {
-			return;
-		}
-
-		this.outputChannelLogger.currentLogLevel = choice.logLevel;
+	@command('git.showOutput')
+	showOutput(): void {
+		this.logger.show();
 	}
 
 	@command('git.refresh', { repository: true })
@@ -463,8 +429,23 @@ export class CommandCenter {
 
 		type InputData = { uri: Uri; title?: string; detail?: string; description?: string };
 		const mergeUris = toMergeUris(uri);
+
+		let isStashConflict = false;
+		try {
+			// Look at the conflict markers to check if this is a stash conflict
+			const document = await workspace.openTextDocument(uri);
+			const firstConflictInfo = findFirstConflictMarker(document);
+			isStashConflict = firstConflictInfo?.incomingChangeLabel === 'Stashed changes';
+		} catch (error) {
+			console.error(error);
+		}
+
 		const current: InputData = { uri: mergeUris.ours, title: localize('Current', 'Current') };
 		const incoming: InputData = { uri: mergeUris.theirs, title: localize('Incoming', 'Incoming') };
+
+		if (isStashConflict) {
+			incoming.title = localize('stashedChanges', 'Stashed Changes');
+		}
 
 		try {
 			const [head, rebaseOrMergeHead] = await Promise.all([
@@ -496,6 +477,39 @@ export class CommandCenter {
 			'_open.mergeEditor',
 			options
 		);
+
+		function findFirstConflictMarker(doc: TextDocument): { currentChangeLabel: string; incomingChangeLabel: string } | undefined {
+			const conflictMarkerStart = '<<<<<<<';
+			const conflictMarkerEnd = '>>>>>>>';
+			let inConflict = false;
+			let currentChangeLabel: string = '';
+			let incomingChangeLabel: string = '';
+			let hasConflict = false;
+
+			for (let lineIdx = 0; lineIdx < doc.lineCount; lineIdx++) {
+				const lineStr = doc.lineAt(lineIdx).text;
+				if (!inConflict) {
+					if (lineStr.startsWith(conflictMarkerStart)) {
+						currentChangeLabel = lineStr.substring(conflictMarkerStart.length).trim();
+						inConflict = true;
+						hasConflict = true;
+					}
+				} else {
+					if (lineStr.startsWith(conflictMarkerEnd)) {
+						incomingChangeLabel = lineStr.substring(conflictMarkerStart.length).trim();
+						inConflict = false;
+						break;
+					}
+				}
+			}
+			if (hasConflict) {
+				return {
+					currentChangeLabel,
+					incomingChangeLabel
+				};
+			}
+			return undefined;
+		}
 	}
 
 	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string } = {}): Promise<void> {
@@ -557,21 +571,8 @@ export class CommandCenter {
 
 			const repositoryPath = await window.withProgress(
 				opts,
-				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive }, token)
+				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive, ref: options.ref }, token)
 			);
-
-			const refToCheckoutAfterClone = options.ref;
-			if (refToCheckoutAfterClone !== undefined) {
-				await window.withProgress(
-					{
-						location: ProgressLocation.Notification,
-						title: localize('checking out ref', "Checking out ref '{0}'...", options.ref)
-					}, async () => {
-						await this.model.openRepository(repositoryPath);
-						const repository = this.model.getRepository(repositoryPath);
-						await repository?.checkout(refToCheckoutAfterClone);
-					});
-			}
 
 			const config = workspace.getConfiguration('git');
 			const openAfterClone = config.get<'always' | 'alwaysNewWindow' | 'whenNoFolderOpen' | 'prompt'>('openAfterClone');
@@ -599,7 +600,7 @@ export class CommandCenter {
 					choices.push(addToWorkspace);
 				}
 
-				const result = await window.showInformationMessage(message, ...choices);
+				const result = await window.showInformationMessage(message, { modal: true }, ...choices);
 
 				action = result === open ? PostCloneAction.Open
 					: result === openNewWindow ? PostCloneAction.OpenNewWindow
@@ -947,14 +948,14 @@ export class CommandCenter {
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		this.outputChannelLogger.logDebug(`git.stage ${resourceStates.length} `);
+		this.logger.debug(`git.stage ${resourceStates.length} `);
 
 		resourceStates = resourceStates.filter(s => !!s);
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
-			this.outputChannelLogger.logDebug(`git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null} `);
+			this.logger.debug(`git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null} `);
 
 			if (!resource) {
 				return;
@@ -997,7 +998,7 @@ export class CommandCenter {
 		const untracked = selection.filter(s => s.resourceGroupType === ResourceGroupType.Untracked);
 		const scmResources = [...workingTree, ...untracked, ...resolved, ...unresolved];
 
-		this.outputChannelLogger.logDebug(`git.stage.scmResources ${scmResources.length} `);
+		this.logger.debug(`git.stage.scmResources ${scmResources.length} `);
 		if (!scmResources.length) {
 			return;
 		}
@@ -1148,25 +1149,42 @@ export class CommandCenter {
 	}
 
 	@command('git.acceptMerge')
-	async acceptMerge(uri: Uri | unknown): Promise<void> {
-		if (!(uri instanceof Uri)) {
-			return;
-		}
-		const repository = this.model.getRepository(uri);
-		if (!repository) {
-			console.log(`FAILED to accept merge because uri ${uri.toString()} doesn't belong to any repository`);
-			return;
-		}
-
+	async acceptMerge(_uri: Uri | unknown): Promise<void> {
 		const { activeTab } = window.tabGroups.activeTabGroup;
 		if (!activeTab) {
 			return;
 		}
 
+		if (!(activeTab.input instanceof TabInputTextMerge)) {
+			return;
+		}
+
+		const uri = activeTab.input.result;
+
+		const repository = this.model.getRepository(uri);
+		if (!repository) {
+			console.log(`FAILED to complete merge because uri ${uri.toString()} doesn't belong to any repository`);
+			return;
+		}
+
+		const result = await commands.executeCommand('mergeEditor.acceptMerge') as { successful: boolean };
+		if (result.successful) {
+			await repository.add([uri]);
+			await commands.executeCommand('workbench.view.scm');
+		}
+
+		/*
+		if (!(uri instanceof Uri)) {
+			return;
+		}
+
+
+
+
 		// make sure to save the merged document
 		const doc = workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
 		if (!doc) {
-			console.log(`FAILED to accept merge because uri ${uri.toString()} doesn't match a document`);
+			console.log(`FAILED to complete merge because uri ${uri.toString()} doesn't match a document`);
 			return;
 		}
 		if (doc.isDirty) {
@@ -1185,7 +1203,7 @@ export class CommandCenter {
 		if (didCloseTab) {
 			await repository.add([uri]);
 			await commands.executeCommand('workbench.view.scm');
-		}
+		}*/
 	}
 
 	@command('git.runGitMerge')
@@ -3214,8 +3232,8 @@ export class CommandCenter {
 
 				const choices = new Map<string, () => void>();
 				const openOutputChannelChoice = localize('open git log', "Open Git Log");
-				const outputChannelLogger = this.outputChannelLogger;
-				choices.set(openOutputChannelChoice, () => outputChannelLogger.showOutputChannel());
+				const outputChannelLogger = this.logger;
+				choices.set(openOutputChannelChoice, () => outputChannelLogger.show());
 
 				const showCommandOutputChoice = localize('show command output', "Show Command Output");
 				if (err.stderr) {
@@ -3332,10 +3350,10 @@ export class CommandCenter {
 	private getSCMResource(uri?: Uri): Resource | undefined {
 		uri = uri ? uri : (window.activeTextEditor && window.activeTextEditor.document.uri);
 
-		this.outputChannelLogger.logDebug(`git.getSCMResource.uri ${uri && uri.toString()}`);
+		this.logger.debug(`git.getSCMResource.uri ${uri && uri.toString()}`);
 
 		for (const r of this.model.repositories.map(r => r.root)) {
-			this.outputChannelLogger.logDebug(`repo root ${r}`);
+			this.logger.debug(`repo root ${r}`);
 		}
 
 		if (!uri) {
@@ -3356,7 +3374,8 @@ export class CommandCenter {
 			}
 
 			return repository.workingTreeGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0]
-				|| repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0];
+				|| repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0]
+				|| repository.mergeGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0];
 		}
 		return undefined;
 	}

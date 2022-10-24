@@ -70,6 +70,8 @@ export interface IProductConfiguration {
 
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
+		readonly servicePPEUrl?: string;
+		readonly searchUrl?: string;
 		readonly itemUrl: string;
 		readonly publisherUrl: string;
 		readonly resourceUrlTemplate: string;
@@ -129,6 +131,9 @@ export interface IProductConfiguration {
 	readonly serverApplicationName: string;
 	readonly serverDataFolderName?: string;
 
+	readonly tunnelApplicationName?: string;
+	readonly tunnelApplicationConfig?: { authenticationProviders: IStringDictionary<{ scopes: string[] }> };
+
 	readonly npsSurveyUrl?: string;
 	readonly cesSurveyUrl?: string;
 	readonly surveys?: readonly ISurveyData[];
@@ -154,7 +159,6 @@ export interface IProductConfiguration {
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 
 	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
-
 	readonly darwinUniversalAssetId?: string;
 
 	// experimental

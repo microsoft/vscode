@@ -973,6 +973,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		configuration.isInitialStartup = false; // since this is a reload
 		configuration.policiesData = this.policyService.serialize(); // set policies data again
+		configuration.continueOn = this.environmentMainService.continueOn;
 		configuration.profiles = {
 			all: this.userDataProfilesService.profiles,
 			profile: this.profile || this.userDataProfilesService.defaultProfile
@@ -1099,7 +1100,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// macOS: traffic lights
 		else if (isMacintosh && options.height !== undefined) {
-			this._win.setTrafficLightPosition({ x: 7, y: (options.height - 15) / 2 }); // 15px is the height of the traffic lights
+			const verticalOffset = (options.height - 15) / 2; // 15px is the height of the traffic lights
+			this._win.setTrafficLightPosition({ x: verticalOffset, y: verticalOffset });
 		}
 	}
 

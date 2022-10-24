@@ -13,6 +13,7 @@ import { format } from 'vs/base/common/strings';
 import { isString } from 'vs/base/common/types';
 import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 
 export function getWindowsBuildNumber(): number {
@@ -103,15 +104,16 @@ export interface IShellIntegrationConfigInjection {
  */
 export function getShellIntegrationInjection(
 	shellLaunchConfig: IShellLaunchConfig,
-	options: ITerminalProcessOptions['shellIntegration'],
+	options: Pick<ITerminalProcessOptions, 'shellIntegration' | 'windowsEnableConpty'>,
 	env: ITerminalEnvironment | undefined,
-	logService: ILogService
+	logService: ILogService,
+	productService: IProductService
 ): IShellIntegrationConfigInjection | undefined {
 	// Shell integration arg injection is disabled when:
 	// - The global setting is disabled
 	// - There is no executable (not sure what script to run)
 	// - The terminal is used by a feature like tasks or debugging
-	if (!options.enabled || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal || shellLaunchConfig.hideFromUser || shellLaunchConfig.ignoreShellIntegration) {
+	if (!options.shellIntegration.enabled || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal || shellLaunchConfig.hideFromUser || shellLaunchConfig.ignoreShellIntegration || (isWindows && !options.windowsEnableConpty)) {
 		return undefined;
 	}
 
@@ -184,8 +186,9 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
+
 			// Move .zshrc into $ZDOTDIR as the way to activate the script
-			const zdotdir = path.join(os.tmpdir(), `${os.userInfo().username}-vscode-zsh`);
+			const zdotdir = path.join(os.tmpdir(), `${os.userInfo().username}-${productService.applicationName}-zsh`);
 			envMixin['ZDOTDIR'] = zdotdir;
 			const userZdotdir = env?.ZDOTDIR ?? os.homedir() ?? `~`;
 			envMixin['USER_ZDOTDIR'] = userZdotdir;

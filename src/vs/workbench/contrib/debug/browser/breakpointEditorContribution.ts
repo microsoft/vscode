@@ -3,41 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as env from 'vs/base/common/platform';
+import { isSafari } from 'vs/base/browser/browser';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import * as dom from 'vs/base/browser/dom';
-import { URI } from 'vs/base/common/uri';
-import severity from 'vs/base/common/severity';
-import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/actions';
-import { Range } from 'vs/editor/common/core/range';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IContentWidget, IActiveCodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { IModelDecorationOptions, TrackedRangeStickiness, ITextModel, OverviewRulerLane, IModelDecorationOverviewRulerOptions } from 'vs/editor/common/model';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, BreakpointWidgetContext, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, State, IDebugSession, DebuggerString } from 'vs/workbench/contrib/debug/common/debug';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
-import { IDisposable, dispose, disposeIfDisposable } from 'vs/base/common/lifecycle';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
-import { generateUuid } from 'vs/base/common/uuid';
-import { memoize } from 'vs/base/common/decorators';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { isSafari } from 'vs/base/browser/browser';
-import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { ILabelService } from 'vs/platform/label/common/label';
-import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { Disposable, dispose, disposeIfDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import * as env from 'vs/base/common/platform';
+import severity from 'vs/base/common/severity';
 import { noBreakWhitespace } from 'vs/base/common/strings';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Range } from 'vs/editor/common/core/range';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import * as nls from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
+import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
+import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { BreakpointWidgetContext, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DebuggerString, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, IDebugService, IDebugSession, State } from 'vs/workbench/contrib/debug/common/debug';
 
 const $ = dom.$;
 
@@ -188,17 +188,43 @@ async function createCandidateDecorations(model: ITextModel, breakpointDecoratio
 	return result;
 }
 
-export class BreakpointEditorContribution implements IBreakpointEditorContribution {
+export class LazyBreakpointEditorContribution extends Disposable implements IBreakpointEditorContribution {
+	private _contrib: IBreakpointEditorContribution | undefined;
+
+	constructor(editor: ICodeEditor, @IInstantiationService instantiationService: IInstantiationService) {
+		super();
+
+		const listener = editor.onDidChangeModel(() => {
+			if (editor.hasModel()) {
+				listener.dispose();
+				this._contrib = this._register(instantiationService.createInstance(BreakpointEditorContribution, editor));
+			}
+		});
+	}
+	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext | undefined): void {
+		this._contrib?.showBreakpointWidget(lineNumber, column, context);
+	}
+
+	closeBreakpointWidget(): void {
+		this._contrib?.closeBreakpointWidget();
+	}
+
+	getContextMenuActionsAtPosition(lineNumber: number, model: ITextModel): IAction[] {
+		return this._contrib?.getContextMenuActionsAtPosition(lineNumber, model) ?? [];
+	}
+}
+
+class BreakpointEditorContribution implements IBreakpointEditorContribution {
 
 	private breakpointHintDecoration: string | null = null;
 	private breakpointWidget: BreakpointWidget | undefined;
-	private breakpointWidgetVisible: IContextKey<boolean>;
+	private breakpointWidgetVisible!: IContextKey<boolean>;
 	private toDispose: IDisposable[] = [];
 	private ignoreDecorationsChangedEvent = false;
 	private ignoreBreakpointsChangeEvent = false;
 	private breakpointDecorations: IBreakpointDecoration[] = [];
 	private candidateDecorations: { decorationId: string; inlineWidget: InlineBreakpointWidget }[] = [];
-	private setDecorationsScheduler: RunOnceScheduler;
+	private setDecorationsScheduler!: RunOnceScheduler;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -212,8 +238,8 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 	) {
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.setDecorationsScheduler = new RunOnceScheduler(() => this.setDecorations(), 30);
-		this.registerListeners();
 		this.setDecorationsScheduler.schedule();
+		this.registerListeners();
 	}
 
 	/**

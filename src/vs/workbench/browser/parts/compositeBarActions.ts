@@ -368,7 +368,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		});
 	}
 
-	private computeTitle(): string {
+	protected computeTitle(): string {
 		this.keybindingLabel = this.computeKeybindingLabel();
 		let title = this.keybindingLabel ? localize('titleKeybinding', "{0} ({1})", this.activity.name, this.keybindingLabel) : this.activity.name;
 		const badge = (this.action as ActivityAction).getBadge();

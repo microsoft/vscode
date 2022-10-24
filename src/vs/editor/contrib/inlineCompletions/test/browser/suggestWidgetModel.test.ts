@@ -92,7 +92,7 @@ suite('Suggest Widget Model', () => {
 
 				context.keyboardType('.');
 				await timeout(1000);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['hello', 'hello.', 'hello.[hello]']);
+				assert.deepStrictEqual(context.getAndClearViewStates(), ['h', 'hello', 'hello.', 'hello.[hello]']);
 
 				suggestController.cancelSuggestWidget();
 

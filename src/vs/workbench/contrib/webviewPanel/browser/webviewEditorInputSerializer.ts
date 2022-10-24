@@ -77,7 +77,7 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 		serializedEditorInput: string
 	): WebviewInput {
 		const data = this.fromJson(JSON.parse(serializedEditorInput));
-		return this._webviewWorkbenchService.reviveWebview({
+		return this._webviewWorkbenchService.openRevivedWebview({
 			webviewInitInfo: {
 				id: data.id,
 				providedViewType: data.providedId,

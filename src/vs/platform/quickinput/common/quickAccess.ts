@@ -10,6 +10,19 @@ import { ItemActivation } from 'vs/base/parts/quickinput/common/quickInput';
 import { IQuickNavigateConfiguration, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 
+/**
+ * Provider specific options for this particular showing of the
+ * quick access.
+ */
+export interface IQuickAccessProviderRunOptions { }
+
+/**
+ * The specific options for the AnythingQuickAccessProvider. Put here to share between layers.
+ */
+export interface AnythingQuickAccessProviderRunOptions extends IQuickAccessProviderRunOptions {
+	includeHelp?: boolean;
+}
+
 export interface IQuickAccessOptions {
 
 	/**
@@ -28,6 +41,12 @@ export interface IQuickAccessOptions {
 	 * from any existing value if quick access is visible.
 	 */
 	preserveValue?: boolean;
+
+	/**
+	 * Provider specific options for this particular showing of the
+	 * quick access.
+	 */
+	providerOptions?: IQuickAccessProviderRunOptions;
 }
 
 export interface IQuickAccessController {
@@ -80,10 +99,12 @@ export interface IQuickAccessProvider {
 	 * a long running operation or from event handlers because it could be that the
 	 * picker has been closed or changed meanwhile. The token can be used to find out
 	 * that the picker was closed without picking an entry (e.g. was canceled by the user).
+	 * @param options additional configuration specific for this provider that will
+	 * influence what picks will be shown.
 	 * @return a disposable that will automatically be disposed when the picker
 	 * closes or is replaced by another picker.
 	 */
-	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
+	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken, options?: IQuickAccessProviderRunOptions): IDisposable;
 }
 
 export interface IQuickAccessProviderHelp {

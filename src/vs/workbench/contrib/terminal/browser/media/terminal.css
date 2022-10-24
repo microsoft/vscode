@@ -248,6 +248,10 @@
 	border-style: solid;
 }
 
+.xterm-screen .xterm-decoration-container .xterm-decoration.quick-fix {
+	z-index: 7;
+}
+
 .monaco-workbench .part.sidebar > .title > .title-actions .switch-terminal {
 	display: flex;
 	align-items: center;

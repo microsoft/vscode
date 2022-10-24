@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, Connection, InitializeParams, InitializeResult, NotebookDocuments, TextDocuments } from 'vscode-languageserver';
+import { CancellationToken, Connection, InitializeParams, InitializeResult, NotebookDocuments, ResponseError, TextDocuments } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as lsp from 'vscode-languageserver-types';
 import * as md from 'vscode-markdown-languageservice';
@@ -79,6 +79,7 @@ export async function startServer(connection: Connection, serverConfig: {
 		});
 
 		registerCompletionsSupport(connection, documents, mdLs, configurationManager);
+		registerDocumentHightlightSupport(connection, documents, mdLs, configurationManager);
 		registerValidateSupport(connection, workspace, documents, mdLs, configurationManager, serverConfig.logger);
 
 		return {
@@ -93,6 +94,7 @@ export async function startServer(connection: Connection, serverConfig: {
 				completionProvider: { triggerCharacters: ['.', '/', '#'] },
 				definitionProvider: true,
 				documentLinkProvider: { resolveProvider: true },
+				documentHighlightProvider: true,
 				documentSymbolProvider: true,
 				foldingRangeProvider: true,
 				referencesProvider: true,
@@ -170,7 +172,16 @@ export async function startServer(connection: Connection, serverConfig: {
 		if (!document) {
 			return undefined;
 		}
-		return mdLs!.prepareRename(document, params.position, token);
+
+		try {
+			return await mdLs!.prepareRename(document, params.position, token);
+		} catch (e) {
+			if (e instanceof md.RenameNotSupportedAtLocationError) {
+				throw new ResponseError(0, e.message);
+			} else {
+				throw e;
+			}
+		}
 	});
 
 	connection.onRenameRequest(async (params, token) => {
@@ -289,4 +300,25 @@ function registerCompletionsSupport(
 
 	update();
 	return config.onDidChangeConfiguration(() => update());
+}
+
+function registerDocumentHightlightSupport(
+	connection: Connection,
+	documents: TextDocuments<md.ITextDocument>,
+	mdLs: md.IMdLanguageService,
+	configurationManager: ConfigurationManager
+) {
+	connection.onDocumentHighlight(async (params, token) => {
+		const settings = configurationManager.getSettings();
+		if (!settings?.markdown.occurrencesHighlight.enabled) {
+			return undefined;
+		}
+
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return undefined;
+		}
+
+		return mdLs!.getDocumentHighlights(document, params.position, token);
+	});
 }
