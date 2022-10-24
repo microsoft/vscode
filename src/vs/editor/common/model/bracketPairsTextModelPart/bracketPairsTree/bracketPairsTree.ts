@@ -21,7 +21,6 @@ import { FastTokenizer, TextBufferTokenizer } from './tokenizer';
 import { BackgroundTokenizationState } from 'vs/editor/common/tokenizationTextModelPart';
 import { Position } from 'vs/editor/common/core/position';
 import { CallbackIterable } from 'vs/base/common/arrays';
-import { TimeoutTimer } from 'vs/base/common/async';
 
 export class BracketPairsTree extends Disposable {
 	private readonly didChangeEmitter = new Emitter<void>();
@@ -42,7 +41,6 @@ export class BracketPairsTree extends Disposable {
 	private readonly brackets = new LanguageAgnosticBracketTokens(this.denseKeyProvider, this.getLanguageConfiguration);
 
 	private readonly parseQueue: TextEditInfo[][] = [];
-	private parseTimer = this._register(new TimeoutTimer());
 
 	public didLanguageChange(languageId: string): boolean {
 		return this.brackets.didLanguageChange(languageId);
@@ -110,14 +108,12 @@ export class BracketPairsTree extends Disposable {
 	}
 
 	private queueParsing(edits: TextEditInfo[]): void {
-		// Queues parsing of the document so that it does not block editor input latency. The only
-		// downside to this is that changing a character adjacent to a bracket may appear white for
-		// a brief period.
+		// Queues parsing of the document so that it only runs before the state is actually
+		// requested, this helps reduce editor input latency by doing parsing lazily instead of eagerly.
 		this.parseQueue.push(edits);
-		this.parseTimer.cancelAndSet(() => this.doParse(), 0);
 	}
 
-	private doParse() {
+	private ensureState() {
 		for (const edits of this.parseQueue) {
 			this.astWithTokens = this.parseDocumentFromTextBuffer(edits, this.astWithTokens, false);
 			if (this.initialAstWithoutTokens) {
@@ -142,6 +138,7 @@ export class BracketPairsTree extends Disposable {
 	}
 
 	public getBracketsInRange(range: Range): CallbackIterable<BracketInfo> {
+		this.ensureState();
 		const startOffset = toLength(range.startLineNumber - 1, range.startColumn - 1);
 		const endOffset = toLength(range.endLineNumber - 1, range.endColumn - 1);
 		return new CallbackIterable(cb => {
@@ -151,6 +148,7 @@ export class BracketPairsTree extends Disposable {
 	}
 
 	public getBracketPairsInRange(range: Range, includeMinIndentation: boolean): CallbackIterable<BracketPairWithMinIndentationInfo> {
+		this.ensureState();
 		const startLength = positionToLength(range.getStartPosition());
 		const endLength = positionToLength(range.getEndPosition());
 
@@ -162,11 +160,13 @@ export class BracketPairsTree extends Disposable {
 	}
 
 	public getFirstBracketAfter(position: Position): IFoundBracket | null {
+		this.ensureState();
 		const node = this.initialAstWithoutTokens || this.astWithTokens!;
 		return getFirstBracketAfter(node, lengthZero, node.length, positionToLength(position));
 	}
 
 	public getFirstBracketBefore(position: Position): IFoundBracket | null {
+		this.ensureState();
 		const node = this.initialAstWithoutTokens || this.astWithTokens!;
 		return getFirstBracketBefore(node, lengthZero, node.length, positionToLength(position));
 	}
