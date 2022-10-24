@@ -536,9 +536,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		let deleted: IItem<T>[];
 
 		// TODO@joao: improve this optimization to catch even more cases
-		if (start === 0 && deleteCount >= this.items.length) {
+		if (start === 0 && deleteCount >= this.items.length && this.lastRenderTop === 0) {
 			this.rangeMap = new RangeMap();
 			this.rangeMap.splice(0, 0, inserted);
+			deleted = this.items;
+			this.items = inserted;
+		} else if (start === 0 && deleteCount >= this.items.length) {
 			deleted = this.items;
 			this.items = inserted;
 		} else {
