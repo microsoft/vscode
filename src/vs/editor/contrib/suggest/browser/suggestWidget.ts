@@ -11,7 +11,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { CancelablePromise, createCancelablePromise, disposableTimeout, TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import * as strings from 'vs/base/common/strings';
 import 'vs/css!./media/suggest';
@@ -104,8 +104,8 @@ export class SuggestWidget implements IDisposable {
 	private _state: State = State.Hidden;
 	private _isAuto: boolean = false;
 	private _loadingTimeout?: IDisposable;
-	private _pendingLayout?: IDisposable;
-	private _pendingShowDetails?: IDisposable;
+	private _pendingLayout = new MutableDisposable();
+	private _pendingShowDetails = new MutableDisposable();
 	private _currentSuggestionDetails?: CancelablePromise<void>;
 	private _focusedItem?: CompletionItem;
 	private _ignoreFocusEvents: boolean = false;
@@ -561,9 +561,8 @@ export class SuggestWidget implements IDisposable {
 			this._onDidSelect.resume();
 		}
 
-		this._pendingLayout?.dispose();
-		this._pendingLayout = dom.runAtThisOrScheduleAtNextAnimationFrame(() => {
-			this._pendingLayout = undefined;
+		this._pendingLayout.value = dom.runAtThisOrScheduleAtNextAnimationFrame(() => {
+			this._pendingLayout.clear();
 			this._layout(this.element.size);
 			// Reset focus border
 			this._details.widget.domNode.classList.remove('focused');
@@ -698,9 +697,8 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	showDetails(loading: boolean): void {
-		this._pendingShowDetails?.dispose();
-		this._pendingShowDetails = dom.runAtThisOrScheduleAtNextAnimationFrame(() => {
-			this._pendingShowDetails = undefined;
+		this._pendingShowDetails.value = dom.runAtThisOrScheduleAtNextAnimationFrame(() => {
+			this._pendingShowDetails.clear();
 			this._details.show();
 			if (loading) {
 				this._details.widget.renderLoading();
