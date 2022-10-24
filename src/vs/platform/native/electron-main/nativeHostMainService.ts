@@ -41,7 +41,7 @@ import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/worksp
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
-import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
+import { ProfilingOutput, WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
@@ -782,42 +782,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	// #region Performance
 
-	private readonly _profilingSessions = new Map<number, WindowProfiler>();
-
-	async startHeartbeat(windowId: number | undefined, sessionId: string): Promise<boolean> {
+	async profileRenderer(windowId: number | undefined, session: string, duration: number, baseline: number): Promise<boolean> {
 		const win = this.windowById(windowId);
 		if (!win || !win.win) {
 			return false;
 		}
-		if (!this._profilingSessions.has(win.id)) {
-			const session = new WindowProfiler(win.win, sessionId, this.logService, this.telemetryService);
-			this._profilingSessions.set(win.id, session);
-			session.start();
-		}
-		return true;
-	}
-
-	async sendHeartbeat(windowId: number | undefined, _sessionId: string): Promise<boolean> {
-		const win = this.windowById(windowId);
-		if (!win || !this._profilingSessions.has(win.id)) {
-			return false;
-		}
-		this._profilingSessions.get(win.id)!.receiveHeartbeat();
-		return false;
-	}
-
-	async stopHeartbeat(windowId: number | undefined, _sessionId: string): Promise<boolean> {
-		const win = this.windowById(windowId);
-		if (!win || !this._profilingSessions.has(win.id)) {
-			return false;
-		}
-		this._profilingSessions.get(win.id)!.stop();
-		this._profilingSessions.delete(win.id);
-		return false;
+		const profiler = new WindowProfiler(win.win, session, this.logService, this.telemetryService);
+		const result = await profiler.inspect(duration, baseline);
+		return result === ProfilingOutput.Interesting;
 	}
 
 	// #endregion
-
 
 	//#region Registry (windows)
 

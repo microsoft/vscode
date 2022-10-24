@@ -19,8 +19,8 @@ import { CodeActionProvider, CodeActionTriggerType } from 'vs/editor/common/lang
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
-import { CodeActionSet, getCodeActions } from './codeAction';
-import { CodeActionTrigger, CodeActionTriggerSource } from './types';
+import { getCodeActions } from './codeAction';
+import { CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 

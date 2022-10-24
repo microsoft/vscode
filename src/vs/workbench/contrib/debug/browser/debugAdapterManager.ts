@@ -43,8 +43,8 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	private debuggers: Debugger[];
 	private adapterDescriptorFactories: IDebugAdapterDescriptorFactory[];
 	private debugAdapterFactories = new Map<string, IDebugAdapterFactory>();
-	private debuggersAvailable: IContextKey<boolean>;
-	private debugExtensionsAvailable: IContextKey<boolean>;
+	private debuggersAvailable!: IContextKey<boolean>;
+	private debugExtensionsAvailable!: IContextKey<boolean>;
 	private readonly _onDidRegisterDebugger = new Emitter<void>();
 	private readonly _onDidDebuggersExtPointRead = new Emitter<void>();
 	private breakpointContributions: Breakpoints[] = [];
@@ -72,15 +72,16 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		this.adapterDescriptorFactories = [];
 		this.debuggers = [];
 		this.registerListeners();
-		this.debuggersAvailable = CONTEXT_DEBUGGERS_AVAILABLE.bindTo(contextKeyService);
+		this.contextKeyService.bufferChangeEvents(() => {
+			this.debuggersAvailable = CONTEXT_DEBUGGERS_AVAILABLE.bindTo(contextKeyService);
+			this.debugExtensionsAvailable = CONTEXT_DEBUG_EXTENSION_AVAILABLE.bindTo(contextKeyService);
+		});
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this.debuggerWhenKeys)) {
 				this.debuggersAvailable.set(this.hasEnabledDebuggers());
 				this.updateDebugAdapterSchema();
 			}
 		}));
-		this.debugExtensionsAvailable = CONTEXT_DEBUG_EXTENSION_AVAILABLE.bindTo(contextKeyService);
-		this.debugExtensionsAvailable.set(true); // Avoid a flash of the default message before extensions load.
 		this._register(this.onDidDebuggersExtPointRead(() => {
 			this.debugExtensionsAvailable.set(this.debuggers.length > 0);
 		}));

@@ -7,6 +7,7 @@ import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -74,6 +75,10 @@ export interface ISourceAction {
 	runAction: () => Promise<void>;
 }
 
+export interface INotebookSourceActionChangeEvent {
+	notebook: URI;
+}
+
 export interface INotebookTextModelLike { uri: URI; viewType: string }
 
 export const INotebookKernelService = createDecorator<INotebookKernelService>('INotebookKernelService');
@@ -111,8 +116,8 @@ export interface INotebookKernelService {
 	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void;
 
 	//#region Kernel source actions
-	readonly onDidChangeSourceActions: Event<void>;
-	getSourceActions(): ISourceAction[];
-	getRunningSourceActions(): ISourceAction[];
+	readonly onDidChangeSourceActions: Event<INotebookSourceActionChangeEvent>;
+	getSourceActions(notebook: INotebookTextModelLike, contextKeyService: IContextKeyService | undefined): ISourceAction[];
+	getRunningSourceActions(notebook: INotebookTextModelLike): ISourceAction[];
 	//#endregion
 }

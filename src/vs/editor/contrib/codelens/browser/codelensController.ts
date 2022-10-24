@@ -317,6 +317,11 @@ export class CodeLensContribution implements IEditorContribution {
 			}
 		}
 
+		if (!groups.length && !this._lenses.length) {
+			// Nothing to change
+			return;
+		}
+
 		const scrollState = StableEditorScrollState.capture(this._editor);
 		const layoutInfo = this._getLayoutInfo();
 

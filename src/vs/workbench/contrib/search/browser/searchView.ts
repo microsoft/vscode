@@ -59,7 +59,7 @@ import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/vie
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
+import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { appendKeyBindingLabel, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
@@ -110,6 +110,7 @@ export class SearchView extends ViewPane {
 	private fileMatchOrFolderMatchWithResourceFocus: IContextKey<boolean>;
 	private fileMatchFocused: IContextKey<boolean>;
 	private folderMatchFocused: IContextKey<boolean>;
+	private folderMatchWithResourceFocused: IContextKey<boolean>;
 	private matchFocused: IContextKey<boolean>;
 	private hasSearchResultsKey: IContextKey<boolean>;
 	private lastFocusState: 'input' | 'tree' = 'input';
@@ -197,6 +198,7 @@ export class SearchView extends ViewPane {
 		this.fileMatchOrFolderMatchWithResourceFocus = Constants.FileMatchOrFolderMatchWithResourceFocusKey.bindTo(this.contextKeyService);
 		this.fileMatchFocused = Constants.FileFocusKey.bindTo(this.contextKeyService);
 		this.folderMatchFocused = Constants.FolderFocusKey.bindTo(this.contextKeyService);
+		this.folderMatchWithResourceFocused = Constants.ResourceFolderFocusKey.bindTo(this.contextKeyService);
 		this.hasSearchResultsKey = Constants.HasSearchResults.bindTo(this.contextKeyService);
 		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
 		this.searchStateKey = SearchStateKey.bindTo(this.contextKeyService);
@@ -806,6 +808,7 @@ export class SearchView extends ViewPane {
 				this.matchFocused.set(focus instanceof Match);
 				this.fileMatchOrFolderMatchFocus.set(focus instanceof FileMatch || focus instanceof FolderMatch);
 				this.fileMatchOrFolderMatchWithResourceFocus.set(focus instanceof FileMatch || focus instanceof FolderMatchWithResource);
+				this.folderMatchWithResourceFocused.set(focus instanceof FolderMatchWithResource);
 				this.lastFocusState = 'tree';
 			}
 		}));
@@ -818,6 +821,7 @@ export class SearchView extends ViewPane {
 			this.matchFocused.reset();
 			this.fileMatchOrFolderMatchFocus.reset();
 			this.fileMatchOrFolderMatchWithResourceFocus.reset();
+			this.folderMatchWithResourceFocused.reset();
 		}));
 	}
 
@@ -1320,6 +1324,14 @@ export class SearchView extends ViewPane {
 	}
 
 	searchInFolders(folderPaths: string[] = []): void {
+		this._searchWithIncludeOrExclude(true, folderPaths);
+	}
+
+	searchOutsideOfFolders(folderPaths: string[] = []): void {
+		this._searchWithIncludeOrExclude(false, folderPaths);
+	}
+
+	private _searchWithIncludeOrExclude(include: boolean, folderPaths: string[]) {
 		if (!folderPaths.length || folderPaths.some(folderPath => folderPath === '.')) {
 			this.inputPatternIncludes.setValue('');
 			this.searchWidget.focus();
@@ -1331,7 +1343,7 @@ export class SearchView extends ViewPane {
 			this.toggleQueryDetails(true, true);
 		}
 
-		this.inputPatternIncludes.setValue(folderPaths.join(', '));
+		(include ? this.inputPatternIncludes : this.inputPatternExcludes).setValue(folderPaths.join(', '));
 		this.searchWidget.focus(false);
 	}
 
@@ -1777,7 +1789,7 @@ export class SearchView extends ViewPane {
 		}
 
 		if (editor instanceof NotebookEditor) {
-			const controller = editor.getControl()?.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
+			const controller = editor.getControl()?.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
 			const matchIndex = element instanceof Match ? element.parent().matches().findIndex(e => e.id() === element.id()) : undefined;
 			controller?.show(this.searchWidget.searchInput.getValue(), { matchIndex, focus: false });
 		}

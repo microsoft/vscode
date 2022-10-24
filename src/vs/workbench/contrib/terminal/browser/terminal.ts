@@ -455,6 +455,7 @@ export interface ITerminalInstance {
 	readonly initialCwd?: string;
 	readonly os?: OperatingSystem;
 	readonly capabilities: ITerminalCapabilityStore;
+	readonly usedShellIntegrationInjection: boolean;
 
 	readonly statusList: ITerminalStatusList;
 
@@ -953,6 +954,7 @@ export interface ITerminalInstance {
 }
 
 export interface ITerminalQuickFixOptions {
+	id: string;
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
 	getQuickFixes: TerminalQuickFixCallback;
@@ -986,6 +988,11 @@ export interface IXtermTerminal {
 	readonly shellIntegration: IShellIntegration;
 
 	readonly onDidChangeSelection: Event<void>;
+
+	/**
+	 * Gets a view of the current texture atlas used by the renderers.
+	 */
+	readonly textureAtlas: Promise<ImageBitmap> | undefined;
 
 	/**
 	 * The position of the terminal.

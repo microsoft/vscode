@@ -76,7 +76,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._sessionStore.add(this._editor.onDidScrollChange(() => this.renderStickyScroll()));
 			this._sessionStore.add(this._editor.onDidLayoutChange(() => this.onDidResize()));
 			this._sessionStore.add(this._editor.onDidChangeModelTokens((e) => this.onTokensChange(e)));
-			this._sessionStore.add(this._stickyLineCandidateProvider.onStickyScrollChange(() => this.renderStickyScroll()));
+			this._sessionStore.add(this._stickyLineCandidateProvider.onDidChangeStickyScroll(() => this.renderStickyScroll()));
 			const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
 			if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
 				this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => this.renderStickyScroll()));

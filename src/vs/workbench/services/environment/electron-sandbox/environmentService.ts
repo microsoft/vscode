@@ -14,6 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { joinPath } from 'vs/base/common/resources';
 
 export const INativeWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, INativeWorkbenchEnvironmentService>(IEnvironmentService);
 
@@ -85,10 +86,18 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
 
 	@memoize
-	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
+	get windowLogsPath(): URI { return URI.file(join(this.logsPath, `window${this.configuration.windowId}`)); }
 
 	@memoize
-	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration.windowId}`)); }
+	get logFile(): URI { return joinPath(this.windowLogsPath, `renderer.log`); }
+
+	@memoize
+	get extHostLogsPath(): URI { return joinPath(this.windowLogsPath, 'exthost'); }
+
+	@memoize
+	get extHostTelemetryLogFile(): URI {
+		return joinPath(this.extHostLogsPath, 'telemetry.log');
+	}
 
 	@memoize
 	get webviewExternalEndpoint(): string { return `${Schemas.vscodeWebview}://{{uuid}}`; }

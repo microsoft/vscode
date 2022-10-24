@@ -32,6 +32,7 @@ export interface ISubmenuItem {
 	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
+	isSelection?: boolean;
 	rememberDefaultAction?: boolean;	// for dropdown menu: if true the last executed action is remembered as the default action
 }
 
@@ -81,6 +82,7 @@ export class MenuId {
 	static readonly MenubarGoMenu = new MenuId('MenubarGoMenu');
 	static readonly MenubarHelpMenu = new MenuId('MenubarHelpMenu');
 	static readonly MenubarLayoutMenu = new MenuId('MenubarLayoutMenu');
+	static readonly MenubarEditorFeaturesMenu = new MenuId('MenubarEditorFeaturesMenu');
 	static readonly MenubarNewBreakpointMenu = new MenuId('MenubarNewBreakpointMenu');
 	static readonly MenubarPanelAlignmentMenu = new MenuId('MenubarPanelAlignmentMenu');
 	static readonly MenubarPanelPositionMenu = new MenuId('MenubarPanelPositionMenu');
@@ -538,13 +540,7 @@ export class SyncActionDescriptor {
 
 type OneOrN<T> = T | T[];
 
-export interface IAction2Options extends ICommandAction {
-
-	/**
-	 * Shorthand to add this command to the command palette
-	 */
-	f1?: boolean;
-
+interface IAction2CommonOptions extends ICommandAction {
 	/**
 	 * One or many menu items.
 	 */
@@ -560,14 +556,42 @@ export interface IAction2Options extends ICommandAction {
 	 * showing keybindings that have no other UX.
 	 */
 	description?: ICommandHandlerDescription;
+}
+
+interface IBaseAction2Options extends IAction2CommonOptions {
 
 	/**
-	 * @deprecated workaround added for https://github.com/microsoft/vscode/issues/162004
-	 * This action doesn't do anything is just a workaround for rendering "something"
-	 * inside a specific toolbar
+	 * This type is used when an action is not going to show up in the command palette.
+	 * In that case, it's able to use a string for the `title` and `category` properties.
 	 */
-	_isFakeAction?: true;
+	f1?: false;
 }
+
+interface ICommandPaletteOptions extends IAction2CommonOptions {
+
+	/**
+	 * The title of the command that will be displayed in the command palette after the category.
+	 *  This overrides {@link ICommandAction.title} to ensure a string isn't used so that the title
+	 *  includes the localized value and the original value for users using language packs.
+	 */
+	title: ICommandActionTitle;
+
+	/**
+	 * The category of the command that will be displayed in the command palette before the title suffixed.
+	 * with a colon This overrides {@link ICommandAction.title} to ensure a string isn't used so that
+	 * the title includes the localized value and the original value for users using language packs.
+	 */
+	category?: keyof typeof Categories | ILocalizedString;
+
+	/**
+	 * Shorthand to add this command to the command palette. Note: this is not the only way to declare that
+	 * a command should be in the command palette... however, enforcing ILocalizedString in the other scenarios
+	 * is much more challenging and this gets us most of the way there.
+	 */
+	f1: true;
+}
+
+export type IAction2Options = ICommandPaletteOptions | IBaseAction2Options;
 
 export interface IAction2F1RequiredOptions {
 	title: ICommandActionTitle;
