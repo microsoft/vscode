@@ -215,7 +215,7 @@ suite('WordPartOperations', () => {
 
 	test('issue #158667: cursorWordPartLeft stops at "-" even when "-" is not in word separators', () => {
 		const EXPECTED = [
-			'|this-|is-|a-|kebab-|case-|var| |THIS-|IS-|CAPS-|KEBAB| |this-|IS|Mixed|Use|',
+			'|this-|is-|a-|kebab-|case-|var| |THIS-|IS-|CAPS-|KEBAB| |this-|IS|Mixed|Use',
 		].join('\n');
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
@@ -232,7 +232,7 @@ suite('WordPartOperations', () => {
 
 	test('issue #158667: cursorWordPartRight stops at "-" even when "-" is not in word separators', () => {
 		const EXPECTED = [
-			'|this|-is|-a|-kebab|-case|-var| |THIS|-IS|-CAPS|-KEBAB| |this|-IS|Mixed|Use|',
+			'this|-is|-a|-kebab|-case|-var| |THIS|-IS|-CAPS|-KEBAB| |this|-IS|Mixed|Use|',
 		].join('\n');
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
@@ -240,7 +240,7 @@ suite('WordPartOperations', () => {
 			new Position(1, 1),
 			ed => cursorWordPartRight(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(4, 9)),
+			ed => ed.getPosition()!.equals(new Position(1, 60)),
 			{ wordSeparators: "!\"#&'()*+,./:;<=>?@[\\]^`{|}·" } // default characters sans '$-%~' plus '·'
 		);
 		const actual = serializePipePositions(text, actualStops);
@@ -266,7 +266,7 @@ suite('WordPartOperations', () => {
 
 	test('issue #158667: deleteWordPartRight stops at "-" even when "-" is not in word separators', () => {
 		const EXPECTED = [
-			'|this|-is|-a|-kebab|-case|-var| |THIS|-IS|-CAPS|-KEBAB| |this|-IS|Mixed|Use|',
+			'this|-is|-a|-kebab|-case|-var| |THIS|-IS|-CAPS|-KEBAB| |this|-IS|Mixed|Use|',
 		].join(' ');
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
