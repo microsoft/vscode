@@ -179,8 +179,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 				if (pane && !pane.isVisible()) {
 					await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
 				}
-				// Do not await the focus as setVisible must be called immediately to ensure
-				// something else didn't steal focus
 				await instance.focusWhenReady(true);
 			}
 		}
