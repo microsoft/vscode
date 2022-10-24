@@ -13,7 +13,7 @@ import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows } from './util';
-import { CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
+import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
@@ -361,6 +361,7 @@ export interface ICloneOptions {
 	readonly parentPath: string;
 	readonly progress: Progress<{ increment: number }>;
 	readonly recursive?: boolean;
+	readonly ref?: string;
 }
 
 export class Git {
@@ -454,6 +455,9 @@ export class Git {
 			const command = ['clone', url.includes(' ') ? encodeURI(url) : url, folderPath, '--progress'];
 			if (options.recursive) {
 				command.push('--recursive');
+			}
+			if (options.ref) {
+				command.push('--branch', `'${options.ref}'`);
 			}
 			await this.exec(options.parentPath, command, {
 				cancellationToken,
@@ -551,7 +555,7 @@ export class Git {
 		if (options.log !== false) {
 			const startTime = Date.now();
 			child.on('exit', (_) => {
-				this.log(`> git ${args.join(' ')} [${Date.now() - startTime}ms]\n`);
+				this.log(`> git ${args.join(' ')} [${Date.now() - startTime}ms]${child.killed ? ' (cancelled)' : ''}\n`);
 			});
 		}
 
@@ -1936,25 +1940,32 @@ export class Repository {
 		}
 	}
 
-	getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; untrackedChanges?: 'mixed' | 'separate' | 'hidden' }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
-		return new Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }>((c, e) => {
+	async getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
+		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
+		const disposables: IDisposable[] = [];
+
+		const env = { GIT_OPTIONAL_LOCKS: '0' };
+		const args = ['status', '-z'];
+
+		if (opts?.untrackedChanges === 'hidden') {
+			args.push('-uno');
+		} else {
+			args.push('-uall');
+		}
+
+		if (opts?.ignoreSubmodules) {
+			args.push('--ignore-submodules');
+		}
+
+		const child = this.stream(args, { env });
+
+		let result = new Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }>((c, e) => {
 			const parser = new GitStatusParser();
-			const env = { GIT_OPTIONAL_LOCKS: '0' };
-			const args = ['status', '-z'];
 
-			if (opts?.untrackedChanges === 'hidden') {
-				args.push('-uno');
-			} else {
-				args.push('-uall');
-			}
-
-			if (opts?.ignoreSubmodules) {
-				args.push('--ignore-submodules');
-			}
-
-			const child = this.stream(args, { env });
-
-			const onExit = (exitCode: number) => {
+			const onClose = (exitCode: number) => {
 				if (exitCode !== 0) {
 					const stderr = stderrData.join('');
 					return e(new GitError({
@@ -1975,7 +1986,7 @@ export class Repository {
 				parser.update(raw);
 
 				if (limit !== 0 && parser.status.length > limit) {
-					child.removeListener('exit', onExit);
+					child.removeListener('close', onClose);
 					child.stdout!.removeListener('data', onStdoutData);
 					child.kill();
 
@@ -1991,8 +2002,52 @@ export class Repository {
 			child.stderr!.on('data', raw => stderrData.push(raw as string));
 
 			child.on('error', cpErrorHandler(e));
-			child.on('exit', onExit);
+			child.on('close', onClose);
 		});
+
+		if (opts?.cancellationToken) {
+			const cancellationPromise = new Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }>((_, e) => {
+				disposables.push(onceEvent(opts.cancellationToken!.onCancellationRequested)(() => {
+					try {
+						child.kill();
+					} catch (err) {
+						// noop
+					}
+
+					e(new CancellationError());
+				}));
+			});
+
+			result = Promise.race([result, cancellationPromise]);
+		}
+
+		try {
+			const { status, statusLength, didHitLimit } = await result;
+			return { status, statusLength, didHitLimit };
+		}
+		finally {
+			dispose(disposables);
+		}
+	}
+
+	async getHEADBranch(): Promise<Branch | undefined> {
+		let HEAD: Branch | undefined;
+
+		try {
+			HEAD = await this.getHEAD();
+
+			if (HEAD.name) {
+				try {
+					HEAD = await this.getBranch(HEAD.name);
+				} catch (err) {
+					// noop
+				}
+			}
+		} catch (err) {
+			// noop
+		}
+
+		return HEAD;
 	}
 
 	async getHEAD(): Promise<Ref> {

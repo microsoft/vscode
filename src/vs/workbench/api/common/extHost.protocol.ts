@@ -389,7 +389,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$emitInlayHintsEvent(eventHandle: number): void;
 	$registerDocumentLinkProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean): void;
 	$registerDocumentColorProvider(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void;
+	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, eventHandle: number | undefined): void;
 	$emitFoldingRangeEvent(eventHandle: number, event?: any): void;
 	$registerSelectionRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
@@ -555,6 +555,8 @@ export interface TransferInputBox extends BaseTransferQuickInput {
 
 	value?: string;
 
+	valueSelection?: Readonly<[number, number]>;
+
 	placeholder?: string;
 
 	password?: boolean;
@@ -569,7 +571,7 @@ export interface TransferInputBox extends BaseTransferQuickInput {
 export interface IInputBoxOptions {
 	title?: string;
 	value?: string;
-	valueSelection?: [number, number];
+	valueSelection?: Readonly<[number, number]>;
 	prompt?: string;
 	placeHolder?: string;
 	password?: boolean;
@@ -768,7 +770,7 @@ export interface IWebviewPortMapping {
 export interface IWebviewContentOptions {
 	readonly enableScripts?: boolean;
 	readonly enableForms?: boolean;
-	readonly enableCommandUris?: boolean;
+	readonly enableCommandUris?: boolean | readonly string[];
 	readonly localResourceRoots?: readonly UriComponents[];
 	readonly portMapping?: readonly IWebviewPortMapping[];
 }

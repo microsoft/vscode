@@ -24,7 +24,14 @@ const TEMPLATE: &str = "
    name = "Visual Studio Code CLI",
    version = match constants::VSCODE_CLI_VERSION { Some(v) => v, None => "dev" },
  )]
-pub struct Cli {
+pub struct IntegratedCli {
+	#[clap(flatten)]
+	pub core: CliCore,
+}
+
+/// Common CLI shared between intergated and standalone interfaces.
+#[derive(Args, Debug, Default, Clone)]
+pub struct CliCore {
 	/// One or more files, folders, or URIs to open.
 	#[clap(name = "paths")]
 	pub open_paths: Vec<String>,
@@ -42,7 +49,36 @@ pub struct Cli {
 	pub subcommand: Option<Commands>,
 }
 
-impl Cli {
+#[derive(Parser, Debug, Default)]
+#[clap(
+   help_template = TEMPLATE,
+   long_about = None,
+   name = "Visual Studio Code CLI",
+   version = match constants::VSCODE_CLI_VERSION { Some(v) => v, None => "dev" },
+ )]
+pub struct StandaloneCli {
+	#[clap(flatten)]
+	pub core: CliCore,
+
+	#[clap(subcommand)]
+	pub subcommand: Option<StandaloneCommands>,
+}
+
+pub enum AnyCli {
+	Integrated(IntegratedCli),
+	Standalone(StandaloneCli),
+}
+
+impl AnyCli {
+	pub fn core(&self) -> &CliCore {
+		match self {
+			AnyCli::Integrated(cli) => &cli.core,
+			AnyCli::Standalone(cli) => &cli.core,
+		}
+	}
+}
+
+impl CliCore {
 	pub fn get_base_code_args(&self) -> Vec<String> {
 		let mut args = self.open_paths.clone();
 		self.editor_options.add_code_args(&mut args);
@@ -52,8 +88,8 @@ impl Cli {
 	}
 }
 
-impl<'a> From<&'a Cli> for CodeServerArgs {
-	fn from(cli: &'a Cli) -> Self {
+impl<'a> From<&'a CliCore> for CodeServerArgs {
+	fn from(cli: &'a CliCore) -> Self {
 		let mut args = CodeServerArgs {
 			log: cli.global_options.log,
 			accept_server_license_terms: true,
@@ -75,6 +111,19 @@ impl<'a> From<&'a Cli> for CodeServerArgs {
 
 		args
 	}
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum StandaloneCommands {
+	/// Updates the VS Code CLI.
+	Update(StandaloneUpdateArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct StandaloneUpdateArgs {
+	/// Only check for updates, without actually updating the CLI.
+	#[clap(long)]
+	pub check: bool,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -204,10 +253,9 @@ pub struct VersionArgs {
 pub enum VersionSubcommand {
 	/// Switches the instance of VS Code in use.
 	Use(UseVersionArgs),
-	/// Uninstalls a instance of VS Code.
-	Uninstall(UninstallVersionArgs),
-	/// Lists installed VS Code instances.
-	List(OutputFormatOptions),
+
+	/// Shows the currently configured VS Code version.
+	Show,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -217,24 +265,12 @@ pub struct UseVersionArgs {
 	#[clap(value_name = "stable | insiders | x.y.z | path")]
 	pub name: String,
 
-	/// The directory the version should be installed into, if it's not already installed.
+	/// The directory where the version can be found.
 	#[clap(long, value_name = "path")]
 	pub install_dir: Option<String>,
-
-	/// Reinstall the version even if it's already installed.
-	#[clap(long)]
-	pub reinstall: bool,
 }
 
-#[derive(Args, Debug, Clone)]
-pub struct UninstallVersionArgs {
-	/// The version of VS Code to uninstall. Can be "stable", "insiders", or a
-	/// version number previous passed to `code version use <version>`.
-	#[clap(value_name = "stable | insiders | x.y.z")]
-	pub name: String,
-}
-
-#[derive(Args, Debug, Default)]
+#[derive(Args, Debug, Default, Clone)]
 pub struct EditorOptions {
 	/// Compare two files with each other.
 	#[clap(short, long, value_names = &["file", "file"])]
@@ -348,7 +384,7 @@ impl DesktopCodeOptions {
 	}
 }
 
-#[derive(Args, Debug, Default)]
+#[derive(Args, Debug, Default, Clone)]
 pub struct GlobalOptions {
 	/// Directory where CLI metadata, such as VS Code installations, should be stored.
 	#[clap(long, env = "VSCODE_CLI_DATA_DIR", global = true)]
@@ -389,7 +425,7 @@ impl GlobalOptions {
 	}
 }
 
-#[derive(Args, Debug, Default)]
+#[derive(Args, Debug, Default, Clone)]
 pub struct EditorTroubleshooting {
 	/// Run CPU profiler during startup.
 	#[clap(long)]
@@ -510,6 +546,18 @@ pub struct TunnelServeArgs {
 	/// Randomly name machine for port forwarding service
 	#[clap(long)]
 	pub random_name: bool,
+
+	/// Sets the machine name for port forwarding service
+	#[clap(long)]
+	pub name: Option<String>,
+
+	/// Optional parent process id. If provided, the server will be stopped when the process of the given pid no longer exists
+	#[clap(long, hide = true)]
+	pub parent_process_id: Option<String>,
+
+	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
+	#[clap(long)]
+	pub accept_server_license_terms: bool,
 }
 
 #[derive(Args, Debug, Clone)]

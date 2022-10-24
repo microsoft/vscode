@@ -9,9 +9,6 @@ name = "cli"
 path = "src/lib.rs"
 
 [[bin]]
-name = "code-tunnel"
-
-[[bin]]
 name = "code"
 
 [dependencies]
@@ -52,6 +49,7 @@ log = "0.4"
 
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.5"
+winreg = "0.10"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 tar = { version = "0.4" }
@@ -60,7 +58,7 @@ tar = { version = "0.4" }
 russh = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
 russh-cryptovec = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
 russh-keys = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
-secret-service = { git = "https://github.com/microsoft/vscode-secret-service-rs", rev = "ccef335714cdf3744ff85f812b8fba5b6194dcfa" }
+secret-service = { git = "https://github.com/microsoft/vscode-secret-service-rs", rev = "30f0414108a122d6f2bfc28a5425d0dac9738518" }
 
 [profile.release]
 strip = true

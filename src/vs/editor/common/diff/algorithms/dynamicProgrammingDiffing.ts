@@ -32,6 +32,10 @@ export class DynamicProgrammingDiffing implements IDiffAlgorithm {
 					} else {
 						extendedSeqScore = lcsLengths.get(s1 - 1, s2 - 1);
 					}
+					if (s1 > 0 && s2 > 0 && directions.get(s1 - 1, s2 - 1) === 3) {
+						// Prefer consecutive diagonals
+						extendedSeqScore += 0.1;
+					}
 					extendedSeqScore += (equalityScore ? equalityScore(s1, s2) : 1);
 				} else {
 					extendedSeqScore = -1;
@@ -39,16 +43,17 @@ export class DynamicProgrammingDiffing implements IDiffAlgorithm {
 
 				const newValue = Math.max(horizontalLen, verticalLen, extendedSeqScore);
 
-				if (newValue === horizontalLen) {
+				if (newValue === extendedSeqScore) {
+					// Prefer diagonals
+					const prevLen = s1 > 0 && s2 > 0 ? lengths.get(s1 - 1, s2 - 1) : 0;
+					lengths.set(s1, s2, prevLen + 1);
+					directions.set(s1, s2, 3);
+				} else if (newValue === horizontalLen) {
 					lengths.set(s1, s2, 0);
 					directions.set(s1, s2, 1);
 				} else if (newValue === verticalLen) {
 					lengths.set(s1, s2, 0);
 					directions.set(s1, s2, 2);
-				} else {
-					const prevLen = s1 > 0 && s2 > 0 ? lengths.get(s1 - 1, s2 - 1) : 0;
-					lengths.set(s1, s2, prevLen + 1);
-					directions.set(s1, s2, 3);
 				}
 
 				lcsLengths.set(s1, s2, newValue);

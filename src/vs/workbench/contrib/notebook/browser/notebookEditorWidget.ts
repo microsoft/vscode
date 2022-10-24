@@ -170,7 +170,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _localStore: DisposableStore = this._register(new DisposableStore());
 	private _localCellStateListeners: DisposableStore[] = [];
 	private _fontInfo: FontInfo | undefined;
-	private _dimension: DOM.Dimension | null = null;
+	private _dimension?: DOM.Dimension;
 	private _shadowElement?: HTMLElement;
 	private _shadowElementViewInfo: { height: number; width: number; top: number; left: number } | null = null;
 
@@ -240,6 +240,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	constructor(
 		readonly creationOptions: INotebookEditorCreationOptions,
+		dimension: DOM.Dimension | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@INotebookRendererMessagingService private readonly notebookRendererMessaging: INotebookRendererMessagingService,
@@ -257,6 +258,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+
+		this._dimension = dimension;
+
 		this.isEmbedded = creationOptions.isEmbedded ?? false;
 		this._readOnly = creationOptions.isReadOnly ?? false;
 
@@ -810,7 +814,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._list = this.instantiationService.createInstance(
 			NotebookCellList,
 			'NotebookCellList',
-			this._overlayContainer,
 			this._body,
 			this._viewContext,
 			this._listDelegate,
@@ -828,6 +831,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				typeNavigationEnabled: true,
 				additionalScrollHeight: 0,
 				transformOptimization: false, //(isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
+				initialSize: this._dimension,
 				styleController: (_suffix: string) => { return this._list; },
 				overrideStyles: {
 					listBackground: notebookEditorBackground,
@@ -1702,7 +1706,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
-		this._dimension = new DOM.Dimension(dimension.width, dimension.height);
+		this._dimension = dimension;
 		const newBodyHeight = Math.max(dimension.height - (this._notebookTopToolbar?.useGlobalToolbar ? /** Toolbar height */ 26 : 0), 0);
 		DOM.size(this._body, dimension.width, newBodyHeight);
 

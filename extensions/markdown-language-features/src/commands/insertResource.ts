@@ -8,6 +8,7 @@ import * as nls from 'vscode-nls';
 import { Command } from '../commandManager';
 import { createUriListSnippet, getParentDocumentUri, imageFileExtensions } from '../languageFeatures/dropIntoEditor';
 import { coalesce } from '../util/arrays';
+import { Schemes } from '../util/schemes';
 
 const localize = nls.loadMessageBundle();
 
@@ -27,7 +28,7 @@ export class InsertLinkFromWorkspace implements Command {
 			canSelectMany: true,
 			openLabel: localize('insertLink.openLabel', "Insert link"),
 			title: localize('insertLink.title', "Insert link"),
-			defaultUri: getParentDocumentUri(activeEditor.document),
+			defaultUri: getDefaultUri(activeEditor.document),
 		});
 
 		return insertLink(activeEditor, resources ?? [], false);
@@ -52,11 +53,19 @@ export class InsertImageFromWorkspace implements Command {
 			},
 			openLabel: localize('insertImage.openLabel', "Insert image"),
 			title: localize('insertImage.title', "Insert image"),
-			defaultUri: getParentDocumentUri(activeEditor.document),
+			defaultUri: getDefaultUri(activeEditor.document),
 		});
 
 		return insertLink(activeEditor, resources ?? [], true);
 	}
+}
+
+function getDefaultUri(document: vscode.TextDocument) {
+	const docUri = getParentDocumentUri(document);
+	if (docUri.scheme === Schemes.untitled) {
+		return vscode.workspace.workspaceFolders?.[0]?.uri;
+	}
+	return docUri;
 }
 
 async function insertLink(activeEditor: vscode.TextEditor, selectedFiles: vscode.Uri[], insertAsImage: boolean): Promise<void> {

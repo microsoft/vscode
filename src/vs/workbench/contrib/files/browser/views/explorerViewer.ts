@@ -59,7 +59,8 @@ import { BrowserFileUpload, ExternalFileImport, getMultipleFilesOverwriteConfirm
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
-import { ResourceSet, TernarySearchTree } from 'vs/base/common/map';
+import { ResourceSet } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -266,7 +267,6 @@ export interface IFileTemplateData {
 export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IListAccessibilityProvider<ExplorerItem>, IDisposable {
 	static readonly ID = 'file';
 
-	private styler: HTMLStyleElement;
 	private config: IFilesConfiguration;
 	private configListener: IDisposable;
 	private compressedNavigationControllers = new Map<ExplorerItem, CompressedNavigationController>();
@@ -275,6 +275,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	readonly onDidChangeActiveDescendant = this._onDidChangeActiveDescendant.event;
 
 	constructor(
+		container: HTMLElement,
 		private labels: ResourceLabels,
 		private updateWidth: (stat: ExplorerItem) => void,
 		@IContextViewService private readonly contextViewService: IContextViewService,
@@ -286,12 +287,10 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 
-		this.styler = DOM.createStyleSheet();
-		const buildOffsetStyles = () => {
+		const updateOffsetStyles = () => {
 			const indent = this.configurationService.getValue<number>('workbench.tree.indent');
 			const offset = Math.max(22 - indent, 0); // derived via inspection
-			const rule = `.explorer-viewlet .explorer-item.align-nest-icon-with-parent-icon { margin-left: ${offset}px }`;
-			if (this.styler.innerText !== rule) { this.styler.innerText = rule; }
+			container.style.setProperty(`--vscode-explorer-align-offset-margin-left`, `${offset}px`);
 		};
 
 		this.configListener = this.configurationService.onDidChangeConfiguration(e => {
@@ -299,11 +298,11 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				this.config = this.configurationService.getValue();
 			}
 			if (e.affectsConfiguration('workbench.tree.indent')) {
-				buildOffsetStyles();
+				updateOffsetStyles();
 			}
 		});
 
-		buildOffsetStyles();
+		updateOffsetStyles();
 	}
 
 	getWidgetAriaLabel(): string {
@@ -596,7 +595,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	dispose(): void {
 		this.configListener.dispose();
-		this.styler.innerText = '';
 	}
 }
 

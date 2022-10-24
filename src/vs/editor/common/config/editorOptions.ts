@@ -262,8 +262,7 @@ export interface IEditorOptions {
 	 */
 	smoothScrolling?: boolean;
 	/**
-	 * Enable that the editor will install an interval to check if its container dom node size has changed.
-	 * Enabling this might have a severe performance impact.
+	 * Enable that the editor will install a ResizeObserver to check if its container dom node size has changed.
 	 * Defaults to false.
 	 */
 	automaticLayout?: boolean;
@@ -2327,7 +2326,6 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const wordWrap = (wordWrapOverride1 === 'inherit' ? options.get(EditorOption.wordWrap) : wordWrapOverride1);
 
 		const wordWrapColumn = options.get(EditorOption.wordWrapColumn);
-		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
 		const isDominatedByLongLines = env.isDominatedByLongLines;
 
 		const showGlyphMargin = options.get(EditorOption.glyphMargin);
@@ -2379,20 +2377,14 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let isViewportWrapping = false;
 		let wrappingColumn = -1;
 
-		if (accessibilitySupport !== AccessibilitySupport.Enabled) {
-			// See https://github.com/microsoft/vscode/issues/27766
-			// Never enable wrapping when a screen reader is attached
-			// because arrow down etc. will not move the cursor in the way
-			// a screen reader expects.
-			if (wordWrapOverride1 === 'inherit' && isDominatedByLongLines) {
-				// Force viewport width wrapping if model is dominated by long lines
-				isWordWrapMinified = true;
-				isViewportWrapping = true;
-			} else if (wordWrap === 'on' || wordWrap === 'bounded') {
-				isViewportWrapping = true;
-			} else if (wordWrap === 'wordWrapColumn') {
-				wrappingColumn = wordWrapColumn;
-			}
+		if (wordWrapOverride1 === 'inherit' && isDominatedByLongLines) {
+			// Force viewport width wrapping if model is dominated by long lines
+			isWordWrapMinified = true;
+			isViewportWrapping = true;
+		} else if (wordWrap === 'on' || wordWrap === 'bounded') {
+			isViewportWrapping = true;
+		} else if (wordWrap === 'wordWrapColumn') {
+			wrappingColumn = wordWrapColumn;
 		}
 
 		const minimapLayout = EditorLayoutInfoComputer._computeMinimapLayout({
@@ -2468,6 +2460,42 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 	}
 }
 
+//#endregion
+
+//#region WrappingStrategy
+class WrappingStrategy extends BaseEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced', 'simple' | 'advanced'> {
+
+	constructor() {
+		super(EditorOption.wrappingStrategy, 'wrappingStrategy', 'simple',
+			{
+				'editor.wrappingStrategy': {
+					enumDescriptions: [
+						nls.localize('wrappingStrategy.simple', "Assumes that all characters are of the same width. This is a fast algorithm that works correctly for monospace fonts and certain scripts (like Latin characters) where glyphs are of equal width."),
+						nls.localize('wrappingStrategy.advanced', "Delegates wrapping points computation to the browser. This is a slow algorithm, that might cause freezes for large files, but it works correctly in all cases.")
+					],
+					type: 'string',
+					enum: ['simple', 'advanced'],
+					default: 'simple',
+					description: nls.localize('wrappingStrategy', "Controls the algorithm that computes wrapping points. Note that when in accessibility mode, advanced will be used for the best experience.")
+				}
+			}
+		);
+	}
+
+	public validate(input: any): 'simple' | 'advanced' {
+		return stringSet<'simple' | 'advanced'>(input, 'simple', ['simple', 'advanced']);
+	}
+
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: 'simple' | 'advanced'): 'simple' | 'advanced' {
+		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		if (accessibilitySupport === AccessibilitySupport.Enabled) {
+			// if we know for a fact that a screen reader is attached, we switch our strategy to advanced to
+			// help that the editor's wrapping points match the textarea's wrapping points
+			return 'advanced';
+		}
+		return value;
+	}
+}
 //#endregion
 
 //#region lightbulb
@@ -4427,12 +4455,45 @@ export const enum WrappingIndent {
 	DeepIndent = 3
 }
 
-function _wrappingIndentFromString(wrappingIndent: 'none' | 'same' | 'indent' | 'deepIndent'): WrappingIndent {
-	switch (wrappingIndent) {
-		case 'none': return WrappingIndent.None;
-		case 'same': return WrappingIndent.Same;
-		case 'indent': return WrappingIndent.Indent;
-		case 'deepIndent': return WrappingIndent.DeepIndent;
+class WrappingIndentOption extends BaseEditorOption<EditorOption.wrappingIndent, 'none' | 'same' | 'indent' | 'deepIndent', WrappingIndent> {
+
+	constructor() {
+		super(EditorOption.wrappingIndent, 'wrappingIndent', WrappingIndent.Same,
+			{
+				'editor.wrappingIndent': {
+					type: 'string',
+					enum: ['none', 'same', 'indent', 'deepIndent'],
+					enumDescriptions: [
+						nls.localize('wrappingIndent.none', "No indentation. Wrapped lines begin at column 1."),
+						nls.localize('wrappingIndent.same', "Wrapped lines get the same indentation as the parent."),
+						nls.localize('wrappingIndent.indent', "Wrapped lines get +1 indentation toward the parent."),
+						nls.localize('wrappingIndent.deepIndent', "Wrapped lines get +2 indentation toward the parent."),
+					],
+					description: nls.localize('wrappingIndent', "Controls the indentation of wrapped lines."),
+					default: 'same'
+				}
+			}
+		);
+	}
+
+	public validate(input: any): WrappingIndent {
+		switch (input) {
+			case 'none': return WrappingIndent.None;
+			case 'same': return WrappingIndent.Same;
+			case 'indent': return WrappingIndent.Indent;
+			case 'deepIndent': return WrappingIndent.DeepIndent;
+		}
+		return WrappingIndent.Same;
+	}
+
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: WrappingIndent): WrappingIndent {
+		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		if (accessibilitySupport === AccessibilitySupport.Enabled) {
+			// if we know for a fact that a screen reader is attached, we use no indent wrapping to
+			// help that the editor's wrapping points match the textarea's wrapping points
+			return WrappingIndent.None;
+		}
+		return value;
 	}
 }
 
@@ -5346,40 +5407,15 @@ export const EditorOptions = {
 		'inherit' as 'off' | 'on' | 'inherit',
 		['off', 'on', 'inherit'] as const
 	)),
-	wrappingIndent: register(new EditorEnumOption(
-		EditorOption.wrappingIndent, 'wrappingIndent',
-		WrappingIndent.Same, 'same',
-		['none', 'same', 'indent', 'deepIndent'],
-		_wrappingIndentFromString,
-		{
-			enumDescriptions: [
-				nls.localize('wrappingIndent.none', "No indentation. Wrapped lines begin at column 1."),
-				nls.localize('wrappingIndent.same', "Wrapped lines get the same indentation as the parent."),
-				nls.localize('wrappingIndent.indent', "Wrapped lines get +1 indentation toward the parent."),
-				nls.localize('wrappingIndent.deepIndent', "Wrapped lines get +2 indentation toward the parent."),
-			],
-			description: nls.localize('wrappingIndent', "Controls the indentation of wrapped lines."),
-		}
-	)),
-	wrappingStrategy: register(new EditorStringEnumOption(
-		EditorOption.wrappingStrategy, 'wrappingStrategy',
-		'simple' as 'simple' | 'advanced',
-		['simple', 'advanced'] as const,
-		{
-			enumDescriptions: [
-				nls.localize('wrappingStrategy.simple', "Assumes that all characters are of the same width. This is a fast algorithm that works correctly for monospace fonts and certain scripts (like Latin characters) where glyphs are of equal width."),
-				nls.localize('wrappingStrategy.advanced', "Delegates wrapping points computation to the browser. This is a slow algorithm, that might cause freezes for large files, but it works correctly in all cases.")
-			],
-			description: nls.localize('wrappingStrategy', "Controls the algorithm that computes wrapping points.")
-		}
-	)),
 
 	// Leave these at the end (because they have dependencies!)
 	editorClassName: register(new EditorClassName()),
 	pixelRatio: register(new EditorPixelRatio()),
 	tabFocusMode: register(new EditorTabFocusMode()),
 	layoutInfo: register(new EditorLayoutInfoComputer()),
-	wrappingInfo: register(new EditorWrappingInfoComputer())
+	wrappingInfo: register(new EditorWrappingInfoComputer()),
+	wrappingIndent: register(new WrappingIndentOption()),
+	wrappingStrategy: register(new WrappingStrategy())
 };
 
 type EditorOptionsType = typeof EditorOptions;

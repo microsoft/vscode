@@ -25,7 +25,6 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { Iterable } from 'vs/base/common/iterator';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -207,7 +206,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 
 		// category
 		if (element instanceof CategoryElement) {
-			return [...Iterable.map(element.category.fileOperations, op => new FileElement(element, op))];
+			return Array.from(element.category.fileOperations, op => new FileElement(element, op));
 		}
 
 		// file: text edit

@@ -380,6 +380,9 @@ export class SuggestController implements IEditorContribution {
 			insertText = SnippetParser.escape(insertText);
 		}
 
+		// cancel -> stops all listening and closes widget
+		this.model.cancel();
+
 		snippetController.insert(insertText, {
 			overwriteBefore: info.overwriteBefore,
 			overwriteAfter: info.overwriteAfter,
@@ -394,18 +397,14 @@ export class SuggestController implements IEditorContribution {
 			this.editor.pushUndoStop();
 		}
 
-		if (!item.completion.command) {
-			// done
-			this.model.cancel();
-
-		} else if (item.completion.command.id === TriggerSuggestAction.id) {
-			// retigger
-			this.model.trigger({ auto: true, shy: false, noSelect: false }, true);
-
-		} else {
-			// exec command, done
-			tasks.push(this._commandService.executeCommand(item.completion.command.id, ...(item.completion.command.arguments ? [...item.completion.command.arguments] : [])).catch(onUnexpectedError));
-			this.model.cancel();
+		if (item.completion.command) {
+			if (item.completion.command.id === TriggerSuggestAction.id) {
+				// retigger
+				this.model.trigger({ auto: true, shy: false, noSelect: false }, true);
+			} else {
+				// exec command, done
+				tasks.push(this._commandService.executeCommand(item.completion.command.id, ...(item.completion.command.arguments ? [...item.completion.command.arguments] : [])).catch(onUnexpectedError));
+			}
 		}
 
 		if (flags & InsertFlags.KeepAlternativeSuggestions) {

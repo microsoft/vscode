@@ -9,7 +9,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { organizeImportsCommandId, refactorCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/browser/codeActionKeybindingResolver';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';

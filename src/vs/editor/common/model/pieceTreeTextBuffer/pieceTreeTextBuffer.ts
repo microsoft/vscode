@@ -121,7 +121,19 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 
 		const startOffset = this.getOffsetAt(range.startLineNumber, range.startColumn);
 		const endOffset = this.getOffsetAt(range.endLineNumber, range.endColumn);
-		return endOffset - startOffset;
+
+		// offsets use the text EOL, so we need to compensate for length differences
+		// if the requested EOL doesn't match the text EOL
+		let eolOffsetCompensation = 0;
+		const desiredEOL = this._getEndOfLine(eol);
+		const actualEOL = this.getEOL();
+		if (desiredEOL.length !== actualEOL.length) {
+			const delta = desiredEOL.length - actualEOL.length;
+			const eolCount = range.endLineNumber - range.startLineNumber;
+			eolOffsetCompensation = delta * eolCount;
+		}
+
+		return endOffset - startOffset + eolOffsetCompensation;
 	}
 
 	public getCharacterCountInRange(range: Range, eol: EndOfLinePreference = EndOfLinePreference.TextDefined): number {

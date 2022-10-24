@@ -15,7 +15,7 @@ import { NotebookDiffEditorInput } from '../../common/notebookDiffEditorInput';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CellDiffSideBySideRenderer, CellDiffSingleSideRenderer, NotebookCellTextDiffListDelegate, NotebookTextDiffList } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffList';
+import { CellDiffSideBySideRenderer, CellDiffSingleSideRenderer, NotebookCellTextDiffListDelegate, NotebookTextDiffList } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffList';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { diffDiagonalFill, diffInserted, diffRemoved, editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';

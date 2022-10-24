@@ -11,8 +11,8 @@ variables:
     value: true
   - name: skipComponentGovernanceDetection
     value: true
-  - name: ENABLE_TERRAPIN
-    value: false
+  - name: NPM_REGISTRY
+    value: 'none'
   - name: VSCODE_CIBUILD
     value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
   - name: VSCODE_PUBLISH
@@ -89,6 +89,13 @@ jobs:
             VSCODE_RUN_INTEGRATION_TESTS: false
             VSCODE_RUN_SMOKE_TESTS: true
 
+    - job: LinuxCLI
+      displayName: Linux (CLI)
+      pool: vscode-1es-vscode-linux-20.04
+      timeoutInMinutes: 30
+      steps:
+        - template: cli/test.yml
+
   - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
     - job: Linuxx64MaintainNodeModulesCache
       displayName: Linux (Maintain node_modules cache)
@@ -98,14 +105,6 @@ jobs:
         VSCODE_ARCH: x64
       steps:
         - template: product-build-pr-cache.yml
-
-  - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-    - job: LinuxCLI
-      displayName: Linux (CLI)
-      pool: vscode-1es-vscode-linux-20.04
-      timeoutInMinutes: 30
-      steps:
-        - template: cli/test.yml
 
   # - job: macOSUnitTest
   #   displayName: macOS (Unit Tests)
