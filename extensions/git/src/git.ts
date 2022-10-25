@@ -457,7 +457,7 @@ export class Git {
 				command.push('--recursive');
 			}
 			if (options.ref) {
-				command.push('--branch', `'${options.ref}'`);
+				command.push('--branch', options.ref);
 			}
 			await this.exec(options.parentPath, command, {
 				cancellationToken,
