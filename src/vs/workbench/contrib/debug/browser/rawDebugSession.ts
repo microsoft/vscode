@@ -311,7 +311,7 @@ export class RawDebugSession implements IDisposable {
 			}
 			return this.disconnect({ terminateDebuggee: true, restart });
 		}
-		return Promise.reject(new Error('terminated not supported'));
+		return Promise.reject(new Error('terminated not supported2'));
 	}
 
 	restart(args: DebugProtocol.RestartArguments): Promise<DebugProtocol.RestartResponse | undefined> {
