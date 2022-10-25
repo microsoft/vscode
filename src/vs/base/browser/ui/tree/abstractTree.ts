@@ -676,8 +676,8 @@ export class ModeToggle extends Toggle {
 export class FuzzyToggle extends Toggle {
 	constructor(opts?: ITreeFindToggleOpts) {
 		super({
-			icon: Codicon.wholeWord,
-			title: localize('matchWholeWord', "Match Whole Word"),
+			icon: Codicon.searchFuzzy,
+			title: localize('fuzzySearch', "Fuzzy Match"),
 			isChecked: opts?.isChecked ?? false,
 			inputActiveOptionBorder: opts?.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts?.inputActiveOptionForeground,
@@ -714,7 +714,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 	}
 
 	set fuzzy(fuzzy: TreeFindFuzzy) {
-		this.fuzzyToggle.checked = fuzzy === TreeFindFuzzy.Exact;
+		this.fuzzyToggle.checked = fuzzy === TreeFindFuzzy.Fuzzy;
 	}
 
 	get value(): string {
@@ -753,9 +753,9 @@ class FindWidget<T, TFilterData> extends Disposable {
 		this._register(toDisposable(() => container.removeChild(this.elements.root)));
 
 		this.modeToggle = this._register(new ModeToggle({ ...options, isChecked: mode === TreeFindMode.Filter }));
-		this.fuzzyToggle = this._register(new FuzzyToggle({ ...options, isChecked: fuzzy === TreeFindFuzzy.Exact }));
+		this.fuzzyToggle = this._register(new FuzzyToggle({ ...options, isChecked: fuzzy === TreeFindFuzzy.Fuzzy }));
 		this.onDidChangeMode = Event.map(this.modeToggle.onChange, () => this.modeToggle.checked ? TreeFindMode.Filter : TreeFindMode.Highlight, this._store);
-		this.onDidChangeFuzzy = Event.map(this.fuzzyToggle.onChange, () => this.fuzzyToggle.checked ? TreeFindFuzzy.Exact : TreeFindFuzzy.Fuzzy, this._store);
+		this.onDidChangeFuzzy = Event.map(this.fuzzyToggle.onChange, () => this.fuzzyToggle.checked ? TreeFindFuzzy.Fuzzy : TreeFindFuzzy.Exact, this._store);
 
 		this.findInput = this._register(new FindInput(this.elements.findInput, contextViewProvider, {
 			label: localize('type to search', "Type to search"),
