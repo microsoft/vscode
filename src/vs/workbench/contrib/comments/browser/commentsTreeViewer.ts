@@ -6,7 +6,6 @@
 import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
@@ -28,6 +27,7 @@ import { Color } from 'vs/base/common/color';
 import { IMatch } from 'vs/base/common/filters';
 import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
 import { basename } from 'vs/base/common/resources';
+import { openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
@@ -174,9 +174,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		const renderedComment = renderMarkdown(commentBody, {
 			inline: true,
 			actionHandler: {
-				callback: (content) => {
-					this.openerService.open(content, { allowCommands: commentBody.isTrusted }).catch(onUnexpectedError);
-				},
+				callback: (link) => openLinkFromMarkdown(this.openerService, link, commentBody.isTrusted),
 				disposables: disposables
 			}
 		});

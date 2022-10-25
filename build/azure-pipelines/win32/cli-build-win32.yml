@@ -1,10 +1,13 @@
 parameters:
   - name: VSCODE_BUILD_WIN32
     type: boolean
+    default: false
   - name: VSCODE_BUILD_WIN32_32BIT
     type: boolean
+    default: false
   - name: VSCODE_BUILD_WIN32_ARM64
     type: boolean
+    default: false
   - name: VSCODE_QUALITY
     type: string
   - name: channel

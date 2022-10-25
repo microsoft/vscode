@@ -3,8 +3,10 @@ parameters:
     type: string
   - name: VSCODE_BUILD_MACOS
     type: boolean
+    default: false
   - name: VSCODE_BUILD_MACOS_ARM64
     type: boolean
+    default: false
   - name: channel
     type: string
     default: stable

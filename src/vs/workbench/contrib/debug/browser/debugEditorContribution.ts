@@ -36,7 +36,7 @@ import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { basename } from 'vs/base/common/path';
 import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
-import { HoverStartMode } from 'vs/editor/contrib/hover/browser/hoverOperation';
+import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Event } from 'vs/base/common/event';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -349,7 +349,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 						// If the debug hover was visible immediately show the editor hover for the alt transition to be smooth
 						const hoverController = this.editor.getContribution<ModesHoverController>(ModesHoverController.ID);
 						const range = new Range(this.hoverPosition.lineNumber, this.hoverPosition.column, this.hoverPosition.lineNumber, this.hoverPosition.column);
-						hoverController?.showContentHover(range, HoverStartMode.Immediate, false);
+						hoverController?.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, false);
 					}
 
 					const onKeyUp = new DomEmitter(document, 'keyup');
