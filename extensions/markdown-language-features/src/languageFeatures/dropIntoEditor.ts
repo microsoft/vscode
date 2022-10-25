@@ -67,6 +67,8 @@ interface UriListSnippetOptions {
 	 * If `undefined`, tries to infer this from the uri.
 	 */
 	readonly insertAsImage?: boolean;
+
+	readonly separator?: string;
 }
 
 export function createUriListSnippet(document: vscode.TextDocument, uris: readonly vscode.Uri[], options?: UriListSnippetOptions): vscode.SnippetString | undefined {
@@ -93,8 +95,8 @@ export function createUriListSnippet(document: vscode.TextDocument, uris: readon
 
 		snippet.appendText(`](${mdPath})`);
 
-		if (i <= uris.length - 1 && uris.length > 1) {
-			snippet.appendText(' ');
+		if (i < uris.length - 1 && uris.length > 1) {
+			snippet.appendText(options?.separator ?? ' ');
 		}
 	});
 	return snippet;

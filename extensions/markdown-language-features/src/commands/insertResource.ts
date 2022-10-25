@@ -84,6 +84,7 @@ function createInsertLinkEdit(activeEditor: vscode.TextEditor, selectedFiles: vs
 			insertAsImage: insertAsImage,
 			placeholderText: selectionText,
 			placeholderStartIndex: (i + 1) * selectedFiles.length,
+			separator: insertAsImage ? '\n' : ' ',
 		});
 
 		return snippet ? new vscode.SnippetTextEdit(selection, snippet) : undefined;
