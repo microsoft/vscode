@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { BaseActionWidget } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
+import { ActionList, ActionMenuItem, BaseActionWidget } from 'vs/base/browser/ui/baseActionWidget/baseActionWidget';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -13,7 +13,7 @@ import { IListEvent, IListMouseEvent, IListRenderer } from 'vs/base/browser/ui/l
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import 'vs/css!./codeActionWidget';
 import { acceptSelectedCodeActionCommand, previewSelectedCodeActionCommand } from 'vs/editor/contrib/codeAction/browser/codeAction';
@@ -48,17 +48,16 @@ enum CodeActionListItemKind {
 	Header = 'header'
 }
 
-interface CodeActionListItemCodeAction {
+interface CodeActionListItemCodeAction extends ActionMenuItem {
 	readonly kind: CodeActionListItemKind.CodeAction;
 	readonly action: CodeActionItem;
 	readonly group: CodeActionGroup;
 }
 
-interface CodeActionListItemHeader {
+interface CodeActionListItemHeader extends ActionMenuItem {
 	readonly kind: CodeActionListItemKind.Header;
 	readonly group: CodeActionGroup;
 }
-
 type ICodeActionMenuItem = CodeActionListItemCodeAction | CodeActionListItemHeader;
 
 interface ICodeActionMenuTemplateData {
@@ -176,14 +175,15 @@ class HeaderRenderer implements IListRenderer<CodeActionListItemHeader, HeaderTe
 }
 
 const previewSelectedEventType = 'previewSelectedCodeAction';
-class CodeActionList extends Disposable {
+
+
+class CodeActionList extends Disposable implements ActionList {
 
 	private readonly codeActionLineHeight = 24;
 	private readonly headerLineHeight = 26;
 
-	public readonly domNode: HTMLElement;
-
 	private readonly list: List<ICodeActionMenuItem>;
+	public readonly domNode: HTMLElement;
 
 	private readonly allMenuItems: ICodeActionMenuItem[];
 
@@ -310,7 +310,7 @@ class CodeActionList extends Disposable {
 		}
 	}
 
-	private toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ICodeActionMenuItem[] {
+	public toMenuItems(inputCodeActions: readonly CodeActionItem[], showHeaders: boolean): ICodeActionMenuItem[] {
 		if (!showHeaders) {
 			return inputCodeActions.map((action): ICodeActionMenuItem => ({ kind: CodeActionListItemKind.CodeAction, action, group: uncategorizedCodeActionGroup }));
 		}
@@ -345,7 +345,7 @@ class CodeActionList extends Disposable {
 // TODO: Take a look at user storage for this so it is preserved across windows and on reload.
 let showDisabled = false;
 
-export class CodeActionWidget extends BaseActionWidget {
+export class CodeActionWidget extends BaseActionWidget<CodeActionItem> {
 
 	private static _instance?: CodeActionWidget;
 
@@ -358,8 +358,6 @@ export class CodeActionWidget extends BaseActionWidget {
 		return this._instance;
 	}
 
-	private readonly codeActionList = this._register(new MutableDisposable<CodeActionList>());
-
 	private currentShowingContext?: {
 		readonly options: CodeActionShowOptions;
 		readonly trigger: CodeActionTrigger;
@@ -367,7 +365,6 @@ export class CodeActionWidget extends BaseActionWidget {
 		readonly container: HTMLElement | undefined;
 		readonly codeActions: CodeActionSet;
 		readonly delegate: CodeActionWidgetDelegate;
-		readonly contextKeyService: IContextKeyService;
 	};
 
 	constructor(
@@ -375,6 +372,7 @@ export class CodeActionWidget extends BaseActionWidget {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 	}
@@ -383,9 +381,17 @@ export class CodeActionWidget extends BaseActionWidget {
 		return !!this.currentShowingContext;
 	}
 
-	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, anchor: IAnchor, container: HTMLElement | undefined, options: CodeActionShowOptions, delegate: CodeActionWidgetDelegate, contextKeyService: IContextKeyService): Promise<void> {
+	public toMenuItems(actions: readonly CodeActionItem[], showHeaders: boolean): ActionMenuItem[] {
+		const list = this.list.value;
+		if (!list) {
+			throw new Error('No list');
+		}
+		return list.toMenuItems(actions, showHeaders);
+	}
+
+	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, anchor: IAnchor, container: HTMLElement | undefined, options: CodeActionShowOptions, delegate: CodeActionWidgetDelegate): Promise<void> {
 		this.currentShowingContext = undefined;
-		const visibleContext = Context.Visible.bindTo(contextKeyService);
+		const visibleContext = Context.Visible.bindTo(this._contextKeyService);
 
 		const actionsToShow = options.includeDisabledActions && (showDisabled || codeActions.validActions.length === 0) ? codeActions.allActions : codeActions.validActions;
 		if (!actionsToShow.length) {
@@ -393,7 +399,7 @@ export class CodeActionWidget extends BaseActionWidget {
 			return;
 		}
 
-		this.currentShowingContext = { trigger, codeActions, anchor, container, delegate, options, contextKeyService };
+		this.currentShowingContext = { trigger, codeActions, anchor, container, delegate, options };
 
 		this._contextViewService.showContextView({
 			getAnchor: () => anchor,
@@ -409,7 +415,7 @@ export class CodeActionWidget extends BaseActionWidget {
 	}
 
 	public acceptSelected(options?: { readonly preview?: boolean }) {
-		this.codeActionList.value?.acceptSelected(options);
+		this.list.value?.acceptSelected(options);
 	}
 
 	private renderWidget(element: HTMLElement, trigger: CodeActionTrigger, codeActions: CodeActionSet, options: CodeActionShowOptions, showingCodeActions: readonly CodeActionItem[], delegate: CodeActionWidgetDelegate): IDisposable {
@@ -419,7 +425,7 @@ export class CodeActionWidget extends BaseActionWidget {
 		widget.classList.add('codeActionWidget');
 		element.appendChild(widget);
 
-		this.codeActionList.value = new CodeActionList(
+		this.list.value = new CodeActionList(
 			showingCodeActions,
 			options.showHeaders ?? true,
 			(action, options) => {
@@ -428,7 +434,7 @@ export class CodeActionWidget extends BaseActionWidget {
 			},
 			this._keybindingService);
 
-		widget.appendChild(this.codeActionList.value.domNode);
+		widget.appendChild(this.list.value.domNode);
 
 		// Invisible div to block mouse interaction in the rest of the UI
 		const menuBlock = document.createElement('div');
@@ -470,7 +476,7 @@ export class CodeActionWidget extends BaseActionWidget {
 			}
 		}
 
-		const width = this.codeActionList.value.layout(actionBarWidth);
+		const width = this.list.value.layout(actionBarWidth);
 		widget.style.width = `${width}px`;
 
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
@@ -490,7 +496,7 @@ export class CodeActionWidget extends BaseActionWidget {
 		showDisabled = newShowDisabled;
 
 		if (previousCtx) {
-			this.show(previousCtx.trigger, previousCtx.codeActions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.delegate, previousCtx.contextKeyService);
+			this.show(previousCtx.trigger, previousCtx.codeActions, previousCtx.anchor, previousCtx.container, previousCtx.options, previousCtx.delegate);
 		}
 	}
 

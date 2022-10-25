@@ -14,7 +14,6 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CodeActionAutoApply, CodeActionItem, CodeActionSet, CodeActionTrigger } from '../common/types';
 import { CodeActionsState } from './codeActionModel';
@@ -35,7 +34,6 @@ export class CodeActionUi extends Disposable {
 			applyCodeAction: (action: CodeActionItem, regtriggerAfterApply: boolean, preview: boolean) => Promise<void>;
 		},
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -167,7 +165,7 @@ export class CodeActionUi extends Disposable {
 			onHide: () => {
 				this._editor?.focus();
 			},
-		}, this._contextKeyService);
+		});
 	}
 
 	private toCoords(position: IPosition): IAnchor {

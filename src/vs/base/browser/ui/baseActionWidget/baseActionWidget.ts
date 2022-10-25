@@ -3,44 +3,51 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { List } from 'vs/base/browser/ui/list/listWidget';
+import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+export interface ActionList extends Disposable {
+	focusPrevious(): void;
+	focusNext(): void;
+	layout(minWidth: number): number;
+	toMenuItems(inputCodeActions: readonly ActionItem[], showHeaders: boolean): ActionMenuItem[];
+	acceptSelected(options?: { readonly preview?: boolean }): void;
+	domNode: HTMLElement;
+}
+export interface ActionItem extends Disposable { }
 
-export class BaseActionWidget extends Disposable {
+export interface ActionMenuItem {
+	action?: ActionItem;
+}
 
-	private _widget: HTMLElement | undefined;
-	private _actions = this._register(new MutableDisposable<Disposable>());
-	private _actionList: List<any> | undefined;
+export abstract class BaseActionWidget<T extends ActionItem> extends Disposable {
+
+	list = this._register(new MutableDisposable<ActionList>());
 
 	constructor() {
 		super();
 	}
 
-	public render(): HTMLElement {
-		this._widget = document.createElement('div');
-		this._widget.classList.add('codeActionWidget');
-		return this._widget;
-	}
-
 	public focusPrevious() {
-		this._actionList?.focusPrevious();
+		this.list?.value?.focusPrevious();
 	}
 
 	public focusNext() {
-		this._actionList?.focusNext();
+		this.list?.value?.focusNext();
 	}
 
-
 	public hide() {
-		this._actions.clear();
+		this.list.clear();
 	}
 
 	public clear() {
-		this._actions.clear();
+		this.list.clear();
 	}
 
 	public layout(minWidth: number) {
-		this._actionList?.layout(minWidth);
+		this.list?.value?.layout(minWidth);
 	}
+
+	public abstract show(trigger: any, codeActions: any, anchor: IAnchor, container: HTMLElement | undefined, options: any, delegate: any): Promise<void>;
+	public abstract toMenuItems(actions: readonly T[], showHeaders: boolean): ActionMenuItem[];
 }
 
