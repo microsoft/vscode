@@ -696,8 +696,8 @@ export enum TreeFindMode {
 }
 
 export enum TreeFindFuzzy {
-	Fuzzy,
-	Exact
+	Exact,
+	Fuzzy
 }
 
 class FindWidget<T, TFilterData> extends Disposable {
