@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, registerModelAndPositionCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -233,7 +233,7 @@ class RenameController implements IEditorContribution {
 			// collapse selection to active end
 			this.editor.setSelection(Range.fromPositions(this.editor.getSelection().getPosition()));
 
-			this._bulkEditService.apply(ResourceEdit.convert(renameResult), {
+			this._bulkEditService.apply(renameResult, {
 				editor: this.editor,
 				showPreview: inputFieldResult.wantsPreview,
 				label: nls.localize('label', "Renaming '{0}' to '{1}'", loc?.text, inputFieldResult.newName),

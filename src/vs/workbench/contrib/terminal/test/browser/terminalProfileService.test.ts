@@ -9,7 +9,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TerminalProfileService } from 'vs/workbench/contrib/terminal/browser/terminalProfileService';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
-import { IExtensionTerminalProfile, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, IExtensionTerminalQuickFix, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -89,6 +89,7 @@ class TestTerminalExtensionService extends TestExtensionService {
 class TestTerminalContributionService implements ITerminalContributionService {
 	_serviceBrand: undefined;
 	terminalProfiles: readonly IExtensionTerminalProfile[] = [];
+	quickFixes: IExtensionTerminalQuickFix[] = [];
 	setProfiles(profiles: IExtensionTerminalProfile[]): void {
 		this.terminalProfiles = profiles;
 	}
@@ -97,7 +98,7 @@ class TestTerminalContributionService implements ITerminalContributionService {
 class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 	private _profiles: Map<string, ITerminalProfile[]> = new Map();
 	private _hasReturnedNone = true;
-	getBackend(remoteAuthority: string | undefined): ITerminalBackend {
+	async getBackend(remoteAuthority: string | undefined): Promise<ITerminalBackend> {
 		return {
 			getProfiles: async () => {
 				if (this._hasReturnedNone) {

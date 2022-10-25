@@ -24,7 +24,7 @@ import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { ICellViewModel, INotebookEditorOptions, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
+import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { cellEditorBackground, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
@@ -58,6 +58,8 @@ import { NOTEBOOK_KERNEL } from 'vs/workbench/contrib/notebook/common/notebookCo
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isEqual } from 'vs/base/common/resources';
+import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
+import { INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -76,8 +78,6 @@ export interface InteractiveEditorOptions extends ITextEditorOptions {
 }
 
 export class InteractiveEditor extends EditorPane {
-	static readonly ID: string = 'workbench.editor.interactive';
-
 	#rootElement!: HTMLElement;
 	#styleElement!: HTMLStyleElement;
 	#notebookEditorContainer!: HTMLElement;
@@ -104,6 +104,7 @@ export class InteractiveEditor extends EditorPane {
 	#notebookOptions: NotebookOptions;
 	#editorMemento: IEditorMemento<InteractiveEditorViewState>;
 	#groupListener = this._register(new DisposableStore());
+	#runbuttonToolbar: ToolBar | undefined;
 
 	#onDidFocusWidget = this._register(new Emitter<void>());
 	override get onDidFocus(): Event<void> { return this.#onDidFocusWidget.event; }
@@ -130,7 +131,7 @@ export class InteractiveEditor extends EditorPane {
 		@IExtensionService extensionService: IExtensionService,
 	) {
 		super(
-			InteractiveEditor.ID,
+			INTERACTIVE_WINDOW_EDITOR_ID,
 			telemetryService,
 			themeService,
 			storageService
@@ -186,7 +187,7 @@ export class InteractiveEditor extends EditorPane {
 
 	#setupRunButtonToolbar(runButtonContainer: HTMLElement) {
 		const menu = this._register(this.#menuService.createMenu(MenuId.InteractiveInputExecute, this.#contextKeyService));
-		const toolbar = this._register(new ToolBar(runButtonContainer, this.#contextMenuService, {
+		this.#runbuttonToolbar = this._register(new ToolBar(runButtonContainer, this.#contextMenuService, {
 			getKeyBinding: action => this.#keybindingService.lookupKeybinding(action.id),
 			actionViewItemProvider: action => {
 				return createActionViewItem(this.#instantiationService, action);
@@ -199,7 +200,7 @@ export class InteractiveEditor extends EditorPane {
 		const result = { primary, secondary };
 
 		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result);
-		toolbar.setActions([...primary, ...secondary]);
+		this.#runbuttonToolbar.setActions([...primary, ...secondary]);
 	}
 
 	#createLayoutStyles(): void {
@@ -316,13 +317,9 @@ export class InteractiveEditor extends EditorPane {
 
 		// there currently is a widget which we still own so
 		// we need to hide it before getting a new widget
-		if (this.#notebookWidget.value) {
-			this.#notebookWidget.value.onWillHide();
-		}
+		this.#notebookWidget.value?.onWillHide();
 
-		if (this.#codeEditorWidget) {
-			this.#codeEditorWidget.dispose();
-		}
+		this.#codeEditorWidget?.dispose();
 
 		this.#widgetDisposableStore.clear();
 
@@ -331,7 +328,8 @@ export class InteractiveEditor extends EditorPane {
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
 				ExecutionStateCellStatusBarContrib.id,
-				TimerCellStatusBarContrib.id
+				TimerCellStatusBarContrib.id,
+				NotebookFindContrib.id
 			]),
 			menuIds: {
 				notebookToolbar: MenuId.InteractiveToolbar,
@@ -396,6 +394,9 @@ export class InteractiveEditor extends EditorPane {
 
 		await super.setInput(input, options, context, token);
 		const model = await input.resolve();
+		if (this.#runbuttonToolbar) {
+			this.#runbuttonToolbar.context = input.resource;
+		}
 
 		if (model === null) {
 			throw new Error('?');
@@ -549,7 +550,9 @@ export class InteractiveEditor extends EditorPane {
 
 		if (notebook && textModel) {
 			const info = this.#notebookKernelService.getMatchingKernel(notebook);
-			const selectedOrSuggested = info.selected ?? info.suggestions[0];
+			const selectedOrSuggested = info.selected
+				?? (info.suggestions.length === 1 ? info.suggestions[0] : undefined)
+				?? (info.all.length === 1 ? info.all[0] : undefined);
 
 			if (selectedOrSuggested) {
 				const language = selectedOrSuggested.supportedLanguages[0];
@@ -665,9 +668,7 @@ export class InteractiveEditor extends EditorPane {
 			this.#notebookWidget.value.onWillHide();
 		}
 
-		if (this.#codeEditorWidget) {
-			this.#codeEditorWidget.dispose();
-		}
+		this.#codeEditorWidget?.dispose();
 
 		this.#notebookWidget = { value: undefined };
 		this.#widgetDisposableStore.clear();

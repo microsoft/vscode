@@ -384,6 +384,12 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 			this.listDisposables.add(disposableTimeout(() => rowElement.focus()));
 		}
 
+		this.listDisposables.add(DOM.addDisposableListener(rowElement, 'click', (e) => {
+			// There is a parent list widget, which is the one that holds the list of settings.
+			// Prevent the parent widget from trying to interpret this click event.
+			e.stopPropagation();
+		}));
+
 		return rowElement;
 	}
 
@@ -624,9 +630,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_END, (ev) => {
 			counter = 0;
 			rowElement.classList.remove('drag-hover');
-			if (ev.dataTransfer) {
-				ev.dataTransfer.clearData();
-			}
+			ev.dataTransfer?.clearData();
 			if (this.dragDetails) {
 				this.dragDetails = undefined;
 			}

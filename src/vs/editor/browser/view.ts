@@ -37,7 +37,6 @@ import { SelectionsOverlay } from 'vs/editor/browser/viewParts/selections/select
 import { ViewCursors } from 'vs/editor/browser/viewParts/viewCursors/viewCursors';
 import { ViewZones } from 'vs/editor/browser/viewParts/viewZones/viewZones';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
@@ -244,6 +243,9 @@ export class View extends ViewEventHandler {
 				const lastViewCursorsRenderData = this._viewCursors.getLastRenderData() || [];
 				const lastTextareaPosition = this._textAreaHandler.getLastRenderData();
 				return new PointerHandlerLastRenderData(lastViewCursorsRenderData, lastTextareaPosition);
+			},
+			renderNow: (): void => {
+				this.render(true, false);
 			},
 			shouldSuppressMouseDownOnViewZone: (viewZoneId: string) => {
 				return this._viewZones.shouldSuppressMouseDownOnViewZone(viewZoneId);
@@ -499,15 +501,13 @@ export class View extends ViewEventHandler {
 	}
 
 	public layoutContentWidget(widgetData: IContentWidgetData): void {
-		let newRange = widgetData.position ? widgetData.position.range || null : null;
-		if (newRange === null) {
-			const newPosition = widgetData.position ? widgetData.position.position : null;
-			if (newPosition !== null) {
-				newRange = new Range(newPosition.lineNumber, newPosition.column, newPosition.lineNumber, newPosition.column);
-			}
-		}
-		const newPreference = widgetData.position ? widgetData.position.preference : null;
-		this._contentWidgets.setWidgetPosition(widgetData.widget, newRange, newPreference, widgetData.position?.positionAffinity ?? null);
+		this._contentWidgets.setWidgetPosition(
+			widgetData.widget,
+			widgetData.position?.position ?? null,
+			widgetData.position?.secondaryPosition ?? null,
+			widgetData.position?.preference ?? null,
+			widgetData.position?.positionAffinity ?? null
+		);
 		this._scheduleRender();
 	}
 

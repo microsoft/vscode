@@ -94,7 +94,6 @@ function main() {
 
 	const loaderConfig = {
 		nodeRequire: require,
-		nodeMain: __filename,
 		baseUrl: fileUriFromPath(src, { isWindows: process.platform === 'win32' }),
 		catchError: true
 	};

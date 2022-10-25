@@ -669,9 +669,6 @@ export interface CodeAction {
 	disabled?: string;
 }
 
-/**
- * @internal
- */
 export const enum CodeActionTriggerType {
 	Invoke = 1,
 	Auto = 2,
@@ -1132,7 +1129,11 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: model.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 }
 
-export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence };
+export interface TextEdit {
+	range: IRange;
+	text: string;
+	eol?: model.EndOfLineSequence;
+}
 
 /**
  * Interface used to format a model
@@ -1336,6 +1337,11 @@ export interface FoldingContext {
 export interface FoldingRangeProvider {
 
 	/**
+	 * @internal
+	 */
+	readonly id?: string;
+
+	/**
 	 * An optional event to signal that the folding ranges from this provider have changed.
 	 */
 	onDidChange?: Event<this>;
@@ -1410,6 +1416,7 @@ export interface WorkspaceFileEditOptions {
 	folder?: boolean;
 	skipTrashBin?: boolean;
 	maxSize?: number;
+	contentsBase64?: string;
 }
 
 export interface IWorkspaceFileEdit {
@@ -1541,8 +1548,10 @@ export interface CommentThread<T = IRange> {
 	label: string | undefined;
 	contextValue: string | undefined;
 	comments: Comment[] | undefined;
-	onDidChangeComments: Event<Comment[] | undefined>;
+	onDidChangeComments: Event<readonly Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
+	initialCollapsibleState?: CommentThreadCollapsibleState;
+	onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	state?: CommentThreadState;
 	canReply: boolean;
 	input?: CommentInput;

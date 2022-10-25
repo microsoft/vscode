@@ -19,6 +19,7 @@ const os = require("os");
 const File = require("vinyl");
 const task = require("./task");
 const watch = require('./watch');
+// --- gulp-tsb: compile and transpile --------------------------------
 const reporter = (0, reporter_1.createReporter)();
 function getTypeScriptCompilerOptions(src) {
     const rootDir = path.join(__dirname, `../../${src}`);
@@ -42,7 +43,11 @@ function createCompile(src, build, emitError, transpileOnly) {
     if (!build) {
         overrideOptions.inlineSourceMap = true;
     }
-    const compilation = tsb.create(projectPath, overrideOptions, { verbose: false, transpileOnly }, err => reporter(err));
+    const compilation = tsb.create(projectPath, overrideOptions, {
+        verbose: false,
+        transpileOnly: Boolean(transpileOnly),
+        transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
+    }, err => reporter(err));
     function pipeline(token) {
         const bom = require('gulp-bom');
         const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
@@ -73,9 +78,9 @@ function createCompile(src, build, emitError, transpileOnly) {
     };
     return pipeline;
 }
-function transpileTask(src, out) {
+function transpileTask(src, out, swc) {
     return function () {
-        const transpile = createCompile(src, false, true, true);
+        const transpile = createCompile(src, false, true, { swc });
         const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
         return srcPipe
             .pipe(transpile())
@@ -188,6 +193,15 @@ class MonacoGenerator {
     }
 }
 function generateApiProposalNames() {
+    let eol;
+    try {
+        const src = fs.readFileSync('src/vs/workbench/services/extensions/common/extensionsApiProposals.ts', 'utf-8');
+        const match = /\r?\n/m.exec(src);
+        eol = match ? match[0] : os.EOL;
+    }
+    catch {
+        eol = os.EOL;
+    }
     const pattern = /vscode\.proposed\.([a-zA-Z]+)\.d\.ts$/;
     const proposalNames = new Set();
     const input = es.through();
@@ -210,11 +224,11 @@ function generateApiProposalNames() {
             '// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
             '',
             'export const allApiProposals = Object.freeze({',
-            `${names.map(name => `\t${name}: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${name}.d.ts'`).join(`,${os.EOL}`)}`,
+            `${names.map(name => `\t${name}: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${name}.d.ts'`).join(`,${eol}`)}`,
             '});',
             'export type ApiProposalName = keyof typeof allApiProposals;',
             '',
-        ].join(os.EOL);
+        ].join(eol);
         this.emit('data', new File({
             path: 'vs/workbench/services/extensions/common/extensionsApiProposals.ts',
             contents: Buffer.from(contents)

@@ -89,6 +89,8 @@ function discoverAndReadFiles(ts, options) {
     const in_queue = Object.create(null);
     const queue = [];
     const enqueue = (moduleId) => {
+        // To make the treeshaker work on windows...
+        moduleId = moduleId.replace(/\\/g, '/');
         if (in_queue[moduleId]) {
             return;
         }
@@ -226,6 +228,12 @@ function getColor(node) {
 function setColor(node, color) {
     node.$$$color = color;
 }
+function markNeededSourceFile(node) {
+    node.$$$neededSourceFile = true;
+}
+function isNeededSourceFile(node) {
+    return Boolean(node.$$$neededSourceFile);
+}
 function nodeOrParentIsBlack(node) {
     while (node) {
         const color = getColor(node);
@@ -351,6 +359,19 @@ function markNodes(ts, languageService, options) {
             }
         });
     }
+    /**
+     * Return the parent of `node` which is an ImportDeclaration
+     */
+    function findParentImportDeclaration(node) {
+        let _node = node;
+        do {
+            if (ts.isImportDeclaration(_node)) {
+                return _node;
+            }
+            _node = _node.parent;
+        } while (_node);
+        return null;
+    }
     function enqueue_gray(node) {
         if (nodeOrParentIsBlack(node) || getColor(node) === 1 /* NodeColor.Gray */) {
             return;
@@ -418,6 +439,8 @@ function markNodes(ts, languageService, options) {
             console.warn(`Cannot find source file ${filename}`);
             return;
         }
+        // This source file should survive even if it is empty
+        markNeededSourceFile(sourceFile);
         enqueue_black(sourceFile);
     }
     function enqueueImport(node, importText) {
@@ -467,49 +490,55 @@ function markNodes(ts, languageService, options) {
         }
         const nodeSourceFile = node.getSourceFile();
         const loop = (node) => {
-            const [symbol, symbolImportNode] = getRealNodeSymbol(ts, checker, node);
-            if (symbolImportNode) {
-                setColor(symbolImportNode, 2 /* NodeColor.Black */);
-            }
-            if (isSymbolWithDeclarations(symbol) && !nodeIsInItsOwnDeclaration(nodeSourceFile, node, symbol)) {
-                for (let i = 0, len = symbol.declarations.length; i < len; i++) {
-                    const declaration = symbol.declarations[i];
-                    if (ts.isSourceFile(declaration)) {
-                        // Do not enqueue full source files
-                        // (they can be the declaration of a module import)
-                        continue;
+            const symbols = getRealNodeSymbol(ts, checker, node);
+            for (const { symbol, symbolImportNode } of symbols) {
+                if (symbolImportNode) {
+                    setColor(symbolImportNode, 2 /* NodeColor.Black */);
+                    const importDeclarationNode = findParentImportDeclaration(symbolImportNode);
+                    if (importDeclarationNode && ts.isStringLiteral(importDeclarationNode.moduleSpecifier)) {
+                        enqueueImport(importDeclarationNode, importDeclarationNode.moduleSpecifier.text);
                     }
-                    if (options.shakeLevel === 2 /* ShakeLevel.ClassMembers */ && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration)) && !isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(ts, program, checker, declaration)) {
-                        enqueue_black(declaration.name);
-                        for (let j = 0; j < declaration.members.length; j++) {
-                            const member = declaration.members[j];
-                            const memberName = member.name ? member.name.getText() : null;
-                            if (ts.isConstructorDeclaration(member)
-                                || ts.isConstructSignatureDeclaration(member)
-                                || ts.isIndexSignatureDeclaration(member)
-                                || ts.isCallSignatureDeclaration(member)
-                                || memberName === '[Symbol.iterator]'
-                                || memberName === '[Symbol.toStringTag]'
-                                || memberName === 'toJSON'
-                                || memberName === 'toString'
-                                || memberName === 'dispose' // TODO: keeping all `dispose` methods
-                                || /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
-                            ) {
-                                enqueue_black(member);
+                }
+                if (isSymbolWithDeclarations(symbol) && !nodeIsInItsOwnDeclaration(nodeSourceFile, node, symbol)) {
+                    for (let i = 0, len = symbol.declarations.length; i < len; i++) {
+                        const declaration = symbol.declarations[i];
+                        if (ts.isSourceFile(declaration)) {
+                            // Do not enqueue full source files
+                            // (they can be the declaration of a module import)
+                            continue;
+                        }
+                        if (options.shakeLevel === 2 /* ShakeLevel.ClassMembers */ && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration)) && !isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(ts, program, checker, declaration)) {
+                            enqueue_black(declaration.name);
+                            for (let j = 0; j < declaration.members.length; j++) {
+                                const member = declaration.members[j];
+                                const memberName = member.name ? member.name.getText() : null;
+                                if (ts.isConstructorDeclaration(member)
+                                    || ts.isConstructSignatureDeclaration(member)
+                                    || ts.isIndexSignatureDeclaration(member)
+                                    || ts.isCallSignatureDeclaration(member)
+                                    || memberName === '[Symbol.iterator]'
+                                    || memberName === '[Symbol.toStringTag]'
+                                    || memberName === 'toJSON'
+                                    || memberName === 'toString'
+                                    || memberName === 'dispose' // TODO: keeping all `dispose` methods
+                                    || /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
+                                ) {
+                                    enqueue_black(member);
+                                }
+                                if (isStaticMemberWithSideEffects(ts, member)) {
+                                    enqueue_black(member);
+                                }
                             }
-                            if (isStaticMemberWithSideEffects(ts, member)) {
-                                enqueue_black(member);
+                            // queue the heritage clauses
+                            if (declaration.heritageClauses) {
+                                for (const heritageClause of declaration.heritageClauses) {
+                                    enqueue_black(heritageClause);
+                                }
                             }
                         }
-                        // queue the heritage clauses
-                        if (declaration.heritageClauses) {
-                            for (const heritageClause of declaration.heritageClauses) {
-                                enqueue_black(heritageClause);
-                            }
+                        else {
+                            enqueue_black(declaration);
                         }
-                    }
-                    else {
-                        enqueue_black(declaration);
                     }
                 }
             }
@@ -661,11 +690,23 @@ function generateResult(ts, languageService, shakeLevel) {
         }
         if (getColor(sourceFile) !== 2 /* NodeColor.Black */) {
             if (!nodeOrChildIsBlack(sourceFile)) {
-                // none of the elements are reachable => don't write this file at all!
-                return;
+                // none of the elements are reachable
+                if (isNeededSourceFile(sourceFile)) {
+                    // this source file must be written, even if nothing is used from it
+                    // because there is an import somewhere for it.
+                    // However, TS complains with empty files with the error "x" is not a module,
+                    // so we will export a dummy variable
+                    result = 'export const __dummy = 0;';
+                }
+                else {
+                    // don't write this file at all!
+                    return;
+                }
             }
-            sourceFile.forEachChild(writeMarkedNodes);
-            result += sourceFile.endOfFileToken.getFullText(sourceFile);
+            else {
+                sourceFile.forEachChild(writeMarkedNodes);
+                result += sourceFile.endOfFileToken.getFullText(sourceFile);
+            }
         }
         else {
             result = text;
@@ -697,12 +738,19 @@ function findSymbolFromHeritageType(ts, checker, type) {
         return findSymbolFromHeritageType(ts, checker, type.expression);
     }
     if (ts.isIdentifier(type)) {
-        return getRealNodeSymbol(ts, checker, type)[0];
+        const tmp = getRealNodeSymbol(ts, checker, type);
+        return (tmp.length > 0 ? tmp[0].symbol : null);
     }
     if (ts.isPropertyAccessExpression(type)) {
         return findSymbolFromHeritageType(ts, checker, type.name);
     }
     return null;
+}
+class SymbolImportTuple {
+    constructor(symbol, symbolImportNode) {
+        this.symbol = symbol;
+        this.symbolImportNode = symbolImportNode;
+    }
 }
 /**
  * Returns the node's symbol and the `import` node (if the symbol resolved from a different module)
@@ -735,7 +783,7 @@ function getRealNodeSymbol(ts, checker, node) {
     }
     if (!ts.isShorthandPropertyAssignment(node)) {
         if (node.getChildCount() !== 0) {
-            return [null, null];
+            return [];
         }
     }
     const { parent } = node;
@@ -781,10 +829,7 @@ function getRealNodeSymbol(ts, checker, node) {
             const type = checker.getTypeAtLocation(parent.parent);
             if (name && type) {
                 if (type.isUnion()) {
-                    const prop = type.types[0].getProperty(name);
-                    if (prop) {
-                        symbol = prop;
-                    }
+                    return generateMultipleSymbols(type, name, importNode);
                 }
                 else {
                     const prop = type.getProperty(name);
@@ -815,9 +860,19 @@ function getRealNodeSymbol(ts, checker, node) {
         }
     }
     if (symbol && symbol.declarations) {
-        return [symbol, importNode];
+        return [new SymbolImportTuple(symbol, importNode)];
     }
-    return [null, null];
+    return [];
+    function generateMultipleSymbols(type, name, importNode) {
+        const result = [];
+        for (const t of type.types) {
+            const prop = t.getProperty(name);
+            if (prop && prop.declarations) {
+                result.push(new SymbolImportTuple(prop, importNode));
+            }
+        }
+        return result;
+    }
 }
 /** Get the token whose text contains the position */
 function getTokenAtPosition(ts, sourceFile, position, allowPositionInLeadingTrivia, includeEndPosition) {

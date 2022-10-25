@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { revive } from 'vs/base/common/marshalling';
-import { UriDto } from 'vs/base/common/types';
+import { UriDto } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';

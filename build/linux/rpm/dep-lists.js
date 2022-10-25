@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.referenceGeneratedDepsByArch = exports.bundledDeps = exports.additionalDeps = void 0;
+exports.referenceGeneratedDepsByArch = exports.additionalDeps = void 0;
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/additional_deps
 // Additional dependencies not in the rpm find-requires output.
 exports.additionalDeps = [
@@ -16,18 +16,6 @@ exports.additionalDeps = [
     'libvulkan.so.1()(64bit)',
     'libcurl.so.4()(64bit)',
     'xdg-utils' // OS integration
-];
-// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/98.0.4758.109:chrome/installer/linux/BUILD.gn;l=64-80
-// and the Linux Archive build
-// Shared library dependencies that we already bundle.
-exports.bundledDeps = [
-    'libEGL.so',
-    'libGLESv2.so',
-    'libvulkan.so.1',
-    'swiftshader_libEGL.so',
-    'swiftshader_libGLESv2.so',
-    'libvk_swiftshader.so',
-    'libffmpeg.so'
 ];
 exports.referenceGeneratedDepsByArch = {
     'x86_64': [
@@ -65,6 +53,7 @@ exports.referenceGeneratedDepsByArch = {
         'libc.so.6(GLIBC_2.8)(64bit)',
         'libc.so.6(GLIBC_2.9)(64bit)',
         'libcairo.so.2()(64bit)',
+        'libcups.so.2()(64bit)',
         'libcurl.so.4()(64bit)',
         'libdbus-1.so.3()(64bit)',
         'libdl.so.2()(64bit)',
@@ -145,6 +134,7 @@ exports.referenceGeneratedDepsByArch = {
         'libc.so.6(GLIBC_2.8)',
         'libc.so.6(GLIBC_2.9)',
         'libcairo.so.2',
+        'libcups.so.2',
         'libcurl.so.4()(64bit)',
         'libdbus-1.so.3',
         'libdl.so.2',
@@ -233,6 +223,7 @@ exports.referenceGeneratedDepsByArch = {
         'libc.so.6()(64bit)',
         'libc.so.6(GLIBC_2.17)(64bit)',
         'libcairo.so.2()(64bit)',
+        'libcups.so.2()(64bit)',
         'libcurl.so.4()(64bit)',
         'libdbus-1.so.3()(64bit)',
         'libdbus-1.so.3(LIBDBUS_1_3)(64bit)',

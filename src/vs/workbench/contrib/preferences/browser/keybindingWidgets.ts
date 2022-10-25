@@ -13,6 +13,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import * as dom from 'vs/base/browser/dom';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -263,6 +264,7 @@ export class DefineKeybindingWidget extends Widget {
 			const existingElement = dom.$('span.existingText');
 			const text = numberOfExisting === 1 ? nls.localize('defineKeybinding.oneExists', "1 existing command has this keybinding", numberOfExisting) : nls.localize('defineKeybinding.existing', "{0} existing commands have this keybinding", numberOfExisting);
 			dom.append(existingElement, document.createTextNode(text));
+			aria.alert(text);
 			this._showExistingKeybindingsNode.appendChild(existingElement);
 			existingElement.onmousedown = (e) => { e.preventDefault(); };
 			existingElement.onmouseup = (e) => { e.preventDefault(); };

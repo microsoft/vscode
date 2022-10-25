@@ -287,9 +287,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			this._doLayout(containerHeight, this._getWidth(layoutInfo));
 		}
 
-		if (this._resizeSash) {
-			this._resizeSash.layout();
-		}
+		this._resizeSash?.layout();
 	}
 
 	get position(): Position | undefined {
@@ -323,9 +321,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			this.editor.removeOverlayWidget(this._overlayWidget);
 			this._overlayWidget = null;
 		}
-		if (this._arrow) {
-			this._arrow.hide();
-		}
+		this._arrow?.hide();
 	}
 
 	private _decoratingElementsHeight(): number {

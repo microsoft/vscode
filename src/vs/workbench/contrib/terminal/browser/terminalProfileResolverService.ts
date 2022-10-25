@@ -116,8 +116,8 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 	}
 
-	getDefaultIcon(): TerminalIcon & ThemeIcon {
-		return this._iconRegistry.getIcon(this._configurationService.getValue(TerminalSettingId.TabsDefaultIcon)) || Codicon.terminal;
+	getDefaultIcon(resource?: URI): TerminalIcon & ThemeIcon {
+		return this._iconRegistry.getIcon(this._configurationService.getValue(TerminalSettingId.TabsDefaultIcon, { resource })) || Codicon.terminal;
 	}
 
 	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> {
@@ -145,9 +145,10 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
 		// an issue
+		const resource = shellLaunchConfig === undefined || typeof shellLaunchConfig.cwd === 'string' ? undefined : shellLaunchConfig.cwd;
 		shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon)
 			|| this._getCustomIcon(resolvedProfile.icon)
-			|| this.getDefaultIcon();
+			|| this.getDefaultIcon(resource);
 
 		// Override the name if specified
 		if (resolvedProfile.overrideName) {
@@ -157,7 +158,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		// Apply the color
 		shellLaunchConfig.color = shellLaunchConfig.color
 			|| resolvedProfile.color
-			|| this._configurationService.getValue(TerminalSettingId.TabsDefaultColor);
+			|| this._configurationService.getValue(TerminalSettingId.TabsDefaultColor, { resource });
 
 		// Resolve useShellEnvironment based on the setting if it's not set
 		if (shellLaunchConfig.useShellEnvironment === undefined) {
@@ -194,7 +195,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		if (URI.isUri(icon) || isUriComponents(icon)) {
 			return URI.revive(icon);
 		}
-		if (typeof icon === 'object' && icon && 'light' in icon && 'dark' in icon) {
+		if (typeof icon === 'object' && 'light' in icon && 'dark' in icon) {
 			const castedIcon = (icon as { light: unknown; dark: unknown });
 			if ((URI.isUri(castedIcon.light) || isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || isUriComponents(castedIcon.dark))) {
 				return { light: URI.revive(castedIcon.light), dark: URI.revive(castedIcon.dark) };
@@ -468,7 +469,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	private _isValidAutomationProfile(profile: unknown, os: OperatingSystem): profile is ITerminalProfile {
-		if (!profile === undefined || typeof profile !== 'object' || profile === null) {
+		if (profile === null || profile === undefined || typeof profile !== 'object') {
 			return false;
 		}
 		if ('path' in profile && typeof (profile as { path: unknown }).path === 'string') {
@@ -496,7 +497,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 								await this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + this._primaryBackendOs, profile);
 								this._logService.trace(`migrated from shell/shellArgs, using existing profile ${profile}`);
 							} else {
-								const profiles = { ...this._configurationService.inspect<Readonly<{ [key: string]: ITerminalProfileObject }>>(TerminalSettingPrefix.Profiles + this._primaryBackendOs).userValue } || {};
+								const profiles = { ...this._configurationService.inspect<Readonly<{ [key: string]: ITerminalProfileObject }>>(TerminalSettingPrefix.Profiles + this._primaryBackendOs).userValue };
 								const profileConfig: ITerminalProfileObject = { path: profile.path };
 								if (profile.args) {
 									profileConfig.args = profile.args;
@@ -537,7 +538,7 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 		super(
 			{
 				getDefaultSystemShell: async (remoteAuthority, os) => {
-					const backend = terminalInstanceService.getBackend(remoteAuthority);
+					const backend = await terminalInstanceService.getBackend(remoteAuthority);
 					if (!remoteAuthority || !backend) {
 						// Just return basic values, this is only for serverless web and wouldn't be used
 						return os === OperatingSystem.Windows ? 'pwsh' : 'bash';
@@ -545,7 +546,7 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 					return backend.getDefaultSystemShell(os);
 				},
 				getEnvironment: async (remoteAuthority) => {
-					const backend = terminalInstanceService.getBackend(remoteAuthority);
+					const backend = await terminalInstanceService.getBackend(remoteAuthority);
 					if (!remoteAuthority || !backend) {
 						return env;
 					}

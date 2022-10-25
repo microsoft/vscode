@@ -34,7 +34,7 @@ async function launchServer(options: LaunchOptions) {
 	const { userDataDir, codePath, extensionsPath, logger, logsPath } = options;
 	const codeServerPath = codePath ?? process.env.VSCODE_REMOTE_SERVER_PATH;
 	const agentFolder = userDataDir;
-	await measureAndLog(mkdirp(agentFolder), `mkdirp(${agentFolder})`, logger);
+	await measureAndLog(() => mkdirp(agentFolder), `mkdirp(${agentFolder})`, logger);
 
 	const env = {
 		VSCODE_REMOTE_SERVER_PATH: codeServerPath,
@@ -81,28 +81,28 @@ async function launchServer(options: LaunchOptions) {
 
 	return {
 		serverProcess,
-		endpoint: await measureAndLog(waitForEndpoint(serverProcess, logger), 'waitForEndpoint(serverProcess)', logger)
+		endpoint: await measureAndLog(() => waitForEndpoint(serverProcess, logger), 'waitForEndpoint(serverProcess)', logger)
 	};
 }
 
 async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	const { logger, workspacePath, tracing, headless } = options;
 
-	const browser = await measureAndLog(playwright[options.browser ?? 'chromium'].launch({ headless: headless ?? false }), 'playwright#launch', logger);
+	const browser = await measureAndLog(() => playwright[options.browser ?? 'chromium'].launch({ headless: headless ?? false }), 'playwright#launch', logger);
 	browser.on('disconnected', () => logger.log(`Playwright: browser disconnected`));
 
-	const context = await measureAndLog(browser.newContext(), 'browser.newContext', logger);
+	const context = await measureAndLog(() => browser.newContext(), 'browser.newContext', logger);
 
 	if (tracing) {
 		try {
-			await measureAndLog(context.tracing.start({ screenshots: true, /* remaining options are off for perf reasons */ }), 'context.tracing.start()', logger);
+			await measureAndLog(() => context.tracing.start({ screenshots: true, /* remaining options are off for perf reasons */ }), 'context.tracing.start()', logger);
 		} catch (error) {
 			logger.log(`Playwright (Browser): Failed to start playwright tracing (${error})`); // do not fail the build when this fails
 		}
 	}
 
-	const page = await measureAndLog(context.newPage(), 'context.newPage()', logger);
-	await measureAndLog(page.setViewportSize({ width: 1200, height: 800 }), 'page.setViewportSize', logger);
+	const page = await measureAndLog(() => context.newPage(), 'context.newPage()', logger);
+	await measureAndLog(() => page.setViewportSize({ width: 1200, height: 800 }), 'page.setViewportSize', logger);
 
 	if (options.verbose) {
 		context.on('page', () => logger.log(`Playwright (Browser): context.on('page')`));
@@ -133,7 +133,7 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 		`["logLevel","${options.verbose ? 'trace' : 'info'}"]`
 	].join(',')}]`;
 
-	await measureAndLog(page.goto(`${endpoint}&${workspacePath.endsWith('.code-workspace') ? 'workspace' : 'folder'}=${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
+	await measureAndLog(() => page.goto(`${endpoint}&${workspacePath.endsWith('.code-workspace') ? 'workspace' : 'folder'}=${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
 
 	return { browser, context, page };
 }

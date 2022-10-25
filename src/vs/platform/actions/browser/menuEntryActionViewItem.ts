@@ -5,20 +5,20 @@
 
 import { $, addDisposableListener, append, asCSSUrl, EventType, ModifierKeyEmitter, prepend } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionViewItem, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionViewItem, BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem, IDropdownMenuActionViewItemOptions } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { ActionRunner, IAction, IRunEvent, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { combinedDisposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isWindows, OS } from 'vs/base/common/platform';
 import 'vs/css!./menuEntryActionViewItem';
 import { localize } from 'vs/nls';
 import { IMenu, IMenuActionOptions, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { ICommandAction, Icon } from 'vs/platform/action/common/action';
+import { ICommandAction, isICommandActionToggleInfo } from 'vs/platform/action/common/action';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -27,34 +27,23 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { isDark } from 'vs/platform/theme/common/theme';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { assertType } from 'vs/base/common/types';
+import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 
-export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): IDisposable {
+export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): void {
 	const groups = menu.getActions(options);
 	const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
 	const useAlternativeActions = modifierKeyEmitter.keyStatus.altKey || ((isWindows || isLinux) && modifierKeyEmitter.keyStatus.shiftKey);
 	fillInActions(groups, target, useAlternativeActions, primaryGroup ? actionGroup => actionGroup === primaryGroup : actionGroup => actionGroup === 'navigation');
-	return asDisposable(groups);
 }
 
-export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string | ((actionGroup: string) => boolean), primaryMaxCount?: number, shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean, useSeparatorsInPrimaryActions?: boolean): IDisposable {
+export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string | ((actionGroup: string) => boolean), primaryMaxCount?: number, shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean, useSeparatorsInPrimaryActions?: boolean): void {
 	const groups = menu.getActions(options);
 	const isPrimaryAction = typeof primaryGroup === 'string' ? (actionGroup: string) => actionGroup === primaryGroup : primaryGroup;
 
 	// Action bars handle alternative actions on their own so the alternative actions should be ignored
 	fillInActions(groups, target, false, isPrimaryAction, primaryMaxCount, shouldInlineSubmenu, useSeparatorsInPrimaryActions);
-	return asDisposable(groups);
 }
-
-function asDisposable(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>): IDisposable {
-	const disposables = new DisposableStore();
-	for (const [, actions] of groups) {
-		for (const action of actions) {
-			disposables.add(action);
-		}
-	}
-	return disposables;
-}
-
 
 function fillInActions(
 	groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[] },
@@ -128,23 +117,6 @@ export interface IMenuEntryActionViewItemOptions {
 	draggable?: boolean;
 	keybinding?: string;
 	hoverDelegate?: IHoverDelegate;
-}
-
-function registerConfigureMenu(contextMenuService: IContextMenuService, item: BaseActionViewItem, action: MenuItemAction | SubmenuItemAction): IDisposable {
-	assertType(item.element);
-	return addDisposableListener(item.element, 'contextmenu', event => {
-		if (!action.hideActions) {
-			return;
-		}
-
-		event.preventDefault();
-		event.stopPropagation();
-
-		contextMenuService.showContextMenu({
-			getAnchor: () => item.element!,
-			getActions: () => action.hideActions!.asList()
-		});
-	}, true);
 }
 
 export class MenuEntryActionViewItem extends ActionViewItem {
@@ -221,8 +193,6 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			mouseOver = true;
 			updateAltState();
 		}));
-
-		this._register(registerConfigureMenu(this._contextMenuService, this, this._menuItemAction));
 	}
 
 	override updateLabel(): void {
@@ -272,7 +242,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			return;
 		}
 
-		const icon = this._commandAction.checked && (item.toggled as { icon?: Icon })?.icon ? (item.toggled as { icon: Icon }).icon : item.icon;
+		const icon = this._commandAction.checked && isICommandActionToggleInfo(item.toggled) && item.toggled.icon ? item.toggled.icon : item.icon;
 
 		if (!icon) {
 			return;
@@ -348,8 +318,6 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 				setBackgroundImage();
 			}));
 		}
-
-		this._register(registerConfigureMenu(this._contextMenuService, this, action));
 	}
 }
 
@@ -469,8 +437,6 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 				event.stopPropagation();
 			}
 		}));
-
-		this._register(registerConfigureMenu(this._contextMenuService, this, (<SubmenuItemAction>this.action)));
 	}
 
 	override focus(fromRight?: boolean): void {
@@ -504,6 +470,37 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 	}
 }
 
+class SubmenuEntrySelectActionViewItem extends SelectActionViewItem {
+
+	constructor(
+		action: SubmenuItemAction,
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextViewService contextViewService: IContextViewService
+	) {
+		super(null, action, action.actions.map(a => ({
+			text: a.id === Separator.ID ? '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500' : a.label,
+			isDisabled: !a.enabled,
+		})), 0, contextViewService, { ariaLabel: action.tooltip, optionsAsChildren: true });
+		this._register(attachSelectBoxStyler(this.selectBox, themeService));
+		this.select(Math.max(0, action.actions.findIndex(a => a.checked)));
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
+			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
+		}));
+	}
+
+	protected override runAction(option: string, index: number): void {
+		const action = (this.action as SubmenuItemAction).actions[index];
+		if (action) {
+			this.actionRunner.run(action);
+		}
+	}
+
+}
+
 /**
  * Creates action view items for menu actions or submenu actions.
  */
@@ -511,10 +508,14 @@ export function createActionViewItem(instaService: IInstantiationService, action
 	if (action instanceof MenuItemAction) {
 		return instaService.createInstance(MenuEntryActionViewItem, action, options);
 	} else if (action instanceof SubmenuItemAction) {
-		if (action.item.rememberDefaultAction) {
-			return instaService.createInstance(DropdownWithDefaultActionViewItem, action, options);
+		if (action.item.isSelection) {
+			return instaService.createInstance(SubmenuEntrySelectActionViewItem, action);
 		} else {
-			return instaService.createInstance(SubmenuEntryActionViewItem, action, options);
+			if (action.item.rememberDefaultAction) {
+				return instaService.createInstance(DropdownWithDefaultActionViewItem, action, options);
+			} else {
+				return instaService.createInstance(SubmenuEntryActionViewItem, action, options);
+			}
 		}
 	} else {
 		return undefined;

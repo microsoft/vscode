@@ -519,7 +519,9 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 	private getActionsLabels(): Map<string, string> {
 		const actionsLabels: Map<string, string> = new Map<string, string>();
-		EditorExtensionsRegistry.getEditorActions().forEach(editorAction => actionsLabels.set(editorAction.id, editorAction.label));
+		for (const editorAction of EditorExtensionsRegistry.getEditorActions()) {
+			actionsLabels.set(editorAction.id, editorAction.label);
+		}
 		for (const menuItem of MenuRegistry.getMenuItems(MenuId.CommandPalette)) {
 			if (isIMenuItem(menuItem)) {
 				const title = typeof menuItem.command.title === 'string' ? menuItem.command.title : menuItem.command.title.value;

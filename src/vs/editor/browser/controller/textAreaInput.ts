@@ -5,6 +5,7 @@
 
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
+import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -51,7 +52,7 @@ export interface ClipboardStoredMetadata {
 
 export interface ITextAreaInputHost {
 	getDataToCopy(): ClipboardDataToCopy;
-	getScreenReaderContent(currentState: TextAreaState): TextAreaState;
+	getScreenReaderContent(): TextAreaState;
 	deduceModelPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 }
 
@@ -192,6 +193,11 @@ export class TextAreaInput extends Disposable {
 	private readonly _asyncFocusGainWriteScreenReaderContent: RunOnceScheduler;
 
 	private _textAreaState: TextAreaState;
+
+	public get textAreaState(): TextAreaState {
+		return this._textAreaState;
+	}
+
 	private _selectionChangeListener: IDisposable | null;
 
 	private _hasFocus: boolean;
@@ -295,7 +301,7 @@ export class TextAreaInput extends Disposable {
 				// For example, if the cursor is in the middle of a word like Mic|osoft
 				// and Microsoft is chosen from the keyboard's suggestions, the e.data will contain "Microsoft".
 				// This is not really usable because it doesn't tell us where the edit began and where it ended.
-				const newState = TextAreaState.readFromTextArea(this._textArea);
+				const newState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
 				const typeInput = TextAreaState.deduceAndroidCompositionInput(this._textAreaState, newState);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
@@ -303,7 +309,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 			const typeInput = currentComposition.handleCompositionUpdate(e.data);
-			this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
+			this._textAreaState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
 			this._onType.fire(typeInput);
 			this._onCompositionUpdate.fire(e);
 		}));
@@ -325,7 +331,7 @@ export class TextAreaInput extends Disposable {
 				// For example, if the cursor is in the middle of a word like Mic|osoft
 				// and Microsoft is chosen from the keyboard's suggestions, the e.data will contain "Microsoft".
 				// This is not really usable because it doesn't tell us where the edit began and where it ended.
-				const newState = TextAreaState.readFromTextArea(this._textArea);
+				const newState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
 				const typeInput = TextAreaState.deduceAndroidCompositionInput(this._textAreaState, newState);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
@@ -334,7 +340,7 @@ export class TextAreaInput extends Disposable {
 			}
 
 			const typeInput = currentComposition.handleCompositionUpdate(e.data);
-			this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
+			this._textAreaState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
 			this._onType.fire(typeInput);
 			this._onCompositionEnd.fire();
 		}));
@@ -352,7 +358,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
-			const newState = TextAreaState.readFromTextArea(this._textArea);
+			const newState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
 			const typeInput = TextAreaState.deduceInput(this._textAreaState, newState, /*couldBeEmojiInput*/this._OS === OperatingSystem.Macintosh);
 
 			if (typeInput.replacePrevCharCnt === 0 && typeInput.text.length === 1 && strings.isHighSurrogate(typeInput.text.charCodeAt(0))) {
@@ -458,7 +464,7 @@ export class TextAreaInput extends Disposable {
 
 	_initializeFromTest(): void {
 		this._hasFocus = true;
-		this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
+		this._textAreaState = TextAreaState.readFromTextArea(this._textArea, null);
 	}
 
 	private _installSelectionChangeListener(): IDisposable {
@@ -511,7 +517,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
-			if (!this._textAreaState.selectionStartPosition || !this._textAreaState.selectionEndPosition) {
+			if (!this._textAreaState.selection) {
 				// Cannot correlate a position in the textarea with a position in the editor...
 				return;
 			}
@@ -610,7 +616,7 @@ export class TextAreaInput extends Disposable {
 			return;
 		}
 
-		this._setAndWriteTextAreaState(reason, this._host.getScreenReaderContent(this._textAreaState));
+		this._setAndWriteTextAreaState(reason, this._host.getScreenReaderContent());
 	}
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
@@ -672,19 +678,19 @@ class ClipboardEventUtils {
 
 export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrapper {
 
-	public readonly onKeyDown = this._register(dom.createEventEmitter(this._actual, 'keydown')).event;
-	public readonly onKeyPress = this._register(dom.createEventEmitter(this._actual, 'keypress')).event;
-	public readonly onKeyUp = this._register(dom.createEventEmitter(this._actual, 'keyup')).event;
-	public readonly onCompositionStart = this._register(dom.createEventEmitter(this._actual, 'compositionstart')).event;
-	public readonly onCompositionUpdate = this._register(dom.createEventEmitter(this._actual, 'compositionupdate')).event;
-	public readonly onCompositionEnd = this._register(dom.createEventEmitter(this._actual, 'compositionend')).event;
-	public readonly onBeforeInput = this._register(dom.createEventEmitter(this._actual, 'beforeinput')).event;
-	public readonly onInput = <Event<InputEvent>>this._register(dom.createEventEmitter(this._actual, 'input')).event;
-	public readonly onCut = this._register(dom.createEventEmitter(this._actual, 'cut')).event;
-	public readonly onCopy = this._register(dom.createEventEmitter(this._actual, 'copy')).event;
-	public readonly onPaste = this._register(dom.createEventEmitter(this._actual, 'paste')).event;
-	public readonly onFocus = this._register(dom.createEventEmitter(this._actual, 'focus')).event;
-	public readonly onBlur = this._register(dom.createEventEmitter(this._actual, 'blur')).event;
+	public readonly onKeyDown = this._register(new DomEmitter(this._actual, 'keydown')).event;
+	public readonly onKeyPress = this._register(new DomEmitter(this._actual, 'keypress')).event;
+	public readonly onKeyUp = this._register(new DomEmitter(this._actual, 'keyup')).event;
+	public readonly onCompositionStart = this._register(new DomEmitter(this._actual, 'compositionstart')).event;
+	public readonly onCompositionUpdate = this._register(new DomEmitter(this._actual, 'compositionupdate')).event;
+	public readonly onCompositionEnd = this._register(new DomEmitter(this._actual, 'compositionend')).event;
+	public readonly onBeforeInput = this._register(new DomEmitter(this._actual, 'beforeinput')).event;
+	public readonly onInput = <Event<InputEvent>>this._register(new DomEmitter(this._actual, 'input')).event;
+	public readonly onCut = this._register(new DomEmitter(this._actual, 'cut')).event;
+	public readonly onCopy = this._register(new DomEmitter(this._actual, 'copy')).event;
+	public readonly onPaste = this._register(new DomEmitter(this._actual, 'paste')).event;
+	public readonly onFocus = this._register(new DomEmitter(this._actual, 'focus')).event;
+	public readonly onBlur = this._register(new DomEmitter(this._actual, 'blur')).event;
 
 	private _onSyntheticTap = this._register(new Emitter<void>());
 	public readonly onSyntheticTap: Event<void> = this._onSyntheticTap.event;

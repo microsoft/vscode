@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractTextMateService } from 'vs/workbench/services/textMate/browser/abstractTextMateService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -22,7 +22,7 @@ import { UriComponents, URI } from 'vs/base/common/uri';
 import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
 import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { FileAccess } from 'vs/base/common/network';
@@ -259,4 +259,4 @@ export class TextMateService extends AbstractTextMateService {
 	}
 }
 
-registerSingleton(ITextMateService, TextMateService);
+registerSingleton(ITextMateService, TextMateService, InstantiationType.Eager);

@@ -8,7 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, SafeDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
-import { IObservable, IObserver } from 'vs/base/common/observableImpl/base';
+import { IObservable, IObserver } from 'vs/base/common/observable';
 import { StopWatch } from 'vs/base/common/stopwatch';
 
 
@@ -53,6 +53,39 @@ export namespace Event {
 		}
 	}
 
+	/**
+	 * Given an event, returns another event which debounces calls and defers the listeners to a later task via a shared
+	 * `setTimeout`. The event is converted into a signal (`Event<void>`) to avoid additional object creation as a
+	 * result of merging events and to try prevent race conditions that could arise when using related deferred and
+	 * non-deferred events.
+	 *
+	 * This is useful for deferring non-critical work (eg. general UI updates) to ensure it does not block critical work
+	 * (eg. latency of keypress to text rendered).
+	 *
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
+	 */
+	export function defer(event: Event<unknown>, disposable?: DisposableStore): Event<void> {
+		return debounce<unknown, void>(event, () => void 0, 0, undefined, undefined, disposable);
+	}
+
+	/**
+	 * Debounces an event, firing after some delay (default=0) with an array of all event original objects.
+	 *
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
+	 */
+	export function accumulate<T>(event: Event<T>, delay: number = 0, disposable?: DisposableStore): Event<T[]> {
+		return Event.debounce<T, T[]>(event, (last, e) => {
+			if (!last) {
+				return [e];
+			}
+			last.push(e);
+			return last;
+		}, delay, undefined, undefined, disposable);
+	}
 
 	/**
 	 * Given an event, returns another event which only fires once.
@@ -493,32 +526,36 @@ export interface EmitterOptions {
 }
 
 
-class EventProfiling {
+export class EventProfiling {
+
+	static readonly all = new Set<EventProfiling>();
 
 	private static _idPool = 0;
 
-	private _name: string;
+	readonly name: string;
+	public listenerCount: number = 0;
+	public invocationCount = 0;
+	public elapsedOverall = 0;
+	public durations: number[] = [];
+
 	private _stopWatch?: StopWatch;
-	private _listenerCount: number = 0;
-	private _invocationCount = 0;
-	private _elapsedOverall = 0;
 
 	constructor(name: string) {
-		this._name = `${name}_${EventProfiling._idPool++}`;
+		this.name = `${name}_${EventProfiling._idPool++}`;
+		EventProfiling.all.add(this);
 	}
 
 	start(listenerCount: number): void {
 		this._stopWatch = new StopWatch(true);
-		this._listenerCount = listenerCount;
+		this.listenerCount = listenerCount;
 	}
 
 	stop(): void {
 		if (this._stopWatch) {
 			const elapsed = this._stopWatch.elapsed();
-			this._elapsedOverall += elapsed;
-			this._invocationCount += 1;
-
-			console.info(`did FIRE ${this._name}: elapsed_ms: ${elapsed.toFixed(5)}, listener: ${this._listenerCount} (elapsed_overall: ${this._elapsedOverall.toFixed(2)}, invocations: ${this._invocationCount})`);
+			this.durations.push(elapsed);
+			this.elapsedOverall += elapsed;
+			this.invocationCount += 1;
 			this._stopWatch = undefined;
 		}
 	}
@@ -792,7 +829,7 @@ export class Emitter<T> {
 		if (!this._listeners) {
 			return false;
 		}
-		return (!this._listeners.isEmpty());
+		return !this._listeners.isEmpty();
 	}
 }
 
@@ -934,9 +971,11 @@ export class PauseableEmitter<T> extends Emitter<T> {
 			if (this._mergeFn) {
 				// use the merge function to create a single composite
 				// event. make a copy in case firing pauses this emitter
-				const events = Array.from(this._eventQueue);
-				this._eventQueue.clear();
-				super.fire(this._mergeFn(events));
+				if (this._eventQueue.size > 0) {
+					const events = Array.from(this._eventQueue);
+					this._eventQueue.clear();
+					super.fire(this._mergeFn(events));
+				}
 
 			} else {
 				// no merging, fire each event individually and test
@@ -994,6 +1033,11 @@ export class MicrotaskEmitter<T> extends Emitter<T> {
 		this._mergeFn = options?.merge;
 	}
 	override fire(event: T): void {
+
+		if (!this.hasListeners()) {
+			return;
+		}
+
 		this._queuedEvents.push(event);
 		if (this._queuedEvents.length === 1) {
 			queueMicrotask(() => {

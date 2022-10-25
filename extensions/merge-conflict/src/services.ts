@@ -48,19 +48,6 @@ export default class ServiceWrapper implements vscode.Disposable {
 	}
 
 	createExtensionConfiguration(): interfaces.IExtensionConfiguration {
-
-		// PRAGMATIC way to avoid conflicting with the new merge editor: when git opts into
-		// using the merge editor we disable this extension - for the merge editor but also
-		// for "other" editors
-		const gitConfig = vscode.workspace.getConfiguration('git');
-		if (gitConfig.get<boolean>('mergeEditor')) {
-			return {
-				enableCodeLens: false,
-				enableDecorations: false,
-				enableEditorOverview: false
-			};
-		}
-
 		const workspaceConfiguration = vscode.workspace.getConfiguration(ConfigurationSectionName);
 		const codeLensEnabled: boolean = workspaceConfiguration.get('codeLens.enabled', true);
 		const decoratorsEnabled: boolean = workspaceConfiguration.get('decorators.enabled', true);

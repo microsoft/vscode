@@ -198,7 +198,26 @@ export class Button extends Disposable implements IButton {
 	set label(value: string) {
 		this._element.classList.add('monaco-text-button');
 		if (this.options.supportIcons) {
-			reset(this._element, ...renderLabelWithIcons(value));
+			const content: HTMLSpanElement[] = [];
+			for (let segment of renderLabelWithIcons(value)) {
+				if (typeof (segment) === 'string') {
+					segment = segment.trim();
+
+					// Ignore empty segment
+					if (segment === '') {
+						continue;
+					}
+
+					// Convert string segments to <span> nodes
+					const node = document.createElement('span');
+					node.textContent = segment;
+					content.push(node);
+				} else {
+					content.push(segment);
+				}
+			}
+
+			reset(this._element, ...content);
 		} else {
 			this._element.textContent = value;
 		}
@@ -316,6 +335,16 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.dropdownButton.style(styles);
 
 		// Separator
+		const border = styles.buttonBorder ? styles.buttonBorder.toString() : '';
+
+		this.separatorContainer.style.borderTopWidth = border ? '1px' : '';
+		this.separatorContainer.style.borderTopStyle = border ? 'solid' : '';
+		this.separatorContainer.style.borderTopColor = border;
+
+		this.separatorContainer.style.borderBottomWidth = border ? '1px' : '';
+		this.separatorContainer.style.borderBottomStyle = border ? 'solid' : '';
+		this.separatorContainer.style.borderBottomColor = border;
+
 		this.separatorContainer.style.backgroundColor = styles.buttonBackground?.toString() ?? '';
 		this.separator.style.backgroundColor = styles.buttonSeparator?.toString() ?? '';
 	}

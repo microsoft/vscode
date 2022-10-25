@@ -20,7 +20,7 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IContentActionHandler, renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { SelectSnippetForEmptyFile } from 'vs/workbench/contrib/snippets/browser/commands/emptyFileSnippets';
+import { ApplyFileSnippetAction } from 'vs/workbench/contrib/snippets/browser/commands/fileTemplateSnippets';
 
 const $ = dom.$;
 
@@ -108,7 +108,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			this.domNode = $('.untitled-hint');
 			this.domNode.style.width = 'max-content';
 
-			const hintMsg = localize({ key: 'message', comment: ['Presereve double-square brackets and their order'] }, '[[Select a language]], [[start with a snippet]], or [[open a different editor]] to get started.\nStart typing to dismiss or [[don\'t show]] this again.');
+			const hintMsg = localize({ key: 'message', comment: ['Presereve double-square brackets and their order'] }, '[[Select a language]], or [[open a different editor]] to get started.\nStart typing to dismiss or [[don\'t show]] this again.');
 			const hintHandler: IContentActionHandler = {
 				disposables: this.toDispose,
 				callback: (index, event) => {
@@ -117,12 +117,9 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 							languageOnClickOrTap(event.browserEvent);
 							break;
 						case '1':
-							snippetOnClickOrTab(event.browserEvent);
-							break;
-						case '2':
 							chooseEditorOnClickOrTap(event.browserEvent);
 							break;
-						case '3':
+						case '2':
 							dontShowOnClickOrTap();
 							break;
 					}
@@ -136,7 +133,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			this.domNode.append(hintElement);
 
 			// ugly way to associate keybindings...
-			const keybindingsLookup = [ChangeLanguageAction.ID, SelectSnippetForEmptyFile.Id, 'welcome.showNewFileEntries'];
+			const keybindingsLookup = [ChangeLanguageAction.ID, ApplyFileSnippetAction.Id, 'welcome.showNewFileEntries'];
 			for (const anchor of hintElement.querySelectorAll('A')) {
 				(<HTMLAnchorElement>anchor).style.cursor = 'pointer';
 				const id = keybindingsLookup.shift();
@@ -151,12 +148,6 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 				this.editor.focus();
 				await this.commandService.executeCommand(ChangeLanguageAction.ID, { from: 'hint' });
 				this.editor.focus();
-			};
-
-			const snippetOnClickOrTab = async (e: MouseEvent) => {
-				e.stopPropagation();
-				this.editor.focus();
-				this.commandService.executeCommand(SelectSnippetForEmptyFile.Id, { from: 'hint' });
 			};
 
 			const chooseEditorOnClickOrTap = async (e: MouseEvent) => {

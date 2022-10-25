@@ -34,7 +34,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -846,9 +846,7 @@ class DiffReviewNext extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const diffEditor = findFocusedDiffEditor(accessor);
-		if (diffEditor) {
-			diffEditor.diffReviewNext();
-		}
+		diffEditor?.diffReviewNext();
 	}
 }
 
@@ -869,9 +867,7 @@ class DiffReviewPrev extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const diffEditor = findFocusedDiffEditor(accessor);
-		if (diffEditor) {
-			diffEditor.diffReviewPrev();
-		}
+		diffEditor?.diffReviewPrev();
 	}
 }
 

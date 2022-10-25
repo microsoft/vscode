@@ -26,6 +26,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ModifierKeyEmitter } from 'vs/base/browser/dom';
+import product from 'vs/platform/product/common/product';
 
 // Actions
 (function registerActions(): void {
@@ -169,7 +170,8 @@ import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 				'type': 'number',
 				'default': 0,
 				'description': localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity."),
-				ignoreSync: true
+				ignoreSync: true,
+				tags: ['accessibility']
 			},
 			'window.newWindowDimensions': {
 				'type': 'string',
@@ -238,10 +240,11 @@ import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 				'description': localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 				'included': isMacintosh
 			},
-			'window.experimental.useSandbox': {
+			'window.experimental.useSandbox': { // TODO@bpasero remove me once sandbox is final
 				type: 'boolean',
 				description: localize('experimentalUseSandbox', "Experimental: When enabled, the window will have sandbox mode enabled via Electron API."),
-				default: false,
+				default: typeof product.quality === 'string' && product.quality !== 'stable', // disabled by default in stable for now
+				'scope': ConfigurationScope.APPLICATION,
 				ignoreSync: true
 			},
 		}

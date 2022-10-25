@@ -12,11 +12,11 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IdleValue } from 'vs/base/common/async';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { relativePath } from 'vs/base/common/resources';
 import { isObject } from 'vs/base/common/types';
-import { Iterable } from 'vs/base/common/iterator';
 import { tail } from 'vs/base/common/arrays';
+import { Iterable } from 'vs/base/common/iterator';
 
 class SnippetBodyInsights {
 
@@ -105,7 +105,7 @@ export class Snippet {
 	readonly prefixLow: string;
 
 	constructor(
-		readonly isTopLevel: boolean,
+		readonly isFileTemplate: boolean,
 		readonly scopes: string[],
 		readonly name: string,
 		readonly prefix: string,
@@ -143,7 +143,7 @@ export class Snippet {
 
 
 interface JsonSerializedSnippet {
-	isTopLevel?: boolean;
+	isFileTemplate?: boolean;
 	body: string | string[];
 	scope?: string;
 	prefix: string | string[] | undefined;
@@ -261,7 +261,7 @@ export class SnippetFile {
 
 	private _parseSnippet(name: string, snippet: JsonSerializedSnippet, bucket: Snippet[]): void {
 
-		let { isTopLevel, prefix, body, description } = snippet;
+		let { isFileTemplate, prefix, body, description } = snippet;
 
 		if (!prefix) {
 			prefix = '';
@@ -304,9 +304,9 @@ export class SnippetFile {
 			}
 		}
 
-		for (const _prefix of Array.isArray(prefix) ? prefix : Iterable.single(prefix)) {
+		for (const _prefix of Iterable.wrap(prefix)) {
 			bucket.push(new Snippet(
-				Boolean(isTopLevel),
+				Boolean(isFileTemplate),
 				scopes,
 				name,
 				_prefix,
