@@ -24,7 +24,7 @@ export class InsertLinkFromWorkspace implements Command {
 
 		resources ??= await vscode.window.showOpenDialog({
 			canSelectFiles: true,
-			canSelectFolders: true,
+			canSelectFolders: false,
 			canSelectMany: true,
 			openLabel: localize('insertLink.openLabel', "Insert link"),
 			title: localize('insertLink.title', "Insert link"),
