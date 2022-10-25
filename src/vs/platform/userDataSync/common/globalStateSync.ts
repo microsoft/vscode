@@ -25,7 +25,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { AbstractInitializer, AbstractSynchroniser, getSyncResourceLogLabel, IAcceptResult, IMergeResult, IResourcePreview, isSyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { edit } from 'vs/platform/userDataSync/common/content';
 import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
-import { ALL_SYNC_RESOURCES, Change, createSyncHeaders, getEnablementKey, IGlobalState, IRemoteUserData, IStorageValue, ISyncData, ISyncResourceHandle, IUserData, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, SYNC_SERVICE_URL_TYPE, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreType, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_SYNC_RESOURCES, Change, createSyncHeaders, getEnablementKey, IGlobalState, IRemoteUserData, IStorageValue, ISyncData, IUserData, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, SYNC_SERVICE_URL_TYPE, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreType, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataSyncProfilesStorageService } from 'vs/platform/userDataSync/common/userDataSyncProfilesStorageService';
@@ -47,7 +47,7 @@ export interface IGlobalStateResourcePreview extends IResourcePreview {
 	readonly storageKeys: StorageKeys;
 }
 
-function stringify(globalState: IGlobalState, format: boolean): string {
+export function stringify(globalState: IGlobalState, format: boolean): string {
 	const storageKeys = globalState.storage ? Object.keys(globalState.storage).sort() : [];
 	const storage: IStringDictionary<IStorageValue> = {};
 	storageKeys.forEach(key => storage[key] = globalState.storage[key]);
@@ -68,7 +68,6 @@ const GLOBAL_STATE_DATA_VERSION = 1;
  */
 export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
-	private static readonly GLOBAL_STATE_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'globalState', path: `/globalState.json` });
 	protected readonly version: number = GLOBAL_STATE_DATA_VERSION;
 	private readonly previewResource: URI = this.extUri.joinPath(this.syncPreviewFolder, 'globalState.json');
 	private readonly baseResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' });
@@ -258,16 +257,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		}
 	}
 
-	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
-		return [{ resource: this.extUri.joinPath(uri, 'globalState.json'), comparableResource: GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI }];
-	}
-
-	override async resolveContent(uri: URI): Promise<string | null> {
-		if (this.extUri.isEqual(uri, GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI)) {
-			const localGlobalState = await this.localGlobalStateProvider.getLocalGlobalState(this.syncResource.profile);
-			return stringify(localGlobalState, true);
-		}
-
+	async resolveContent(uri: URI): Promise<string | null> {
 		if (this.extUri.isEqual(this.remoteResource, uri)
 			|| this.extUri.isEqual(this.baseResource, uri)
 			|| this.extUri.isEqual(this.localResource, uri)
@@ -276,23 +266,6 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			const content = await this.resolvePreviewContent(uri);
 			return content ? stringify(JSON.parse(content), true) : content;
 		}
-
-		let content = await super.resolveContent(uri);
-		if (content) {
-			return content;
-		}
-
-		content = await super.resolveContent(this.extUri.dirname(uri));
-		if (content) {
-			const syncData = this.parseSyncData(content);
-			if (syncData) {
-				switch (this.extUri.basename(uri)) {
-					case 'globalState.json':
-						return stringify(JSON.parse(syncData.content), true);
-				}
-			}
-		}
-
 		return null;
 	}
 

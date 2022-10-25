@@ -18,7 +18,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { areSame, IMergeResult as ISnippetsMergeResult, merge } from 'vs/platform/userDataSync/common/snippetsMerge';
-import { Change, IRemoteUserData, ISyncData, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, IRemoteUserData, ISyncData, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
 interface ISnippetsResourcePreview extends IFileResourcePreview {
 	previewResult: IMergeResult;
@@ -26,6 +26,10 @@ interface ISnippetsResourcePreview extends IFileResourcePreview {
 
 interface ISnippetsAcceptedResourcePreview extends IFileResourcePreview {
 	acceptResult: IAcceptResult;
+}
+
+export function parseSnippets(syncData: ISyncData): IStringDictionary<string> {
+	return JSON.parse(syncData.content);
 }
 
 export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
@@ -374,25 +378,6 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		return [...resourcePreviews.values()];
 	}
 
-	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
-		const content = await super.resolveContent(uri);
-		if (content) {
-			const syncData = this.parseSyncData(content);
-			if (syncData) {
-				const snippets = this.parseSnippets(syncData);
-				const result = [];
-				for (const snippet of Object.keys(snippets)) {
-					const resource = this.extUri.joinPath(uri, snippet);
-					const comparableResource = this.extUri.joinPath(this.snippetsFolder, snippet);
-					const exists = await this.fileService.exists(comparableResource);
-					result.push({ resource, comparableResource: exists ? comparableResource : this.extUri.joinPath(this.syncPreviewFolder, snippet).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }) });
-				}
-				return result;
-			}
-		}
-		return [];
-	}
-
 	override async resolveContent(uri: URI): Promise<string | null> {
 		if (this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }))
 			|| this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }))
@@ -400,21 +385,6 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 			|| this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' }))) {
 			return this.resolvePreviewContent(uri);
 		}
-
-		let content = await super.resolveContent(uri);
-		if (content) {
-			return content;
-		}
-
-		content = await super.resolveContent(this.extUri.dirname(uri));
-		if (content) {
-			const syncData = this.parseSyncData(content);
-			if (syncData) {
-				const snippets = this.parseSnippets(syncData);
-				return snippets[this.extUri.basename(uri)] || null;
-			}
-		}
-
 		return null;
 	}
 
@@ -495,7 +465,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 	}
 
 	private parseSnippets(syncData: ISyncData): IStringDictionary<string> {
-		return JSON.parse(syncData.content);
+		return parseSnippets(syncData);
 	}
 
 	private toSnippetsContents(snippetsFileContents: IStringDictionary<IFileContent>): IStringDictionary<string> {

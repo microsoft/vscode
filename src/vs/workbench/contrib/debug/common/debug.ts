@@ -155,8 +155,10 @@ export interface IExpression extends IExpressionContainer {
 }
 
 export interface IDebugger {
+	readonly type: string;
 	createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter>;
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
+	startDebugging(args: IConfig, parentSessionId: string): Promise<boolean>;
 	getCustomTelemetryEndpoint(): ITelemetryEndpoint | undefined;
 }
 

@@ -81,7 +81,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer, openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { Button, ButtonWithDescription, ButtonWithDropdown } from 'vs/base/browser/ui/button/button';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RepositoryContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewService';
@@ -2115,8 +2115,8 @@ class SCMInputWidget {
 					const renderer = disposables.add(this.instantiationService.createInstance(MarkdownRenderer, {}));
 					const renderedMarkdown = renderer.render(message, {
 						actionHandler: {
-							callback: (content) => {
-								this.openerService.open(content, { allowCommands: typeof message !== 'string' && message.isTrusted });
+							callback: (link) => {
+								openLinkFromMarkdown(this.openerService, link, message.isTrusted);
 								this.contextViewService.hideContextView();
 							},
 							disposables: disposables

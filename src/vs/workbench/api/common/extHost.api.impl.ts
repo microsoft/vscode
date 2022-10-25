@@ -793,12 +793,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeNotebookEditorVisibleRanges(listener, thisArgs?, disposables?) {
 				return extHostNotebookEditors.onDidChangeNotebookEditorVisibleRanges(listener, thisArgs, disposables);
 			},
-			showNotebookDocument(uriOrDocument, options?) {
-				if (URI.isUri(uriOrDocument)) {
-					extHostApiDeprecation.report('window.showNotebookDocument(uri)', extension,
-						`Please use 'workspace.openNotebookDocument' and 'window.showNotebookDocument'`);
-				}
-				return extHostNotebook.showNotebookDocument(uriOrDocument, options);
+			showNotebookDocument(document, options?) {
+				return extHostNotebook.showNotebookDocument(document, options);
 			},
 			registerExternalUriOpener(id: string, opener: vscode.ExternalUriOpener, metadata: vscode.ExternalUriOpenerMetadata) {
 				checkProposedApiEnabled(extension, 'externalUriOpener');
@@ -954,7 +950,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				extHostApiDeprecation.report('workspace.registerNotebookContentProvider', extension,
 					`The notebookContentProvider API is not on track for finalization and will be removed.`);
 
-				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider, options, isProposedApiEnabled(extension, 'notebookLiveShare') ? registration : undefined);
+				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider, options);
 			},
 			onDidChangeConfiguration: (listener: (_: any) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return configProvider.onDidChangeConfiguration(listener, thisArgs, disposables);

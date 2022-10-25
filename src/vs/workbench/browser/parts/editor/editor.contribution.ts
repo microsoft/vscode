@@ -779,14 +779,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	order: 9
 });
 
-// Features menu
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '2_appearance',
-	title: localize({ key: 'miEditorFeatures', comment: ['&& denotes a mnemonic'] }, "Editor &&Features"),
-	submenu: MenuId.MenubarEditorFeaturesMenu,
-	order: 3
-});
-
 // Main Menu Bar Contributions:
 
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
