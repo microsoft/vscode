@@ -617,7 +617,7 @@ class FindFilter<T> implements ITreeFilter<T, FuzzyScore | LabelFuzzyScore>, IDi
 			}
 
 			let score: FuzzyScore | undefined;
-			if (this.tree.findFuzzy === TreeFindFuzzy.Exact) {
+			if (this.tree.findMatchType === TreeFindMatchType.Contiguous) {
 				const index = labelStr.toLowerCase().indexOf(this._lowercasePattern);
 				if (index && index > -1) {
 					score = [Number.MAX_SAFE_INTEGER, 0];
@@ -695,9 +695,9 @@ export enum TreeFindMode {
 	Filter
 }
 
-export enum TreeFindFuzzy {
-	Exact,
-	Fuzzy
+export enum TreeFindMatchType {
+	Fuzzy,
+	Contiguous
 }
 
 class FindWidget<T, TFilterData> extends Disposable {
@@ -713,8 +713,8 @@ class FindWidget<T, TFilterData> extends Disposable {
 		this.findInput.inputBox.setPlaceHolder(mode === TreeFindMode.Filter ? localize('type to filter', "Type to filter") : localize('type to search', "Type to search"));
 	}
 
-	set fuzzy(fuzzy: TreeFindFuzzy) {
-		this.fuzzyToggle.checked = fuzzy === TreeFindFuzzy.Fuzzy;
+	set matchType(matchType: TreeFindMatchType) {
+		this.matchTypeToggle.checked = matchType === TreeFindMatchType.Fuzzy;
 	}
 
 	get value(): string {
@@ -726,7 +726,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 	}
 
 	private readonly modeToggle: ModeToggle;
-	private readonly fuzzyToggle: FuzzyToggle;
+	private readonly matchTypeToggle: FuzzyToggle;
 	private readonly findInput: FindInput;
 	private readonly actionbar: ActionBar;
 	private width = 0;
@@ -737,14 +737,14 @@ class FindWidget<T, TFilterData> extends Disposable {
 	readonly onDidDisable = this._onDidDisable.event;
 	readonly onDidChangeValue: Event<string>;
 	readonly onDidChangeMode: Event<TreeFindMode>;
-	readonly onDidChangeFuzzy: Event<TreeFindFuzzy>;
+	readonly onDidChangeMatchType: Event<TreeFindMatchType>;
 
 	constructor(
 		container: HTMLElement,
 		private tree: AbstractTree<T, TFilterData, any>,
 		contextViewProvider: IContextViewProvider,
 		mode: TreeFindMode,
-		fuzzy: TreeFindFuzzy,
+		matchType: TreeFindMatchType,
 		options?: IFindWidgetOpts
 	) {
 		super();
@@ -753,13 +753,13 @@ class FindWidget<T, TFilterData> extends Disposable {
 		this._register(toDisposable(() => container.removeChild(this.elements.root)));
 
 		this.modeToggle = this._register(new ModeToggle({ ...options, isChecked: mode === TreeFindMode.Filter }));
-		this.fuzzyToggle = this._register(new FuzzyToggle({ ...options, isChecked: fuzzy === TreeFindFuzzy.Fuzzy }));
+		this.matchTypeToggle = this._register(new FuzzyToggle({ ...options, isChecked: matchType === TreeFindMatchType.Fuzzy }));
 		this.onDidChangeMode = Event.map(this.modeToggle.onChange, () => this.modeToggle.checked ? TreeFindMode.Filter : TreeFindMode.Highlight, this._store);
-		this.onDidChangeFuzzy = Event.map(this.fuzzyToggle.onChange, () => this.fuzzyToggle.checked ? TreeFindFuzzy.Fuzzy : TreeFindFuzzy.Exact, this._store);
+		this.onDidChangeMatchType = Event.map(this.matchTypeToggle.onChange, () => this.matchTypeToggle.checked ? TreeFindMatchType.Fuzzy : TreeFindMatchType.Contiguous, this._store);
 
 		this.findInput = this._register(new FindInput(this.elements.findInput, contextViewProvider, {
 			label: localize('type to search', "Type to search"),
-			additionalToggles: [this.modeToggle, this.fuzzyToggle],
+			additionalToggles: [this.modeToggle, this.matchTypeToggle],
 			showCommonFindToggles: false
 		}));
 
@@ -931,22 +931,22 @@ class FindController<T, TFilterData> implements IDisposable {
 		this._onDidChangeMode.fire(mode);
 	}
 
-	private _fuzzy: TreeFindFuzzy;
-	get fuzzy(): TreeFindFuzzy { return this._fuzzy; }
-	set fuzzy(fuzzy: TreeFindFuzzy) {
-		if (fuzzy === this._fuzzy) {
+	private _matchType: TreeFindMatchType;
+	get matchType(): TreeFindMatchType { return this._matchType; }
+	set matchType(matchType: TreeFindMatchType) {
+		if (matchType === this._matchType) {
 			return;
 		}
 
-		this._fuzzy = fuzzy;
+		this._matchType = matchType;
 
 		if (this.widget) {
-			this.widget.fuzzy = this._fuzzy;
+			this.widget.matchType = this._matchType;
 		}
 
 		this.tree.refilter();
 		this.render();
-		this._onDidChangeFuzzy.fire(fuzzy);
+		this._onDidChangeMatchType.fire(matchType);
 	}
 
 	private widget: FindWidget<T, TFilterData> | undefined;
@@ -956,8 +956,8 @@ class FindController<T, TFilterData> implements IDisposable {
 	private readonly _onDidChangeMode = new Emitter<TreeFindMode>();
 	readonly onDidChangeMode = this._onDidChangeMode.event;
 
-	private readonly _onDidChangeFuzzy = new Emitter<TreeFindFuzzy>();
-	readonly onDidChangeFuzzy = this._onDidChangeFuzzy.event;
+	private readonly _onDidChangeMatchType = new Emitter<TreeFindMatchType>();
+	readonly onDidChangeMatchType = this._onDidChangeMatchType.event;
 
 	private readonly _onDidChangePattern = new Emitter<string>();
 	readonly onDidChangePattern = this._onDidChangePattern.event;
@@ -976,7 +976,7 @@ class FindController<T, TFilterData> implements IDisposable {
 		private readonly contextViewProvider: IContextViewProvider
 	) {
 		this._mode = tree.options.defaultFindMode ?? TreeFindMode.Highlight;
-		this._fuzzy = tree.options.defaultFuzzyMode ?? TreeFindFuzzy.Fuzzy;
+		this._matchType = tree.options.defaultFindMatchType ?? TreeFindMatchType.Fuzzy;
 		model.onDidSplice(this.onDidSpliceModel, this, this.disposables);
 	}
 
@@ -988,13 +988,13 @@ class FindController<T, TFilterData> implements IDisposable {
 		}
 
 		this.mode = this.tree.options.defaultFindMode ?? TreeFindMode.Highlight;
-		this.fuzzy = this.tree.options.defaultFuzzyMode ?? TreeFindFuzzy.Fuzzy;
-		this.widget = new FindWidget(this.view.getHTMLElement(), this.tree, this.contextViewProvider, this.mode, this.fuzzy, this.styles);
+		this.matchType = this.tree.options.defaultFindMatchType ?? TreeFindMatchType.Fuzzy;
+		this.widget = new FindWidget(this.view.getHTMLElement(), this.tree, this.contextViewProvider, this.mode, this.matchType, this.styles);
 		this.enabledDisposables.add(this.widget);
 
 		this.widget.onDidChangeValue(this.onDidChangeValue, this, this.enabledDisposables);
 		this.widget.onDidChangeMode(mode => this.mode = mode, undefined, this.enabledDisposables);
-		this.widget.onDidChangeFuzzy(fuzzy => this.fuzzy = fuzzy, undefined, this.enabledDisposables);
+		this.widget.onDidChangeMatchType(matchType => this.matchType = matchType, undefined, this.enabledDisposables);
 		this.widget.onDidDisable(this.close, this, this.enabledDisposables);
 
 		this.widget.layout(this.width);
@@ -1130,7 +1130,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly typeNavigationEnabled?: boolean;
 	readonly typeNavigationMode?: TypeNavigationMode;
 	readonly defaultFindMode?: TreeFindMode;
-	readonly defaultFuzzyMode?: TreeFindFuzzy;
+	readonly defaultFindMatchType?: TreeFindMatchType;
 	readonly showNotFoundMessage?: boolean;
 	readonly smoothScrolling?: boolean;
 	readonly horizontalScrolling?: boolean;
@@ -1478,9 +1478,9 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	set findMode(findMode: TreeFindMode) { if (this.findController) { this.findController.mode = findMode; } }
 	readonly onDidChangeFindMode: Event<TreeFindMode>;
 
-	get findFuzzy(): TreeFindFuzzy { return this.findController?.fuzzy ?? TreeFindFuzzy.Fuzzy; }
-	set findFuzzy(findFuzzy: TreeFindFuzzy) { if (this.findController) { this.findController.fuzzy = findFuzzy; } }
-	readonly onDidChangeFindFuzzy: Event<TreeFindFuzzy>;
+	get findMatchType(): TreeFindMatchType { return this.findController?.matchType ?? TreeFindMatchType.Fuzzy; }
+	set findMatchType(findFuzzy: TreeFindMatchType) { if (this.findController) { this.findController.matchType = findFuzzy; } }
+	readonly onDidChangeFindMatchType: Event<TreeFindMatchType>;
 
 	get onDidChangeFindPattern(): Event<string> { return this.findController ? this.findController.onDidChangePattern : Event.None; }
 
@@ -1572,10 +1572,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			this.onDidChangeFindOpenState = this.findController.onDidChangeOpenState;
 			this.disposables.add(this.findController!);
 			this.onDidChangeFindMode = this.findController.onDidChangeMode;
-			this.onDidChangeFindFuzzy = this.findController.onDidChangeFuzzy;
+			this.onDidChangeFindMatchType = this.findController.onDidChangeMatchType;
 		} else {
 			this.onDidChangeFindMode = Event.None;
-			this.onDidChangeFindFuzzy = Event.None;
+			this.onDidChangeFindMatchType = Event.None;
 		}
 
 		this.styleElement = createStyleSheet(this.view.getHTMLElement());
