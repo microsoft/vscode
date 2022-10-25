@@ -125,22 +125,16 @@ export interface ISplitViewDescriptor<TLayoutContext = undefined> {
 
 		/**
 		 * Whether the {@link IView view} is visible.
-		 *
-		 * @defaultValue `true`
 		 */
 		readonly visible?: boolean;
 
 		/**
 		 * The size of the {@link IView view}.
-		 *
-		 * @defaultValue `true`
 		 */
 		readonly size: number;
 
 		/**
-		 * The size of the {@link IView view}.
-		 *
-		 * @defaultValue `true`
+		 * The {@link IView view}.
 		 */
 		readonly view: IView<TLayoutContext>;
 	}[];
