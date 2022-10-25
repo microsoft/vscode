@@ -75,7 +75,7 @@ import { IWorkbenchExtensionManagementService } from 'vs/workbench/services/exte
 import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { UserDataSyncMachinesService, IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataAutoSyncService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataAutoSyncService, IUserDataSyncBackupStoreService, IUserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
@@ -99,6 +99,7 @@ registerSingleton(IUserDataSyncMachinesService, UserDataSyncMachinesService, Ins
 registerSingleton(IUserDataSyncBackupStoreService, UserDataSyncBackupStoreService, InstantiationType.Delayed);
 registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService, InstantiationType.Delayed);
 registerSingleton(IUserDataSyncService, UserDataSyncService, InstantiationType.Delayed);
+registerSingleton(IUserDataSyncResourceProviderService, UserDataSyncResourceProviderService, InstantiationType.Delayed);
 registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, InstantiationType.Eager /* Eager to start auto sync */);
 registerSingleton(ITitleService, TitlebarPart, InstantiationType.Eager);
 registerSingleton(IExtensionTipsService, ExtensionTipsService, InstantiationType.Delayed);
@@ -178,6 +179,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { UserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSyncResourceProvider';
 
 export {
 

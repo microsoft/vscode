@@ -199,7 +199,26 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		const inputModel = await input.resolve();
 		const model = inputModel.model;
 
-		const viewModel = new MergeEditorViewModel(model, this.input1View, this.input2View, this.inputResultView, this.baseView, this.showNonConflictingChanges);
+		const viewModel = this.instantiationService.createInstance(
+			MergeEditorViewModel,
+			model,
+			this.input1View,
+			this.input2View,
+			this.inputResultView,
+			this.baseView,
+			this.showNonConflictingChanges,
+		);
+
+
+		model.telemetry.reportMergeEditorOpened({
+			combinableConflictCount: model.combinableConflictCount,
+			conflictCount: model.conflictCount,
+
+			baseTop: this._layoutModeObs.get().showBaseAtTop,
+			baseVisible: this._layoutModeObs.get().showBase,
+			isColumnView: this._layoutModeObs.get().kind === 'columns',
+		});
+
 		transaction(tx => {
 			this._viewModel.set(viewModel, tx);
 			this._inputModel.set(inputModel, tx);
@@ -213,7 +232,6 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 			this._ctxBaseUri.reset();
 			this._ctxResultUri.reset();
 		}));
-
 
 		// Set the view zones before restoring view state!
 		// Otherwise scrolling will be off
@@ -503,6 +521,11 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		if (JSON.stringify(value) === JSON.stringify(newLayout)) {
 			return;
 		}
+		this.model?.telemetry.reportLayoutChange({
+			baseTop: newLayout.showBaseAtTop,
+			baseVisible: newLayout.showBase,
+			isColumnView: newLayout.kind === 'columns',
+		});
 		this.applyLayout(newLayout);
 	}
 

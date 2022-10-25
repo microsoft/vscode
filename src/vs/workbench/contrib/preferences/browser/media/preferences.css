@@ -214,3 +214,7 @@
 .monaco-editor .dim-configuration {
 	color: #b1b1b1;
 }
+
+.codicon-settings-edit:hover {
+	cursor: pointer;
+}

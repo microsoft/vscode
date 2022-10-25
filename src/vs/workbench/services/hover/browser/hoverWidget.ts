@@ -16,7 +16,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer, openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 
 const $ = dom.$;
@@ -88,7 +88,9 @@ export class HoverWidget extends Widget {
 	) {
 		super();
 
-		this._linkHandler = options.linkHandler || (url => this._openerService.open(url, { allowCommands: (isMarkdownString(options.content) && options.content.isTrusted) }));
+		this._linkHandler = options.linkHandler || (url => {
+			return openLinkFromMarkdown(this._openerService, url, isMarkdownString(options.content) ? options.content.isTrusted : undefined);
+		});
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
@@ -258,8 +260,11 @@ export class HoverWidget extends Widget {
 			}
 		};
 
+		// These calls adjust the position depending on spacing.
 		this.adjustHorizontalHoverPosition(targetRect);
 		this.adjustVerticalHoverPosition(targetRect);
+		// This call limits the maximum height of the hover.
+		this.adjustHoverMaxHeight(targetRect);
 
 		// Offset the hover position if there is a pointer so it aligns with the target element
 		this._hoverContainer.style.padding = '';
@@ -410,19 +415,9 @@ export class HoverWidget extends Widget {
 	}
 
 	private adjustVerticalHoverPosition(target: TargetRect): void {
-		// Do not adjust vertical hover position if y cordiante is provided
-		if (this._target.y !== undefined) {
-			return;
-		}
-
-		// When force position is enabled, restrict max height
-		if (this._forcePosition) {
-			const padding = (this._hoverPointer ? Constants.PointerSize : 0) + Constants.HoverBorderWidth;
-			if (this._hoverPosition === HoverPosition.ABOVE) {
-				this._hover.containerDomNode.style.maxHeight = `${target.top - padding}px`;
-			} else if (this._hoverPosition === HoverPosition.BELOW) {
-				this._hover.containerDomNode.style.maxHeight = `${window.innerHeight - target.bottom - padding}px`;
-			}
+		// Do not adjust vertical hover position if the y coordinate is provided
+		// or the position is forced
+		if (this._target.y !== undefined || this._forcePosition) {
 			return;
 		}
 
@@ -441,6 +436,25 @@ export class HoverWidget extends Widget {
 				this._hoverPosition = HoverPosition.ABOVE;
 			}
 		}
+	}
+
+	private adjustHoverMaxHeight(target: TargetRect): void {
+		let maxHeight = window.innerHeight / 2;
+
+		// When force position is enabled, restrict max height
+		if (this._forcePosition) {
+			const padding = (this._hoverPointer ? Constants.PointerSize : 0) + Constants.HoverBorderWidth;
+			if (this._hoverPosition === HoverPosition.ABOVE) {
+				maxHeight = Math.min(maxHeight, target.top - padding);
+			} else if (this._hoverPosition === HoverPosition.BELOW) {
+				maxHeight = Math.min(maxHeight, window.innerHeight - target.bottom - padding);
+			}
+		}
+
+		// Make sure not to accidentally enlarge the hover when setting a maxHeight for it
+		maxHeight = Math.min(maxHeight, this._hover.containerDomNode.clientHeight);
+
+		this._hover.containerDomNode.style.maxHeight = `${maxHeight}px`;
 	}
 
 	private setHoverPointerPosition(target: TargetRect): void {

@@ -20,6 +20,7 @@ import { FileMatch, FileMatchOrMatch, Match } from 'vs/workbench/contrib/search/
 import { MockObjectTree } from 'vs/workbench/contrib/search/test/browser/mockSearchTree';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 suite('Search Actions', () => {
 
@@ -30,6 +31,7 @@ suite('Search Actions', () => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(IKeybindingService, {});
+		instantiationService.stub(ILabelService, { getUriBasenameLabel: (uri: URI) => '' });
 		instantiationService.stub(IKeybindingService, 'resolveKeybinding', (keybinding: Keybinding) => [new USLayoutResolvedKeybinding(keybinding, OS)]);
 		instantiationService.stub(IKeybindingService, 'lookupKeybinding', (id: string) => null);
 		instantiationService.stub(IKeybindingService, 'lookupKeybinding', (id: string) => null);

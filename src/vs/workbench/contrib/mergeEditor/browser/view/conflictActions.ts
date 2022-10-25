@@ -11,7 +11,7 @@ import { autorun, derived, IObservable, transaction } from 'vs/base/common/obser
 import { ICodeEditor, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { localize } from 'vs/nls';
-import { ModifiedBaseRange, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
+import { ModifiedBaseRange, ModifiedBaseRangeState, ModifiedBaseRangeStateKind } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
 import { FixedZoneWidget } from 'vs/workbench/contrib/mergeEditor/browser/view/fixedZoneWidget';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 
@@ -119,58 +119,72 @@ export class ActionsSource {
 
 			const otherInputNumber = inputNumber === 1 ? 2 : 1;
 
-			if (!state.conflicting && !state.isInputIncluded(inputNumber)) {
-				result.push(
-					!state.isInputIncluded(inputNumber)
-						? command(localize('accept', "Accept {0}", inputData.title), async () => {
+			if (state.kind !== ModifiedBaseRangeStateKind.unrecognized && !state.isInputIncluded(inputNumber)) {
+				if (!state.isInputIncluded(otherInputNumber) || !this.viewModel.shouldUseAppendInsteadOfAccept.read(reader)) {
+					result.push(
+						command(localize('accept', "Accept {0}", inputData.title), async () => {
 							transaction((tx) => {
 								model.setState(
 									modifiedBaseRange,
-									state.withInputValue(inputNumber, true),
+									state.withInputValue(inputNumber, true, false),
 									true,
 									tx
 								);
+								model.telemetry.reportAcceptInvoked(inputNumber, state.includesInput(otherInputNumber));
 							});
 						}, localize('acceptTooltip', "Accept {0} in the result document.", inputData.title))
-						: command(localize('remove', "Remove {0}", inputData.title), async () => {
+					);
+
+					if (modifiedBaseRange.canBeCombined) {
+						result.push(
+							command(localize('acceptBoth', "Accept Combination"), async () => {
+								transaction((tx) => {
+									model.setState(
+										modifiedBaseRange,
+										ModifiedBaseRangeState.base
+											.withInputValue(inputNumber, true)
+											.withInputValue(otherInputNumber, true, true),
+										true,
+										tx
+									);
+									model.telemetry.reportSmartCombinationInvoked(state.includesInput(otherInputNumber));
+								});
+							}, localize('acceptBothTooltip', "Accept an automatic combination of both sides in the result document.")),
+						);
+					}
+				} else {
+					result.push(
+						command(localize('append', "Append {0}", inputData.title), async () => {
 							transaction((tx) => {
 								model.setState(
 									modifiedBaseRange,
-									state.withInputValue(inputNumber, false),
+									state.withInputValue(inputNumber, true, false),
 									true,
 									tx
 								);
+								model.telemetry.reportAcceptInvoked(inputNumber, state.includesInput(otherInputNumber));
 							});
-						}, localize('removeTooltip', "Remove {0} from the result document.", inputData.title)),
-				);
+						}, localize('appendTooltip', "Append {0} to the result document.", inputData.title))
+					);
 
-				if (modifiedBaseRange.canBeCombined && state.isEmpty) {
-					result.push(
-						state.input1 && state.input2
-							? command(localize('removeBoth', "Remove Both"), async () => {
+					if (modifiedBaseRange.canBeCombined) {
+						result.push(
+							command(localize('combine', "Accept Combination", inputData.title), async () => {
 								transaction((tx) => {
 									model.setState(
 										modifiedBaseRange,
-										ModifiedBaseRangeState.default,
+										state.withInputValue(inputNumber, true, true),
 										true,
 										tx
 									);
-								});
-							}, localize('removeBothTooltip', "Remove both changes from the result document."))
-							: command(localize('acceptBoth', "Accept Both"), async () => {
-								transaction((tx) => {
-									model.setState(
-										modifiedBaseRange,
-										state
-											.withInputValue(inputNumber, true)
-											.withInputValue(otherInputNumber, true),
-										true,
-										tx
-									);
+									model.telemetry.reportSmartCombinationInvoked(state.includesInput(otherInputNumber));
 								});
 							}, localize('acceptBothTooltip', "Accept an automatic combination of both sides in the result document.")),
-					);
+						);
+					}
 				}
+
+
 			}
 			return result;
 		});
@@ -188,13 +202,12 @@ export class ActionsSource {
 
 		const result: IContentWidgetAction[] = [];
 
-
-		if (state.conflicting) {
+		if (state.kind === ModifiedBaseRangeStateKind.unrecognized) {
 			result.push({
 				text: localize('manualResolution', "Manual Resolution"),
 				tooltip: localize('manualResolutionTooltip', "This conflict has been resolved manually."),
 			});
-		} else if (state.isEmpty) {
+		} else if (state.kind === ModifiedBaseRangeStateKind.base) {
 			result.push({
 				text: localize('noChangesAccepted', 'No Changes Accepted'),
 				tooltip: localize(
@@ -205,13 +218,13 @@ export class ActionsSource {
 
 		} else {
 			const labels = [];
-			if (state.input1) {
+			if (state.includesInput1) {
 				labels.push(model.input1.title);
 			}
-			if (state.input2) {
+			if (state.includesInput2) {
 				labels.push(model.input2.title);
 			}
-			if (state.input2First) {
+			if (state.kind === ModifiedBaseRangeStateKind.both && state.firstInput === 2) {
 				labels.reverse();
 			}
 			result.push({
@@ -220,53 +233,86 @@ export class ActionsSource {
 		}
 
 		const stateToggles: IContentWidgetAction[] = [];
-		if (state.input1) {
-			result.push(command(localize('remove', "Remove {0}", model.input1.title), async () => {
-				transaction((tx) => {
-					model.setState(
-						modifiedBaseRange,
-						state.withInputValue(1, false),
-						true,
-						tx
-					);
-				});
-			}, localize('removeTooltip', "Remove {0} from the result document.", model.input1.title)),
+		if (state.includesInput1) {
+			stateToggles.push(
+				command(
+					localize('remove', 'Remove {0}', model.input1.title),
+					async () => {
+						transaction((tx) => {
+							model.setState(
+								modifiedBaseRange,
+								state.withInputValue(1, false),
+								true,
+								tx
+							);
+							model.telemetry.reportRemoveInvoked(1, state.includesInput(2));
+						});
+					},
+					localize('removeTooltip', 'Remove {0} from the result document.', model.input1.title)
+				)
 			);
 		}
-		if (state.input2) {
-			result.push(command(localize('remove', "Remove {0}", model.input2.title), async () => {
-				transaction((tx) => {
-					model.setState(
-						modifiedBaseRange,
-						state.withInputValue(2, false),
-						true,
-						tx
-					);
-				});
-			}, localize('removeTooltip', "Remove {0} from the result document.", model.input2.title)),
+		if (state.includesInput2) {
+			stateToggles.push(
+				command(
+					localize('remove', 'Remove {0}', model.input2.title),
+					async () => {
+						transaction((tx) => {
+							model.setState(
+								modifiedBaseRange,
+								state.withInputValue(2, false),
+								true,
+								tx
+							);
+							model.telemetry.reportRemoveInvoked(2, state.includesInput(1));
+						});
+					},
+					localize('removeTooltip', 'Remove {0} from the result document.', model.input2.title)
+				)
 			);
 		}
-		if (state.input2First) {
+		if (
+			state.kind === ModifiedBaseRangeStateKind.both &&
+			state.firstInput === 2
+		) {
 			stateToggles.reverse();
 		}
 		result.push(...stateToggles);
 
-
-
-		if (state.conflicting) {
+		if (state.kind === ModifiedBaseRangeStateKind.unrecognized) {
 			result.push(
-				command(localize('resetToBase', "Reset to base"), async () => {
-					transaction((tx) => {
-						model.setState(
-							modifiedBaseRange,
-							ModifiedBaseRangeState.default,
-							true,
-							tx
-						);
-					});
-				}, localize('resetToBaseTooltip', "Reset this conflict to the common ancestor of both the right and left changes.")),
+				command(
+					localize('resetToBase', 'Reset to base'),
+					async () => {
+						transaction((tx) => {
+							model.setState(
+								modifiedBaseRange,
+								ModifiedBaseRangeState.base,
+								true,
+								tx
+							);
+							model.telemetry.reportResetToBaseInvoked();
+						});
+					},
+					localize('resetToBaseTooltip', 'Reset this conflict to the common ancestor of both the right and left changes.')
+				)
 			);
 		}
+
+		if (state.kind === ModifiedBaseRangeStateKind.base && !model.isHandled(modifiedBaseRange).read(reader)) {
+			result.push(
+				command(
+					localize('markAsHandled', 'Mark As Handled'),
+					async () => {
+						transaction((tx) => {
+							model.setHandled(modifiedBaseRange, true, tx);
+						});
+					},
+					localize('markAsHandledTooltip', 'Marks this conflict as handled.')
+				)
+			);
+		}
+
 		return result;
 	});
 

@@ -544,28 +544,25 @@
           ],
           "default": "never",
           "markdownDescription": "%configuration.markdown.updateLinksOnFileMove.enabled%",
-          "scope": "resource",
-          "tags": [
-            "experimental"
-          ]
+          "scope": "resource"
         },
         "markdown.updateLinksOnFileMove.externalFileGlobs": {
           "type": "string",
           "default": "**/*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif,tiff,svg,mp4}",
           "description": "%configuration.markdown.updateLinksOnFileMove.fileGlobs%",
-          "scope": "resource",
-          "tags": [
-            "experimental"
-          ]
+          "scope": "resource"
         },
         "markdown.updateLinksOnFileMove.enableForDirectories": {
           "type": "boolean",
           "default": true,
           "description": "%configuration.markdown.updateLinksOnFileMove.enableForDirectories%",
-          "scope": "resource",
-          "tags": [
-            "experimental"
-          ]
+          "scope": "resource"
+        },
+        "markdown.occurrencesHighlight.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.markdown.occurrencesHighlight.enabled%",
+          "scope": "resource"
         }
       }
     },

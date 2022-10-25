@@ -82,7 +82,6 @@ export class MenuId {
 	static readonly MenubarGoMenu = new MenuId('MenubarGoMenu');
 	static readonly MenubarHelpMenu = new MenuId('MenubarHelpMenu');
 	static readonly MenubarLayoutMenu = new MenuId('MenubarLayoutMenu');
-	static readonly MenubarEditorFeaturesMenu = new MenuId('MenubarEditorFeaturesMenu');
 	static readonly MenubarNewBreakpointMenu = new MenuId('MenubarNewBreakpointMenu');
 	static readonly MenubarPanelAlignmentMenu = new MenuId('MenubarPanelAlignmentMenu');
 	static readonly MenubarPanelPositionMenu = new MenuId('MenubarPanelPositionMenu');
@@ -556,13 +555,6 @@ interface IAction2CommonOptions extends ICommandAction {
 	 * showing keybindings that have no other UX.
 	 */
 	description?: ICommandHandlerDescription;
-
-	/**
-	 * @deprecated workaround added for https://github.com/microsoft/vscode/issues/162004
-	 * This action doesn't do anything is just a workaround for rendering "something"
-	 * inside a specific toolbar
-	 */
-	_isFakeAction?: true;
 }
 
 interface IBaseAction2Options extends IAction2CommonOptions {

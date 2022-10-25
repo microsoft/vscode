@@ -62,7 +62,7 @@ import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/termin
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
 import { IRequestAddInstanceToGroupEvent, ITerminalQuickFixOptions, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { gitSimilarCommand, gitCreatePr, gitPushSetUpstream, freePort, gitTwoDashes } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
+import { freePort, gitTwoDashes } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
@@ -731,7 +731,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm = xterm;
 		this._quickFixAddon = this._scopedInstantiationService.createInstance(TerminalQuickFixAddon, this.capabilities);
 		this.xterm?.raw.loadAddon(this._quickFixAddon);
-		this.registerQuickFixProvider(gitSimilarCommand(), gitTwoDashes(), gitCreatePr(), gitPushSetUpstream(), freePort(this));
+		this.registerQuickFixProvider(gitTwoDashes(), freePort(this));
 		this._register(this._quickFixAddon.onDidRequestRerunCommand(async (e) => await this.runCommand(e.command, e.addNewLine || false)));
 		const lineDataEventAddon = new LineDataEventAddon();
 		this.xterm.raw.loadAddon(lineDataEventAddon);
@@ -1541,8 +1541,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm?.markTracker.scrollToClosestMarker(startMarkId, endMarkId, highlight);
 	}
 
-	public async freePortKillProcess(port: string): Promise<void> {
+	public async freePortKillProcess(port: string, command: string): Promise<void> {
 		await this._processManager?.freePortKillProcess(port);
+		this.runCommand(command, false);
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {

@@ -59,7 +59,7 @@ import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/vie
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
+import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { appendKeyBindingLabel, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
@@ -580,7 +580,7 @@ export class SearchView extends ViewPane {
 	private createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults'], childFolderIncompressible: boolean): Iterable<ICompressedTreeElement<RenderableMatch>> {
 		const sortOrder = this.searchConfig.sortOrder;
 
-		const matchArray = this.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.downstreamFileMatches();
+		const matchArray = this.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.allDownstreamFileMatches();
 		const matches = matchArray.sort((a, b) => searchMatchComparer(a, b, sortOrder));
 
 		return Iterable.map(matches, match => {
@@ -1789,7 +1789,7 @@ export class SearchView extends ViewPane {
 		}
 
 		if (editor instanceof NotebookEditor) {
-			const controller = editor.getControl()?.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
+			const controller = editor.getControl()?.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
 			const matchIndex = element instanceof Match ? element.parent().matches().findIndex(e => e.id() === element.id()) : undefined;
 			controller?.show(this.searchWidget.searchInput.getValue(), { matchIndex, focus: false });
 		}

@@ -55,8 +55,7 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 		}
 
 		if (!kernel) {
-			await this._commandService.executeCommand(SELECT_KERNEL_ID);
-			kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
+			kernel = await this.resolveKernelFromKernelPicker(notebook);
 		}
 
 		if (!kernel) {
@@ -85,6 +84,30 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 				this._logService.debug(`NotebookExecutionService#executeNotebookCells completing unconfirmed executions ${JSON.stringify(unconfirmed.map(exe => exe.cellHandle))}`);
 				unconfirmed.forEach(exe => exe.complete({}));
 			}
+		}
+	}
+
+	private async resolveKernelFromKernelPicker(notebook: INotebookTextModel, attempt: number = 1): Promise<INotebookKernel | undefined> {
+		if (attempt > 3) {
+			// we couldnt resolve kernels through kernel picker multiple times, skip
+			return;
+		}
+
+		await this._commandService.executeCommand(SELECT_KERNEL_ID);
+		const runningSourceActions = this._notebookKernelService.getRunningSourceActions(notebook);
+
+		if (runningSourceActions.length) {
+			await Promise.all(runningSourceActions.map(action => action.runAction()));
+
+			const kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
+			if (kernel) {
+				return kernel;
+			}
+
+			attempt += 1;
+			return this.resolveKernelFromKernelPicker(notebook, attempt);
+		} else {
+			return this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
 		}
 	}
 

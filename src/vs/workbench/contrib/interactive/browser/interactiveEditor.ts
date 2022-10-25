@@ -58,7 +58,7 @@ import { NOTEBOOK_KERNEL } from 'vs/workbench/contrib/notebook/common/notebookCo
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isEqual } from 'vs/base/common/resources';
-import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
+import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
 import { INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
@@ -329,7 +329,7 @@ export class InteractiveEditor extends EditorPane {
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
 				ExecutionStateCellStatusBarContrib.id,
 				TimerCellStatusBarContrib.id,
-				NotebookFindWidget.id
+				NotebookFindContrib.id
 			]),
 			menuIds: {
 				notebookToolbar: MenuId.InteractiveToolbar,

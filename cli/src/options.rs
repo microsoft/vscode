@@ -7,7 +7,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(clap::ArgEnum, Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(clap::ArgEnum, Copy, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Quality {
 	#[serde(rename = "stable")]
 	Stable,
@@ -36,11 +36,19 @@ impl Quality {
 		}
 	}
 
-	pub fn get_app_name(&self) -> &'static str {
+	pub fn get_macos_app_name(&self) -> &'static str {
 		match self {
-			Quality::Insiders => "Visual Studio Code Insiders",
-			Quality::Exploration => "Visual Studio Code Exploration",
+			Quality::Insiders => "Visual Studio Code - Insiders",
+			Quality::Exploration => "Visual Studio Code - Exploration",
 			Quality::Stable => "Visual Studio Code",
+		}
+	}
+
+	pub fn get_commandline_name(&self) -> &'static str {
+		match self {
+			Quality::Insiders => "code-insiders",
+			Quality::Exploration => "code-exploration",
+			Quality::Stable => "code",
 		}
 	}
 

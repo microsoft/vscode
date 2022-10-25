@@ -3,64 +3,64 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+use std::path::{Path, PathBuf};
+
 use crate::{
-	desktop::{CodeVersionManager, RequestedVersion},
+	desktop::{prompt_to_install, CodeVersionManager, RequestedVersion},
 	log,
-	update_service::UpdateService,
-	util::{errors::AnyError, prereqs::PreReqChecker},
+	util::{
+		errors::{AnyError, NoInstallInUserProvidedPath},
+		prereqs::PreReqChecker,
+	},
 };
 
-use super::{
-	args::{OutputFormatOptions, UninstallVersionArgs, UseVersionArgs},
-	output::{Column, OutputTable},
-	CommandContext,
-};
+use super::{args::UseVersionArgs, CommandContext};
 
 pub async fn switch_to(ctx: CommandContext, args: UseVersionArgs) -> Result<i32, AnyError> {
 	let platform = PreReqChecker::new().verify().await?;
-	let vm = CodeVersionManager::new(&ctx.paths, platform);
+	let vm = CodeVersionManager::new(ctx.log.clone(), &ctx.paths, platform);
 	let version = RequestedVersion::try_from(args.name.as_str())?;
 
-	if !args.reinstall && vm.try_get_entrypoint(&version).await.is_some() {
-		vm.set_preferred_version(&version)?;
-		print_now_using(&ctx.log, &version);
-		return Ok(0);
+	let maybe_path = match args.install_dir {
+		Some(d) => Some(
+			CodeVersionManager::get_entrypoint_for_install_dir(&PathBuf::from(&d))
+				.await
+				.ok_or(NoInstallInUserProvidedPath(d))?,
+		),
+		None => vm.try_get_entrypoint(&version).await,
+	};
+
+	match maybe_path {
+		Some(p) => {
+			vm.set_preferred_version(version.clone(), p.clone()).await?;
+			print_now_using(&ctx.log, &version, &p);
+			Ok(0)
+		}
+		None => {
+			prompt_to_install(&version);
+			Ok(1)
+		}
+	}
+}
+
+pub async fn show(ctx: CommandContext) -> Result<i32, AnyError> {
+	let platform = PreReqChecker::new().verify().await?;
+	let vm = CodeVersionManager::new(ctx.log.clone(), &ctx.paths, platform);
+
+	let version = vm.get_preferred_version();
+	println!("Current quality: {}", version);
+	match vm.try_get_entrypoint(&version).await {
+		Some(p) => println!("Installation path: {}", p.display()),
+		None => println!("No existing installation found"),
 	}
 
-	let update_service = UpdateService::new(ctx.log.clone(), ctx.http.clone());
-	vm.install(&update_service, &version).await?;
-	vm.set_preferred_version(&version)?;
-	print_now_using(&ctx.log, &version);
 	Ok(0)
 }
 
-pub async fn list(ctx: CommandContext, args: OutputFormatOptions) -> Result<i32, AnyError> {
-	let platform = PreReqChecker::new().verify().await?;
-	let vm = CodeVersionManager::new(&ctx.paths, platform);
-
-	let mut name = Column::new("Installation");
-	let mut command = Column::new("Command");
-	for version in vm.list() {
-		name.add_row(version.to_string());
-		command.add_row(version.get_command());
-	}
-	args.format
-		.print_table(OutputTable::new(vec![name, command]))
-		.ok();
-
-	Ok(0)
-}
-
-pub async fn uninstall(ctx: CommandContext, args: UninstallVersionArgs) -> Result<i32, AnyError> {
-	let platform = PreReqChecker::new().verify().await?;
-	let vm = CodeVersionManager::new(&ctx.paths, platform);
-	let version = RequestedVersion::try_from(args.name.as_str())?;
-	vm.uninstall(&version).await?;
-	ctx.log
-		.result(&format!("VS Code {} uninstalled successfully", version));
-	Ok(0)
-}
-
-fn print_now_using(log: &log::Logger, version: &RequestedVersion) {
-	log.result(&format!("Now using VS Code {}", version));
+fn print_now_using(log: &log::Logger, version: &RequestedVersion, path: &Path) {
+	log.result(&format!(
+		"Now using VS Code {} from {}",
+		version,
+		path.display()
+	));
 }
