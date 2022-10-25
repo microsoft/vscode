@@ -34,7 +34,7 @@ This server uses the [Markdown Language Service](https://github.com/microsoft/vs
 	- Organize link definitions source action.
 	- Extract link to definition refactoring.
 
-- Updating links when a file is moved / renamed. Uses a custom `markdown/getEditForFileRenames` message.
+- (experimental) Updating links when a file is moved / renamed. Uses a custom `markdown/getEditForFileRenames` message.
 
 - [Pull diagnostics (validation)](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_pullDiagnostics) for links.
 
@@ -56,10 +56,6 @@ The server supports the following settings:
 	- `suggest`
 		- `paths`
 			- `enabled` — Enable/disable path suggestions.
-
-	- `occurrencesHighlight`
-		- `enabled` — Enable/disable highlighting of link occurrences.
-
 	- `validate`
 		- `enabled` — Enable/disable all validation.
 		- `referenceLinks`
